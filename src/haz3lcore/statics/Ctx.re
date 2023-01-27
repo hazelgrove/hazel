@@ -26,7 +26,7 @@ let lookup_tag = (ctx: t, name: string): option(var_entry) =>
     ctx,
   );
 
-let add_tags = (ctx, name: Token.t, id, tags: Typ.typ_map) =>
+let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
   List.map(
     ((tag, typ)) =>
       TagEntry({
@@ -42,7 +42,7 @@ let add_tags = (ctx, name: Token.t, id, tags: Typ.typ_map) =>
   )
   @ ctx;
 
-let add_singleton = (ctx, name, id, ty) =>
+let add_singleton = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
   extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
 let subtract_typ = (ctx: t, free: co): co =>
@@ -113,7 +113,7 @@ let rec join =
   | (Rec(x1, t1), Rec(x2, t2)) => join(~d=[(x1, x2), ...d], ctx, t1, t2)
   | (Rec(_), _) => None
   | (Var(n1), Var(n2)) =>
-    if (Typ.type_var_eq(d, n1, n2)) {
+    if (Typ.var_eq(d, n1, n2)) {
       Some(Var(n1));
     } else {
       let* Singleton(ty1) = lookup_tvar(ctx, n1);
@@ -140,28 +140,9 @@ let rec join =
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Prod(tys1), Prod(tys2)) =>
-    if (List.length(tys1) != List.length(tys2)) {
-      None;
-    } else {
-      switch (List.map2(join', tys1, tys2) |> Util.OptUtil.sequence) {
-      | None => None
-      | Some(tys) => Some(Prod(tys))
-      };
-    }
+  | (Prod(tys1), Prod(tys2)) => join_products(~d, ctx, tys1, tys2)
   | (Prod(_), _) => None
-  | (Sum(tys1), Sum(tys2)) =>
-    if (List.length(tys1) != List.length(tys2)) {
-      None;
-    } else {
-      List.map2(
-        tagged_join(~d, ctx),
-        Typ.sort_tagged(tys1),
-        Typ.sort_tagged(tys2),
-      )
-      |> Util.OptUtil.sequence
-      |> Option.map(tys => Typ.Sum(tys));
-    }
+  | (Sum(sm1), Sum(sm2)) => join_sums(~d, ctx, sm1, sm2)
   | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>
     switch (join'(ty_1, ty_2)) {
@@ -171,8 +152,31 @@ let rec join =
   | (List(_), _) => None
   };
 }
-and tagged_join =
-    (~d, ctx, (tag1, ty1), (tag2, ty2)): option((Token.t, option(Typ.t))) =>
+and join_products = (~d, ctx: t, tys1, tys2): option(Typ.t) =>
+  if (List.length(tys1) != List.length(tys2)) {
+    None;
+  } else {
+    switch (List.map2(join(~d, ctx), tys1, tys2) |> Util.OptUtil.sequence) {
+    | None => None
+    | Some(tys) => Some(Prod(tys))
+    };
+  }
+and join_sums =
+    (~d, ctx: t, sm1: Typ.sum_map, sm2: Typ.sum_map): option(Typ.t) =>
+  if (List.length(sm1) != List.length(sm2)) {
+    None;
+  } else {
+    List.map2(
+      join_sum_entries(~d, ctx),
+      Typ.sort_sum(sm1),
+      Typ.sort_sum(sm2),
+    )
+    |> Util.OptUtil.sequence
+    |> Option.map(sm => Typ.Sum(sm));
+  }
+and join_sum_entries =
+    (~d, ctx: t, (tag1, ty1): Typ.sum_entry, (tag2, ty2): Typ.sum_entry)
+    : option(Typ.sum_entry) =>
   tag1 == tag2
     ? switch (ty1, ty2) {
       | (None, None) => Some((tag1, None))

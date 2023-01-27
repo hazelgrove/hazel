@@ -116,10 +116,9 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | Tag(_) =>
         //TODO(andrew):ADTS rec types?
         switch (ana_ty, self_ty) {
-        | (Unknown(prov), Sum(tymap)) =>
-          let tymap' =
-            tymap |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
-          Some(DHExp.cast(d, Sum(tymap'), ana_ty));
+        | (Unknown(prov), Sum(sm)) =>
+          let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
+          Some(DHExp.cast(d, Sum(sm'), ana_ty));
         | _ => Some(d)
         }
       /* Forms with special ana rules but no particular typing requirements */

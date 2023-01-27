@@ -19,13 +19,15 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
+let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
-let grounded_Sum = (tymap: TagMap.t(option(Typ.t))): ground_cases => {
-  let tymap' = tymap |> TagMap.map(Option.map(_ => Typ.Unknown(Internal)));
-  NotGroundOrHole(Sum(tymap'));
+let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
+  let sm' = sm |> TagMap.map(Option.map(const_unknown));
+  NotGroundOrHole(Sum(sm'));
 };
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
@@ -56,21 +58,20 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     } else {
       tys |> List.length |> grounded_Prod;
     }
-  | Sum(tymap) =>
-    tymap |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(tymap)
+  | Sum(sm) =>
+    sm |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
   | Arrow(_, _) => grounded_Arrow
   | List(_) => grounded_List
   };
 };
 
-let cast_tymaps =
-    (tymap1: TagMap.t(option(Typ.t)), tymap2: TagMap.t(option(Typ.t)))
-    : option(TagMap.t((Typ.t, Typ.t))) => {
-  let (tags1, types1) = tymap1 |> TagMap.bindings |> List.split;
-  let (tags2, types2) = tymap2 |> TagMap.bindings |> List.split;
+let cast_sum_maps =
+    (sm1: Typ.sum_map, sm2: Typ.sum_map): option(TagMap.t((Typ.t, Typ.t))) => {
+  let (tags1, tys1) = sm1 |> TagMap.bindings |> List.split;
+  let (tags2, tys2) = sm2 |> TagMap.bindings |> List.split;
   if (tags1 == tags2) {
-    let tys1 = types1 |> List.filter(Option.is_some) |> List.map(Option.get);
-    let tys2 = types2 |> List.filter(Option.is_some) |> List.map(Option.get);
+    let tys1 = tys1 |> List.filter(Option.is_some) |> List.map(Option.get);
+    let tys2 = tys2 |> List.filter(Option.is_some) |> List.map(Option.get);
     if (List.length(tys1) == List.length(tys2)) {
       Some(List.(combine(tys1, tys2) |> combine(tags1)) |> TagMap.of_list);
     } else {
@@ -162,8 +163,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | (Ap(Tag(tag), dp_opt), Cast(d, Sum(tymap1), Sum(tymap2))) =>
-    switch (cast_tymaps(tymap1, tymap2)) {
+  | (Ap(Tag(tag), dp_opt), Cast(d, Sum(sm1), Sum(sm2))) =>
+    switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(tag, dp_opt, d, [castmap])
     | None => DoesNotMatch
     }
@@ -215,10 +216,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       d,
       List.map(
         p => [p],
-        List.combine(
-          tys,
-          List.init(List.length(tys), _ => Typ.Unknown(Internal)),
-        ),
+        List.combine(tys, List.init(List.length(tys), const_unknown)),
       ),
     )
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
@@ -227,10 +225,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       d,
       List.map(
         p => [p],
-        List.combine(
-          List.init(List.length(tys'), _ => Typ.Unknown(Internal)),
-          tys',
-        ),
+        List.combine(List.init(List.length(tys'), const_unknown), tys'),
       ),
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
@@ -265,8 +260,8 @@ and matches_cast_Sum =
     | Some(side_casts) => matches(dp, DHExp.apply_casts(d', side_casts))
     | None => DoesNotMatch
     }
-  | Cast(d', Sum(tymap1), Sum(tymap2)) =>
-    switch (cast_tymaps(tymap1, tymap2)) {
+  | Cast(d', Sum(sm1), Sum(sm2)) =>
+    switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(tag, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
     }
@@ -347,14 +342,14 @@ and matches_cast_Tuple =
       );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
-    let tys' = List.init(List.length(tys), _ => Typ.Unknown(Internal));
+    let tys' = List.init(List.length(tys), const_unknown);
     matches_cast_Tuple(
       dps,
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(d', Unknown(_), Prod(tys')) =>
-    let tys = List.init(List.length(tys'), _ => Typ.Unknown(Internal));
+    let tys = List.init(List.length(tys'), const_unknown);
     matches_cast_Tuple(
       dps,
       d',
