@@ -21,8 +21,7 @@ type t =
   | Var(string)
   | List(t)
   | Arrow(t, t)
-  | TSum(typ_map)
-  | Sum(t, t) // unused
+  | Sum(typ_map)
   | Prod(list(t))
   | Rec(Token.t, t)
 and typ_map = VarMap.t_(option(t));
@@ -164,10 +163,9 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Rec(_)
-  | TSum(_)
+  | Sum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
-  | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 
@@ -202,16 +200,13 @@ let rec eq = (~d=[], t1, t2) => {
   | (Prod(tys1), Prod(tys2)) =>
     List.length(tys1) == List.length(tys2) && List.for_all2(eq', tys1, tys2)
   | (Prod(_), _) => false
-  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) =>
-    eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
-  | (Sum(_), _) => false
   | (List(t1), List(t2)) => eq'(t1, t2)
   | (List(_), _) => false
-  | (TSum(tys1), TSum(tys2)) =>
+  | (Sum(tys1), Sum(tys2)) =>
     let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
     List.length(tys1) == List.length(tys2)
     && List.for_all2(tagged_eq(~d), tys1, tys2);
-  | (TSum(_), _) => false
+  | (Sum(_), _) => false
   | (Var(n1), Var(n2)) => type_var_eq(d, n1, n2)
   | (Var(_), _) => false
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
@@ -237,9 +232,8 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | String => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | List(ty) => free_vars(~bound, ty)
-  | Arrow(t1, t2)
-  | Sum(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-  | TSum(tags) =>
+  | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | Sum(tags) =>
     List.concat(
       List.map(
         ((_, typ)) =>
@@ -263,8 +257,8 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
-  | TSum(tys) =>
-    TSum(
+  | Sum(tys) =>
+    Sum(
       List.map(
         ((tag, typ)) => (tag, Option.map(typ => subst(s, x, typ), typ)),
         tys,
@@ -272,7 +266,6 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
     )
   | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
-  | Sum(ty1, ty2) => Sum(subst(s, x, ty1), subst(s, x, ty2))
   | List(ty) => List(subst(s, x, ty))
   | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
   };

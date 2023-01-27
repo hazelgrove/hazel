@@ -21,13 +21,11 @@ type match_result =
 
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
-let grounded_Sum =
-  NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
-let grounded_TSum = (tymap: TagMap.t(option(Typ.t))): ground_cases => {
+let grounded_Sum = (tymap: TagMap.t(option(Typ.t))): ground_cases => {
   let tymap' = tymap |> TagMap.map(Option.map(_ => Typ.Unknown(Internal)));
-  NotGroundOrHole(TSum(tymap'));
+  NotGroundOrHole(Sum(tymap'));
 };
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
@@ -46,7 +44,6 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Var(_)
   | Rec(_)
   | Arrow(Unknown(_), Unknown(_))
-  | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
     if (List.for_all(
@@ -59,10 +56,9 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     } else {
       tys |> List.length |> grounded_Prod;
     }
-  | TSum(tymap) =>
-    tymap |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_TSum(tymap)
+  | Sum(tymap) =>
+    tymap |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(tymap)
   | Arrow(_, _) => grounded_Arrow
-  | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
 };
@@ -166,13 +162,13 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | (Ap(Tag(tag), dp_opt), Cast(d, TSum(tymap1), TSum(tymap2))) =>
+  | (Ap(Tag(tag), dp_opt), Cast(d, Sum(tymap1), Sum(tymap2))) =>
     switch (cast_tymaps(tymap1, tymap2)) {
-    | Some(castmap) => matches_cast_TSum(tag, dp_opt, d, [castmap])
+    | Some(castmap) => matches_cast_Sum(tag, dp_opt, d, [castmap])
     | None => DoesNotMatch
     }
-  | (Ap(_, _), Cast(d, TSum(_), Unknown(_)))
-  | (Ap(_, _), Cast(d, Unknown(_), TSum(_))) => matches(dp, d)
+  | (Ap(_, _), Cast(d, Sum(_), Unknown(_)))
+  | (Ap(_, _), Cast(d, Unknown(_), Sum(_))) => matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
   | (Tag(n1), Tag(n2)) =>
@@ -184,14 +180,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Tag(_), Cast(d, _, Unknown(_))) => matches(dp, d)
   | (Tag(_), Cast(d, Unknown(_), _)) => matches(dp, d)
   | (Tag(_), _) => DoesNotMatch
-  | (Inj(side1, dp), Inj(_, side2, d)) =>
-    switch (side1, side2) {
-    | (L, L)
-    | (R, R) => matches(dp, d)
-    | _ => DoesNotMatch
-    }
-  | (Inj(side, dp), Cast(_)) => matches_cast_Inj(side, dp, d, [])
-  | (Inj(_, _), _) => DoesNotMatch
+
   | (Tuple(dps), Tuple(ds)) =>
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
@@ -258,7 +247,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
   }
-and matches_cast_TSum =
+and matches_cast_Sum =
     (
       tag: string,
       dp: DHPat.t,
@@ -276,14 +265,13 @@ and matches_cast_TSum =
     | Some(side_casts) => matches(dp, DHExp.apply_casts(d', side_casts))
     | None => DoesNotMatch
     }
-  | Cast(d', TSum(tymap1), TSum(tymap2)) =>
+  | Cast(d', Sum(tymap1), Sum(tymap2)) =>
     switch (cast_tymaps(tymap1, tymap2)) {
-    | Some(castmap) =>
-      matches_cast_TSum(tag, dp, d', [castmap, ...castmaps])
+    | Some(castmap) => matches_cast_Sum(tag, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
     }
   | Cast(d', Sum(_), Unknown(_))
-  | Cast(d', Unknown(_), Sum(_)) => matches_cast_TSum(tag, dp, d', castmaps)
+  | Cast(d', Unknown(_), Sum(_)) => matches_cast_Sum(tag, dp, d', castmaps)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
@@ -310,90 +298,12 @@ and matches_cast_TSum =
   | ListLit(_)
   | Tuple(_)
   | Prj(_)
-  | Inj(_)
   | Tag(_)
   | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)
   | TestLit(_)
   | Cons(_) => DoesNotMatch
-  }
-and matches_cast_Inj =
-    (
-      side: InjSide.t,
-      dp: DHPat.t,
-      d: DHExp.t,
-      casts: list((Typ.t, Typ.t, Typ.t, Typ.t)),
-    )
-    : match_result =>
-  switch (d) {
-  | Inj(_, side', d') =>
-    switch (side, side') {
-    | (L, L)
-    | (R, R) =>
-      let side_casts =
-        List.map(
-          (c: (Typ.t, Typ.t, Typ.t, Typ.t)) => {
-            let (tyL1, tyR1, tyL2, tyR2) = c;
-            switch (side) {
-            | L => (tyL1, tyL2)
-            | R => (tyR1, tyR2)
-            };
-          },
-          casts,
-        );
-      matches(dp, DHExp.apply_casts(d', side_casts));
-    | _ => DoesNotMatch
-    }
-  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(tyL1, tyR1), Unknown(_)) =>
-    matches_cast_Inj(
-      side,
-      dp,
-      d',
-      [(tyL1, tyR1, Unknown(Internal), Unknown(Internal))],
-    )
-  | Cast(d', Unknown(_), Sum(tyL2, tyR2)) =>
-    matches_cast_Inj(
-      side,
-      dp,
-      d',
-      [(Unknown(Internal), Unknown(Internal), tyL2, tyR2)],
-    )
-  | Cast(_, _, _) => DoesNotMatch
-  | BoundVar(_) => DoesNotMatch
-  | FreeVar(_) => IndetMatch
-  | InvalidText(_) => IndetMatch
-  | ExpandingKeyword(_) => IndetMatch
-  | Let(_, _, _) => IndetMatch
-  | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
-  | Closure(_, _) => IndetMatch
-  | Ap(_, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | BinStringOp(_, _, _)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | Sequence(_)
-  | TestLit(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
-  | ListLit(_, _, _, _, _) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | Tuple(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
-  | Tag(_) => DoesNotMatch
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => IndetMatch
-  | EmptyHole(_) => IndetMatch
-  | NonEmptyHole(_) => IndetMatch
-  | FailedCast(_, _, _) => IndetMatch
-  | InvalidOperation(_) => IndetMatch
   }
 and matches_cast_Tuple =
     (
@@ -472,7 +382,6 @@ and matches_cast_Tuple =
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Prj(_) => DoesNotMatch
@@ -608,7 +517,6 @@ and matches_cast_Cons =
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Tag(_) => DoesNotMatch
@@ -907,13 +815,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
         };
-      };
-
-    | Inj(ty, side, d1) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1')) |> return
-      | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
       };
 
     | Tuple(ds) =>

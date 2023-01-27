@@ -105,17 +105,6 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Sum(ty1, ty2) =>
-      let (d1, d2) =
-        mk_right_associative_operands(Typ.precedence_Sum, ty1, ty2);
-      (
-        hcats([
-          d1,
-          hcats([choices([linebreak(), space()]), text("| ")]),
-          d2,
-        ]),
-        parenthesize,
-      );
     | Rec(x, ty) => (
         hcats([
           text("Rec " ++ x ++ ".{"),
@@ -128,7 +117,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
-    | TSum(_) =>
+    | Sum(_) =>
       //TODO: hdocs for labelled sum types
       (text("(sum ...)"), parenthesize)
     };

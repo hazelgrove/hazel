@@ -55,9 +55,9 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
-  | TSum(ts) =>
+  | Sum(ts) =>
     div(
-      ~attr=clss(["typ-view", "TSum"]),
+      ~attr=clss(["typ-view", "Sum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
       | [t0] => [text("Singleton Sum {")] @ tagged_view(t0) @ [text("}")]
@@ -66,11 +66,6 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
           List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
         tagged_view(t0) @ ts_views;
       },
-    )
-  | Sum(t1, t2) =>
-    div(
-      ~attr=clss(["typ-view", "Sum"]),
-      [view(t1), text(" + "), view(t2)],
     )
   }
 and tagged_view = ((tag, typ)) =>

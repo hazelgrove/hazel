@@ -13,7 +13,6 @@ let precedence = (dp: DHPat.t) =>
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
-  | Inj(_)
   | ListLit(_)
   | Tag(_) => DHDoc_common.precedence_const
   | Tuple(_) => DHDoc_common.precedence_Comma
@@ -47,11 +46,6 @@ let rec mk =
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
     | StringLit(s) => DHDoc_common.mk_StringLit(s)
-    | Inj(inj_side, dp) =>
-      DHDoc_common.mk_Inj(
-        inj_side,
-        mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
-      )
     | ListLit(_, d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);

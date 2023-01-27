@@ -314,8 +314,8 @@ let tag_ana_typ = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): option(Typ.t) =>
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
     switch (Ctx.resolve_typ(ctx, ty_ana)) {
-    | Some(TSum(tags))
-    | Some(Rec(_, TSum(tags))) => Typ.ana_sum(tag, tags, ty_ana)
+    | Some(Sum(tags))
+    | Some(Rec(_, Sum(tags))) => Typ.ana_sum(tag, tags, ty_ana)
     | _ => None
     }
   | _ => None
@@ -565,8 +565,8 @@ and uexp_to_info_map =
           List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
         let ctx = Ctx.add_singleton(ctx, name, utpat_id(typat), ty_rec);
         switch (ty_rec) {
-        | TSum(tags)
-        | Rec(_, TSum(tags)) => Ctx.add_tags(ctx, name, typ_id(utyp), tags)
+        | Sum(tags)
+        | Rec(_, Sum(tags)) => Ctx.add_tags(ctx, name, typ_id(utyp), tags)
         | _ => ctx
         };
       | _ => ctx
@@ -776,7 +776,7 @@ and utyp_to_info_map =
     | VariantExpected(_) => ok(m)
     | Normal => error(ApOutsideSum, m)
     };
-  | UTSum(ts) =>
+  | USum(ts) =>
     let (ms, _) =
       List.fold_left(
         ((acc, tags), ut) => {

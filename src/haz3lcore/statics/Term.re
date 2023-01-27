@@ -36,7 +36,7 @@ module UTyp = {
     | Tag
     | Parens
     | Ap
-    | UTSum;
+    | USum;
 
   include TermBase.UTyp;
 
@@ -66,7 +66,7 @@ module UTyp = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | UTSum(_) => UTSum;
+    | USum(_) => USum;
 
   let show_cls: cls => string =
     fun
@@ -84,7 +84,7 @@ module UTyp = {
     | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
     | Ap => "Sum Constructor Application Definition"
-    | UTSum => "Sum Type";
+    | USum => "Sum Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -101,7 +101,7 @@ module UTyp = {
     | Var(_)
     | Tag(_)
     | Ap(_)
-    | UTSum(_) => false
+    | USum(_) => false
     };
   };
 
@@ -122,7 +122,7 @@ module UTyp = {
       | Var(name) => Var(name)
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | UTSum(uts) => TSum(to_tag_map(ctx, uts))
+      | USum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       }
