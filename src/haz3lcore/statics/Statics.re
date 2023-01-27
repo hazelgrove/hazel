@@ -61,7 +61,8 @@ type status_tag =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_mode =
-  | Normal
+  | TypeExpected
+  | TagExpected(status_tag)
   | VariantExpected(status_tag);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -720,7 +721,8 @@ and upat_to_info_map =
   };
 }
 and utyp_to_info_map =
-    (~ctx, ~mode=Normal, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+    (~ctx, ~mode=TypeExpected, {ids, term} as utyp: Term.UTyp.t)
+    : (Typ.t, map) => {
   let cls: Term.UTyp.cls =
     switch (mode, Term.UTyp.cls_of_term(term)) {
     | (VariantExpected(_), Var) => Tag
@@ -731,8 +733,9 @@ and utyp_to_info_map =
     add_info(ids, InfoTyp({cls, ctx, mode, status, term: utyp}));
   let ok = (m: map): (Typ.t, map) => (ty, add(Ok(ty), m));
   let error = (err, m) => (Typ.Unknown(Internal), add(err, m));
-  let normal = m => mode != Normal ? error(TagExpected(ty), m) : ok(m);
-  let go = utyp_to_info_map(~ctx, ~mode=Normal);
+  let normal = m =>
+    mode != TypeExpected ? error(TagExpected(ty), m) : ok(m);
+  let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   //TODO: refactor this along status+mode=>fix lines
   switch (term) {
@@ -757,24 +760,27 @@ and utyp_to_info_map =
   | Tag(name) =>
     let m = Id.Map.empty;
     switch (mode) {
-    | VariantExpected(Duplicate) => error(DuplicateTag, m)
-    | VariantExpected(Unique) => ok(m)
-    | Normal => Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
+    | VariantExpected(Duplicate)
+    | TagExpected(Duplicate) => error(DuplicateTag, m)
+    | VariantExpected(Unique)
+    | TagExpected(Unique) => ok(m)
+    | TypeExpected => Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
     };
   | Ap(t1, t2) =>
     let t1_mode =
       switch (mode) {
-      | VariantExpected(_) => mode
-      | Normal => VariantExpected(Unique)
+      | VariantExpected(m) => TagExpected(m)
+      | _ => TagExpected(Unique)
       };
     let m =
       union_m([
         utyp_to_info_map(~ctx, ~mode=t1_mode, t1) |> snd,
-        utyp_to_info_map(~ctx, ~mode=Normal, t2) |> snd,
+        utyp_to_info_map(~ctx, ~mode=TypeExpected, t2) |> snd,
       ]);
     switch (mode) {
     | VariantExpected(_) => ok(m)
-    | Normal => error(ApOutsideSum, m)
+    | TagExpected(_) => error(TagExpected(ty), m)
+    | TypeExpected => error(ApOutsideSum, m)
     };
   | USum(ts) =>
     let (ms, _) =
