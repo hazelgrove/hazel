@@ -116,11 +116,10 @@ and Kind: {
     | String => typ
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-    | LabelSum(ts) =>
-      LabelSum(
+    | TSum(ts) =>
+      TSum(
         List.map(
-          (Typ.{typ, tag}) =>
-            Typ.{typ: Option.map(normalize(ctx), typ), tag},
+          ((tag, typ)) => (tag, Option.map(normalize(ctx), typ)),
           ts,
         ),
       )

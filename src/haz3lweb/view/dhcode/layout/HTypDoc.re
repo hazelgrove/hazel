@@ -128,7 +128,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
-    | LabelSum(_) =>
+    | TSum(_) =>
       //TODO: hdocs for labelled sum types
       (text("(sum ...)"), parenthesize)
     };
