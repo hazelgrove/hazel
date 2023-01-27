@@ -20,8 +20,8 @@ let of_delim' =
 
       let livelit_nodes: list(t) =
         switch (label) {
-        | ["$int"] => [Node.input(~attr=Attr.create("type", "range"), ())]
-        | ["$str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
+        | ["%int"] => [Node.input(~attr=Attr.create("type", "range"), ())]
+        | ["%str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
         | _ => []
         };
       [

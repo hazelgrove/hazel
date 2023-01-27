@@ -104,7 +104,7 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 
-let is_livelit = t => regexp("^\\$[a-z][A-Za-z0-9_]*$", t);
+let is_livelit = t => regexp("^[%]\\([a-z][A-Za-z0-9_]*\\)?$", t);
 
 let string_delim = "\"";
 let is_string_delim = str => str == string_delim;
@@ -137,7 +137,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("livelit", (is_livelit, [mk_op(Pat, [])])),
+  ("livelit", (is_livelit, [mk_op(Exp, [])])),
 ];
 
 /* C. Compound Forms:
@@ -191,10 +191,6 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
-  (
-    "livelit_def",
-    mk(ds, ["livelit", "at", "in"], mk_pre(P.let_, Exp, [Pat, Typ])) // TODO: How do we syntactically want to handle the rest of the information in haz3l
-  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (

@@ -277,8 +277,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         };
       | LivelitAp({livelit_name}) =>
         switch (livelit_name) {
-        | "$int" => Some(IntLit(1))
-        | "$str" => Some(StringLit("livelit string"))
+        | "%int" => Some(IntLit(1))
+        | "%str" => Some(StringLit("livelit string"))
         | _ => None
         }
       | Match(scrut, rules) =>
