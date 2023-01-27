@@ -88,7 +88,7 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
         lbl1(case) && lbl2(rule),
         lbl1(rule) && lbl2(rule),
         lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
-        lbl1(["+"]) && lbl2(["+"]),
+        lbl1(["+"]) && lbl2(["+"]) && t1.mold == t2.mold,
       ]
       |> List.fold_left((||), false);
     if (eq) {
@@ -171,7 +171,11 @@ module Stacks = {
     | (_, Some((l, r))) =>
       let is = List.map(fst, chain);
       let split_kids = n =>
-        ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev);
+        try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
+        | _ =>
+          print_endline(show(stacks));
+          failwith("blah");
+        };
       let output =
         switch (l, r) {
         | (Convex, Convex) =>

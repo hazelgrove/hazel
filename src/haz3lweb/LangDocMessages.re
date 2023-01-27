@@ -861,7 +861,7 @@ let var_exp: form = {
 let tag_exp_group = "tag_exp_group";
 let tag_exp: form = {
   let explanation = {
-    message: "`%s` is a constructor for an algebraic data type.",
+    message: "`%s` is a constructor for a sum type variant.",
     feedback: Unselected,
   };
   {

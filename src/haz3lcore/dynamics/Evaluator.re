@@ -25,18 +25,18 @@ let grounded_Sum =
   NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
-let grounded_TSum = labels =>
-  NotGroundOrHole(
-    TSum(
-      List.map(
-        ((tag, _typ)) => (tag, Some(Typ.Unknown(Internal))),
-        labels,
-      ),
-    ),
-  );
+let grounded_TSum = (tymap: TagMap.t(option(Typ.t))): ground_cases => {
+  let tymap' = tymap |> TagMap.map(Option.map(_ => Typ.Unknown(Internal)));
+  NotGroundOrHole(TSum(tymap'));
+};
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
-let ground_cases_of = (ty: Typ.t): ground_cases =>
+let rec ground_cases_of = (ty: Typ.t): ground_cases => {
+  let is_ground_arg: option(Typ.t) => bool =
+    fun
+    | None
+    | Some(Typ.Unknown(_)) => true
+    | Some(ty) => ground_cases_of(ty) == Ground;
   switch (ty) {
   | Unknown(_) => Hole
   | Bool
@@ -59,21 +59,31 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
     } else {
       tys |> List.length |> grounded_Prod;
     }
-  | TSum(tys) =>
-    if (List.for_all(
-          fun
-          | (_, Some(Typ.Unknown(_))) => true
-          | _ => false,
-          tys,
-        )) {
-      Ground;
-    } else {
-      tys |> grounded_TSum;
-    }
+  | TSum(tymap) =>
+    tymap |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_TSum(tymap)
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
+};
+
+let cast_tymaps =
+    (tymap1: TagMap.t(option(Typ.t)), tymap2: TagMap.t(option(Typ.t)))
+    : option(TagMap.t((Typ.t, Typ.t))) => {
+  let (tags1, types1) = tymap1 |> TagMap.bindings |> List.split;
+  let (tags2, types2) = tymap2 |> TagMap.bindings |> List.split;
+  if (tags1 == tags2) {
+    let tys1 = types1 |> List.filter(Option.is_some) |> List.map(Option.get);
+    let tys2 = types2 |> List.filter(Option.is_some) |> List.map(Option.get);
+    if (List.length(tys1) == List.length(tys2)) {
+      Some(List.(combine(tys1, tys2) |> combine(tags1)) |> TagMap.of_list);
+    } else {
+      None;
+    };
+  } else {
+    None;
+  };
+};
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
@@ -139,6 +149,32 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (StringLit(_), Cast(d, String, Unknown(_))) => matches(dp, d)
   | (StringLit(_), Cast(d, Unknown(_), String)) => matches(dp, d)
   | (StringLit(_), _) => DoesNotMatch
+
+  | (Ap(dp1, dp2), Ap(d1, d2)) =>
+    switch (matches(dp1, d1)) {
+    | DoesNotMatch => DoesNotMatch
+    | IndetMatch =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | IndetMatch
+      | Matches(_) => IndetMatch
+      }
+    | Matches(env1) =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | IndetMatch => IndetMatch
+      | Matches(env2) => Matches(Environment.union(env1, env2))
+      }
+    }
+  | (Ap(Tag(tag), dp_opt), Cast(d, TSum(tymap1), TSum(tymap2))) =>
+    switch (cast_tymaps(tymap1, tymap2)) {
+    | Some(castmap) => matches_cast_TSum(tag, dp_opt, d, [castmap])
+    | None => DoesNotMatch
+    }
+  | (Ap(_, _), Cast(d, TSum(_), Unknown(_)))
+  | (Ap(_, _), Cast(d, Unknown(_), TSum(_))) => matches(dp, d)
+  | (Ap(_, _), _) => DoesNotMatch
+
   | (Tag(n1), Tag(n2)) =>
     if (n1 == n2) {
       Matches(Environment.empty);
@@ -176,22 +212,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
         dps,
         ds,
       );
-    }
-  | (Ap(dp1, dp2), Ap(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
     }
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
     assert(List.length(tys) == List.length(tys'));
@@ -237,7 +257,66 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), ListLit(_))
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
-  | (Ap(_, _), _) => DoesNotMatch
+  }
+and matches_cast_TSum =
+    (
+      tag: string,
+      dp: DHPat.t,
+      d: DHExp.t,
+      castmaps: list(TagMap.t((Typ.t, Typ.t))),
+    )
+    : match_result =>
+  switch (d) {
+  | Ap(Tag(tag), d') =>
+    switch (
+      castmaps
+      |> List.map(castmap => TagMap.find_opt(tag, castmap))
+      |> OptUtil.sequence
+    ) {
+    | Some(side_casts) => matches(dp, DHExp.apply_casts(d', side_casts))
+    | None => DoesNotMatch
+    }
+  | Cast(d', TSum(tymap1), TSum(tymap2)) =>
+    switch (cast_tymaps(tymap1, tymap2)) {
+    | Some(castmap) =>
+      matches_cast_TSum(tag, dp, d', [castmap, ...castmaps])
+    | None => DoesNotMatch
+    }
+  | Cast(d', Sum(_), Unknown(_))
+  | Cast(d', Unknown(_), Sum(_)) => matches_cast_TSum(tag, dp, d', castmaps)
+  | FreeVar(_)
+  | ExpandingKeyword(_)
+  | InvalidText(_)
+  | Let(_)
+  | Ap(_)
+  | ApBuiltin(_)
+  | BinBoolOp(_)
+  | BinIntOp(_)
+  | BinFloatOp(_)
+  | BinStringOp(_)
+  | InconsistentBranches(_)
+  | EmptyHole(_)
+  | NonEmptyHole(_)
+  | FailedCast(_, _, _)
+  | InvalidOperation(_) => IndetMatch
+  | Cast(_)
+  | BoundVar(_)
+  | FixF(_)
+  | Fun(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | ListLit(_)
+  | Tuple(_)
+  | Prj(_)
+  | Inj(_)
+  | Tag(_)
+  | ConsistentCase(_)
+  | Sequence(_, _)
+  | Closure(_)
+  | TestLit(_)
+  | Cons(_) => DoesNotMatch
   }
 and matches_cast_Inj =
     (
