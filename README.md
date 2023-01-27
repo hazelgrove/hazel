@@ -136,9 +136,14 @@ build (takes longer per build).
    
 ### Debugging
 
+#### Printing
 You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
 
+#### Source Maps
 `js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+
+#### Debug Mode
+If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
 
 ### Testing
 
