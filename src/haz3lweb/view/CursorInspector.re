@@ -162,12 +162,12 @@ let view_of_info =
       [
         term_tag(~inject, ~show_lang_doc, is_err, "typ"),
         switch (status) {
-        | Ok(_) when cls == Var && mode != Normal =>
+        | Ok(_) when cls == Var && mode != TypeExpected =>
           div(
             ~attr=clss([happyc]),
             [text("Sum type constuctor definition")],
           )
-        | Ok(_) when cls == Ap && mode != Normal =>
+        | Ok(_) when cls == Ap && mode != TypeExpected =>
           div(
             ~attr=clss([happyc]),
             [text("Sum type constuctor definition")],
