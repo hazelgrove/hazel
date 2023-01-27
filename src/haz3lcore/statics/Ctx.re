@@ -150,7 +150,7 @@ let rec join =
       };
     }
   | (Prod(_), _) => None
-  | (TSum(tys1), TSum(tys2)) =>
+  | (Sum(tys1), Sum(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
@@ -160,13 +160,7 @@ let rec join =
         Typ.sort_tagged(tys2),
       )
       |> Util.OptUtil.sequence
-      |> Option.map(tys => Typ.TSum(tys));
-    }
-  | (TSum(_), _) => None
-  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
-    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
+      |> Option.map(tys => Typ.Sum(tys));
     }
   | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>

@@ -75,7 +75,7 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
       }
     | Ana(ana_ty) =>
-     //TODO(andrew):ADTS this resolution necessary?
+      //TODO(andrew):ADTS this resolution necessary?
       let ana_ty =
         switch (Ctx.resolve_typ(ctx, ana_ty)) {
         | Some(ty) => ty
@@ -112,20 +112,14 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Prod(us), ana_ty));
         | _ => Some(d)
         }
-      | Inj(_) =>
-        switch (ana_ty) {
-        | Unknown(prov) =>
-          Some(DHExp.cast(d, Sum(Unknown(prov), Unknown(prov)), ana_ty))
-        | _ => Some(d)
-        }
       | Ap(_, _)
       | Tag(_) =>
-       //TODO(andrew):ADTS rec types?
+        //TODO(andrew):ADTS rec types?
         switch (ana_ty, self_ty) {
-        | (Unknown(prov), TSum(tymap)) =>
+        | (Unknown(prov), Sum(tymap)) =>
           let tymap' =
             tymap |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
-          Some(DHExp.cast(d, TSum(tymap'), ana_ty));
+          Some(DHExp.cast(d, Sum(tymap'), ana_ty));
         | _ => Some(d)
         }
       /* Forms with special ana rules but no particular typing requirements */

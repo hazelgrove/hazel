@@ -12,7 +12,6 @@ type t =
   | FloatLit(float)
   | BoolLit(bool)
   | StringLit(string)
-  | Inj(InjSide.t, t)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
   | Tuple(list(t))
@@ -41,7 +40,6 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Tag(_)
   | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
-  | Inj(_, dp1) => binds_var(x, dp1)
   | Tuple(dps) => dps |> List.exists(binds_var(x))
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | ListLit(_, d_list) =>
