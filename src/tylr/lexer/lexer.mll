@@ -7,6 +7,7 @@ let alpha_lower = ['a'-'z']
 let alpha_upper = ['A'-'Z']
 let alpha = alpha_lower | alpha_upper
 
+(* todo: allow leading underscore *)
 let id_lower = alpha_lower (alpha | digit | '_')*
 let id_upper = alpha_upper (alpha | digit | '_')*
 
@@ -33,8 +34,10 @@ rule next_lexeme = parse
     (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
     let mold =
-      if Util.CharUtil.is_alphanum (String.get token 0)
-      then Mold.default_operand else Mold.default_infix
+      match String.get token 0 with
+      | '_' -> Mold.default_operand
+      | c when Util.CharUtil.is_alphanum c -> Mold.default_operand
+      | _ -> Mold.default_infix
     in
     Lexeme.T (Tile.mk mold token)
   }

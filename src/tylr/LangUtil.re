@@ -73,7 +73,20 @@ module Tokens = {
     };
 };
 
-let molds_of_token = t => Molds.of_token(Token.shape(t));
+let keywords: list(Token.t) =
+  Molds.bindings(Molds.t)
+  |> List.map(fst)
+  |> List.filter_map(
+       fun
+       | Token.Shape.Const(t) when CharUtil.is_alpha(t.[0]) => Some(t)
+       | _ => None,
+     );
+
+let molds_of_token = t => {
+  let shape = List.mem(t, keywords) ? Token.Shape.Const(t) : Token.shape(t);
+  Molds.of_token(shape);
+};
+
 let tokens_of_mold = Tokens.of_mold;
 
 let assoc = (s, p) =>

@@ -29,6 +29,14 @@ let is_float_lit = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 
-let is_alphanum_upper = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_id_lower = regexp("^[a-z][A-Za-z0-9_]*$");
+let is_id_upper = regexp("^[A-Z][A-Za-z0-9_]*$");
 
-let shape = (_: t): Shape.t => failwith("todo Token.shape");
+let shape = (t: t): Shape.t =>
+  switch (t) {
+  | _ when is_id_lower(t) => Id_lower
+  | _ when is_id_upper(t) => Id_upper
+  | _ when is_int_lit(t) => Int_lit
+  | _ when is_float_lit(t) => Float_lit
+  | _ => Const(t)
+  };
