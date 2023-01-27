@@ -1,6 +1,11 @@
 open Sexplib.Std;
 open Util;
 
+let exp_id = Term.UExp.rep_id;
+let pat_id = Term.UPat.rep_id;
+let typ_id = Term.UTyp.rep_id;
+let utpat_id = Term.UTPat.rep_id;
+
 /* STATICS
 
      This module determines the statics semantics of the language.
@@ -45,8 +50,7 @@ type info_pat = {
 type status_typ =
   | Ok(Typ.t)
   | FreeTypeVar
-  //| TagArity
-  | DuplicateTag // TODO(andrew)
+  | DuplicateTag
   | ApOutsideSum
   | TagExpected(Typ.t);
 
@@ -235,7 +239,7 @@ let typ_after_fix = (ctx, mode: Typ.mode, self: Typ.self): Typ.t =>
 
 /* The type of an expression after hole wrapping */
 let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
-  switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
+  switch (Id.Map.find_opt(exp_id(e), m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(ctx, mode, self)
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
@@ -259,7 +263,7 @@ let exp_self_typ_id = (ctx, m: map, id): Typ.t =>
   };
 
 let exp_self_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
-  exp_self_typ_id(ctx, m, Term.UExp.rep_id(e));
+  exp_self_typ_id(ctx, m, exp_id(e));
 
 let exp_mode_id = (m: map, id): Typ.mode =>
   switch (Id.Map.find_opt(id, m)) {
@@ -269,17 +273,17 @@ let exp_mode_id = (m: map, id): Typ.mode =>
   };
 
 let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
-  exp_mode_id(m, Term.UExp.rep_id(e));
+  exp_mode_id(m, exp_id(e));
 
 /* The type of a pattern after hole wrapping */
 let pat_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
-  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+  switch (Id.Map.find_opt(pat_id(p), m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(ctx, mode, self)
   | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 let pat_self_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
-  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+  switch (Id.Map.find_opt(pat_id(p), m)) {
   | Some(InfoPat({self, _})) => t_of_self(ctx, self)
   | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
@@ -426,7 +430,7 @@ and uexp_to_info_map =
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(es) =>
     let modes = List.init(List.length(es), _ => Typ.matched_list_mode(mode));
-    let e_ids = List.map(Term.UExp.rep_id, es);
+    let e_ids = List.map(exp_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
@@ -456,7 +460,7 @@ and uexp_to_info_map =
     | Some(var) =>
       add(
         ~self=Just(var.typ),
-        ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+        ~free=[(name, [{id: exp_id(uexp), mode}])],
         Id.Map.empty,
       )
     }
@@ -494,10 +498,7 @@ and uexp_to_info_map =
       ~self=
         Joined(
           Fun.id,
-          [
-            {id: Term.UExp.rep_id(e1), ty: ty_e1},
-            {id: Term.UExp.rep_id(e2), ty: ty_e2},
-          ],
+          [{id: exp_id(e1), ty: ty_e1}, {id: exp_id(e2), ty: ty_e2}],
         ),
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
@@ -553,58 +554,29 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_def, m_body]),
     );
-  | TyAlias(
-      {term: Var(name), _} as typat,
-      {term: UTSum(_), _} as utyp,
-      body,
-    ) =>
-    //TODO(andrew): cleanup (with lower variant)
-    let m_typat = utpat_to_info_map(~ctx, typat);
-    let ty = Term.UTyp.to_typ(ctx, utyp);
-    let ty' = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-    let ctx_def_and_body =
-      Ctx.extend(
-        TVarEntry({
-          name,
-          id: Term.UTPat.rep_id(typat),
-          kind: Singleton(ty'),
-        }),
-        ctx,
-      );
-    let ctx_def_and_body =
-      switch (ty) {
-      | TSum(tags) =>
-        Ctx.extend_tags(name, tags, Term.UTyp.rep_id(utyp), ctx_def_and_body)
-      | _ => ctx_def_and_body
-      };
-    let (ty_body, free, m_body) =
-      uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
-    let ty_body = Typ.subst(ty', name, ty_body);
-    let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
-    add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
-  | TyAlias({term: Var(name), _} as typat, utyp, body) =>
-    let m_typat = utpat_to_info_map(~ctx, typat);
-    let ty = Term.UTyp.to_typ(ctx, utyp);
-    let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-    let ctx_def_and_body =
-      Ctx.extend(
-        TVarEntry({
-          name,
-          id: Term.UTPat.rep_id(typat),
-          kind: Singleton(ty),
-        }),
-        ctx,
-      );
-    let (ty_body, free, m_body) =
-      uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
-    let ty_body = Typ.subst(ty, name, ty_body);
-    let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
-    add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias(typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
-    let (_, m_typ) = utyp_to_info_map(~ctx, utyp);
-    let (ty, free, m_body) = go(~mode, body);
-    add(~self=Just(ty), ~free, union_m([m_typat, m_body, m_typ]));
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    let ctx =
+      switch (typat) {
+      | {term: Var(name), _} =>
+        let ty_rec =
+          List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
+        let ctx = Ctx.add_singleton(ctx, name, utpat_id(typat), ty_rec);
+        switch (ty) {
+        | TSum(tags) => Ctx.add_tags(ctx, name, typ_id(utyp), tags)
+        | _ => ctx
+        };
+      | _ => ctx
+      };
+    let (ty_body, free, m_body) = uexp_to_info_map(~ctx, ~mode, body);
+    let ty_body =
+      switch (typat) {
+      | {term: Var(name), _} => Typ.subst(ty, name, ty_body)
+      | _ => ty_body
+      };
+    let m_typ = utyp_to_info_map(~ctx, utyp) |> snd;
+    add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
@@ -622,7 +594,7 @@ and uexp_to_info_map =
       );
     let branch_sources =
       List.map2(
-        (e: Term.UExp.t, (ty, _, _)) => Typ.{id: Term.UExp.rep_id(e), ty},
+        (e: Term.UExp.t, (ty, _, _)) => Typ.{id: exp_id(e), ty},
         branches,
         branch_infos,
       );
@@ -673,7 +645,7 @@ and upat_to_info_map =
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
     let modes = List.init(List.length(ps), _ => Typ.matched_list_mode(mode));
-    let p_ids = List.map(Term.UPat.rep_id, ps);
+    let p_ids = List.map(pat_id, ps);
     let (ctx, infos) =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
@@ -707,7 +679,7 @@ and upat_to_info_map =
   | Wild => atomic(Just(unknown))
   | Var(name) =>
     let typ = typ_after_fix(ctx, mode, Just(Unknown(Internal)));
-    let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+    let entry = Ctx.VarEntry({name, id: pat_id(upat), typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
@@ -775,7 +747,6 @@ and utyp_to_info_map =
     let m = ts |> List.map(go) |> List.map(snd) |> union_m;
     normal(m);
   | Var(name) =>
-    //TODO(andrew): change cls for tag case?
     let m = Id.Map.empty;
     switch (mode) {
     | VariantExpected(Duplicate) => error(DuplicateTag, m)
@@ -783,14 +754,18 @@ and utyp_to_info_map =
     | Normal => Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
     };
   | Ap(t1, t2) =>
+    let t1_mode =
+      switch (mode) {
+      | VariantExpected(_) => mode
+      | Normal => VariantExpected(Unique)
+      };
     let m =
       union_m([
-        utyp_to_info_map(~ctx, ~mode=VariantExpected(Unique), t1) |> snd,
+        utyp_to_info_map(~ctx, ~mode=t1_mode, t1) |> snd,
         utyp_to_info_map(~ctx, ~mode=Normal, t2) |> snd,
       ]);
     switch (mode) {
-    | VariantExpected(Duplicate) => error(DuplicateTag, m)
-    | VariantExpected(Unique) => ok(m)
+    | VariantExpected(_) => ok(m)
     | Normal => error(ApOutsideSum, m)
     };
   | UTSum(ts) =>

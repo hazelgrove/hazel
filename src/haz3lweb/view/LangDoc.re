@@ -2720,6 +2720,7 @@ let get_doc =
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
     | Var(v) =>
+      //TODO(andrew): constructor/tag case
       let (doc, options) =
         LangDocMessages.get_form_and_options(
           LangDocMessages.var_typ_group,
@@ -2736,7 +2737,7 @@ let get_doc =
         [],
       );
     | UTSum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
-    | Ap(_) => default //TODO(andrew): Add this ADTs
+    | Ap(_) => default //TODO(andrew): ap case
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
