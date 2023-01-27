@@ -7,7 +7,6 @@ open Widgets;
 
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
-  Log.append_updates();
   inject(SwitchSlide(next_ed));
 };
 
@@ -18,7 +17,6 @@ let download_editor_state = (~instructor_mode) => {
 
 let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
-  Log.append_updates();
   inject(SwitchSlide(prev_ed));
 };
 
@@ -43,6 +41,7 @@ let slide_toggle_view = (~inject, ~model: Model.t, ~caption, ~control) => {
 
 let editor_mode_toggle_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   switch (model.editors) {
+  | DebugLoad => failwith("impossible")
   | Scratch(_) =>
     slide_toggle_view(~inject, ~model, ~caption="Scratch", ~control=None)
   | School(_) =>
@@ -142,8 +141,8 @@ let top_bar_view =
             ),
             button(
               Icons.eye,
-              _ => inject(Set(WhitespaceIcons)),
-              ~tooltip="Toggle Visible Whitespace",
+              _ => inject(Set(SecondaryIcons)),
+              ~tooltip="Toggle Visible Secondary",
             ),
             link(
               Icons.github,
@@ -191,6 +190,7 @@ let main_ui_view =
       } as model: Model.t,
     ) => {
   switch (editors) {
+  | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(idx, slides) =>
     let toolbar_buttons =
       ScratchMode.toolbar_buttons(~inject, List.nth(slides, idx));
