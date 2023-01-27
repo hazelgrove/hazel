@@ -33,9 +33,9 @@ module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(co_entry);
 
-  let lookup_tvar: (t, Token.t) => option(Kind.t);
-  let is_tvar: (t, Token.t) => bool;
-  let resolve_typ: (t, Typ.t) => option(Typ.t);
+  let empty: t;
+  let extend: (entry, t) => t;
+  let get_id: entry => int;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -69,61 +69,79 @@ module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(co_entry);
 
-  let lookup_tvar = (ctx: t, t: Token.t) =>
-    List.find_map(
-      fun
-      | TVarEntry({name, kind, _}) when name == t => Some(kind)
-      | _ => None,
-      ctx,
-    );
-
-  let rec resolve_typ = (ctx: t, ty: Typ.t): option(Typ.t) =>
-    switch (ty) {
-    | Var(x) =>
-      switch (Ctx.lookup_tvar(ctx, x)) {
-      | Some(Singleton(ty)) => resolve_typ(ctx, ty)
-      | _ => Some(ty)
-      }
-    | _ => Some(ty)
-    };
-
-  let is_tvar = (ctx: t, name: Token.t) =>
-    switch (Ctx.lookup_tvar(ctx, name)) {
-    | Some(_) => true
-    | None => false
-    };
+  let get_id: entry => int =
+    fun
+    | VarEntry({id, _})
+    | TagEntry({id, _})
+    | TVarEntry({id, _}) => id;
+  let empty: t = VarMap.empty;
+  let extend: (entry, t) => t = List.cons;
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Singleton(Typ.t);
+
+  let lookup_tvar: (Ctx.t, Token.t) => option(t);
+  let is_tvar: (Ctx.t, Token.t) => bool;
+  let add_singleton: (Ctx.t, Token.t, Id.t, Typ.t) => Ctx.t;
   let normalize: (Ctx.t, Typ.t) => Typ.t;
+  let normalize_shallow: (Ctx.t, Typ.t) => Typ.t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Singleton(Typ.t);
-  let rec normalize = (ctx, typ) => {
-    switch (typ) {
-    | Typ.Var(x) =>
-      switch (Ctx.lookup_tvar(ctx, x)) {
-      | Some(Singleton(typ)) => normalize(ctx, typ)
-      | None => typ
+
+  let lookup_tvar = (ctx: Ctx.t, t: Token.t) =>
+    List.find_map(
+      fun
+      | Ctx.TVarEntry({name, kind, _}) when name == t => Some(kind)
+      | _ => None,
+      ctx,
+    );
+
+  let remove_tvar = (ctx: Ctx.t, t: Token.t): Ctx.t =>
+    List.filter(
+      fun
+      | Ctx.TVarEntry({name, _}) => name != t
+      | _ => true,
+      ctx,
+    );
+
+  let is_tvar = (ctx: Ctx.t, name: Token.t) =>
+    switch (lookup_tvar(ctx, name)) {
+    | Some(_) => true
+    | None => false
+    };
+
+  let add_singleton = (ctx: Ctx.t, name: Token.t, id: Id.t, ty: Typ.t): Ctx.t =>
+    Ctx.extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
+
+  let rec normalize_shallow = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
+    switch (ty) {
+    | Var(x) =>
+      switch (lookup_tvar(ctx, x)) {
+      | Some(Singleton(ty)) => normalize_shallow(ctx, ty)
+      | _ => ty
       }
-    | Typ.Unknown(_)
+    | _ => ty
+    };
+  let rec normalize = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+    switch (ty) {
+    | Var(x) =>
+      switch (lookup_tvar(ctx, x)) {
+      | Some(Singleton(ty)) => normalize(ctx, ty)
+      | None => ty
+      }
+    | Unknown(_)
     | Int
     | Float
     | Bool
-    | String => typ
+    | String => ty
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-    | Sum(ts) =>
-      Sum(
-        List.map(
-          ((tag, typ)) => (tag, Option.map(normalize(ctx), typ)),
-          ts,
-        ),
-      )
-    | Rec(x, ty) => Rec(x, normalize(ctx, ty))
+    | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
+    | Rec(x, ty) => Rec(x, normalize(remove_tvar(ctx, x), ty))
     | Prod(ts) => Prod(List.map(t => normalize(ctx, t), ts))
     };
   };

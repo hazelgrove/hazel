@@ -1,11 +1,6 @@
 open Sexplib.Std;
 open Util;
 
-let exp_id = Term.UExp.rep_id;
-let pat_id = Term.UPat.rep_id;
-let typ_id = Term.UTyp.rep_id;
-let utpat_id = Term.UTPat.rep_id;
-
 /* STATICS
 
      This module determines the statics semantics of the language.
@@ -46,6 +41,10 @@ type info_pat = {
   ctx: Ctx.t // TODO: detect in-pattern shadowing
 };
 
+/* A type can be either valid or a free type variable.
+   The additional errors statuses are fundamentally
+   syntactic and should eventually be reimplemeted
+   via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
   | Ok(Typ.t)
@@ -55,15 +54,15 @@ type status_typ =
   | TagExpected(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type status_tag =
+type status_variant =
   | Unique
   | Duplicate;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_mode =
   | TypeExpected
-  | TagExpected(status_tag)
-  | VariantExpected(status_tag);
+  | TagExpected(status_variant)
+  | VariantExpected(status_variant);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
@@ -80,6 +79,7 @@ type info_rul = {
   term: Term.UExp.t,
 };
 
+/* Either a type pattern is a valid name or it's an error */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
   | Ok
@@ -105,18 +105,6 @@ type t =
 /* The InfoMap collating all info for a composite term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = Id.Map.t(t);
-
-let terms = (map: map): Id.Map.t(Term.any) =>
-  map
-  |> Id.Map.filter_map(_ =>
-       fun
-       | Invalid(_) => None
-       | InfoExp({term, _}) => Some(Term.Exp(term))
-       | InfoPat({term, _}) => Some(Term.Pat(term))
-       | InfoTyp({term, _}) => Some(Term.Typ(term))
-       | InfoRul({term, _}) => Some(Term.Exp(term))
-       | InfoTPat({term, _}) => Some(Term.TPat(term))
-     );
 
 /* Static error classes */
 
@@ -238,6 +226,11 @@ let typ_after_fix = (ctx, mode: Typ.mode, self: Typ.self): Typ.t =>
   | NotInHole(AnaInternalInconsistent(ty_ana, _)) => ty_ana
   };
 
+let exp_id = Term.UExp.rep_id;
+let pat_id = Term.UPat.rep_id;
+let typ_id = Term.UTyp.rep_id;
+let utpat_id = Term.UTPat.rep_id;
+
 /* The type of an expression after hole wrapping */
 let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(exp_id(e), m)) {
@@ -314,9 +307,9 @@ let tag_ana_typ = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): option(Typ.t) =>
   switch (mode) {
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
-    switch (Ctx.resolve_typ(ctx, ty_ana)) {
-    | Some(Sum(sm))
-    | Some(Rec(_, Sum(sm))) => Typ.ana_sum(tag, sm, ty_ana)
+    switch (Kind.normalize_shallow(ctx, ty_ana)) {
+    | Sum(sm)
+    | Rec(_, Sum(sm)) => Typ.ana_sum(tag, sm, ty_ana)
     | _ => None
     }
   | _ => None
@@ -564,7 +557,7 @@ and uexp_to_info_map =
       | {term: Var(name), _} =>
         let ty_rec =
           List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-        let ctx = Ctx.add_singleton(ctx, name, utpat_id(typat), ty_rec);
+        let ctx = Kind.add_singleton(ctx, name, utpat_id(typat), ty_rec);
         switch (ty_rec) {
         | Sum(sm)
         | Rec(_, Sum(sm)) => Ctx.add_tags(ctx, name, typ_id(utyp), sm)
@@ -737,7 +730,6 @@ and utyp_to_info_map =
     mode != TypeExpected ? error(TagExpected(ty), m) : ok(m);
   let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
-  //TODO: refactor this along status+mode=>fix lines
   switch (term) {
   | EmptyHole => ok(Id.Map.empty)
   | Int
@@ -764,7 +756,8 @@ and utyp_to_info_map =
     | TagExpected(Duplicate) => error(DuplicateTag, m)
     | VariantExpected(Unique)
     | TagExpected(Unique) => ok(m)
-    | TypeExpected => Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
+    | TypeExpected =>
+      Kind.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
     };
   | Ap(t1, t2) =>
     let t1_mode =

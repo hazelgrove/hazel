@@ -75,21 +75,9 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
       }
     | Ana(ana_ty) =>
-      //TODO(andrew):ADTS this resolution necessary?
-      let ana_ty =
-        switch (Ctx.resolve_typ(ctx, ana_ty)) {
-        | Some(ty) => ty
-        | None => ana_ty
-        };
-      let self_ty =
-        switch (self) {
-        | Just(ty) =>
-          switch (Ctx.resolve_typ(ctx, ty)) {
-          | Some(ty) => ty
-          | None => ty
-          }
-        | _ => Unknown(Internal)
-        };
+      /* Normalize types */
+      let ana_ty = Kind.normalize(ctx, ana_ty);
+      let self_ty = Kind.normalize(ctx, Statics.t_of_self(ctx, self));
       /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {
       | ListLit(_)
