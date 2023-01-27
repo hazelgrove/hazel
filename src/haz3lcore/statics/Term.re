@@ -33,6 +33,7 @@ module UTyp = {
     | Sum
     | List
     | Var
+    | Tag
     | Parens
     | Ap
     | UTSum;
@@ -61,6 +62,7 @@ module UTyp = {
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
+    | Tag(_) => Tag
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -75,13 +77,14 @@ module UTyp = {
     | String
     | Bool => "Base Type"
     | Var => "Type Variable"
+    | Tag => "Sum Constructor Definition"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
-    | Sum => "Labelled Sum Type"
+    | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
-    | Ap => "Type Application"
-    | UTSum => "Labelled Sum Type";
+    | Ap => "Sum Constructor Application Definition"
+    | UTSum => "Sum Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -96,6 +99,7 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Var(_)
+    | Tag(_)
     | Ap(_)
     | UTSum(_) => false
     };
@@ -106,7 +110,8 @@ module UTyp = {
     (ctx, utyp) =>
       switch (utyp.term) {
       | MultiHole(_) => Unknown(Internal)
-      | Ap(_t1, _t2) =>
+      | Tag(_)
+      | Ap(_) =>
         /* Should occur only inside sums */
         Unknown(Internal)
       | EmptyHole => Unknown(TypeHole)

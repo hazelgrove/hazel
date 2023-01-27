@@ -719,7 +719,11 @@ and upat_to_info_map =
 }
 and utyp_to_info_map =
     (~ctx, ~mode=Normal, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
-  let cls = Term.UTyp.cls_of_term(term);
+  let cls: Term.UTyp.cls =
+    switch (mode, Term.UTyp.cls_of_term(term)) {
+    | (VariantExpected(_), Var) => Tag
+    | (_, cls) => cls
+    };
   let ty = Term.UTyp.to_typ(ctx, utyp);
   let add = status =>
     add_info(ids, InfoTyp({cls, ctx, mode, status, term: utyp}));
@@ -746,7 +750,8 @@ and utyp_to_info_map =
   | Tuple(ts) =>
     let m = ts |> List.map(go) |> List.map(snd) |> union_m;
     normal(m);
-  | Var(name) =>
+  | Var(name)
+  | Tag(name) =>
     let m = Id.Map.empty;
     switch (mode) {
     | VariantExpected(Duplicate) => error(DuplicateTag, m)

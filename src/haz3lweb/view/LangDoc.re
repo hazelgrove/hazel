@@ -2497,7 +2497,7 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, _})) =>
+  | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {
     | EmptyHole =>
       let (doc, options) =
@@ -2719,6 +2719,10 @@ let get_doc =
           );
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
+    | Tag(_) =>
+      basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
+    | Var(_) when cls == Tag =>
+      basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
       //TODO(andrew): constructor/tag case
       let (doc, options) =
@@ -2737,7 +2741,7 @@ let get_doc =
         [],
       );
     | UTSum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
-    | Ap(_) => default //TODO(andrew): ap case
+    | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

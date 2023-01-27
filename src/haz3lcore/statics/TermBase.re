@@ -331,6 +331,7 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
+    | Tag(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
@@ -351,6 +352,7 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
+    | Tag(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
