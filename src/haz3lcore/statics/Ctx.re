@@ -26,7 +26,7 @@ let lookup_tag = (ctx: t, name: string): option(var_entry) =>
     ctx,
   );
 
-let extend_tags = (name: Token.t, tags: Typ.typ_map, id, ctx) =>
+let add_tags = (ctx, name: Token.t, id, tags: Typ.typ_map) =>
   List.map(
     ((tag, typ)) =>
       TagEntry({
@@ -41,6 +41,9 @@ let extend_tags = (name: Token.t, tags: Typ.typ_map, id, ctx) =>
     tags,
   )
   @ ctx;
+
+let add_singleton = (ctx, name, id, ty) =>
+  extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
 let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
