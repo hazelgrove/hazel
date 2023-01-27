@@ -90,6 +90,24 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
         }
+      | TypFun(utpat, _) =>
+        // TODO (typfun): Is this the correct way?
+        let utpat_name =
+          switch (utpat.term) {
+          | Term.UTPat.Var(name) => name
+          | _ => "tpat_hole"
+          };
+        switch (ana_ty) {
+        | Unknown(prov) =>
+          Some(
+            DHExp.cast(
+              d,
+              Forall({item: Unknown(prov), ann: utpat_name}),
+              ana_ty,
+            ),
+          )
+        | _ => Some(d)
+        };
       | Tuple(ds) =>
         switch (ana_ty) {
         | Unknown(prov) =>
@@ -127,6 +145,7 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | ApBuiltin(_)
       | Prj(_)
       | Ap(_)
+      | TypAp(_) // TODO (typfun): Where should TypAp belong?
       | BoolLit(_)
       | IntLit(_)
       | FloatLit(_)
@@ -195,9 +214,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ d1 = dhexp_of_uexp(m, body);
         DHExp.Fun(dp, Statics.pat_typ(ctx, m, p), d1, None);
       | TypFun(tpat, body) =>
-        // TODO (typfun)
-        let* d1 = dhexp_of_uexp(m, body);
-        wrap(DHExp.TypFun(tpat, d1));
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.TypFun(tpat, d1);
       | Tuple(es) =>
         let+ ds =
           List.fold_right(
@@ -224,6 +242,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
       | Parens(e) => dhexp_of_uexp(m, e)
+      | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
@@ -245,91 +264,60 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         );
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
-        let ddef =
-          switch (ddef) {
-          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Term.UPat.get_var(p))
-          | _ => ddef
-          };
-        let* dbody = dhexp_of_uexp(m, body);
-        wrap(Let(dp, ddef, dbody));
-      | Some([f]) =>
-        /* simple recursion */
-        let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
-        let ddef =
-          switch (ddef) {
-          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(f))
-          | _ => ddef
-          };
-        let* dbody = dhexp_of_uexp(m, body);
-        let ty = pat_self_typ(p);
-        wrap(Let(dp, FixF(f, ty, ddef), dbody));
-      | Some(fs) =>
-        /* mutual recursion */
-        let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
-        let ddef =
-          switch (ddef) {
-          | Tuple(a) =>
-            let b =
-              List.map2(
-                (s, d) => {
-                  switch (d) {
-                  | DHExp.Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(s))
-                  | _ => d
-                  }
-                },
-                fs,
-                a,
-              );
-            DHExp.Tuple(b);
-          | _ => ddef
-          };
-
-        let* dbody = dhexp_of_uexp(m, body);
-        let ty = pat_self_typ(p);
-        let uniq_id = List.nth(def.ids, 0);
-        let self_id = "__mutual__" ++ string_of_int(uniq_id);
-        let self_var = DHExp.BoundVar(self_id);
-        let (_, substituted_def) =
-          fs
-          |> List.fold_left(
-               ((i, ddef), f) => {
-                 let ddef =
-                   Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
-                 (i + 1, ddef);
-               },
-               (0, ddef),
-             );
-        let fixpoint = DHExp.FixF(self_id, ty, substituted_def);
-        wrap(Let(dp, fixpoint, dbody));
+        let+ dbody = dhexp_of_uexp(m, body);
+        let ty = Statics.pat_self_typ(ctx, m, p);
+        switch (Term.UPat.get_recursive_bindings(p)) {
+        | None =>
+          /* not recursive */
+          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
+        | Some([f]) =>
+          /* simple recursion */
+          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+        | Some(fs) =>
+          /* mutual recursion */
+          let ddef =
+            switch (ddef) {
+            | Tuple(a) =>
+              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+            | _ => ddef
+            };
+          let uniq_id = List.nth(def.ids, 0);
+          let self_id = "__mutual__" ++ string_of_int(uniq_id);
+          let self_var = DHExp.BoundVar(self_id);
+          let (_, substituted_def) =
+            fs
+            |> List.fold_left(
+                 ((i, ddef), f) => {
+                   let ddef =
+                     Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
+                   (i + 1, ddef);
+                 },
+                 (0, ddef),
+               );
+          Let(dp, FixF(self_id, ty, substituted_def), dbody);
+        };
       | Ap(fn, arg) =>
-        let* d_fn = dhexp_of_uexp(m, fn);
-        let* d_arg = dhexp_of_uexp(m, arg);
-        let ty_fn = self_typ(fn);
-        let ty_arg = self_typ(arg);
-        let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-        let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
-        let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
-        wrap(Ap(c_fn, c_arg));
+        let* c_fn = dhexp_of_uexp(m, fn);
+        let+ c_arg = dhexp_of_uexp(m, arg);
+        DHExp.Ap(c_fn, c_arg);
       | TypAp(fn, uty_arg) =>
-        let* d_fn = dhexp_of_uexp(m, fn);
-        wrap(DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg)));
+        let+ d_fn = dhexp_of_uexp(m, fn);
+        DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);
-        let* d2 = dhexp_of_uexp(m, e2);
+        let+ d2 = dhexp_of_uexp(m, e2);
         let d_rules =
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
         | InHole(SynInconsistentBranches(_)) =>
-          Some(DHExp.InconsistentBranches(u, 0, d))
-        | _ => wrap(ConsistentCase(d))
+          DHExp.InconsistentBranches(id, 0, d)
+        | _ => ConsistentCase(d)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
-        let* d_rules =
+        let+ d_rules =
           List.map(
             ((p, e)) => {
               let* d_p = dhpat_of_upat(m, p);
@@ -342,8 +330,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
         | InHole(SynInconsistentBranches(_)) =>
-          Some(DHExp.InconsistentBranches(u, 0, d))
-        | _ => wrap(ConsistentCase(d))
+          DHExp.InconsistentBranches(id, 0, d)
+        | _ => ConsistentCase(d)
         };
       };
     wrap(ctx, id, mode, self, d);

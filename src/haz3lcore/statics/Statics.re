@@ -626,14 +626,6 @@ and uexp_to_info_map =
         }),
         ctx,
       );
-    // Extend ctx with tags of data constructors
-    // TODO (typfun): Replace Ctx.extend_utsum with Andrew's version
-    let ctx_def_and_body =
-      Term.UTyp.find_utsums(utyp)
-      |> List.fold_left(
-           (ctx, utsum) => Ctx.extend_utsum(utsum, ctx),
-           ctx_def_and_body,
-         );
     let (ty_body, free, m_body) =
       uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
     let ty_body = Typ.subst(ty', ty_body);
@@ -813,10 +805,18 @@ and utyp_to_info_map =
     let m =
       ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
     just(m);
-  | Var(name) =>
-    Ctx.is_tvar(ctx, name)
-      ? (Var(name), add(Just(Var(name)), Id.Map.empty))
-      : (Unknown(Internal), add(Self(Free(TypeVariable)), Id.Map.empty))
+  | Var(_name) =>
+    // TODO (typfun): Confirm with Andrew that we don't need to keep track of Vars in the map
+    just(Id.Map.empty)
+  // Ctx.is_tvar(ctx, name)
+  //   ? (Var(name), add(Just(Var(name)), Id.Map.empty))
+  //   : (Unknown(Internal), add(Self(Free(TypeVariable)), Id.Map.empty))
+  | Forall(_utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    just(m);
+  | Rec(_utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    just(m);
   | Sum({term, ids: _}) =>
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
