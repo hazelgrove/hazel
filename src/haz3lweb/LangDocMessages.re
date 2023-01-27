@@ -3141,7 +3141,7 @@ let arrow3_typ: form = {
 let labelled_sum_typ_group = "labelled_sum_typ_group";
 let labelled_sum_typ: form = {
   let explanation = {
-    message: "Labelled Sum type. This type combines one or more labelled types, each consisting of a constructor name and (optionally) a type parameter, into a single type of alternatives.",
+    message: "Sum type. This type combines one or more labelled types, each consisting of a constructor name and (optionally) a type parameter, into a single type of alternatives.",
     feedback: Unselected,
   };
   let divider = Example.mk_monotile(Form.get("typ_plus"));
@@ -3161,15 +3161,30 @@ let labelled_sum_typ: form = {
     examples: [],
   };
 };
-let labelled_typ_group = "labelled_typ_group";
-let labelled_typ: form = {
+let sum_typ_unary_constructor_def_group = "sum_typ_unary_constructor_def_group";
+let sum_typ_unary_constructor_def: form = {
   let explanation = {
-    message: "Labelled type. A particular case in a sum type, consisting of a constructor name and (optionally) a type parameter.",
+    message: "Constructor application definition. This appends an optional type parameter to a sum type variant.",
     feedback: Unselected,
   };
   {
-    id: "labelled_typ",
+    id: "sum_typ_unary_constructor_def",
     syntactic_form: [typ("Constructor(type)")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let sum_typ_nullary_constructor_def_group = "sum_typ_nullary_constructor_def_group";
+let sum_typ_nullary_constructor_def: form = {
+  let explanation = {
+    message: "Constructor definition. This defines a variant of a sum type. Constructor names must be unique within a sum.",
+    feedback: Unselected,
+  };
+  {
+    id: "sum_typ_nullary_constructor_def",
+    syntactic_form: [typ("Constructor")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -3486,7 +3501,8 @@ let init = {
     arrow_typ,
     arrow3_typ,
     labelled_sum_typ,
-    labelled_typ,
+    sum_typ_unary_constructor_def,
+    sum_typ_nullary_constructor_def,
     tuple_typ,
     tuple2_typ,
     tuple3_typ,
@@ -3872,7 +3888,14 @@ let init = {
       ]),
     ),
     (labelled_sum_typ_group, init_options([(labelled_sum_typ.id, [])])),
-    (labelled_typ_group, init_options([(labelled_typ.id, [])])),
+    (
+      sum_typ_unary_constructor_def_group,
+      init_options([(sum_typ_unary_constructor_def.id, [])]),
+    ),
+    (
+      sum_typ_nullary_constructor_def_group,
+      init_options([(sum_typ_nullary_constructor_def.id, [])]),
+    ),
     (tuple_typ_group, init_options([(tuple_typ.id, [])])),
     (
       tuple2_typ_group,
