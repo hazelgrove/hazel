@@ -71,9 +71,9 @@ let using =
 
 let ids_derive = (ids: CH.Ids.t): IdGen.t(CH.Ids.t) => {
   open IdGen.Syntax;
-  let f = ((base: Id.t, _: Id.t)): IdGen.t((Id.t, Id.t)) => {
+  let f = tree => {
     let+ derived = IdGen.fresh;
-    (base, derived);
+    CH.Ids.Tree.append(tree, derived);
   };
   ListUtil.traverse(f, ids);
 };

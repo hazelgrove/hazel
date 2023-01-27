@@ -675,8 +675,8 @@ let get_doc =
       | FixF(_) => failwith("get_doc UExp.FixF")
       | Fun(pat, None, body, None) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
-          let (pat_id, _) = List.nth(pat.ids, 0);
-          let (body_id, _) = List.nth(body.ids, 0);
+          let pat_id = CH.Ids.rep_id(pat.ids);
+          let body_id = CH.Ids.rep_id(body.ids);
           get_message(
             doc,
             options,
@@ -698,8 +698,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_empty_hole_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -725,8 +725,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_multi_hole_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -753,7 +753,7 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_wild_exp.id == doc.id) {
-            let (body_id, _) = List.nth(body.ids, 0);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -774,8 +774,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_intlit_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -802,8 +802,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_floatlit_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -830,8 +830,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_boollit_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -858,8 +858,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_strlit_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -886,8 +886,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_triv_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -914,8 +914,8 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.function_listnil_exp.id == doc.id) {
-              let (pat_id, _) = List.nth(pat.ids, 0);
-              let (body_id, _) = List.nth(body.ids, 0);
+              let pat_id = CH.Ids.rep_id(pat.ids);
+              let body_id = CH.Ids.rep_id(body.ids);
               get_message(
                 doc,
                 options,
@@ -941,8 +941,8 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.function_listlit_exp.id == doc.id) {
-              let (pat_id, _) = List.nth(pat.ids, 0);
-              let (body_id, _) = List.nth(body.ids, 0);
+              let pat_id = CH.Ids.rep_id(pat.ids);
+              let body_id = CH.Ids.rep_id(body.ids);
               get_message(
                 doc,
                 options,
@@ -973,9 +973,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_cons_exp.id == doc.id) {
-            let (hd_id, _) = List.nth(hd.ids, 0);
-            let (tl_id, _) = List.nth(tl.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let hd_id = CH.Ids.rep_id(hd.ids);
+            let tl_id = CH.Ids.rep_id(tl.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1003,8 +1003,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_var_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1024,8 +1024,8 @@ let get_doc =
             basic(doc, LangDocMessages.function_var_group, options);
           };
         | Tuple(elements) =>
-          let (pat_id, _) = List.nth(pat.ids, 0);
-          let (body_id, _) = List.nth(body.ids, 0);
+          let pat_id = CH.Ids.rep_id(pat.ids);
+          let body_id = CH.Ids.rep_id(body.ids);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
             get_message(
               doc,
@@ -1053,8 +1053,8 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.function_tuple2_exp.id == doc.id) {
-              let (pat1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-              let (pat2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
+              let pat1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+              let pat2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
               get_message(
                 doc,
                 options,
@@ -1087,9 +1087,9 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.function_tuple3_exp.id == doc.id) {
-              let (pat1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-              let (pat2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
-              let (pat3_id, _) = List.nth(List.nth(elements, 2).ids, 0);
+              let pat1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+              let pat2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
+              let pat3_id = CH.Ids.rep_id(List.nth(elements, 2).ids);
               get_message(
                 doc,
                 options,
@@ -1139,9 +1139,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_ap_exp.id == doc.id) {
-            let (con_id, _) = List.nth(con.ids, 0);
-            let (arg_id, _) = List.nth(arg.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let con_id = CH.Ids.rep_id(con.ids);
+            let arg_id = CH.Ids.rep_id(arg.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1168,8 +1168,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.function_tag_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1213,8 +1213,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.tuple_exp_size2.id == doc.id) {
-            let (exp1_id, _) = List.nth(List.nth(terms, 0).ids, 0);
-            let (exp2_id, _) = List.nth(List.nth(terms, 1).ids, 0);
+            let exp1_id = CH.Ids.rep_id(List.nth(terms, 0).ids);
+            let exp2_id = CH.Ids.rep_id(List.nth(terms, 1).ids);
             get_message(
               doc,
               options,
@@ -1239,9 +1239,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.tuple_exp_size3.id == doc.id) {
-            let (exp1_id, _) = List.nth(List.nth(terms, 0).ids, 0);
-            let (exp2_id, _) = List.nth(List.nth(terms, 1).ids, 0);
-            let (exp3_id, _) = List.nth(List.nth(terms, 2).ids, 0);
+            let exp1_id = CH.Ids.rep_id(List.nth(terms, 0).ids);
+            let exp2_id = CH.Ids.rep_id(List.nth(terms, 1).ids);
+            let exp3_id = CH.Ids.rep_id(List.nth(terms, 2).ids);
             get_message(
               doc,
               options,
@@ -1284,8 +1284,8 @@ let get_doc =
         );
       | Let(pat, def, body) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
-          let (pat_id, _) = List.nth(pat.ids, 0);
-          let (def_id, _) = List.nth(def.ids, 0);
+          let pat_id = CH.Ids.rep_id(pat.ids);
+          let def_id = CH.Ids.rep_id(def.ids);
           get_message(
             doc,
             options,
@@ -1307,8 +1307,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_empty_hole_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
             get_message(
               doc,
               options,
@@ -1334,8 +1334,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_multi_hole_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
             get_message(
               doc,
               options,
@@ -1362,8 +1362,8 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_wild_exp.id == doc.id) {
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1386,9 +1386,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_int_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1425,9 +1425,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_float_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             // TODO Make sure everywhere printing the float literal print it prettier
             get_message(
               doc,
@@ -1465,9 +1465,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_bool_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1504,9 +1504,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_str_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1543,9 +1543,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_triv_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1579,9 +1579,9 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.let_listnil_exp.id == doc.id) {
-              let (pat_id, _) = List.nth(pat.ids, 0);
-              let (def_id, _) = List.nth(def.ids, 0);
-              let (body_id, _) = List.nth(body.ids, 0);
+              let pat_id = CH.Ids.rep_id(pat.ids);
+              let def_id = CH.Ids.rep_id(def.ids);
+              let body_id = CH.Ids.rep_id(body.ids);
               get_message(
                 doc,
                 options,
@@ -1612,8 +1612,8 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.let_listlit_exp.id == doc.id) {
-              let (pat_id, _) = List.nth(pat.ids, 0);
-              let (def_id, _) = List.nth(def.ids, 0);
+              let pat_id = CH.Ids.rep_id(pat.ids);
+              let def_id = CH.Ids.rep_id(def.ids);
               get_message(
                 doc,
                 options,
@@ -1641,9 +1641,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_cons_exp.id == doc.id) {
-            let (hd_id, _) = List.nth(hd.ids, 0);
-            let (tl_id, _) = List.nth(tl.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
+            let hd_id = CH.Ids.rep_id(hd.ids);
+            let tl_id = CH.Ids.rep_id(tl.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
             get_message(
               doc,
               options,
@@ -1671,9 +1671,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_var_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1695,8 +1695,8 @@ let get_doc =
             basic(doc, LangDocMessages.let_var_exp_group, options);
           };
         | Tuple(elements) =>
-          let (pat_id, _) = List.nth(pat.ids, 0);
-          let (def_id, _) = List.nth(def.ids, 0);
+          let pat_id = CH.Ids.rep_id(pat.ids);
+          let def_id = CH.Ids.rep_id(def.ids);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
             get_message(
               doc,
@@ -1720,8 +1720,8 @@ let get_doc =
                 docs,
               );
             if (LangDocMessages.let_tuple2_exp.id == doc.id) {
-              let (pat1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-              let (pat2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
+              let pat1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+              let pat2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
               get_message(
                 doc,
                 options,
@@ -1751,9 +1751,9 @@ let get_doc =
               );
             // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
             if (LangDocMessages.let_tuple3_exp.id == doc.id) {
-              let (pat1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-              let (pat2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
-              let (pat3_id, _) = List.nth(List.nth(elements, 2).ids, 0);
+              let pat1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+              let pat2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
+              let pat3_id = CH.Ids.rep_id(List.nth(elements, 2).ids);
               get_message(
                 doc,
                 options,
@@ -1803,9 +1803,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_ap_exp.id == doc.id) {
-            let (con_id, _) = List.nth(con.ids, 0);
-            let (arg_id, _) = List.nth(arg.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
+            let con_id = CH.Ids.rep_id(con.ids);
+            let arg_id = CH.Ids.rep_id(arg.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
             get_message(
               doc,
               options,
@@ -1832,9 +1832,9 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.let_tag_exp.id == doc.id) {
-            let (pat_id, _) = List.nth(pat.ids, 0);
-            let (def_id, _) = List.nth(def.ids, 0);
-            let (body_id, _) = List.nth(body.ids, 0);
+            let pat_id = CH.Ids.rep_id(pat.ids);
+            let def_id = CH.Ids.rep_id(def.ids);
+            let body_id = CH.Ids.rep_id(body.ids);
             get_message(
               doc,
               options,
@@ -1864,8 +1864,8 @@ let get_doc =
         };
       | ApBuiltin(_) => failwith("get_doc on ApBuiltin(_)")
       | Ap(x, arg) =>
-        let (x_id, _) = List.nth(x.ids, 0);
-        let (arg_id, _) = List.nth(arg.ids, 0);
+        let x_id = CH.Ids.rep_id(x.ids);
+        let arg_id = CH.Ids.rep_id(arg.ids);
         let basic =
             (doc: LangDocMessages.form, group, options, msg, coloring_ids) => {
           get_message(
@@ -1919,9 +1919,9 @@ let get_doc =
             LangDocMessages.if_exp_group,
             docs,
           );
-        let (cond_id, _) = List.nth(cond.ids, 0);
-        let (then_id, _) = List.nth(then_.ids, 0);
-        let (else_id, _) = List.nth(else_.ids, 0);
+        let cond_id = CH.Ids.rep_id(cond.ids);
+        let then_id = CH.Ids.rep_id(then_.ids);
+        let else_id = CH.Ids.rep_id(else_.ids);
         get_message(
           doc,
           options,
@@ -1940,8 +1940,8 @@ let get_doc =
             LangDocMessages.seq_exp_group,
             docs,
           );
-        let (exp1_id, _) = List.nth(left.ids, 0);
-        let (exp2_id, _) = List.nth(right.ids, 0);
+        let exp1_id = CH.Ids.rep_id(left.ids);
+        let exp2_id = CH.Ids.rep_id(right.ids);
         get_message(
           doc,
           options,
@@ -1959,7 +1959,7 @@ let get_doc =
             LangDocMessages.test_group,
             docs,
           );
-        let (body_id, _) = List.nth(body.ids, 0);
+        let body_id = CH.Ids.rep_id(body.ids);
         get_message(
           doc,
           options,
@@ -1978,8 +1978,8 @@ let get_doc =
             LangDocMessages.cons_exp_group,
             docs,
           );
-        let (hd_id, _) = List.nth(hd.ids, 0);
-        let (tl_id, _) = List.nth(tl.ids, 0);
+        let hd_id = CH.Ids.rep_id(hd.ids);
+        let tl_id = CH.Ids.rep_id(tl.ids);
         get_message(
           doc,
           options,
@@ -2001,7 +2001,7 @@ let get_doc =
               LangDocMessages.int_unary_minus_group,
               docs,
             );
-          let (exp_id, _) = List.nth(exp.ids, 0);
+          let exp_id = CH.Ids.rep_id(exp.ids);
           get_message(
             doc,
             options,
@@ -2111,8 +2111,8 @@ let get_doc =
           };
         let (doc, options) =
           LangDocMessages.get_form_and_options(group, docs);
-        let (left_id, _) = List.nth(left.ids, 0);
-        let (right_id, _) = List.nth(right.ids, 0);
+        let left_id = CH.Ids.rep_id(left.ids);
+        let right_id = CH.Ids.rep_id(right.ids);
         get_message(
           doc,
           options,
@@ -2130,7 +2130,7 @@ let get_doc =
             LangDocMessages.case_exp_group,
             docs,
           );
-        let (scrut_id, _) = List.nth(scrut.ids, 0);
+        let scrut_id = CH.Ids.rep_id(scrut.ids);
         get_message(
           doc,
           options,
@@ -2315,8 +2315,8 @@ let get_doc =
         );
       }
     | Cons(hd, tl) =>
-      let (hd_id, _) = List.nth(hd.ids, 0);
-      let (tl_id, _) = List.nth(tl.ids, 0);
+      let hd_id = CH.Ids.rep_id(hd.ids);
+      let tl_id = CH.Ids.rep_id(tl.ids);
       let basic = (doc, group, options) =>
         get_message(
           doc,
@@ -2337,8 +2337,8 @@ let get_doc =
             docs,
           );
         if (LangDocMessages.cons2_pat.id == doc.id) {
-          let (hd2_id, _) = List.nth(hd2.ids, 0);
-          let (tl2_id, _) = List.nth(tl2.ids, 0);
+          let hd2_id = CH.Ids.rep_id(hd2.ids);
+          let tl2_id = CH.Ids.rep_id(tl2.ids);
           get_message(
             doc,
             options,
@@ -2403,8 +2403,8 @@ let get_doc =
             docs,
           );
         if (LangDocMessages.tuple_pat_size2.id == doc.id) {
-          let (elem1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-          let (elem2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
+          let elem1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+          let elem2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
           get_message(
             doc,
             options,
@@ -2429,9 +2429,9 @@ let get_doc =
             docs,
           );
         if (LangDocMessages.tuple_pat_size3.id == doc.id) {
-          let (elem1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-          let (elem2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
-          let (elem3_id, _) = List.nth(List.nth(elements, 2).ids, 0);
+          let elem1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+          let elem2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
+          let elem3_id = CH.Ids.rep_id(List.nth(elements, 2).ids);
           get_message(
             doc,
             options,
@@ -2465,8 +2465,8 @@ let get_doc =
           LangDocMessages.ap_pat_group,
           docs,
         );
-      let (con_id, _) = List.nth(con.ids, 0);
-      let (arg_id, _) = List.nth(arg.ids, 0);
+      let con_id = CH.Ids.rep_id(con.ids);
+      let arg_id = CH.Ids.rep_id(arg.ids);
       get_message(
         doc,
         options,
@@ -2500,8 +2500,8 @@ let get_doc =
           LangDocMessages.typann_pat_group,
           docs,
         );
-      let (pat_id, _) = List.nth(pat.ids, 0);
-      let (typ_id, _) = List.nth(typ.ids, 0);
+      let pat_id = CH.Ids.rep_id(pat.ids);
+      let typ_id = CH.Ids.rep_id(typ.ids);
       get_message(
         doc,
         options,
@@ -2603,7 +2603,7 @@ let get_doc =
           LangDocMessages.list_typ_group,
           docs,
         );
-      let (elem_id, _) = List.nth(elem.ids, 0);
+      let elem_id = CH.Ids.rep_id(elem.ids);
       get_message(
         doc,
         options,
@@ -2615,8 +2615,8 @@ let get_doc =
         LangDocMessages.list_typ_coloring_ids(~elem_id),
       );
     | Arrow(arg, result) =>
-      let (arg_id, _) = List.nth(arg.ids, 0);
-      let (result_id, _) = List.nth(result.ids, 0);
+      let arg_id = CH.Ids.rep_id(arg.ids);
+      let result_id = CH.Ids.rep_id(result.ids);
       let basic = (doc, group, options) =>
         get_message(
           doc,
@@ -2637,8 +2637,8 @@ let get_doc =
             docs,
           );
         if (LangDocMessages.arrow3_typ.id == doc.id) {
-          let (arg2_id, _) = List.nth(arg2.ids, 0);
-          let (result2_id, _) = List.nth(result2.ids, 0);
+          let arg2_id = CH.Ids.rep_id(arg2.ids);
+          let result2_id = CH.Ids.rep_id(result2.ids);
           get_message(
             doc,
             options,
@@ -2686,8 +2686,8 @@ let get_doc =
             docs,
           );
         if (LangDocMessages.tuple2_typ.id == doc.id) {
-          let (elem1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-          let (elem2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
+          let elem1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+          let elem2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
           get_message(
             doc,
             options,
@@ -2709,9 +2709,9 @@ let get_doc =
             docs,
           );
         if (LangDocMessages.tuple3_typ.id == doc.id) {
-          let (elem1_id, _) = List.nth(List.nth(elements, 0).ids, 0);
-          let (elem2_id, _) = List.nth(List.nth(elements, 1).ids, 0);
-          let (elem3_id, _) = List.nth(List.nth(elements, 2).ids, 0);
+          let elem1_id = CH.Ids.rep_id(List.nth(elements, 0).ids);
+          let elem2_id = CH.Ids.rep_id(List.nth(elements, 1).ids);
+          let elem3_id = CH.Ids.rep_id(List.nth(elements, 2).ids);
           get_message(
             doc,
             options,

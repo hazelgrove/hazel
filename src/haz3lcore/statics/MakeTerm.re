@@ -231,13 +231,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (body) {
         | {ids, term: Tuple(es)} => (
             ListLit(es, None),
-            fst(List.split(ids)),
+            CH.Ids.rep_ids(ids),
           )
         | term => ret(ListLit([term], None))
         }
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
           Match(scrut, rules, 0),
-          fst(List.split(ids)),
+          CH.Ids.rep_ids(ids),
         )
       | _ => ret(hole(tm))
       }

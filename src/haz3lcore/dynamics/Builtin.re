@@ -75,8 +75,7 @@ let mk_elab = (name: Var.t, typ: Typ.t): ElaboratorMonad.t(DHExp.t) => {
        */
       };
     let* id = ElaboratorMonad.with_id(IdGen.fresh);
-    let ids = [(id, id)];
-    DHExp.{ids, term} |> ElaboratorMonad.return;
+    DHExp.mk(CH.Ids.mk([id]), term) |> ElaboratorMonad.return;
   };
 
   mk_elab_inner(typ, 0, []);

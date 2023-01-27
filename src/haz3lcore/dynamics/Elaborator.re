@@ -1,5 +1,3 @@
-open Util;
-
 module ElaboratorError = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -71,14 +69,7 @@ let exp_binop_of = (op: Term.UExp.op_bin): (Typ.t, (_, _) => DHExp.term) =>
   | String(_) => (String, ((e1, e2) => BinOp(op, e1, e2)))
   };
 
-let ids_derive = (ids: CH.Ids.t): IdGen.t(CH.Ids.t) => {
-  let f = ((base, _)) => {
-    open IdGen.Syntax;
-    let+ derived = IdGen.fresh;
-    (base, derived);
-  };
-  ListUtil.traverse(f, ids);
-};
+let ids_derive = CH.Ids.derive;
 
 type m('a) = ElaboratorMonad.t('a);
 
@@ -308,12 +299,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
 
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
-        let (base, derived) = List.nth(def.ids, 0);
         let self_id =
-          "__mutual__"
-          ++ Id.token_of_t(base)
-          ++ "_"
-          ++ Id.token_of_t(derived);
+          "__mutual__" ++ CH.Ids.Tree.token_of_t(List.nth(def.ids, 0));
         let* self_var_ids = ids_derive(def.ids);
         let self_var = DHExp.{ids: self_var_ids, term: DHExp.Var(self_id)};
         let* (_, substituted_def) =
@@ -488,9 +475,9 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): m(DHExp.t) => {
     (d', (ident, (elab, _))) => {
       let* d' = d';
       let* var_id = with_id(IdGen.fresh);
-      let var_ids = [(var_id, var_id)];
+      let var_ids = CH.Ids.mk([var_id]);
       let* let_id = with_id(IdGen.fresh);
-      let let_ids = [(let_id, let_id)];
+      let let_ids = CH.Ids.mk([let_id]);
       DHExp.{
         ids: var_ids,
         term: Let({ids: let_ids, term: Var(ident)}, elab, d'),

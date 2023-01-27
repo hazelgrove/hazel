@@ -1,18 +1,51 @@
+open Util;
 open Sexplib.Std;
 
 // Yeah, a group of rec'd modules that represent the core data type we
 // use for expression.
 
 module Ids = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type p =
-    | Root(Id.t)
-    | Other(Id.t, Id.t);
+  module Tree = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | Root(Id.t)
+      | Leaf(t, Id.t);
+
+    let rec root: t => Id.t =
+      tree =>
+        switch (tree) {
+        | Root(id) => id
+        | Leaf(parent, _) => root(parent)
+        };
+
+    let append: (t, Id.t) => t = (tree, id) => Leaf(tree, id);
+
+    let rec token_of_t: t => string =
+      tree =>
+        switch (tree) {
+        | Root(id) => "root_" ++ Id.token_of_t(id)
+        | Leaf(parent, id) => token_of_t(parent) ++ "_" ++ Id.token_of_t(id)
+        };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(p);
+  type t = list(Tree.t);
 
-  let mk: list(Id.t) => t = List.map(id => Root(id));
+  let rep_id: t => Id.t = ids => Tree.root(List.nth(ids, 0));
+
+  let rep_ids: t => list(Id.t) = ids => ids |> List.map(Tree.root);
+
+  let mk: list(Id.t) => t = List.map(id => Tree.Root(id));
+
+  let derive: t => IdGen.t(t) =
+    ids => {
+      open IdGen.Syntax;
+      let f = tree => {
+        let+ derived = IdGen.fresh;
+        Tree.append(tree, derived);
+      };
+      ListUtil.traverse(f, ids);
+    };
 };
 
 module rec CAny: {

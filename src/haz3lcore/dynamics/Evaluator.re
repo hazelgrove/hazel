@@ -54,14 +54,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | List(_) => grounded_List
   };
 
-let ids_derive = (ids: CH.Ids.t): IdGen.t(CH.Ids.t) => {
-  let f = ((base, _)) => {
-    open IdGen.Syntax;
-    let+ derived = IdGen.fresh;
-    (base, derived);
-  };
-  ListUtil.traverse(f, ids);
-};
+let ids_derive = CH.Ids.derive;
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): m(match_result) => {
   switch (dp.term, d.term) {

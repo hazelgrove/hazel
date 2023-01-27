@@ -40,7 +40,7 @@ module UTyp = {
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
-    fst(List.hd(ids));
+    CH.Ids.rep_id(ids);
   };
 
   let hole = (tms: list(any)) =>
@@ -121,7 +121,7 @@ module UPat = {
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
-    fst(List.hd(ids));
+    CH.Ids.rep_id(ids);
   };
 
   let hole = (tms: list(any)): term =>
@@ -318,7 +318,7 @@ module UExp = {
 
   let rep_id = ({ids, _}) => {
     assert(ids != []);
-    fst(List.hd(ids));
+    CH.Ids.rep_id(ids);
   };
 
   let cls_of_term: term => cls =
@@ -533,11 +533,11 @@ module URul = {
   // (eg scrut with no rules)
   let ids = (~any_ids: any => list(Id.t), {ids, term}: t): list(Id.t) =>
     switch (ids) {
-    | [_, ..._] => fst(List.split(ids))
+    | [_, ..._] => CH.Ids.rep_ids(ids)
     | [] =>
       switch (term) {
       | Hole([tm, ..._]) => any_ids(tm)
-      | Rules(scrut, []) => fst(List.split(scrut.ids))
+      | Rules(scrut, []) => CH.Ids.rep_ids(scrut.ids)
       | _ => []
       }
     };
@@ -551,9 +551,9 @@ module URul = {
 
 let rec ids: any => list(Id.t) =
   fun
-  | Exp(tm) => fst(List.split(tm.ids))
-  | Pat(tm) => fst(List.split(tm.ids))
-  | Typ(tm) => fst(List.split(tm.ids))
+  | Exp(tm) => CH.Ids.rep_ids(tm.ids)
+  | Pat(tm) => CH.Ids.rep_ids(tm.ids)
+  | Typ(tm) => CH.Ids.rep_ids(tm.ids)
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];

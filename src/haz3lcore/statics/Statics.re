@@ -289,7 +289,7 @@ and uexp_to_info_map =
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
-  let ids = fst(List.split(ids));
+  let ids = CH.Ids.rep_ids(ids);
   let add = (~self, ~free, m) => (
     typ_after_fix(mode, self),
     free,
@@ -485,7 +485,7 @@ and upat_to_info_map =
     )
     : (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
-  let ids = fst(List.split(ids));
+  let ids = CH.Ids.rep_ids(ids);
   let add = (~self, ~ctx, m) => (
     typ_after_fix(mode, self),
     ctx,
@@ -595,7 +595,7 @@ and upat_to_info_map =
 and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
-  let ids = fst(List.split(ids));
+  let ids = CH.Ids.rep_ids(ids);
   let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
   let just = m => (ty, add(Just(ty), m));
   switch (term) {
