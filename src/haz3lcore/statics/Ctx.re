@@ -26,9 +26,9 @@ let lookup_tag = (ctx: t, name: string): option(var_entry) =>
     ctx,
   );
 
-let extend_tags = (name: Token.t, tags: list(Typ.tagged), id, ctx) =>
+let extend_tags = (name: Token.t, tags: Typ.typ_map, id, ctx) =>
   List.map(
-    ({tag, typ}: Typ.tagged) =>
+    ((tag, typ)) =>
       TagEntry({
         name: tag,
         id,
@@ -147,7 +147,7 @@ let rec join =
       };
     }
   | (Prod(_), _) => None
-  | (LabelSum(tys1), LabelSum(tys2)) =>
+  | (TSum(tys1), TSum(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
@@ -157,9 +157,9 @@ let rec join =
         Typ.sort_tagged(tys2),
       )
       |> Util.OptUtil.sequence
-      |> Option.map(tys => Typ.LabelSum(tys));
+      |> Option.map(tys => Typ.TSum(tys));
     }
-  | (LabelSum(_), _) => None
+  | (TSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
     switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
@@ -175,13 +175,13 @@ let rec join =
   };
 }
 and tagged_join =
-    (~d, ctx, t1: Typ.tagged, t2: Typ.tagged): option(Typ.tagged) =>
-  t1.tag == t2.tag
-    ? switch (t1.typ, t2.typ) {
-      | (None, None) => Some({tag: t1.tag, typ: None})
+    (~d, ctx, (tag1, ty1), (tag2, ty2)): option((Token.t, option(Typ.t))) =>
+  tag1 == tag2
+    ? switch (ty1, ty2) {
+      | (None, None) => Some((tag1, None))
       | (Some(ty1), Some(ty2)) =>
         let+ ty_join = join(~d, ctx, ty1, ty2);
-        Typ.{tag: t1.tag, typ: Some(ty_join)};
+        (tag1, Some(ty_join));
       | _ => None
       }
     : None;

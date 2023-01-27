@@ -55,9 +55,9 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
-  | LabelSum(ts) =>
+  | TSum(ts) =>
     div(
-      ~attr=clss(["typ-view", "LabelSum"]),
+      ~attr=clss(["typ-view", "TSum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
       | [t0] => [text("+(")] @ tagged_view(t0) @ [text(")")]
@@ -73,10 +73,10 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
       [view(t1), text(" + "), view(t2)],
     )
   }
-and tagged_view = (t: Haz3lcore.Typ.tagged) =>
-  switch (t.typ) {
-  | None => [text(t.tag)]
-  | Some(typ) => [text(t.tag ++ "("), view(typ), text(")")]
+and tagged_view = ((tag, typ)) =>
+  switch (typ) {
+  | None => [text(tag)]
+  | Some(typ) => [text(tag ++ "("), view(typ), text(")")]
   };
 
 let view_entry = (name, typ) => [

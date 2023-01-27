@@ -35,7 +35,7 @@ module UTyp = {
     | Var
     | Parens
     | Ap
-    | TSum;
+    | UTSum;
 
   include TermBase.UTyp;
 
@@ -64,7 +64,7 @@ module UTyp = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | TSum(_) => TSum;
+    | UTSum(_) => UTSum;
 
   let show_cls: cls => string =
     fun
@@ -81,7 +81,7 @@ module UTyp = {
     | Sum => "Labelled Sum Type"
     | Parens => "Parenthesized Type Term"
     | Ap => "Type Application"
-    | TSum => "Labelled Sum Type";
+    | UTSum => "Labelled Sum Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -97,7 +97,7 @@ module UTyp = {
     | Tuple(_)
     | Var(_)
     | Ap(_)
-    | TSum(_) => false
+    | UTSum(_) => false
     };
   };
 
@@ -117,17 +117,31 @@ module UTyp = {
       | Var(name) => Var(name)
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | TSum(us) => LabelSum(Util.ListUtil.flat_map(to_variant(ctx), us))
+      | UTSum(uts) => TSum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       }
   and to_variant = ctx =>
     fun
-    | {term: Var(tag), _} => [Typ.{tag, typ: None}]
+    | {term: Var(tag), _} => [(tag, None)]
     | {term: Ap({term: Var(tag), _}, u), _} => [
-        Typ.{tag, typ: Some(to_typ(ctx, u))},
+        (tag, Some(to_typ(ctx, u))),
       ]
-    | _ => [];
+    | _ => []
+  and get_tag = (ctx, ut) =>
+    switch (to_variant(ctx, ut)) {
+    | [(tag, _)] => Some(tag)
+    | _ => None
+    }
+  and to_tag_map = (ctx, uts: list(t)): Typ.typ_map => {
+    List.fold_left(
+      (acc, ut) =>
+        List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
+          ? acc @ [ut] : acc,
+      [],
+      Util.ListUtil.flat_map(to_variant(ctx), uts),
+    );
+  };
 };
 
 module UTPat = {

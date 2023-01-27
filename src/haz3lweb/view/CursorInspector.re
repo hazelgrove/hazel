@@ -162,13 +162,13 @@ let view_of_info =
       [
         term_tag(~inject, ~show_lang_doc, is_err, "typ"),
         switch (status) {
-        | Ok(_) when cls == Var && mode == VariantExpected =>
+        | Ok(_) when cls == Var && mode != Normal =>
           //TODO(andrew): this is a mild hack
           div(
             ~attr=clss([happyc]),
             [text("Sum type constuctor definition")],
           )
-        | Ok(_) when cls == Ap && mode == VariantExpected =>
+        | Ok(_) when cls == Ap && mode != Normal =>
           //TODO(andrew): this is a mild hack
           div(
             ~attr=clss([happyc]),
@@ -191,6 +191,8 @@ let view_of_info =
             ~attr=clss([errorc]),
             [text("Constructor application must be in sum")],
           )
+        | DuplicateTag =>
+          div(~attr=clss([errorc]), [text("Duplicate constructor")])
         },
       ],
     )

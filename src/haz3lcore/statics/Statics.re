@@ -46,14 +46,19 @@ type status_typ =
   | Ok(Typ.t)
   | FreeTypeVar
   //| TagArity
-  //| DuplicateTag // TODO(andrew)
+  | DuplicateTag // TODO(andrew)
   | ApOutsideSum
   | TagExpected(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type status_tag =
+  | Unique
+  | Duplicate;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type typ_mode =
   | Normal
-  | VariantExpected;
+  | VariantExpected(status_tag);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
@@ -305,7 +310,7 @@ let tag_ana_typ = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): option(Typ.t) =>
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
     switch (Ctx.resolve_typ(ctx, ty_ana)) {
-    | Some(LabelSum(tags)) => Typ.ana_sum(tag, tags, ty_ana)
+    | Some(TSum(tags)) => Typ.ana_sum(tag, tags, ty_ana)
     | _ => None
     }
   | _ => None
@@ -550,7 +555,7 @@ and uexp_to_info_map =
     );
   | TyAlias(
       {term: Var(name), _} as typat,
-      {term: TSum(_), _} as utyp,
+      {term: UTSum(_), _} as utyp,
       body,
     ) =>
     //TODO(andrew): cleanup (with lower variant)
@@ -568,7 +573,7 @@ and uexp_to_info_map =
       );
     let ctx_def_and_body =
       switch (ty) {
-      | LabelSum(tags) =>
+      | TSum(tags) =>
         Ctx.extend_tags(name, tags, Term.UTyp.rep_id(utyp), ctx_def_and_body)
       | _ => ctx_def_and_body
       };
@@ -748,8 +753,7 @@ and utyp_to_info_map =
     add_info(ids, InfoTyp({cls, ctx, mode, status, term: utyp}));
   let ok = (m: map): (Typ.t, map) => (ty, add(Ok(ty), m));
   let error = (err, m) => (Typ.Unknown(Internal), add(err, m));
-  let normal = m =>
-    mode == VariantExpected ? error(TagExpected(ty), m) : ok(m);
+  let normal = m => mode != Normal ? error(TagExpected(ty), m) : ok(m);
   let go = utyp_to_info_map(~ctx, ~mode=Normal);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
@@ -773,22 +777,40 @@ and utyp_to_info_map =
   | Var(name) =>
     //TODO(andrew): change cls for tag case?
     let m = Id.Map.empty;
-    mode == VariantExpected
-      ? ok(m) : Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m);
+    switch (mode) {
+    | VariantExpected(Duplicate) => error(DuplicateTag, m)
+    | VariantExpected(Unique) => ok(m)
+    | Normal => Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
+    };
   | Ap(t1, t2) =>
     let m =
       union_m([
-        utyp_to_info_map(~ctx, ~mode=VariantExpected, t1) |> snd,
+        utyp_to_info_map(~ctx, ~mode=VariantExpected(Unique), t1) |> snd,
         utyp_to_info_map(~ctx, ~mode=Normal, t2) |> snd,
       ]);
-    mode == VariantExpected ? ok(m) : error(ApOutsideSum, m);
-  | TSum(ts) =>
-    //TODO(andrew): check for duplicate variants
-    let m =
-      List.map(utyp_to_info_map(~ctx, ~mode=VariantExpected), ts)
-      |> List.map(snd)
-      |> union_m;
-    ok(m);
+    switch (mode) {
+    | VariantExpected(Duplicate) => error(DuplicateTag, m)
+    | VariantExpected(Unique) => ok(m)
+    | Normal => error(ApOutsideSum, m)
+    };
+  | UTSum(ts) =>
+    let (ms, _) =
+      List.fold_left(
+        ((acc, tags), ut) => {
+          let (status, tag) =
+            switch (Term.UTyp.get_tag(ctx, ut)) {
+            | None => (Unique, [])
+            | Some(tag) when !List.mem(tag, tags) => (Unique, [tag])
+            | Some(tag) => (Duplicate, [tag])
+            };
+          let m =
+            utyp_to_info_map(~ctx, ~mode=VariantExpected(status), ut) |> snd;
+          (acc @ [m], tags @ tag);
+        },
+        ([], []),
+        ts,
+      );
+    ok(union_m(ms));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     ok(union_m(maps));
