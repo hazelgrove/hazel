@@ -168,8 +168,8 @@ and join_sums =
   } else {
     List.map2(
       join_sum_entries(~d, ctx),
-      Typ.sort_sum(sm1),
-      Typ.sort_sum(sm2),
+      Util.TagMap.sort(sm1),
+      Util.TagMap.sort(sm2),
     )
     |> Util.OptUtil.sequence
     |> Option.map(sm => Typ.Sum(sm));
