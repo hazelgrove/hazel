@@ -172,11 +172,7 @@ let view_of_info =
             ~attr=clss([happyc]),
             [text("Sum type constuctor definition")],
           )
-        | Ok(ty) =>
-          switch (Haz3lcore.Ctx.resolve_typ(ctx, ty)) {
-          | Some(ty) => Type.view(ty)
-          | None => Type.view(ty)
-          }
+        | Ok(ty) => ty |> Haz3lcore.Kind.normalize_shallow(ctx) |> Type.view
         | FreeTypeVar =>
           div(~attr=clss([errorc]), [text("Type Variable is not bound")])
         | TagExpected(typ) =>

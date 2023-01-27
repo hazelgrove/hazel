@@ -1,15 +1,6 @@
 open Util.OptUtil.Syntax;
 include TypBase.Ctx;
 
-let get_id: entry => int =
-  fun
-  | VarEntry({id, _})
-  | TagEntry({id, _})
-  | TVarEntry({id, _}) => id;
-let empty: t = VarMap.empty;
-
-let extend: (entry, t) => t = List.cons;
-
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
@@ -41,9 +32,6 @@ let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
     tags,
   )
   @ ctx;
-
-let add_singleton = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
-  extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
 let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
@@ -116,14 +104,14 @@ let rec join =
     if (Typ.var_eq(d, n1, n2)) {
       Some(Var(n1));
     } else {
-      let* Singleton(ty1) = lookup_tvar(ctx, n1);
-      let* Singleton(ty2) = lookup_tvar(ctx, n2);
+      let* Singleton(ty1) = Kind.lookup_tvar(ctx, n1);
+      let* Singleton(ty2) = Kind.lookup_tvar(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
       resolve ? ty_join : Var(n1);
     }
   | (Var(name), ty)
   | (ty, Var(name)) =>
-    let* Singleton(ty_name) = lookup_tvar(ctx, name);
+    let* Singleton(ty_name) = Kind.lookup_tvar(ctx, name);
     let+ ty_join = join'(ty_name, ty);
     resolve ? ty_join : Var(name);
   | (Int, Int) => Some(Int)
