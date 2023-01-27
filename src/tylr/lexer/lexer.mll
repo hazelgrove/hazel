@@ -28,8 +28,8 @@ let op =
 let token = op | id_lower | id_upper | int_lit | float_lit
 
 rule next_lexeme = parse
-| newline { Lexeme.S (Space.mk(Newline)) }
-| space   { Lexeme.S (Space.mk(Space)) }
+| newline { Some (Lexeme.S (Space.mk(Newline))) }
+| space   { Some (Lexeme.S (Space.mk(Space))) }
 | token   {
     (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
@@ -39,15 +39,18 @@ rule next_lexeme = parse
       | c when Util.CharUtil.is_alphanum c -> Mold.default_operand
       | _ -> Mold.default_infix
     in
-    Lexeme.T (Tile.mk mold token)
+    Some (Lexeme.T (Tile.mk mold token))
   }
+| eof { None }
 
 {
   let lex = fun s ->
     let buf = Lexing.from_string s in
     let rev = ref [] in
-    while not buf.lex_eof_reached do
-      rev := (next_lexeme buf)::!rev
-    done;
-    List.rev(!rev)
+    let rec go () =
+      match next_lexeme buf with
+      | None -> ()
+      | Some lx -> rev := lx::!rev; go ()
+    in
+    go (); List.rev(!rev)
 }

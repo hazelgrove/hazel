@@ -1,9 +1,12 @@
+open Sexplib.Std;
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | S(Space.t)
   | G(Grout.t)
   | T(Tile.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type s = list(t);
 
 let is_porous =
