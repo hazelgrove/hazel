@@ -29,6 +29,9 @@ let unsnoc_char = (t: t): option((t, t)) => {
   tl == "" ? None : Some(({...t, token: tl}, {...t, token: hd}));
 };
 
+let zip = (l: t, r: t): option(t) =>
+  Id.eq(l.id, r.id) ? Some({...l, token: l.token ++ r.token}) : None;
+
 let unzip = (n: int, t: t): Either.t(Dir.t, (t, t)) =>
   switch (Token.split(n, t.token)) {
   | ("", _) => L(L)

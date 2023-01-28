@@ -33,6 +33,12 @@ let id =
   | T(t) => t.id
   | S(s) => s.id;
 
+let to_piece =
+  fun
+  | S(_) => None
+  | G(g) => Some(Piece.mk(G(g)))
+  | T(t) => Some(Piece.mk(T(t)));
+
 let s_of_space: Space.s => s = List.map(s => S(s));
 
 // postcond: output is nonempty

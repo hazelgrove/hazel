@@ -41,6 +41,9 @@ let unsnoc_char = (g: t): option((t, t)) =>
        tl == "" ? None : Some(({...g, prefix: tl}, {...g, prefix: hd}))
      );
 
+let zip = (l, r): option(t) =>
+  Id.eq(l.id, r.id) ? Some({...l, prefix: l.prefix ++ r.prefix}) : None;
+
 let unzip = (n, g): Either.t(Dir.t, (t, t)) =>
   switch (n) {
   | 0 => L(L)

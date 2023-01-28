@@ -25,45 +25,69 @@ let uncons_lexeme =
   uncons(~from_l=Segment.unsnoc_lexeme, ~from_r=Segment.uncons_lexeme);
 let uncons_char =
   uncons(~from_l=Segment.unsnoc_char, ~from_r=Segment.uncons_char);
+let uncons_opt_lexeme = (~from: Dir.t, sib) =>
+  switch (uncons_lexeme(~from, sib)) {
+  | None => (None, sib)
+  | Some((lx, sib)) => (Some(lx), sib)
+  };
+let uncons_opt_lexemes = (sib: t) => {
+  let (l, sib) = uncons_opt_lexeme(~from=L, sib);
+  let (r, sib) = uncons_opt_lexeme(~from=R, sib);
+  ((l, r), sib);
+};
 
 let cat = ((l_inner, r_inner), (l_outer, r_outer)) =>
   Segment.(cat(l_outer, l_inner), cat(r_inner, r_outer));
 // let concat = _ => failwith("todo concat");
 
-let uncons_opt_lexemes = (sib: t) => {
-  let (l, sib) =
-    switch (uncons_lexeme(~from=L, sib)) {
-    | None => (None, sib)
-    | Some((l, sib)) => (Some(l), sib)
-    };
-  let (r, sib) =
-    switch (uncons_lexeme(~from=R, sib)) {
-    | None => (None, sib)
-    | Some((r, sib)) => (Some(r), sib)
-    };
-  ((l, r), sib);
+let zip_piece = (sib: t): (Segment.t, t) => {
+  let ((l, r), sib') = uncons_opt_lexemes(sib);
+  switch (Option.bind(l, Lexeme.to_piece), Option.bind(r, Lexeme.to_piece)) {
+  | (Some(p_l), Some(p_r)) when Option.is_some(Piece.zip(p_l, p_r)) =>
+    let p = Option.get(Piece.zip(p_l, p_r));
+    (Segment.of_meld(Meld.of_piece(p)), sib');
+  | _ => (Segment.empty, sib)
+  };
+};
+let zip_piece_l = (sel, sib) => {
+  let (lx, sib') = uncons_opt_lexeme(~from=L, sib);
+  switch (Option.bind(lx, Lexeme.to_piece), Chain.unlink(sel)) {
+  | (Some(p_l), Some(([], mel, tl_sel))) =>
+    switch (Chain.unlink(mel)) {
+    | Some((kid, p_r, tl_mel)) when Option.is_some(Piece.zip(p_l, p_r)) =>
+      assert(Option.is_none(kid));
+      let p = Option.get(Piece.zip(p_l, p_r));
+      let sel = Chain.link([], Chain.link(kid, p, tl_mel), tl_sel);
+      (sel, sib');
+    | _ => (sel, sib)
+    }
+  | _ => (sel, sib)
+  };
+};
+let zip_piece_r = (sel, sib) => {
+  let (lx, sib') = uncons_opt_lexeme(~from=R, sib);
+  switch (Chain.unknil(sel), Option.bind(lx, Lexeme.to_piece)) {
+  | (Some((tl_sel, mel, [])), Some(p_r)) =>
+    switch (Chain.unknil(mel)) {
+    | Some((tl_mel, p_l, kid)) when Option.is_some(Piece.zip(p_l, p_r)) =>
+      assert(Option.is_none(kid));
+      let p = Option.get(Piece.zip(p_l, p_r));
+      let sel = Chain.knil(tl_sel, Chain.knil(tl_mel, p, kid), []);
+      (sel, sib');
+    | _ => (sel, sib)
+    }
+  | _ => (sel, sib)
+  };
+};
+let zip_pieces = (sel: Segment.t, sib: t): (Segment.t, t) => {
+  let (sel, sib) = zip_piece_r(sel, sib);
+  let (sel, sib) = zip_piece_l(sel, sib);
+  Segment.is_empty(sel) ? zip_piece(sib) : (sel, sib);
 };
 
-let within_piece = (sib: t) =>
-  switch (uncons_opt_lexemes(sib)) {
-  | ((Some(G(l)), Some(G(r))), sib) when l.id == r.id =>
-    Some((Piece.mk(G({...l, prefix: l.prefix ++ r.prefix})), sib))
-  | ((Some(T(l)), Some(T(r))), sib) when l.id == r.id =>
-    Some((Piece.mk(T({...l, token: l.token ++ r.token})), sib))
-  | _ => None
-  };
-
-let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Meld.Padded.t => {
-  let suf = Segment.cat(sel, suf);
-  let (pre, suf) =
-    switch (within_piece((pre, suf))) {
-    | Some((p, (pre, suf))) => (
-        pre,
-        Segment.cons_meld(Meld.of_piece(p), suf),
-      )
-    | None => (pre, suf)
-    };
-  Segment.cat(pre, suf)
+let zip = (~l=?, ~r=?, ~sel=Segment.empty, sib: t): Meld.Padded.t => {
+  let (sel, (pre, suf)) = zip_pieces(sel, sib);
+  Segment.concat([pre, sel, suf])
   |> Segment.assemble(~l?, ~r?)
   |> Segment.to_padded
   |> OptUtil.get_or_raise(Meld.Invalid_prec);

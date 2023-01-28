@@ -21,12 +21,26 @@ let pad = (~l=Space.empty, ~r=Space.empty, {shape, space: (l', r')}) => {
 
 let is_porous = _ => failwith("todo is_porous");
 
+let space_l = ({space: (l, _), _}) => l;
+let space_r = ({space: (_, r), _}) => r;
 let space = ({space: (l, r), _}) => l @ r;
 
 let id = p =>
   switch (p.shape) {
   | G(g) => g.id
   | T(t) => t.id
+  };
+
+let zip = (l: t, r: t): option(t) =>
+  switch (l.shape, r.shape) {
+  | (G(_), T(_))
+  | (T(_), G(_)) => None
+  | (G(g_l), G(g_r)) =>
+    Grout.zip(g_l, g_r)
+    |> Option.map(g => mk(~l=space_l(l), ~r=space_r(r), G(g)))
+  | (T(t_l), T(t_r)) =>
+    Tile.zip(t_l, t_r)
+    |> Option.map(t => mk(~l=space_l(l), ~r=space_r(r), T(t)))
   };
 
 let pop_space_l = ({shape, space: (l, r)}: t) => (

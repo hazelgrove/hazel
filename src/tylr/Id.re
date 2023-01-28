@@ -2,6 +2,7 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = int;
+let eq = Int.equal;
 let compare = Int.compare;
 let invalid = (-1);
 
