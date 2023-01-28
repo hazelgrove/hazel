@@ -17,13 +17,17 @@ let length = t => Token.length(t.token);
 
 let split_cursor = (_: t) => failwith("todo split_cursor");
 
-let uncons_char = (t: t): option((t, t)) =>
-  StringUtil.uncons(t.token)
-  |> Option.map(((hd, tl)) => ({...t, token: hd}, {...t, token: tl}));
+let uncons_char = (t: t): option((t, t)) => {
+  open OptUtil.Syntax;
+  let* (hd, tl) = StringUtil.uncons(t.token);
+  tl == "" ? None : Some(({...t, token: hd}, {...t, token: tl}));
+};
 
-let unsnoc_char = (t: t): option((t, t)) =>
-  StringUtil.unsnoc(t.token)
-  |> Option.map(((tl, hd)) => ({...t, token: tl}, {...t, token: hd}));
+let unsnoc_char = (t: t): option((t, t)) => {
+  open OptUtil.Syntax;
+  let* (tl, hd) = StringUtil.unsnoc(t.token);
+  tl == "" ? None : Some(({...t, token: tl}, {...t, token: hd}));
+};
 
 let unzip = (n: int, t: t): Either.t(Dir.t, (t, t)) =>
   switch (Token.split(n, t.token)) {

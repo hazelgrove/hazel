@@ -118,6 +118,7 @@ let go =
     let Editor.State.{zipper, meta, tylr} = ed.state;
     Effect.s_clear();
     let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
+    print_endline("performing tylr action");
     let tylr =
       switch (Action.to_tylr(a)) {
       | None => tylr

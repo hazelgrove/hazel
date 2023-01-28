@@ -32,10 +32,14 @@ let suggestion = g =>
 
 let uncons_char = (g: t): option((t, t)) =>
   StringUtil.uncons(g.prefix)
-  |> Option.map(((hd, tl)) => ({...g, prefix: hd}, {...g, prefix: tl}));
+  |> OptUtil.and_then(((hd, tl)) =>
+       tl == "" ? None : Some(({...g, prefix: hd}, {...g, prefix: tl}))
+     );
 let unsnoc_char = (g: t): option((t, t)) =>
   StringUtil.unsnoc(g.prefix)
-  |> Option.map(((tl, hd)) => ({...g, prefix: tl}, {...g, prefix: hd}));
+  |> OptUtil.and_then(((tl, hd)) =>
+       tl == "" ? None : Some(({...g, prefix: tl}, {...g, prefix: hd}))
+     );
 
 let unzip = (n, g): Either.t(Dir.t, (t, t)) =>
   switch (n) {
