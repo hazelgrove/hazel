@@ -65,16 +65,18 @@ let step_backward = res => {
 };
 
 type optional_simple_data = {
-  opt_eval_results: list(Haz3lcore.DHExp.t),
+  opt_eval_results: list(DHExp.t),
   opt_test_results: option(Interface.test_results),
 };
 
-type simple_data = {
-  eval_results: list(Haz3lcore.DHExp.t),
-  test_results: Interface.test_results,
-};
+// simple definitions are moved to TestResults
 
-type simple = option(simple_data);
+type simple_data =
+  TestResults.simple_data = {
+    eval_results: list(DHExp.t),
+    test_results: TestResults.test_results,
+  };
+type simple = TestResults.simple;
 
 let get_simple = (res: option(t)): simple =>
   res
@@ -84,16 +86,14 @@ let get_simple = (res: option(t)): simple =>
        let test_results =
          List.hd(r)
          |> ProgramResult.get_state
-         |> Haz3lcore.EvaluatorState.get_tests
+         |> EvaluatorState.get_tests
          |> Interface.mk_results;
        {eval_results, test_results};
      });
 
-let unwrap_test_results = (simple: simple): option(Interface.test_results) => {
-  Option.map(simple_data => simple_data.test_results, simple);
-};
+let unwrap_test_results = TestResults.unwrap_test_results;
 
-let unwrap_eval_result = (simple: simple): list(Haz3lcore.DHExp.t) => {
+let unwrap_eval_result = (simple: simple): list(DHExp.t) => {
   switch (simple) {
   | Some(simple_data) => simple_data.eval_results
   | None => []

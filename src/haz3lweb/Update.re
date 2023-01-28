@@ -4,6 +4,7 @@ include UpdateAction; // to prevent circularity
 
 let save_editors = (model: Model.t): unit =>
   switch (model.editors) {
+  | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) => LocalStorage.Scratch.save((n, slides))
   | School(n, specs, exercise) =>
     LocalStorage.School.save(
@@ -51,11 +52,11 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
           captions: !settings.captions,
         },
       }
-    | WhitespaceIcons => {
+    | SecondaryIcons => {
         ...model,
         settings: {
           ...settings,
-          whitespace_icons: !settings.whitespace_icons,
+          secondary_icons: !settings.secondary_icons,
         },
       }
     | ContextInspector => {
@@ -94,6 +95,7 @@ let load_model = (model: Model.t): Model.t => {
   let model = {...model, settings, langDocMessages};
   let model =
     switch (model.settings.mode) {
+    | DebugLoad => model
     | Scratch =>
       let (idx, slides) = LocalStorage.Scratch.load();
       {...model, editors: Scratch(idx, slides)};
@@ -110,13 +112,14 @@ let load_model = (model: Model.t): Model.t => {
       ModelResults.init(
         model.settings.dynamics.evaluate
           ? Editors.get_spliced_elabs(model.editors) : [],
-        model.settings.dynamics.stepping,
+        ~step=model.settings.dynamics.stepping,
       ),
   };
 };
 
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.editors) {
+  | DebugLoad => model
   | Scratch(_) =>
     let (idx, editors) = LocalStorage.Scratch.init();
     {...model, editors: Scratch(idx, editors)};
@@ -131,7 +134,7 @@ let reevaluate_post_update =
   | Set(s_action) =>
     switch (s_action) {
     | Captions
-    | WhitespaceIcons
+    | SecondaryIcons
     | Statics
     | Dynamics(Toggle_show_record)
     | Dynamics(Toggle_show_casts)
@@ -164,7 +167,8 @@ let reevaluate_post_update =
   | FailedInput(_)
   | UpdateLangDocMessages(_)
   | StepForward(_)
-  | StepBackward => false
+  | StepBackward
+  | DebugAction(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | ResetCurrentEditor
@@ -185,10 +189,13 @@ let evaluate_and_schedule =
   let model = {
     ...model,
     results:
-      ModelResults.init(
-        model.settings.dynamics.evaluate
-          ? Editors.get_spliced_elabs(model.editors) : [],
-        model.settings.dynamics.stepping,
+      Util.TimeUtil.measure_time(
+        "ModelResults.init", model.settings.benchmark, () =>
+        ModelResults.init(
+          model.settings.dynamics.evaluate
+            ? Editors.get_spliced_elabs(model.editors) : [],
+          ~step=model.settings.dynamics.stepping,
+        )
       ),
   };
 
@@ -254,7 +261,8 @@ let apply =
       Ok(model);
     | FinishImportScratchpad(data) =>
       switch (model.editors) {
-      | School(_) => assert(false)
+      | DebugLoad => failwith("impossible")
+      | School(_) => failwith("impossible")
       | Scratch(idx, slides) =>
         switch (data) {
         | None => Ok(model)
@@ -269,6 +277,7 @@ let apply =
     | ResetSlide =>
       let model =
         switch (model.editors) {
+        | DebugLoad => failwith("impossible")
         | Scratch(n, slides) =>
           let slides =
             Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
@@ -290,6 +299,7 @@ let apply =
       Ok(model);
     | SwitchSlide(n) =>
       switch (model.editors) {
+      | DebugLoad => failwith("impossible")
       | Scratch(m, _) when m == n => Error(FailedToSwitch)
       | Scratch(_, slides) =>
         switch (n < List.length(slides)) {
@@ -312,6 +322,7 @@ let apply =
       }
     | SwitchEditor(n) =>
       switch (model.editors) {
+      | DebugLoad => failwith("impossible")
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
         let exercise = SchoolExercise.switch_editor(n, exercise);
@@ -442,6 +453,9 @@ let apply =
         results:
           model.results |> ModelResults.add(ScratchSlide.scratch_key, r),
       });
+    | DebugAction(a) =>
+      DebugAction.perform(a);
+      Ok(model);
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

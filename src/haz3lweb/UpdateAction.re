@@ -5,7 +5,7 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
-  | WhitespaceIcons
+  | SecondaryIcons
   | Statics
   | Dynamics(Settings.Evaluation.update)
   | Benchmark
@@ -43,7 +43,8 @@ type t =
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | StepForward(EvaluatorStep.EvalObj.t)
   | StepBackward
-  | UpdateLangDocMessages(LangDocMessages.update);
+  | UpdateLangDocMessages(LangDocMessages.update)
+  | DebugAction(DebugAction.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

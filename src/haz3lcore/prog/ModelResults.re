@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Haz3lcore;
 
 module Key = {
   include String;
@@ -13,7 +12,7 @@ include M;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
-let init = (ds: list((Key.t, DHExp.t)), step: bool): t => {
+let init = (~step=false, ds: list((Key.t, DHExp.t))): t => {
   ds
   |> List.map(((key, d)) =>
        (
