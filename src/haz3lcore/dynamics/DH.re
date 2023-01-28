@@ -264,27 +264,14 @@ module rec DHExp: {
     | xs => Tuple(xs);
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-    switch (d, t2) {
-    | (ListLit(_, _, _, _, []), List(_)) =>
-      //HACK(andrew, cyrus)
-      d
-    | _ =>
-      if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
-        d;
-      } else {
-        Cast(d, t1, t2);
-      }
+    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+      d;
+    } else {
+      Cast(d, t1, t2);
     };
 
   let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
-    List.fold_left(
-      (d, c: (Typ.t, Typ.t)) => {
-        let (ty1, ty2) = c;
-        cast(d, ty1, ty2);
-      },
-      d,
-      casts,
-    );
+    List.fold_left((d, (ty1, ty2)) => cast(d, ty1, ty2), d, casts);
 
   let rec strip_casts =
     fun

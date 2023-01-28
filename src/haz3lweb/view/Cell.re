@@ -196,15 +196,48 @@ let eval_result_footer_view =
     (
       ~inject,
       ~font_metrics,
+      ~elab,
       ~settings: Model.settings,
       simple: ModelResult.simple,
     ) => {
   let d_view =
     switch (simple) {
     | None
-    | Some({eval_results: [], _}) => [Node.text("No result available.")]
+    | Some({eval_results: [], _}) => [
+        Node.text("No result available. Elaboration follows:"),
+        DHCode.view_tylr(
+          ~inject,
+          ~settings={
+            ...Settings.Evaluation.init,
+            evaluate: true,
+            show_case_clauses: true,
+            show_fn_bodies: true,
+            show_casts: true,
+            show_unevaluated_elaboration: false,
+          },
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          elab,
+        ),
+      ]
     | Some({eval_results: [InvalidText(0, 0, "EXCEPTION")], _}) => [
-        Node.text("No result available (exception)."),
+        Node.text("No result available (exception). Elaboration follows:"),
+        DHCode.view_tylr(
+          ~inject,
+          ~settings={
+            ...Settings.Evaluation.init,
+            evaluate: true,
+            show_case_clauses: true,
+            show_fn_bodies: true,
+            show_casts: true,
+            show_unevaluated_elaboration: false,
+          },
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          elab,
+        ),
       ]
     | Some({eval_results: [hd, ...tl], _}) =>
       [
@@ -362,6 +395,13 @@ let editor_view =
   );
 };
 
+let get_elab = (editor: Editor.t): DHExp.t => {
+  let seg = Editor.get_seg(editor);
+  let (term, _) = MakeTerm.go(seg);
+  let info_map = Statics.mk_map(term);
+  Interface.elaborate(info_map, term);
+};
+
 let editor_with_result_view =
     (
       ~inject,
@@ -380,8 +420,9 @@ let editor_with_result_view =
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
+  let elab = get_elab(editor);
   let eval_result_footer =
-    eval_result_footer_view(~inject, ~font_metrics, ~settings, result);
+    eval_result_footer_view(~inject, ~font_metrics, ~settings, ~elab, result);
   editor_view(
     ~inject,
     ~font_metrics,

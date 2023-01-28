@@ -52,3 +52,7 @@ let export = (state: state) => {
 let import = (data: string) => {
   data |> Yojson.Safe.from_string |> persistent_state_of_yojson |> unpersist;
 };
+
+let export_init = (state: state) => {
+  state |> persist |> show_persistent_state;
+};

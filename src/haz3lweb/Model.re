@@ -1,12 +1,13 @@
 open Sexplib.Std;
+open Haz3lcore;
 
-[@deriving (show({with_path: false}), yojson)]
+[@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
   captions: bool,
-  whitespace_icons: bool,
+  secondary_icons: bool,
   statics: bool,
   dynamics: Settings.Evaluation.t,
   async_evaluation: bool,
@@ -18,7 +19,7 @@ type settings = {
 
 let settings_init = {
   captions: true,
-  whitespace_icons: false,
+  secondary_icons: false,
   statics: true,
   dynamics: Settings.Evaluation.init,
   async_evaluation: false,
@@ -27,6 +28,8 @@ let settings_init = {
   benchmark: false,
   mode: Editors.Scratch,
 };
+
+let settings_debug = {...settings_init, mode: Editors.DebugLoad};
 
 let fix_instructor_mode = settings =>
   if (settings.instructor_mode && !SchoolSettings.show_instructor) {
@@ -63,3 +66,4 @@ let mk = editors => {
 };
 
 let blank = mk(Editors.Scratch(0, []));
+let debug = mk(Editors.DebugLoad);
