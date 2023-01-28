@@ -6,17 +6,22 @@ type t('l, 'r) =
 let l = x => L(x);
 let r = x => R(x);
 
-let is_L =
+let is_l =
   fun
   | L(_) => true
   | R(_) => false;
-let is_R = e => !is_L(e);
+let is_r = e => !is_l(e);
 
-let get_L =
+let get_l =
   fun
   | L(l) => Some(l)
   | R(_) => None;
-let get_R =
+let get_r =
   fun
   | R(r) => Some(r)
   | L(_) => None;
+
+let map_r = f =>
+  fun
+  | L(_) as l => l
+  | R(r) => R(f(r));

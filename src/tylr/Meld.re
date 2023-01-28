@@ -57,6 +57,47 @@ module Padded = {
   );
 };
 
+module Step = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (int, Piece.Step.t);
+
+  let of_ = ((mel_l, mel_r)) =>
+    switch (Chain.(unknil(mel_l), unlink(mel_r))) {
+    | (Some((_, p_l, _)), Some((_, p_r, _)))
+        when Piece.(id(p_l) == id(p_r)) =>
+      Some((List.length(root(mel_l)), Piece.length(p_l)))
+    | _ => None
+    };
+};
+
+let cons_piece = (p, mel) => Chain.link(None, p, mel);
+let snoc_piece = (mel, p) => Chain.knil(mel, p, None);
+
+let split_nth_kid = (n, mel: t) => {
+  let (ks, ps) = mel;
+  let (ks_l, k, ks_r) = ListUtil.split_nth(n, ks);
+  let (ps_l, ps_r) = ListUtil.split_n(n, ps);
+  (Chain.mk(ks_l @ [None], ps_l), k, Chain.mk([None, ...ks_r], ps_r));
+};
+
+let unzip = ((n, step): Step.t, mel: t): (Padded.t, Padded.t) => {
+  let (mel_l, p, mel_r) = Chain.split_nth_link(n, mel);
+  switch (Piece.unzip(step, p)) {
+  | L(L) =>
+    let (s_l, p) = Piece.pop_space_l(p);
+    let mel_r = cons_piece(p, mel_r);
+    (Padded.mk(~r=s_l, mel_l), Padded.mk(mel_r));
+  | L(R) =>
+    let (p, s_r) = Piece.pop_space_r(p);
+    let mel_l = snoc_piece(mel_l, p);
+    (Padded.mk(mel_l), Padded.mk(~l=s_r, mel_r));
+  | R((l, r)) =>
+    let mel_l = snoc_piece(mel_l, l);
+    let mel_r = cons_piece(r, mel_r);
+    (Padded.mk(mel_l), Padded.mk(mel_r));
+  };
+};
+
 let tip = (side: Dir.t, mel: t): option(Tip.t) =>
   switch (side) {
   | L =>

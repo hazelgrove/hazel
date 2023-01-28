@@ -8,6 +8,7 @@ let of_sib: Siblings.t => t = Chain.of_loop;
 let get_sib: t => Siblings.t = Chain.fst;
 let map_sib: (_, t) => t = Chain.map_fst;
 let put_sib = sib => map_sib(_ => sib);
+let cons_sib = (sib, rel) => map_sib(Siblings.cat(sib), rel);
 
 let empty = of_sib(Siblings.empty);
 
@@ -20,6 +21,11 @@ let cons_space = cons(~onto_sib=Siblings.cons_space);
 let cons_meld = cons(~onto_sib=Siblings.cons_meld);
 let cons_lexeme = cons(~onto_sib=Siblings.cons_lexeme);
 let cons_parent = (par, rel) => Chain.link(Siblings.empty, par, rel);
+let cons_opt_lexeme = (~onto: Dir.t, l, rel) =>
+  switch (l) {
+  | None => rel
+  | Some(l) => cons_lexeme(~onto, l, rel)
+  };
 
 let uncons = (~from_sib, ~from_par, ~from: Dir.t, rel: t) =>
   switch (from_sib(~from, get_sib(rel))) {
@@ -34,11 +40,39 @@ let uncons_lexeme =
   uncons(~from_sib=Siblings.uncons_lexeme, ~from_par=Parent.uncons_lexeme);
 let uncons_char =
   uncons(~from_sib=Siblings.uncons_char, ~from_par=Parent.uncons_char);
+let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
+  let (l, rel) =
+    switch (uncons_lexeme(~from=L, rel)) {
+    | None => (None, rel)
+    | Some((l, rel)) => (Some(l), rel)
+    };
+  let (r, rel) =
+    switch (uncons_lexeme(~from=R, rel)) {
+    | None => (None, rel)
+    | Some((r, rel)) => (Some(r), rel)
+    };
+  ((l, r), rel);
+};
 
 let shift_char = (~from: Dir.t, rel) => {
-  open OptUtil.Syntax;
-  let+ (c, rel) = uncons_char(~from, rel);
-  cons_lexeme(~onto=Dir.toggle(from), c, rel);
+  let go = () => {
+    open OptUtil.Syntax;
+    let+ (c, rel) = uncons_char(~from, rel);
+    cons_lexeme(~onto=Dir.toggle(from), c, rel);
+  };
+  switch (from, uncons_opt_lexemes(rel)) {
+  | (L, ((Some(G(g)), r), rel)) =>
+    switch (r) {
+    | Some(G(g')) when g.id == g'.id => go()
+    | _ =>
+      let (l, r) = (g, {...g, prefix: ""});
+      rel
+      |> cons_lexeme(~onto=L, G(l))
+      |> cons_lexeme(~onto=R, G(r))
+      |> Option.some;
+    }
+  | _ => go()
+  };
 };
 
 // if until is None, attempt to shift a single spiece.
@@ -72,20 +106,20 @@ let rec zip = (~sel=Segment.empty, rel: t): Meld.Padded.t =>
     zip(~sel=Segment.of_padded(par), rel);
   };
 
-let unzip = (rel: t): t =>
-  rel
-  |> shift_lexeme(~from=L, ~until=(l, rel) =>
-       OptUtil.Syntax.(
-         switch (l) {
-         | G(_) => None
-         | T(t) =>
-           let+ (l, r) = Tile.split_cursor(t);
-           rel |> cons_lexeme(~onto=L, T(l)) |> cons_lexeme(~onto=R, T(r));
-         | S(s) => Space.is_cursor(s) ? Some(rel) : None
-         }
-       )
-     )
-  |> OptUtil.get_or_fail("unexpected shift_lexeme postcond");
+// let unzip = (rel: t): t =>
+//   rel
+//   |> shift_lexeme(~from=L, ~until=(l, rel) =>
+//        OptUtil.Syntax.(
+//          switch (l) {
+//          | G(_) => None
+//          | T(t) =>
+//            let+ (l, r) = Tile.split_cursor(t);
+//            rel |> cons_lexeme(~onto=L, T(l)) |> cons_lexeme(~onto=R, T(r));
+//          | S(s) => Space.is_cursor(s) ? Some(rel) : None
+//          }
+//        )
+//      )
+//   |> OptUtil.get_or_fail("unexpected shift_lexeme postcond");
 
 let mold_ =
     (~match, ~kid: option(Sort.t)=?, t: Token.t, rel: t): Mold.Result.t => {
@@ -100,7 +134,7 @@ let mold_ =
       match ? go(~kid?, rel) : Error(kid);
     };
   };
-  go(~kid?, unzip(rel));
+  go(~kid?, rel);
 };
 let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
   open Result.Syntax;
@@ -228,26 +262,6 @@ let rec remold_suffix = (rel: t): t => {
   };
 };
 
-let cons_opt_lexeme = (~onto: Dir.t, l, rel) =>
-  switch (l) {
-  | None => rel
-  | Some(l) => cons_lexeme(~onto, l, rel)
-  };
-
-let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
-  let (l, rel) =
-    switch (uncons_lexeme(~from=L, rel)) {
-    | None => (None, rel)
-    | Some((l, rel)) => (Some(l), rel)
-    };
-  let (r, rel) =
-    switch (uncons_lexeme(~from=R, rel)) {
-    | None => (None, rel)
-    | Some((r, rel)) => (Some(r), rel)
-    };
-  ((l, r), rel);
-};
-
 let fill = (s: string, g: Grout.t): option(Piece.t) =>
   if (String.equal(s, Grout.suggestion(g))) {
     Some(Piece.mk(T(Tile.mk(~id=g.id, g.mold, s))));
@@ -257,7 +271,84 @@ let fill = (s: string, g: Grout.t): option(Piece.t) =>
     None;
   };
 
-let rec relex_insert = (s: string, rel: t): (Lexeme.s, t) => {
+module Path = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type rel = t;
+  // overlapping coordinates at junctures
+  // between spaces and melds
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type on_ =
+    | Space(Space.Step.t)
+    | Meld(Meld.Step.t);
+  // top-down, depends only on prefix
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type steps = Chain.t(Siblings.Step.t, Parent.Step.t);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    steps,
+    on_,
+  };
+
+  let of_ = (rel: rel) => {
+    let (pre, suf) = get_sib(rel);
+    let on_ =
+      switch (Chain.(unknil(pre), unlink(suf))) {
+      | (None, _)
+      | (_, None)
+      | (Some((_, _, [_, ..._])), Some(_))
+      | (Some(_), Some(([_, ..._], _, _))) =>
+        Space(Space.length(Chain.lst(pre)))
+      | (Some((_, mel_l, [])), Some(([], mel_r, _))) =>
+        switch (Meld.Step.of_((mel_l, mel_r))) {
+        | None => Space(0)
+        | Some(step) => Meld(step)
+        }
+      };
+    let steps: steps =
+      rel
+      |> Chain.map(Siblings.Step.of_, Parent.Step.of_)
+      |> Chain.rev(Fun.id, Fun.id);
+    {steps, on_};
+  };
+};
+
+let unzip = ({steps, on_}: Path.t, mel: Meld.Padded.t): t => {
+  let rec go = (steps, kid: Meld.Padded.t, rel: t) => {
+    let seg = Segment.(to_prefix(of_padded(kid)));
+    switch (Chain.unlink(steps)) {
+    | None =>
+      let sib =
+        switch (on_) {
+        | Space(step) =>
+          let (pre, s, suf) =
+            Segment.split_nth_space(Chain.fst(steps), seg);
+          let (s_l, s_r) = Space.unzip(step, s);
+          Segment.(snoc_space(pre, s_l), cons_space(s_r, suf));
+        | Meld(step) =>
+          let (mel, (pre, suf)) = Siblings.unzip(Chain.fst(steps), seg);
+          let (mel_l, mel_r) = Meld.unzip(step, mel);
+          Siblings.cat(
+            Segment.(of_padded(mel_l), of_padded(mel_r)),
+            (pre, suf),
+          );
+        };
+      cons_sib(sib, rel);
+    | Some((step_sib, step_par, steps)) =>
+      let (mel, sib) = Siblings.unzip(step_sib, seg);
+      let (kid, par) = Parent.unzip(step_par, mel);
+      let rel = rel |> map_sib(Siblings.cat(sib)) |> cons_parent(par);
+      go(steps, kid, rel);
+    };
+  };
+  go(steps, mel, empty);
+};
+
+module Lexed = {
+  type t = (Lexeme.s, int);
+  let empty = ([], 0);
+};
+
+let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
   assert(s != "");
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
@@ -266,7 +357,7 @@ let rec relex_insert = (s: string, rel: t): (Lexeme.s, t) => {
     switch (fill(prefix, r)) {
     | None =>
       relex_insert(prefix, cons_meld(~onto=R, Meld.of_grout(r), rel'))
-    | Some(p) => ([], cons_meld(~onto=L, Meld.of_piece(p), rel'))
+    | Some(p) => (Lexed.empty, cons_meld(~onto=L, Meld.of_piece(p), rel'))
     };
   | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
     let p = Option.get(fill(s, r));
@@ -275,37 +366,48 @@ let rec relex_insert = (s: string, rel: t): (Lexeme.s, t) => {
       |> cons_opt_lexeme(~onto=L, l)
       |> cons_meld(~onto=L, Meld.of_piece(p))
       |> (Piece.is_grout(p) ? cons_meld(~onto=R, Meld.of_grout(r)) : Fun.id);
-    ([], rel);
+    (Lexed.empty, rel);
   | _ =>
     // todo: recycle ids + avoid remolding if unaffected
     let tok_l = Option.(l |> map(Lexeme.token) |> value(~default=""));
     let tok_r = Option.(r |> map(Lexeme.token) |> value(~default=""));
-    (Lexer.lex(tok_l ++ s ++ tok_r), rel');
+    let lexed = (Lexer.lex(tok_l ++ s ++ tok_r), Token.length(tok_r));
+    (lexed, rel');
   };
 };
-let relex = (~insert="", rel: t): (Lexeme.s, t) =>
+let relex = (~insert="", rel: t): (Lexed.t, t) =>
   switch (insert) {
   | "" =>
     let ((l, r), rel') = uncons_opt_lexemes(rel);
     switch (l, r) {
     | (None | Some(S(_) | G(_)), _)
-    | (_, None | Some(S(_) | G(_))) => ([], rel)
+    | (_, None | Some(S(_) | G(_))) => (Lexed.empty, rel)
     | (Some(T(l)), Some(T(r))) =>
       switch (Lexer.lex(l.token ++ r.token)) {
       | [T(l'), T(r')] when l'.token == l.token && r'.token == r.token => (
-          [],
+          Lexed.empty,
           rel,
         )
-      | ls => (ls, rel')
+      | ls => ((ls, Token.length(r.token)), rel')
       }
     };
   | _ => relex_insert(insert, rel)
   };
 
-let insert = (ls: Lexeme.s, rel: t): t =>
-  switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
-  | Some(s) => cons_space(~onto=L, s, rel)
-  | None =>
-    let seg = Segment.of_lexemes(ls);
-    rel |> insert_seg(seg) |> remold_suffix |> unzip;
-  };
+let insert = ((ls, offset): Lexed.t, rel: t): t => {
+  let rel =
+    switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
+    | Some(s) =>
+      rel
+      |> cons_space(~onto=L, s)
+      |> FunUtil.(repeat(offset, force_opt(shift_char(~from=L))))
+    | None =>
+      let seg = Segment.of_lexemes(ls);
+      let inserted = insert_seg(seg, rel);
+      print_endline("inserted = " ++ show(inserted));
+      let ins_path = Path.of_(inserted);
+      print_endline("ins_path = " ++ Path.show(ins_path));
+      remold_suffix(inserted) |> zip |> unzip(ins_path);
+    };
+  FunUtil.(repeat(offset, force_opt(shift_char(~from=L)), rel));
+};

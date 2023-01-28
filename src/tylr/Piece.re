@@ -1,4 +1,5 @@
-// open Util;
+open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
@@ -21,6 +22,12 @@ let pad = (~l=Space.empty, ~r=Space.empty, {shape, space: (l', r')}) => {
 let is_porous = _ => failwith("todo is_porous");
 
 let space = ({space: (l, r), _}) => l @ r;
+
+let id = p =>
+  switch (p.shape) {
+  | G(g) => g.id
+  | T(t) => t.id
+  };
 
 let pop_space_l = ({shape, space: (l, r)}: t) => (
   l,
@@ -144,5 +151,22 @@ let cmp = (l: t, r: t): (Cmp.leg(Sort.Ana.t) as 'r) => {
         }
       }
     };
+  };
+};
+
+module Step = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = int;
+};
+
+let unzip = (step: Step.t, p: t): Either.t(Dir.t, (t, t)) => {
+  let (l, r) = p.space;
+  switch (p.shape) {
+  | G(g) =>
+    Grout.unzip(step, g)
+    |> Either.map_r(((g_l, g_r)) => (mk(~l, G(g_l)), mk(~r, G(g_r))))
+  | T(t) =>
+    Tile.unzip(step, t)
+    |> Either.map_r(((t_l, t_r)) => (mk(~l, T(t_l)), mk(~r, T(t_r))))
   };
 };

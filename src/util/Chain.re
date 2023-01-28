@@ -83,15 +83,22 @@ let unknil =
 //   | _ => []
 //   };
 
-// let map_a = (f_loop: 'loop => 'c, (loops, links): t('loop, 'link)): t('c, 'link) => (
-//   List.map(f_loop, loops),
-//   links,
-// );
-// let map_b = (f_b: 'link => 'c, (loops, links): t('loop, 'link)): t('loop, 'c) => (
-//   loops,
-//   List.map(f_b, links),
-// );
-// let map = (f_loop, f_link, c) => c |> List.map(f_loop) |> List.map(f_link);
+let map_loop = (f_lp: 'lp1 => 'lp2, (lps, lks): t('lp1, 'lk)): t('lp2, 'lk) => (
+  List.map(f_lp, lps),
+  lks,
+);
+let map_link = (f_lk: 'lk1 => 'lk2, (lps, lks): t('lp, 'lk1)): t('lp, 'lk2) => (
+  lps,
+  List.map(f_lk, lks),
+);
+let map = (f_lp, f_lk, c) => c |> map_loop(f_lp) |> map_link(f_lk);
+
+let split_nth_link =
+    (n: int, (lps, lks): t('loop, 'link) as 'c): ('c, 'link, 'c) => {
+  let (lps_l, lps_r) = ListUtil.split_n(n + 1, lps);
+  let (lks_l, lk, lks_r) = ListUtil.split_nth(n, lks);
+  ((lps_l, lks_l), lk, (lps_r, lks_r));
+};
 
 let to_list =
     (f_loop: 'loop => 'x, f_link: 'link => 'x, c: t('loop, 'link)): list('x) => {

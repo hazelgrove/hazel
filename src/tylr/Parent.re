@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -49,4 +50,39 @@ let zip =
     Meld.(
       Padded.mk(Chain.(append(tl_l, p_l, link(Some(K(c)), p_r, tl_r))))
     );
+  };
+
+module Step = {
+  type par = t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = int;
+  let of_ = ((l, _): par): t => List.length(Meld.root(l));
+};
+
+let unzip = (step: Step.t, mel: Meld.t): (Meld.Padded.t, t) =>
+  try({
+    let (ks, ps) = mel;
+    let (ks_l, k, ks_r) = ListUtil.split_nth(step, ks);
+    let (ps_l, ps_r) = ListUtil.split_n(step, ps);
+    let (ps_l, s_l) = {
+      let (ps_l, p_l) = ListUtil.split_last(ps_l);
+      let (p_l, s_l) = Piece.pop_space_r(p_l);
+      (ps_l @ [p_l], s_l);
+    };
+    let (s_r, ps_r) = {
+      let (p_r, ps_r) = ListUtil.split_first(ps_r);
+      let (s_r, p_r) = Piece.pop_space_l(p_r);
+      (s_r, [p_r, ...ps_r]);
+    };
+    let mel_l = Chain.mk(ks_l @ [None], ps_l);
+    let mel_r = Chain.mk([None, ...ks_r], ps_r);
+    let K(kid) = Option.get(k);
+    (Meld.Padded.mk(~l=s_l, ~r=s_r, kid), (mel_l, mel_r));
+  }) {
+  | _ =>
+    raise(
+      Invalid_argument(
+        Printf.sprintf("Parent.unzip(%d, %s)", step, Meld.show(mel)),
+      ),
+    )
   };

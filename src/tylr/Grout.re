@@ -29,3 +29,20 @@ let suggestion = g =>
   | [Const(t)] when Mold.must_match(L, g.mold) || Mold.must_match(R, g.mold) => t
   | _ => ""
   };
+
+let uncons_char = (g: t): option((t, t)) =>
+  StringUtil.uncons(g.prefix)
+  |> Option.map(((hd, tl)) => ({...g, prefix: hd}, {...g, prefix: tl}));
+let unsnoc_char = (g: t): option((t, t)) =>
+  StringUtil.unsnoc(g.prefix)
+  |> Option.map(((tl, hd)) => ({...g, prefix: tl}, {...g, prefix: hd}));
+
+let unzip = (n, g): Either.t(Dir.t, (t, t)) =>
+  switch (n) {
+  | 0 => L(L)
+  // todo: unicode length
+  | _ when n > String.length(g.prefix) => L(R)
+  | _ =>
+    let (l, r) = Token.split(n, g.prefix);
+    R(({...g, prefix: l}, {...g, prefix: r}));
+  };

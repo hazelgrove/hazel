@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -98,4 +99,23 @@ let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
          };
        });
   go(pre);
+};
+
+module Step = {
+  type sib = t;
+  // counts of melds in prefix
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = int;
+  let of_ = ((l, _): sib): t => List.length(Segment.melds(l));
+};
+
+let unzip = (step: Step.t, seg: Segment.t): (Meld.t, t) => {
+  let (pre, mel, suf) =
+    try(Chain.split_nth_link(step, seg)) {
+    | Invalid_argument(_) =>
+      print_endline("step = " ++ string_of_int(step));
+      print_endline("seg = " ++ Segment.show(seg));
+      raise(Invalid_argument("Siblings.unzip"));
+    };
+  (mel, assemble((pre, suf)));
 };

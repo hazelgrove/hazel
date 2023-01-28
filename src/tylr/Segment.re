@@ -13,6 +13,7 @@ exception Disconnected;
 let empty = ([Space.empty], []);
 let is_empty: t => bool = (==)(empty);
 
+let melds: t => list(Meld.t) = Chain.links;
 let has_meld = seg => Option.is_some(Chain.unlink(seg));
 
 let cat: (t, t) => t = Chain.cat((@));
@@ -149,6 +150,17 @@ let unsnoc_lexeme =
   unsnoc(~from_space=unsnoc_from_space, ~from_meld=Meld_.unsnoc_lexeme);
 let unsnoc_char =
   unsnoc(~from_space=unsnoc_from_space, ~from_meld=Meld_.unsnoc_char);
+
+let split_nth_space = (n, seg): (t, Space.s, t) => {
+  let (ss, ms) = seg;
+  let (ss_l, s, ss_r) = ListUtil.split_nth(n, ss);
+  let (ms_l, ms_r) = ListUtil.split_n(n, ms);
+  (
+    Chain.mk(ss_l @ [Space.empty], ms_l),
+    s,
+    Chain.mk([Space.empty, ...ss_r], ms_r),
+  );
+};
 
 let rec mold =
         (~match: bool, pre: t, ~kid: option(Sort.t)=?, t: Token.t)

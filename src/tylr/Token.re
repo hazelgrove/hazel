@@ -40,3 +40,9 @@ let shape = (t: t): Shape.t =>
   | _ when is_float_lit(t) => Float_lit
   | _ => Const(t)
   };
+
+let split = (n, tok) => {
+  let l = String.sub(tok, 0, n);
+  let r = String.sub(tok, n, String.length(tok));
+  (l, r);
+};

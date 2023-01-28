@@ -24,3 +24,10 @@ let uncons_char = (t: t): option((t, t)) =>
 let unsnoc_char = (t: t): option((t, t)) =>
   StringUtil.unsnoc(t.token)
   |> Option.map(((tl, hd)) => ({...t, token: tl}, {...t, token: hd}));
+
+let unzip = (n: int, t: t): Either.t(Dir.t, (t, t)) =>
+  switch (Token.split(n, t.token)) {
+  | ("", _) => L(L)
+  | (_, "") => L(R)
+  | (l, r) => R(({...t, token: l}, {...t, token: r}))
+  };
