@@ -42,6 +42,11 @@ let sort = _ => failwith("todo sort");
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
+let fst_id = mel =>
+  Chain.unlink(mel) |> Option.map(((_, p, _)) => Piece.id(p));
+let lst_id = mel =>
+  Chain.unknil(mel) |> Option.map(((_, p, _)) => Piece.id(p));
+
 module Padded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type meld = t;

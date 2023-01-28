@@ -147,24 +147,31 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
     switch (Chain.unlink(l), Chain.unknil(r)) {
     | (None, _)
     | (_, None) => map_sib(Siblings.cat(sib), rel)
-    | (Some((s_l, c_l, tl_l)), Some((tl_r, c_r, s_r))) =>
-      switch (Meld.cmp(c_l, c_r)) {
-      | In () => raise(Segment.Disconnected)
+    | (Some((s_l, mel_l, tl_l)), Some((tl_r, mel_r, s_r))) =>
+      switch (Meld.cmp(mel_l, mel_r)) {
+      | In () =>
+        assert(Meld.(fst_id(mel_l) == lst_id(mel_r)));
+        assert(Segment.(is_empty(tl_l) && is_empty(tl_r)));
+        rel
+        |> cons_space(~onto=L, s_l)
+        |> cons_space(~onto=R, s_r)
+        |> cons_meld(~onto=L, mel_l)
+        |> cons_meld(~onto=R, mel_r);
       | Lt () =>
         rel
         |> cons_space(~onto=L, s_l)
-        |> cons_meld(~onto=L, c_l)
+        |> cons_meld(~onto=L, mel_l)
         |> go((tl_l, r))
       | Eq () =>
         rel
         |> cons_space(~onto=L, s_l)
         |> cons_space(~onto=R, s_r)
-        |> cons_parent((c_l, c_r))
+        |> cons_parent((mel_l, mel_r))
         |> go((tl_l, tl_r))
       | Gt () =>
         rel
         |> cons_space(~onto=R, s_r)
-        |> cons_meld(~onto=R, c_r)
+        |> cons_meld(~onto=R, mel_r)
         |> go((r, tl_r))
       }
     };

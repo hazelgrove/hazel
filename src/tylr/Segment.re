@@ -8,7 +8,7 @@ type t = Chain.t(Space.s, Meld.t);
 exception Nonmonotonic;
 
 // ill-fitting tips
-exception Disconnected;
+exception Disconnected(int);
 
 let empty = ([Space.empty], []);
 let is_empty: t => bool = (==)(empty);
@@ -222,7 +222,7 @@ let split_lt = (pre: t, sel: t): (t as '_lt, t as '_geq) =>
            ((Chain.link(s, mel, lt), geq), sel);
          } else {
            switch (push_meld(mel, sel)) {
-           | In(_) => raise(Disconnected)
+           | In(_) => raise(Disconnected(0))
            | Lt(_) => ((Chain.link(s, mel, lt), geq), sel)
            | Eq(sel)
            | Gt(sel) => ((lt, Chain.link(s, mel, geq)), sel)
@@ -240,7 +240,7 @@ let split_gt = (sel: t, suf: t): (t as '_leq, t as '_gt) =>
            ((leq, Chain.knil(gt, mel, s)), sel);
          } else {
            switch (hsup_meld(sel, mel)) {
-           | In(_) => raise(Disconnected)
+           | In(_) => raise(Disconnected(1))
            | Lt(sel)
            | Eq(sel) => ((Chain.knil(leq, mel, s), gt), sel)
            | Gt(_) => ((leq, Chain.knil(gt, mel, s)), sel)
@@ -265,7 +265,7 @@ let assemble_l = (~l: option(Meld.t)=?, seg: t): t =>
              | Some(l) => Meld.cmp(l, mel)
              };
            switch (l_cmp_c) {
-           | In () => raise(Disconnected)
+           | In () => raise(Disconnected(2))
            | Lt ()
            | Eq () => of_padded(Meld.(merge(kid, Padded.mk(~r=s, mel))))
            | Gt () =>
@@ -286,7 +286,7 @@ let assemble_r = (~r: option(Meld.t)=?, seg: t): t =>
              | Some(r) => Meld.cmp(mel, r)
              };
            switch (c_cmp_r) {
-           | In () => raise(Disconnected)
+           | In () => raise(Disconnected(3))
            | Lt () =>
              concat([of_padded(Meld.Padded.mk(~l=s, mel)), of_padded(kid)])
            | Eq ()
