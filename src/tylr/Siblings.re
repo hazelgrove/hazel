@@ -30,11 +30,44 @@ let cat = ((l_inner, r_inner), (l_outer, r_outer)) =>
   Segment.(cat(l_outer, l_inner), cat(r_inner, r_outer));
 // let concat = _ => failwith("todo concat");
 
-let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Meld.Padded.t =>
-  Segment.concat([pre, sel, suf])
+let uncons_opt_lexemes = (sib: t) => {
+  let (l, sib) =
+    switch (uncons_lexeme(~from=L, sib)) {
+    | None => (None, sib)
+    | Some((l, sib)) => (Some(l), sib)
+    };
+  let (r, sib) =
+    switch (uncons_lexeme(~from=R, sib)) {
+    | None => (None, sib)
+    | Some((r, sib)) => (Some(r), sib)
+    };
+  ((l, r), sib);
+};
+
+let within_piece = (sib: t) =>
+  switch (uncons_opt_lexemes(sib)) {
+  | ((Some(G(l)), Some(G(r))), sib) when l.id == r.id =>
+    Some((Piece.mk(G({...l, prefix: l.prefix ++ r.prefix})), sib))
+  | ((Some(T(l)), Some(T(r))), sib) when l.id == r.id =>
+    Some((Piece.mk(T({...l, token: l.token ++ r.token})), sib))
+  | _ => None
+  };
+
+let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Meld.Padded.t => {
+  let suf = Segment.cat(sel, suf);
+  let (pre, suf) =
+    switch (within_piece((pre, suf))) {
+    | Some((p, (pre, suf))) => (
+        pre,
+        Segment.cons_meld(Meld.of_piece(p), suf),
+      )
+    | None => (pre, suf)
+    };
+  Segment.cat(pre, suf)
   |> Segment.assemble(~l?, ~r?)
   |> Segment.to_padded
   |> OptUtil.get_or_raise(Meld.Invalid_prec);
+};
 
 let assemble = ((pre, suf): t) => {
   Segment.(assemble_l(pre), assemble_r(suf));

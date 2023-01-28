@@ -34,7 +34,7 @@ let uncons = (~from_sib, ~from_par, ~from: Dir.t, rel: t) =>
     open OptUtil.Syntax;
     let* (sib, par, rel) = Chain.unlink(rel);
     let+ (a, par) = from_par(~from, par);
-    (a, map_sib(Siblings.(cat(cat(sib, par))), rel));
+    (a, cons_sib(Siblings.cat(sib, par), rel));
   };
 let uncons_lexeme =
   uncons(~from_sib=Siblings.uncons_lexeme, ~from_par=Parent.uncons_lexeme);
