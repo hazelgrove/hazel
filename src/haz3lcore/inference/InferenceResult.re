@@ -77,6 +77,18 @@ let get_solution_of_id = (id: Id.t): option(ITyp.t) =>
   } else {
     None;
   };
+let get_solution_of_id_no_global =
+    (id: Id.t, annotation_map: annotation_map): option(ITyp.t) =>
+  if (annotations_enabled^) {
+    let* status = Hashtbl.find_opt(annotation_map, id);
+    switch (status) {
+    | Solved(Unknown(_)) => None
+    | Solved(ityp) => Some(ityp)
+    | Unsolved(_) => None
+    };
+  } else {
+    None;
+  };
 
 // Used in EmptyHoleDec.view
 /**

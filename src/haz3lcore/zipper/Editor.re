@@ -49,7 +49,13 @@ module Meta = {
     let unselected = Zipper.unselect_and_zip(z);
     let (term, _) = MakeTerm.go(unselected);
     let (_, annotation_map) = Statics.mk_map_and_annotations(term);
-    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
+    let measured =
+      Measured.of_segment(
+        ~touched,
+        ~old=measured,
+        ~annotation_map,
+        unselected,
+      );
     let term_ranges = TermRanges.mk(unselected);
     let col_target =
       switch (a) {

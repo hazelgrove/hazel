@@ -282,7 +282,14 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+let of_segment =
+    (
+      ~old: t=empty,
+      ~touched=Touched.empty,
+      ~annotation_map=InferenceResult.empty_annotations(),
+      seg: Segment.t,
+    )
+    : t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -370,7 +377,12 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             (contained_indent, last, map);
           | Grout(g) =>
             let annotation_offset =
-              switch (InferenceResult.get_solution_of_id(g.id)) {
+              switch (
+                InferenceResult.get_solution_of_id_no_global(
+                  g.id,
+                  annotation_map,
+                )
+              ) {
               | Some(ityp) =>
                 ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> String.length
               | None => 1
