@@ -64,11 +64,11 @@ let select = (d: Dir.t, z: t): option(t) => {
   let b = Dir.toggle(d);
   if (d == z.sel.foc || Selection.is_empty(z.sel)) {
     let+ (c, rel) = Relatives.uncons_char(~from=d, z.rel);
-    let sel = Selection.push_char(c, {...z.sel, foc: d});
+    let sel = Selection.cons_lexeme(c, {...z.sel, foc: d});
     mk(~sel, rel);
   } else {
     // checked for selection empty above
-    let (c, sel) = Option.get(Selection.pop_char(z.sel));
+    let (c, sel) = Option.get(Selection.uncons_char(z.sel));
     let rel = Relatives.cons_lexeme(~onto=b, c, z.rel);
     return(mk(~sel, rel));
   };
