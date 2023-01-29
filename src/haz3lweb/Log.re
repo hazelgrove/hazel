@@ -19,12 +19,14 @@ let is_action_logged: UpdateAction.t => bool =
   | SetShowBackpackTargets(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
+  | InitReplay(_)
   | UpdateResult(_)
   | DebugAction(_) => false
   | ResetCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
+  | FinishReplay(_)
   | ResetSlide
   | ToggleMode
   | SwitchSlide(_)

@@ -23,6 +23,8 @@ type t =
   | FinishImportAll(option(string))
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
+  | InitReplay([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+  | FinishReplay(option(string))
   | ResetSlide
   | Save
   | ToggleMode

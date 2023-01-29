@@ -139,6 +139,17 @@ let top_bar_view =
               },
               ~tooltip="Import Submission",
             ),
+            file_select_button(
+              "replay-submission",
+              Icons.import,
+              file => {
+                switch (file) {
+                | None => Virtual_dom.Vdom.Effect.Ignore
+                | Some(file) => inject(InitReplay(file))
+                }
+              },
+              ~tooltip="Replay Submission",
+            ),
             button(
               Icons.eye,
               _ => inject(Set(SecondaryIcons)),
