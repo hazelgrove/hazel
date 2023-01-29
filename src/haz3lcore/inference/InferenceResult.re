@@ -10,8 +10,9 @@ type annotation_map = Hashtbl.t(Id.t, status);
 
 let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
-let accumulated_annotations = empty_annotations();
+// let accumulated_annotations = empty_annotations();
 
+// TODO this is the other global
 let annotations_enabled = ref(true);
 
 // remove and put in editor too at some point... not needed then
@@ -109,9 +110,10 @@ let svg_display_settings =
 };
 
 //Only called from uppermost levels where editors live anyway
-let get_cursor_inspect_result = (id: Id.t): option((bool, string)) =>
+let get_cursor_inspect_result =
+    (~annotation_map: annotation_map, id: Id.t): option((bool, string)) =>
   if (annotations_enabled^) {
-    let* status = Hashtbl.find_opt(accumulated_annotations, id);
+    let* status = Hashtbl.find_opt(annotation_map, id);
     switch (status) {
     | Unsolved(eq_class) =>
       Some((false, EqClass.string_of_eq_class(eq_class)))
@@ -122,20 +124,20 @@ let get_cursor_inspect_result = (id: Id.t): option((bool, string)) =>
     None;
   };
 
-let add_on_new_annotations = (new_map): unit => {
-  let add_new_elt = (new_k, new_v) => {
-    Hashtbl.replace(accumulated_annotations, new_k, new_v);
-  };
-  Hashtbl.iter(add_new_elt, new_map);
-};
+// let add_on_new_annotations = (new_map): unit => {
+//   let add_new_elt = (new_k, new_v) => {
+//     Hashtbl.replace(accumulated_annotations, new_k, new_v);
+//   };
+//   Hashtbl.iter(add_new_elt, new_map);
+// };
 
 // called from Update.apply, which has access to the entire Model.t
 // to update the model state
 // update the model.editors which containts Scratch or School states
 // which in turn contain discrete editor.t obj
-let clear_annotations = () => {
-  Hashtbl.reset(accumulated_annotations);
-};
+// let clear_annotations = () => {
+//   Hashtbl.reset(accumulated_annotations);
+// };
 
 let condense = (eq_class: MutableEqClass.t, key: ITyp.t): status => {
   let (eq_class, err) = MutableEqClass.snapshot_class(eq_class, key);

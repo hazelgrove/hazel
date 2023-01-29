@@ -347,6 +347,7 @@ let view =
           ~show_lang_doc=langDocMessages.show,
           focal_zipper,
           focal_info_map,
+          annotation_map,
         ),
       ]
       : [];

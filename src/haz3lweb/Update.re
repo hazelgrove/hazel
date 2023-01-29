@@ -274,7 +274,7 @@ let apply =
           };
         };
       save_editors(model);
-      InferenceResult.clear_annotations();
+      // InferenceResult.clear_annotations();
       Ok(model);
     | SwitchSlide(n) =>
       switch (model.editors) {

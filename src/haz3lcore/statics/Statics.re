@@ -830,7 +830,7 @@ let mk_map_and_annotations =
       let inference_results = Inference.unify_and_report_status(constraints);
       let annotation_map = InferenceResult.get_annotations(inference_results);
 
-      InferenceResult.add_on_new_annotations(annotation_map);
+      // InferenceResult.add_on_new_annotations(annotation_map);
 
       (info_map, annotation_map);
     },

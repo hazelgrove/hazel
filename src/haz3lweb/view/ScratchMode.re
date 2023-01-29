@@ -63,6 +63,7 @@ let view =
           ~show_lang_doc=langDocMessages.show,
           zipper,
           info_map,
+          annotation_map,
         ),
       ]
       : [];

@@ -199,8 +199,11 @@ let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
     [id_view(id), cls_view(ci)],
   );
 
-let view_of_global_inference_info = (id: int) => {
-  switch (Haz3lcore.InferenceResult.get_cursor_inspect_result(id)) {
+let view_of_global_inference_info =
+    (~annotation_map: Haz3lcore.InferenceResult.annotation_map, id: int) => {
+  switch (
+    Haz3lcore.InferenceResult.get_cursor_inspect_result(~annotation_map, id)
+  ) {
   | Some((true, solution)) =>
     div(
       ~attr=clss([infoc, "typ"]),
@@ -234,6 +237,7 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
 let inspector_view =
     (
       ~inject,
+      ~annotation_map: Haz3lcore.InferenceResult.annotation_map,
       ~settings: Model.settings,
       ~show_lang_doc: bool,
       id: int,
@@ -252,7 +256,7 @@ let inspector_view =
     [
       extra_view(settings.context_inspector, id, ci),
       view_of_info(~inject, ~show_lang_doc, ci),
-      view_of_global_inference_info(id),
+      view_of_global_inference_info(~annotation_map, id),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );
@@ -264,6 +268,7 @@ let view =
       ~show_lang_doc: bool,
       zipper: Haz3lcore.Zipper.t,
       info_map: Haz3lcore.Statics.map,
+      annotation_map: Haz3lcore.InferenceResult.annotation_map,
     ) => {
   let backpack = zipper.backpack;
   if (List.length(backpack) > 0) {
@@ -275,7 +280,14 @@ let view =
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
       | Some(ci) =>
-        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
+        inspector_view(
+          ~inject,
+          ~annotation_map,
+          ~settings,
+          ~show_lang_doc,
+          index,
+          ci,
+        )
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),
