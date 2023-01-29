@@ -378,10 +378,7 @@ let of_segment =
           | Grout(g) =>
             let annotation_offset =
               switch (
-                InferenceResult.get_solution_of_id_no_global(
-                  g.id,
-                  annotation_map,
-                )
+                InferenceResult.get_solution_of_id(g.id, annotation_map)
               ) {
               | Some(ityp) =>
                 ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> String.length

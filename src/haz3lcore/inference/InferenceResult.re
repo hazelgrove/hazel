@@ -66,18 +66,18 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
  *    Measured.of_segment (it literally takes its results as a map)
  *    If it had those results, pass those in! if from langdoc, use dummy
  */
-let get_solution_of_id = (id: Id.t): option(ITyp.t) =>
-  if (annotations_enabled^) {
-    let* status = Hashtbl.find_opt(accumulated_annotations, id);
-    switch (status) {
-    | Solved(Unknown(_)) => None
-    | Solved(ityp) => Some(ityp)
-    | Unsolved(_) => None
-    };
-  } else {
-    None;
-  };
-let get_solution_of_id_no_global =
+// let get_solution_of_id = (id: Id.t): option(ITyp.t) =>
+//   if (annotations_enabled^) {
+//     let* status = Hashtbl.find_opt(accumulated_annotations, id);
+//     switch (status) {
+//     | Solved(Unknown(_)) => None
+//     | Solved(ityp) => Some(ityp)
+//     | Unsolved(_) => None
+//     };
+//   } else {
+//     None;
+//   };
+let get_solution_of_id =
     (id: Id.t, annotation_map: annotation_map): option(ITyp.t) =>
   if (annotations_enabled^) {
     let* status = Hashtbl.find_opt(annotation_map, id);
@@ -95,8 +95,9 @@ let get_solution_of_id_no_global =
  * If above already solved: Code.view invoked by Cell.editor_view
  * who should already have access to all of the above
  */
-let svg_display_settings = (id: Id.t): (bool, bool) => {
-  switch (Hashtbl.find_opt(accumulated_annotations, id)) {
+let svg_display_settings =
+    (~annotation_map: annotation_map, id: Id.t): (bool, bool) => {
+  switch (Hashtbl.find_opt(annotation_map, id)) {
   | Some(status) =>
     switch (status) {
     | Solved(Unknown(_)) => (true, false)

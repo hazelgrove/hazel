@@ -38,8 +38,7 @@ let of_delim =
 // ];
 
 let of_grout = (~annotation_map: InferenceResult.annotation_map, id: Id.t) => {
-  let solution_opt =
-    InferenceResult.get_solution_of_id_no_global(id, annotation_map);
+  let solution_opt = InferenceResult.get_solution_of_id(id, annotation_map);
   switch (solution_opt) {
   | Some(ityp) => [
       [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> Node.text]
@@ -138,14 +137,25 @@ module Text =
 };
 
 let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
+        (
+          ~annotation_map: InferenceResult.annotation_map,
+          ~font_metrics,
+          ~map: Measured.t,
+          seg: Segment.t,
+        )
+        : list(Node.t) =>
   seg
   |> List.concat_map(
        fun
        | Piece.Whitespace(_) => []
-       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
+       | Tile(t) =>
+         List.concat_map(
+           holes(~annotation_map, ~map, ~font_metrics),
+           t.children,
+         )
        | Grout(g) => [
            EmptyHoleDec.view(
+             ~annotation_map,
              ~font_metrics, // TODO(d) fix sort
              g.id,
              {
@@ -198,7 +208,7 @@ let view =
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~map=measured, ~font_metrics, segment)
+      holes(~annotation_map, ~map=measured, ~font_metrics, segment)
     );
   div(
     ~attr=Attr.class_("code"),
