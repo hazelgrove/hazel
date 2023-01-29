@@ -52,30 +52,20 @@ let zip_piece = (sib: t): (Segment.t, t) => {
 let zip_piece_l = (sel, sib) => {
   let (lx, sib') = uncons_opt_lexeme(~from=L, sib);
   switch (Option.bind(lx, Lexeme.to_piece), Chain.unlink(sel)) {
-  | (Some(p_l), Some(([], mel, tl_sel))) =>
-    switch (Chain.unlink(mel)) {
-    | Some((kid, p_r, tl_mel)) when Option.is_some(Piece.zip(p_l, p_r)) =>
-      assert(Option.is_none(kid));
-      let p = Option.get(Piece.zip(p_l, p_r));
-      let sel = Chain.link([], Chain.link(kid, p, tl_mel), tl_sel);
-      (sel, sib');
-    | _ => (sel, sib)
-    }
+  | (Some(p_l), Some(([], mel, tl)))
+      when Option.is_some(Meld.zip_piece_l(p_l, mel)) =>
+    let mel = Option.get(Meld.zip_piece_l(p_l, mel));
+    (Chain.link([], mel, tl), sib');
   | _ => (sel, sib)
   };
 };
 let zip_piece_r = (sel, sib) => {
   let (lx, sib') = uncons_opt_lexeme(~from=R, sib);
   switch (Chain.unknil(sel), Option.bind(lx, Lexeme.to_piece)) {
-  | (Some((tl_sel, mel, [])), Some(p_r)) =>
-    switch (Chain.unknil(mel)) {
-    | Some((tl_mel, p_l, kid)) when Option.is_some(Piece.zip(p_l, p_r)) =>
-      assert(Option.is_none(kid));
-      let p = Option.get(Piece.zip(p_l, p_r));
-      let sel = Chain.knil(tl_sel, Chain.knil(tl_mel, p, kid), []);
-      (sel, sib');
-    | _ => (sel, sib)
-    }
+  | (Some((tl, mel, [])), Some(p_r))
+      when Option.is_some(Meld.zip_piece_r(mel, p_r)) =>
+    let mel = Option.get(Meld.zip_piece_r(mel, p_r));
+    (Chain.knil(tl, mel, []), sib');
   | _ => (sel, sib)
   };
 };

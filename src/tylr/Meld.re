@@ -103,6 +103,21 @@ let unzip = ((n, step): Step.t, mel: t): (Padded.t, Padded.t) => {
   };
 };
 
+let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
+  open OptUtil.Syntax;
+  let* (kid, p_r, tl) = Chain.unlink(mel);
+  let+ p = Piece.zip(p_l, p_r);
+  assert(kid == None);
+  Chain.link(kid, p, tl);
+};
+let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
+  open OptUtil.Syntax;
+  let* (tl, p_l, kid) = Chain.unknil(mel);
+  let+ p = Piece.zip(p_l, p_r);
+  assert(kid == None);
+  Chain.knil(tl, p, kid);
+};
+
 let tip = (side: Dir.t, mel: t): option(Tip.t) =>
   switch (side) {
   | L =>

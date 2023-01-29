@@ -19,13 +19,33 @@ let has_meld = seg => Option.is_some(Chain.unlink(seg));
 let cat: (t, t) => t = Chain.cat((@));
 let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
 
+let zip_piece_l = (p_l, seg) =>
+  switch (Chain.unlink(seg)) {
+  | Some(([], mel, tl)) when Option.is_some(Meld.zip_piece_l(p_l, mel)) =>
+    let mel = Option.get(Meld.zip_piece_l(p_l, mel));
+    Some(Chain.link([], mel, tl));
+  | _ => None
+  };
+let zip_piece_r = (seg, p_r) =>
+  switch (Chain.unknil(seg)) {
+  | Some((tl, mel, [])) when Option.is_some(Meld.zip_piece_r(mel, p_r)) =>
+    let mel = Option.get(Meld.zip_piece_r(mel, p_r));
+    Some(Chain.knil(tl, mel, []));
+  | _ => None
+  };
+
 let cons_space = (s, seg) => Chain.map_fst((@)(s), seg);
 let cons_meld = (mel, seg) => Chain.link(Space.empty, mel, seg);
 let cons_lexeme = (lx: Lexeme.t, seg: t): t =>
   switch (lx) {
   | S(s) => cons_space([s], seg)
-  | T(t) => Chain.link(Space.empty, Meld.of_tile(t), seg)
-  | G(g) => Chain.link(Space.empty, Meld.of_grout(g), seg)
+  | T(_)
+  | G(_) =>
+    let p = Option.get(Lexeme.to_piece(lx));
+    switch (zip_piece_l(p, seg)) {
+    | Some(seg) => seg
+    | None => Chain.link(Space.empty, Meld.of_piece(p), seg)
+    };
   };
 
 let snoc_space = (seg, s) => Chain.map_lst(s' => s' @ s, seg);
@@ -33,8 +53,13 @@ let snoc_meld = (seg, mel) => Chain.knil(seg, mel, Space.empty);
 let snoc_lexeme = (seg, lx: Lexeme.t) =>
   switch (lx) {
   | S(s) => snoc_space(seg, [s])
-  | T(t) => Chain.knil(seg, Meld.of_tile(t), Space.empty)
-  | G(g) => Chain.knil(seg, Meld.of_grout(g), Space.empty)
+  | T(_)
+  | G(_) =>
+    let p = Option.get(Lexeme.to_piece(lx));
+    switch (zip_piece_r(seg, p)) {
+    | Some(seg) => seg
+    | None => Chain.knil(seg, Meld.of_piece(p), Space.empty)
+    };
   };
 
 let of_space = (s: Space.s): t => Chain.of_loop(s);

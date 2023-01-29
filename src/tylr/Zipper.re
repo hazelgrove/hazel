@@ -54,7 +54,7 @@ let move = (d: Dir.t, z: t): option(t) => {
       return(unselect(d, z));
     } else {
       let+ rel = Relatives.shift_char(~from=d, z.rel);
-      {...z, rel};
+      {...z, rel: Relatives.assemble(rel)};
     }
   );
 };
