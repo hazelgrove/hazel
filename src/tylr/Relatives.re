@@ -154,7 +154,7 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
         rel
         |> cons_space(~onto=R, s_r)
         |> cons_meld(~onto=R, mel_r)
-        |> go((r, tl_r))
+        |> go((l, tl_r))
       }
     };
 
