@@ -157,8 +157,11 @@ module Frame = {
 
 module Zipper = {
   type g('s) = t('s);
+  // todo: make this t
   type a('s) = (Atom.t('s), Frame.s('s));
   type t('s) = (g('s), Frame.s('s));
+
+  let t_of_a = ((a, fs): a(_)) => (Atom(a), fs);
 
   let zip = (g, f: Frame.t(_)) =>
     switch (f) {
@@ -196,7 +199,7 @@ module Zipper = {
     };
   };
 
-  let rec move = (d: Dir.t, (g, fs): t(_)): list(a(_)) =>
+  let rec move_t = (d: Dir.t, (g, fs): t(_)): list(a(_)) =>
     switch (fs) {
     | [] => []
     | [f, ...fs] =>
@@ -205,24 +208,25 @@ module Zipper = {
       | (_, Alt_(_)) => []
       | (L, Seq_(l, r)) =>
         enter(R, (Seq(List.rev(l)), [Seq_([], r), ...fs]))
-        @ (List.for_all(nullable, l) ? move(L, (zip(g, f), fs)) : [])
+        @ (List.for_all(nullable, l) ? move_t(L, (zip(g, f), fs)) : [])
       | (R, Seq_(l, r)) =>
         enter(L, (Seq(List.rev(l)), [Seq_([], r), ...fs]))
-        @ (List.for_all(nullable, l) ? move(R, (zip(g, f), fs)) : [])
+        @ (List.for_all(nullable, l) ? move_t(R, (zip(g, f), fs)) : [])
       }
     };
+  let move = (d, a) => move_t(d, t_of_a(a));
 
-  let rec move_to_next_tok = (d: Dir.t, (g, fs): t(_)): list(_) => {
+  let rec move_to_next_tok = (d: Dir.t, (a, fs): a(_)): list(_) => {
     let (found_now, found_later) =
-      move(d, (g, fs))
+      move(d, (a, fs))
       |> List.partition_map(((a: Atom.t(_), fs)) =>
            switch (a) {
-           | Tok(t) => Left((t, fs))
-           | Kid(_) => Right(move_to_next_tok(d, (Atom(a), fs)))
+           | Tok(t) => Left((Atom.Tok(t), fs))
+           | Kid(_) => Right(move_to_next_tok(d, (a, fs)))
            }
          );
     found_now @ List.concat(found_later);
   };
 
-  let consistent = (_, _) => failwith("todo consistent");
+  let consistent = (_: a(_), _: a(_)) => failwith("todo consistent");
 };

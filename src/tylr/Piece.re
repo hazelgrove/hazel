@@ -74,45 +74,15 @@ let is_grout = p =>
   | T(_) => false
   };
 
-// separate from cmp bc these are only relevant
-// based on surrounding meld kids (see Meld.merge/degrout)
-type dg =
-  | Degrout
-  | Fill(Dir.t)
-  | Pass(Dir.t);
-
-[@warning "-27"]
-let degrout = (l: t, r: t): option(dg) => failwith("todo degrout");
-// switch (l.shape, r.shape) {
-// | (T(_), T(_)) => None
-// | (T(t), G({mold: None, _})) =>
-//   switch (t.mold) {
-//   | None =>
-//     // unmolded grout is infix between unmolded tiles
-//     Token.Shape.is_operand(token)
-//     ? None : Some(Fill(R))
-//   | Some(_) => Some(Fill(R))
-//   }
-// | (G({mold: None, _}), T(t)) =>
-//   switch (t.mold) {
-//   | None =>
-//     Token.Shape.is_operand(token)
-//     ? None : Some(Fill(L))
-//   | Some(_) => Some(Fill(L))
-//   }
-// | (T(t), G({mold: Some(m), _}))
-// | _ => failwith("todo")
-// };
-
 let is_strict = _ => failwith("todo is_strict");
 
-let zipper = (p: t): Gram.Zipper.t(_) => {
+let zipper = (p: t): Gram.Zipper.a(_) => {
   let t =
     switch (p.shape) {
     | G(_) => ""
     | T(t) => t.token
     };
-  (Atom(Tok(Token.shape(t))), mold(p).frames);
+  (Tok(Token.shape(t)), mold(p).frames);
 };
 
 let eq = (l: t, r: t): option(Sort.Ana.t) => {
@@ -120,13 +90,51 @@ let eq = (l: t, r: t): option(Sort.Ana.t) => {
   | Convex => None
   | Concave(sort, _) =>
     let (z_l, z_r) = (zipper(l), zipper(r));
-    let (moved_l, moved_r) = Gram.Zipper.(move(R, z_l), move(L, z_r));
+    let (moved_l, moved_r) =
+      Gram.Zipper.(move_to_next_tok(R, z_l), move_to_next_tok(L, z_r));
     let strict = is_strict(l) || is_strict(r);
     List.exists(Gram.Zipper.consistent(z_l), moved_r)
     && List.exists(Gram.Zipper.consistent(z_r), moved_l)
       ? Some(Sort.Ana.mk(~strict, ~sort?, ())) : None;
   };
 };
+
+let eq_transitive = (l: t, r: t): bool => {
+  let rec go = (z_l, z_r) => {
+    let moved_r = Gram.Zipper.move_to_next_tok(L, z_r);
+    List.exists(Gram.Zipper.consistent(z_l), moved_r)
+      ? true : List.exists(go(z_l), moved_r);
+  };
+  go(zipper(l), zipper(r));
+};
+
+// separate from cmp bc these are only relevant
+// based on surrounding meld kids (see Meld.merge/degrout)
+type dg =
+  | Degrout
+  | Fill(Dir.t)
+  | Pass(Dir.t);
+
+let degrout = (l: t, r: t): option(dg) =>
+  switch (l.shape, r.shape) {
+  | (T(_), T(_)) => None
+  | (G(_), _) when mold(l) == mold(r) => Some(Fill(L))
+  | (_, G(_)) when mold(l) == mold(r) => Some(Fill(R))
+  | (G(_), _) when eq_transitive(r, l) => Some(Pass(L))
+  | (_, G(_)) when eq_transitive(r, l) => Some(Pass(R))
+  | (G(g), _) when Grout.suggestion(g) != "" => None
+  | (_, G(g)) when Grout.suggestion(g) != "" => None
+  // todo: probably need strengthen this check for degrouting
+  | (G(_), G(_))
+      when Tip.fits(Mold.tip(L, mold(l)), Mold.tip(R, mold(r))) =>
+    Some(Degrout)
+  | (G(_), _) =>
+    Tip.same_shape(Mold.tip(L, mold(l)), Mold.tip(L, mold(r)))
+      ? Some(Fill(L)) : None
+  | (_, G(_)) =>
+    Tip.same_shape(Mold.tip(R, mold(l)), Mold.tip(R, mold(r)))
+      ? Some(Fill(R)) : None
+  };
 
 let cmp = (l: t, r: t): (Cmp.leg(Sort.Ana.t) as 'r) => {
   let (m_l, m_r) = (mold(l), mold(r));
