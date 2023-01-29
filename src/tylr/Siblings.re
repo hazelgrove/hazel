@@ -105,60 +105,6 @@ let choose_matching = (c: Meld.t, t: Token.t) =>
      )
   |> ListUtil.hd_opt;
 
-// todo: reimplement in terms of precedence bounds
-let choose = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
-  let out_consistent =
-    LangUtil.molds_of_token(t)
-    |> List.filter((m: Mold.t) => Sort.compare_o(m.sort, out) <= 0);
-  switch (out_consistent) {
-  | [] => None
-  | [m] => Some(m)
-  | [_, _, ..._] =>
-    let in_l_consistent =
-      out_consistent
-      |> List.filter(m =>
-           switch (in_l, Mold.expected_sort(L, m)) {
-           | (None, Some(_))
-           | (Some(_), None) => false
-           | (None, None) => true
-           | (Some(actual), Some(expected)) =>
-             Sort.compare_o(actual, expected) <= 0
-           }
-         );
-    switch (in_l_consistent) {
-    | [] => None
-    | [m, ..._] => Some(m) // unspecified choice
-    };
-  };
-};
-
-let rec mold_matching = (t: Token.t, (pre, suf): t): option(Mold.t) =>
-  Chain.unknil(pre)
-  |> OptUtil.and_then(((pre, c, _)) =>
-       switch (choose_matching(c, t)) {
-       | None => mold_matching(t, (pre, suf))
-       | Some(m) => Some(m)
-       }
-     );
-
-let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
-  let rec go = (~in_l: option(Sort.o)=?, pre: Segment.t) =>
-    Chain.unknil(pre)
-    |> OptUtil.and_then(((pre, mel, _)) => {
-         let go_next = () => go(~in_l=Meld.sort(mel), pre);
-         switch (Meld.tip(R, mel)) {
-         | None
-         | Some(Convex) => go_next()
-         | Some(Concave(out, _)) =>
-           switch (choose(in_l, out, t)) {
-           | None => go_next()
-           | Some(m) => Some(m)
-           }
-         };
-       });
-  go(pre);
-};
-
 module Step = {
   type sib = t;
   // counts of melds in prefix

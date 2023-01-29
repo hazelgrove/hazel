@@ -66,6 +66,6 @@ let expected_sort = (side: Dir.t, m: t) =>
 
 module Result = {
   type m = t;
-  type kid = option(Sort.t);
+  type kid = option(Sort.o);
   type t = Result.t(m, kid);
 };

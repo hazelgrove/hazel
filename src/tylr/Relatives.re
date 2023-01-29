@@ -106,24 +106,9 @@ let rec zip = (~sel=Segment.empty, rel: t): Meld.Padded.t =>
     zip(~sel=Segment.of_padded(par), rel);
   };
 
-// let unzip = (rel: t): t =>
-//   rel
-//   |> shift_lexeme(~from=L, ~until=(l, rel) =>
-//        OptUtil.Syntax.(
-//          switch (l) {
-//          | G(_) => None
-//          | T(t) =>
-//            let+ (l, r) = Tile.split_cursor(t);
-//            rel |> cons_lexeme(~onto=L, T(l)) |> cons_lexeme(~onto=R, T(r));
-//          | S(s) => Space.is_cursor(s) ? Some(rel) : None
-//          }
-//        )
-//      )
-//   |> OptUtil.get_or_fail("unexpected shift_lexeme postcond");
-
 let mold_ =
-    (~match, ~kid: option(Sort.t)=?, t: Token.t, rel: t): Mold.Result.t => {
-  let rec go = (~kid: option(Sort.t)=?, rel: t): Mold.Result.t => {
+    (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t): Mold.Result.t => {
+  let rec go = (~kid: option(Sort.o)=?, rel: t): Mold.Result.t => {
     open Result.Syntax;
     let (pre, _) = get_sib(rel);
     let/ kid = Segment.mold(~match, pre, ~kid?, t);

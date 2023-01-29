@@ -188,7 +188,7 @@ let split_nth_space = (n, seg): (t, Space.s, t) => {
 };
 
 let rec mold =
-        (~match: bool, pre: t, ~kid: option(Sort.t)=?, t: Token.t)
+        (~match: bool, pre: t, ~kid: option(Sort.o)=?, t: Token.t)
         : Mold.Result.t =>
   switch (Chain.unknil(pre)) {
   | None => Error(kid)

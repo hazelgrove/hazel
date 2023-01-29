@@ -35,12 +35,46 @@ and kid_to_lexemes =
   | None => []
   | Some(K(c)) => to_lexemes(c);
 
-[@warning "-27"]
-let mold = (c: t, ~kid=?, t: Token.t) => failwith("todo Meld.mold");
+let tip = (side: Dir.t, mel: t): option(Tip.t) =>
+  switch (side) {
+  | L =>
+    Chain.unlink(mel)
+    |> Option.map(((kid, p, _)) =>
+         switch (kid) {
+         | None => Piece.tip(side, p)
+         | Some(_) => Tip.Convex
+         }
+       )
+  | R =>
+    Chain.unknil(mel)
+    |> Option.map(((_, p, kid)) =>
+         switch (kid) {
+         | None => Piece.tip(side, p)
+         | Some(_) => Tip.Convex
+         }
+       )
+  };
+
 // precond: root(c) != []
-let sort = _ => failwith("todo sort");
+let sort = mel => {
+  let (_, p, _) =
+    Chain.unlink(mel) |> OptUtil.get_or_raise(Invalid_argument("Meld.sort"));
+  Piece.sort(p);
+};
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
+
+let mold = (mel: t, ~kid: option(Sort.o)=?, t: Token.t): Mold.Result.t => {
+  open Result.Syntax;
+  // todo: possibly join with kid sort
+  let error = Some(sort(mel));
+  let* tip = Result.of_option(~error, tip(R, mel));
+  switch (tip) {
+  | Tip.Convex => Error(error)
+  | Concave(sort, _) =>
+    Result.of_option(~error, LangUtil.mold_of_token(kid, sort, t))
+  };
+};
 
 let fst_id = mel =>
   Chain.unlink(mel) |> Option.map(((_, p, _)) => Piece.id(p));

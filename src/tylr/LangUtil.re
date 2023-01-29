@@ -87,6 +87,33 @@ let molds_of_token = t => {
   Molds.of_token(shape);
 };
 
+// todo: reimplement in terms of precedence bounds
+let mold_of_token = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
+  let out_consistent =
+    molds_of_token(t)
+    |> List.filter((m: Mold.t) => Sort.compare_o(m.sort, out) <= 0);
+  switch (out_consistent) {
+  | [] => None
+  | [m] => Some(m)
+  | [_, _, ..._] =>
+    let in_l_consistent =
+      out_consistent
+      |> List.filter(m =>
+           switch (in_l, Mold.expected_sort(L, m)) {
+           | (None, Some(_))
+           | (Some(_), None) => false
+           | (None, None) => true
+           | (Some(actual), Some(expected)) =>
+             Sort.compare_o(actual, expected) <= 0
+           }
+         );
+    switch (in_l_consistent) {
+    | [] => None
+    | [m, ..._] => Some(m) // unspecified choice
+    };
+  };
+};
+
 let tokens_of_mold = Tokens.of_mold;
 
 let assoc = (s, p) =>
