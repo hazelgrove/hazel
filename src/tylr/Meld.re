@@ -168,7 +168,10 @@ let is_closed_r = mel =>
 let cmp = (l: t, r: t): Cmp.t =>
   switch (is_closed_r(l), is_closed_l(r)) {
   | (None, _)
-  | (_, None) => raise(Invalid_argument("Meld.cmp"))
+  | (_, None) =>
+    print_endline("l = " ++ show(l));
+    print_endline("r = " ++ show(r));
+    raise(Invalid_argument("Meld.cmp"));
   | (Some((_, p_l)), Some((p_r, _))) => Cmp.t_of_r(Piece.cmp(p_l, p_r))
   };
 
