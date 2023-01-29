@@ -98,9 +98,8 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   let (es, d) = step(obj);
   switch (d) {
   | Step(d)
-  | Pause(d)
   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
-  | Indet(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
+  | Indet(d) => (Indet(d), es, HoleInstanceInfo.empty)
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
