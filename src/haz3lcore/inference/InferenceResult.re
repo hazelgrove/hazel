@@ -38,8 +38,8 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
 // Used in Code.re
 // Used in Measured.re
 /**
- * Major Dest 1: Measured.of_segment 
- * 
+ * Major Dest 1: Measured.of_segment
+ *
  * Dest 1.1: BackpackView
  * Solution: Pass down
  * Source: Cell.editor_view editor
@@ -50,19 +50,19 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
  *    - Deco.all
  *    - Cell.deco
  *    - Cell.editor_view
- * 
+ *
  * Dest 1.2: LangDoc Module
  * Solution: ignore via opargs
- * 
+ *
  * Dest 1.3: Editor Modules
  * Solution: Make Meta.init take oparg; pass dummy for all init
  *    May want to pass into Meta.init in cell; to do so, use results of 1.1\
  */
 /**
  * Major Dest 1: Code.of_grout
- * 
+ *
  * Only subdest: Text.of_segment
- *    This module is only ever invoked from places that have called 
+ *    This module is only ever invoked from places that have called
  *    Measured.of_segment (it literally takes its results as a map)
  *    If it had those results, pass those in! if from langdoc, use dummy
  */
@@ -95,8 +95,7 @@ let svg_display_settings = (id: Id.t): (bool, bool) => {
   };
 };
 
-/*Only called from uppermost levels where editors live anyway
-*/
+//Only called from uppermost levels where editors live anyway
 let get_cursor_inspect_result = (id: Id.t): option((bool, string)) =>
   if (annotations_enabled^) {
     let* status = Hashtbl.find_opt(accumulated_annotations, id);

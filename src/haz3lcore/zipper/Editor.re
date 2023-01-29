@@ -7,6 +7,7 @@ module Meta = {
     measured: Measured.t,
     term_ranges: TermRanges.t,
     col_target: int,
+    annotation_map: InferenceResult.annotation_map,
   };
 
   let init = (z: Zipper.t) => {
@@ -16,6 +17,7 @@ module Meta = {
       measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
+      annotation_map: InferenceResult.empty_annotations(),
     };
   };
 
@@ -45,6 +47,8 @@ module Meta = {
     let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
+    let (term, _) = MakeTerm.go(unselected);
+    let (_, annotation_map) = Statics.mk_map_and_annotations(term);
     let measured = Measured.of_segment(~touched, ~old=measured, unselected);
     let term_ranges = TermRanges.mk(unselected);
     let col_target =
@@ -53,7 +57,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
-    {touched, measured, term_ranges, col_target};
+    {touched, measured, term_ranges, col_target, annotation_map};
   };
 };
 
