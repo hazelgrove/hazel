@@ -3,18 +3,7 @@ open Haz3lcore;
 // open Util.Web;
 // open Util;
 
-let view =
-    //~inject,
-    //~settings,
-    //~show_lang_doc: bool,
-    //zipper: Haz3lcore.Zipper.t,
-    //info_map: Haz3lcore.Statics.map,
-    (model: Model.t) => {
-  let zipper = Editors.get_zipper(model.editors);
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
-
+let zipper_type_view = (zipper: Zipper.t, info_map: Statics.map) => {
   let backpack = zipper.backpack;
   let alert_content =
     if (List.length(backpack) > 0) {
@@ -51,7 +40,38 @@ let view =
       | None => ""
       };
     };
-  let alert_content: string = alert_content ++ " and testing hazel is great!";
+  alert_content;
+};
+
+let line_view = (editor: Editor.t) => {
+  let program = Printer.to_string_editor(editor);
+  let rows = String.split_on_char('\n', program);
+  switch (Editor.caret_point(editor)) {
+  | {row, _} =>
+    switch (List.nth_opt(rows, row)) {
+    | Some(str) => str
+    | None => ""
+    }
+  };
+};
+
+let view =
+    //~inject,
+    //~settings,
+    //~show_lang_doc: bool,
+    //zipper: Haz3lcore.Zipper.t,
+    //info_map: Haz3lcore.Statics.map,
+    (model: Model.t) => {
+  let zipper = Editors.get_zipper(model.editors);
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let info_map = Statics.mk_map(term);
+
+  let alert_type = zipper_type_view(zipper, info_map);
+  let line_str = line_view(model.editors |> Editors.get_editor);
+
+  let alert_content: string =
+    line_str ++ " and testing hazel is great!" ++ alert_type;
   let alert = Node.span([Node.text(alert_content)]);
   Node.div(
     ~attr=
