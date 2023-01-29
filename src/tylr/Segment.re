@@ -71,7 +71,11 @@ let of_lexemes = (ls: Lexeme.s): t =>
 
 let rec meld_to_prefix = (mel: Meld.t): t =>
   switch (Chain.unknil(mel)) {
-  | None => empty
+  | None =>
+    switch (Chain.lst(mel)) {
+    | None => empty
+    | Some(K(kid)) => meld_to_prefix(kid)
+    }
   | Some((tl, p, kid)) =>
     let (p, s) = Piece.pop_space_r(p);
     let kid_pre =
@@ -89,7 +93,11 @@ let to_prefix: t => t =
 
 let rec meld_to_suffix = (mel: Meld.t): t =>
   switch (Chain.unlink(mel)) {
-  | None => empty
+  | None =>
+    switch (Chain.fst(mel)) {
+    | None => empty
+    | Some(K(kid)) => meld_to_suffix(kid)
+    }
   | Some((kid, p, tl)) =>
     let (s, p) = Piece.pop_space_l(p);
     let kid_suf =
