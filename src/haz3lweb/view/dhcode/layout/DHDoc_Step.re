@@ -237,7 +237,7 @@ let rec mk =
       /* Now any of the postprocess checking is not done since most of
          the time the result is partial evaluated and those conditions
          cannot be met. */
-      | Closure(_, d') => go'(d', objs) |> mk_cast
+      | Closure(_, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
       | EmptyHole(u, i) =>
         let selected =
           switch (selected_hole_instance) {
