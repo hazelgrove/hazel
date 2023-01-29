@@ -128,17 +128,13 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
   let rec go = ((l, r) as sib, rel) =>
     switch (Chain.unlink(l), Chain.unknil(r)) {
     | (None, _)
-    | (_, None) => map_sib(Siblings.cat(sib), rel)
+    | (_, None) => cons_sib(sib, rel)
     | (Some((s_l, mel_l, tl_l)), Some((tl_r, mel_r, s_r))) =>
       switch (Meld.cmp(mel_l, mel_r)) {
       | In () =>
         assert(Meld.(fst_id(mel_l) == lst_id(mel_r)));
         assert(Segment.(is_empty(tl_l) && is_empty(tl_r)));
-        rel
-        |> cons_space(~onto=L, s_l)
-        |> cons_space(~onto=R, s_r)
-        |> cons_meld(~onto=L, mel_l)
-        |> cons_meld(~onto=R, mel_r);
+        cons_sib(sib, rel);
       | Lt () =>
         rel
         |> cons_space(~onto=L, s_l)
