@@ -74,7 +74,11 @@ let is_grout = p =>
   | T(_) => false
   };
 
-let is_strict = _ => failwith("todo is_strict");
+let is_strict = p =>
+  switch (p.shape) {
+  | T(_) => true
+  | G(g) => Grout.suggestion(g) != ""
+  };
 
 let zipper = (p: t): Gram.Zipper.a(_) => {
   let t =
