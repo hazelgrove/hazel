@@ -14,6 +14,7 @@ let accumulated_annotations = empty_annotations();
 
 let annotations_enabled = ref(true);
 
+// remove and put in editor too at some point... not needed then
 let update_annoation_mode = annot_mode => {
   annotations_enabled := annot_mode;
 };
@@ -34,6 +35,37 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
   new_map;
 };
 
+// Used in Code.re
+// Used in Measured.re
+/**
+ * Major Dest 1: Measured.of_segment 
+ * 
+ * Dest 1.1: BackpackView
+ * Solution: Pass down
+ * Source: Cell.editor_view editor
+ * Invocations in bt to source:
+ *    - BackpackView.backpack_sel_view
+ *    - BackpackView.view
+ *    - Deco.backpack
+ *    - Deco.all
+ *    - Cell.deco
+ *    - Cell.editor_view
+ * 
+ * Dest 1.2: LangDoc Module
+ * Solution: ignore via opargs
+ * 
+ * Dest 1.3: Editor Modules
+ * Solution: Make Meta.init take oparg; pass dummy for all init
+ *    May want to pass into Meta.init in cell; to do so, use results of 1.1\
+ */
+/**
+ * Major Dest 1: Code.of_grout
+ * 
+ * Only subdest: Text.of_segment
+ *    This module is only ever invoked from places that have called 
+ *    Measured.of_segment (it literally takes its results as a map)
+ *    If it had those results, pass those in! if from langdoc, use dummy
+ */
 let get_solution_of_id = (id: Id.t): option(ITyp.t) =>
   if (annotations_enabled^) {
     let* status = Hashtbl.find_opt(accumulated_annotations, id);
@@ -46,6 +78,11 @@ let get_solution_of_id = (id: Id.t): option(ITyp.t) =>
     None;
   };
 
+// Used in EmptyHoleDec.view
+/**
+ * If above already solved: Code.view invoked by Cell.editor_view
+ * who should already have access to all of the above
+ */
 let svg_display_settings = (id: Id.t): (bool, bool) => {
   switch (Hashtbl.find_opt(accumulated_annotations, id)) {
   | Some(status) =>
@@ -58,6 +95,8 @@ let svg_display_settings = (id: Id.t): (bool, bool) => {
   };
 };
 
+/*Only called from uppermost levels where editors live anyway
+*/
 let get_cursor_inspect_result = (id: Id.t): option((bool, string)) =>
   if (annotations_enabled^) {
     let* status = Hashtbl.find_opt(accumulated_annotations, id);
@@ -78,6 +117,10 @@ let add_on_new_annotations = (new_map): unit => {
   Hashtbl.iter(add_new_elt, new_map);
 };
 
+// called from Update.apply, which has access to the entire Model.t
+// to update the model state
+// update the model.editors which containts Scratch or School states
+// which in turn contain discrete editor.t obj
 let clear_annotations = () => {
   Hashtbl.reset(accumulated_annotations);
 };
