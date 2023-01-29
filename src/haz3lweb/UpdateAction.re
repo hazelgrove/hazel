@@ -24,7 +24,8 @@ type t =
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
   | InitReplay([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-  | FinishReplay(option(string))
+  | StartReplay(option(string))
+  | StepReplay(list((int, t)))
   | ResetSlide
   | Save
   | ToggleMode

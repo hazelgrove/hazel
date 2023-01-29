@@ -164,7 +164,8 @@ let reevaluate_post_update =
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | FinishReplay(_)
+  | StartReplay(_)
+  | StepReplay(_)
   | ResetSlide
   | SwitchEditor(_)
   | SwitchSlide(_)
@@ -264,10 +265,38 @@ let rec apply =
         }
       }
     | InitReplay(file) =>
-      JsUtil.read_file(file, data => schedule_action(FinishReplay(data)));
+      JsUtil.read_file(file, data => schedule_action(StartReplay(data)));
       Ok(model);
-    | FinishReplay(export_data) =>
-      perform_replay(model, export_data, state, ~schedule_action)
+    | StartReplay(export_data) =>
+      switch (export_data) {
+      | None => ()
+      | Some(data) =>
+        let all = data |> Yojson.Safe.from_string |> Export.all_of_yojson;
+        let log_entries = all.log |> Log.logstring_to_entries;
+        // Calculate running difference so we know how long to delay each log during replay
+        let f = (acc, (timestamp, log)) => {
+          let delay = timestamp -. acc |> Float.to_int;
+          (timestamp, (delay, log));
+        };
+        let (_acc, delayed_log_entries) =
+          List.fold_left_map(f, 0., log_entries);
+        // Don't delay the first action
+        schedule_action(StepReplay(delayed_log_entries));
+      };
+      Ok(model);
+    | StepReplay(log_entries) =>
+      switch (log_entries) {
+      | [] => Ok(model)
+      | [(delay, update), ...log_entries] =>
+        let model' = apply(model, update, state, ~schedule_action);
+        Delay.delay(() => schedule_action(StepReplay(log_entries)), delay);
+        switch (model') {
+        | Error(e) =>
+          print_endline(e |> Failure.sexp_of_t |> Sexplib.Sexp.to_string);
+          Ok(model);
+        | Ok(model') => Ok(model')
+        };
+      }
     | ResetSlide =>
       let model =
         switch (model.editors) {
@@ -425,35 +454,4 @@ let rec apply =
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
-}
-and perform_replay =
-    (
-      model: Model.t,
-      export_data: option(string),
-      state: State.t,
-      ~schedule_action,
-    ) => {
-  switch (export_data) {
-  | None => Ok(model)
-  | Some(data) =>
-    let all = data |> Yojson.Safe.from_string |> Export.all_of_yojson;
-    let log_entries = all.log |> Log.logstring_to_entries;
-    let model =
-      List.fold_left(
-        (model, entry) => {
-          let (timestamp, update) = entry;
-          ignore(timestamp);
-          let model_result = apply(model, update, state, ~schedule_action);
-          switch (model_result) {
-          | Error(e) =>
-            print_endline(e |> Failure.sexp_of_t |> Sexplib.Sexp.to_string);
-            model;
-          | Ok(model) => model
-          };
-        },
-        model,
-        log_entries,
-      );
-    Ok(model);
-  };
 };
