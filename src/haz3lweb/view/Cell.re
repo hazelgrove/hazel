@@ -164,6 +164,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
+      ~annotation_map: InferenceResult.annotation_map,
       ~test_results: option(Interface.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
@@ -175,6 +176,7 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
+      let annotation_map = annotation_map;
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
@@ -273,8 +275,16 @@ let editor_view =
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
+  let annotation_map = editor.state.meta.annotation_map;
   let code_base_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+    Code.view(
+      ~annotation_map,
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings,
+    );
   let deco_view =
     deco(
       ~zipper,
@@ -284,6 +294,7 @@ let editor_view =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
+      ~annotation_map,
       ~test_results,
       ~color_highlighting,
     );

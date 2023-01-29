@@ -49,7 +49,14 @@ let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
 };
 
 let view =
-    (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~mousedown,
+      ~annotation_map,
+      self: t,
+    ) => {
   let {
     exercise,
     results: _,
@@ -78,6 +85,7 @@ let view =
       let map = Statics.mk_map(term);
       Some(
         LangDoc.get_color_map(
+          ~annotation_map,
           ~doc=langDocMessages,
           Indicated.index(focal_zipper),
           map,
@@ -375,6 +383,7 @@ let view =
             ~doc=langDocMessages,
             Indicated.index(focal_zipper),
             focal_info_map,
+            annotation_map,
           ),
         ]
         : []

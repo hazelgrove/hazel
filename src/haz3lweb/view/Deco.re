@@ -11,6 +11,8 @@ module Deco =
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
            let info_map: Statics.map;
+
+           let annotation_map: InferenceResult.annotation_map;
            let tiles: TileMap.t;
          },
        ) => {
@@ -206,8 +208,11 @@ module Deco =
     };
   };
 
-  let backback = (z: Zipper.t): list(Node.t) => [
+  let backback =
+      (~annotation_map: InferenceResult.annotation_map, z: Zipper.t)
+      : list(Node.t) => [
     BackpackView.view(
+      ~annotation_map,
       ~font_metrics,
       ~origin=Zipper.caret_point(M.map, z),
       z,
@@ -308,7 +313,7 @@ module Deco =
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
-      backback(zipper),
+      backback(~annotation_map=M.annotation_map, zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
     ]);

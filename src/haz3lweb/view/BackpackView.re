@@ -4,6 +4,7 @@ open Haz3lcore;
 
 let backpack_sel_view =
     (
+      ~annotation_map: InferenceResult.annotation_map,
       x_off: float,
       y_off: float,
       scale: float,
@@ -13,6 +14,7 @@ let backpack_sel_view =
   module Text =
     Code.Text({
       let map = Measured.of_segment(content);
+      let annotation_map = annotation_map;
       let settings = Model.settings_init;
     });
   // TODO(andrew): Maybe use init sort at caret to prime this
@@ -32,12 +34,14 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(~no_sorts=true, content) @ [text(Unicode.zwsp)],
+    Text.of_segment(~no_sorts=true, ~annotation_map, content)
+    @ [text(Unicode.zwsp)],
   );
 };
 
 let view =
     (
+      ~annotation_map: InferenceResult.annotation_map,
       ~font_metrics: FontMetrics.t,
       ~origin: Measured.Point.t,
       {backpack, _} as z: Zipper.t,
@@ -95,7 +99,15 @@ let view =
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
-        let v = backpack_sel_view(x_offset, new_y_offset, scale, opacity, s);
+        let v =
+          backpack_sel_view(
+            ~annotation_map,
+            x_offset,
+            new_y_offset,
+            scale,
+            opacity,
+            s,
+          );
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
         //TODO(andrew): am i making this difficult by going backwards?

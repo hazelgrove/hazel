@@ -230,6 +230,8 @@ let main_ui_view =
         ~toolbar_buttons,
         ~top_right=overall_score,
       );
+    let annotation_map =
+      Editors.get_editor(editors).state.meta.annotation_map;
     [
       top_bar_view,
       SchoolMode.view(
@@ -238,6 +240,7 @@ let main_ui_view =
         ~mousedown,
         ~show_backpack_targets,
         school_mode,
+        ~annotation_map,
       ),
     ];
   };
