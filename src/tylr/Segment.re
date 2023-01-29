@@ -116,10 +116,11 @@ let to_suffix: t => t =
 module Meld_ = {
   // precond: mel is left-closed
   let uncons = (~from_piece, mel) => {
-    open OptUtil.Syntax;
-    let+ (_none, p, mel_tl) = Chain.unlink(mel);
-    let (lx, p_tl) = from_piece(p);
-    (lx, to_suffix(cat(of_lexemes(p_tl), of_meld(mel_tl))));
+    let (p, tl_mel) =
+      Meld.is_closed_l(mel)
+      |> OptUtil.get_or_raise(Invalid_argument("Segment.Meld_.uncons"));
+    let (a, tl_p) = from_piece(p);
+    (a, to_suffix(cat(of_lexemes(tl_p), of_meld(tl_mel))));
   };
   let uncons_lexeme =
     uncons(~from_piece=p => ListUtil.split_first(Lexeme.s_of_piece(p)));
@@ -131,10 +132,11 @@ module Meld_ = {
 
   // precond: mel is right-closed
   let unsnoc = (~from_piece, mel) => {
-    open OptUtil.Syntax;
-    let+ (mel_tl, p, _none) = Chain.unknil(mel);
-    let (p_tl, c) = from_piece(p);
-    (to_prefix(cat(of_meld(mel_tl), of_lexemes(p_tl))), c);
+    let (tl_mel, p) =
+      Meld.is_closed_r(mel)
+      |> OptUtil.get_or_raise(Invalid_argument("Segment.Meld_.unsnoc"));
+    let (tl_p, c) = from_piece(p);
+    (to_prefix(cat(of_meld(tl_mel), of_lexemes(tl_p))), c);
   };
   let unsnoc_lexeme =
     unsnoc(~from_piece=p => ListUtil.split_last(Lexeme.s_of_piece(p)));
@@ -150,9 +152,8 @@ let uncons = (~from_space, ~from_meld, seg) =>
   | Some((a, s)) => Some((a, Chain.put_fst(s, seg)))
   | None =>
     open OptUtil.Syntax;
-    let* (_, mel, seg) = Chain.unlink(seg);
-    // todo: may need to convert to prefix form here
-    let+ (a, tl) = from_meld(mel);
+    let+ (_, mel, seg) = Chain.unlink(seg);
+    let (a, tl) = from_meld(mel);
     (a, cat(tl, seg));
   };
 let uncons_from_space =
@@ -172,8 +173,8 @@ let unsnoc = (~from_space, ~from_meld, seg: t) =>
   | Some((s, a)) => Some((Chain.put_lst(s, seg), a))
   | None =>
     open OptUtil.Syntax;
-    let* (seg, mel, _) = Chain.unknil(seg);
-    let+ (tl, a) = from_meld(mel);
+    let+ (seg, mel, _) = Chain.unknil(seg);
+    let (tl, a) = from_meld(mel);
     (cat(seg, tl), a);
   };
 let unsnoc_from_space = ss =>

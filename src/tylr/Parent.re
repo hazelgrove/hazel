@@ -13,9 +13,11 @@ exception Convex_inner_tips;
 let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   switch (from) {
   | L =>
-    from_l(l) |> Option.map(((l, a)) => (a, (l, Segment.of_meld(r))))
+    let (l, a) = from_l(l);
+    (a, (l, Segment.of_meld(r)));
   | R =>
-    from_r(r) |> Option.map(((a, r)) => (a, (Segment.of_meld(l), r)))
+    let (a, r) = from_r(r);
+    (a, (Segment.of_meld(l), r));
   };
 let uncons_char =
   uncons(

@@ -32,25 +32,22 @@ let uncons = (~from_sib, ~from_par, ~from: Dir.t, rel: t) =>
   | Some((a, sib)) => Some((a, put_sib(sib, rel)))
   | None =>
     open OptUtil.Syntax;
-    let* (sib, par, rel) = Chain.unlink(rel);
-    let+ (a, par) = from_par(~from, par);
+    let+ (sib, par, rel) = Chain.unlink(rel);
+    let (a, par) = from_par(~from, par);
     (a, cons_sib(Siblings.cat(sib, par), rel));
   };
-let uncons_lexeme =
-  uncons(~from_sib=Siblings.uncons_lexeme, ~from_par=Parent.uncons_lexeme);
 let uncons_char =
   uncons(~from_sib=Siblings.uncons_char, ~from_par=Parent.uncons_char);
+let uncons_lexeme =
+  uncons(~from_sib=Siblings.uncons_lexeme, ~from_par=Parent.uncons_lexeme);
+let uncons_opt_lexeme = (~from, rel) =>
+  switch (uncons_lexeme(~from, rel)) {
+  | None => (None, rel)
+  | Some((l, rel)) => (Some(l), rel)
+  };
 let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
-  let (l, rel) =
-    switch (uncons_lexeme(~from=L, rel)) {
-    | None => (None, rel)
-    | Some((l, rel)) => (Some(l), rel)
-    };
-  let (r, rel) =
-    switch (uncons_lexeme(~from=R, rel)) {
-    | None => (None, rel)
-    | Some((r, rel)) => (Some(r), rel)
-    };
+  let (l, rel) = uncons_opt_lexeme(~from=L, rel);
+  let (r, rel) = uncons_opt_lexeme(~from=R, rel);
   ((l, r), rel);
 };
 
@@ -209,9 +206,9 @@ let rec push_meld_l =
 
 // precond: mel is closed left
 let rec insert_meld = (mel: Meld.t, rel: t): t => {
-  let (kid, p, rest) =
-    Chain.unlink(mel) |> OptUtil.get_or_raise(Meld.Missing_root);
-  assert(kid == None);
+  let (p, rest) =
+    Meld.is_closed_l(mel)
+    |> OptUtil.get_or_raise(Invalid_argument("Relatives.insert_meld"));
   switch (p.shape) {
   | G(_) => rel |> insert_seg(Segment.(to_suffix(of_meld(rest))))
   | T(t) =>

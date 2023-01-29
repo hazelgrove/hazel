@@ -152,34 +152,24 @@ let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
   Chain.knil(tl, p, kid);
 };
 
-let tip = (side: Dir.t, mel: t): option(Tip.t) =>
-  switch (side) {
-  | L =>
-    Chain.unlink(mel)
-    |> Option.map(((kid, p, _)) =>
-         switch (kid) {
-         | None => Piece.tip(side, p)
-         | Some(_) => Tip.Convex
-         }
-       )
-  | R =>
-    Chain.unknil(mel)
-    |> Option.map(((_, p, kid)) =>
-         switch (kid) {
-         | None => Piece.tip(side, p)
-         | Some(_) => Tip.Convex
-         }
-       )
+let is_closed_l = mel =>
+  switch (Chain.unlink(mel)) {
+  | Some((None, p, tl)) => Some((p, tl))
+  | _ => None
+  };
+let is_closed_r = mel =>
+  switch (Chain.unknil(mel)) {
+  | Some((tl, p, None)) => Some((tl, p))
+  | _ => None
   };
 
+// precond: l is right-closed, r is left-closed
 // todo: consider generalizing to return expected sort
 let cmp = (l: t, r: t): Cmp.t =>
-  switch (Chain.unknil(l), Chain.unlink(r)) {
-  | (None, None) => Eq()
-  | (None, Some(_)) => Gt()
-  | (Some(_), None) => Lt()
-  | (Some((_, p_l, _)), Some((_, p_r, _))) =>
-    Cmp.t_of_r(Piece.cmp(p_l, p_r))
+  switch (is_closed_r(l), is_closed_l(r)) {
+  | (None, _)
+  | (_, None) => raise(Invalid_argument("Meld.cmp"))
+  | (Some((_, p_l)), Some((p_r, _))) => Cmp.t_of_r(Piece.cmp(p_l, p_r))
   };
 
 let convexify_l = (~expected: Sort.Ana.t, c) =>
