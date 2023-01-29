@@ -255,9 +255,14 @@ and merge_nonempty = (l, r) =>
     let (kid_r, p_r, tl_r) =
       Chain.unlink(c_r) |> OptUtil.get_or_raise(Orphaned_kid);
     switch (Piece.cmp(p_l, p_r)) {
-    | In () =>
+    | In((sort, prec)) =>
       assert(kid_l == None && kid_r == None);
-      Piece.(mk(G(Grout.mk_concave(mold(p_l), mold(p_r)))))
+      // todo: may want to use expected sort here.
+      // as it stands, this bottom-up method of sorting
+      // the grout may lead to sort inconsistency in general.
+      // or this may be fine under interpretation of grout
+      // sort being upper bound on its parent's expected sort.
+      Piece.mk(G(Grout.mk_concave(sort, prec)))
       |> Piece.pad(~l=s_lr, ~r=s_rl)
       |> of_piece(~l=?kid_l, ~r=?kid_r)
       |> Padded.mk(~l=s_ll, ~r=s_rr);

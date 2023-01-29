@@ -140,23 +140,28 @@ let degrout = (l: t, r: t): option(dg) =>
       ? Some(Fill(R)) : None
   };
 
-let cmp = (l: t, r: t): (Cmp.leg(Sort.Ana.t) as 'r) => {
+let cmp = (l: t, r: t): (Cmp.i_leg((Sort.o, Prec.t), Sort.Ana.t) as 'r) => {
   let (m_l, m_r) = (mold(l), mold(r));
   switch (eq(l, r)) {
   | Some(s) => Eq(s)
   | None =>
+    let in_ = {
+      let sort = Sort.lca(m_l.sort, m_r.sort);
+      let prec = min(m_l.prec, m_r.prec);
+      Cmp.In((sort, prec));
+    };
     let lt = sort => Cmp.Lt(Sort.Ana.mk(~strict=is_strict(l), ~sort?, ()));
     let gt = sort => Cmp.Gt(Sort.Ana.mk(~strict=is_strict(r), ~sort?, ()));
     let eq = sort => {
       let strict = is_strict(l) || is_strict(r);
       Cmp.Eq(Sort.Ana.mk(~strict, ~sort?, ()));
     };
-    let try_lt = (~else_=Cmp.In(), sort_l): 'r =>
+    let try_lt = (~else_=in_, sort_l): 'r =>
       Sort.compare_o(sort_l, sort(r)) <= 0 ? lt(sort_l) : else_;
-    let try_gt = (~else_=Cmp.In(), sort_r): 'r =>
+    let try_gt = (~else_=in_, sort_r): 'r =>
       Sort.compare_o(sort(l), sort_r) >= 0 ? gt(sort_r) : else_;
     switch (Mold.tip(R, m_l), Mold.tip(L, m_r)) {
-    | (Convex, Convex) => In()
+    | (Convex, Convex) => in_
     | (Convex, Concave(sort_r, _)) => try_gt(sort_r)
     | (Concave(sort_l, _), Convex) => try_lt(sort_l)
     | (Concave(sort_l, prec_l), Concave(sort_r, prec_r)) =>
@@ -164,7 +169,7 @@ let cmp = (l: t, r: t): (Cmp.leg(Sort.Ana.t) as 'r) => {
       switch (Sort.compare_o(sort(l), sort(r))) {
       | c when c < 0 => lt(sort_l)
       | c when c > 0 => gt(sort_r)
-      | _ =>
+      | _zero =>
         switch (Prec.compare(prec_l, prec_r)) {
         | c when c < 0 => try_lt(~else_=try_gt(sort_r), sort_l)
         | c when c > 0 => try_gt(~else_=try_lt(sort_l), sort_r)

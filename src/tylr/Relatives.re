@@ -253,11 +253,37 @@ and insert_seg = (seg: Segment.t, rel: t): t =>
        (rel, mel, s) => rel |> insert_meld(mel) |> cons_space(~onto=L, s),
      );
 
+let piece_bounds = rel => Siblings.piece_bounds(Chain.fst(rel));
+
+let regrout = rel => {
+  let sib_of_g = g => Siblings.mk(~r=Segment.of_meld(Meld.of_grout(g)), ());
+  let sib_of_p = (side: Dir.t, p) =>
+    switch (Piece.tip(Dir.toggle(side), p)) {
+    | Convex => Siblings.empty
+    | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
+    };
+  let sib =
+    switch (piece_bounds(rel)) {
+    | (None, None) => sib_of_g(Grout.mk_convex(Sort.root_o))
+    | (None, Some(r)) => sib_of_p(R, r)
+    | (Some(l), None) => sib_of_p(L, l)
+    | (Some(l), Some(r)) =>
+      // todo: maybe handle within-piece case
+      switch (Piece.cmp(l, r)) {
+      | In((sort, prec)) => sib_of_g(Grout.mk_concave(sort, prec))
+      | Lt(_) => sib_of_p(R, r)
+      | Eq(expected) => sib_of_g(Grout.mk_convex(expected.sort))
+      | Gt(_) => sib_of_p(L, l)
+      }
+    };
+  rel |> cons_sib(sib) |> assemble;
+};
+
 // precond: rel contains Cursor token in prefix
 let rec remold_suffix = (rel: t): t => {
   let (pre, suf) = get_sib(rel);
   switch (Chain.unlink(suf)) {
-  | None => rel
+  | None => regrout(rel)
   | Some((s, mel, suf)) =>
     rel
     |> put_sib((pre, suf))
@@ -401,13 +427,26 @@ let relex = (~insert="", rel: t): (Lexed.t, t) =>
   | _ => relex_insert(insert, rel)
   };
 
+// let tips = rel =>
+//   switch (Chain.unlink(rel)) {
+//   | None =>
+//     switch (Siblings.tips(Chain.fst(rel))) {
+//     | Some(ts) => ts
+//     | None => Tip.(root, root)
+//     }
+//   | Some((sib, par, rel)) =>
+//     switch (Siblings.tips(sib)) {
+//     | Some(ts) => ts
+//     | None => Parent.tips(par)
+//     }
+//   };
+
 let insert = ((ls, offset): Lexed.t, rel: t): t => {
   let rel =
     switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
     | Some(s) =>
-      rel
-      |> cons_space(~onto=L, s)
-      |> FunUtil.(repeat(offset, force_opt(shift_char(~from=L))))
+      // fast path for empty/space-only insertion
+      rel |> cons_space(~onto=L, s) |> regrout
     | None =>
       let seg = Segment.of_lexemes(ls);
       let inserted = insert_seg(seg, rel);

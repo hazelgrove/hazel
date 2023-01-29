@@ -4,7 +4,8 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (Segment.t, Segment.t);
 
-let empty = Segment.(empty, empty);
+let mk = (~l=Segment.empty, ~r=Segment.empty, ()) => (l, r);
+let empty = mk();
 
 let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
   switch (onto) {
@@ -81,6 +82,16 @@ let zip = (~l=?, ~r=?, ~sel=Segment.empty, sib: t): Meld.Padded.t => {
   |> Segment.assemble(~l?, ~r?)
   |> Segment.to_padded
   |> OptUtil.get_or_raise(Meld.Invalid_prec);
+};
+
+let piece_bounds = ((pre, suf): t): (option(Piece.t), option(Piece.t)) => {
+  let l =
+    Chain.unknil(pre)
+    |> OptUtil.and_then(((_, mel, _)) => ListUtil.last_opt(Meld.root(mel)));
+  let r =
+    Chain.unlink(suf)
+    |> OptUtil.and_then(((_, mel, _)) => ListUtil.hd_opt(Meld.root(mel)));
+  (l, r);
 };
 
 let assemble = ((pre, suf): t) => {

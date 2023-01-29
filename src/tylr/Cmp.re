@@ -6,7 +6,7 @@ type r('in_, 'lt, 'eq, 'gt) =
 type s('a) = r('a, 'a, 'a, 'a);
 type t = s(unit);
 
-type leg('a) = r(unit, 'a, 'a, 'a);
+type i_leg('in_, 'else_) = r('in_, 'else_, 'else_, 'else_);
 
 let of_int = (c: int) =>
   if (c < 0) {

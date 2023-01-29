@@ -13,3 +13,5 @@ let fits = (l, r) =>
   };
 
 let same_shape = (l, r) => !fits(l, r);
+
+let root = Concave(Sort.root_o, Prec.min);

@@ -15,6 +15,8 @@ let lca = (l: o, r: o): o =>
   | _ => l
   };
 
+let root_o = Some(root);
+
 // expected sort bound
 module Ana = {
   type t = {
