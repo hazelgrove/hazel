@@ -50,25 +50,24 @@ module Pat = {
 module Exp = {
   let e = kid(Sort.Exp);
 
+  let comma_sep = seq([e, Star(seq([tok(","), e]))]);
   let operand =
     alt([
       tok_shape(Int_lit),
       tok_shape(Float_lit),
       tok_shape(Id_lower),
-      seq([tok("("), opt(e), tok(")")]),
-      seq([tok("["), opt(e), tok("]")]),
+      // todo: seq([tok("("), opt(comma_sep), tok(")")]),
+      seq([tok("("), e, tok(")")]),
+      // todo: seq([tok("["), opt(comma_sep), tok("]")]),
+      seq([tok("["), e, tok("]")]),
     ]);
 
   let tok_alt = ss => alt(List.map(tok, ss));
-
   let add_op = tok_alt(["+", "+.", "-", "-."]);
-
   let mult_op = tok_alt(["*", "*.", "/", "/."]);
-
   let neg_op = tok_alt(["-", "-."]);
 
   let t = [
-    p(seq([e, Star(seq([tok(","), e]))])),
     p(~a=L, seq([e, add_op, e])),
     p(~a=L, seq([e, mult_op, e])),
     p(seq([neg_op, e])),
