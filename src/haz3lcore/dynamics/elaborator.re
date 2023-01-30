@@ -171,7 +171,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           | Deferral => true
           | _ => false
           };
-        let nary_tuple = (tuple, xs) => {
+        let n_ary_tuple = (tuple, xs) => {
           assert(List.length(xs) > 0);
           if (List.length(xs) == 1) {
             List.hd(xs);
@@ -180,7 +180,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           };
         };
         // substitute all deferrals for new variables
-        let* (pats, args) =
+        let* (pats, d_args) =
           args
           |> List.fold_left(
                (acc, e: Term.UExp.t) => {
@@ -204,21 +204,28 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                Some(([], [])),
              );
         let (pat', arg') = (
-          nary_tuple(x => DHPat.Tuple(x), pats),
-          nary_tuple(x => DHExp.Tuple(x), args),
+          n_ary_tuple(x => DHPat.Tuple(x), pats),
+          n_ary_tuple(x => DHExp.Tuple(x), d_args),
         );
         let* d_fn = dhexp_of_uexp(m, fn);
         let ty_fn = Statics.exp_self_typ(m, fn);
-        let+ ty_ret =
+        let+ (ty_arg, ty_ret) =
           switch (ty_fn) {
-          | Arrow(_, t) => Some(t)
+          | Arrow(a, b) => Some((a, b))
           | _ => None
+          };
+        let arg_tys =
+          switch (ty_arg) {
+          | Typ.Prod(tys) => tys
+          | _ => List.init(List.length(args), _ => Typ.Unknown(Internal))
           };
         let ty_arg': Typ.t =
           Arrow(
-            nary_tuple(
+            n_ary_tuple(
               x => Typ.Prod(x),
-              List.init(List.length(pats), _ => Typ.Unknown(Internal)) // TODO: don't discard type information
+              List.combine(arg_tys, args)
+              |> List.filter(((_ty, arg)) => is_deferral(arg))
+              |> List.map(((ty, _arg)) => ty),
             ),
             ty_ret,
           );
