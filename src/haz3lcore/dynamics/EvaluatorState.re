@@ -3,12 +3,14 @@ type t = {
   eig: EnvironmentIdGen.t,
   stats: EvaluatorStats.t,
   tests: TestMap.t,
+  probes: ProbeMap.t,
 };
 
 let init = {
   eig: EnvironmentIdGen.init,
   stats: EvaluatorStats.initial,
   tests: TestMap.empty,
+  probes: ProbeMap.empty,
 };
 
 let get_eig = ({eig, _}) => eig;
@@ -29,7 +31,12 @@ let add_test = ({tests, _} as es, id, report) => {
   let tests = tests |> TestMap.extend((id, report));
   {...es, tests};
 };
-
 let get_tests = ({tests, _}) => tests;
-
 let put_tests = (tests, es) => {...es, tests};
+
+let add_probe = ({probes, _} as es, id, report) => {
+  let probes = probes |> ProbeMap.add(id, report);
+  {...es, probes};
+};
+let get_probes = ({probes, _}) => probes;
+let put_probes = (probes, es) => {...es, probes};

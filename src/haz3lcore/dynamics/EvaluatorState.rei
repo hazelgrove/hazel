@@ -42,8 +42,10 @@ let take_step: t => t;
  */
 let get_step: t => int;
 
-let add_test: (t, KeywordID.t, TestMap.instance_report) => t;
-
+let add_test: (t, Id.t, TestMap.instance_report) => t;
 let get_tests: t => TestMap.t;
-
 let put_tests: (TestMap.t, t) => t;
+
+let add_probe: (t, Id.t, ProbeMap.entry) => t;
+let get_probes: t => ProbeMap.t;
+let put_probes: (ProbeMap.t, t) => t;

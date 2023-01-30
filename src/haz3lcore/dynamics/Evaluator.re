@@ -1142,8 +1142,7 @@ and evaluate_ap_builtin =
 }
 
 and evaluate_test =
-    (env: ClosureEnvironment.t, n: KeywordID.t, arg: DHExp.t)
-    : m(EvaluatorResult.t) => {
+    (env: ClosureEnvironment.t, n: Id.t, arg: DHExp.t): m(EvaluatorResult.t) => {
   let* (arg_show, arg_result) =
     switch (DHExp.strip_casts(arg)) {
     | BinBoolOp(op, arg_d1, arg_d2) =>
