@@ -3,13 +3,11 @@ open Mold;
 module P = Precedence;
 
 /* FORM
-
    This module determines the syntactic extent of the language; the
    entire Syntax module is driven by the below definitions. Adding
    a new syntactic form is simply a matter of adding a new line to either
    the 'convex_monos' table, for single-token forms, or the 'forms'
    table, for compound forms.
-
    The wrapping functions seen in both of those tables determine the
    shape, precedence, and expansion behavior of the form. */
 
@@ -25,6 +23,7 @@ type label = list(Token.t);
    until after a token boundary event is triggered (say by pressing
    space after entering 'let'). The (Static) case is used for monos
    aka single-token forms. */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion_time =
   | Static
@@ -66,7 +65,9 @@ let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
+
 let is_bad_int = str => is_arbitary_int(str) && !is_int(str);
+
 /* NOTE: As well as making is_float  disjoint from is_int,
    the is_arbitary_int  also prevents ints over int_max from being
    cast as floats. The is_arbitary_float check is necessary to prevent
@@ -98,6 +99,7 @@ let is_wild = regexp("^_$");
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
   is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
+
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
 let is_string = t =>
@@ -113,8 +115,9 @@ let is_string_delim = str => str == string_delim;
    approach to invalid text.*/
 let is_whitelisted_char = regexp("[!@]");
 
-/* A. Whitespace: */
-let whitespace = [Whitespace.space, Whitespace.linebreak];
+/* A. Secondary Notation (Comments, Whitespace, etc.)
+   This list is for non-comments: */
+let secondary_without_comments = [Secondary.space, Secondary.linebreak];
 
 /* B. Operands:
    Order in this list determines relative remolding
@@ -138,6 +141,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 /* C. Compound Forms:
    Order in this list determines relative remolding
    priority for forms which share the same labels */
+
 let forms: list((string, t)) = [
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
@@ -234,13 +238,23 @@ let atomic_molds: Token.t => list(Mold.t) =
     );
 
 let is_atomic = t => atomic_molds(t) != [];
-let is_whitespace = t => List.mem(t, whitespace);
+let is_secondary = t =>
+  List.mem(t, secondary_without_comments)
+  || Re.Str.string_match(Secondary.comment, t, 0);
+
+let is_comment = t =>
+  Re.Str.string_match(Secondary.comment, t, 0) || t == "#";
+let is_comment_delim = t => t == "#";
+
 let is_delim = t => List.mem(t, delims);
 
-let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);
+let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 
 let is_valid_char = t =>
-  is_valid_token(t) || is_string_delim(t) || is_whitelisted_char(t); //TODO(andrew): betterify this
+  is_valid_token(t)
+  || is_string_delim(t)
+  || is_comment_delim(t)
+  || is_whitelisted_char(t); //TODO(andrew): betterify this
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
