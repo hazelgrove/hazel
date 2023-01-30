@@ -172,7 +172,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           | _ => false
           };
         // substitute all deferrals for new variables
-        let pats_and_args_opt =
+        let* pats_and_args =
           args
           |> List.fold_left(
                (acc, e: Term.UExp.t) => {
@@ -195,7 +195,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                },
                Some(([], [])),
              );
-        let* pats_and_args = pats_and_args_opt;
         let nary_tuple = (tuple, xs) => {
           assert(List.length(xs) > 0);
           if (List.length(xs) == 1) {
