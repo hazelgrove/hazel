@@ -203,12 +203,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                },
                Some(([], [])),
              );
-        let (ppat, parg) =
-          // pseudo-pattern; pseudo-arg
-          (
-            nary_tuple(x => DHPat.Tuple(x), pats),
-            nary_tuple(x => DHExp.Tuple(x), args),
-          );
+        let (pat', arg') = (
+          nary_tuple(x => DHPat.Tuple(x), pats),
+          nary_tuple(x => DHExp.Tuple(x), args),
+        );
         let* d_fn = dhexp_of_uexp(m, fn);
         let ty_fn = Statics.exp_self_typ(m, fn);
         let+ ty_ret =
@@ -216,7 +214,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           | Arrow(_, t) => Some(t)
           | _ => None
           };
-        let ty_parg: Typ.t =
+        let ty_arg': Typ.t =
           Arrow(
             nary_tuple(
               x => Typ.Prod(x),
@@ -224,7 +222,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             ),
             ty_ret,
           );
-        DHExp.Fun(ppat, ty_parg, Ap(d_fn, parg), None);
+        DHExp.Fun(pat', ty_arg', Ap(d_fn, arg'), None);
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
