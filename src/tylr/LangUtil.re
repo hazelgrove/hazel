@@ -81,12 +81,9 @@ let keywords: list(Token.t) =
        | Token.Shape.Const(t) when CharUtil.is_alpha(t.[0]) => Some(t)
        | _ => None,
      );
-
-let molds_of_token = t => {
-  let shape = List.mem(t, keywords) ? Token.Shape.Const(t) : Token.shape(t);
-  Molds.of_token(shape);
-};
-
+let shape_of_token = t =>
+  List.mem(t, keywords) ? Token.Shape.Const(t) : Token.shape(t);
+let molds_of_token = t => Molds.of_token(shape_of_token(t));
 // todo: reimplement in terms of precedence bounds
 let mold_of_token = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
   let out_consistent =

@@ -86,7 +86,7 @@ let zipper = (p: t): Gram.Zipper.a(_) => {
     | G(_) => ""
     | T(t) => t.token
     };
-  (Tok(Token.shape(t)), mold(p).frames);
+  (Tok(LangUtil.shape_of_token(t)), mold(p).frames);
 };
 
 let eq = (l: t, r: t): option(Sort.Ana.t) => {

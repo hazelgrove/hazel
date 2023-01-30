@@ -32,6 +32,7 @@ let is_float_lit = str =>
 let is_id_lower = regexp("^[a-z][A-Za-z0-9_]*$");
 let is_id_upper = regexp("^[A-Z][A-Za-z0-9_]*$");
 
+// do not call directly, use LangUtil.shape_of_token
 let shape = (t: t): Shape.t =>
   switch (t) {
   | _ when is_id_lower(t) => Id_lower
