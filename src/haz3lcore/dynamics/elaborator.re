@@ -171,6 +171,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           | Deferral => true
           | _ => false
           };
+        let nary_tuple = (tuple, xs) => {
+          assert(List.length(xs) > 0);
+          if (List.length(xs) == 1) {
+            List.hd(xs);
+          } else {
+            tuple(xs);
+          };
+        };
         // substitute all deferrals for new variables
         let* (pats, args) =
           args
@@ -195,14 +203,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                },
                Some(([], [])),
              );
-        let nary_tuple = (tuple, xs) => {
-          assert(List.length(xs) > 0);
-          if (List.length(xs) == 1) {
-            List.hd(xs);
-          } else {
-            tuple(xs);
-          };
-        };
         let (ppat, parg) =
           // pseudo-pattern; pseudo-arg
           (
