@@ -110,7 +110,13 @@ let mold_ =
     let (pre, _) = get_sib(rel);
     let/ kid = Segment.mold(~match, pre, ~kid?, t);
     switch (Chain.unlink(rel)) {
-    | None => Error(kid)
+    | None =>
+      match
+        ? Error(kid)
+        : Result.of_option(
+            ~error=kid,
+            LangUtil.mold_of_token(kid, Sort.root_o, t),
+          )
     | Some((_sib, par, rel)) =>
       let/ kid = Parent.mold(~match, ~kid?, t, par);
       match ? go(~kid?, rel) : Error(kid);
