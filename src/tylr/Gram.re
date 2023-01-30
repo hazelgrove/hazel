@@ -115,15 +115,15 @@ module Frame = {
         @ (List.for_all(nullable, gs_r) ? interior(d, fs) : [])
       };
 
-  let cons = (onto: Dir.t, g: g(_), fs: s(_)): s(_) =>
+  let cons = (~onto: Dir.t, g: g(_), fs: s(_)): s(_) =>
     switch (onto, fs) {
-    | (L, [Seq_(l, r), ...fs]) => [Seq_([g, ...l], r), ...fs]
+    | (L, [Seq_(l, r), ...fs]) => [Seq_(l @ [g], r), ...fs]
     | (R, [Seq_(l, r), ...fs]) => [Seq_(l, [g, ...r]), ...fs]
     | (L, _) => [Seq_([g], []), ...fs]
     | (R, _) => [Seq_([], [g]), ...fs]
     };
-  let cons_seq = (onto: Dir.t, gs: list(g(_)), fs: s(_)) => {
-    let cons = cons(onto);
+  let cons_seq = (~onto: Dir.t, gs: list(g(_)), fs: s(_)) => {
+    let cons = cons(~onto);
     switch (onto) {
     | L => List.fold_left(Fun.flip(cons), fs, gs)
     | R => List.fold_right(cons, gs, fs)
@@ -170,59 +170,75 @@ module Zipper = {
     | Seq_(l, r) => Seq(List.rev(l) @ [g, ...r])
     };
 
-  let rec enter = (side: Dir.t, (g, fs): t(_)): list(a(_)) => {
+  let rec enter =
+          (~skip_nullable: bool, ~from: Dir.t, (g, fs): t(_)): list(a(_)) => {
+    let go = enter(~skip_nullable, ~from);
     switch (g) {
     | Atom(a) => [(a, fs)]
-    | Star(g) => enter(side, (g, [Star_, ...fs]))
+    | Star(g) => skip_nullable ? [] : go((g, [Star_, ...fs]))
     | Alt(gs) =>
       ListUtil.elem_splits(gs)
-      |> List.concat_map(((l, g, r)) =>
-           enter(side, (g, [Alt_(l, r), ...fs]))
-         )
+      |> List.concat_map(((l, g, r)) => go((g, [Alt_(l, r), ...fs])))
     | Seq(gs) =>
-      switch (side) {
+      switch (from) {
       | L =>
         switch (gs) {
         | [] => []
-        | [g, ...gs] =>
-          enter(L, (g, Frame.cons_seq(R, gs, fs)))
-          @ (nullable(g) ? enter(L, (Seq(gs), Frame.cons(L, g, fs))) : [])
+        | [hd, ...tl] =>
+          let go_hd = go((hd, Frame.cons_seq(~onto=R, gs, fs)));
+          let go_tl =
+            nullable(hd) ? go((Seq(tl), Frame.cons(~onto=L, hd, fs))) : [];
+          go_hd @ go_tl;
         }
       | R =>
         switch (ListUtil.split_last_opt(gs)) {
         | None => []
-        | Some((gs, g)) =>
-          enter(R, (g, Frame.cons_seq(L, gs, fs)))
-          @ (nullable(g) ? enter(R, (Seq(gs), Frame.cons(R, g, fs))) : [])
+        | Some((tl, hd)) =>
+          let go_hd = go((hd, Frame.cons_seq(~onto=L, tl, fs)));
+          let go_tl =
+            nullable(hd) ? go((Seq(tl), Frame.cons(~onto=R, hd, fs))) : [];
+          go_hd @ go_tl;
         }
       }
     };
   };
 
-  let rec move_t = (d: Dir.t, (g, fs): t(_)): list(a(_)) =>
+  let rec move_t =
+          (~skip_nullable: bool, d: Dir.t, (g, fs): t(_)): list(a(_)) => {
+    let go = move_t(~skip_nullable, d);
+    let enter = enter(~skip_nullable);
     switch (fs) {
     | [] => []
     | [f, ...fs] =>
       switch (d, f) {
       | (_, Star_)
-      | (_, Alt_(_)) => []
+      | (_, Alt_(_)) => go((zip(g, f), fs))
       | (L, Seq_(l, r)) =>
-        enter(R, (Seq(List.rev(l)), [Seq_([], r), ...fs]))
-        @ (List.for_all(nullable, l) ? move_t(L, (zip(g, f), fs)) : [])
+        let enter_l = enter(~from=R, (Seq(l), [Seq_([], r), ...fs]));
+        let go_beyond =
+          List.for_all(nullable, l) ? go((zip(g, f), fs)) : [];
+        enter_l @ go_beyond;
       | (R, Seq_(l, r)) =>
-        enter(L, (Seq(List.rev(l)), [Seq_([], r), ...fs]))
-        @ (List.for_all(nullable, l) ? move_t(R, (zip(g, f), fs)) : [])
+        let enter_r =
+          enter(~from=L, (Seq(List.rev(l)), [Seq_([], r), ...fs]));
+        let go_beyond =
+          List.for_all(nullable, r) ? go((zip(g, f), fs)) : [];
+        enter_r @ go_beyond;
       }
     };
-  let move = (d, a) => move_t(d, t_of_a(a));
+  };
+  let move = (~skip_nullable=false, d, a) =>
+    move_t(~skip_nullable, d, t_of_a(a));
 
-  let rec move_to_next_tok = (d: Dir.t, (a, fs): a(_)): list(_) => {
+  let rec move_to_tok =
+          (~skip_nullable=false, d: Dir.t, (a, fs): a(_)): list(_) => {
+    let go = move_to_tok(~skip_nullable);
     let (found_now, found_later) =
-      move(d, (a, fs))
+      move(~skip_nullable, d, (a, fs))
       |> List.partition_map(((a: Atom.t(_), fs)) =>
            switch (a) {
            | Tok(t) => Left((Atom.Tok(t), fs))
-           | Kid(_) => Right(move_to_next_tok(d, (a, fs)))
+           | Kid(_) => Right(go(d, (a, fs)))
            }
          );
     found_now @ List.concat(found_later);

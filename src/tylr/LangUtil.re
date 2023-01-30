@@ -96,11 +96,11 @@ let mold_of_token = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
     let in_l_consistent =
       out_consistent
       |> List.filter(m =>
-           switch (in_l, Mold.expected_sort(L, m)) {
-           | (None, Some(_))
-           | (Some(_), None) => false
-           | (None, None) => true
-           | (Some(actual), Some(expected)) =>
+           switch (in_l, Mold.tip(L, m)) {
+           | (None, Concave(_))
+           | (Some(_), Convex) => false
+           | (None, Convex) => true
+           | (Some(actual), Concave(expected, _)) =>
              Sort.compare_o(actual, expected) <= 0
            }
          );

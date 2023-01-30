@@ -98,13 +98,6 @@ let assemble = ((pre, suf): t) => {
   Segment.(assemble_l(pre), assemble_r(suf));
 };
 
-let choose_matching = (c: Meld.t, t: Token.t) =>
-  LangUtil.molds_of_token(t)
-  |> List.filter(m =>
-       Mold.matching(L, m) && Meld.cmp_mold(c, m) == Some(Eq())
-     )
-  |> ListUtil.hd_opt;
-
 module Step = {
   type sib = t;
   // counts of melds in prefix

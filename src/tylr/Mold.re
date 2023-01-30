@@ -52,17 +52,10 @@ let tip = (d: Dir.t, m: t): Tip.t =>
 let must_match = (d: Dir.t, m: t): bool =>
   Gram.Frame.must_match(d, m.frames);
 
-// todo: see if use of this is just must_match
-let matching = (_: Dir.t, _) => failwith("todo matching");
-
-let expected_sort = (side: Dir.t, m: t) =>
-  Gram.Frame.interior(side, m.frames)
-  |> List.filter_map(
-       fun
-       | Some(Gram.Atom.Kid(s)) => Some(s)
-       | _ => None,
-     )
-  |> ListUtil.hd_opt;
+module Rack = {
+  type mold = t;
+  type t = list(mold);
+};
 
 module Result = {
   type m = t;
