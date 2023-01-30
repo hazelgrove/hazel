@@ -260,7 +260,21 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | (["(", ")"], [Exp(arg)]) =>
+          let is_deferral = (e: Term.UExp.t) =>
+            switch (e.term) {
+            | Deferral => true
+            | _ => false
+            };
+          switch (arg.term) {
+          | Tuple(es) =>
+            if (List.exists(is_deferral, es)) {
+              DeferredAp(l, es);
+            } else {
+              Ap(l, arg);
+            }
+          | _ => Ap(l, arg)
+          };
         | _ => hole(tm)
         },
       )

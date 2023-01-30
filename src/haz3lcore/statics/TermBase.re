@@ -90,6 +90,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Deferral
+    | DeferredAp
     | Triv
     | Bool
     | Int
@@ -117,6 +118,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Deferral
+    | DeferredAp(t, list(t))
     | Triv
     | Bool(bool)
     | Int(int)
@@ -200,6 +202,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Deferral
+    | DeferredAp
     | Triv
     | Bool
     | Int
@@ -227,6 +230,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Deferral
+    | DeferredAp(t, list(t)) // (fn_exp, arg_exps) where arg_exps is a destructured tuple
     | Triv
     | Bool(bool)
     | Int(int)

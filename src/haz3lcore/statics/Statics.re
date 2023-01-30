@@ -322,6 +322,51 @@ and uexp_to_info_map =
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Deferral => atomic(Just(Unknown(Internal))) // Deferral does not define a type
+  | DeferredAp(fn, args) =>
+    // ((a, b, c) -> d)(~, b, c) assumes type (a -> d)
+    let is_deferral = (e: Term.UExp.t) =>
+      switch (e.term) {
+      | Deferral => true
+      | _ => false
+      };
+    let n_ary_tuple = (tuple, xs) => {
+      assert(List.length(xs) > 0);
+      if (List.length(xs) == 1) {
+        List.hd(xs);
+      } else {
+        tuple(xs);
+      };
+    };
+    let (ty_fn, free_fn, m_fn) =
+      uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let tys =
+      switch (ty_in) {
+      | Typ.Prod(tys) => tys
+      | _ =>
+        print_endline("Inconsistent type for defer ap");
+        List.init(List.length(args), _ => Typ.Unknown(Internal));
+      };
+    let ty_in' =
+      List.combine(args, tys)
+      |> List.filter(((arg, _ty)) => is_deferral(arg))
+      |> List.map(((_arg, ty)) => ty)
+      |> n_ary_tuple(tys => Typ.Prod(tys));
+    let (_, free_arg, m_arg) =
+      List.combine(args, tys)
+      |> List.filter(((arg, _ty)) => !is_deferral(arg))
+      |> List.map(((arg, ty)) =>
+           uexp_to_info_map(~ctx, ~mode=Ana(ty), arg)
+         )
+      |> List.fold_left(
+           ((xs, ys, zs), (x, y, z)) => (xs @ [x], ys @ [y], zs @ [z]),
+           ([], [], []),
+         );
+    add(
+      ~self=Just(Arrow(ty_in', ty_out)),
+      ~free=Ctx.union([free_fn] @ free_arg),
+      union_m([m_fn] @ m_arg),
+    );
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))

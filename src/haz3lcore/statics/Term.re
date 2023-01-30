@@ -341,6 +341,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Deferral => Deferral
+    | DeferredAp(_) => DeferredAp
     | Triv => Triv
     | Bool(_) => Bool
     | Int(_) => Int
@@ -418,6 +419,7 @@ module UExp = {
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
     | Deferral => "Deferral"
+    | DeferredAp => "Deferred Function Application"
     | Triv => "Trivial Literal. Pathetic, really."
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
@@ -429,7 +431,7 @@ module UExp = {
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | Ap => "Function/Contructor Application"
+    | Ap => "Function/Constructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -447,6 +449,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Deferral
+    | DeferredAp(_)
     | Triv
     | Bool(_)
     | Int(_)
@@ -478,6 +481,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Deferral
+      | DeferredAp(_)
       | Triv
       | Bool(_)
       | Int(_)

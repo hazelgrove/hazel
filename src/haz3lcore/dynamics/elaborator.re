@@ -164,6 +164,69 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd)
           };*/
         Some(EmptyHole(id, 0))
+      | Deferral => Some(InvalidText(0, 0, "Unbound deferral"))
+      | DeferredAp(fn, args) =>
+        let is_deferral = (e: Term.UExp.t) =>
+          switch (e.term) {
+          | Deferral => true
+          | _ => false
+          };
+        // substitute all deferrals for new variables
+        let pats_and_args_opt =
+          args
+          |> List.fold_left(
+               (acc, e: Term.UExp.t) => {
+                 switch (acc) {
+                 | None => None
+                 | Some((pats, args)) =>
+                   let name = "arg" ++ string_of_int(List.length(pats));
+                   if (is_deferral(e)) {
+                     Some((
+                       pats @ [DHPat.Var(name)],
+                       args @ [DHExp.BoundVar(name)],
+                     ));
+                   } else {
+                     switch (dhexp_of_uexp(m, e)) {
+                     | Some(de) => Some((pats, args @ [de]))
+                     | None => None
+                     };
+                   };
+                 }
+               },
+               Some(([], [])),
+             );
+        let* pats_and_args = pats_and_args_opt;
+        let nary_tuple = (tuple, xs) => {
+          assert(List.length(xs) > 0);
+          if (List.length(xs) == 1) {
+            List.hd(xs);
+          } else {
+            tuple(xs);
+          };
+        };
+        let (pats, args) = pats_and_args;
+        let (ppat, parg) =
+          // pseudo-pattern; pseudo-arg
+          (
+            nary_tuple(x => DHPat.Tuple(x), pats),
+            nary_tuple(x => DHExp.Tuple(x), args),
+          );
+        let* d_fn = dhexp_of_uexp(m, fn);
+        let ty_fn = Statics.exp_self_typ(m, fn);
+        let+ ty_ret =
+          switch (ty_fn) {
+          | Arrow(_, t) => Some(t)
+          | _ => None
+          };
+        let ty_parg: Typ.t =
+          Arrow(
+            nary_tuple(
+              x => Typ.Prod(x),
+              List.init(List.length(pats), _ => Typ.Unknown(Internal)) // TODO: don't discard type information
+            ),
+            ty_ret,
+          );
+        DHExp.Fun(ppat, ty_parg, Ap(d_fn, parg), None);
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
