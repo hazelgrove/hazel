@@ -172,7 +172,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           | _ => false
           };
         // substitute all deferrals for new variables
-        let* pats_and_args =
+        let* (pats, args) =
           args
           |> List.fold_left(
                (acc, e: Term.UExp.t) => {
@@ -203,7 +203,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             tuple(xs);
           };
         };
-        let (pats, args) = pats_and_args;
         let (ppat, parg) =
           // pseudo-pattern; pseudo-arg
           (
