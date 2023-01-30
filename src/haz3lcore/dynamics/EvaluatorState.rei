@@ -46,6 +46,6 @@ let add_test: (t, Id.t, TestMap.instance_report) => t;
 let get_tests: t => TestMap.t;
 let put_tests: (TestMap.t, t) => t;
 
-let add_probe: (t, Id.t, ProbeMap.entry) => t;
+let add_probe: (t, Id.t, ProbeMap.instance) => t;
 let get_probes: t => ProbeMap.t;
 let put_probes: (ProbeMap.t, t) => t;
