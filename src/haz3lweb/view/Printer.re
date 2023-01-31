@@ -110,8 +110,13 @@ let to_log_flat = (~measured, z: Zipper.t): string => {
 };
 
 let zipper_of_string =
-    (~zipper_init=Zipper.init(0), id_gen: IdGen.state, str: string)
+    (~zipper_init=?, id_gen: IdGen.state, str: string)
     : option((Zipper.t, IdGen.state)) => {
+  let (zipper_init, id_gen) =
+    switch (zipper_init) {
+    | Some(z) => (z, id_gen)
+    | None => (Zipper.init(id_gen), id_gen + 1)
+    };
   let insert_to_zid:
     ((Zipper.t, IdGen.state), string) => (Zipper.t, IdGen.state) =
     ((z, id_gen), c) => {

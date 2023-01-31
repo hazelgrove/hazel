@@ -12,12 +12,14 @@ module Meta = {
 
   let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
+    let (term, _) = MakeTerm.go(unselected);
+    let (_, annotation_map) = Statics.mk_map_and_annotations(term);
     {
       touched: Touched.empty,
       measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
-      annotation_map: InferenceResult.empty_annotations(),
+      annotation_map,
     };
   };
 
