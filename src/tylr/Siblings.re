@@ -12,7 +12,11 @@ let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
   | L => (onto_l(l, a), r)
   | R => (l, onto_r(a, r))
   };
-let cons_space = cons(~onto_l=Segment.snoc_space, ~onto_r=Segment.cons_space);
+let cons_space =
+  cons(
+    ~onto_l=(seg, s) => Segment.knil(seg, ~s, ()),
+    ~onto_r=(s, seg) => Segment.link(~s, seg),
+  );
 let cons_meld =
   cons(
     ~onto_l=(seg, mel) => Segment.Bounded.snoc_meld(None, seg, mel),

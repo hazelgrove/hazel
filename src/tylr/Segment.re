@@ -19,73 +19,51 @@ let has_meld = seg => Option.is_some(Chain.unlink(seg));
 let cat: (t, t) => t = Chain.cat((@));
 let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
 
+let link = (~s=Space.empty, ~mel=?, seg) =>
+  switch (mel) {
+  | None => Chain.map_fst((@)(s), seg)
+  | Some(mel) => Chain.link(s, mel, seg)
+  };
+let knil = (seg, ~mel=?, ~s=Space.empty, ()) =>
+  switch (mel) {
+  | None => Chain.map_lst(Fun.flip((@), s), seg)
+  | Some(mel) => Chain.knil(seg, mel, s)
+  };
+
+let of_space = (s: Space.s): t => Chain.of_loop(s);
+let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
+let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
+  Chain.mk([l, r], [mel]);
+let to_padded =
+  fun
+  | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
+  | ([l, r], [mel]) => Some(Meld.Padded.mk(~l, ~r, mel))
+  | _ => None;
+
 let zip_piece_l = (p_l, seg) =>
   switch (Chain.unlink(seg)) {
   | Some(([], mel, tl)) when Option.is_some(Meld.zip_piece_l(p_l, mel)) =>
     let mel = Option.get(Meld.zip_piece_l(p_l, mel));
-    Some(Chain.link([], mel, tl));
+    Some(link(~mel, tl));
   | _ => None
   };
 let zip_piece_r = (seg, p_r) =>
   switch (Chain.unknil(seg)) {
   | Some((tl, mel, [])) when Option.is_some(Meld.zip_piece_r(mel, p_r)) =>
     let mel = Option.get(Meld.zip_piece_r(mel, p_r));
-    Some(Chain.knil(tl, mel, []));
+    Some(knil(tl, ~mel, ()));
   | _ => None
   };
 
-let cons_space = (s, seg) => Chain.map_fst((@)(s), seg);
-let cons_meld = (mel, seg) => Chain.link(Space.empty, mel, seg);
-
-let snoc_space = (seg, s) => Chain.map_lst(s' => s' @ s, seg);
-let snoc_meld = (seg, mel) => Chain.knil(seg, mel, Space.empty);
-
-let of_space = (s: Space.s): t => Chain.of_loop(s);
-let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
-let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
-  Chain.mk([l, r], [mel]);
-
-let rec meld_to_prefix = (mel: Meld.t): t =>
-  switch (Chain.unknil(mel)) {
-  | None =>
-    switch (Chain.lst(mel)) {
-    | None => empty
-    | Some(K(kid)) => meld_to_prefix(kid)
-    }
-  | Some((tl, p, kid)) =>
-    let (p, s) = Piece.pop_space_r(p);
-    let kid_pre =
-      switch (kid) {
-      | None => empty
-      | Some(K(kid)) => meld_to_prefix(kid)
-      };
-    cons_meld(Chain.knil(tl, p, None), cons_space(s, kid_pre));
-  };
 let to_prefix: t => t =
   Chain.fold_right(
-    (s, mel, pre) => concat([of_space(s), meld_to_prefix(mel), pre]),
+    (s, mel, pre) => concat([of_space(s), Meld.to_prefix(mel), pre]),
     of_space,
   );
 
-let rec meld_to_suffix = (mel: Meld.t): t =>
-  switch (Chain.unlink(mel)) {
-  | None =>
-    switch (Chain.fst(mel)) {
-    | None => empty
-    | Some(K(kid)) => meld_to_suffix(kid)
-    }
-  | Some((kid, p, tl)) =>
-    let (s, p) = Piece.pop_space_l(p);
-    let kid_suf =
-      switch (kid) {
-      | None => empty
-      | Some(K(kid)) => meld_to_suffix(kid)
-      };
-    snoc_meld(snoc_space(kid_suf, s), Chain.link(None, p, tl));
-  };
 let to_suffix: t => t =
   Chain.fold_left(of_space, (suf, mel, s) =>
-    concat([suf, meld_to_suffix(mel), of_space(s)])
+    concat([suf, Meld.to_suffix(mel), of_space(s)])
   );
 
 let split_nth_space = (n, seg): (t, Space.s, t) => {
@@ -152,7 +130,7 @@ module Bound = {
     | In((sort, prec)) =>
       assert(Option.is_some(Meld.Padded.is_empty(kid)));
       let mel_g = Meld.of_grout(Grout.mk_concave(sort, prec));
-      concat([of_padded(kid), of_meld(mel_g), meld_to_prefix(mel)]);
+      concat([of_padded(kid), of_meld(mel_g), Meld.to_prefix(mel)]);
     | Gt(_)
     | Eq(_) => cat(of_padded(kid), of_meld(mel))
     | Lt(_) =>
@@ -170,7 +148,7 @@ module Bound = {
     | In((sort, prec)) =>
       assert(Option.is_some(Meld.Padded.is_empty(kid)));
       let mel_g = Meld.of_grout(Grout.mk_concave(sort, prec));
-      concat([meld_to_suffix(mel), of_meld(mel_g), of_padded(kid)]);
+      concat([Meld.to_suffix(mel), of_meld(mel_g), of_padded(kid)]);
     | Lt(_)
     | Eq(_) => cat(of_meld(mel), of_padded(kid))
     | Gt(_) =>
@@ -189,7 +167,7 @@ module Bounded = {
     };
   let cons_lexeme = (lx: Lexeme.t, seg: t, r): t =>
     switch (lx) {
-    | S(s) => cons_space([s], seg)
+    | S(s) => link(~s=[s], seg)
     | T(_)
     | G(_) =>
       let p = Option.get(Lexeme.to_piece(lx));
@@ -208,7 +186,7 @@ module Bounded = {
     };
   let snoc_lexeme = (l, seg, lx: Lexeme.t) =>
     switch (lx) {
-    | S(s) => snoc_space(seg, [s])
+    | S(s) => knil(seg, ~s=[s], ())
     | T(_)
     | G(_) =>
       let p = Option.get(Lexeme.to_piece(lx));
@@ -221,14 +199,14 @@ module Bounded = {
   let cat_l = (l: Bound.t, seg: t, suf: t): t =>
     suf
     |> Chain.fold_left(
-         s => snoc_space(seg, s),
-         (seg, mel, s) => snoc_space(snoc_meld(l, seg, mel), s),
+         s => knil(seg, ~s, ()),
+         (seg, mel, s) => knil(snoc_meld(l, seg, mel), ~s, ()),
        );
   let cat_r = (pre: t, seg: t, r: Bound.t): t =>
     pre
     |> Chain.fold_right(
-         (s, mel, seg) => cons_space(s, cons_meld(mel, seg, r)),
-         s => cons_space(s, seg),
+         (s, mel, seg) => link(~s, cons_meld(mel, seg, r)),
+         s => link(~s, seg),
        );
 
   let concat_l = (l: Bound.t, segs: list(t)): t =>
@@ -240,12 +218,12 @@ module Bounded = {
     seg
     |> Chain.fold_left(
          s => of_space(s),
-         (bounded, mel, s) => snoc_space(snoc_meld(l, bounded, mel), s),
+         (bounded, mel, s) => knil(snoc_meld(l, bounded, mel), ~s, ()),
        );
   let bound_r = (seg: t, r: Bound.t) =>
     seg
     |> Chain.fold_right(
-         (s, mel, bounded) => cons_space(s, cons_meld(mel, bounded, r)),
+         (s, mel, bounded) => link(~s, cons_meld(mel, bounded, r)),
          s => of_space(s),
        );
 };
@@ -262,7 +240,7 @@ module Meld_ = {
       List.fold_right(
         (lx, tl) => Bounded.cons_lexeme(lx, tl, None),
         tl_p,
-        meld_to_suffix(tl_mel),
+        Meld.to_suffix(tl_mel),
       );
     (hd, tl);
   };
@@ -283,7 +261,7 @@ module Meld_ = {
     let tl =
       List.fold_left(
         (tl, lx) => Bounded.snoc_lexeme(None, tl, lx),
-        meld_to_prefix(tl_mel),
+        Meld.to_prefix(tl_mel),
         tl_p,
       );
     (tl, hd);
@@ -349,13 +327,13 @@ let split_lt = (pre: t, sel: t): (t as '_lt, t as '_geq) =>
            | Gt(sel) => ((lt, Chain.link(s, mel, geq)), sel)
            };
          },
-       s => ((empty, of_space(s)), cons_space(s, sel)),
+       s => ((empty, of_space(s)), link(~s, sel)),
      )
   |> fst;
 let split_gt = (sel: t, suf: t): (t as '_leq, t as '_gt) =>
   suf
   |> Chain.fold_left(
-       s => ((of_space(s), empty), snoc_space(sel, s)),
+       s => ((of_space(s), empty), knil(sel, ~s, ())),
        (((leq, gt), sel), mel, s) =>
          if (has_meld(gt)) {
            ((leq, Chain.knil(gt, mel, s)), sel);

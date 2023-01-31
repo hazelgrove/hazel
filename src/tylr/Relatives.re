@@ -340,7 +340,7 @@ let unzip = ({steps, on_}: Path.t, mel: Meld.Padded.t): t => {
           let (pre, s, suf) =
             Segment.split_nth_space(Chain.fst(steps), seg);
           let (s_l, s_r) = Space.unzip(step, s);
-          Segment.(snoc_space(pre, s_l), cons_space(s_r, suf));
+          Segment.(knil(pre, ~s=s_l, ()), link(~s=s_r, suf));
         | Meld(step) =>
           let (mel, (pre, suf)) = Siblings.unzip(Chain.fst(steps), seg);
           let (mel_l, mel_r) = Meld.unzip(step, mel);

@@ -25,6 +25,9 @@ let of_grout = (~l=?, ~r=?, g: Grout.t) =>
 let of_tile = (~l=?, ~r=?, t: Tile.t) =>
   of_piece(~l?, ~r?, Piece.mk(T(t)));
 
+let link = (~kid=None, p, mel) => Chain.link(kid, p, mel);
+let knil = (mel, p, ~kid=None, ()) => Chain.knil(mel, p, kid);
+
 let root: t => list(Piece.t) = Chain.links;
 let kids: t => list(option(kid)) = Chain.loops;
 
@@ -35,25 +38,17 @@ and kid_to_lexemes =
   | None => []
   | Some(K(c)) => to_lexemes(c);
 
-let tip = (side: Dir.t, mel: t): option(Tip.t) =>
+let tip = (side: Dir.t, mel: t): option(Tip.t) => {
+  let tip = (kid, p) =>
+    switch (kid) {
+    | None => Piece.tip(side, p)
+    | Some(_) => Tip.Convex
+    };
   switch (side) {
-  | L =>
-    Chain.unlink(mel)
-    |> Option.map(((kid, p, _)) =>
-         switch (kid) {
-         | None => Piece.tip(side, p)
-         | Some(_) => Tip.Convex
-         }
-       )
-  | R =>
-    Chain.unknil(mel)
-    |> Option.map(((_, p, kid)) =>
-         switch (kid) {
-         | None => Piece.tip(side, p)
-         | Some(_) => Tip.Convex
-         }
-       )
+  | L => Chain.unlink(mel) |> Option.map(((kid, p, _)) => tip(kid, p))
+  | R => Chain.unknil(mel) |> Option.map(((_, p, kid)) => tip(kid, p))
   };
+};
 
 // precond: root(c) != []
 let sort = mel => {
@@ -63,6 +58,35 @@ let sort = mel => {
 };
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
+
+let rec to_prefix = (mel: t): Chain.t(Space.s, t) => {
+  let kid_pre =
+    switch (Chain.lst(mel)) {
+    | None => Chain.of_loop(Space.empty)
+    | Some(K(kid)) => to_prefix(kid)
+    };
+  switch (Chain.unknil(mel)) {
+  | None => kid_pre
+  | Some((tl_mel, p, _kid)) =>
+    let (p, s) = Piece.pop_space_r(p);
+    let mel = knil(tl_mel, p, ());
+    Chain.(link(Space.empty, mel, map_fst((@)(s), kid_pre)));
+  };
+};
+let rec to_suffix = (mel: t): Chain.t(Space.s, t) => {
+  let kid_suf =
+    switch (Chain.fst(mel)) {
+    | None => Chain.of_loop(Space.empty)
+    | Some(K(kid)) => to_suffix(kid)
+    };
+  switch (Chain.unlink(mel)) {
+  | None => kid_suf
+  | Some((_kid, p, tl)) =>
+    let (s, p) = Piece.pop_space_l(p);
+    let mel = link(p, tl);
+    Chain.(knil(map_lst(Fun.flip((@), s), kid_suf), mel, Space.empty));
+  };
+};
 
 let mold = (mel: t, ~kid: option(Sort.o)=?, t: Token.t): Mold.Result.t => {
   open Result.Syntax;
@@ -109,9 +133,6 @@ module Step = {
     };
 };
 
-let cons_piece = (p, mel) => Chain.link(None, p, mel);
-let snoc_piece = (mel, p) => Chain.knil(mel, p, None);
-
 let split_nth_kid = (n, mel: t) => {
   let (ks, ps) = mel;
   let (ks_l, k, ks_r) = ListUtil.split_nth(n, ks);
@@ -124,15 +145,15 @@ let unzip = ((n, step): Step.t, mel: t): (Padded.t, Padded.t) => {
   switch (Piece.unzip(step, p)) {
   | L(L) =>
     let (s_l, p) = Piece.pop_space_l(p);
-    let mel_r = cons_piece(p, mel_r);
+    let mel_r = link(p, mel_r);
     (Padded.mk(~r=s_l, mel_l), Padded.mk(mel_r));
   | L(R) =>
     let (p, s_r) = Piece.pop_space_r(p);
-    let mel_l = snoc_piece(mel_l, p);
+    let mel_l = knil(mel_l, p, ());
     (Padded.mk(mel_l), Padded.mk(~l=s_r, mel_r));
   | R((l, r)) =>
-    let mel_l = snoc_piece(mel_l, l);
-    let mel_r = cons_piece(r, mel_r);
+    let mel_l = knil(mel_l, l, ());
+    let mel_r = link(r, mel_r);
     (Padded.mk(mel_l), Padded.mk(mel_r));
   };
 };
@@ -350,22 +371,3 @@ let cmp_merge = (l: t, ~kid=Padded.empty(), r: t): Cmp.s(Padded.t) =>
   | Eq(_) => Eq(merge_all([Padded.mk(l), kid, Padded.mk(r)]))
   | Gt(_) => Gt(merge(Padded.mk(l), kid))
   };
-
-// precond: c is left-closed
-// postcond: returned segment is left-closed
-// let uncons_char = (c: t): option((Lexeme.t, Base.Segment.t)) => {
-//   open OptUtil.Syntax;
-//   let* (kid, p, c_tl) = Aba.uncons(c);
-//   if (kid != None) {
-//     raise(Invalid_argument("uncons_char expects a left-closed chain"));
-//   };
-//   let+ (l, p_tl) = Piece.uncons_char(p);
-//   l;
-// };
-
-[@warning "-27"]
-let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");
-
-// todo: probably want to replace with lexeme
-[@warning "-27"]
-let pop_token = (~from: Dir.t, _) => failwith("todo pop_token");
