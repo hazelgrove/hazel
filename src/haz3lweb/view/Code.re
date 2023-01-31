@@ -17,10 +17,30 @@ let of_delim' =
         | _ when !is_complete => "delim-incomplete"
         | _ => "delim"
         };
+      // TODO FontMetrics
+      let font_height = 10.0;
+      let font_width = 10.0;
+      let livelit_width = 10.0; // TODO Pull from livelit
 
-      let livelit_nodes: list(t) =
+      let style =
+        Printf.sprintf(
+          "width: %fpx; height: %fpx;",
+          livelit_width ** font_width,
+          font_height,
+        );
+
+      let livelit_node: list(t) =
         switch (label) {
-        | ["^int"] => [Node.input(~attr=Attr.create("type", "range"), ())]
+        | ["^int"] => [
+            Node.input(
+              ~attr=
+                Attr.many([
+                  Attr.create("type", "range"),
+                  Attr.create("style", style),
+                ]),
+              (),
+            ),
+          ]
         | ["^str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
         | _ => []
         };
@@ -28,7 +48,7 @@ let of_delim' =
         span(
           ~attr=
             Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-          List.append([Node.text(List.nth(label, i))], livelit_nodes),
+          List.append([Node.text(List.nth(label, i))], livelit_node),
         ),
       ];
     },

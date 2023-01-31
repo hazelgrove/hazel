@@ -225,7 +225,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitAp({livelit_name: t}))
+        ret(LivelitAp({livelit_name: t, width: 10})) // Context
       | ([t], []) when Form.is_string(t) => ret(String(t))
       | ([t], []) when Form.is_tag(t) => ret(Tag(t))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))

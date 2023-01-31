@@ -275,7 +275,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
-      | LivelitAp({livelit_name}) =>
+      | LivelitAp({livelit_name, width: _}) =>
         switch (livelit_name) {
         | "^int" => Some(IntLit(1))
         | "^str" => Some(StringLit("livelit string"))
