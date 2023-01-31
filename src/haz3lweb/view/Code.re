@@ -25,7 +25,7 @@ let of_delim' =
       let style =
         Printf.sprintf(
           "width: %fpx; height: %fpx;",
-          livelit_width ** font_width,
+          livelit_width *. font_width,
           font_height,
         );
 
