@@ -60,7 +60,6 @@ let to_prefix: t => t =
     (s, mel, pre) => concat([of_space(s), Meld.to_prefix(mel), pre]),
     of_space,
   );
-
 let to_suffix: t => t =
   Chain.fold_left(of_space, (suf, mel, s) =>
     concat([suf, Meld.to_suffix(mel), of_space(s)])
@@ -101,7 +100,6 @@ let rec cons_meld =
     | Lt(kid_hd) => cons_meld(mel, ~kid=kid_hd, tl)
     }
   };
-
 let rec snoc_meld =
         (seg: t, ~kid=Meld.Padded.empty(), mel: Meld.t)
         : Cmp.gt_else(Meld.Padded.t, t) =>
@@ -318,13 +316,13 @@ let split_lt = (pre: t, sel: t): (t as '_lt, t as '_geq) =>
   |> Chain.fold_right(
        (s, mel, ((lt, geq), sel)) =>
          if (has_meld(lt)) {
-           ((Chain.link(s, mel, lt), geq), sel);
+           ((link(~s, ~mel, lt), geq), sel);
          } else {
            switch (cons_meld(mel, sel)) {
            | In(_) => raise(Disconnected(0))
-           | Lt(_) => ((Chain.link(s, mel, lt), geq), sel)
+           | Lt(_) => ((link(~s, ~mel, lt), geq), sel)
            | Eq(sel)
-           | Gt(sel) => ((lt, Chain.link(s, mel, geq)), sel)
+           | Gt(sel) => ((lt, link(~s, ~mel, geq)), sel)
            };
          },
        s => ((empty, of_space(s)), link(~s, sel)),
