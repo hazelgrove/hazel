@@ -41,7 +41,16 @@ let of_delim' =
               (),
             ),
           ]
-        | ["^str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
+        | ["^str"] => [
+            Node.input(
+              ~attr=
+                Attr.many([
+                  Attr.create("type", "text"),
+                  Attr.create("style", style),
+                ]),
+              (),
+            ),
+          ]
         | _ => []
         };
       [

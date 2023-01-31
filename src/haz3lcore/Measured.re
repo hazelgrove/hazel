@@ -389,6 +389,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let livelit_padding =
               switch (t.label) {
               | ["^int"] => 10 // TODO Pull of livelit
+              | ["^str"] => 10 // TODO Pull of livelit
               | _ => 0
               };
             let token = List.nth(t.label);
