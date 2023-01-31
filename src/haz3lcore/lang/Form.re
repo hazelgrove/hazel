@@ -104,7 +104,7 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 
-let is_livelit = t => regexp("^[%]\\([a-z][A-Za-z0-9_]*\\)?$", t);
+let is_livelit = t => regexp("^[\\^]\\([a-z][A-Za-z0-9_]*\\)?$", t);
 
 let string_delim = "\"";
 let is_string_delim = str => str == string_delim;
