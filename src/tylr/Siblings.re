@@ -13,9 +13,16 @@ let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
   | R => (l, onto_r(a, r))
   };
 let cons_space = cons(~onto_l=Segment.snoc_space, ~onto_r=Segment.cons_space);
-let cons_meld = cons(~onto_l=Segment.snoc_meld, ~onto_r=Segment.cons_meld);
+let cons_meld =
+  cons(
+    ~onto_l=(seg, mel) => Segment.Bounded.snoc_meld(None, seg, mel),
+    ~onto_r=(mel, seg) => Segment.Bounded.cons_meld(mel, seg, None),
+  );
 let cons_lexeme =
-  cons(~onto_l=Segment.snoc_lexeme, ~onto_r=Segment.cons_lexeme);
+  cons(
+    ~onto_l=(seg, lx) => Segment.Bounded.snoc_lexeme(None, seg, lx),
+    ~onto_r=(lx, seg) => Segment.Bounded.cons_lexeme(lx, seg, None),
+  );
 
 let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   switch (from) {
@@ -78,8 +85,8 @@ let zip_pieces = (sel: Segment.t, sib: t): (Segment.t, t) => {
 
 let zip = (~l=?, ~r=?, ~sel=Segment.empty, sib: t): Meld.Padded.t => {
   let (sel, (pre, suf)) = zip_pieces(sel, sib);
-  Segment.concat([pre, sel, suf])
-  |> Segment.assemble(~l?, ~r?)
+  Segment.Bounded.concat_r([pre, sel, suf], r)
+  |> Segment.Bounded.bound_l(l)
   |> Segment.to_padded
   |> OptUtil.get_or_raise(Meld.Invalid_prec);
 };
@@ -94,9 +101,8 @@ let piece_bounds = ((pre, suf): t): (option(Piece.t), option(Piece.t)) => {
   (l, r);
 };
 
-let assemble = ((pre, suf): t) => {
-  Segment.(assemble_l(pre), assemble_r(suf));
-};
+let bound = (~l=None, ~r=None, (pre, suf): t) =>
+  Segment.Bounded.(bound_l(l, pre), bound_r(suf, r));
 
 module Step = {
   type sib = t;
@@ -114,5 +120,5 @@ let unzip = (step: Step.t, seg: Segment.t): (Meld.t, t) => {
       print_endline("seg = " ++ Segment.show(seg));
       raise(Invalid_argument("Siblings.unzip"));
     };
-  (mel, assemble((pre, suf)));
+  (mel, bound((pre, suf)));
 };

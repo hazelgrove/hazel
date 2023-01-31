@@ -157,7 +157,7 @@ module Frame = {
 
 module Zipper = {
   type g('s) = t('s);
-  // todo: make this t
+  // todo: make this t + restrict to token atoms
   type a('s) = (Atom.t('s), Frame.s('s));
   type t('s) = (g('s), Frame.s('s));
 

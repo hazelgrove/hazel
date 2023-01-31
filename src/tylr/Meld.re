@@ -165,14 +165,15 @@ let is_closed_r = mel =>
 
 // precond: l is right-closed, r is left-closed
 // todo: consider generalizing to return expected sort
-let cmp = (l: t, r: t): Cmp.t =>
+let cmp = (l: t, r: t) =>
+  // todo: probably want to relax closed requirement
   switch (is_closed_r(l), is_closed_l(r)) {
   | (None, _)
   | (_, None) =>
     print_endline("l = " ++ show(l));
     print_endline("r = " ++ show(r));
     raise(Invalid_argument("Meld.cmp"));
-  | (Some((_, p_l)), Some((p_r, _))) => Cmp.t_of_r(Piece.cmp(p_l, p_r))
+  | (Some((_, p_l)), Some((p_r, _))) => Piece.cmp(p_l, p_r)
   };
 
 let convexify_l = (~expected: Sort.Ana.t, c) =>
@@ -339,14 +340,15 @@ let cmp_mold = (_: t, _: Mold.t): option(Cmp.t) =>
   failwith("todo cmp_mold");
 
 let cmp_merge = (l: t, ~kid=Padded.empty(), r: t): Cmp.s(Padded.t) =>
+  // todo: incorporate sort info produced by cmp
   switch (cmp(l, r)) {
-  | In () =>
+  | In(_) =>
     let (c, (s_l, s_r)) = kid;
     assert(is_empty(c));
     In(merge(Padded.mk(~r=s_l, l), Padded.mk(~l=s_r, r)));
-  | Lt () => Lt(merge(kid, Padded.mk(r)))
-  | Eq () => Eq(merge_all([Padded.mk(l), kid, Padded.mk(r)]))
-  | Gt () => Gt(merge(Padded.mk(l), kid))
+  | Lt(_) => Lt(merge(kid, Padded.mk(r)))
+  | Eq(_) => Eq(merge_all([Padded.mk(l), kid, Padded.mk(r)]))
+  | Gt(_) => Gt(merge(Padded.mk(l), kid))
   };
 
 // precond: c is left-closed

@@ -14,7 +14,10 @@ let cons = (~onto_l, ~onto_r, a, sel) =>
   | R => {...sel, seg: onto_r(sel.seg, a)}
   };
 let cons_lexeme =
-  cons(~onto_l=Segment.cons_lexeme, ~onto_r=Segment.snoc_lexeme);
+  cons(
+    ~onto_l=(lx, seg) => Segment.Bounded.cons_lexeme(lx, seg, None),
+    ~onto_r=(seg, lx) => Segment.Bounded.snoc_lexeme(None, seg, lx),
+  );
 
 let uncons = (~from_l, ~from_r, sel) =>
   switch (sel.foc) {

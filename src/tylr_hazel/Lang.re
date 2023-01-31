@@ -50,6 +50,7 @@ module Pat = {
 module Exp = {
   let e = kid(Sort.Exp);
 
+  [@warning "-32"]
   let comma_sep = seq([e, Star(seq([tok(","), e]))]);
   let operand =
     alt([
