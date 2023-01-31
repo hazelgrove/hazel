@@ -557,7 +557,7 @@ and uexp_to_info_map =
       | {term: Var(name), _} =>
         let ty_rec =
           List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-        let ctx = Kind.add_singleton(ctx, name, utpat_id(typat), ty_rec);
+        let ctx = Kind.add_alias(ctx, name, utpat_id(typat), ty_rec);
         switch (ty_rec) {
         | Sum(sm)
         | Rec(_, Sum(sm)) => Ctx.add_tags(ctx, name, typ_id(utyp), sm)
@@ -757,7 +757,7 @@ and utyp_to_info_map =
     | VariantExpected(Unique)
     | TagExpected(Unique) => ok(m)
     | TypeExpected =>
-      Kind.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m)
+      Kind.is_alias(ctx, name) ? ok(m) : error(FreeTypeVar, m)
     };
   | Ap(t1, t2) =>
     let t1_mode =
