@@ -230,8 +230,10 @@ let main_ui_view =
         ~toolbar_buttons,
         ~top_right=overall_score,
       );
-    let annotation_map =
-      Editors.get_editor(editors).state.meta.annotation_map;
+    let zipper = Editors.get_editor(editors).state.zipper;
+    let unselected = Zipper.unselect_and_zip(zipper);
+    let (term, _) = MakeTerm.go(unselected);
+    let (_, annotation_map) = Statics.mk_map_and_annotations(term);
     [
       top_bar_view,
       SchoolMode.view(

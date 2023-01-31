@@ -274,8 +274,9 @@ let editor_view =
   let zipper = editor.state.zipper;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let (_, annotation_map) = Statics.mk_map_and_annotations(term);
   let measured = editor.state.meta.measured;
-  let annotation_map = editor.state.meta.annotation_map;
   let code_base_view =
     Code.view(
       ~annotation_map,
