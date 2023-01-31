@@ -142,7 +142,7 @@ and Kind: {
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
     | Rec(x, ty) => Rec(x, normalize(remove_tvar(ctx, x), ty))
-    | Prod(ts) => Prod(List.map(t => normalize(ctx, t), ts))
+    | Prod(ts) => Prod(List.map(normalize(ctx), ts))
     };
   };
 };

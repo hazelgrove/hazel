@@ -227,15 +227,11 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) =>
-    List.concat(
-      List.map(
-        ((_, typ)) =>
-          switch (typ) {
-          | None => []
-          | Some(typ) => free_vars(~bound, typ)
-          },
-        sm,
-      ),
+    Util.ListUtil.flat_map(
+      fun
+      | None => []
+      | Some(typ) => free_vars(~bound, typ),
+      List.map(snd, sm),
     )
   | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
@@ -249,7 +245,7 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | String => String
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-  | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
+  | Prod(tys) => Prod(List.map(subst(s, x), tys))
   | Sum(sm) => Sum(Util.TagMap.map(Option.map(subst(s, x)), sm))
   | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
