@@ -104,14 +104,14 @@ let rec join =
     if (Typ.var_eq(d, n1, n2)) {
       Some(Var(n1));
     } else {
-      let* Singleton(ty1) = Kind.lookup_tvar(ctx, n1);
-      let* Singleton(ty2) = Kind.lookup_tvar(ctx, n2);
+      let* ty1 = Kind.lookup_alias(ctx, n1);
+      let* ty2 = Kind.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
       resolve ? ty_join : Var(n1);
     }
   | (Var(name), ty)
   | (ty, Var(name)) =>
-    let* Singleton(ty_name) = Kind.lookup_tvar(ctx, name);
+    let* ty_name = Kind.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
     resolve ? ty_join : Var(name);
   | (Int, Int) => Some(Int)
