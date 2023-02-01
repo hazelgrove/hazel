@@ -403,11 +403,11 @@ and uexp_to_info_map =
     | _ => mode
     };
   let cls = Term.UExp.cls_of_term(term);
-  let add = (~self, ~free, ~extra_ids=[], m) => (
+  let add = (~self, ~free, m) => (
     typ_after_fix(ctx, mode, self),
     free,
     add_info(
-      ids @ extra_ids,
+      ids,
       InfoExp({cls, self, mode, ctx, free, ancestors, term: uexp}),
       m,
     ),
@@ -537,7 +537,7 @@ and uexp_to_info_map =
       go'(~ctx=ctx_pat, ~mode=mode_body, body);
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract_typ(ctx_pat, free_body), // TODO: free may not be accurate since ctx now threaded through pat
+      ~free=Ctx.free_in(ctx, ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
@@ -552,7 +552,7 @@ and uexp_to_info_map =
     let (ty_body, free_body, m_body) = go'(~ctx=ctx_pat_ana, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
+      ~free=Ctx.union([free_def, Ctx.free_in(ctx, ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
   | TyAlias(typat, utyp, body) =>
@@ -598,7 +598,13 @@ and uexp_to_info_map =
       );
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
-    let branch_frees = List.map(((_, free, _)) => free, branch_infos);
+
+    let branch_frees =
+      List.map2(
+        ((_, free, _), (_, ctx_pat, _)) => Ctx.free_in(ctx, ctx_pat, free),
+        branch_infos,
+        pat_infos,
+      );
     let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
@@ -613,21 +619,11 @@ and upat_to_info_map =
       {ids, term} as upat: Term.UPat.t,
     )
     : (Typ.t, Ctx.t, map) => {
+  let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => (
     typ_after_fix(ctx, mode, self),
     ctx,
-    add_info(
-      ids,
-      InfoPat({
-        cls: Term.UPat.cls_of_term(term),
-        self,
-        mode,
-        ctx,
-        ancestors,
-        term: upat,
-      }),
-      m,
-    ),
+    add_info(ids, InfoPat({cls, self, mode, ctx, ancestors, term: upat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   let ancestors = [pat_id(upat)] @ ancestors;
