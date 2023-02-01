@@ -523,7 +523,9 @@ let insert = ((ls, offset): Lexed.t, rel: t): t => {
       print_endline("inserted = " ++ show(inserted));
       let ins_path = Path.of_(inserted);
       print_endline("ins_path = " ++ Path.show(ins_path));
-      remold_suffix(inserted) |> zip |> unzip(ins_path);
+      let remolded = remold_suffix(inserted);
+      print_endline("remolded = " ++ show(remolded));
+      remolded |> zip |> unzip(ins_path);
     };
   FunUtil.(repeat(offset, force_opt(shift_char(~from=L)), rel));
 };

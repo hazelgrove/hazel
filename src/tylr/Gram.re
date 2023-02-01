@@ -99,6 +99,21 @@ module Frame = {
 
   let empty = [];
 
+  let cons = (~onto: Dir.t, g: g(_), fs: s(_)): s(_) =>
+    switch (onto, fs) {
+    | (L, [Seq_(l, r), ...fs]) => [Seq_(l @ [g], r), ...fs]
+    | (R, [Seq_(l, r), ...fs]) => [Seq_(l, [g, ...r]), ...fs]
+    | (L, _) => [Seq_([g], []), ...fs]
+    | (R, _) => [Seq_([], [g]), ...fs]
+    };
+  let cons_seq = (~onto: Dir.t, gs: list(g(_)), fs: s(_)) => {
+    let cons = cons(~onto);
+    switch (onto) {
+    | L => List.fold_left(Fun.flip(cons), fs, gs)
+    | R => List.fold_right(cons, gs, fs)
+    };
+  };
+
   let rec interior = (d: Dir.t): (s(_) => Extremity.s(_)) =>
     fun
     | [] => [None]
@@ -114,21 +129,6 @@ module Frame = {
         exterior_seq(exterior(L), gs_r)
         @ (List.for_all(nullable, gs_r) ? interior(d, fs) : [])
       };
-
-  let cons = (~onto: Dir.t, g: g(_), fs: s(_)): s(_) =>
-    switch (onto, fs) {
-    | (L, [Seq_(l, r), ...fs]) => [Seq_(l @ [g], r), ...fs]
-    | (R, [Seq_(l, r), ...fs]) => [Seq_(l, [g, ...r]), ...fs]
-    | (L, _) => [Seq_([g], []), ...fs]
-    | (R, _) => [Seq_([], [g]), ...fs]
-    };
-  let cons_seq = (~onto: Dir.t, gs: list(g(_)), fs: s(_)) => {
-    let cons = cons(~onto);
-    switch (onto) {
-    | L => List.fold_left(Fun.flip(cons), fs, gs)
-    | R => List.fold_right(cons, gs, fs)
-    };
-  };
 
   let nullable = (d: Dir.t): (s(_) => bool) =>
     List.for_all(f =>
@@ -185,7 +185,7 @@ module Zipper = {
         switch (gs) {
         | [] => []
         | [hd, ...tl] =>
-          let go_hd = go((hd, Frame.cons_seq(~onto=R, gs, fs)));
+          let go_hd = go((hd, Frame.cons_seq(~onto=R, tl, fs)));
           let go_tl =
             nullable(hd) ? go((Seq(tl), Frame.cons(~onto=L, hd, fs))) : [];
           go_hd @ go_tl;
@@ -214,13 +214,14 @@ module Zipper = {
       | (_, Star_)
       | (_, Alt_(_)) => go((zip(g, f), fs))
       | (L, Seq_(l, r)) =>
-        let enter_l = enter(~from=R, (Seq(l), [Seq_([], r), ...fs]));
+        let enter_l =
+          enter(~from=R, (Seq(l), Frame.cons_seq(~onto=R, r, fs)));
         let go_beyond =
           List.for_all(nullable, l) ? go((zip(g, f), fs)) : [];
         enter_l @ go_beyond;
       | (R, Seq_(l, r)) =>
         let enter_r =
-          enter(~from=L, (Seq(List.rev(l)), [Seq_([], r), ...fs]));
+          enter(~from=L, (Seq(r), Frame.cons_seq(~onto=L, l, fs)));
         let go_beyond =
           List.for_all(nullable, r) ? go((zip(g, f), fs)) : [];
         enter_r @ go_beyond;
