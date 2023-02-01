@@ -117,8 +117,7 @@ let eq = (l: t, r: t): option(Sort.Ana.t) => {
 let eq_transitive = (l: t, r: t): bool => {
   let rec go = (z_l, z_r) => {
     let moved_r = Gram.Zipper.move_to_tok(L, z_r);
-    List.exists(Gram.Zipper.consistent(z_l), moved_r)
-      ? true : List.exists(go(z_l), moved_r);
+    List.mem(z_l, moved_r) ? true : List.exists(go(z_l), moved_r);
   };
   go(zipper(l), zipper(r));
 };
