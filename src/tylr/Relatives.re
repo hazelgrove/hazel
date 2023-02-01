@@ -108,21 +108,25 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
     | (_, None) => cons_sib(sib, rel)
     | (Some((s_l, mel_l, tl_l)), Some((tl_r, mel_r, s_r))) =>
       switch (Meld.cmp(mel_l, mel_r)) {
+      | _ when Meld.(fst_id(mel_l) == lst_id(mel_r)) => rel |> cons_sib(sib)
       | In(_) =>
-        assert(Meld.(fst_id(mel_l) == lst_id(mel_r)));
-        assert(Segment.(is_empty(tl_l) && is_empty(tl_r)));
-        cons_sib(sib, rel);
-      | Lt(_) =>
         rel
         |> cons_space(~onto=L, s_l)
+        |> cons_space(~onto=R, s_r)
         |> cons_meld(~onto=L, mel_l)
-        |> go((tl_l, r))
+        |> cons_meld(~onto=R, mel_r)
+        |> go((tl_l, tl_r))
       | Eq(_) =>
         rel
         |> cons_space(~onto=L, s_l)
         |> cons_space(~onto=R, s_r)
         |> cons_parent((mel_l, mel_r))
         |> go((tl_l, tl_r))
+      | Lt(_) =>
+        rel
+        |> cons_space(~onto=L, s_l)
+        |> cons_meld(~onto=L, mel_l)
+        |> go((tl_l, r))
       | Gt(_) =>
         rel
         |> cons_space(~onto=R, s_r)
