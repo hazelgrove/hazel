@@ -46,6 +46,17 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       let term = zipper |> get_term;
       let map = term |> Statics.mk_map;
       Interface.get_result(map, term) |> ProgramResult.show |> print;
+    | "F6" =>
+      let index = Indicated.index(zipper);
+      let map = zipper |> get_term |> Statics.mk_map;
+      switch (index) {
+      | Some(index) =>
+        switch (Haz3lcore.Id.Map.find_opt(index, map)) {
+        | Some(ci) => print(Statics.show(ci))
+        | _ => print("DEBUG: No CI found for index")
+        }
+      | _ => print("DEBUG: No indicated index")
+      };
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

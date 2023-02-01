@@ -397,14 +397,10 @@ and uexp_to_info_map =
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
-  let add = (~self, ~free, ~extra_ids=[], m) => (
+  let add = (~self, ~free, m) => (
     typ_after_fix(ctx, mode, self),
     free,
-    add_info(
-      ids @ extra_ids,
-      InfoExp({cls, self, mode, ctx, free, term: uexp}),
-      m,
-    ),
+    add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
@@ -450,15 +446,12 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    switch (Ctx.lookup_var(ctx, name)) {
-    | None => atomic(Self(Free))
-    | Some(var) =>
-      add(
-        ~self=Just(var.typ),
-        ~free=[(name, [{id: exp_id(uexp), mode}])],
-        Id.Map.empty,
-      )
-    }
+    let self: Typ.self =
+      switch (Ctx.lookup_var(ctx, name)) {
+      | None => Self(Free)
+      | Some(var) => Just(var.typ)
+      };
+    add(~self, ~free=[(name, [{id: exp_id(uexp), mode}])], Id.Map.empty);
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -530,7 +523,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_pat, ~mode=mode_body, body);
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract_typ(ctx_pat, free_body), // TODO: free may not be accurate since ctx now threaded through pat
+      ~free=Ctx.free_in(ctx, ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
@@ -546,7 +539,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_pat_ana, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
+      ~free=Ctx.union([free_def, Ctx.free_in(ctx, ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
   | TyAlias(typat, utyp, body) =>
@@ -596,7 +589,13 @@ and uexp_to_info_map =
       );
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
-    let branch_frees = List.map(((_, free, _)) => free, branch_infos);
+
+    let branch_frees =
+      List.map2(
+        ((_, free, _), (_, ctx_pat, _)) => Ctx.free_in(ctx, ctx_pat, free),
+        branch_infos,
+        pat_infos,
+      );
     let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
@@ -613,14 +612,10 @@ and upat_to_info_map =
   let upat_to_info_map = upat_to_info_map(~is_synswitch);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   let cls = Term.UPat.cls_of_term(term);
-  let add = (~self, ~ctx, ~extra_ids=[], m) => (
+  let add = (~self, ~ctx, m) => (
     typ_after_fix(ctx, mode, self),
     ctx,
-    add_info(
-      ids @ extra_ids,
-      InfoPat({cls, self, mode, ctx, term: upat}),
-      m,
-    ),
+    add_info(ids, InfoPat({cls, self, mode, ctx, term: upat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
