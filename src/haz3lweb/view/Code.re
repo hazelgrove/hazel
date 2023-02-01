@@ -24,20 +24,24 @@ module Txt = {
     |> span;
 
   let of_tile = (t: Tile.t) => {
-    let s_cls =
-      switch (t.mold.sort) {
-      | None => "unsorted"
-      | Some(s) => Sort.to_string(s)
-      };
+    // let s_cls =
+    //   switch (t.mold.sort) {
+    //   | None => "unsorted"
+    //   | Some(s) => Sort.to_string(s)
+    //   };
     span(
       // todo: add back delim vs mono distinction
-      ~attr=Attr.classes(["token", "mono", "text-" ++ s_cls]),
+      ~attr=Attr.classes(["tile"]),
       [text(t.token)],
     );
   };
 
   // todo
-  let of_grout = (_: Grout.t) => span([text("•")]);
+  let of_grout = (g: Grout.t) =>
+    span(
+      ~attr=Attr.classes(["grout"]),
+      [text(g.sugg == "" ? "•" : g.sugg)],
+    );
 
   let rec of_meld = (c: Meld.t) =>
     c

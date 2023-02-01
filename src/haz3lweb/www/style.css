@@ -613,6 +613,14 @@ body {
   border-radius: 4px;
 }
 
+.grout {
+  color: var(--light-text-color);
+  opacity: 50%;
+}
+.tile {
+  color: var(--light-text-color);
+}
+
 .tile-indicated {
   z-index: var(--tile-z);
 }
