@@ -168,56 +168,96 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
   |> map_sib(Siblings.cat((pre_geq_sel, sel_leq_suf)));
 };
 
-// todo: not remolded case
-// todo: rename to something like unbounded or something
-let rec push_meld_l =
-        (~remolded as _=true, ~kid=Meld.Padded.empty(), mel: Meld.t, rel: t)
-        : t => {
+let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
+  let bounds = Siblings.bounds(get_sib(rel));
+  switch (bounds, Chain.unlink(rel)) {
+  | (_, None)
+  | ((Some(_), Some(_)), _) => bounds
+  | ((None, _) | (_, None), Some((_, (par_l, par_r), _))) =>
+    let (l, r) = bounds;
+    let l = Option.value(l, ~default=par_l);
+    let r = Option.value(r, ~default=par_r);
+    (Some(l), Some(r));
+  };
+};
+
+let rec cons_meld_l = (~kid=Meld.Padded.empty(), mel: Meld.t, rel: t): t => {
   let (pre, suf) = get_sib(rel);
   switch (Segment.snoc_meld(pre, ~kid, mel)) {
   | In(pre)
   | Lt(pre)
   | Eq(pre) => put_sib((pre, suf), rel)
-  | Gt(kid) =>
+  | Gt(pre_kid) =>
     switch (Chain.unlink(rel)) {
     | None =>
-      let pre = Segment.of_padded(Meld.(merge(kid, Padded.mk(mel))));
+      let pre = Segment.of_padded(Meld.(merge(pre_kid, Padded.mk(mel))));
       put_sib((pre, suf), rel);
     | Some((_sib, (par_l, par_r), rel)) =>
-      switch (Meld.cmp_merge(par_l, ~kid, mel)) {
+      switch (Meld.cmp_merge(par_l, ~kid=pre_kid, mel)) {
       | In(_) => raise(Parent.Convex_inner_tips)
-      | Lt(kid) => put_sib((Segment.of_padded(kid), suf), rel)
-      | Gt(kid) =>
+      | Lt(kid_mel) => put_sib((Segment.of_padded(kid_mel), suf), rel)
+      | Gt(par_l_kid) =>
+        let r = Segment.(cat(suf, of_meld(par_r)));
         rel
-        |> cons_sib(
-             Siblings.mk(~r=Segment.(cat(suf, of_meld(par_r))), ()),
-           )
-        |> push_meld_l(~kid, mel)
-      | Eq(par_l__c) =>
-        rel
-        |> cons_sib(
-             Segment.(of_padded(par_l__c), cat(suf, of_meld(par_r))),
-           )
+        |> cons_sib(Siblings.mk(~r, ()))
+        |> cons_meld_l(~kid=par_l_kid, mel);
+      | Eq(par_l_mel) =>
+        let l = Segment.of_padded(par_l_mel);
+        let r = Segment.(cat(suf, of_meld(par_r)));
+        rel |> cons_sib(Siblings.mk(~l, ~r, ()));
       }
     }
   };
 };
+let rec cons_meld_r = (mel: Meld.t, ~kid=Meld.Padded.empty(), rel: t): t => {
+  let (pre, suf) = get_sib(rel);
+  switch (Segment.cons_meld(mel, ~kid, suf)) {
+  | In(suf)
+  | Eq(suf)
+  | Gt(suf) => put_sib((pre, suf), rel)
+  | Lt(kid_suf) =>
+    switch (Chain.unlink(rel)) {
+    | None =>
+      let suf = Segment.of_padded(Meld.(merge(Padded.mk(mel), kid_suf)));
+      put_sib((pre, suf), rel);
+    | Some((_sib, (par_l, par_r), rel)) =>
+      switch (Meld.cmp_merge(mel, ~kid=kid_suf, par_r)) {
+      | In(_) => raise(Parent.Convex_inner_tips)
+      | Gt(mel_kid) => put_sib((pre, Segment.of_padded(mel_kid)), rel)
+      | Lt(kid_par_r) =>
+        let l = Segment.(cat(of_meld(par_l), pre));
+        rel
+        |> cons_sib(Siblings.mk(~l, ()))
+        |> cons_meld_r(mel, ~kid=kid_par_r);
+      | Eq(mel_par_r) =>
+        let l = Segment.(cat(of_meld(par_l), pre));
+        let r = Segment.of_padded(mel_par_r);
+        rel |> cons_sib(Siblings.mk(~l, ~r, ()));
+      }
+    }
+  };
+};
+let cons_meld = (~onto: Dir.t, mel, rel) =>
+  switch (onto) {
+  | L => cons_meld_l(mel, rel)
+  | R => cons_meld_r(mel, rel)
+  };
 
 // precond: mel is closed left
-let rec insert_meld = (mel: Meld.t, rel: t): t => {
+let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
   let (p, rest) =
     Meld.is_closed_l(mel)
     |> OptUtil.get_or_raise(Invalid_argument("Relatives.insert_meld"));
   switch (p.shape) {
   | G(_) =>
     // todo: reconsider this in light of unracking
-    rel |> insert_seg(Segment.of_meld(rest))
+    rel |> insert_seg(~complement, Segment.of_meld(rest))
   | T(t) =>
     switch (mold(t.token, rel)) {
     | Ok(m) when m == t.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
       // todo: convert to prefix form
-      push_meld_l(mel, rel)
+      cons_meld(~onto=L, mel, rel)
     | m =>
       let t =
         switch (m) {
@@ -225,35 +265,56 @@ let rec insert_meld = (mel: Meld.t, rel: t): t => {
         | Ok(mold) => {...t, mold}
         };
       rel
-      |> push_meld_l(Meld.of_tile(t))
-      |> insert_seg(Segment.of_meld(rest));
+      |> cons_meld(~onto=L, Meld.of_tile(t))
+      |> insert_seg(~complement, Segment.of_meld(rest));
     }
   };
 }
-and insert_seg = (seg: Segment.t, rel: t): t =>
+and insert_space = (~complement, s: Space.t, rel: t): t =>
+  switch (s.shape) {
+  | Newline when complement =>
+    let (pre, _) = get_sib(rel);
+    Segment.complement(~side=R, pre)
+    |> List.map(((tok, mol)) => Meld.of_grout(Grout.mk(~sugg=tok, mol)))
+    |> List.fold_left(Fun.flip(insert_meld(~complement)), rel);
+  | _ => cons_space(~onto=L, [s], rel)
+  }
+and insert_spaces = (~complement, s: Space.s, rel: t) =>
+  List.fold_left(Fun.flip(insert_space(~complement)), rel, s)
+and insert_seg = (~complement, seg: Segment.t, rel: t): t => {
+  let ins_s = insert_spaces(~complement);
+  let ins_mel = insert_meld(~complement);
   Segment.to_suffix(seg)
   |> Chain.fold_left(
-       s => cons_space(~onto=L, s, rel),
-       (rel, mel, s) => rel |> insert_meld(mel) |> cons_space(~onto=L, s),
+       s => ins_s(s, rel),
+       (rel, mel, s) => rel |> ins_mel(mel) |> ins_s(s),
      );
+};
 
-let piece_bounds = rel => Siblings.piece_bounds(Chain.fst(rel));
+let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
+  switch (lx) {
+  | S(s) => insert_space(~complement, s, rel)
+  | G(_)
+  | T(_) =>
+    let mel = Meld.of_piece(Option.get(Lexeme.to_piece(lx)));
+    insert_meld(~complement, mel, rel);
+  };
 
 let regrout = rel => {
   let sib_of_g = g => Siblings.mk(~r=Segment.of_meld(Meld.of_grout(g)), ());
-  let sib_of_p = (side: Dir.t, p) =>
-    switch (Piece.tip(Dir.toggle(side), p)) {
+  let sib_of_p = (side: Dir.t, mel) =>
+    switch (Option.get(Meld.tip(Dir.toggle(side), mel))) {
     | Convex => Siblings.empty
     | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
     };
   let sib =
-    switch (piece_bounds(rel)) {
+    switch (bounds(rel)) {
     | (None, None) => sib_of_g(Grout.mk_convex(Sort.root_o))
     | (None, Some(r)) => sib_of_p(R, r)
     | (Some(l), None) => sib_of_p(L, l)
     | (Some(l), Some(r)) =>
       // todo: maybe handle within-piece case
-      switch (Piece.cmp(l, r)) {
+      switch (Meld.cmp(l, r)) {
       | In((sort, prec)) => sib_of_g(Grout.mk_concave(sort, prec))
       | Lt(_) => sib_of_p(R, r)
       | Eq(expected) => sib_of_g(Grout.mk_convex(expected.sort))
@@ -411,19 +472,11 @@ let relex = (~insert="", rel: t): (Lexed.t, t) =>
   | _ => relex_insert(insert, rel)
   };
 
-let insert_lexeme = (lx: Lexeme.t, rel: t): t =>
-  switch (lx) {
-  | S(s) => cons_space(~onto=L, [s], rel)
-  | G(_)
-  | T(_) =>
-    let mel = Meld.of_piece(Option.get(Lexeme.to_piece(lx)));
-    insert_meld(mel, rel);
-  };
 let insert = ((ls, offset): Lexed.t, rel: t): t => {
   let rel =
     switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
     | Some(s) =>
-      // fast path for empty/space-only insertion
+      // fast path for deletion and space-only insertion
       rel |> cons_space(~onto=L, s) |> regrout
     | None =>
       let inserted = List.fold_left(Fun.flip(insert_lexeme), rel, ls);

@@ -95,13 +95,9 @@ let zip = (~l=?, ~r=?, ~sel=Segment.empty, sib: t): Meld.Padded.t => {
   |> OptUtil.get_or_raise(Meld.Invalid_prec);
 };
 
-let piece_bounds = ((pre, suf): t): (option(Piece.t), option(Piece.t)) => {
-  let l =
-    Chain.unknil(pre)
-    |> OptUtil.and_then(((_, mel, _)) => ListUtil.last_opt(Meld.root(mel)));
-  let r =
-    Chain.unlink(suf)
-    |> OptUtil.and_then(((_, mel, _)) => ListUtil.hd_opt(Meld.root(mel)));
+let bounds = ((pre, suf): t): (Segment.Bound.t as 'b, 'b) => {
+  let l = Chain.unknil(pre) |> Option.map(((_, mel, _)) => mel);
+  let r = Chain.unlink(suf) |> Option.map(((_, mel, _)) => mel);
   (l, r);
 };
 
@@ -126,3 +122,57 @@ let unzip = (step: Step.t, seg: Segment.t): (Meld.t, t) => {
     };
   (mel, bound((pre, suf)));
 };
+
+// let
+// ---
+// 1
+// ---
+// let <> ><
+
+// let <> >=<
+// -
+// 1 +
+// -
+// 2 \n
+// ---
+// let
+// ---
+// let <> >=< 1 + 2 >in< \n
+
+// assuming external newline separates pre from p
+// assuming prefix melds are always left-complete
+// let unrack_melds = (pre: Segment.t): Segment.t => {
+//   pre
+//   |> Chain.fold_left(
+//        _ => [],
+//        (unracked, mel, _) => Meld.rack(~side=R, mel) @ unracked,
+//      )
+//   |> List.map(((fill, mold)) => Meld.of_grout(Grout.mk(~fill, mold)))
+//   |> List.fold_left(Segment.hsup_meld_leq, pre);
+// };
+
+// [@warning "-27"]
+// let grout_sort = (pre: Segment.t, p: Piece.t) => failwith("todo");
+
+// let grout = (p: Piece.t, (pre, suf): t): t => {
+//   let pre = {
+//     let lines = Segment.lines(pre);
+//     switch (Chain.unknil(lines)) {
+//     | None => grout_sort(Chain.lst(lines), p)
+//     | Some((lines, newline, line)) =>
+
+//     };
+//   };
+//   (pre, suf);
+// };
+
+// let grout = (p: Piece.t, (pre, suf): t): t => {
+//   let pre =
+//     Segment.lines(pre)
+//     |> Chain.fold_right(
+//       (line, newline, pre) => {
+
+//       },
+//       line => grout_sort(line, p),
+//     );
+//   (pre, suf);

@@ -23,6 +23,26 @@ let empty = [];
 let is_empty: s => bool = (==)(empty);
 let length: s => int = List.length;
 
+let split_newlines = (ss: s): Chain.t(s, t) =>
+  List.fold_right(
+    (s, split) =>
+      switch (s.shape) {
+      | Newline => Chain.link(empty, s, split)
+      | _ => Chain.map_fst(List.cons(s), split)
+      },
+    ss,
+    Chain.of_loop(empty),
+  );
+
+let newline_length = ss =>
+  ss
+  |> List.filter(
+       fun
+       | Newline => true
+       | _ => false,
+     )
+  |> List.length;
+
 let mk = shape => {
   let id = Id.Gen.next();
   {id, shape};

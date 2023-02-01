@@ -77,28 +77,28 @@ let is_grout = p =>
 let is_strict = p =>
   switch (p.shape) {
   | T(_) => true
-  | G(g) => Grout.suggestion(g) != ""
+  | G(g) => Grout.has_sugg(g)
   };
 
 let zipper = (p: t): Gram.Zipper.a(_) => {
   let t =
     switch (p.shape) {
-    | G(_) => ""
+    | G(g) => g.fill
     | T(t) => t.token
     };
   (Tok(LangUtil.shape_of_token(t)), mold(p).frames);
 };
 
-let rack = (~side: Dir.t, p: t): Mold.Rack.t => {
+let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
   let rec go = z =>
     switch (
       Gram.Zipper.move_to_tok(~skip_nullable=true, Dir.toggle(side), z)
     ) {
-    | [] => []
     // default to first alternative
-    | [(_, frames) as z, ..._] =>
+    | [(Tok(Const(t)), frames) as z, ..._] =>
       let m = {...mold(p), frames};
-      [m, ...go(z)];
+      [(t, m), ...go(z)];
+    | _ => []
     };
   go(zipper(p));
 };

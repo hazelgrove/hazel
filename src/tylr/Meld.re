@@ -100,10 +100,20 @@ let mold = (mel: t, ~kid: option(Sort.o)=?, t: Token.t): Mold.Result.t => {
   };
 };
 
-let fst_id = mel =>
-  Chain.unlink(mel) |> Option.map(((_, p, _)) => Piece.id(p));
-let lst_id = mel =>
-  Chain.unknil(mel) |> Option.map(((_, p, _)) => Piece.id(p));
+let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
+  switch (side) {
+  | L => Chain.unlink(mel) |> Option.map(((_, p, _)) => p)
+  | R => Chain.unknil(mel) |> Option.map(((_, p, _)) => p)
+  };
+
+let fst_id = mel => Option.map(Piece.id, end_piece(~side=L, mel));
+let lst_id = mel => Option.map(Piece.id, end_piece(~side=R, mel));
+
+let complement = (~side: Dir.t, mel: t) =>
+  switch (end_piece(~side, mel)) {
+  | None => []
+  | Some(p) => Piece.complement(~side, p)
+  };
 
 module Padded = {
   [@deriving (show({with_path: false}), sexp, yojson)]

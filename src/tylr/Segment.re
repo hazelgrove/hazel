@@ -334,82 +334,38 @@ let split_gt = (sel: t, suf: t): (t as '_leq, t as '_gt) =>
        s => ((of_space(s), empty), knil(sel, ~s, ())),
        (((leq, gt), sel), mel, s) =>
          if (has_meld(gt)) {
-           ((leq, Chain.knil(gt, mel, s)), sel);
+           ((leq, knil(gt, ~mel, ~s, ())), sel);
          } else {
            switch (snoc_meld(sel, mel)) {
            | In(_) => raise(Disconnected(1))
            | Lt(sel)
-           | Eq(sel) => ((Chain.knil(leq, mel, s), gt), sel)
-           | Gt(_) => ((leq, Chain.knil(gt, mel, s)), sel)
+           | Eq(sel) => ((knil(leq, ~mel, ~s, ()), gt), sel)
+           | Gt(_) => ((leq, knil(gt, ~mel, ~s, ())), sel)
            };
          },
      )
   |> fst;
 
-let assemble_l = (~l: option(Meld.t)=?, seg: t): t =>
-  seg
-  |> Chain.fold_left(
-       s => of_space(s),
-       (seg, mel, s) =>
-         switch (hsup_meld(seg, mel)) {
-         | In(seg)
-         | Lt(seg)
-         | Eq(seg) => snoc_space(seg, s)
-         | Gt(kid) =>
-           let l_cmp_c =
-             switch (l) {
-             | None => Cmp.Lt()
-             | Some(l) => Meld.cmp(l, mel)
-             };
-           switch (l_cmp_c) {
-           | In () => raise(Disconnected(2))
-           | Lt ()
-           | Eq () => of_padded(Meld.(merge(kid, Padded.mk(~r=s, mel))))
-           | Gt () =>
-             concat([of_padded(kid), of_padded(Meld.Padded.mk(~r=s, mel))])
-           };
-         },
-     );
-let assemble_r = (~r: option(Meld.t)=?, seg: t): t =>
-  seg
-  |> Chain.fold_right(
-       (s, mel, seg) =>
-         switch (push_meld(mel, seg)) {
-         | In(seg) => cons_space(s, seg)
-         | Lt(kid) =>
-           let c_cmp_r =
-             switch (r) {
-             | None => Cmp.Gt()
-             | Some(r) => Meld.cmp(mel, r)
-             };
-           switch (c_cmp_r) {
-           | In () => raise(Disconnected(3))
-           | Lt () =>
-             concat([of_padded(Meld.Padded.mk(~l=s, mel)), of_padded(kid)])
-           | Eq ()
-           | Gt () => of_padded(Meld.(merge(Padded.mk(~l=s, mel), kid)))
-           };
-         | Eq(seg)
-         | Gt(seg) => cons_space(s, seg)
-         },
-       s => of_space(s),
-     );
-// todo: rename this meld
-let assemble = (~l: option(Meld.t)=?, ~r: option(Meld.t)=?, seg: t): t =>
-  seg |> assemble_r(~r?) |> assemble_l(~l?);
+// module Lines = {
+//   type seg = t;
+//   type newline = Space.t;
+//   type t = Chain.t(seg, newline);
 
-let to_padded =
-  fun
-  | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
-  | ([l, r], [mel]) => Some(Meld.Padded.mk(~l, ~r, mel))
-  | _ => None;
+//   let of_space = (s: Space.s) =>
+//     Space.split_newlines(s) |> Chain.map(of_space, Fun.id);
+//   let cons_meld = (mel, lines) => Chain.map_fst(cons_meld(mel), lines);
+//   let cat = Chain.cat(cat);
+// };
 
-// precond: in prefix form
-// todo: rework using aba interface or possibly reformulate
-// overall using parent merging
-let finish_prefix = (pre: t): Meld.Padded.t =>
-  pre
-  |> Chain.fold_right(
-       (s, mel, kid) => Meld.(merge(Padded.mk(~l=s, mel), kid)),
-       s => Meld.(Padded.mk(~l=s, Meld.empty)),
-     );
+// let lines = (seg: t): Lines.t =>
+//   seg
+//   |> Chain.fold_right(
+//        (s, mel, lines) =>
+//          lines |> Lines.cons_meld(mel) |> Lines.(cat(of_space(s))),
+//        Lines.of_space,
+//      );
+
+let complement = (~side: Dir.t, seg) =>
+  // magically this works for both sides
+  melds(seg)
+  |> List.fold_left((compl, mel) => Meld.complement(~side, mel) @ compl, []);

@@ -54,7 +54,7 @@ let must_match = (d: Dir.t, m: t): bool =>
 
 module Rack = {
   type mold = t;
-  type t = list(mold);
+  type t = list((Token.t, mold));
 };
 
 module Result = {
