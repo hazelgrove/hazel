@@ -140,8 +140,8 @@ let degrout = (l: t, r: t): option(dg) =>
   | (_, G(_)) when mold(l) == mold(r) => Some(Fill(R))
   | (G(_), _) when eq_transitive(r, l) => Some(Pass(L))
   | (_, G(_)) when eq_transitive(r, l) => Some(Pass(R))
-  | (G(g), _) when Grout.suggestion(g) != "" => None
-  | (_, G(g)) when Grout.suggestion(g) != "" => None
+  | (G(g), _) when Grout.has_sugg(g) => None
+  | (_, G(g)) when Grout.has_sugg(g) => None
   // todo: probably need strengthen this check for degrouting
   | (G(_), G(_))
       when Tip.fits(Mold.tip(L, mold(l)), Mold.tip(R, mold(r))) =>

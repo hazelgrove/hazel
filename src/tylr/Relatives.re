@@ -62,7 +62,7 @@ let shift_char = (~from: Dir.t, rel) => {
     switch (r) {
     | Some(G(g')) when g.id == g'.id => go()
     | _ =>
-      let (l, r) = (g, {...g, prefix: ""});
+      let (l, r) = (g, {...g, fill: ""});
       rel
       |> cons_lexeme(~onto=L, G(l))
       |> cons_lexeme(~onto=R, G(r))
@@ -271,19 +271,19 @@ let rec remold_suffix = (rel: t): t => {
   | Some((s, mel, suf)) =>
     rel
     |> put_sib((pre, suf))
-    |> cons_space(~onto=L, s)
+    |> insert_spaces(~complement=true, s)
     // note: insertion may flatten ancestors into siblings, in which
     // case additional elements may be added to suffix to be remolded
-    |> insert_meld(mel)
+    |> insert_meld(~complement=true, mel)
     |> remold_suffix
   };
 };
 
 let fill = (s: string, g: Grout.t): option(Piece.t) =>
-  if (String.equal(s, Grout.suggestion(g))) {
+  if (String.equal(s, g.sugg)) {
     Some(Piece.mk(T(Tile.mk(~id=g.id, g.mold, s))));
-  } else if (String.starts_with(~prefix=s, Grout.suggestion(g))) {
-    Some(Piece.mk(G(Grout.mk(~id=g.id, ~prefix=s, g.mold))));
+  } else if (String.starts_with(~prefix=s, g.sugg)) {
+    Some(Piece.mk(G(Grout.mk(~id=g.id, ~fill=s, g.mold))));
   } else {
     None;
   };
@@ -370,7 +370,7 @@ let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
   | (Some(G(l)), Some(G(r))) when l.id == r.id =>
-    let prefix = l.prefix ++ s;
+    let prefix = l.fill ++ s;
     switch (fill(prefix, r)) {
     | None =>
       relex_insert(prefix, cons_meld(~onto=R, Meld.of_grout(r), rel'))

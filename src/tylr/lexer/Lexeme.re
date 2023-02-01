@@ -23,7 +23,7 @@ let is_space =
 
 let token =
   fun
-  | G(g) => g.prefix
+  | G(g) => g.fill
   | T(t) => t.token
   | S(s) => Space.to_string(s);
 
