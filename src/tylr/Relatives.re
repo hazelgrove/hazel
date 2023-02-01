@@ -270,19 +270,23 @@ let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
     }
   };
 }
-and insert_space = (~complement, s: Space.t, rel: t): t =>
-  switch (s.shape) {
-  | Newline when complement =>
-    let (pre, _) = get_sib(rel);
-    Segment.complement(~side=R, pre)
-    |> List.map(((tok, mol)) => Meld.of_grout(Grout.mk(~sugg=tok, mol)))
-    |> List.fold_left(Fun.flip(insert_meld(~complement)), rel);
-  | _ => cons_space(~onto=L, [s], rel)
-  }
-and insert_spaces = (~complement, s: Space.s, rel: t) =>
-  List.fold_left(Fun.flip(insert_space(~complement)), rel, s)
+and insert_complement = (rel: t) => {
+  let (pre, _) = get_sib(rel);
+  Segment.complement(~side=R, pre)
+  |> List.map(((tok, mol)) => Meld.of_grout(Grout.mk(~sugg=tok, mol)))
+  |> List.fold_left(Fun.flip(insert_meld(~complement=false)), rel);
+}
+and insert_space = (~complement, s: Space.s, rel: t) =>
+  s
+  |> List.fold_left(
+       (rel, s: Space.t) =>
+         rel
+         |> (s.shape == Newline && complement ? insert_complement : Fun.id)
+         |> cons_space(~onto=L, [s]),
+       rel,
+     )
 and insert_seg = (~complement, seg: Segment.t, rel: t): t => {
-  let ins_s = insert_spaces(~complement);
+  let ins_s = insert_space(~complement);
   let ins_mel = insert_meld(~complement);
   Segment.to_suffix(seg)
   |> Chain.fold_left(
@@ -293,7 +297,7 @@ and insert_seg = (~complement, seg: Segment.t, rel: t): t => {
 
 let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
   switch (lx) {
-  | S(s) => insert_space(~complement, s, rel)
+  | S(s) => insert_space(~complement, [s], rel)
   | G(_)
   | T(_) =>
     let mel = Meld.of_piece(Option.get(Lexeme.to_piece(lx)));
@@ -324,17 +328,17 @@ let regrout = rel => {
   rel |> cons_sib(sib) |> assemble;
 };
 
-// precond: rel contains Cursor token in prefix
 let rec remold_suffix = (rel: t): t => {
   let (pre, suf) = get_sib(rel);
   switch (Chain.unlink(suf)) {
-  | None => regrout(rel)
+  | None => rel |> insert_complement |> regrout
   | Some((s, mel, suf)) =>
     rel
     |> put_sib((pre, suf))
-    |> insert_spaces(~complement=true, s)
+    |> insert_space(~complement=true, s)
     // note: insertion may flatten ancestors into siblings, in which
     // case additional elements may be added to suffix to be remolded
+    // (safe bc rel is decreasing in height).
     |> insert_meld(~complement=true, mel)
     |> remold_suffix
   };
