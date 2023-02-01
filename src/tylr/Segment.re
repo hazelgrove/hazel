@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -31,9 +32,15 @@ let knil = (seg, ~mel=?, ~s=Space.empty, ()) =>
   };
 
 let of_space = (s: Space.s): t => Chain.of_loop(s);
-let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
-let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
-  Chain.mk([l, r], [mel]);
+let of_meld = (mel: Meld.t): t =>
+  Meld.is_empty(mel) ? empty : Chain.mk(Space.[empty, empty], [mel]);
+let of_padded = (mel: Meld.Padded.t): t =>
+  switch (Meld.Padded.is_empty(mel)) {
+  | Some(s) => of_space(s)
+  | None =>
+    let (mel, (l, r)) = mel;
+    Chain.mk([l, r], [mel]);
+  };
 let to_padded =
   fun
   | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
@@ -115,7 +122,10 @@ let rec snoc_meld =
   };
 
 module Bound = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type seg = t;
   // None represents program root
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = option(Meld.t);
 
   let cmp_l = (l: t, mel: Meld.t) =>
