@@ -513,8 +513,11 @@ let insert = ((ls, offset): Lexed.t, rel: t): t => {
   let rel =
     switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
     | Some(s) =>
-      // fast path for deletion and space-only insertion
-      rel |> cons_space(~onto=L, s) |> regrout
+      rel
+      |> cons_space(~onto=L, s)
+      // remold if deletion, otherwise
+      // fast path for space-only insertion
+      |> (ls == [] ? remold_suffix : Fun.id)
     | None =>
       let inserted = List.fold_left(Fun.flip(insert_lexeme), rel, ls);
       print_endline("inserted = " ++ show(inserted));
