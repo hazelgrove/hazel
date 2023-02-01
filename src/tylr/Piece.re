@@ -83,7 +83,7 @@ let is_strict = p =>
 let zipper = (p: t): Gram.Zipper.a(_) => {
   let t =
     switch (p.shape) {
-    | G(g) => g.fill
+    | G(g) => g.sugg
     | T(t) => t.token
     };
   (Tok(LangUtil.shape_of_token(t)), mold(p).frames);
@@ -109,8 +109,7 @@ let eq = (l: t, r: t): option(Sort.Ana.t) => {
     let (moved_l, moved_r) =
       Gram.Zipper.(move_to_tok(R, z_l), move_to_tok(L, z_r));
     let strict = is_strict(l) || is_strict(r);
-    List.exists(Gram.Zipper.consistent(z_l), moved_r)
-    && List.exists(Gram.Zipper.consistent(z_r), moved_l)
+    List.mem(z_l, moved_r) && List.mem(z_r, moved_l)
       ? Some(Sort.Ana.mk(~strict, ~sort?, ())) : None;
   };
 };
