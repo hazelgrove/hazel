@@ -52,6 +52,12 @@ module Exp = {
 
   [@warning "-32"]
   let comma_sep = seq([e, Star(seq([tok(","), e]))]);
+
+  // let rule = seq([tok("|"), p, tok("=>"), e]);
+
+  // let statement = seq([e, tok(";")]);
+  // let block = Star(statement);
+
   let operand =
     alt([
       tok_shape(Int_lit),
@@ -61,6 +67,7 @@ module Exp = {
       seq([tok("("), e, tok(")")]),
       // todo: seq([tok("["), opt(comma_sep), tok("]")]),
       seq([tok("["), e, tok("]")]),
+      // seq([tok("case"), e, Star(rule), tok("end")]),
     ]);
 
   let tok_alt = ss => alt(List.map(tok, ss));
