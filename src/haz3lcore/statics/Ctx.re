@@ -1,4 +1,5 @@
-open Util.OptUtil.Syntax;
+open Util;
+open OptUtil.Syntax;
 include TypBase.Ctx;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -36,7 +37,7 @@ let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
 let added_bindings = (ctx_after: t, ctx_before: t): t => {
   /* Precondition: new_ctx is old_ctx plus some new bindings */
   let new_count = List.length(ctx_after) - List.length(ctx_before);
-  switch (Util.ListUtil.split_n_opt(new_count, ctx_after)) {
+  switch (ListUtil.split_n_opt(new_count, ctx_after)) {
   | Some((ctx, _)) => ctx
   | _ => []
   };
@@ -63,7 +64,7 @@ let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   } else {
     Some(
       List.rev(
-        Util.ListUtil.sublist((prefix_length, ctx_length), List.rev(ctx)),
+        ListUtil.sublist((prefix_length, ctx_length), List.rev(ctx)),
       ),
     );
   };
@@ -102,17 +103,19 @@ let filter_duplicates = (ctx: t): t =>
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
 let rec join =
-        (~d=[], ~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
-  let join' = join(~d, ctx);
+        (~resolve=false, ctx: t, ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
+  let join' = join(ctx);
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(Typ.join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Rec(x1, t1), Rec(x2, t2)) => join(~d=[(x1, x2), ...d], ctx, t1, t2)
+  | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    let+ ty_body = join(ctx, ty1, Typ.subst(Var(x1), x2, ty2));
+    Typ.Rec(x1, ty_body);
   | (Rec(_), _) => None
   | (Var(n1), Var(n2)) =>
-    if (Typ.var_eq(d, n1, n2)) {
+    if (n1 == n2) {
       Some(Var(n1));
     } else {
       let* ty1 = Kind.lookup_alias(ctx, n1);
@@ -133,62 +136,46 @@ let rec join =
   | (Bool, _) => None
   | (String, String) => Some(String)
   | (String, _) => None
-  | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
-    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
-    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
-    | _ => None
-    }
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    let* ty1 = join'(ty1, ty1');
+    let+ ty2 = join'(ty2, ty2');
+    Typ.Arrow(ty1, ty2);
   | (Arrow(_), _) => None
-  | (Prod(tys1), Prod(tys2)) => join_products(~d, ctx, tys1, tys2)
+  | (Prod(tys1), Prod(tys2)) =>
+    let* tys = ListUtil.map2_opt(join(ctx), tys1, tys2);
+    let+ tys = OptUtil.sequence(tys);
+    Typ.Prod(tys);
   | (Prod(_), _) => None
-  | (Sum(sm1), Sum(sm2)) => join_sums(~d, ctx, sm1, sm2)
+  | (Sum(sm1), Sum(sm2)) =>
+    let* ty =
+      ListUtil.map2_opt(
+        join_sum_entries(ctx),
+        TagMap.sort(sm1),
+        TagMap.sort(sm2),
+      );
+    let+ ty = OptUtil.sequence(ty);
+    Typ.Sum(ty);
   | (Sum(_), _) => None
-  | (List(ty_1), List(ty_2)) =>
-    switch (join'(ty_1, ty_2)) {
-    | Some(ty) => Some(List(ty))
-    | None => None
-    }
+  | (List(ty1), List(ty2)) =>
+    let+ ty = join'(ty1, ty2);
+    Typ.List(ty);
   | (List(_), _) => None
   };
 }
-and join_products = (~d, ctx: t, tys1, tys2): option(Typ.t) =>
-  if (List.length(tys1) != List.length(tys2)) {
-    None;
-  } else {
-    switch (List.map2(join(~d, ctx), tys1, tys2) |> Util.OptUtil.sequence) {
-    | None => None
-    | Some(tys) => Some(Prod(tys))
-    };
-  }
-and join_sums =
-    (~d, ctx: t, sm1: Typ.sum_map, sm2: Typ.sum_map): option(Typ.t) =>
-  if (List.length(sm1) != List.length(sm2)) {
-    None;
-  } else {
-    List.map2(
-      join_sum_entries(~d, ctx),
-      Util.TagMap.sort(sm1),
-      Util.TagMap.sort(sm2),
-    )
-    |> Util.OptUtil.sequence
-    |> Option.map(sm => Typ.Sum(sm));
-  }
 and join_sum_entries =
-    (~d, ctx: t, (tag1, ty1): Typ.sum_entry, (tag2, ty2): Typ.sum_entry)
+    (ctx: t, (tag1, ty1): Typ.sum_entry, (tag2, ty2): Typ.sum_entry)
     : option(Typ.sum_entry) =>
-  tag1 == tag2
-    ? switch (ty1, ty2) {
-      | (None, None) => Some((tag1, None))
-      | (Some(ty1), Some(ty2)) =>
-        let+ ty_join = join(~d, ctx, ty1, ty2);
-        (tag1, Some(ty_join));
-      | _ => None
-      }
-    : None;
+  switch (ty1, ty2) {
+  | (None, None) when tag1 == tag2 => Some((tag1, None))
+  | (Some(ty1), Some(ty2)) when tag1 == tag2 =>
+    let+ ty_join = join(ctx, ty1, ty2);
+    (tag1, Some(ty_join));
+  | _ => None
+  };
 
 let join_all = (ctx: t, ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
-    (acc, ty) => Util.OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
     Some(Unknown(Internal)),
     ts,
   );

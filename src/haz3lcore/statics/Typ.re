@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 /* TYPE_PROVENANCE: From whence does an unknown type originate?
    Is it generated from an unannotated pattern variable (SynSwitch),
@@ -169,20 +170,28 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-let var_eq = (d, n1, n2) =>
-  //TODO: shadowing?
-  switch (List.assoc_opt(n1, d), List.assoc_opt(n2, d)) {
-  | _ when n1 == n2 => true //TODO: get rid of this?
-  | (Some(n), _) when n == n2 => true
-  | (_, Some(n)) when n1 == n => true
-  | _ => false
+let rec subst = (s: t, x: Token.t, ty: t) => {
+  switch (ty) {
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | Unknown(prov) => Unknown(prov)
+  | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
+  | Prod(tys) => Prod(List.map(subst(s, x), tys))
+  | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
+  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
+  | Rec(y, ty) => Rec(y, subst(s, x, ty))
+  | List(ty) => List(subst(s, x, ty))
+  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
   };
+};
 
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let rec eq = (~d=[], t1: t, t2: t): bool => {
-  let eq' = eq(~d);
+let rec eq = (t1: t, t2: t): bool => {
+  let eq' = eq;
   switch (t1, t2) {
   | (Int, Int) => true
   | (Int, _) => false
@@ -194,27 +203,20 @@ let rec eq = (~d=[], t1: t, t2: t): bool => {
   | (String, _) => false
   | (Unknown(_), Unknown(_)) => true
   | (Unknown(_), _) => false
-  | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
-    eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
+  | (Arrow(t1, t2), Arrow(t1', t2')) => eq'(t1, t1') && eq'(t2, t2')
   | (Arrow(_), _) => false
   | (Prod(tys1), Prod(tys2)) => List.equal(eq', tys1, tys2)
   | (Prod(_), _) => false
   | (List(t1), List(t2)) => eq'(t1, t2)
   | (List(_), _) => false
-  | (Sum(sm1), Sum(sm2)) => Util.TagMap.equal(opt_eq(~d), sm1, sm2)
+  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
   | (Sum(_), _) => false
-  | (Var(n1), Var(n2)) => var_eq(d, n1, n2)
+  | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
-  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
+  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
   | (Rec(_), _) => false
   };
-}
-and opt_eq = (~d, t1: option(t), t2: option(t)): bool =>
-  switch (t1, t2) {
-  | (None, None) => true
-  | (Some(t1), Some(t2)) => eq(~d, t1, t2)
-  | _ => false
-  };
+};
 
 let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   switch (ty) {
@@ -227,29 +229,18 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) =>
-    Util.ListUtil.flat_map(
+    ListUtil.flat_map(
       fun
       | None => []
       | Some(typ) => free_vars(~bound, typ),
       List.map(snd, sm),
     )
-  | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
+  | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };
 
-let rec subst = (s: t, x: Token.t, ty: t) => {
+let unroll = (ty: t): t =>
   switch (ty) {
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | String => String
-  | Unknown(prov) => Unknown(prov)
-  | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-  | Prod(tys) => Prod(List.map(subst(s, x), tys))
-  | Sum(sm) => Sum(Util.TagMap.map(Option.map(subst(s, x)), sm))
-  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
-  | Rec(y, ty) => Rec(y, subst(s, x, ty))
-  | List(ty) => List(subst(s, x, ty))
-  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
+  | Rec(x, ty) => subst(ty, x, ty)
+  | _ => ty
   };
-};
