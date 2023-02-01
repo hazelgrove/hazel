@@ -309,7 +309,7 @@ let tag_ana_typ = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): option(Typ.t) =>
   | Ana(ty_ana) =>
     switch (Kind.normalize_shallow(ctx, ty_ana)) {
     | Sum(sm)
-    | Rec(_, Sum(sm)) => Typ.ana_sum(tag, sm, ty_ana)
+    | Rec(_, Sum(sm)) => Typ.ana_sum(tag, sm, Typ.unroll(ty_ana))
     | _ => None
     }
   | _ => None
@@ -545,27 +545,26 @@ and uexp_to_info_map =
   | TyAlias(typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.UTyp.to_typ(ctx, utyp);
-    let ctx =
-      switch (typat) {
-      | {term: Var(name), _} =>
-        let ty_rec =
-          List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-        let ctx = Kind.add_alias(ctx, name, utpat_id(typat), ty_rec);
+    switch (typat.term) {
+    | Var(name) =>
+      let ty_rec =
+        List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
+      let ctx = Kind.add_alias(ctx, name, utpat_id(typat), ty_rec);
+      let ctx =
         switch (ty_rec) {
         | Sum(sm)
         | Rec(_, Sum(sm)) => Ctx.add_tags(ctx, name, typ_id(utyp), sm)
         | _ => ctx
         };
-      | _ => ctx
-      };
-    let (ty_body, free, m_body) = uexp_to_info_map(~ctx, ~mode, body);
-    let ty_body =
-      switch (typat) {
-      | {term: Var(name), _} => Typ.subst(ty, name, ty_body)
-      | _ => ty_body
-      };
-    let m_typ = utyp_to_info_map(~ctx, utyp) |> snd;
-    add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
+      let (ty_body, free, m_body) = uexp_to_info_map(~ctx, ~mode, body);
+      let ty_escape = Typ.subst(ty_rec, name, ty_body);
+      let m_typ = utyp_to_info_map(~ctx, utyp) |> snd;
+      add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
+    | _ =>
+      let (ty_body, free, m_body) = uexp_to_info_map(~ctx, ~mode, body);
+      let m_typ = utyp_to_info_map(~ctx, utyp) |> snd;
+      add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
+    };
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
