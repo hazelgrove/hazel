@@ -3,14 +3,6 @@ open Util;
 open Term;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax_frame =
-  | Exp(UExp.cls)
-  | Pat(UPat.cls)
-  | Typ(UTyp.cls)
-  | Rul(URul.cls)
-  | TPat(UTPat.cls);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
 /* STATICS
@@ -86,13 +78,6 @@ type info_typ = {
   mode: typ_mode,
   ctx: Ctx.t,
   status: status_typ,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info_rul = {
-  cls: Term.URul.cls,
-  ancestors,
-  term: Term.UExp.t,
 };
 
 /* Either a type pattern is a valid name or it's an error */
@@ -476,15 +461,12 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    switch (Ctx.lookup_var(ctx, name)) {
-    | None => atomic(Self(Free))
-    | Some(var) =>
-      add(
-        ~self=Just(var.typ),
-        ~free=[(name, [{id: exp_id(uexp), mode}])],
-        Id.Map.empty,
-      )
-    }
+    let self: Typ.self =
+      switch (Ctx.lookup_var(ctx, name)) {
+      | None => Self(Free)
+      | Some(var) => Just(var.typ)
+      };
+    add(~self, ~free=[(name, [{id: exp_id(uexp), mode}])], Id.Map.empty);
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
