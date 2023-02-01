@@ -143,7 +143,7 @@ module Bound = {
     | Eq(_) => cat(of_padded(kid), of_meld(mel))
     | Lt(_) =>
       let kid_mel = Meld.(merge(kid, Padded.mk(mel)));
-      to_prefix(of_padded(kid_mel));
+      of_padded(kid_mel);
     };
 
   let cmp_r = (mel: Meld.t, r: t) =>
@@ -161,7 +161,7 @@ module Bound = {
     | Eq(_) => cat(of_meld(mel), of_padded(kid))
     | Gt(_) =>
       let mel_kid = Meld.(merge(Padded.mk(mel), kid));
-      to_suffix(of_padded(mel_kid));
+      of_padded(mel_kid);
     };
 };
 
