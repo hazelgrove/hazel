@@ -156,9 +156,12 @@ module Frame = {
 };
 
 module Zipper = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type g('s) = t('s);
   // todo: make this t + restrict to token atoms
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type a('s) = (Atom.t('s), Frame.s('s));
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t('s) = (g('s), Frame.s('s));
 
   let t_of_a = ((a, fs): a(_)) => (Atom(a), fs);
@@ -169,6 +172,8 @@ module Zipper = {
     | Alt_(l, r) => Alt(List.rev(l) @ [g, ...r])
     | Seq_(l, r) => Seq(List.rev(l) @ [g, ...r])
     };
+
+  let fmt_kid = (fmt, _) => Format.pp_print_string(fmt, "sort");
 
   let rec enter =
           (~skip_nullable: bool, ~from: Dir.t, (g, fs): t(_)): list(a(_)) => {

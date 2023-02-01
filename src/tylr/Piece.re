@@ -91,9 +91,7 @@ let zipper = (p: t): Gram.Zipper.a(_) => {
 
 let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
   let rec go = z =>
-    switch (
-      Gram.Zipper.move_to_tok(~skip_nullable=true, Dir.toggle(side), z)
-    ) {
+    switch (Gram.Zipper.move_to_tok(~skip_nullable=true, side, z)) {
     // default to first alternative
     | [(Tok(Const(t)), frames) as z, ..._] =>
       let m = {...mold(p), frames};
