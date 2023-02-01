@@ -1,9 +1,14 @@
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type r('in_, 'lt, 'eq, 'gt) =
   | In('in_) // incomparable
   | Lt('lt)
   | Eq('eq)
   | Gt('gt);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type s('a) = r('a, 'a, 'a, 'a);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = s(unit);
 
 // todo: rename to in_else

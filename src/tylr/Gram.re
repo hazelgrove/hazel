@@ -63,19 +63,6 @@ let rec root_token =
   | Seq(gs) => List.exists(root_token, gs)
   | Alt(gs) => List.for_all(root_token, gs);
 
-// get exterior of head
-let exterior_seq =
-    (exterior: t(_) => Extremity.s(_), gs: list(t(_))): Extremity.s(_) => {
-  let (nullable, rest) = ListUtil.take_while(nullable, gs);
-  let nullable = List.concat_map(exterior, nullable);
-  let rest =
-    switch (rest) {
-    | [] => [None]
-    | [hd, ..._] => exterior(hd)
-    };
-  nullable @ rest;
-};
-
 let edge = _ => failwith("todo edge");
 
 let rec exterior = (d: Dir.t, g: t(_)): Extremity.s(_) =>
@@ -83,7 +70,19 @@ let rec exterior = (d: Dir.t, g: t(_)): Extremity.s(_) =>
   | Atom(a) => [Some(a)]
   | Star(g) => exterior(d, g)
   | Alt(gs) => List.concat_map(exterior(d), gs)
-  | Seq(gs) => exterior_seq(edge(d), ListUtil.rev_if(d == R, gs))
+  | Seq(gs) =>
+    switch (d, gs, ListUtil.split_last_opt(gs)) {
+    | (_, [], _)
+    | (_, _, None) => [None]
+    | (L, [hd, ...tl], _) =>
+      let of_hd = exterior(d, hd);
+      let of_tl = List.mem(None, of_hd) ? exterior(d, Seq(tl)) : [];
+      of_hd @ of_tl;
+    | (R, _, Some((tl, hd))) =>
+      let of_hd = exterior(d, hd);
+      let of_tl = List.mem(None, of_hd) ? exterior(d, Seq(tl)) : [];
+      of_hd @ of_tl;
+    }
   };
 
 module Frame = {
@@ -99,13 +98,19 @@ module Frame = {
 
   let empty = [];
 
-  let cons = (~onto: Dir.t, g: g(_), fs: s(_)): s(_) =>
+  let cons = (~onto: Dir.t, g: g(_), fs: s(_)): s(_) => {
+    let gs =
+      switch (g) {
+      | Seq(gs) => gs
+      | _ => [g]
+      };
     switch (onto, fs) {
-    | (L, [Seq_(l, r), ...fs]) => [Seq_(l @ [g], r), ...fs]
-    | (R, [Seq_(l, r), ...fs]) => [Seq_(l, [g, ...r]), ...fs]
-    | (L, _) => [Seq_([g], []), ...fs]
-    | (R, _) => [Seq_([], [g]), ...fs]
+    | (L, [Seq_(l, r), ...fs]) => [Seq_(l @ gs, r), ...fs]
+    | (R, [Seq_(l, r), ...fs]) => [Seq_(l, gs @ r), ...fs]
+    | (L, _) => [Seq_(gs, []), ...fs]
+    | (R, _) => [Seq_([], gs), ...fs]
     };
+  };
   let cons_seq = (~onto: Dir.t, gs: list(g(_)), fs: s(_)) => {
     let cons = cons(~onto);
     switch (onto) {
@@ -123,10 +128,10 @@ module Frame = {
       | (L, Seq_([], _))
       | (R, Seq_(_, [])) => interior(d, fs)
       | (L, Seq_([_, ..._] as gs_l, _)) =>
-        exterior_seq(exterior(R), gs_l)
+        exterior(R, Seq(gs_l))
         @ (List.for_all(nullable, gs_l) ? interior(d, fs) : [])
       | (R, Seq_(_, [_, ..._] as gs_r)) =>
-        exterior_seq(exterior(L), gs_r)
+        exterior(L, Seq(gs_r))
         @ (List.for_all(nullable, gs_r) ? interior(d, fs) : [])
       };
 
@@ -219,14 +224,16 @@ module Zipper = {
       | (_, Star_)
       | (_, Alt_(_)) => go((zip(g, f), fs))
       | (L, Seq_(l, r)) =>
-        let enter_l =
-          enter(~from=R, (Seq(l), Frame.cons_seq(~onto=R, r, fs)));
+        let fs_l =
+          fs |> Frame.cons_seq(~onto=R, r) |> Frame.cons(~onto=R, g);
+        let enter_l = enter(~from=R, (Seq(l), fs_l));
         let go_beyond =
           List.for_all(nullable, l) ? go((zip(g, f), fs)) : [];
         enter_l @ go_beyond;
       | (R, Seq_(l, r)) =>
-        let enter_r =
-          enter(~from=L, (Seq(r), Frame.cons_seq(~onto=L, l, fs)));
+        let fs_r =
+          fs |> Frame.cons_seq(~onto=L, l) |> Frame.cons(~onto=L, g);
+        let enter_r = enter(~from=L, (Seq(r), fs_r));
         let go_beyond =
           List.for_all(nullable, r) ? go((zip(g, f), fs)) : [];
         enter_r @ go_beyond;
