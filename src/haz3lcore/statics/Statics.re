@@ -116,7 +116,6 @@ type t =
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
-  | InfoRul(info_rul)
   | InfoTPat(info_tpat);
 
 /* The InfoMap collating all info for a composite term */
@@ -227,7 +226,6 @@ let is_error = (ci: t): bool => {
     | _ => true
     }
   | InfoTPat({status, _}) => status != Ok
-  | InfoRul(_) => false
   };
 };
 
@@ -252,7 +250,7 @@ let utpat_id = Term.UTPat.rep_id;
 let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(exp_id(e), m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(ctx, mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -269,7 +267,7 @@ let t_of_self = (ctx): (Typ.self => Typ.t) =>
 let exp_self_typ_id = (ctx, m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({self, _})) => t_of_self(ctx, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -279,7 +277,7 @@ let exp_self_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
 let exp_mode_id = (m: map, id): Typ.mode =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, _})) => mode
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -290,13 +288,13 @@ let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
 let pat_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(pat_id(p), m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(ctx, mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 let pat_self_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(pat_id(p), m)) {
   | Some(InfoPat({self, _})) => t_of_self(ctx, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 

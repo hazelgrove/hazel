@@ -9,7 +9,6 @@ let cls_str = (ci: Haz3lcore.Statics.t): string =>
   | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Haz3lcore.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
-  | InfoRul({cls, _}) => Haz3lcore.Term.URul.show_cls(cls)
   | InfoTPat({cls, _}) => Haz3lcore.Term.UTPat.show_cls(cls)
   };
 
@@ -189,11 +188,6 @@ let view_of_info =
           div(~attr=clss([errorc]), [text("Duplicate constructor")])
         },
       ],
-    )
-  | InfoRul(_) =>
-    div(
-      ~attr=clss([infoc, "rul"]),
-      [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
     )
   | InfoTPat({status, _}) =>
     div(

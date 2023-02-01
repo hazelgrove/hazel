@@ -47,7 +47,6 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
   | InfoPat({ctx, _}) => pat_ctx_view(~inject, ctx)
   //TODO(andrew): display type context below where relevant!
   | InfoTyp(_) => div(~attr=clss([ctxc, "typ"]), [])
-  | InfoRul(_) => div(~attr=clss([ctxc, "rul"]), [])
   | InfoTPat(_) => div(~attr=clss([ctxc, "tpat"]), [])
   };
 };
