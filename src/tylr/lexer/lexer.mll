@@ -25,7 +25,12 @@ let op =
   op_int | op_float | op_bool |
   "::" | ',' | ':' | "->"
 
-let token = op | id_lower | id_upper | int_lit | float_lit
+let paren = "(" | ")"
+let brack = "[" | "]"
+
+let token =
+  op | id_lower | id_upper | int_lit | float_lit
+  | paren | brack
 
 rule next_lexeme = parse
 | newline { Some (Lexeme.S (Space.mk(Newline))) }
