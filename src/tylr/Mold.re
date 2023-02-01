@@ -4,6 +4,7 @@ open Util;
 type t = {
   sort: Sort.o,
   prec: Prec.t,
+  [@opaque]
   frames: Gram.Frame.s(Sort.o),
   // range: (int, int),
 };
