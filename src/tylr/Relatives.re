@@ -459,6 +459,8 @@ let unzip = ({steps, on_}: Path.t, mel: Meld.Padded.t): t => {
 };
 
 module Lexed = {
+  open Sexplib.Std;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Lexeme.s, int);
   let empty = ([], 0);
 };
