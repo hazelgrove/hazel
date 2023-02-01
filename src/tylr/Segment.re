@@ -207,11 +207,6 @@ module Bounded = {
          s => link(~s, seg),
        );
 
-  let concat_l = (l: Bound.t, segs: list(t)): t =>
-    List.fold_left((segs, seg) => cat_l(l, segs, seg), empty, segs);
-  let concat_r = (segs: list(t), r: Bound.t): t =>
-    List.fold_right((seg, segs) => cat_r(seg, segs, r), segs, empty);
-
   let bound_l = (l: Bound.t, seg: t) =>
     seg
     |> Chain.fold_left(
@@ -224,6 +219,11 @@ module Bounded = {
          (s, mel, bounded) => link(~s, cons_meld(mel, bounded, r)),
          s => of_space(s),
        );
+  let bound = (l, seg, r) => bound_l(l, bound_r(seg, r));
+
+  let concat = (l: Bound.t, segs: list(t), r: Bound.t) =>
+    List.fold_right((seg, segs) => cat_r(seg, segs, r), segs, empty)
+    |> bound_l(l);
 };
 
 // operations on melds that produce segments
@@ -236,6 +236,8 @@ module Meld_ = {
     let (hd, tl_p) = from_piece(p);
     let tl =
       List.fold_right(
+        // safe to use None bc we know elems of tl_p
+        // cannot have greater precedence than tl_mel
         (lx, tl) => Bounded.cons_lexeme(lx, tl, None),
         tl_p,
         Meld.to_suffix(tl_mel),

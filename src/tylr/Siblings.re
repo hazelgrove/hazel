@@ -17,16 +17,6 @@ let cons_space =
     ~onto_l=(seg, s) => Segment.knil(seg, ~s, ()),
     ~onto_r=(s, seg) => Segment.link(~s, seg),
   );
-let cons_meld =
-  cons(
-    ~onto_l=(seg, mel) => Segment.Bounded.snoc_meld(None, seg, mel),
-    ~onto_r=(mel, seg) => Segment.Bounded.cons_meld(mel, seg, None),
-  );
-let cons_lexeme =
-  cons(
-    ~onto_l=(seg, lx) => Segment.Bounded.snoc_lexeme(None, seg, lx),
-    ~onto_r=(lx, seg) => Segment.Bounded.cons_lexeme(lx, seg, None),
-  );
 
 let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   switch (from) {
@@ -89,8 +79,7 @@ let zip_pieces = (sel: Segment.t, sib: t): (Segment.t, t) => {
 
 let zip = (~l=?, ~r=?, ~sel=Segment.empty, sib: t): Meld.Padded.t => {
   let (sel, (pre, suf)) = zip_pieces(sel, sib);
-  Segment.Bounded.concat_r([pre, sel, suf], r)
-  |> Segment.Bounded.bound_l(l)
+  Segment.Bounded.concat(l, [pre, sel, suf], r)
   |> Segment.to_padded
   |> OptUtil.get_or_raise(Meld.Invalid_prec);
 };

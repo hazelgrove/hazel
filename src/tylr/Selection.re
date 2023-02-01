@@ -8,16 +8,15 @@ let empty = {foc: L, seg: Segment.empty};
 
 let is_empty = sel => Segment.is_empty(sel.seg);
 
-let cons = (~onto_l, ~onto_r, a, sel) =>
-  switch (sel.foc) {
-  | L => {...sel, seg: onto_l(a, sel.seg)}
-  | R => {...sel, seg: onto_r(sel.seg, a)}
-  };
-let cons_lexeme =
-  cons(
-    ~onto_l=(lx, seg) => Segment.Bounded.cons_lexeme(lx, seg, None),
-    ~onto_r=(seg, lx) => Segment.Bounded.snoc_lexeme(None, seg, lx),
-  );
+let cons_lexeme = (lx, sel, (l, r)) => {
+  open Segment.Bounded;
+  let seg =
+    switch (sel.foc) {
+    | L => bound_l(l, cons_lexeme(lx, sel.seg, r))
+    | R => bound_r(snoc_lexeme(l, sel.seg, lx), r)
+    };
+  {...sel, seg};
+};
 
 let uncons = (~from_l, ~from_r, sel) =>
   switch (sel.foc) {

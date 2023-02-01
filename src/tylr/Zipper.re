@@ -24,15 +24,7 @@ let init =
   );
 
 let unselect = (d: Dir.t, {sel, rel}: t) =>
-  rel
-  |> Relatives.map_sib(((pre, suf)) =>
-       switch (d) {
-       | L => (pre, Segment.(concat([to_suffix(sel.seg), suf])))
-       | R => (Segment.(concat([pre, to_prefix(sel.seg)])), suf)
-       }
-     )
-  |> Relatives.assemble
-  |> mk;
+  rel |> Relatives.cons_seg(~onto=Dir.toggle(d), sel.seg) |> mk;
 
 let zip = (z: t): Meld.Padded.t => {
   let z = unselect(L, z);
@@ -48,28 +40,29 @@ module Action = {
     | Insert(string);
 };
 
-let move = (d: Dir.t, z: t): option(t) => {
-  OptUtil.Syntax.(
-    if (!Selection.is_empty(z.sel)) {
-      return(unselect(d, z));
-    } else {
-      let+ rel = Relatives.shift_char(~from=d, z.rel);
-      {...z, rel: Relatives.assemble(rel)};
-    }
-  );
-};
+let move = (d: Dir.t, z: t): option(t) =>
+  if (!Selection.is_empty(z.sel)) {
+    Some(unselect(d, z));
+  } else {
+    Relatives.shift_char(~from=d, z.rel)
+    |> Option.map(rel => {...z, rel: Relatives.assemble(rel)});
+  };
 
 let select = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
   if (d == z.sel.foc || Selection.is_empty(z.sel)) {
     let+ (c, rel) = Relatives.uncons_char(~from=d, z.rel);
-    let sel = Selection.cons_lexeme(c, {...z.sel, foc: d});
+    let bs = Relatives.bounds(rel);
+    let sel = Selection.cons_lexeme(c, {...z.sel, foc: d}, bs);
     mk(~sel, rel);
   } else {
     // checked for selection empty above
     let (c, sel) = Option.get(Selection.uncons_char(z.sel));
-    let rel = Relatives.cons_lexeme(~onto=b, c, z.rel);
+    let rel =
+      z.rel
+      |> Relatives.cons_lexeme(~onto=b, c)
+      |> Relatives.assemble(~sel=sel.seg);
     return(mk(~sel, rel));
   };
 };
@@ -77,12 +70,13 @@ let select = (d: Dir.t, z: t): option(t) => {
 let delete = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
-  let (lexed, rel) = Relatives.relex(z.rel);
+  let (lexed, rel) = z.rel |> Relatives.assemble |> Relatives.relex;
   mk(Relatives.insert(lexed, rel));
 };
 
 let insert = (s: string, z: t): t => {
-  let (lexed, rel) = Relatives.relex(~insert=s, z.rel);
+  let (lexed, rel) =
+    z.rel |> Relatives.assemble |> Relatives.relex(~insert=s);
   mk(Relatives.insert(lexed, rel));
 };
 
