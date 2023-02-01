@@ -276,9 +276,11 @@ let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
     Meld.is_closed_l(mel)
     |> OptUtil.get_or_raise(Invalid_argument("Relatives.insert_meld"));
   switch (p.shape) {
-  | G(_) =>
-    // todo: reconsider this in light of unracking
-    rel |> insert_seg(~complement, Segment.of_meld(rest))
+  | G(g) =>
+    // todo: may need to remold?
+    rel
+    |> cons_meld(~onto=L, Meld.of_grout(g))
+    |> insert_seg(~complement, Segment.of_meld(rest))
   | T(t) =>
     switch (mold(t.token, rel)) {
     | Ok(m) when m == t.mold =>
