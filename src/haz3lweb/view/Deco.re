@@ -268,7 +268,7 @@ module Deco =
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
       | None => false
-      | Some(info) => Statics.is_error(info)
+      | Some(info) => Info.is_error(info)
       };
     let is_rep = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.terms)) {

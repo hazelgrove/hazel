@@ -52,7 +52,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       switch (index) {
       | Some(index) =>
         switch (Haz3lcore.Id.Map.find_opt(index, map)) {
-        | Some(ci) => print(Statics.show(ci))
+        | Some(ci) => print(Info.show(ci))
         | _ => print("DEBUG: No CI found for index")
         }
       | _ => print("DEBUG: No indicated index")

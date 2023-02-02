@@ -3,7 +3,7 @@ open Node;
 open Util.Web;
 open Util;
 
-let cls_str = (ci: Haz3lcore.Statics.t): string =>
+let cls_str = (ci: Haz3lcore.Info.t): string =>
   switch (ci) {
   | Invalid(msg) => Haz3lcore.TermBase.show_parse_flag(msg)
   | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
@@ -17,7 +17,7 @@ let errorc = "error";
 let happyc = "happy";
 let infoc = "info";
 
-let error_view = (err: Haz3lcore.Statics.error) =>
+let error_view = (err: Haz3lcore.Info.error) =>
   switch (err) {
   | Self(Multi) =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
@@ -54,7 +54,7 @@ let error_view = (err: Haz3lcore.Statics.error) =>
     )
   };
 
-let happy_view = (suc: Haz3lcore.Statics.happy) => {
+let happy_view = (suc: Haz3lcore.Info.happy) => {
   switch (suc) {
   | SynConsistent(ty_syn) =>
     div(
@@ -98,7 +98,7 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
   };
 };
 
-let status_view = (err: Haz3lcore.Statics.error_status) => {
+let status_view = (err: Haz3lcore.Info.error_status) => {
   switch (err) {
   | InHole(error) => error_view(error)
   | NotInHole(happy) => happy_view(happy)
@@ -130,8 +130,8 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
 };
 
 let view_of_info =
-    (~inject, ~show_lang_doc: bool, ci: Haz3lcore.Statics.t): Node.t => {
-  let is_err = Haz3lcore.Statics.is_error(ci);
+    (~inject, ~show_lang_doc: bool, ci: Haz3lcore.Info.t): Node.t => {
+  let is_err = Haz3lcore.Info.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
     div(
@@ -139,7 +139,7 @@ let view_of_info =
       [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
     )
   | InfoExp({mode, self, ctx, _}) =>
-    let error_status = Haz3lcore.Statics.error_status(ctx, mode, self);
+    let error_status = Haz3lcore.Info.error_status(ctx, mode, self);
     div(
       ~attr=clss([infoc, "exp"]),
       [
@@ -148,7 +148,7 @@ let view_of_info =
       ],
     );
   | InfoPat({mode, self, ctx, _}) =>
-    let error_status = Haz3lcore.Statics.error_status(ctx, mode, self);
+    let error_status = Haz3lcore.Info.error_status(ctx, mode, self);
     div(
       ~attr=clss([infoc, "pat"]),
       [
@@ -210,25 +210,25 @@ let view_of_info =
   };
 };
 
-let cls_view = (ci: Haz3lcore.Statics.t): Node.t =>
+let cls_view = (ci: Haz3lcore.Info.t): Node.t =>
   div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]);
 
 let id_view = (id): Node.t =>
   div(~attr=clss(["id"]), [text(string_of_int(id + 1))]);
 
-let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
+let extra_view = (visible: bool, id: int, ci: Haz3lcore.Info.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["extra"] @ (visible ? ["visible"] : []))]),
     [id_view(id), cls_view(ci)],
   );
 
 let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
-  print_endline(Haz3lcore.Statics.show(ci));
+  print_endline(Haz3lcore.Info.show(ci));
   switch (ci) {
   | InfoPat({mode, self, ctx, _})
   | InfoExp({mode, self, ctx, _}) =>
-    Haz3lcore.Statics.error_status(ctx, mode, self)
-    |> Haz3lcore.Statics.show_error_status
+    Haz3lcore.Info.error_status(ctx, mode, self)
+    |> Haz3lcore.Info.show_error_status
     |> print_endline
   | _ => ()
   };
@@ -241,7 +241,7 @@ let inspector_view =
       ~settings: Model.settings,
       ~show_lang_doc: bool,
       id: int,
-      ci: Haz3lcore.Statics.t,
+      ci: Haz3lcore.Info.t,
     )
     : Node.t =>
   div(
@@ -249,7 +249,7 @@ let inspector_view =
       Attr.many([
         clss(
           ["cursor-inspector"]
-          @ [Haz3lcore.Statics.is_error(ci) ? errorc : happyc],
+          @ [Haz3lcore.Info.is_error(ci) ? errorc : happyc],
         ),
         Attr.on_click(toggle_context_and_print_ci(~inject, ci)),
       ]),

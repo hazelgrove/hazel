@@ -40,7 +40,7 @@ let pat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
   );
 };
 
-let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
+let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t): Node.t => {
   switch (ci) {
   | Invalid(_) => div(~attr=clss([ctxc, "invalid"]), [text("")])
   | InfoExp({ctx, _}) => exp_ctx_view(~inject, ctx)
@@ -53,7 +53,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
 };
 
 let inspector_view =
-    (~inject, ~settings: Model.settings, _id: int, ci: Haz3lcore.Statics.t)
+    (~inject, ~settings: Model.settings, _id: int, ci: Haz3lcore.Info.t)
     : Node.t => {
   let clss =
     clss(
