@@ -72,7 +72,7 @@ let happy_view = (suc: Haz3lcore.Info.happy) => {
       switch (ty_syn) {
       // A hack for EECS 490 A1
       | Haz3lcore.Typ.Unknown(_) => [
-          text("has expected type"),
+          text("satisfies expected type"),
           Type.view(ty_ana),
         ]
       | _ => [
