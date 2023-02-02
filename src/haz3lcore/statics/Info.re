@@ -20,8 +20,8 @@ type source = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(Typ.t)
-  | SelfVar(Token.t) //TODO: exp only
-  | SelfTag(Token.t)
+  | FreeVar //TODO: exp only
+  | SelfTag(Token.t, option(Typ.t))
   | SelfMultiHole
   | NoJoin(list(source));
 
@@ -182,23 +182,16 @@ let rec status_common =
     | None => InHole(TypeInconsistent({syn, ana}))
     | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
     }
-  | (SelfVar(name), _) =>
-    switch (Ctx.lookup_var(ctx, name)) {
-    | None => InHole(FreeVar)
-    | Some({typ, _}) => status_common(ctx, mode, Just(typ))
-    }
-  | (SelfTag(tag), _) =>
+  | (FreeVar, _) => InHole(FreeVar)
+  | (SelfTag(name, syn_ty), _) =>
     /* If a tag is being analyzed against (an arrow type returning)
        a sum type having that tag as a variant, its self type is
        considered to be determined by the sum type; otherwise,
        check the context for the tag's type */
-    switch (Typ.tag_ana_typ(ctx, mode, tag)) {
-    | Some(ana_ty) => status_common(ctx, mode, Just(ana_ty))
-    | _ =>
-      switch (Ctx.lookup_tag(ctx, tag)) {
-      | Some({typ, _}) => status_common(ctx, mode, Just(typ))
-      | None => InHole(FreeTag)
-      }
+    switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
+    | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
+    | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
+    | _ => InHole(FreeTag)
     }
   | (NoJoin(tys), Syn | SynFun) =>
     InHole(SynInconsistentBranches(source_tys(tys)))
@@ -291,20 +284,18 @@ let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
   | Invalid(_) => None
   };
 
+let syn_tag_typ = (ctx: Ctx.t, tag: Token.t): option(Typ.t) =>
+  switch (Ctx.lookup_tag(ctx, tag)) {
+  | None => None
+  | Some({typ, _}) => Some(typ)
+  };
+
 let typ_of_self: (Ctx.t, self) => option(Typ.t) =
   ctx =>
     fun
     | Just(typ) => Some(typ)
-    | SelfVar(name) =>
-      switch (Ctx.lookup_var(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
-      }
-    | SelfTag(tag) =>
-      switch (Ctx.lookup_tag(ctx, tag)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
-      }
+    | SelfTag(tag, _) => syn_tag_typ(ctx, tag)
+    | FreeVar
     | SelfMultiHole
     | NoJoin(_) => None;
 
