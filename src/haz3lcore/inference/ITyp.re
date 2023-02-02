@@ -40,6 +40,13 @@ let rec typ_to_ityp: Typ.t => t =
   | Prod([]) => Unit
   | Var(_) => Unknown(Anonymous);
 
+let unwrap_if_prod = (typ: Typ.t): list(Typ.t) => {
+  switch (typ) {
+  | Prod([hd, ...tl]) => [hd, ...tl]
+  | _ => [typ]
+  };
+};
+
 let rec ityp_to_typ: t => Typ.t =
   fun
   | Unknown(prov) => Unknown(prov)
@@ -51,7 +58,8 @@ let rec ityp_to_typ: t => Typ.t =
   | Arrow(t1, t2) => Arrow(ityp_to_typ(t1), ityp_to_typ(t2))
   | Sum(t1, t2) => Sum(ityp_to_typ(t1), ityp_to_typ(t2))
   | Unit => Prod([])
-  | Prod(t1, t2) => Prod([ityp_to_typ(t1), ityp_to_typ(t2)]);
+  | Prod(t1, t2) =>
+    Prod([ityp_to_typ(t1)] @ (t2 |> ityp_to_typ |> unwrap_if_prod));
 
 let to_ityp_constraints = (constraints: Typ.constraints): constraints => {
   constraints

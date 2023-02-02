@@ -22,6 +22,14 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
 
 let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let zipper = Editors.get_zipper(model.editors);
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let (_, global_inference_solutions) = Statics.mk_map_and_annotations(term);
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      model.langDocMessages.annotations,
+      global_inference_solutions,
+    );
   let restricted = Backpack.restricted(zipper.backpack);
   let now = a => [Update.PerformAction(a) /*Update.UpdateDoubleTap(None)*/];
   let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
@@ -71,7 +79,24 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
       //TODO(andrew): using funky char to avoid weird regexp issues with using \n
-      now_save(Insert(Whitespace.linebreak))
+      let retrieve_string = (): option(string) => {
+        open Util.OptUtil.Syntax;
+        let* (p, _) = Zipper.representative_piece(zipper);
+        InferenceResult.get_recommended_string(
+          ~global_inference_info,
+          Piece.id(p),
+        );
+      };
+      switch (retrieve_string()) {
+      | Some(typ_string) =>
+        let explode = s =>
+          List.init(String.length(s), i => String.make(1, s.[i]));
+        typ_string
+        |> explode
+        |> List.map(str => now_save(Insert(str)))
+        |> List.flatten;
+      | None => now_save(Insert(Whitespace.linebreak))
+      };
     | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things
          like F5 which are now valid tokens and also weird

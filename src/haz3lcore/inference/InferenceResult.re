@@ -53,11 +53,6 @@ let get_solution_of_id =
     None;
   };
 
-// Used in EmptyHoleDec.view
-/**
- * If above already solved: Code.view invoked by Cell.editor_view
- * who should already have access to all of the above
- */
 let svg_display_settings =
     (~global_inference_info: global_inference_info, id: Id.t): (bool, bool) =>
   if (global_inference_info.enabled) {
@@ -74,7 +69,6 @@ let svg_display_settings =
     (true, false);
   };
 
-//Only called from uppermost levels where editors live anyway
 let get_cursor_inspect_result =
     (~global_inference_info: global_inference_info, id: Id.t)
     : option((bool, string)) =>
@@ -91,20 +85,11 @@ let get_cursor_inspect_result =
     None;
   };
 
-// let add_on_new_annotations = (new_map): unit => {
-//   let add_new_elt = (new_k, new_v) => {
-//     Hashtbl.replace(accumulated_annotations, new_k, new_v);
-//   };
-//   Hashtbl.iter(add_new_elt, new_map);
-// };
-
-// called from Update.apply, which has access to the entire Model.t
-// to update the model state
-// update the model.editors which containts Scratch or School states
-// which in turn contain discrete editor.t obj
-// let clear_annotations = () => {
-//   Hashtbl.reset(accumulated_annotations);
-// };
+let get_recommended_string =
+    (~global_inference_info: global_inference_info, id: Id.t): option(string) => {
+  let+ ityp = get_solution_of_id(id, global_inference_info);
+  ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
+};
 
 let condense = (eq_class: MutableEqClass.t, key: ITyp.t): status => {
   let (eq_class, err) = MutableEqClass.snapshot_class(eq_class, key);
