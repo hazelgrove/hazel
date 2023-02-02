@@ -97,7 +97,6 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   | Typ(ty) =>
     let (_, map) = utyp_to_info_map(~ctx, ty);
     (VarMap.empty, map);
-  // TODO(d) consider Rul case
   | Rul(_)
   | Nul ()
   | Any () => (VarMap.empty, Id.Map.empty)
@@ -493,10 +492,9 @@ and utyp_to_info_map =
     add_type(union_m(maps));
   };
 }
-and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {
+and utpat_to_info_map = (~ctx, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
-  let self = Info.self_tpat(utpat);
-  add_info(ids, InfoTPat({cls, self, term: utpat}), Id.Map.empty);
+  add_info(ids, InfoTPat({cls, ctx, term: utpat}), Id.Map.empty);
 };
 
 let mk_map =

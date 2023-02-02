@@ -2,53 +2,41 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
+let jump_to = entry =>
+  UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
+
 let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
   div(
     ~attr=
       Attr.many([
         clss(["context-entry"]),
-        Attr.on_click(_ =>
-          inject(
-            UpdateAction.PerformAction(
-              Jump(TileId(Haz3lcore.Ctx.get_id(entry))),
-            ),
-          )
-        ),
+        Attr.on_click(_ => inject(jump_to(entry))),
       ]),
     switch (entry) {
-    | VarEntry({name, typ, _}) => Type.view_entry(name, typ)
-    | TagEntry(_) => [] //TODO: add
+    | VarEntry({name, typ, _})
+    | TagEntry({name, typ, _}) => Type.view_entry(name, typ)
     | TVarEntry({name, kind, _}) => Kind.view_entry(name, kind)
     },
   );
 
-let ctxc = "context-entries";
+let div_ctx = div(~attr=clss(["context-entries"]));
 
-let exp_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
-  let ctx = ctx |> Haz3lcore.Ctx.filter_duplicates;
-  div(
-    ~attr=clss([ctxc, "exp"]),
-    List.map(context_entry_view(~inject), List.rev(ctx)),
+let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+  div_ctx(
+    List.map(
+      context_entry_view(~inject),
+      ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
+    ),
   );
-};
-
-let pat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
-  let ctx = ctx |> Haz3lcore.Ctx.filter_duplicates;
-  div(
-    ~attr=clss([ctxc, "pat"]),
-    List.map(context_entry_view(~inject), List.rev(ctx)),
-  );
-};
 
 let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t): Node.t => {
   switch (ci) {
-  | Invalid(_) => div(~attr=clss([ctxc, "invalid"]), [text("")])
-  | InfoExp({ctx, _}) => exp_ctx_view(~inject, ctx)
-  | InfoPat({ctx, _}) => pat_ctx_view(~inject, ctx)
-  //TODO(andrew): display type context below where relevant!
-  | InfoTyp(_) => div(~attr=clss([ctxc, "typ"]), [])
-  | InfoRul(_) => div(~attr=clss([ctxc, "rul"]), [])
-  | InfoTPat(_) => div(~attr=clss([ctxc, "tpat"]), [])
+  | InfoExp({ctx, _})
+  | InfoPat({ctx, _})
+  | InfoTyp({ctx, _})
+  | InfoTPat({ctx, _}) => ctx_view(~inject, ctx)
+  | Invalid(_)
+  | InfoRul(_) => div_ctx([])
   };
 };
 

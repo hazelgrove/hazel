@@ -110,20 +110,19 @@ type error_tpat =
   | NotAVar;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type status_tpat =
-  | NotInHole(Token.t)
-  | InHole(error_tpat);
+type happy_tpat =
+  | AVar;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type self_tpat =
-  | Var(Token.t)
-  | NotAVar;
+type status_tpat =
+  | NotInHole(happy_tpat)
+  | InHole(error_tpat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_tpat = {
   cls: Term.UTPat.cls,
   term: Term.UTPat.t,
-  self: self_tpat,
+  ctx: Ctx.t,
 };
 
 /* The Info aka Cursorinfo assigned to each subterm. */
@@ -252,16 +251,10 @@ let status_typ = (ctx: Ctx.t, mode: typ_mode, self: self_typ): status_typ =>
     }
   };
 
-let self_tpat = (utpat: Term.UTPat.t): self_tpat =>
+let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
   switch (utpat.term) {
-  | Var(name) => Var(name)
-  | _ => NotAVar
-  };
-
-let status_tpat = (self: self_tpat): status_tpat =>
-  switch (self) {
-  | Var(name) => NotInHole(name)
-  | NotAVar => InHole(NotAVar)
+  | Var(_) => NotInHole(AVar)
+  | _ => InHole(NotAVar)
   };
 
 /* Determines whether any term is in an error hole. */
@@ -280,8 +273,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTPat({self, _}) =>
-    switch (status_tpat(self)) {
+  | InfoTPat({term, _}) =>
+    switch (status_tpat(term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
