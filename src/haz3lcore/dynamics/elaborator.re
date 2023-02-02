@@ -56,7 +56,7 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
 /* Wrap: Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
 let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
-  switch (Statics.error_status(ctx, mode, self)) {
+  switch (Info.error_status(ctx, mode, self)) {
   | NotInHole(_) =>
     switch (mode) {
     | Syn => Some(d)
@@ -77,7 +77,7 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
     | Ana(ana_ty) =>
       /* Normalize types */
       let ana_ty = Kind.normalize(ctx, ana_ty);
-      let self_ty = Kind.normalize(ctx, Statics.t_of_self(ctx, self));
+      let self_ty = Kind.normalize(ctx, Info.typ_of_self(ctx, self));
       /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {
       | ListLit(_)
@@ -149,7 +149,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
-    let err_status = Statics.error_status(ctx, mode, self);
+    let err_status = Info.error_status(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let* d: DHExp.t =
       switch (uexp.term) {
@@ -311,7 +311,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
-    let err_status = Statics.error_status(ctx, mode, self);
+    let err_status = Info.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
