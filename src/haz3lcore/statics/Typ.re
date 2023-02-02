@@ -174,14 +174,14 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     if (n1 == n2) {
       Some(Var(n1));
     } else {
-      let* ty1 = Kind.lookup_alias(ctx, n1);
-      let* ty2 = Kind.lookup_alias(ctx, n2);
+      let* ty1 = Ctx.lookup_alias(ctx, n1);
+      let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
       resolve ? ty_join : Var(n1);
     }
   | (Var(name), ty)
   | (ty, Var(name)) =>
-    let* ty_name = Kind.lookup_alias(ctx, name);
+    let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
     resolve ? ty_join : Var(name);
   | (Int, Int) => Some(Int)
@@ -236,6 +236,40 @@ let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
+let rec normalize_shallow = (ctx: Ctx.t, ty: t): t =>
+  switch (ty) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize_shallow(ctx, ty)
+    | None => ty
+    }
+  | _ => ty
+  };
+
+let rec normalize = (ctx: Ctx.t, ty: t): t => {
+  switch (ty) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String => ty
+  | List(t) => List(normalize(ctx, t))
+  | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
+  | Prod(ts) => Prod(List.map(normalize(ctx), ts))
+  | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
+  | Rec(x, ty) =>
+    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
+       as in current implementation Recs do not occur in the
+       surface syntax, so we won't try to jump to them. */
+    Rec(x, normalize(Ctx.add_abstract(ctx, x, -1), ty))
+  };
+};
+
 let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
@@ -262,7 +296,7 @@ let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) =>
   switch (mode) {
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
-    switch (Kind.normalize_shallow(ctx, ty_ana)) {
+    switch (normalize_shallow(ctx, ty_ana)) {
     | Sum(sm)
     | Rec(_, Sum(sm)) => ana_sum(tag, sm, unroll(ty_ana))
     | _ => None

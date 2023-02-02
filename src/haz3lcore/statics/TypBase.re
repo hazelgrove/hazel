@@ -109,6 +109,8 @@ and Ctx: {
 
   let extend: (entry, t) => t;
   let lookup: (t, Token.t) => option(entry);
+  let add_abstract: (t, Token.t, Id.t) => t;
+  let lookup_alias: (t, Token.t) => option(Typ.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -153,6 +155,22 @@ and Ctx: {
       | _ => None,
       ctx,
     );
+
+  let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
+    extend(TVarEntry({name, id, kind: Abstract}), ctx);
+
+  let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
+    switch (lookup(ctx, name)) {
+    | Some(TVarEntry(t)) => Some(t)
+    | _ => None
+    };
+
+  let lookup_alias = (ctx: t, t: Token.t): option(Typ.t) =>
+    switch (lookup_tvar(ctx, t)) {
+    | Some({kind: Singleton(ty), _}) => Some(ty)
+    | Some({kind: Abstract, _})
+    | _ => None
+    };
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
