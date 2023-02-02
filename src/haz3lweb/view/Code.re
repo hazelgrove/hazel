@@ -224,7 +224,9 @@ let view =
     @ [
       div(
         ~attr=Attr.class_("tylr"),
-        Tylr.Zipper.zip(tylr) |> Tylr.Segment.of_padded |> Txt.of_segment,
+        fst(Tylr.Zipper.zip(tylr))
+        |> Tylr.Segment.of_padded
+        |> Txt.of_segment,
       ),
     ],
   );

@@ -84,3 +84,9 @@ let unsnoc_char_s = (ls: s): option((s, t)) => {
   | Some((hd, c)) => (tl @ [hd], c)
   };
 };
+
+let length =
+  fun
+  | T(t) => Tile.length(t)
+  | G(g) => Grout.length(g)
+  | S(_) => 1;

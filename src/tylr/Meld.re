@@ -7,6 +7,10 @@ type t = Chain.t(option(kid), Piece.t)
 and kid =
   | K(t);
 
+// for use in submodules below
+[@deriving (show({with_path: false}), sexp, yojson)]
+type meld = t;
+
 // we expect a kid to be constructed only when there is
 // a concrete parent piece inducing kidhood, hence we should
 // never encounter a meld consisting solely of Some(kid).
@@ -49,6 +53,23 @@ let tip = (side: Dir.t, mel: t): option(Tip.t) => {
   | R => Chain.unknil(mel) |> Option.map(((_, p, kid)) => tip(kid, p))
   };
 };
+
+let uncons_space_l = mel =>
+  switch (Chain.unlink(mel)) {
+  | None
+  | Some((Some(_), _, _)) => (Space.empty, mel)
+  | Some((None, p, tl)) =>
+    let (s, p) = Piece.pop_space_l(p);
+    (s, Chain.link(None, p, tl));
+  };
+let uncons_space_r = mel =>
+  switch (Chain.unknil(mel)) {
+  | None
+  | Some((_, _, Some(_))) => (mel, Space.empty)
+  | Some((tl, p, None)) =>
+    let (p, s) = Piece.pop_space_r(p);
+    (Chain.knil(tl, p, None), s);
+  };
 
 // precond: root(c) != []
 let sort = mel => {
@@ -116,8 +137,6 @@ let complement = (~side: Dir.t, mel: t) =>
   };
 
 module Padded = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type meld = t;
   // meld with padding (ie single-meld segment)
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (meld, (Space.s, Space.s));
@@ -130,42 +149,41 @@ module Padded = {
   );
 };
 
+let length = mel => List.length(root(mel));
+
 module Step = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (int, Piece.Step.t);
+  type t = int;
+};
+module Path = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    // top-down
+    steps: list(Step.t),
+    // negative offset: last piece of last meld
+    // positive offset: trailing space
+    offset: int,
+  };
+  let mk = (~steps=[], ~offset=0, ()) => {steps, offset};
+  let empty = mk();
 
-  let of_ = ((mel_l, mel_r)) =>
-    switch (Chain.(unknil(mel_l), unlink(mel_r))) {
-    | (Some((_, p_l, _)), Some((_, p_r, _)))
-        when Piece.(id(p_l) == id(p_r)) =>
-      Some((List.length(root(mel_l)), Piece.length(p_l)))
-    | _ => None
-    };
+  let cons = (step, path) => {...path, steps: [step, ...path.steps]};
+  let cons_s = (steps, path) => List.fold_right(cons, steps, path);
+};
+module Zipped = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (Padded.t, Path.t);
+  exception Invalid(t);
+  let init = offset => (Padded.empty(), Path.mk(~offset, ()));
 };
 
 let split_nth_kid = (n, mel: t) => {
   let (ks, ps) = mel;
+  print_endline("split_nth_kid bef");
   let (ks_l, k, ks_r) = ListUtil.split_nth(n, ks);
+  print_endline("split_nth_kid aft");
   let (ps_l, ps_r) = ListUtil.split_n(n, ps);
   (Chain.mk(ks_l @ [None], ps_l), k, Chain.mk([None, ...ks_r], ps_r));
-};
-
-let unzip = ((n, step): Step.t, mel: t): (Padded.t, Padded.t) => {
-  let (mel_l, p, mel_r) = Chain.split_nth_link(n, mel);
-  switch (Piece.unzip(step, p)) {
-  | L(L) =>
-    let (s_l, p) = Piece.pop_space_l(p);
-    let mel_r = link(p, mel_r);
-    (Padded.mk(~r=s_l, mel_l), Padded.mk(mel_r));
-  | L(R) =>
-    let (p, s_r) = Piece.pop_space_r(p);
-    let mel_l = knil(mel_l, p, ());
-    (Padded.mk(mel_l), Padded.mk(~l=s_r, mel_r));
-  | R((l, r)) =>
-    let mel_l = knil(mel_l, l, ());
-    let mel_r = link(r, mel_r);
-    (Padded.mk(mel_l), Padded.mk(mel_r));
-  };
 };
 
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {

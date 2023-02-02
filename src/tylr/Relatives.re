@@ -15,10 +15,6 @@ let empty = of_sib(Siblings.empty);
 let cat: (t, t) => t = Chain.cat(Siblings.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
-let cons_parent = (par, rel) => Chain.link(Siblings.empty, par, rel);
-let cons_space = (~onto: Dir.t, s, rel) =>
-  rel |> map_sib(Siblings.cons_space(~onto, s));
-
 let rec cons_meld_l = (~kid=Meld.Padded.empty(), mel: Meld.t, rel: t): t => {
   let (pre, suf) = get_sib(rel);
   switch (Segment.snoc_meld(pre, ~kid, mel)) {
@@ -75,13 +71,13 @@ let rec cons_meld_r = (mel: Meld.t, ~kid=Meld.Padded.empty(), rel: t): t => {
     }
   };
 };
-
 let cons_meld = (~onto: Dir.t, mel, rel) =>
   switch (onto) {
   | L => rel |> cons_meld_l(mel)
   | R => rel |> cons_meld_r(mel)
   };
-
+let cons_space = (~onto: Dir.t, s, rel) =>
+  rel |> map_sib(Siblings.cons_space(~onto, s));
 let cons_seg = (~onto: Dir.t, seg, rel) => {
   let cons_space = cons_space(~onto);
   let cons_meld = cons_meld(~onto);
@@ -100,6 +96,13 @@ let cons_seg = (~onto: Dir.t, seg, rel) => {
        )
   };
 };
+let cons_parent = (par, rel) =>
+  switch (par) {
+  | _ when Parent.is_empty(par) => rel
+  | (l, r) when Meld.is_empty(l) => cons_meld(~onto=R, r, rel)
+  | (l, r) when Meld.is_empty(r) => cons_meld(~onto=L, l, rel)
+  | _ => Chain.link(Siblings.empty, par, rel)
+  };
 
 let assemble = (~sel=Segment.empty, rel: t): t => {
   let rec go = ((l, r) as sib, rel) =>
@@ -205,6 +208,14 @@ let shift_char = (~from: Dir.t, rel) => {
   | _ => go()
   };
 };
+let rec shift_chars = (n, rel) =>
+  if (n < 0) {
+    shift_char(~from=L, rel) |> OptUtil.and_then(shift_chars(n + 1));
+  } else if (n > 0) {
+    shift_char(~from=R, rel) |> OptUtil.and_then(shift_chars(n - 1));
+  } else {
+    Some(rel);
+  };
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
@@ -224,15 +235,6 @@ let rec shift_lexeme =
     }
   };
 };
-
-let rec zip = (~sel=Segment.empty, rel: t): Meld.Padded.t =>
-  switch (Chain.unlink(rel)) {
-  | None => Siblings.zip(~sel, get_sib(rel))
-  | Some((sib, par, rel)) =>
-    let kid = Siblings.zip(~sel, sib);
-    let par = Parent.zip(kid, par);
-    zip(~sel=Segment.of_padded(par), rel);
-  };
 
 let mold_ =
     (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t): Mold.Result.t => {
@@ -386,76 +388,52 @@ let fill = (s: string, g: Grout.t): option(Piece.t) =>
     None;
   };
 
-module Path = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type rel = t;
-  // overlapping coordinates at junctures
-  // between spaces and melds
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type on_ =
-    | Space(Space.Step.t)
-    | Meld(Meld.Step.t);
-  // top-down, depends only on prefix
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type steps = Chain.t(Siblings.Step.t, Parent.Step.t);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    steps,
-    on_,
-  };
+let path = (rel: t): Meld.Path.t =>
+  rel
+  |> Chain.fold_right(
+       (sib, par, path) =>
+         path
+         |> Meld.Path.cons(Parent.step(par))
+         |> Meld.Path.cons_s(Siblings.steps(sib)),
+       Siblings.path,
+     );
 
-  let of_ = (rel: rel) => {
-    let (pre, suf) = get_sib(rel);
-    let on_ =
-      switch (Chain.(unknil(pre), unlink(suf))) {
-      | (None, _)
-      | (_, None)
-      | (Some((_, _, [_, ..._])), Some(_))
-      | (Some(_), Some(([_, ..._], _, _))) =>
-        Space(Space.length(Chain.lst(pre)))
-      | (Some((_, mel_l, [])), Some(([], mel_r, _))) =>
-        switch (Meld.Step.of_((mel_l, mel_r))) {
-        | None => Space(0)
-        | Some(step) => Meld(step)
-        }
-      };
-    let steps: steps =
+let zip = (rel: t): Meld.Zipped.t =>
+  rel
+  |> Chain.fold_right(
+       (sib, par, zipped) => zipped |> Parent.zip(par) |> Siblings.zip(sib),
+       Siblings.zip_init,
+     );
+let unzip = (zipped: Meld.Zipped.t): t => {
+  let invalid = Meld.Zipped.Invalid(zipped);
+  let rec go = ((mel, path): Meld.Zipped.t, rel) => {
+    let seg = Segment.(to_prefix(of_padded(mel)));
+    go_seg((seg, path), rel);
+  }
+  and go_seg = ((seg, path), rel) =>
+    switch (path.steps) {
+    | [] =>
       rel
-      |> Chain.map(Siblings.Step.of_, Parent.Step.of_)
-      |> Chain.rev(Fun.id, Fun.id);
-    {steps, on_};
-  };
-};
-
-let unzip = ({steps, on_}: Path.t, mel: Meld.Padded.t): t => {
-  let rec go = (steps, kid: Meld.Padded.t, rel: t) => {
-    let seg = Segment.(to_prefix(of_padded(kid)));
-    switch (Chain.unlink(steps)) {
-    | None =>
-      let sib =
-        switch (on_) {
-        | Space(step) =>
-          let (pre, s, suf) =
-            Segment.split_nth_space(Chain.fst(steps), seg);
-          let (s_l, s_r) = Space.unzip(step, s);
-          Segment.(knil(pre, ~s=s_l, ()), link(~s=s_r, suf));
-        | Meld(step) =>
-          let (mel, (pre, suf)) = Siblings.unzip(Chain.fst(steps), seg);
-          let (mel_l, mel_r) = Meld.unzip(step, mel);
-          Siblings.cat(
-            Segment.(of_padded(mel_l), of_padded(mel_r)),
-            (pre, suf),
-          );
+      |> cons_seg(~onto=R, seg)
+      |> shift_chars(path.offset)
+      |> OptUtil.get_or_raise(invalid)
+    | [step, ...steps] =>
+      switch (Chain.unlink(seg)) {
+      | None => raise(invalid)
+      | Some((s, mel, seg)) =>
+        let (kid, par) = Parent.unzip(step, mel);
+        let rel = rel |> cons_space(~onto=L, s) |> cons_parent(par);
+        switch (Meld.Padded.is_empty(kid)) {
+        | None => go((kid, {...path, steps}), rel)
+        | Some(s_kid) =>
+          assert(Meld.is_empty(snd(par)));
+          rel
+          |> cons_space(~onto=L, s_kid)
+          |> go_seg((seg, {...path, steps}));
         };
-      cons_sib(sib, rel);
-    | Some((step_sib, step_par, steps)) =>
-      let (mel, sib) = Siblings.unzip(step_sib, seg);
-      let (kid, par) = Parent.unzip(step_par, mel);
-      let rel = rel |> map_sib(Siblings.cat(sib)) |> cons_parent(par);
-      go(steps, kid, rel);
+      }
     };
-  };
-  go(steps, mel, empty);
+  go(zipped, empty);
 };
 
 module Lexed = {
@@ -523,11 +501,12 @@ let insert = ((ls, offset): Lexed.t, rel: t): t => {
     | None =>
       let inserted = List.fold_left(Fun.flip(insert_lexeme), rel, ls);
       print_endline("inserted = " ++ show(inserted));
-      let ins_path = Path.of_(inserted);
-      print_endline("ins_path = " ++ Path.show(ins_path));
+      let ins_path = path(inserted);
+      print_endline("ins_path = " ++ Meld.Path.show(ins_path));
       let remolded = remold_suffix(inserted);
       print_endline("remolded = " ++ show(remolded));
-      remolded |> zip |> unzip(ins_path);
+      let (zipped, _) = zip(remolded);
+      unzip((zipped, ins_path));
     };
   FunUtil.(repeat(offset, force_opt(shift_char(~from=L)), rel));
 };

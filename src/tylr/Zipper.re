@@ -26,8 +26,8 @@ let init =
 let unselect = (d: Dir.t, {sel, rel}: t) =>
   rel |> Relatives.cons_seg(~onto=Dir.toggle(d), sel.seg) |> mk;
 
-let zip = (z: t): Meld.Padded.t => {
-  let z = unselect(L, z);
+let zip = (~d=Dir.L, z: t): Meld.Zipped.t => {
+  let z = unselect(d, z);
   Relatives.zip(z.rel);
 };
 

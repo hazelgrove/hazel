@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,6 +36,7 @@ let uncons_opt_lexemes = (sib: t) => {
   let (r, sib) = uncons_opt_lexeme(~from=R, sib);
   ((l, r), sib);
 };
+let peek_lexemes = sib => fst(uncons_opt_lexemes(sib));
 
 let cat = ((l_inner, r_inner), (l_outer, r_outer)) =>
   Segment.(cat(l_outer, l_inner), cat(r_inner, r_outer));
@@ -77,40 +77,36 @@ let zip_pieces = (sel: Segment.t, sib: t): (Segment.t, t) => {
   Segment.is_empty(sel) ? zip_piece(sib) : (sel, sib);
 };
 
-let zip = (~l=?, ~r=?, ~sel=Segment.empty, sib: t): Meld.Padded.t => {
-  let (sel, (pre, suf)) = zip_pieces(sel, sib);
-  Segment.Bounded.concat(l, [pre, sel, suf], r)
-  |> Segment.to_padded
-  |> OptUtil.get_or_raise(Meld.Invalid_prec);
-};
-
 let bounds = ((pre, suf): t): (Segment.Bound.t as 'b, 'b) => {
   let l = Chain.unknil(pre) |> Option.map(((_, mel, _)) => mel);
   let r = Chain.unlink(suf) |> Option.map(((_, mel, _)) => mel);
   (l, r);
 };
 
+let peek_space = ((l, r): t) => (Chain.lst(l), Chain.fst(r));
+
 let bound = (~l=None, ~r=None, (pre, suf): t) =>
   Segment.Bounded.(bound_l(l, pre), bound_r(suf, r));
 
-module Step = {
-  type sib = t;
-  // counts of melds in prefix
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = int;
-  let of_ = ((l, _): sib): t => List.length(Segment.melds(l));
-};
+let offset = sib =>
+  switch (peek_lexemes(sib)) {
+  | (Some(l), Some(r)) when Lexeme.(id(l) == id(r)) => - Lexeme.length(r)
+  | _ => List.length(fst(peek_space(sib)))
+  };
+let steps = ((l, _): t) => List.map(Meld.length, Segment.melds(l));
+let path = (sib: t) =>
+  Meld.Path.mk(~offset=offset(sib), ~steps=steps(sib), ());
 
-let unzip = (step: Step.t, seg: Segment.t): (Meld.t, t) => {
-  let (pre, mel, suf) =
-    try(Chain.split_nth_link(step, seg)) {
-    | Invalid_argument(_) =>
-      print_endline("step = " ++ string_of_int(step));
-      print_endline("seg = " ++ Segment.show(seg));
-      raise(Invalid_argument("Siblings.unzip"));
-    };
-  (mel, bound((pre, suf)));
+let zip = ((l, r) as sib, (mel, path): Meld.Zipped.t) => {
+  let mel =
+    // todo: consider doing cmp-based zip
+    Segment.Bounded.concat(None, [l, Segment.of_padded(mel), r], None)
+    |> Segment.to_padded
+    |> OptUtil.get_or_raise(Meld.Invalid_prec);
+  let path = Meld.Path.cons_s(steps(sib), path);
+  (mel, path);
 };
+let zip_init = sib => zip(sib, Meld.Zipped.init(offset(sib)));
 
 // let
 // ---
