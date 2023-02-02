@@ -53,97 +53,93 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
-/* Wrap: Handles cast insertion and non-empty-hole wrapping
-   for elaborated expressions */
-let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) => {
-  /* Normalize types */
-  let self_ty = Typ.normalize(ctx, Info.typ_of_self(ctx, self));
-  switch (Info.status_common(ctx, mode, self)) {
-  | NotInHole(_) =>
-    switch (mode) {
-    | Syn => Some(d)
-    | SynFun =>
-      /* Things in function position get cast to the matched arrow type */
-      switch (self_ty) {
-      | Unknown(prov) =>
-        Some(
-          DHExp.cast(
-            d,
-            Unknown(prov),
-            Arrow(Unknown(prov), Unknown(prov)),
-          ),
-        )
-      | Arrow(_) => Some(d)
-      | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
-      }
-    | Ana(ana_ty) =>
-      /* Normalize types */
-      let ana_ty = Typ.normalize(ctx, ana_ty);
-      /* Forms with special ana rules get cast from their appropriate Matched types */
-      switch (d) {
-      | ListLit(_)
-      | Cons(_) =>
-        switch (ana_ty) {
-        | Unknown(prov) =>
-          Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))
-        | _ => Some(d)
-        }
-      | Fun(_) =>
-        switch (ana_ty) {
-        | Unknown(prov) =>
-          Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
-        | _ => Some(d)
-        }
-      | Tuple(ds) =>
-        switch (ana_ty) {
-        | Unknown(prov) =>
-          let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-          Some(DHExp.cast(d, Prod(us), ana_ty));
-        | _ => Some(d)
-        }
-      | Ap(_, _)
-      | Tag(_) =>
-        //TODO(andrew):ADTS rec types?
-        switch (ana_ty, self_ty) {
-        | (Unknown(prov), Sum(sm)) =>
-          let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
-          Some(DHExp.cast(d, Sum(sm'), ana_ty));
-        | _ => Some(d)
-        }
-      /* Forms with special ana rules but no particular typing requirements */
-      | ConsistentCase(_)
-      | InconsistentBranches(_)
-      | Sequence(_)
-      | Let(_)
-      | FixF(_) => Some(d)
-      /* Hole-like forms: Don't cast */
-      | InvalidText(_)
-      | FreeVar(_)
-      | ExpandingKeyword(_)
-      | EmptyHole(_)
-      | NonEmptyHole(_) => Some(d)
-      /* DHExp-specific forms: Don't cast */
-      | Cast(_)
-      | Closure(_)
-      | FailedCast(_)
-      | InvalidOperation(_) => Some(d)
-      /* Normal cases: wrap */
-      | BoundVar(_)
-      | ApBuiltin(_)
-      | Prj(_)
-      //| Ap(_)
-      | BoolLit(_)
-      | IntLit(_)
-      | FloatLit(_)
-      | StringLit(_)
-      | BinBoolOp(_)
-      | BinIntOp(_)
-      | BinFloatOp(_)
-      | BinStringOp(_)
-      | TestLit(_) => Some(DHExp.cast(d, self_ty, ana_ty))
-      };
+let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
+  switch (mode) {
+  | Syn => d
+  | SynFun =>
+    switch (self_ty) {
+    | Unknown(prov) =>
+      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+    | Arrow(_) => d
+    | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
-  | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
+  | Ana(ana_ty) =>
+    /* Normalize types */
+    let ana_ty = Typ.normalize(ctx, ana_ty);
+    /* Forms with special ana rules get cast from their appropriate Matched types */
+    switch (d) {
+    | ListLit(_)
+    | Cons(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), ana_ty)
+      | _ => d
+      }
+    | Fun(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty)
+      | _ => d
+      }
+    | Tuple(ds) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
+        DHExp.cast(d, Prod(us), ana_ty);
+      | _ => d
+      }
+    | Ap(_, _)
+    | Tag(_) =>
+      switch (ana_ty, Typ.unroll(self_ty)) {
+      | (Unknown(prov), Sum(sm)) =>
+        let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
+        DHExp.cast(d, Sum(sm'), ana_ty);
+      | _ => d
+      }
+    /* Forms with special ana rules but no particular typing requirements */
+    | ConsistentCase(_)
+    | InconsistentBranches(_)
+    | Sequence(_)
+    | Let(_)
+    | FixF(_) => d
+    /* Hole-like forms: Don't cast */
+    | InvalidText(_)
+    | FreeVar(_)
+    | ExpandingKeyword(_)
+    | EmptyHole(_)
+    | NonEmptyHole(_) => d
+    /* DHExp-specific forms: Don't cast */
+    | Cast(_)
+    | Closure(_)
+    | FailedCast(_)
+    | InvalidOperation(_) => d
+    /* Normal cases: wrap */
+    | BoundVar(_)
+    | ApBuiltin(_)
+    | Prj(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
+    | BinBoolOp(_)
+    | BinIntOp(_)
+    | BinFloatOp(_)
+    | BinStringOp(_)
+    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    };
+  };
+
+/* Handles cast insertion and non-empty-hole wrapping
+   for elaborated expressions */
+let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
+  /* Normalize types */
+  switch (Info.typ_of_self(ctx, self)) {
+  | None => d
+  | Some(self_ty) =>
+    let self_ty = Typ.normalize(ctx, self_ty);
+    switch (Info.status_common(ctx, mode, self)) {
+    | NotInHole(_) => cast(ctx, mode, self_ty, d)
+    | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
+    };
   };
 };
 
@@ -153,7 +149,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_common(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    let* d: DHExp.t =
+    let+ d: DHExp.t =
       switch (uexp.term) {
       | Invalid(_) /* NOTE: treating invalid as a hole for now */
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
@@ -161,20 +157,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         /* TODO: add a dhexp case and eval logic for multiholes.
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
-        /*let+ ds =
-            tms
-            |> List.map(
-                 fun
-                 | Term.Exp(e) => dhexp_of_uexp(m, e)
-                 | tm => Some(EmptyHole(Term.rep_id(tm), 0)),
-               )
-            |> OptUtil.sequence;
-          switch (ds) {
-          | [] => DHExp.EmptyHole(id, 0)
-          | [hd, ...tl] =>
-            // TODO: placeholder logic: sequence
-            tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd)
-          };*/
         Some(EmptyHole(id, 0))
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
@@ -308,7 +290,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_) | InfoTPat(_))
+  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_) | InfoTPat(_))
   | None => None
   };
 }
@@ -376,7 +358,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => None
   };
 };

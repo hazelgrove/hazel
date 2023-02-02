@@ -15,7 +15,6 @@ let cls_str = (ci: Info.t): string =>
   | InfoExp({cls, _}) => Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Term.UTyp.show_cls(cls)
-  | InfoRul({cls, _}) => Term.URul.show_cls(cls)
   | InfoTPat({cls, _}) => Term.UTPat.show_cls(cls)
   };
 
@@ -54,12 +53,12 @@ let error_view = (err: Info.error_common) =>
       text("Expecting branches to have consistent types but got:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ])
-  | TypeInconsistent(ty_syn, ty_ana) =>
+  | TypeInconsistent({ana, syn}) =>
     div_error([
       text("Expecting"),
-      Type.view(ty_ana),
+      Type.view(ana),
       text("but got"),
-      Type.view(ty_syn),
+      Type.view(syn),
     ])
   };
 
@@ -67,25 +66,25 @@ let happy_view = (suc: Info.happy_common) => {
   switch (suc) {
   | SynConsistent(ty_syn) =>
     div_happy([text("has type"), Type.view(ty_syn)])
-  | AnaConsistent(ty_ana, ty_syn, _join) when ty_ana == ty_syn =>
-    div_happy([text("has expected & actual type"), Type.view(ty_ana)])
-  | AnaConsistent(ty_ana, Unknown(_), _join) =>
-    div_happy([text("satisfies expected type"), Type.view(ty_ana)])
-  | AnaConsistent(ty_ana, ty_syn, _join) =>
+  | AnaConsistent({ana, syn, _}) when ana == syn =>
+    div_happy([text("has expected & actual type"), Type.view(ana)])
+  | AnaConsistent({ana, syn: Unknown(_), _}) =>
+    div_happy([text("satisfies expected type"), Type.view(ana)])
+  | AnaConsistent({ana, syn, _}) =>
     div_happy([
       text("has type"),
-      Type.view(ty_syn),
+      Type.view(syn),
       text("which is consistent with"),
-      Type.view(ty_ana),
+      Type.view(ana),
     ])
-  | AnaInternalInconsistent(ty_ana, tys) =>
+  | AnaInternalInconsistent({ana, nojoin}) =>
     div_happy(
       [
         text("is consistent with"),
-        Type.view(ty_ana),
+        Type.view(ana),
         text("but is internally inconsistent:"),
       ]
-      @ ListUtil.join(text(","), List.map(Type.view, tys)),
+      @ ListUtil.join(text(","), List.map(Type.view, nojoin)),
     )
   };
 };
@@ -131,7 +130,6 @@ let view_of_info = (~inject, ~show_lang_doc: bool, ci: Info.t): Node.t => {
     wrapper("pat", info_common_view(mode, self, ctx))
   | InfoTyp(info) => wrapper("typ", info_typ_view(info))
   | InfoTPat(info) => wrapper("tpat", info_tpat_view(info))
-  | InfoRul(_) => wrapper("rul", text("Rule"))
   | Invalid(msg) =>
     div(
       ~attr=clss(["info", "unknown"]),
