@@ -83,16 +83,17 @@ let happy_view = (suc: Haz3lcore.Info.happy) => {
         ]
       },
     )
-  | AnaInternalInconsistent(ty_ana, _)
-  | AnaExternalInconsistent(ty_ana, _) =>
+  | AnaInternalInconsistent(ty_ana, tys) =>
     div(
-      ~attr=clss([happyc, "ana-consistent-external"]),
+      ~attr=clss([happyc, "ana-inconsistent-internal"]),
       [
+        div(~attr=clss(["typ-view", "atom"]), [text("is consistent with")]),
+        Type.view(ty_ana),
         div(
           ~attr=clss(["typ-view", "atom"]),
-          [text("⇐"), div(~attr=clss(["typ-mod"]), [text("☆")])],
+          [text("but is internally inconsistent: ")]
+          @ ListUtil.join(text(","), List.map(Type.view, tys)),
         ),
-        Type.view(ty_ana),
       ],
     )
   };

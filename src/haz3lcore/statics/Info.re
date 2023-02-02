@@ -27,8 +27,7 @@ type self_error =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(Typ.t)
-  // TODO: make joined apply only to inconsistent types; rename NoJoin, move to Self
-  | Joined(Typ.t => Typ.t, list(source))
+  | NoJoin(list(source))
   | Self(self_error);
 
 /* Expressions are assigned a mode (reflecting the static expectations
@@ -131,8 +130,7 @@ type error =
 type happy =
   | SynConsistent(Typ.t)
   | AnaConsistent(Typ.t, Typ.t, Typ.t) //ana, syn, join
-  | AnaInternalInconsistent(Typ.t, list(Typ.t)) // ana, branches
-  | AnaExternalInconsistent(Typ.t, Typ.t); // ana, syn
+  | AnaInternalInconsistent(Typ.t, list(Typ.t)); // ana, branches
 
 /* The error status which 'wraps' each term. */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -154,49 +152,19 @@ let error_status = (ctx: Ctx.t, mode: Typ.mode, self: self): error_status =>
     | None => InHole(Self(NoFun(ty)))
     | Some(_) => NotInHole(SynConsistent(ty))
     }
-  | (SynFun, Joined(_wrap, tys_syn)) =>
-    let tys_syn = source_tys(tys_syn);
-    switch (Typ.join_all(ctx, tys_syn)) {
-    | None => InHole(SynInconsistentBranches(tys_syn))
-    | Some(ty_joined) =>
-      switch (
-        Typ.join(
-          ctx,
-          Arrow(Unknown(Internal), Unknown(Internal)),
-          ty_joined,
-        )
-      ) {
-      | None => InHole(Self(NoFun(ty_joined)))
-      | Some(_) => NotInHole(SynConsistent(ty_joined))
-      }
-    };
+  | (Syn | SynFun, NoJoin(tys)) =>
+    InHole(SynInconsistentBranches(source_tys(tys)))
   | (Syn | SynFun | Ana(_), Self(Multi)) =>
     NotInHole(SynConsistent(Unknown(Internal)))
-  | (Syn | SynFun | Ana(_), Self(err)) => InHole(Self(err))
-
+  | (Syn | SynFun | Ana(_), Self(error)) => InHole(Self(error))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
-  | (Syn, Joined(wrap, tys_syn)) =>
-    let tys_syn = source_tys(tys_syn);
-    switch (Typ.join_all(ctx, tys_syn)) {
-    | None => InHole(SynInconsistentBranches(tys_syn))
-    | Some(ty_joined) => NotInHole(SynConsistent(wrap(ty_joined)))
-    };
   | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ctx, ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
-  | (Ana(ty_ana), Joined(wrap, tys_syn)) =>
-    switch (Typ.join_all(ctx, source_tys(tys_syn))) {
-    | Some(ty_syn) =>
-      let ty_syn = wrap(ty_syn);
-      switch (Typ.join(ctx, ty_syn, ty_ana)) {
-      | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
-      | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
-      };
-    | None =>
-      NotInHole(AnaInternalInconsistent(ty_ana, source_tys(tys_syn)))
-    }
+  | (Ana(ty_ana), NoJoin(tys)) =>
+    NotInHole(AnaInternalInconsistent(ty_ana, source_tys(tys)))
   };
 
 /* Determines whether any term is in an error hole. Currently types cannot
@@ -237,7 +205,6 @@ let typ_after_fix = (ctx, mode: Typ.mode, self: self): Typ.t =>
   | InHole(_) => Unknown(Internal)
   | NotInHole(SynConsistent(t)) => t
   | NotInHole(AnaConsistent(_, _, ty_join)) => ty_join
-  | NotInHole(AnaExternalInconsistent(ty_ana, _)) => ty_ana
   | NotInHole(AnaInternalInconsistent(ty_ana, _)) => ty_ana
   };
 
@@ -251,20 +218,16 @@ let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
   | Invalid(_) => None
   };
 
-let typ_of_self = (ctx: Ctx.t): (self => Typ.t) =>
+let typ_of_self: self => Typ.t =
   fun
   | Just(t) => t
-  | Joined(wrap, ss) =>
-    switch (ss |> List.map((s: source) => s.ty) |> Typ.join_all(ctx)) {
-    | None => Unknown(Internal)
-    | Some(t) => wrap(t)
-    }
+  | NoJoin(_)
   | Self(_) => Unknown(Internal);
 
-let typ_of_self_opt = (ctx: Ctx.t, info: t): option(Typ.t) =>
+let typ_of_self_opt = (info: t): option(Typ.t) =>
   switch (info) {
   | InfoExp({self, _})
-  | InfoPat({self, _}) => Some(typ_of_self(ctx, self))
+  | InfoPat({self, _}) => Some(typ_of_self(self))
   | InfoTyp(_)
   | InfoRul(_)
   | InfoTPat(_)
