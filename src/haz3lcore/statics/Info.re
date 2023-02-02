@@ -66,7 +66,7 @@ type typ_mode =
 type self_typ =
   | EmptyHole /* Can be either type or variant */
   | Type(Typ.t)
-  | Tag(Token.t)
+  | TagOrVar(option(Typ.t)) /* Some if it's an in-scope alias */
   | Ap;
 
 /* A type can be either valid, a free type variable,
@@ -105,7 +105,7 @@ type error_tpat =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type happy_tpat =
-  | AVar;
+  | Var(Token.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
@@ -199,16 +199,14 @@ let rec status_common =
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
   };
 
-let self_typ = (ctx: Ctx.t, utyp: Term.UTyp.t): self_typ => {
-  let ty = Term.UTyp.to_typ(ctx, utyp);
-  switch (utyp.term) {
-  | Tag(name) => Tag(name)
-  | Ap(_) => Ap
-  | _ => Type(ty)
-  };
-};
-
-let status_typ = (ctx: Ctx.t, mode: typ_mode, self: self_typ): status_typ =>
+/* This logic determines whether a type should be put
+   in a hole or not. It's mostly syntactic, determining
+   the proper placement of sum type variants and tags;
+   this should be reimplemented in the future as a
+   separate sort. It also determines semantic properties
+   such as whether or not a type variable reference is
+   free, and whether a tag name is a dupe. */
+let status_typ = (mode: typ_mode, self: self_typ): status_typ =>
   switch (self) {
   | EmptyHole => NotInHole(Type(Unknown(Internal)))
   | Type(ty) =>
@@ -217,14 +215,17 @@ let status_typ = (ctx: Ctx.t, mode: typ_mode, self: self_typ): status_typ =>
     | TagExpected(_)
     | VariantExpected(_) => InHole(TagExpected)
     }
-  | Tag(name) =>
+  | TagOrVar(ty) =>
     switch (mode) {
     | VariantExpected(Unique)
     | TagExpected(Unique) => NotInHole(Variant)
     | VariantExpected(Duplicate)
     | TagExpected(Duplicate) => InHole(DuplicateTag)
     | TypeExpected =>
-      Ctx.is_alias(ctx, name) ? NotInHole(Variant) : InHole(FreeTypeVar)
+      switch (ty) {
+      | None => InHole(FreeTypeVar)
+      | Some(ty) => NotInHole(Type(ty))
+      }
     }
   | Ap =>
     switch (mode) {
@@ -236,7 +237,7 @@ let status_typ = (ctx: Ctx.t, mode: typ_mode, self: self_typ): status_typ =>
 
 let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
   switch (utpat.term) {
-  | Var(_) => NotInHole(AVar)
+  | Var(name) => NotInHole(Var(name))
   | _ => InHole(NotAVar)
   };
 
@@ -251,8 +252,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({mode, self, ctx, _}) =>
-    switch (status_typ(ctx, mode, self)) {
+  | InfoTyp({mode, self, _}) =>
+    switch (status_typ(mode, self)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }

@@ -994,6 +994,11 @@ svg.tile-selected {
   gap: 0em;
 }
 
+.typ-alias-view {
+  color: var(--tpat-text-color);
+  display: flex;
+}
+
 .typ-mod {
   vertical-align: super;
   font-size: 0.7em;
