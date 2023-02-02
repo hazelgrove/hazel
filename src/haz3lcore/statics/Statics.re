@@ -301,7 +301,6 @@ and uexp_to_info_map =
       );
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
-
     let branch_frees =
       List.map2(
         ((_, free, _), (_, ctx_pat, _)) => Ctx.free_in(ctx, ctx_pat, free),
@@ -456,7 +455,11 @@ and utyp_to_info_map =
   | Var(name)
   | Tag(name) =>
     let m = Id.Map.empty;
-    add(~self=Tag(name), m);
+    add(
+      ~self=
+        TagOrVar(OptUtil.some_if(Ctx.is_alias(ctx, name), Typ.Var(name))),
+      m,
+    );
   | Ap(t1, t2) =>
     let t1_mode: Info.typ_mode =
       switch (mode) {

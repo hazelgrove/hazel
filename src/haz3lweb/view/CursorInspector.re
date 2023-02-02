@@ -98,11 +98,20 @@ let info_common_view = (mode, self, ctx) => {
 };
 
 let info_typ_view = ({ctx, mode, self, _}: Info.info_typ) =>
-  switch (Info.status_typ(ctx, mode, self)) {
+  switch (Info.status_typ(mode, self)) {
   | NotInHole(Variant) =>
     div_happy([text("Sum type constuctor definition")])
+  | NotInHole(Type(Var(_) as ty)) =>
+    div_happy([
+      Type.view(ty),
+      text("is a type alias for"),
+      ty |> Typ.normalize_shallow(ctx) |> Type.view,
+    ])
   | NotInHole(Type(ty)) =>
-    div_happy([ty |> Typ.normalize_shallow(ctx) |> Type.view])
+    div_happy([
+      ty |> Typ.normalize_shallow(ctx) |> Type.view,
+      text("is a type"),
+    ])
   | InHole(FreeTypeVar) => div_error([text("Type Variable is not bound")])
   | InHole(TagExpected) =>
     div_error([text("Expected a constructor, found a type")])
@@ -113,7 +122,8 @@ let info_typ_view = ({ctx, mode, self, _}: Info.info_typ) =>
 
 let info_tpat_view = ({term, _}: Info.info_tpat) =>
   switch (Info.status_tpat(term)) {
-  | NotInHole(AVar) => div_happy([text("New type alias")])
+  | NotInHole(Var(name)) =>
+    div_happy([Type.alias_view(name), text("is a new type alias")])
   | InHole(NotAVar) => div_error([text("Not a valid type name")])
   };
 

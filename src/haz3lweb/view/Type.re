@@ -5,6 +5,9 @@ open Util.Web;
 let ty_view = (cls: string, s: string): Node.t =>
   div(~attr=clss(["typ-view", cls]), [text(s)]);
 
+let alias_view = (s: string): Node.t =>
+  div(~attr=clss(["typ-alias-view"]), [text(s)]);
+
 let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
