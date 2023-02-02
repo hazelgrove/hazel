@@ -162,46 +162,6 @@ type status_common =
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 
-let rec status_common' =
-        (ctx: Ctx.t, mode: Typ.mode, self: self): status_common =>
-  switch (self, mode) {
-  | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
-  | (Just(ty), SynFun) =>
-    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
-    | Some(_) => NotInHole(SynConsistent(ty))
-    | None => InHole(NoFun(ty))
-    }
-  | (Just(syn), Ana(ana)) =>
-    switch (Typ.join(ctx, ana, syn)) {
-    | None => InHole(TypeInconsistent({syn, ana}))
-    | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
-    }
-  | (NoJoin(tys), Ana(ana)) =>
-    NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
-  | (NoJoin(tys), Syn | SynFun) =>
-    InHole(SynInconsistentBranches(source_tys(tys)))
-  | (SelfMultiHole, Syn | SynFun | Ana(_)) =>
-    NotInHole(SynConsistent(Unknown(Internal)))
-  | (SelfVar(name), _) =>
-    switch (Ctx.lookup_var(ctx, name)) {
-    | None => InHole(FreeVar)
-    | Some({typ, _}) => status_common'(ctx, mode, Just(typ))
-    }
-  | (SelfTag(tag), _) =>
-    /* If a tag is being analyzed against (an arrow type returning)
-       a sum type having that tag as a variant, its self type is
-       considered to be determined by the sum type; otherwise,
-       check the context for the tag's type */
-    switch (Typ.tag_ana_typ(ctx, mode, tag)) {
-    | Some(ana_ty) => status_common'(ctx, mode, Just(ana_ty))
-    | _ =>
-      switch (Ctx.lookup_tag(ctx, tag)) {
-      | None => InHole(FreeTag)
-      | Some({typ, _}) => status_common'(ctx, mode, Just(typ))
-      }
-    }
-  };
-
 /* Determines whether an expression or pattern is in an error hole,
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
