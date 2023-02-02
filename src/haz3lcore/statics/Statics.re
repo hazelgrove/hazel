@@ -157,11 +157,11 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    let self: Info.self = SelfVar(name);
-    /*switch (Ctx.lookup_var(ctx, name)) {
-      | None => Self(Free)
+    let self: Info.self =
+      switch (Ctx.lookup_var(ctx, name)) {
+      | None => FreeVar
       | Some(var) => Just(var.typ)
-      };*/
+      };
     add(~self, ~free=[(name, [{id: exp_id(uexp), mode}])], Id.Map.empty);
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
@@ -212,7 +212,7 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | Tag(name) => atomic(SelfTag(name))
+  | Tag(tag) => atomic(SelfTag(tag, Info.syn_tag_typ(ctx, tag)))
   | Ap(fn, arg) =>
     let fn_mode =
       switch (fn) {
@@ -402,7 +402,7 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
-  | Tag(name) => atomic(SelfTag(name))
+  | Tag(tag) => atomic(SelfTag(tag, Info.syn_tag_typ(ctx, tag)))
   | Ap(fn, arg) =>
     /* Constructors */
     let fn_mode =
