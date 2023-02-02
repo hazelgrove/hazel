@@ -3,6 +3,10 @@ open Node;
 open Util.Web;
 open Util;
 
+let errorc = "error";
+let happyc = "happy";
+let infoc = "info";
+
 let cls_str = (ci: Haz3lcore.Info.t): string =>
   switch (ci) {
   | Invalid(msg) => Haz3lcore.TermBase.show_parse_flag(msg)
@@ -13,25 +17,43 @@ let cls_str = (ci: Haz3lcore.Info.t): string =>
   | InfoTPat({cls, _}) => Haz3lcore.Term.UTPat.show_cls(cls)
   };
 
-let errorc = "error";
-let happyc = "happy";
-let infoc = "info";
+let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
+  let lang_doc =
+    div(
+      ~attr=clss(["lang-doc-button"]),
+      [
+        Widgets.toggle(
+          ~tooltip="Toggle language documentation", "i", show_lang_doc, _ =>
+          Effect.Many([
+            inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
+            Effect.Stop_propagation,
+          ])
+        ),
+      ],
+    );
 
-let error_view = (err: Haz3lcore.Info.error) =>
+  div(
+    ~attr=
+      Attr.many([
+        clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : [])),
+      ]),
+    [div(~attr=clss(["gamma"]), [text("Γ")]), text(sort), lang_doc],
+  );
+};
+
+let error_view = (err: Haz3lcore.Info.error_common) =>
   switch (err) {
-  | Self(Multi) =>
-    div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
-  | Self(Free) =>
+  | FreeVar =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Variable is not bound")],
     )
-  | Self(NoFun(typ)) =>
+  | NoFun(typ) =>
     div(
       ~attr=clss([errorc, "err-not-function"]),
       [text("Not consistent with arrow type:"), Type.view(typ)],
     )
-  | Self(FreeTag) =>
+  | FreeTag =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Constructor is not defined")],
@@ -54,7 +76,7 @@ let error_view = (err: Haz3lcore.Info.error) =>
     )
   };
 
-let happy_view = (suc: Haz3lcore.Info.happy) => {
+let happy_view = (suc: Haz3lcore.Info.happy_common) => {
   switch (suc) {
   | SynConsistent(ty_syn) =>
     div(
@@ -99,114 +121,66 @@ let happy_view = (suc: Haz3lcore.Info.happy) => {
   };
 };
 
-let status_view = (err: Haz3lcore.Info.error_status) => {
-  switch (err) {
+let info_common_view = (mode, self, ctx) => {
+  let status_common = Haz3lcore.Info.status_common(ctx, mode, self);
+  switch (status_common) {
   | InHole(error) => error_view(error)
   | NotInHole(happy) => happy_view(happy)
   };
 };
 
-let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
-  let lang_doc =
+let info_typ_view = ({ctx, mode, self, _}: Haz3lcore.Info.info_typ) => {
+  let status = Haz3lcore.Info.status_typ(ctx, mode, self);
+  switch (status) {
+  | NotInHole(Variant) =>
+    div(~attr=clss([happyc]), [text("Sum type constuctor definition")])
+  | NotInHole(Type(ty)) =>
+    ty |> Haz3lcore.Typ.normalize_shallow(ctx) |> Type.view
+  | InHole(FreeTypeVar) =>
+    div(~attr=clss([errorc]), [text("Type Variable is not bound")])
+  | InHole(TagExpected) =>
     div(
-      ~attr=clss(["lang-doc-button"]),
-      [
-        Widgets.toggle(
-          ~tooltip="Toggle language documentation", "i", show_lang_doc, _ =>
-          Effect.Many([
-            inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
-            Effect.Stop_propagation,
-          ])
-        ),
-      ],
-    );
+      ~attr=clss([errorc]),
+      [text("Expected a constructor, found a type")],
+    )
+  | InHole(ApOutsideSum) =>
+    div(
+      ~attr=clss([errorc]),
+      [text("Constructor application must be in sum")],
+    )
+  | InHole(DuplicateTag) =>
+    div(~attr=clss([errorc]), [text("Duplicate constructor")])
+  };
+};
 
-  div(
-    ~attr=
-      Attr.many([
-        clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : [])),
-      ]),
-    [div(~attr=clss(["gamma"]), [text("Γ")]), text(sort), lang_doc],
-  );
+let info_tpat_view = ({self, _}: Haz3lcore.Info.info_tpat) => {
+  let status = Haz3lcore.Info.status_tpat(self);
+  switch (status) {
+  | NotInHole(_) => div(~attr=clss([happyc]), [text("New type alias")])
+  | InHole(NotAVar) =>
+    div(~attr=clss([errorc]), [text("Not a valid type name")])
+  };
 };
 
 let view_of_info =
     (~inject, ~show_lang_doc: bool, ci: Haz3lcore.Info.t): Node.t => {
   let is_err = Haz3lcore.Info.is_error(ci);
+  let wrapper = (str, status_view) =>
+    div(
+      ~attr=clss([infoc, str]),
+      [term_tag(~inject, ~show_lang_doc, is_err, str), status_view],
+    );
   switch (ci) {
+  | InfoExp({mode, self, ctx, _})
+  | InfoPat({mode, self, ctx, _}) =>
+    wrapper("pat", info_common_view(mode, self, ctx))
+  | InfoTyp(info_typ) => wrapper("typ", info_typ_view(info_typ))
+  | InfoTPat(info_tpat) => wrapper("tpat", info_tpat_view(info_tpat))
+  | InfoRul(_) => wrapper("rul", text("Rule"))
   | Invalid(msg) =>
     div(
       ~attr=clss([infoc, "unknown"]),
       [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
-    )
-  | InfoExp({mode, self, ctx, _}) =>
-    let error_status = Haz3lcore.Info.error_status(ctx, mode, self);
-    div(
-      ~attr=clss([infoc, "exp"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "exp"),
-        status_view(error_status),
-      ],
-    );
-  | InfoPat({mode, self, ctx, _}) =>
-    let error_status = Haz3lcore.Info.error_status(ctx, mode, self);
-    div(
-      ~attr=clss([infoc, "pat"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "pat"),
-        status_view(error_status),
-      ],
-    );
-  | InfoTyp({status, ctx, mode, cls, _}) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-        switch (status) {
-        | Ok(_) when cls == Var && mode != TypeExpected =>
-          div(
-            ~attr=clss([happyc]),
-            [text("Sum type constuctor definition")],
-          )
-        | Ok(_) when cls == Ap && mode != TypeExpected =>
-          div(
-            ~attr=clss([happyc]),
-            [text("Sum type constuctor definition")],
-          )
-        | Ok(ty) => ty |> Haz3lcore.Kind.normalize_shallow(ctx) |> Type.view
-        | FreeTypeVar =>
-          div(~attr=clss([errorc]), [text("Type Variable is not bound")])
-        | TagExpected(typ) =>
-          div(
-            ~attr=clss([errorc]),
-            [text("Expected a constructor, found"), Type.view(typ)],
-          )
-        | ApOutsideSum =>
-          div(
-            ~attr=clss([errorc]),
-            [text("Constructor application must be in sum")],
-          )
-        | DuplicateTag =>
-          div(~attr=clss([errorc]), [text("Duplicate constructor")])
-        },
-      ],
-    )
-  | InfoRul(_) =>
-    div(
-      ~attr=clss([infoc, "rul"]),
-      [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
-    )
-  | InfoTPat({status, _}) =>
-    div(
-      ~attr=clss([infoc, "tpat"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "tpat"),
-        switch (status) {
-        | Ok => div(~attr=clss([happyc]), [text("New type alias")])
-        | NotAName =>
-          div(~attr=clss([errorc]), [text("Not a valid type name")])
-        },
-      ],
     )
   };
 };
@@ -228,8 +202,8 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   switch (ci) {
   | InfoPat({mode, self, ctx, _})
   | InfoExp({mode, self, ctx, _}) =>
-    Haz3lcore.Info.error_status(ctx, mode, self)
-    |> Haz3lcore.Info.show_error_status
+    Haz3lcore.Info.status_common(ctx, mode, self)
+    |> Haz3lcore.Info.show_status_common
     |> print_endline
   | _ => ()
   };

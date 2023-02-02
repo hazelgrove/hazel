@@ -15,6 +15,21 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
   | _ => None
   };
 
+let lookup_tag = (ctx: t, name: string): option(var_entry) =>
+  switch (lookup(ctx, name)) {
+  | Some(TagEntry(t)) => Some(t)
+  | _ => None
+  };
+
+let is_alias = (ctx: t, name: Token.t): bool =>
+  switch (lookup_alias(ctx, name)) {
+  | Some(_) => true
+  | None => false
+  };
+
+let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
+  extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
+
 let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
   List.map(
     ((tag, typ)) =>

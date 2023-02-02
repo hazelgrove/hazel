@@ -55,15 +55,17 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
 
 /* Wrap: Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
-  switch (Info.error_status(ctx, mode, self)) {
+let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) => {
+  /* Normalize types */
+  let self_ty = Typ.normalize(ctx, Info.typ_of_self(ctx, self));
+  switch (Info.status_common(ctx, mode, self)) {
   | NotInHole(_) =>
     switch (mode) {
     | Syn => Some(d)
     | SynFun =>
       /* Things in function position get cast to the matched arrow type */
-      switch (self) {
-      | Just(Unknown(prov)) =>
+      switch (self_ty) {
+      | Unknown(prov) =>
         Some(
           DHExp.cast(
             d,
@@ -71,13 +73,12 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
             Arrow(Unknown(prov), Unknown(prov)),
           ),
         )
-      | Just(Arrow(_)) => Some(d)
+      | Arrow(_) => Some(d)
       | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
       }
     | Ana(ana_ty) =>
       /* Normalize types */
-      let ana_ty = Kind.normalize(ctx, ana_ty);
-      let self_ty = Kind.normalize(ctx, Info.typ_of_self(self));
+      let ana_ty = Typ.normalize(ctx, ana_ty);
       /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {
       | ListLit(_)
@@ -144,12 +145,13 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
     }
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
   };
+};
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
-    let err_status = Info.error_status(ctx, mode, self);
+    let err_status = Info.status_common(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let* d: DHExp.t =
       switch (uexp.term) {
@@ -225,7 +227,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(Self(Free)) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVar) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Let(p, def, body) =>
@@ -238,7 +240,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let+ ty = Statics.pat_self_typ(m, p);
+        let+ ty = Statics.pat_self_typ(ctx, m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
@@ -313,7 +315,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
-    let err_status = Info.error_status(ctx, mode, self);
+    let err_status = Info.status_common(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None

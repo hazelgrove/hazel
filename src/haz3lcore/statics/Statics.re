@@ -35,9 +35,9 @@ let fixed_pat_typ = (ctx, m: map, e: Term.UPat.t): option(Typ.t) => {
   Info.typ_after_fix_opt(ctx, info);
 };
 
-let pat_self_typ = (m: map, p: Term.UPat.t): option(Typ.t) => {
+let pat_self_typ = (ctx, m: map, p: Term.UPat.t): option(Typ.t) => {
   let* info = Id.Map.find_opt(pat_id(p), m);
-  Info.typ_of_self_opt(info);
+  Info.typ_of_self_opt(ctx, info);
 };
 
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
@@ -127,7 +127,7 @@ and uexp_to_info_map =
     )
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    add(~self=Self(Multi), ~free=Ctx.union(free), union_m(maps));
+    add(~self=SelfMultiHole, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
@@ -158,11 +158,11 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    let self: Info.self =
-      switch (Ctx.lookup_var(ctx, name)) {
+    let self: Info.self = SelfVar(name);
+    /*switch (Ctx.lookup_var(ctx, name)) {
       | None => Self(Free)
       | Some(var) => Just(var.typ)
-      };
+      };*/
     add(~self, ~free=[(name, [{id: exp_id(uexp), mode}])], Id.Map.empty);
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
@@ -213,7 +213,7 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | Tag(name) => atomic(Info.tag_self(ctx, mode, name))
+  | Tag(name) => atomic(SelfTag(name))
   | Ap(fn, arg) =>
     let fn_mode =
       switch (fn) {
@@ -263,7 +263,7 @@ and uexp_to_info_map =
     | Var(name) =>
       let ty_rec =
         List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-      let ctx = Kind.add_alias(ctx, name, utpat_id(typat), ty_rec);
+      let ctx = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
       let ctx =
         switch (ty_rec) {
         | Sum(sm)
@@ -343,7 +343,7 @@ and upat_to_info_map =
     )
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    add(~self=Self(Multi), ~ctx, union_m(maps));
+    add(~self=SelfMultiHole, ~ctx, union_m(maps));
   | EmptyHole => atomic(Just(unknown))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -403,7 +403,7 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
-  | Tag(name) => atomic(Info.tag_self(ctx, mode, name))
+  | Tag(name) => atomic(SelfTag(name))
   | Ap(fn, arg) =>
     /* Constructors */
     let fn_mode =
@@ -430,43 +430,34 @@ and utyp_to_info_map =
     | (_, cls) => cls
     };
   let ty = Term.UTyp.to_typ(ctx, utyp);
-  let add = status =>
-    add_info(ids, InfoTyp({cls, ctx, mode, status, term: utyp}));
-  let ok = (m: map): (Typ.t, map) => (ty, add(Ok(ty), m));
-  let error = (err, m) => (Typ.Unknown(Internal), add(err, m));
-  let normal = m =>
-    mode != TypeExpected ? error(TagExpected(ty), m) : ok(m);
+  let add = self =>
+    add_info(ids, InfoTyp({cls, ctx, mode, self, term: utyp}));
+  let add = (~self, m: map): (Typ.t, map) => (ty, add(self, m));
+  let add_type = add(~self=Type(ty));
   let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
-  | EmptyHole => ok(Id.Map.empty)
+  | EmptyHole => add(~self=EmptyHole, Id.Map.empty)
   | Int
   | Float
   | Bool
   | String =>
     let m = Id.Map.empty;
-    normal(m);
+    add_type(m);
   | List(t)
   | Parens(t) =>
     let m = go(t) |> snd;
-    normal(m);
+    add_type(m);
   | Arrow(t1, t2) =>
     let m = union_m([go(t1) |> snd, go(t2) |> snd]);
-    normal(m);
+    add_type(m);
   | Tuple(ts) =>
     let m = ts |> List.map(go) |> List.map(snd) |> union_m;
-    normal(m);
+    add_type(m);
   | Var(name)
   | Tag(name) =>
     let m = Id.Map.empty;
-    switch (mode) {
-    | VariantExpected(Duplicate)
-    | TagExpected(Duplicate) => error(DuplicateTag, m)
-    | VariantExpected(Unique)
-    | TagExpected(Unique) => ok(m)
-    | TypeExpected =>
-      Kind.is_alias(ctx, name) ? ok(m) : error(FreeTypeVar, m)
-    };
+    add(~self=Tag(name), m);
   | Ap(t1, t2) =>
     let t1_mode: Info.typ_mode =
       switch (mode) {
@@ -478,11 +469,7 @@ and utyp_to_info_map =
         utyp_to_info_map(~ctx, ~mode=t1_mode, t1) |> snd,
         utyp_to_info_map(~ctx, ~mode=TypeExpected, t2) |> snd,
       ]);
-    switch (mode) {
-    | VariantExpected(_) => ok(m)
-    | TagExpected(_) => error(TagExpected(ty), m)
-    | TypeExpected => error(ApOutsideSum, m)
-    };
+    add(~self=Ap, m);
   | USum(ts) =>
     let (ms, _) =
       List.fold_left(
@@ -500,16 +487,16 @@ and utyp_to_info_map =
         ([], []),
         ts,
       );
-    normal(union_m(ms));
+    add_type(union_m(ms));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    ok(union_m(maps));
+    add_type(union_m(maps));
   };
 }
 and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
-  let status = Info.status_tpat(utpat);
-  add_info(ids, InfoTPat({cls, status, term: utpat}), Id.Map.empty);
+  let self = Info.self_tpat(utpat);
+  add_info(ids, InfoTPat({cls, self, term: utpat}), Id.Map.empty);
 };
 
 let mk_map =
