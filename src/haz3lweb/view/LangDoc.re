@@ -2766,7 +2766,6 @@ let get_doc =
         [],
       );
     }
-  | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default
   };

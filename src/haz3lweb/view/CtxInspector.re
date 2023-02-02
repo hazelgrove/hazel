@@ -35,8 +35,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t): Node.t => {
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _}) => ctx_view(~inject, ctx)
-  | Invalid(_)
-  | InfoRul(_) => div_ctx([])
+  | Invalid(_) => div_ctx([])
   };
 };
 

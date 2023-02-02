@@ -37,7 +37,7 @@ let fixed_pat_typ = (ctx, m: map, e: Term.UPat.t): option(Typ.t) => {
 
 let pat_self_typ = (ctx, m: map, p: Term.UPat.t): option(Typ.t) => {
   let* info = Id.Map.find_opt(pat_id(p), m);
-  Info.typ_of_self_opt(ctx, info);
+  Info.typ_of_self_info(ctx, info);
 };
 
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);

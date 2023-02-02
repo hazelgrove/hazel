@@ -64,15 +64,15 @@ type typ_mode =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_typ =
-  | EmptyHole /* can be either type or variant */
+  | EmptyHole /* Can be either type or variant */
   | Type(Typ.t)
   | Tag(Token.t)
   | Ap;
 
-/* A type can be either valid or a free type variable.
-   The additional errors statuses are fundamentally
-   syntactic and should eventually be reimplemeted
-   via a seperate sort */
+/* A type can be either valid, a free type variable,
+   or a duplicate tag. The additional errors statuses
+   are fundamentally syntactic and should eventually
+   be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | FreeTypeVar
@@ -97,12 +97,6 @@ type info_typ = {
   mode: typ_mode,
   ctx: Ctx.t,
   self: self_typ,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info_rul = {
-  cls: Term.URul.cls,
-  term: Term.UExp.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -132,7 +126,6 @@ type t =
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
-  | InfoRul(info_rul)
   | InfoTPat(info_tpat);
 
 /* Static error classes */
@@ -142,14 +135,24 @@ type error_common =
   | FreeVar
   | FreeTag
   | SynInconsistentBranches(list(Typ.t))
-  | TypeInconsistent(Typ.t, Typ.t);
+  | TypeInconsistent({
+      ana: Typ.t,
+      syn: Typ.t,
+    });
 
 /* Statics non-error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type happy_common =
   | SynConsistent(Typ.t)
-  | AnaConsistent(Typ.t, Typ.t, Typ.t)
-  | AnaInternalInconsistent(Typ.t, list(Typ.t));
+  | AnaConsistent({
+      ana: Typ.t,
+      syn: Typ.t,
+      join: Typ.t,
+    })
+  | AnaInternalInconsistent({
+      ana: Typ.t,
+      nojoin: list(Typ.t),
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
@@ -159,22 +162,45 @@ type status_common =
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 
-let typ_of_self: (Ctx.t, self) => Typ.t =
-  ctx =>
-    fun
-    | Just(ty) => ty
-    | SelfVar(name) =>
-      switch (Ctx.lookup_var(ctx, name)) {
-      | None => Unknown(Internal)
-      | Some({typ, _}) => typ
-      }
-    | SelfTag(tag) =>
+let rec status_common' =
+        (ctx: Ctx.t, mode: Typ.mode, self: self): status_common =>
+  switch (self, mode) {
+  | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
+  | (Just(ty), SynFun) =>
+    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    | Some(_) => NotInHole(SynConsistent(ty))
+    | None => InHole(NoFun(ty))
+    }
+  | (Just(syn), Ana(ana)) =>
+    switch (Typ.join(ctx, ana, syn)) {
+    | None => InHole(TypeInconsistent({syn, ana}))
+    | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
+    }
+  | (NoJoin(tys), Ana(ana)) =>
+    NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
+  | (NoJoin(tys), Syn | SynFun) =>
+    InHole(SynInconsistentBranches(source_tys(tys)))
+  | (SelfMultiHole, Syn | SynFun | Ana(_)) =>
+    NotInHole(SynConsistent(Unknown(Internal)))
+  | (SelfVar(name), _) =>
+    switch (Ctx.lookup_var(ctx, name)) {
+    | None => InHole(FreeVar)
+    | Some({typ, _}) => status_common'(ctx, mode, Just(typ))
+    }
+  | (SelfTag(tag), _) =>
+    /* If a tag is being analyzed against (an arrow type returning)
+       a sum type having that tag as a variant, its self type is
+       considered to be determined by the sum type; otherwise,
+       check the context for the tag's type */
+    switch (Typ.tag_ana_typ(ctx, mode, tag)) {
+    | Some(ana_ty) => status_common'(ctx, mode, Just(ana_ty))
+    | _ =>
       switch (Ctx.lookup_tag(ctx, tag)) {
-      | None => Unknown(Internal)
-      | Some(syn) => syn.typ
+      | None => InHole(FreeTag)
+      | Some({typ, _}) => status_common'(ctx, mode, Just(typ))
       }
-    | SelfMultiHole
-    | NoJoin(_) => Unknown(Internal);
+    }
+  };
 
 /* Determines whether an expression or pattern is in an error hole,
    depending on the mode, which represents the expectations of the
@@ -188,13 +214,13 @@ let rec status_common =
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
   | (Just(ty), SynFun) =>
     switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
-    | None => InHole(NoFun(ty))
     | Some(_) => NotInHole(SynConsistent(ty))
+    | None => InHole(NoFun(ty))
     }
-  | (Just(ty_syn), Ana(ty_ana)) =>
-    switch (Typ.join(ctx, ty_ana, ty_syn)) {
-    | None => InHole(TypeInconsistent(ty_syn, ty_ana))
-    | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
+  | (Just(syn), Ana(ana)) =>
+    switch (Typ.join(ctx, ana, syn)) {
+    | None => InHole(TypeInconsistent({syn, ana}))
+    | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
     }
   | (SelfVar(name), _) =>
     switch (Ctx.lookup_var(ctx, name)) {
@@ -210,40 +236,44 @@ let rec status_common =
     | Some(ana_ty) => status_common(ctx, mode, Just(ana_ty))
     | _ =>
       switch (Ctx.lookup_tag(ctx, tag)) {
-      | Some(syn) => status_common(ctx, mode, Just(syn.typ))
+      | Some({typ, _}) => status_common(ctx, mode, Just(typ))
       | None => InHole(FreeTag)
       }
     }
   | (NoJoin(tys), Syn | SynFun) =>
     InHole(SynInconsistentBranches(source_tys(tys)))
-  | (NoJoin(tys), Ana(ty_ana)) =>
-    NotInHole(AnaInternalInconsistent(ty_ana, source_tys(tys)))
+  | (NoJoin(tys), Ana(ana)) =>
+    NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
   };
 
 let self_typ = (ctx: Ctx.t, utyp: Term.UTyp.t): self_typ => {
   let ty = Term.UTyp.to_typ(ctx, utyp);
   switch (utyp.term) {
   | Tag(name) => Tag(name)
-  | Ap(_, _) => Ap
+  | Ap(_) => Ap
   | _ => Type(ty)
   };
 };
 
 let status_typ = (ctx: Ctx.t, mode: typ_mode, self: self_typ): status_typ =>
-  switch (self, mode) {
-  | (EmptyHole, _) => NotInHole(Type(Unknown(Internal)))
-  | (Type(ty), TypeExpected) => NotInHole(Type(ty))
-  | (Type(_), TagExpected(_) | VariantExpected(_)) => InHole(TagExpected)
-  | (Tag(name), _) =>
+  switch (self) {
+  | EmptyHole => NotInHole(Type(Unknown(Internal)))
+  | Type(ty) =>
     switch (mode) {
-    | VariantExpected(Duplicate)
-    | TagExpected(Duplicate) => InHole(DuplicateTag)
+    | TypeExpected => NotInHole(Type(ty))
+    | TagExpected(_)
+    | VariantExpected(_) => InHole(TagExpected)
+    }
+  | Tag(name) =>
+    switch (mode) {
     | VariantExpected(Unique)
     | TagExpected(Unique) => NotInHole(Variant)
+    | VariantExpected(Duplicate)
+    | TagExpected(Duplicate) => InHole(DuplicateTag)
     | TypeExpected =>
       Ctx.is_alias(ctx, name) ? NotInHole(Variant) : InHole(FreeTypeVar)
     }
-  | (Ap, _) =>
+  | Ap =>
     switch (mode) {
     | VariantExpected(_) => NotInHole(Variant)
     | TagExpected(_) => InHole(TagExpected)
@@ -278,7 +308,6 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoRul(_) => false
   };
 };
 
@@ -288,9 +317,9 @@ let is_error = (ci: t): bool => {
 let typ_after_fix = (ctx, mode: Typ.mode, self: self): Typ.t =>
   switch (status_common(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(SynConsistent(t)) => t
-  | NotInHole(AnaConsistent(_, _, ty_join)) => ty_join
-  | NotInHole(AnaInternalInconsistent(ty_ana, _)) => ty_ana
+  | NotInHole(SynConsistent(syn)) => syn
+  | NotInHole(AnaConsistent({join, _})) => join
+  | NotInHole(AnaInternalInconsistent({ana, _})) => ana
   };
 
 let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
@@ -298,17 +327,32 @@ let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
   | InfoExp({mode, self, _})
   | InfoPat({mode, self, _}) => Some(typ_after_fix(ctx, mode, self))
   | InfoTyp(_)
-  | InfoRul(_)
   | InfoTPat(_)
   | Invalid(_) => None
   };
 
-let typ_of_self_opt = (ctx: Ctx.t, info: t): option(Typ.t) =>
+let typ_of_self: (Ctx.t, self) => option(Typ.t) =
+  ctx =>
+    fun
+    | Just(typ) => Some(typ)
+    | SelfVar(name) =>
+      switch (Ctx.lookup_var(ctx, name)) {
+      | None => None
+      | Some({typ, _}) => Some(typ)
+      }
+    | SelfTag(tag) =>
+      switch (Ctx.lookup_tag(ctx, tag)) {
+      | None => None
+      | Some({typ, _}) => Some(typ)
+      }
+    | SelfMultiHole
+    | NoJoin(_) => None;
+
+let typ_of_self_info = (ctx: Ctx.t, info: t): option(Typ.t) =>
   switch (info) {
   | InfoExp({self, _})
-  | InfoPat({self, _}) => Some(typ_of_self(ctx, self))
+  | InfoPat({self, _}) => typ_of_self(ctx, self)
   | InfoTyp(_)
-  | InfoRul(_)
   | InfoTPat(_)
   | Invalid(_) => None
   };
