@@ -3,9 +3,6 @@ module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
 
-/* Strip location information from a list of sources */
-let source_tys = List.map((source: source) => source.ty);
-
 /* How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
@@ -282,26 +279,4 @@ let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
   | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
   | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => ap_mode
-  };
-
-let lookup_tag = (ctx: Ctx.t, name: string): option(Ctx.var_entry) =>
-  List.find_map(
-    fun
-    | Ctx.TagEntry(t) when t.name == name => Some(t)
-    | _ => None,
-    ctx,
-  );
-
-let tag_self = (ctx: Ctx.t, mode: mode, tag: Token.t): self =>
-  /* If a tag is being analyzed against (an arrow type returning)
-     a sum type having that tag as a variant, its self type is
-     considered to be determined by the sum type; otherwise,
-     check the context for the tag's type */
-  switch (tag_ana_typ(ctx, mode, tag)) {
-  | Some(ana_ty) => Just(ana_ty)
-  | _ =>
-    switch (lookup_tag(ctx, tag)) {
-    | Some(syn) => Just(syn.typ)
-    | None => Self(FreeTag)
-    }
   };

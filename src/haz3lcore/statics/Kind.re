@@ -2,26 +2,22 @@ include TypBase.Kind;
 module Ctx = TypBase.Ctx;
 module Typ = TypBase.Typ;
 
-let extend: (Ctx.entry, Ctx.t) => Ctx.t = List.cons;
-
 let add_alias = (ctx: Ctx.t, name: Token.t, id: Id.t, ty: Typ.t): Ctx.t =>
-  extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
+  Ctx.extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
 let add_abstract = (ctx: Ctx.t, name: Token.t, id: Id.t): Ctx.t =>
-  extend(TVarEntry({name, id, kind: Abstract}), ctx);
+  Ctx.extend(TVarEntry({name, id, kind: Abstract}), ctx);
 
-let lookup_tvar = (ctx: Ctx.t, t: Token.t): option(t) =>
-  List.find_map(
-    fun
-    | Ctx.TVarEntry({name, kind, _}) when name == t => Some(kind)
-    | _ => None,
-    ctx,
-  );
+let lookup_tvar = (ctx: Ctx.t, name: Token.t): option(Ctx.tvar_entry) =>
+  switch (Ctx.lookup(ctx, name)) {
+  | Some(TVarEntry(t)) => Some(t)
+  | _ => None
+  };
 
 let lookup_alias = (ctx: Ctx.t, t: Token.t): option(Typ.t) =>
   switch (lookup_tvar(ctx, t)) {
-  | Some(Singleton(ty)) => Some(ty)
-  | Some(Abstract)
+  | Some({kind: Singleton(ty), _}) => Some(ty)
+  | Some({kind: Abstract, _})
   | None => None
   };
 

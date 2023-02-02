@@ -3,8 +3,6 @@ open Util;
 
 let empty: t = VarMap.empty;
 
-let extend: (entry, t) => t = List.cons;
-
 let get_id: entry => int =
   fun
   | VarEntry({id, _})
@@ -12,12 +10,10 @@ let get_id: entry => int =
   | TVarEntry({id, _}) => id;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
-  List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
-    ctx,
-  );
+  switch (lookup(ctx, name)) {
+  | Some(VarEntry(v)) => Some(v)
+  | _ => None
+  };
 
 let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
   List.map(
