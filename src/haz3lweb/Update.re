@@ -204,7 +204,9 @@ let perform_action =
     (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
     : Result.t(Model.t) => {
   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-  switch (Haz3lcore.Perform.go(a, ed_init, id)) {
+  switch (
+    Haz3lcore.Perform.go(a, ed_init, id, model.langDocMessages.annotations)
+  ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok((ed, id)) =>
     Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
@@ -334,7 +336,13 @@ let apply =
       | None => Error(CantPaste)
       | Some((z, id)) =>
         //TODO: add correct action to history (Pick_up is wrong)
-        let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        let ed =
+          Haz3lcore.Editor.new_state(
+            Pick_up,
+            z,
+            ed,
+            model.langDocMessages.annotations,
+          );
         Ok({
           ...model,
           editors: Editors.put_editor_and_id(id, ed, model.editors),
@@ -351,7 +359,13 @@ let apply =
       | None => Error(CantReset)
       | Some((z, id)) =>
         //TODO: add correct action to history (Pick_up is wrong)
-        let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        let editor =
+          Haz3lcore.Editor.new_state(
+            Pick_up,
+            z,
+            ed,
+            model.langDocMessages.annotations,
+          );
         let editors = Editors.put_editor_and_id(id, editor, model.editors);
         Ok({...model, editors});
       };

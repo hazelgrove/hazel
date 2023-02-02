@@ -26,7 +26,7 @@ let path = (tip_l, tip_r, offset, s: float) => {
 
 let view =
     (
-      ~annotation_map: InferenceResult.annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~font_metrics,
       id,
       {measurement: {origin, _}, mold}: Profile.t,
@@ -41,9 +41,7 @@ let view =
     {sort, shape: tip_r},
   );
   let (svg_enabled, unsolved_path_class) =
-    InferenceResult.annotations_enabled^
-      ? InferenceResult.svg_display_settings(~annotation_map, id)
-      : (true, false);
+    InferenceResult.svg_display_settings(~global_inference_info, id);
   let svg_path_class =
     unsolved_path_class ? "unsolved-empty-hole-path" : "empty-hole-path";
   svg_enabled

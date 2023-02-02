@@ -41,17 +41,30 @@ module Meta = {
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
   let next =
-      (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
+      (
+        ~effects: list(Effect.t)=[],
+        a: Action.t,
+        z: Zipper.t,
+        meta: t,
+        inference_enabled,
+      )
+      : t => {
     let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
     let (term, _) = MakeTerm.go(unselected);
-    let (_, annotation_map) = Statics.mk_map_and_annotations(term);
+    // TODO Raef: add in flow for the enabled flag
+    let (_, global_inference_solutions) =
+      Statics.mk_map_and_annotations(term);
     let measured =
       Measured.of_segment(
         ~touched,
         ~old=measured,
-        ~annotation_map,
+        ~global_inference_info=
+          InferenceResult.mk_global_inference_info(
+            inference_enabled,
+            global_inference_solutions,
+          ),
         unselected,
       );
     let term_ranges = TermRanges.mk(unselected);
@@ -75,9 +88,16 @@ module State = {
 
   let init = zipper => {zipper, meta: Meta.init(zipper)};
 
-  let next = (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, state) => {
+  let next =
+      (
+        ~effects: list(Effect.t)=[],
+        a: Action.t,
+        z: Zipper.t,
+        state,
+        inference_enabled,
+      ) => {
     zipper: z,
-    meta: Meta.next(~effects, a, z, state.meta),
+    meta: Meta.next(~effects, a, z, state.meta, inference_enabled),
   };
 };
 
@@ -127,8 +147,15 @@ let update_z_opt = (f: Zipper.t => option(Zipper.t), ed: t) => {
 };
 
 let new_state =
-    (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, ed: t): t => {
-  let state = State.next(~effects, a, z, ed.state);
+    (
+      ~effects: list(Effect.t)=[],
+      a: Action.t,
+      z: Zipper.t,
+      ed: t,
+      inference_enabled,
+    )
+    : t => {
+  let state = State.next(~effects, a, z, ed.state, inference_enabled);
   let history = History.add(a, ed.state, ed.history);
   {state, history, read_only: ed.read_only};
 };

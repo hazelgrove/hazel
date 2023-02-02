@@ -828,11 +828,12 @@ let mk_map_and_annotations =
         uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
 
       let inference_results = Inference.unify_and_report_status(constraints);
-      let annotation_map = InferenceResult.get_annotations(inference_results);
+      let global_inference_solutions =
+        InferenceResult.get_desired_solutions(inference_results);
 
       // InferenceResult.add_on_new_annotations(annotation_map);
 
-      (info_map, annotation_map);
+      (info_map, global_inference_solutions);
     },
   );
 let mk_map = e => {

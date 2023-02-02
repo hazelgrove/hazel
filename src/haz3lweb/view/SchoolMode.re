@@ -54,7 +54,7 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       self: t,
     ) => {
   let {
@@ -76,8 +76,11 @@ let view =
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
     SchoolExercise.focus(exercise, stitched_dynamics);
-
-  InferenceResult.update_annoation_mode(langDocMessages.annotations);
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      langDocMessages.annotations,
+      global_inference_info.solution_statuses,
+    );
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
@@ -85,7 +88,7 @@ let view =
       let map = Statics.mk_map(term);
       Some(
         LangDoc.get_color_map(
-          ~annotation_map,
+          ~global_inference_info,
           ~doc=langDocMessages,
           Indicated.index(focal_zipper),
           map,
@@ -107,6 +110,7 @@ let view =
       ],
       ~settings,
       ~color_highlighting,
+      ~langDocMessages,
     );
   };
 
@@ -347,7 +351,7 @@ let view =
           ~show_lang_doc=langDocMessages.show,
           focal_zipper,
           focal_info_map,
-          annotation_map,
+          global_inference_info,
         ),
       ]
       : [];
@@ -384,7 +388,7 @@ let view =
             ~doc=langDocMessages,
             Indicated.index(focal_zipper),
             focal_info_map,
-            annotation_map,
+            global_inference_info,
           ),
         ]
         : []

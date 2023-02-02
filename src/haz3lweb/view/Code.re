@@ -37,8 +37,10 @@ let of_delim =
 //   |> Node.text,
 // ];
 
-let of_grout = (~annotation_map: InferenceResult.annotation_map, id: Id.t) => {
-  let solution_opt = InferenceResult.get_solution_of_id(id, annotation_map);
+let of_grout =
+    (~global_inference_info: InferenceResult.global_inference_info, id: Id.t) => {
+  let solution_opt =
+    InferenceResult.get_solution_of_id(id, global_inference_info);
   switch (solution_opt) {
   | Some(ityp) => [
       [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> Node.text]
@@ -70,7 +72,7 @@ module Text =
        (
          M: {
            let map: Measured.t;
-           let annotation_map: InferenceResult.annotation_map;
+           let global_inference_info: InferenceResult.global_inference_info;
            let settings: Model.settings;
          },
        ) => {
@@ -79,7 +81,7 @@ module Text =
           (
             ~no_sorts=false,
             ~sort=Sort.root,
-            ~annotation_map=M.annotation_map,
+            ~global_inference_info=M.global_inference_info,
             seg: Segment.t,
           )
           : list(Node.t) => {
@@ -96,29 +98,21 @@ module Text =
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~annotation_map, sort_of_p_idx(i), p)
+         of_piece(~global_inference_info, sort_of_p_idx(i), p)
        );
   }
   and of_piece =
-      (
-        ~annotation_map: InferenceResult.annotation_map,
-        expected_sort: Sort.t,
-        p: Piece.t,
-      )
+      (~global_inference_info, expected_sort: Sort.t, p: Piece.t)
       : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(~annotation_map, expected_sort, t)
-    | Grout(g) => of_grout(~annotation_map, g.id)
+    | Tile(t) => of_tile(~global_inference_info, expected_sort, t)
+    | Grout(g) => of_grout(~global_inference_info, g.id)
     | Whitespace({content, _}) =>
       of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
     };
   }
   and of_tile =
-      (
-        ~annotation_map: InferenceResult.annotation_map,
-        expected_sort: Sort.t,
-        t: Tile.t,
-      )
+      (~global_inference_info, expected_sort: Sort.t, t: Tile.t)
       : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
@@ -130,7 +124,7 @@ module Text =
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, ~annotation_map, seg)
+         of_segment(~sort, ~global_inference_info, seg)
        )
     |> List.concat;
   };
@@ -138,7 +132,7 @@ module Text =
 
 let rec holes =
         (
-          ~annotation_map: InferenceResult.annotation_map,
+          ~global_inference_info,
           ~font_metrics,
           ~map: Measured.t,
           seg: Segment.t,
@@ -150,12 +144,12 @@ let rec holes =
        | Piece.Whitespace(_) => []
        | Tile(t) =>
          List.concat_map(
-           holes(~annotation_map, ~map, ~font_metrics),
+           holes(~global_inference_info, ~map, ~font_metrics),
            t.children,
          )
        | Grout(g) => [
            EmptyHoleDec.view(
-             ~annotation_map,
+             ~global_inference_info,
              ~font_metrics, // TODO(d) fix sort
              g.id,
              {
@@ -167,22 +161,22 @@ let rec holes =
      );
 
 let simple_view =
-    (
-      ~unselected,
-      ~map,
-      ~annotation_map: InferenceResult.annotation_map,
-      ~settings: Model.settings,
-    )
+    (~unselected, ~map, ~global_inference_info, ~settings: Model.settings)
     : Node.t => {
   module Text =
     Text({
       let map = map;
-      let annotation_map = annotation_map;
+      let global_inference_info = global_inference_info;
       let settings = settings;
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(~annotation_map, unselected))],
+    [
+      span_c(
+        "code-text",
+        Text.of_segment(~global_inference_info, unselected),
+      ),
+    ],
   );
 };
 
@@ -192,23 +186,23 @@ let view =
       ~segment,
       ~unselected,
       ~measured,
-      ~annotation_map,
+      ~global_inference_info,
       ~settings: Model.settings,
     )
     : Node.t => {
   module Text =
     Text({
       let map = measured;
-      let annotation_map = annotation_map;
+      let global_inference_info = global_inference_info;
       let settings = settings;
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~annotation_map, unselected)
+      Text.of_segment(~global_inference_info, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~annotation_map, ~map=measured, ~font_metrics, segment)
+      holes(~global_inference_info, ~map=measured, ~font_metrics, segment)
     );
   div(
     ~attr=Attr.class_("code"),

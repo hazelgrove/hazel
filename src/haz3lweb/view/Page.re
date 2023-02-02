@@ -233,7 +233,13 @@ let main_ui_view =
     let zipper = Editors.get_editor(editors).state.zipper;
     let unselected = Zipper.unselect_and_zip(zipper);
     let (term, _) = MakeTerm.go(unselected);
-    let (_, annotation_map) = Statics.mk_map_and_annotations(term);
+    let (_, global_inference_solutions) =
+      Statics.mk_map_and_annotations(term);
+    let global_inference_info =
+      InferenceResult.mk_global_inference_info(
+        langDocMessages.annotations,
+        global_inference_solutions,
+      );
     [
       top_bar_view,
       SchoolMode.view(
@@ -242,7 +248,7 @@ let main_ui_view =
         ~mousedown,
         ~show_backpack_targets,
         school_mode,
-        ~annotation_map,
+        ~global_inference_info,
       ),
     ];
   };

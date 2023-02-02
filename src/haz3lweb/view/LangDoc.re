@@ -210,7 +210,7 @@ let deco =
       ~expandable: option(Id.t),
       ~unselected,
       ~map,
-      ~annotation_map: InferenceResult.annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~inject,
       ~font_metrics,
       ~options,
@@ -221,7 +221,7 @@ let deco =
     Deco.Deco({
       let font_metrics = font_metrics;
       let map = map;
-      let annotation_map = annotation_map;
+      let global_inference_info = global_inference_info;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
       let info_map = Statics.mk_map(term);
@@ -276,7 +276,7 @@ let deco =
                     let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(
-                        ~annotation_map,
+                        ~global_inference_info,
                         ~unselected=segment,
                         ~map,
                         ~settings,
@@ -383,11 +383,11 @@ let syntactic_form_view =
       ~options,
       ~group_id,
       ~form_id,
-      ~annotation_map,
+      ~global_inference_info,
     ) => {
   let map = Measured.of_segment(unselected);
   let code_view =
-    Code.simple_view(~annotation_map, ~unselected, ~map, ~settings);
+    Code.simple_view(~global_inference_info, ~unselected, ~map, ~settings);
   let deco_view =
     deco(
       ~doc,
@@ -401,7 +401,7 @@ let syntactic_form_view =
       ~options,
       ~group_id,
       ~form_id,
-      ~annotation_map,
+      ~global_inference_info,
     );
   div(
     ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
@@ -416,7 +416,7 @@ let example_view =
       ~settings,
       ~id,
       ~examples: list(LangDocMessages.example),
-      ~annotation_map: InferenceResult.annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
     ) => {
   div(
     ~attr=Attr.id("examples"),
@@ -427,7 +427,7 @@ let example_view =
             let map_code = Measured.of_segment(term);
             let code_view =
               Code.simple_view(
-                ~annotation_map,
+                ~global_inference_info,
                 ~unselected=term,
                 ~map=map_code,
                 ~settings,
@@ -510,7 +510,7 @@ type message_mode =
 
 let get_doc =
     (
-      ~annotation_map: InferenceResult.annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~docs: LangDocMessages.t,
       info: option(Statics.t),
       mode: message_mode,
@@ -560,7 +560,7 @@ let get_doc =
           ~options,
           ~group_id,
           ~form_id=doc.id,
-          ~annotation_map,
+          ~global_inference_info,
         );
       let example_view =
         example_view(
@@ -569,7 +569,7 @@ let get_doc =
           ~settings,
           ~id=doc.id,
           ~examples=doc.examples,
-          ~annotation_map,
+          ~global_inference_info,
         );
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
     | Colorings =>
@@ -2782,7 +2782,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 
 let get_color_map =
     (
-      ~annotation_map: InferenceResult.annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Statics.map,
@@ -2797,7 +2797,7 @@ let get_color_map =
     | None => None
     };
   let (_, (_, (color_map, _)), _) =
-    get_doc(~annotation_map, ~docs=doc, info, Colorings);
+    get_doc(~global_inference_info, ~docs=doc, info, Colorings);
   color_map;
 };
 
@@ -2809,7 +2809,7 @@ let view =
       ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Statics.map,
-      annotation_map: InferenceResult.annotation_map,
+      global_inference_info: InferenceResult.global_inference_info,
     ) => {
   let info: option(Statics.t) =
     switch (index') {
@@ -2822,7 +2822,7 @@ let view =
     };
   let (syn_form, (explanation, _), example) =
     get_doc(
-      ~annotation_map,
+      ~global_inference_info,
       ~docs=doc,
       info,
       MessageContent(inject, font_metrics, settings),

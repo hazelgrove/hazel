@@ -286,7 +286,7 @@ let of_segment =
     (
       ~old: t=empty,
       ~touched=Touched.empty,
-      ~annotation_map=InferenceResult.empty_annotations(),
+      ~global_inference_info=InferenceResult.empty_info(),
       seg: Segment.t,
     )
     : t => {
@@ -378,7 +378,10 @@ let of_segment =
           | Grout(g) =>
             let annotation_offset =
               switch (
-                InferenceResult.get_solution_of_id(g.id, annotation_map)
+                InferenceResult.get_solution_of_id(
+                  g.id,
+                  global_inference_info,
+                )
               ) {
               | Some(ityp) =>
                 ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> String.length

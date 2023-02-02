@@ -19,15 +19,19 @@ let view =
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let (info_map, annotation_map) = Statics.mk_map_and_annotations(term);
-
-  InferenceResult.update_annoation_mode(langDocMessages.annotations);
+  let (info_map, global_inference_solutions) =
+    Statics.mk_map_and_annotations(term);
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      langDocMessages.annotations,
+      global_inference_solutions,
+    );
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(
         LangDoc.get_color_map(
-          ~annotation_map,
+          ~global_inference_info,
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
@@ -51,6 +55,7 @@ let view =
       ~color_highlighting,
       ~info_map,
       ~result,
+      ~langDocMessages,
       editor,
     );
   let ci_view =
@@ -62,7 +67,7 @@ let view =
           ~show_lang_doc=langDocMessages.show,
           zipper,
           info_map,
-          annotation_map,
+          global_inference_info,
         ),
       ]
       : [];
@@ -77,7 +82,7 @@ let view =
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
-          annotation_map,
+          global_inference_info,
         ),
       ]
       : [];

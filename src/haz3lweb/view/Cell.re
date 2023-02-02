@@ -164,7 +164,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
-      ~annotation_map: InferenceResult.annotation_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~test_results: option(Interface.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
@@ -176,7 +176,7 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
-      let annotation_map = annotation_map;
+      let global_inference_info = global_inference_info;
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
@@ -267,6 +267,7 @@ let editor_view =
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
+      ~langDocMessages: LangDocMessages.t,
       editor: Editor.t,
     ) => {
   //~eval_result: option(option(DHExp.t))
@@ -275,11 +276,16 @@ let editor_view =
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let (_, annotation_map) = Statics.mk_map_and_annotations(term);
+  let (_, global_inference_solutions) = Statics.mk_map_and_annotations(term);
   let measured = editor.state.meta.measured;
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      langDocMessages.annotations,
+      global_inference_solutions,
+    );
   let code_base_view =
     Code.view(
-      ~annotation_map,
+      ~global_inference_info,
       ~font_metrics,
       ~segment,
       ~unselected,
@@ -295,7 +301,7 @@ let editor_view =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
-      ~annotation_map,
+      ~global_inference_info,
       ~test_results,
       ~color_highlighting,
     );
@@ -340,6 +346,7 @@ let editor_with_result_view =
       ~code_id: string,
       ~info_map: Statics.map,
       ~result: ModelResult.simple,
+      ~langDocMessages,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
@@ -361,6 +368,7 @@ let editor_with_result_view =
     ~test_results,
     ~footer=Some(eval_result_footer),
     ~color_highlighting,
+    ~langDocMessages,
     editor,
   );
 };

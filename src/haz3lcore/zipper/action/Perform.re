@@ -109,7 +109,7 @@ let go_z =
 };
 
 let go =
-    (a: Action.t, ed: Editor.t, id_gen: IdGen.state)
+    (a: Action.t, ed: Editor.t, id_gen: IdGen.state, inference_enabled)
     : Action.Result.t((Editor.t, IdGen.state)) =>
   if (ed.read_only && is_write_action(a)) {
     Result.Ok((ed, id_gen));
@@ -118,6 +118,7 @@ let go =
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
     let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
-    let ed = Editor.new_state(~effects=Effect.s^, a, z, ed);
+    let ed =
+      Editor.new_state(~effects=Effect.s^, a, z, ed, inference_enabled);
     (ed, id_gen);
   };
