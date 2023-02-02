@@ -1,82 +1,6 @@
 open Sexplib.Std;
 
-module rec Ctx: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type var_entry = {
-    name: Token.t,
-    id: Id.t,
-    typ: Typ.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry =
-    | VarEntry(var_entry)
-    | TVarEntry({
-        name: Token.t,
-        id: Id.t,
-        kind: Kind.t,
-      })
-    | TagEntry(var_entry);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(entry);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_item = {
-    id: Id.t,
-    mode: Typ.mode,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = list(co_item);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(co_entry);
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type var_entry = {
-    name: Token.t,
-    id: Id.t,
-    typ: Typ.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry =
-    | VarEntry(var_entry)
-    | TVarEntry({
-        name: Token.t,
-        id: Id.t,
-        kind: Kind.t,
-      })
-    | TagEntry(var_entry);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(entry);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_item = {
-    id: Id.t,
-    mode: Typ.mode,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = list(co_item);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(co_entry);
-}
-and Kind: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Singleton(Typ.t)
-    | Abstract;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Singleton(Typ.t)
-    | Abstract;
-}
-and Typ: {
+module rec Typ: {
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
      Is it generated from an unannotated pattern variable (SynSwitch),
      a pattern variable annotated with a type hole (TypeHole), or
@@ -95,7 +19,7 @@ and Typ: {
     | Float
     | Bool
     | String
-    | Var(string)
+    | Var(Token.t)
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
@@ -161,7 +85,7 @@ and Typ: {
     | Float
     | Bool
     | String
-    | Var(string)
+    | Var(Token.t)
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
@@ -196,4 +120,76 @@ and Typ: {
     | SynFun
     | Syn
     | Ana(t);
+}
+and Ctx: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type var_entry = {
+    name: Token.t,
+    id: Id.t,
+    typ: Typ.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type entry =
+    | VarEntry(var_entry)
+    | TagEntry(var_entry)
+    | TVarEntry({
+        name: Token.t,
+        id: Id.t,
+        kind: Kind.t,
+      });
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(entry);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type co_entry = {
+    id: Id.t,
+    mode: Typ.mode,
+  };
+
+  /* Each co-context entry is a list of the uses of a variable
+     within some scope, including their type demands */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type co = VarMap.t_(list(co_entry));
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type var_entry = {
+    name: Token.t,
+    id: Id.t,
+    typ: Typ.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type entry =
+    | VarEntry(var_entry)
+    | TagEntry(var_entry)
+    | TVarEntry({
+        name: Token.t,
+        id: Id.t,
+        kind: Kind.t,
+      });
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(entry);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type co_entry = {
+    id: Id.t,
+    mode: Typ.mode,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type co = VarMap.t_(list(co_entry));
+}
+and Kind: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Singleton(Typ.t)
+    | Abstract;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Singleton(Typ.t)
+    | Abstract;
 };
