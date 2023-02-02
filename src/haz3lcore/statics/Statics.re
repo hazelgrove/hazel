@@ -35,9 +35,9 @@ let fixed_pat_typ = (ctx, m: map, e: Term.UPat.t): option(Typ.t) => {
   Info.typ_after_fix_opt(ctx, info);
 };
 
-let pat_self_typ = (ctx, m: map, p: Term.UPat.t): option(Typ.t) => {
+let pat_self_typ = (m: map, p: Term.UPat.t): option(Typ.t) => {
   let* info = Id.Map.find_opt(pat_id(p), m);
-  Info.typ_of_self_opt(ctx, info);
+  Info.typ_of_self_opt(info);
 };
 
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
@@ -142,11 +142,7 @@ and uexp_to_info_map =
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Info.self =
       switch (Typ.join_all(ctx, tys)) {
-      | None =>
-        Joined(
-          ty => List(ty),
-          List.map2((id, ty) => Info.{id, ty}, e_ids, tys),
-        )
+      | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, e_ids, tys))
       | Some(ty) => Just(List(ty))
       };
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
@@ -198,12 +194,14 @@ and uexp_to_info_map =
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);
     let (ty_e2, free_e2, m3) = go(~mode, e2);
+    let self: Info.self =
+      switch (Typ.join(ctx, ty_e1, ty_e2)) {
+      | None =>
+        NoJoin([{id: exp_id(e1), ty: ty_e1}, {id: exp_id(e2), ty: ty_e2}])
+      | Some(ty) => Just(ty)
+      };
     add(
-      ~self=
-        Joined(
-          Fun.id,
-          [{id: exp_id(e1), ty: ty_e1}, {id: exp_id(e2), ty: ty_e2}],
-        ),
+      ~self,
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
@@ -311,7 +309,11 @@ and uexp_to_info_map =
         branch_infos,
         pat_infos,
       );
-    let self = Info.Joined(Fun.id, branch_sources);
+    let self: Info.self =
+      switch (Typ.join_all(ctx, Info.source_tys(branch_sources))) {
+      | None => NoJoin(branch_sources)
+      | Some(ty) => Just(ty)
+      };
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
   };
@@ -365,11 +367,7 @@ and upat_to_info_map =
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Info.self =
       switch (Typ.join_all(ctx, tys)) {
-      | None =>
-        Joined(
-          ty => List(ty),
-          List.map2((id, ty) => Info.{id, ty}, p_ids, tys),
-        )
+      | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, p_ids, tys))
       | Some(ty) => Just(List(ty))
       };
     let info: Info.t = InfoPat({cls, self, mode, ctx, term: upat});

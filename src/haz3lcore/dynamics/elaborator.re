@@ -77,7 +77,7 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
     | Ana(ana_ty) =>
       /* Normalize types */
       let ana_ty = Kind.normalize(ctx, ana_ty);
-      let self_ty = Kind.normalize(ctx, Info.typ_of_self(ctx, self));
+      let self_ty = Kind.normalize(ctx, Info.typ_of_self(self));
       /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {
       | ListLit(_)
@@ -238,7 +238,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let+ ty = Statics.pat_self_typ(ctx, m, p);
+        let+ ty = Statics.pat_self_typ(m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
