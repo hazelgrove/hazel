@@ -153,35 +153,6 @@ type happy_common =
   | AnaInternalInconsistent(Typ.t, list(Typ.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type error_exp = error_common;
-
-/*
- [@deriving (show({with_path: false}), sexp, yojson)]
- type error_exp =
-   | NoFun(Typ.t)
-   | FreeVar
-   | Common(error_common);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type happy_exp = happy_common;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type error_pat = error_common;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type happy_pat = happy_common;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type status_exp =
-    | InHole(error_exp)
-    | NotInHole(happy_exp);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type status_pat =
-    | InHole(error_pat)
-    | NotInHole(happy_common);*/
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
   | InHole(error_common)
   | NotInHole(happy_common);
