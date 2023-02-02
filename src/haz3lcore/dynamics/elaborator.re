@@ -180,14 +180,16 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | Float(n) => Some(FloatLit(n))
       | String(s) => Some(StringLit(s))
       | ListLit(es) =>
-        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        let ty = Statics.exp_typ(ctx, m, uexp) |> Typ.matched_list;
+        let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
+        let+ ty = Statics.fixed_exp_typ(ctx, m, uexp);
+        let ty = Typ.matched_list(ty);
         //TODO: why is there an err status on below?
         DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
-        let+ d1 = dhexp_of_uexp(m, body);
-        DHExp.Fun(dp, Statics.pat_typ(ctx, m, p), d1, None);
+        let* d1 = dhexp_of_uexp(m, body);
+        let+ ty = Statics.fixed_pat_typ(ctx, m, p);
+        DHExp.Fun(dp, ty, d1, None);
       | Tuple(es) =>
         let+ ds =
           List.fold_right(
@@ -235,8 +237,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         );
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
-        let+ dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.pat_self_typ(ctx, m, p);
+        let* dbody = dhexp_of_uexp(m, body);
+        let+ ty = Statics.pat_self_typ(ctx, m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
@@ -337,7 +339,8 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      let ty = Statics.pat_typ(ctx, m, upat) |> Typ.matched_list;
+      let* ty = Statics.fixed_pat_typ(ctx, m, upat);
+      let ty = Typ.matched_list(ty);
       wrap(ListLit(ty, ds));
     | Tag(name) => wrap(Tag(name))
     | Cons(hd, tl) =>

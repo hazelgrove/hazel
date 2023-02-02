@@ -1,4 +1,5 @@
 open Util;
+open OptUtil.Syntax;
 
 /* STATICS
 
@@ -14,7 +15,6 @@ open Util;
      depends on static information.
    */
 
-/* The InfoMap collating all info for a composite term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = Id.Map.t(Info.t);
 
@@ -24,34 +24,21 @@ let typ_id = Term.UTyp.rep_id;
 let utpat_id = Term.UTPat.rep_id;
 
 /* The type of an expression after hole wrapping */
-let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
-  switch (Id.Map.find_opt(exp_id(e), m)) {
-  | Some(InfoExp({mode, self, _})) => Info.typ_after_fix(ctx, mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
-  | None => failwith(__LOC__ ++ ": XXX")
-  };
-
-let exp_self_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
-  switch (Id.Map.find_opt(exp_id(e), m)) {
-  | Some(InfoExp({self, _})) => Info.typ_of_self(ctx, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
-  | None => failwith(__LOC__ ++ ": XXX")
-  };
+let fixed_exp_typ = (ctx, m: map, e: Term.UExp.t): option(Typ.t) => {
+  let* info = Id.Map.find_opt(exp_id(e), m);
+  Info.typ_after_fix_opt(ctx, info);
+};
 
 /* The type of a pattern after hole wrapping */
-let pat_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
-  switch (Id.Map.find_opt(pat_id(p), m)) {
-  | Some(InfoPat({mode, self, _})) => Info.typ_after_fix(ctx, mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
-  | None => failwith(__LOC__ ++ ": XXX")
-  };
+let fixed_pat_typ = (ctx, m: map, e: Term.UPat.t): option(Typ.t) => {
+  let* info = Id.Map.find_opt(pat_id(e), m);
+  Info.typ_after_fix_opt(ctx, info);
+};
 
-let pat_self_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
-  switch (Id.Map.find_opt(pat_id(p), m)) {
-  | Some(InfoPat({self, _})) => Info.typ_of_self(ctx, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
-  | None => failwith(__LOC__ ++ ": XXX")
-  };
+let pat_self_typ = (ctx, m: map, p: Term.UPat.t): option(Typ.t) => {
+  let* info = Id.Map.find_opt(pat_id(p), m);
+  Info.typ_of_self_opt(ctx, info);
+};
 
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
 
@@ -153,12 +140,12 @@ and uexp_to_info_map =
     let e_ids = List.map(exp_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
-    let self: Typ.self =
+    let self: Info.self =
       switch (Typ.join_all(ctx, tys)) {
       | None =>
         Joined(
           ty => List(ty),
-          List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
+          List.map2((id, ty) => Info.{id, ty}, e_ids, tys),
         )
       | Some(ty) => Just(List(ty))
       };
@@ -175,7 +162,7 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    let self: Typ.self =
+    let self: Info.self =
       switch (Ctx.lookup_var(ctx, name)) {
       | None => Self(Free)
       | Some(var) => Just(var.typ)
@@ -201,7 +188,7 @@ and uexp_to_info_map =
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
-    let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
+    let self = Info.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
   | Test(test) =>
@@ -228,7 +215,7 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | Tag(name) => atomic(Typ.tag_self(ctx, mode, name))
+  | Tag(name) => atomic(Info.tag_self(ctx, mode, name))
   | Ap(fn, arg) =>
     let fn_mode =
       switch (fn) {
@@ -311,7 +298,7 @@ and uexp_to_info_map =
       );
     let branch_sources =
       List.map2(
-        (e: Term.UExp.t, (ty, _, _)) => Typ.{id: exp_id(e), ty},
+        (e: Term.UExp.t, (ty, _, _)) => Info.{id: exp_id(e), ty},
         branches,
         branch_infos,
       );
@@ -324,7 +311,7 @@ and uexp_to_info_map =
         branch_infos,
         pat_infos,
       );
-    let self = Typ.Joined(Fun.id, branch_sources);
+    let self = Info.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
   };
@@ -376,12 +363,12 @@ and upat_to_info_map =
         modes,
       );
     let tys = List.map(((ty, _, _)) => ty, infos);
-    let self: Typ.self =
+    let self: Info.self =
       switch (Typ.join_all(ctx, tys)) {
       | None =>
         Joined(
           ty => List(ty),
-          List.map2((id, ty) => Typ.{id, ty}, p_ids, tys),
+          List.map2((id, ty) => Info.{id, ty}, p_ids, tys),
         )
       | Some(ty) => Just(List(ty))
       };
@@ -412,13 +399,13 @@ and upat_to_info_map =
         ps,
         modes,
       );
-    let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
+    let self = Info.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~ctx, m);
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
-  | Tag(name) => atomic(Typ.tag_self(ctx, mode, name))
+  | Tag(name) => atomic(Info.tag_self(ctx, mode, name))
   | Ap(fn, arg) =>
     /* Constructors */
     let fn_mode =
@@ -536,16 +523,12 @@ let mk_map =
       map;
     },
   );
-
-let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
-  open OptUtil.Syntax;
-  let* opt = Id.Map.find_opt(id, statics_map);
+let get_binding_site = (info: Info.t): option(Id.t) => {
   let* info_exp =
-    switch (opt) {
+    switch (info) {
     | InfoExp(info_exp) => Some(info_exp)
     | _ => None
     };
-
   let+ entry =
     switch (info_exp.term.term) {
     | TermBase.UExp.Var(name) => Ctx.lookup_var(info_exp.ctx, name)
