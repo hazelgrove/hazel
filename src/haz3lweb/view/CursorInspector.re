@@ -101,40 +101,37 @@ let info_common_view = (mode, self, ctx) => {
   };
 };
 
-let info_typ_view = ({ctx, mode, self, term, ty, _}: Info.info_typ) =>
-  switch (Info.status_typ(mode, self, term)) {
-  | NotInHole(Variant(Some(tag), sum_ty)) =>
+let info_typ_view = ({ctx, mode, term, ty, _}: Info.info_typ) =>
+  switch (Info.status_typ(ctx, mode, term)) {
+  | NotInHole(Variant(name, sum_ty)) =>
     div_ok([
-      Type.view(Var(tag)),
+      Type.view(Var(name)),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
     ])
-  | NotInHole(Variant(None, sum_ty)) =>
+  | NotInHole(VariantIncomplete(sum_ty)) =>
     div_ok([
       text("An incomplete sum type constuctor of type"),
       Type.view(sum_ty),
     ])
   | NotInHole(Type) =>
-    switch (term.term) {
-    | Var(name) =>
-      div_ok([
-        Type.view(Var(name)),
-        text("is a type alias for"),
-        ty |> Typ.normalize_shallow(ctx) |> Type.view,
-      ])
-    | _ =>
-      div_ok([
-        ty |> Typ.normalize_shallow(ctx) |> Type.view,
-        text("is a type"),
-      ])
-    }
+    div_ok([
+      ty |> Typ.normalize_shallow(ctx) |> Type.view,
+      text("is a type"),
+    ])
+  | NotInHole(TypeAlias(name)) =>
+    div_ok([
+      Type.view(Var(name)),
+      text("is a type alias for"),
+      ty |> Typ.normalize_shallow(ctx) |> Type.view,
+    ])
   | InHole(FreeTypeVar) =>
     div_err([text("Type variable"), Type.view(ty), text("is not bound")])
-  | InHole(TagExpected(Ap(_))) =>
+  | InHole(WantTagFoundAp) =>
     div_err([text("Expected a constructor, found application ")])
-  | InHole(TagExpected(Type | _)) =>
+  | InHole(WantTagFoundType) =>
     div_err([text("Expected a constructor, found type "), Type.view(ty)])
-  | InHole(ApOutsideSum) =>
+  | InHole(WantTypeFoundAp) =>
     div_err([text("Constructor application must be in sum")])
   | InHole(DuplicateTag) =>
     div_err([

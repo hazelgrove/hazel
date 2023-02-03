@@ -62,13 +62,6 @@ type typ_mode =
   | TagExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type self_typ =
-  | EmptyHole /* Can be either type or variant */
-  | Type
-  | TagOrVar(option(Typ.t)) /* Some if it's an in-scope alias */
-  | Ap(Typ.t);
-
 /* A type can be either valid, a free type variable,
    or a duplicate tag. The additional errors statuses
    are fundamentally syntactic and should eventually
@@ -77,12 +70,15 @@ type self_typ =
 type error_typ =
   | FreeTypeVar
   | DuplicateTag
-  | ApOutsideSum
-  | TagExpected(self_typ);
+  | WantTypeFoundAp
+  | WantTagFoundType
+  | WantTagFoundAp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type happy_typ =
-  | Variant(option(Token.t), Typ.t)
+  | Variant(Token.t, Typ.t)
+  | VariantIncomplete(Typ.t)
+  | TypeAlias(Token.t)
   | Type;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -96,7 +92,6 @@ type info_typ = {
   term: Term.UTyp.t,
   mode: typ_mode,
   ctx: Ctx.t,
-  self: self_typ,
   ty: Typ.t,
 };
 
@@ -224,43 +219,39 @@ let rec status_common =
    such as whether or not a type variable reference is
    free, and whether a tag name is a dupe. */
 let status_typ =
-    (mode: typ_mode, self: self_typ, term: TermBase.UTyp.t): status_typ =>
-  switch (self) {
+    (ctx: Ctx.t, mode: typ_mode, term: TermBase.UTyp.t): status_typ =>
+  switch (term.term) {
   | EmptyHole => NotInHole(Type)
-  | Type =>
-    switch (mode) {
-    | TypeExpected => NotInHole(Type)
-    | TagExpected(_)
-    | VariantExpected(_) => InHole(TagExpected(self))
-    }
-  | TagOrVar(ty) =>
+  | Var(name)
+  | Tag(name) =>
     switch (mode) {
     | VariantExpected(Unique, sum_ty)
-    | TagExpected(Unique, sum_ty) =>
-      switch (term.term) {
-      | Var(tag)
-      | Tag(tag) => NotInHole(Variant(Some(tag), sum_ty))
-      | _ => NotInHole(Variant(None, sum_ty))
-      }
+    | TagExpected(Unique, sum_ty) => NotInHole(Variant(name, sum_ty))
     | VariantExpected(Duplicate, _)
     | TagExpected(Duplicate, _) => InHole(DuplicateTag)
     | TypeExpected =>
-      switch (ty) {
-      | None => InHole(FreeTypeVar)
-      | Some(_ty) => NotInHole(Type)
+      switch (Ctx.is_alias(ctx, name)) {
+      | false => InHole(FreeTypeVar)
+      | true => NotInHole(TypeAlias(name))
       }
     }
-  | Ap(ty_in) =>
+  | Ap(t1, t2) =>
+    let ty_in = Term.UTyp.to_typ(ctx, t2);
     switch (mode) {
     | VariantExpected(status_variant, ty) =>
-      switch (status_variant, term.term) {
-      | (Unique, Ap({term: Var(name), _}, _)) =>
-        NotInHole(Variant(Some(name), Arrow(ty_in, ty)))
-      | _ => NotInHole(Variant(None, Arrow(ty_in, ty)))
+      switch (status_variant, t1.term) {
+      | (Unique, Var(name) | Tag(name)) =>
+        NotInHole(Variant(name, Arrow(ty_in, ty)))
+      | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty)))
       }
-
-    | TagExpected(_) => InHole(TagExpected(self))
-    | TypeExpected => InHole(ApOutsideSum)
+    | TagExpected(_) => InHole(WantTagFoundAp)
+    | TypeExpected => InHole(WantTypeFoundAp)
+    };
+  | _ =>
+    switch (mode) {
+    | TypeExpected => NotInHole(Type)
+    | TagExpected(_)
+    | VariantExpected(_) => InHole(WantTagFoundType)
     }
   };
 
@@ -283,8 +274,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({mode, self, term, _}) =>
-    switch (status_typ(mode, self, term)) {
+  | InfoTyp({mode, ctx, term, _}) =>
+    switch (status_typ(ctx, mode, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
