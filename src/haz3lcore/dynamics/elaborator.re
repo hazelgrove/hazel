@@ -290,7 +290,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(Invalid({token, _})) => Some(DHExp.InvalidText(-1, 0, token))
   | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
   | None => None
   };
@@ -359,7 +358,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(Invalid({token, _})) => Some(DHPat.InvalidText(-1, 0, token))
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
   | None => None
   };

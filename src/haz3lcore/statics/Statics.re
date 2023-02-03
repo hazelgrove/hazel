@@ -119,11 +119,7 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(token) => (
-      Unknown(Internal),
-      [],
-      add_info(ids, Invalid({sort: Exp, token, ctx}), Id.Map.empty),
-    )
+  | Invalid(token) => atomic(BadToken(token))
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=SelfMultiHole, ~free=Ctx.union(free), union_m(maps));
@@ -334,11 +330,7 @@ and upat_to_info_map =
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
-  | Invalid(token) => (
-      Unknown(Internal),
-      ctx,
-      add_info(ids, Invalid({sort: Pat, token, ctx}), Id.Map.empty),
-    )
+  | Invalid(token) => atomic(BadToken(token))
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=SelfMultiHole, ~ctx, union_m(maps));
@@ -433,10 +425,7 @@ and utyp_to_info_map =
   let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
-  | Invalid(token) => (
-      Unknown(Internal),
-      add_info(ids, Invalid({sort: Typ, token, ctx}), Id.Map.empty),
-    )
+  | Invalid(_)
   | EmptyHole => add(Id.Map.empty)
   | Int
   | Float
@@ -499,11 +488,10 @@ and utyp_to_info_map =
 and utpat_to_info_map = (~ctx, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
   switch (term) {
-  | Invalid(token) =>
-    add_info(ids, Invalid({sort: TPat, token, ctx}), Id.Map.empty)
   | MultiHole(tms) =>
     let ms = tms |> List.map(any_to_info_map(~ctx)) |> List.split |> snd;
     add_info(ids, InfoTPat({cls, ctx, term: utpat}), union_m(ms));
+  | Invalid(_)
   | EmptyHole
   | Var(_) => add_info(ids, InfoTPat({cls, ctx, term: utpat}), Id.Map.empty)
   };

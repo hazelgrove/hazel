@@ -5,13 +5,12 @@ open Util;
 open Haz3lcore;
 
 let errc = "error";
-let okc = "happy";
+let okc = "ok";
 let div_err = div(~attr=clss([errc]));
 let div_ok = div(~attr=clss([okc]));
 
 let cls_str = (ci: Info.t): string =>
   switch (ci) {
-  | Invalid(_) => "Ill-sorted Token"
   | InfoExp({cls, _}) => Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Term.UTyp.show_cls(cls)
@@ -49,6 +48,9 @@ let term_tag =
 let common_err_view = (err: Info.error_common) =>
   switch (err) {
   | FreeVar => [text("Variable is not bound")]
+  | BadToken(token) => [
+      text(Printf.sprintf("\"%s\" isn't a valid token", token)),
+    ]
   | NoFun(typ) => [
       Type.view(typ),
       text("is not consistent with arrow type"),
@@ -66,7 +68,7 @@ let common_err_view = (err: Info.error_common) =>
     ]
   };
 
-let common_ok_view = (ok: Info.happy_common) => {
+let common_ok_view = (ok: Info.ok_common) => {
   switch (ok) {
   | SynConsistent(ty_syn) => [text("has type"), Type.view(ty_syn)]
   | AnaConsistent({ana, syn, _}) when ana == syn => [
@@ -97,48 +99,56 @@ let info_common_view = (mode, self, ctx) => {
   let status_common = Info.status_common(ctx, mode, self);
   switch (status_common) {
   | InHole(error) => div_err(common_err_view(error))
-  | NotInHole(happy) => div_ok(common_ok_view(happy))
+  | NotInHole(ok) => div_ok(common_ok_view(ok))
   };
 };
 
-let info_typ_view = ({ctx, mode, term, ty, _}: Info.info_typ) =>
-  switch (Info.status_typ(ctx, mode, term)) {
-  | NotInHole(Variant(name, sum_ty)) =>
-    div_ok([
+let typ_ok_view = (ok: Info.ok_typ, ctx: Ctx.t, ty: Typ.t) =>
+  switch (ok) {
+  | Variant(name, sum_ty) => [
       Type.view(Var(name)),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
-    ])
-  | NotInHole(VariantIncomplete(sum_ty)) =>
-    div_ok([
+    ]
+  | VariantIncomplete(sum_ty) => [
       text("An incomplete sum type constuctor of type"),
       Type.view(sum_ty),
-    ])
-  | NotInHole(Type) =>
-    div_ok([
-      ty |> Typ.normalize_shallow(ctx) |> Type.view,
-      text("is a type"),
-    ])
-  | NotInHole(TypeAlias(name)) =>
-    div_ok([
+    ]
+  | Type => [Type.view(ty), text("is a type")]
+  | TypeAlias(name) => [
       Type.view(Var(name)),
       text("is a type alias for"),
-      ty |> Typ.normalize_shallow(ctx) |> Type.view,
-    ])
-  | InHole(FreeTypeVar) =>
-    div_err([text("Type variable"), Type.view(ty), text("is not bound")])
-  | InHole(WantTagFoundAp) =>
-    div_err([text("Expected a constructor, found application ")])
-  | InHole(WantTagFoundType) =>
-    div_err([text("Expected a constructor, found type "), Type.view(ty)])
-  | InHole(WantTypeFoundAp) =>
-    div_err([text("Constructor application must be in sum")])
-  | InHole(DuplicateTag) =>
-    div_err([
+      Type.view(Typ.normalize_shallow(ctx, ty)),
+    ]
+  };
+
+let typ_err_view = (ok: Info.error_typ, ty: Typ.t) =>
+  switch (ok) {
+  | FreeTypeVar => [
+      text("Type variable"),
+      Type.view(ty),
+      text("is not bound"),
+    ]
+  | BadToken(token) => [
+      text(Printf.sprintf("\"%s\" isn't a valid type token", token)),
+    ]
+  | WantTagFoundAp => [text("Expected a constructor, found application ")]
+  | WantTagFoundType => [
+      text("Expected a constructor, found type "),
+      Type.view(ty),
+    ]
+  | WantTypeFoundAp => [text("Constructor application must be in sum")]
+  | DuplicateTag => [
       text("Constructor"),
       Type.view(ty),
       text("already used in this sum"),
-    ])
+    ]
+  };
+
+let info_typ_view = ({ctx, mode, term, ty, _}: Info.info_typ) =>
+  switch (Info.status_typ(ctx, mode, term)) {
+  | NotInHole(ok) => div_ok(typ_ok_view(ok, ctx, ty))
+  | InHole(err) => div_err(typ_err_view(err, ty))
   };
 
 let info_tpat_view = ({term, _}: Info.info_tpat) =>
@@ -149,35 +159,14 @@ let info_tpat_view = ({term, _}: Info.info_tpat) =>
   | InHole(NotAVar) => div_err([text("Not a valid type name")])
   };
 
-let invalid_view = ({sort, token, _}: Info.info_invalid) => {
-  let invalid = (token, sort) =>
-    Printf.sprintf(
-      "\"%s\" isn't a valid %s token",
-      token,
-      Sort.to_string_verbose(sort),
-    );
-  switch (sort) {
-  | Exp
-  | Pat => [
-      text(invalid(token, sort) ++ ". It has type"),
-      Type.view(Unknown(Internal)),
-    ]
-  | Typ => [
-      text(invalid(token, sort) ++ ". It is treated as type"),
-      Type.view(Unknown(Internal)),
-    ]
-  | _ => [text(invalid(token, sort))]
-  };
-};
-
 let view_of_info =
     (~inject, ~settings, ~show_lang_doc: bool, ci: Info.t): Node.t => {
   let is_err = Info.is_error(ci);
-  let wrapper = (str, status_view) =>
+  let wrapper = (sort, status_view) =>
     div(
-      ~attr=clss(["info", str]),
+      ~attr=clss(["info", sort]),
       [
-        term_tag(~inject, ~settings, ~show_lang_doc, is_err, str),
+        term_tag(~inject, ~settings, ~show_lang_doc, is_err, sort),
         status_view,
       ],
     );
@@ -187,7 +176,6 @@ let view_of_info =
     wrapper("pat", info_common_view(mode, self, ctx))
   | InfoTyp(info) => wrapper("typ", info_typ_view(info))
   | InfoTPat(info) => wrapper("tpat", info_tpat_view(info))
-  | Invalid(info) => wrapper("lex", div_err(invalid_view(info)))
   };
 };
 
