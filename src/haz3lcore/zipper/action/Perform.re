@@ -118,23 +118,20 @@ let go =
     let Editor.State.{zipper, meta, tylr} = ed.state;
     Effect.s_clear();
     let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
-    print_endline("performing tylr action");
     let tylr =
       switch (Action.to_tylr(a)) {
       | None => tylr
       | Some(a) =>
+        print_endline("Perform.go a = " ++ Tylr.Zipper.Action.show(a));
+        print_endline("Perform.go z = " ++ Tylr.Zipper.show(tylr));
         switch (Tylr.Zipper.perform(a, tylr)) {
         | None =>
-          print_endline(
-            "tylr action failed: " ++ Tylr.Zipper.Action.show(a),
-          );
+          print_endline("Perform.go failed");
           tylr;
         | Some(t) =>
-          print_endline("tylr action succeeded");
-          print_endline("a = " ++ Tylr.Zipper.Action.show(a));
-          print_endline("z = " ++ Tylr.Zipper.show(t));
+          print_endline("Perform.go succeeded z = " ++ Tylr.Zipper.show(t));
           t;
-        }
+        };
       };
     let ed = Editor.new_state(~effects=Effect.s^, ~tylr, a, z, ed);
     (ed, id_gen);
