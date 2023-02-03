@@ -30,3 +30,13 @@ let to_string =
   | Typ => "Typ"
   | Rul => "Rul"
   | Exp => "Exp";
+
+let to_string_verbose =
+  fun
+  | Any => "any"
+  | Nul => "null"
+  | Pat => "pattern"
+  | TPat => "type pattern"
+  | Typ => "type"
+  | Rul => "rule"
+  | Exp => "expression";

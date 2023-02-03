@@ -59,15 +59,15 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_mode =
   | TypeExpected
-  | TagExpected(status_variant)
-  | VariantExpected(status_variant);
+  | TagExpected(status_variant, Typ.t)
+  | VariantExpected(status_variant, Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_typ =
   | EmptyHole /* Can be either type or variant */
-  | Type(Typ.t)
+  | Type
   | TagOrVar(option(Typ.t)) /* Some if it's an in-scope alias */
-  | Ap;
+  | Ap(Typ.t);
 
 /* A type can be either valid, a free type variable,
    or a duplicate tag. The additional errors statuses
@@ -78,12 +78,12 @@ type error_typ =
   | FreeTypeVar
   | DuplicateTag
   | ApOutsideSum
-  | TagExpected;
+  | TagExpected(self_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type happy_typ =
-  | Variant
-  | Type(Typ.t);
+  | Variant(option(Token.t), Typ.t)
+  | Type;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
@@ -106,6 +106,7 @@ type error_tpat =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type happy_tpat =
+  | Empty
   | Var(Token.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -120,10 +121,17 @@ type info_tpat = {
   ctx: Ctx.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type info_invalid = {
+  token: string,
+  ctx: Ctx.t,
+  sort: Sort.t,
+};
+
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Invalid(TermBase.parse_flag)
+  | Invalid(info_invalid)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
@@ -159,6 +167,14 @@ type happy_common =
 type status_common =
   | InHole(error_common)
   | NotInHole(happy_common);
+
+let ctx_of: t => Ctx.t =
+  fun
+  | Invalid({ctx, _}) => ctx
+  | InfoExp({ctx, _}) => ctx
+  | InfoPat({ctx, _}) => ctx
+  | InfoTyp({ctx, _}) => ctx
+  | InfoTPat({ctx, _}) => ctx;
 
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
@@ -207,45 +223,59 @@ let rec status_common =
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a tag name is a dupe. */
-let status_typ = (mode: typ_mode, self: self_typ): status_typ =>
+let status_typ =
+    (mode: typ_mode, self: self_typ, term: TermBase.UTyp.t): status_typ =>
   switch (self) {
-  | EmptyHole => NotInHole(Type(Unknown(Internal)))
-  | Type(ty) =>
+  | EmptyHole => NotInHole(Type)
+  | Type =>
     switch (mode) {
-    | TypeExpected => NotInHole(Type(ty))
+    | TypeExpected => NotInHole(Type)
     | TagExpected(_)
-    | VariantExpected(_) => InHole(TagExpected)
+    | VariantExpected(_) => InHole(TagExpected(self))
     }
   | TagOrVar(ty) =>
     switch (mode) {
-    | VariantExpected(Unique)
-    | TagExpected(Unique) => NotInHole(Variant)
-    | VariantExpected(Duplicate)
-    | TagExpected(Duplicate) => InHole(DuplicateTag)
+    | VariantExpected(Unique, sum_ty)
+    | TagExpected(Unique, sum_ty) =>
+      switch (term.term) {
+      | Var(tag)
+      | Tag(tag) => NotInHole(Variant(Some(tag), sum_ty))
+      | _ => NotInHole(Variant(None, sum_ty))
+      }
+    | VariantExpected(Duplicate, _)
+    | TagExpected(Duplicate, _) => InHole(DuplicateTag)
     | TypeExpected =>
       switch (ty) {
       | None => InHole(FreeTypeVar)
-      | Some(ty) => NotInHole(Type(ty))
+      | Some(_ty) => NotInHole(Type)
       }
     }
-  | Ap =>
+  | Ap(ty_in) =>
     switch (mode) {
-    | VariantExpected(_) => NotInHole(Variant)
-    | TagExpected(_) => InHole(TagExpected)
+    | VariantExpected(status_variant, ty) =>
+      switch (status_variant, term.term) {
+      | (Unique, Ap({term: Var(name), _}, _)) =>
+        NotInHole(Variant(Some(name), Arrow(ty_in, ty)))
+      | _ => NotInHole(Variant(None, Arrow(ty_in, ty)))
+      }
+
+    | TagExpected(_) => InHole(TagExpected(self))
     | TypeExpected => InHole(ApOutsideSum)
     }
   };
 
 let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
   switch (utpat.term) {
+  | EmptyHole => NotInHole(Empty)
   | Var(name) => NotInHole(Var(name))
-  | _ => InHole(NotAVar)
+  | Invalid(_)
+  | MultiHole(_) => InHole(NotAVar)
   };
 
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | Invalid(Secondary) => false
+  //| Invalid(Secondary) => false //TODO(andrew): cleanup
   | Invalid(_) => true
   | InfoExp({mode, self, ctx, _})
   | InfoPat({mode, self, ctx, _}) =>
@@ -253,8 +283,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({mode, self, _}) =>
-    switch (status_typ(mode, self)) {
+  | InfoTyp({mode, self, term, _}) =>
+    switch (status_typ(mode, self, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }

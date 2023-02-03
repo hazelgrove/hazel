@@ -47,19 +47,11 @@ let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
     ),
   );
 
-let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t) => {
-  switch (ci) {
-  | InfoExp({ctx, _})
-  | InfoPat({ctx, _})
-  | InfoTyp({ctx, _})
-  | InfoTPat({ctx, _}) =>
-    List.map(
-      context_entry_view(~inject),
-      ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
-    )
-  | Invalid(_) => []
-  };
-};
+let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t) =>
+  Haz3lcore.Info.ctx_of(ci)
+  |> Haz3lcore.Ctx.filter_duplicates
+  |> List.rev
+  |> List.map(context_entry_view(~inject));
 
 let inspector_view =
     (~inject, ~settings: Model.settings, _id: int, ci: Haz3lcore.Info.t)

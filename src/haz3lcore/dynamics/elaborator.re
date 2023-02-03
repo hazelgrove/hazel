@@ -151,7 +151,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
       switch (uexp.term) {
-      | Invalid(_) /* NOTE: treating invalid as a hole for now */
+      | Invalid(t) => Some(DHExp.InvalidText(id, 0, t))
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
       | MultiHole(_tms) =>
         /* TODO: add a dhexp case and eval logic for multiholes.
@@ -290,7 +290,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_) | InfoTPat(_))
+  | Some(Invalid({token, _})) => Some(DHExp.InvalidText(-1, 0, token))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
   | None => None
   };
 }
@@ -310,7 +311,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
       };
     switch (upat.term) {
-    | Invalid(_) /* NOTE: treating invalid as a hole for now */
+    | Invalid(t) => Some(DHPat.InvalidText(u, 0, t))
     | EmptyHole => Some(EmptyHole(u, 0))
     | MultiHole(_) =>
       // TODO: dhexp, eval for multiholes
@@ -358,7 +359,8 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
+  | Some(Invalid({token, _})) => Some(DHPat.InvalidText(-1, 0, token))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
   | None => None
   };
 };
