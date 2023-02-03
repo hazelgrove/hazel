@@ -59,6 +59,11 @@ let matched_list_mode: mode => mode =
 
 let ap_mode: mode = SynFun;
 
+let is_rec: t => bool =
+  fun
+  | Rec(_, _) => true
+  | _ => false;
+
 /* Legacy precedence code from HTyp */
 let precedence_Prod = 1;
 let precedence_Arrow = 2;

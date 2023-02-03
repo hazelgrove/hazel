@@ -253,21 +253,48 @@ and uexp_to_info_map =
     );
   | TyAlias(typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
-    let ty = Term.UTyp.to_typ(ctx, utyp);
     switch (typat.term) {
     | Var(name) =>
-      let ty_rec =
-        List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-      let ctx = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
-      let ctx =
+      let is_rec =
+        switch (utyp.term) {
+        | USum(_) =>
+          //TODO(andrew): explain why i'm adding abstract below
+          List.mem(
+            name,
+            Typ.free_vars(
+              Term.UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp),
+            ),
+          )
+        | _ => false
+        };
+      /*print_endline("is_rec");
+        print_endline(string_of_bool(is_rec));
+        print_endline(Typ.show(Term.UTyp.to_typ(ctx, utyp)));
+        print_endline(
+          string_of_bool(
+            List.mem(name, Typ.free_vars(Term.UTyp.to_typ(ctx, utyp))),
+          ),
+        );*/
+      let ty_rec = {
+        let ty =
+          Term.UTyp.to_typ(
+            is_rec ? Ctx.add_abstract(ctx, name, -1) : ctx,
+            utyp,
+          );
+        is_rec ? Typ.Rec(name, ty) : ty;
+      };
+      let ctx_def =
+        is_rec ? Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec) : ctx;
+      let ctx_body =
         switch (ty_rec) {
         | Sum(sm)
-        | Rec(_, Sum(sm)) => Ctx.add_tags(ctx, name, typ_id(utyp), sm)
-        | _ => ctx
+        | Rec(_, Sum(sm)) => Ctx.add_tags(ctx_def, name, typ_id(utyp), sm)
+        | _ => ctx_def
         };
-      let (ty_body, free, m_body) = uexp_to_info_map(~ctx, ~mode, body);
+      let (ty_body, free, m_body) =
+        uexp_to_info_map(~ctx=ctx_body, ~mode, body);
       let ty_escape = Typ.subst(ty_rec, name, ty_body);
-      let m_typ = utyp_to_info_map(~ctx, utyp) |> snd;
+      let m_typ = utyp_to_info_map(~ctx=ctx_def, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
     | _ =>
       let (ty_body, free, m_body) = uexp_to_info_map(~ctx, ~mode, body);
