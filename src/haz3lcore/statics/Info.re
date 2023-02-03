@@ -21,6 +21,7 @@ type source = {
 type self =
   | Just(Typ.t)
   | FreeVar //TODO: exp only
+  | BadToken(Token.t)
   | SelfTag(Token.t, option(Typ.t))
   | SelfMultiHole
   | NoJoin(list(source));
@@ -68,6 +69,7 @@ type typ_mode =
    be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
+  | BadToken(Token.t)
   | FreeTypeVar
   | DuplicateTag
   | WantTypeFoundAp
@@ -75,7 +77,7 @@ type error_typ =
   | WantTagFoundAp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type happy_typ =
+type ok_typ =
   | Variant(Token.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(Token.t)
@@ -84,7 +86,7 @@ type happy_typ =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
   | InHole(error_typ)
-  | NotInHole(happy_typ);
+  | NotInHole(ok_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
@@ -100,13 +102,13 @@ type error_tpat =
   | NotAVar;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type happy_tpat =
+type ok_tpat =
   | Empty
   | Var(Token.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
-  | NotInHole(happy_tpat)
+  | NotInHole(ok_tpat)
   | InHole(error_tpat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -116,17 +118,9 @@ type info_tpat = {
   ctx: Ctx.t,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info_invalid = {
-  token: string,
-  ctx: Ctx.t,
-  sort: Sort.t,
-};
-
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Invalid(info_invalid)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
@@ -135,6 +129,7 @@ type t =
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
+  | BadToken(Token.t)
   | NoFun(Typ.t)
   | FreeVar
   | FreeTag
@@ -146,7 +141,7 @@ type error_common =
 
 /* Statics non-error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type happy_common =
+type ok_common =
   | SynConsistent(Typ.t)
   | AnaConsistent({
       ana: Typ.t,
@@ -161,11 +156,10 @@ type happy_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
   | InHole(error_common)
-  | NotInHole(happy_common);
+  | NotInHole(ok_common);
 
 let ctx_of: t => Ctx.t =
   fun
-  | Invalid({ctx, _}) => ctx
   | InfoExp({ctx, _}) => ctx
   | InfoPat({ctx, _}) => ctx
   | InfoTyp({ctx, _}) => ctx
@@ -181,6 +175,7 @@ let source_tys = List.map((source: source) => source.ty);
 let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self): status_common =>
   switch (self, mode) {
+  | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
   | (SelfMultiHole, Syn | SynFun | Ana(_)) =>
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
@@ -221,6 +216,7 @@ let rec status_common =
 let status_typ =
     (ctx: Ctx.t, mode: typ_mode, term: TermBase.UTyp.t): status_typ =>
   switch (term.term) {
+  | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type)
   | Var(name)
   | Tag(name) =>
@@ -266,8 +262,6 @@ let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  //| Invalid(Secondary) => false //TODO(andrew): cleanup
-  | Invalid(_) => true
   | InfoExp({mode, self, ctx, _})
   | InfoPat({mode, self, ctx, _}) =>
     switch (status_common(ctx, mode, self)) {
@@ -303,8 +297,7 @@ let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
   | InfoExp({mode, self, _})
   | InfoPat({mode, self, _}) => Some(typ_after_fix(ctx, mode, self))
   | InfoTyp(_)
-  | InfoTPat(_)
-  | Invalid(_) => None
+  | InfoTPat(_) => None
   };
 
 let syn_tag_typ = (ctx: Ctx.t, tag: Token.t): option(Typ.t) =>
@@ -319,6 +312,7 @@ let typ_of_self: (Ctx.t, self) => option(Typ.t) =
     | Just(typ) => Some(typ)
     | SelfTag(tag, _) => syn_tag_typ(ctx, tag)
     | FreeVar
+    | BadToken(_)
     | SelfMultiHole
     | NoJoin(_) => None;
 
@@ -327,8 +321,7 @@ let typ_of_self_info = (ctx: Ctx.t, info: t): option(Typ.t) =>
   | InfoExp({self, _})
   | InfoPat({self, _}) => typ_of_self(ctx, self)
   | InfoTyp(_)
-  | InfoTPat(_)
-  | Invalid(_) => None
+  | InfoTPat(_) => None
   };
 
 let get_binding_site = (info: t): option(Id.t) => {

@@ -1061,7 +1061,7 @@ svg.tile-selected {
   color: #8c795b;
 }
 
-.cursor-inspector .info .happy,
+.cursor-inspector .info .ok,
 .cursor-inspector .info .error {
   display: flex;
   align-items: center;

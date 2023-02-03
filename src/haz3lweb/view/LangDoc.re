@@ -2767,8 +2767,7 @@ let get_doc =
         [],
       );
     }
-  | None
-  | Some(Invalid(_)) => default
+  | None => default
   };
 };
 
