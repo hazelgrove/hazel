@@ -70,10 +70,10 @@ type typ_mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | BadToken(Token.t)
-  | FreeTypeVar
-  | DuplicateTag
+  | FreeTypeVar(Token.t)
+  | DuplicateTag(Token.t)
   | WantTypeFoundAp
-  | WantTagFoundType
+  | WantTagFoundType(Typ.t)
   | WantTagFoundAp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -224,31 +224,32 @@ let status_typ =
     | VariantExpected(Unique, sum_ty)
     | TagExpected(Unique, sum_ty) => NotInHole(Variant(name, sum_ty))
     | VariantExpected(Duplicate, _)
-    | TagExpected(Duplicate, _) => InHole(DuplicateTag)
+    | TagExpected(Duplicate, _) => InHole(DuplicateTag(name))
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
-      | false => InHole(FreeTypeVar)
+      | false => InHole(FreeTypeVar(name))
       | true => NotInHole(TypeAlias(name))
       }
     }
   | Ap(t1, t2) =>
     let ty_in = Term.UTyp.to_typ(ctx, t2);
     switch (mode) {
-    | VariantExpected(status_variant, ty) =>
+    | VariantExpected(status_variant, ty_variant) =>
       switch (status_variant, t1.term) {
       | (Unique, Var(name) | Tag(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty)))
-      | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty)))
+        NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
+      | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       }
     | TagExpected(_) => InHole(WantTagFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
     };
   | _ =>
+    let ty = Term.UTyp.to_typ(ctx, term);
     switch (mode) {
     | TypeExpected => NotInHole(Type)
     | TagExpected(_)
-    | VariantExpected(_) => InHole(WantTagFoundType)
-    }
+    | VariantExpected(_) => InHole(WantTagFoundType(ty))
+    };
   };
 
 let status_tpat = (utpat: Term.UTPat.t): status_tpat =>

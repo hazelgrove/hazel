@@ -122,25 +122,25 @@ let typ_ok_view = (ok: Info.ok_typ, ctx: Ctx.t, ty: Typ.t) =>
     ]
   };
 
-let typ_err_view = (ok: Info.error_typ, ty: Typ.t) =>
+let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
-  | FreeTypeVar => [
+  | FreeTypeVar(name) => [
       text("Type variable"),
-      Type.view(ty),
+      Type.view(Var(name)),
       text("is not bound"),
     ]
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid type token", token)),
     ]
-  | WantTagFoundAp => [text("Expected a constructor, found application ")]
-  | WantTagFoundType => [
+  | WantTagFoundAp => [text("Expected a constructor, found application")]
+  | WantTagFoundType(ty) => [
       text("Expected a constructor, found type "),
       Type.view(ty),
     ]
   | WantTypeFoundAp => [text("Constructor application must be in sum")]
-  | DuplicateTag => [
+  | DuplicateTag(name) => [
       text("Constructor"),
-      Type.view(ty),
+      Type.view(Var(name)),
       text("already used in this sum"),
     ]
   };
@@ -148,7 +148,7 @@ let typ_err_view = (ok: Info.error_typ, ty: Typ.t) =>
 let info_typ_view = ({ctx, mode, term, ty, _}: Info.info_typ) =>
   switch (Info.status_typ(ctx, mode, term)) {
   | NotInHole(ok) => div_ok(typ_ok_view(ok, ctx, ty))
-  | InHole(err) => div_err(typ_err_view(err, ty))
+  | InHole(err) => div_err(typ_err_view(err))
   };
 
 let info_tpat_view = ({term, _}: Info.info_tpat) =>
