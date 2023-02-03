@@ -1,19 +1,5 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type parse_flag =
-  | Secondary // Not really an error
-  | MalformedGrout // Should never happen
-  | UnrecognizedTerm // Reminder to add term to MakeTerm
-  | IncompleteTile; // Remove in future
-
-let show_parse_flag: parse_flag => string =
-  fun
-  | Secondary => "Secondary"
-  | MalformedGrout => "Malformed Grout"
-  | UnrecognizedTerm => "Unrecognized Term"
-  | IncompleteTile => "Incomplete Tile";
-
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -132,7 +118,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
@@ -241,7 +227,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
@@ -274,7 +260,7 @@ and UExp: {
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Wild
@@ -298,7 +284,7 @@ and UPat: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Wild
@@ -323,6 +309,7 @@ and UPat: {
 and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Int
@@ -344,6 +331,7 @@ and UTyp: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Int
@@ -366,7 +354,7 @@ and UTyp: {
 and UTPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(Token.t)
@@ -377,7 +365,7 @@ and UTPat: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(Token.t)
@@ -389,7 +377,7 @@ and UTPat: {
 and URul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | Hole(list(Any.t))
     | Rules(UExp.t, list((UPat.t, UExp.t)))
   and t = {
@@ -399,7 +387,7 @@ and URul: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | Hole(list(Any.t))
     | Rules(UExp.t, list((UPat.t, UExp.t)))
   and t = {

@@ -179,7 +179,6 @@ and exp = unsorted => {
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
-  let _unrecog = UExp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -207,6 +206,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
+      | ([t], []) when t != " " => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -288,7 +288,6 @@ and pat = unsorted => {
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
-  let _unrecog = UPat.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -311,6 +310,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       | ([t], []) when Form.is_wild(t) => ret(Wild)
       | ([t], []) when Form.is_listnil(t) => ret(ListLit([]))
       | ([t], []) when Form.is_string(t) => ret(String(t))
+      | ([t], []) when t != " " => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -364,6 +364,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
+      | ([t], []) when t != " " => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -415,6 +416,7 @@ and tpat_term: unsorted => UTPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when t != " " => Invalid(t)
         | _ => hole(tm)
         },
       )

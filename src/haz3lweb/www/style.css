@@ -1066,6 +1066,7 @@ svg.tile-selected {
   display: flex;
   align-items: center;
   gap: 0.5em;
+  white-space: nowrap;
 }
 
 .cursor-inspector .info .error {

@@ -119,10 +119,10 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(msg) => (
+  | Invalid(token) => (
       Unknown(Internal),
       [],
-      add_info(ids, Invalid(msg), Id.Map.empty),
+      add_info(ids, Invalid({sort: Exp, token, ctx}), Id.Map.empty),
     )
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
@@ -334,10 +334,10 @@ and upat_to_info_map =
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
-  | Invalid(msg) => (
+  | Invalid(token) => (
       Unknown(Internal),
       ctx,
-      add_info(ids, Invalid(msg), Id.Map.empty),
+      add_info(ids, Invalid({sort: Pat, token, ctx}), Id.Map.empty),
     )
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
@@ -431,10 +431,14 @@ and utyp_to_info_map =
   let add = self =>
     add_info(ids, InfoTyp({cls, ctx, mode, self, ty, term: utyp}));
   let add = (~self, m: map): (Typ.t, map) => (ty, add(self, m));
-  let add_type = add(~self=Type(ty));
+  let add_type = add(~self=Type);
   let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
+  | Invalid(token) => (
+      Unknown(Internal),
+      add_info(ids, Invalid({sort: Typ, token, ctx}), Id.Map.empty),
+    )
   | EmptyHole => add(~self=EmptyHole, Id.Map.empty)
   | Int
   | Float
@@ -461,17 +465,18 @@ and utyp_to_info_map =
       m,
     );
   | Ap(t1, t2) =>
+    let ty_out = Term.UTyp.to_typ(ctx, t2);
     let t1_mode: Info.typ_mode =
       switch (mode) {
-      | VariantExpected(m) => TagExpected(m)
-      | _ => TagExpected(Unique)
+      | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_out, sum_ty))
+      | _ => TagExpected(Unique, Arrow(ty_out, Unknown(Internal)))
       };
     let m =
       union_m([
         utyp_to_info_map(~ctx, ~mode=t1_mode, t1) |> snd,
         utyp_to_info_map(~ctx, ~mode=TypeExpected, t2) |> snd,
       ]);
-    add(~self=Ap, m);
+    add(~self=Ap(ty_out), m);
   | USum(ts) =>
     let (ms, _) =
       List.fold_left(
@@ -483,7 +488,8 @@ and utyp_to_info_map =
             | Some(tag) => (Duplicate, [tag])
             };
           let m =
-            utyp_to_info_map(~ctx, ~mode=VariantExpected(status), ut) |> snd;
+            utyp_to_info_map(~ctx, ~mode=VariantExpected(status, ty), ut)
+            |> snd;
           (acc @ [m], tags @ tag);
         },
         ([], []),
@@ -497,7 +503,15 @@ and utyp_to_info_map =
 }
 and utpat_to_info_map = (~ctx, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
-  add_info(ids, InfoTPat({cls, ctx, term: utpat}), Id.Map.empty);
+  switch (term) {
+  | Invalid(token) =>
+    add_info(ids, Invalid({sort: TPat, token, ctx}), Id.Map.empty)
+  | MultiHole(tms) =>
+    let ms = tms |> List.map(any_to_info_map(~ctx)) |> List.split |> snd;
+    add_info(ids, InfoTPat({cls, ctx, term: utpat}), union_m(ms));
+  | EmptyHole
+  | Var(_) => add_info(ids, InfoTPat({cls, ctx, term: utpat}), Id.Map.empty)
+  };
 };
 
 let mk_map =
