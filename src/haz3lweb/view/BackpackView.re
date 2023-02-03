@@ -32,7 +32,13 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(~no_sorts=true, content) @ [text(Unicode.zwsp)],
+    Text.of_segment(
+      ~no_sorts=true,
+      content,
+      ~inject=_ => Ui_effect.Ignore,
+      ~livelit_state=0,
+    )  // TODO Livelit state
+    @ [text(Unicode.zwsp)],
   );
 };
 

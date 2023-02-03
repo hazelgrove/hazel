@@ -170,6 +170,7 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | Undo
+  | LivelitStateChange(_)
   | Redo => true;
 
 let evaluate_and_schedule =
@@ -415,6 +416,24 @@ let apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | LivelitStateChange(livelit_state) =>
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let editor =
+        Editors.put_editor_and_id(
+          id,
+          {
+            ...ed,
+            state: {
+              ...ed.state,
+              meta: {
+                ...ed.state.meta,
+                livelit_state,
+              },
+            },
+          },
+          model.editors,
+        );
+      Ok({...model, editors: editor});
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
