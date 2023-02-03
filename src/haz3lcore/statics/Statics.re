@@ -428,10 +428,8 @@ and utyp_to_info_map =
     | (_, cls) => cls
     };
   let ty = Term.UTyp.to_typ(ctx, utyp);
-  let add = self =>
-    add_info(ids, InfoTyp({cls, ctx, mode, self, ty, term: utyp}));
-  let add = (~self, m: map): (Typ.t, map) => (ty, add(self, m));
-  let add_type = add(~self=Type);
+  let add = add_info(ids, InfoTyp({cls, ctx, mode, ty, term: utyp}));
+  let add = (m: map): (Typ.t, map) => (ty, add(m));
   let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
@@ -439,44 +437,41 @@ and utyp_to_info_map =
       Unknown(Internal),
       add_info(ids, Invalid({sort: Typ, token, ctx}), Id.Map.empty),
     )
-  | EmptyHole => add(~self=EmptyHole, Id.Map.empty)
+  | EmptyHole => add(Id.Map.empty)
   | Int
   | Float
   | Bool
   | String =>
     let m = Id.Map.empty;
-    add_type(m);
+    add(m);
   | List(t)
   | Parens(t) =>
     let m = go(t) |> snd;
-    add_type(m);
+    add(m);
   | Arrow(t1, t2) =>
     let m = union_m([go(t1) |> snd, go(t2) |> snd]);
-    add_type(m);
+    add(m);
   | Tuple(ts) =>
     let m = ts |> List.map(go) |> List.map(snd) |> union_m;
-    add_type(m);
-  | Var(name)
-  | Tag(name) =>
+    add(m);
+  | Var(_)
+  | Tag(_) =>
+    /* Names are resolved in Info.status_typ */
     let m = Id.Map.empty;
-    add(
-      ~self=
-        TagOrVar(OptUtil.some_if(Ctx.is_alias(ctx, name), Typ.Var(name))),
-      m,
-    );
+    add(m);
   | Ap(t1, t2) =>
-    let ty_out = Term.UTyp.to_typ(ctx, t2);
+    let ty_in = Term.UTyp.to_typ(ctx, t2);
     let t1_mode: Info.typ_mode =
       switch (mode) {
-      | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_out, sum_ty))
-      | _ => TagExpected(Unique, Arrow(ty_out, Unknown(Internal)))
+      | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_in, sum_ty))
+      | _ => TagExpected(Unique, Arrow(ty_in, Unknown(Internal)))
       };
     let m =
       union_m([
         utyp_to_info_map(~ctx, ~mode=t1_mode, t1) |> snd,
         utyp_to_info_map(~ctx, ~mode=TypeExpected, t2) |> snd,
       ]);
-    add(~self=Ap(ty_out), m);
+    add(m);
   | USum(ts) =>
     let (ms, _) =
       List.fold_left(
@@ -495,10 +490,10 @@ and utyp_to_info_map =
         ([], []),
         ts,
       );
-    add_type(union_m(ms));
+    add(union_m(ms));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    add_type(union_m(maps));
+    add(union_m(maps));
   };
 }
 and utpat_to_info_map = (~ctx, {ids, term} as utpat: Term.UTPat.t): map => {
