@@ -162,11 +162,11 @@ let invalid_view = ({sort, token, _}: Info.info_invalid) => {
   switch (sort) {
   | Exp
   | Pat => [
-      text(invalid(token, sort) ++ ". It has type "),
+      text(invalid(token, sort) ++ ". It has type"),
       Type.view(Unknown(Internal)),
     ]
   | Typ => [
-      text(invalid(token, sort) ++ ". It is treated as type "),
+      text(invalid(token, sort) ++ ". It is treated as type"),
       Type.view(Unknown(Internal)),
     ]
   | _ => [text(invalid(token, sort))]
