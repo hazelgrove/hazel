@@ -110,6 +110,7 @@ and Ctx: {
   let extend: (entry, t) => t;
   let lookup: (t, Token.t) => option(entry);
   let add_abstract: (t, Token.t, Id.t) => t;
+  let lookup_tvar: (t, Token.t) => option(tvar_entry);
   let lookup_alias: (t, Token.t) => option(Typ.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
