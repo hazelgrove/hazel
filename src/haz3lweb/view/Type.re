@@ -14,7 +14,7 @@ let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
-let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
+let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous
   switch (ty) {
   | Unknown(prov) =>
@@ -30,17 +30,17 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   | Rec(x, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("Rec " ++ x ++ ". "), view(t)],
+      [text("Rec " ++ x ++ ". "), view_ty(t)],
     )
   | List(t) =>
     div(
       ~attr=clss(["typ-view", "atom", "List"]),
-      [text("["), view(t), text("]")],
+      [text("["), view_ty(t), text("]")],
     )
   | Arrow(t1, t2) =>
     div(
       ~attr=clss(["typ-view", "Arrow"]),
-      [view(t1), text(" -> "), view(t2)],
+      [view_ty(t1), text(" -> "), view_ty(t2)],
     )
   | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("Unit")])
   | Prod([_]) =>
@@ -52,8 +52,8 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         text("("),
         div(
           ~attr=clss(["typ-view", "Prod"]),
-          [view(t0)]
-          @ (List.map(t => [text(", "), view(t)], ts) |> List.flatten),
+          [view_ty(t0)]
+          @ (List.map(t => [text(", "), view_ty(t)], ts) |> List.flatten),
         ),
         text(")"),
       ],
@@ -74,12 +74,8 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
 and tagged_view = ((tag, typ)) =>
   switch (typ) {
   | None => [text(tag)]
-  | Some(typ) => [text(tag ++ "("), view(typ), text(")")]
+  | Some(typ) => [text(tag ++ "("), view_ty(typ), text(")")]
   };
 
-let view_entry = (name, typ) => [
-  text(name),
-  text(" "),
-  text(":"),
-  view(typ),
-];
+let view = (ty: Haz3lcore.Typ.t): Node.t =>
+  div_c("typ-wrapper", [view_ty(ty)]);

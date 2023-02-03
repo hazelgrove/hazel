@@ -429,7 +429,7 @@ and utyp_to_info_map =
     };
   let ty = Term.UTyp.to_typ(ctx, utyp);
   let add = self =>
-    add_info(ids, InfoTyp({cls, ctx, mode, self, term: utyp}));
+    add_info(ids, InfoTyp({cls, ctx, mode, self, ty, term: utyp}));
   let add = (~self, m: map): (Typ.t, map) => (ty, add(self, m));
   let add_type = add(~self=Type(ty));
   let go = utyp_to_info_map(~ctx, ~mode=TypeExpected);

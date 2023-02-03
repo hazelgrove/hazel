@@ -97,6 +97,7 @@ type info_typ = {
   mode: typ_mode,
   ctx: Ctx.t,
   self: self_typ,
+  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
