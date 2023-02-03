@@ -318,7 +318,11 @@ let get_elab = (editor: Editor.t): DHExp.t => {
   let seg = Editor.get_seg(editor);
   let (term, _) = MakeTerm.go(seg);
   let info_map = Statics.mk_map(term);
-  Interface.elaborate(info_map, term);
+  Interface.elaborate(
+    info_map,
+    term,
+    ~livelit_state=editor.state.meta.livelit_state,
+  );
 };
 
 let editor_with_result_view =
