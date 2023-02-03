@@ -255,45 +255,34 @@ and uexp_to_info_map =
     let m_typat = utpat_to_info_map(~ctx, typat);
     switch (typat.term) {
     | Var(name) =>
-      let is_rec =
+      /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
+         errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
+         for any type variable reference not in its ctx. So any free variables
+         in the definition would be oblierated. But we need to check for free
+         variables to decide whether to make a recursive type or not. So we
+         tentatively add an abtract type to the ctx, representing the
+         speculative rec parameter. */
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre = Term.UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
         switch (utyp.term) {
-        | USum(_) =>
-          //TODO(andrew): explain why i'm adding abstract below
-          List.mem(
-            name,
-            Typ.free_vars(
-              Term.UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp),
-            ),
-          )
-        | _ => false
+        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_rec = Typ.Rec(name, ty_pre);
+          let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+        | _ =>
+          let ty = Term.UTyp.to_typ(ctx, utyp);
+          (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
         };
-      /*print_endline("is_rec");
-        print_endline(string_of_bool(is_rec));
-        print_endline(Typ.show(Term.UTyp.to_typ(ctx, utyp)));
-        print_endline(
-          string_of_bool(
-            List.mem(name, Typ.free_vars(Term.UTyp.to_typ(ctx, utyp))),
-          ),
-        );*/
-      let ty_rec = {
-        let ty =
-          Term.UTyp.to_typ(
-            is_rec ? Ctx.add_abstract(ctx, name, -1) : ctx,
-            utyp,
-          );
-        is_rec ? Typ.Rec(name, ty) : ty;
       };
-      let ctx_def =
-        is_rec ? Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec) : ctx;
       let ctx_body =
-        switch (ty_rec) {
+        switch (ty_def) {
         | Sum(sm)
-        | Rec(_, Sum(sm)) => Ctx.add_tags(ctx_def, name, typ_id(utyp), sm)
-        | _ => ctx_def
+        | Rec(_, Sum(sm)) => Ctx.add_tags(ctx_body, name, typ_id(utyp), sm)
+        | _ => ctx_body
         };
       let (ty_body, free, m_body) =
         uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-      let ty_escape = Typ.subst(ty_rec, name, ty_body);
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m_typ = utyp_to_info_map(~ctx=ctx_def, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
     | _ =>
