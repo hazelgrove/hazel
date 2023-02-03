@@ -83,6 +83,11 @@ let map = (f: 'a => 'b, m: t('a)): t('b) => {
   List.combine(keys, vals);
 };
 
+let exists = (f: 'a => bool, m: t('a)): bool => {
+  let (_, vals) = List.split(m);
+  List.exists(f, vals);
+};
+
 /* sorts on tags only */
 let sort = (map: t('a)): t('a) => {
   List.fast_sort(compare_bindings, map);
