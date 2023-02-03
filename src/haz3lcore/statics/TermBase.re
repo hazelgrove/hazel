@@ -102,11 +102,13 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
     | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -129,11 +131,13 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -211,11 +215,13 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
     | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -238,11 +244,13 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -324,6 +332,8 @@ and UTyp: {
     | Parens(t)
     | Ap(t, t)
     | USum(list(t))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and t = {
     ids: list(Id.t),
     term,
@@ -346,6 +356,8 @@ and UTyp: {
     | Parens(t)
     | Ap(t, t)
     | USum(list(t))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and t = {
     ids: list(Id.t),
     term,

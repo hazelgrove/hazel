@@ -164,31 +164,31 @@ let unroll = (ty: t): t =>
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(ctx);
+let rec join = (ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)))
+    Some(Unknown(Typ.join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Rec(x1, ty1), Rec(x2, ty2)) =>
-    let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
-    Rec(x1, ty_body);
-  | (Rec(_), _) => None
-  | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
-      Some(Var(n1));
-    } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      resolve ? ty_join : Var(n1);
+  | (Rec({item: t1, ann}), Rec({item: t2, _})) =>
+    switch (join(t1, t2)) {
+    | Some(t) => Some(Rec({item: t, ann}))
+    | None => None
     }
-  | (Var(name), ty)
-  | (ty, Var(name)) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty);
-    resolve ? ty_join : Var(name);
+  | (Rec(_), _) => None
+  | (Forall({item: t1, ann}), Forall({item: t2, _})) =>
+    switch (join(t1, t2)) {
+    | Some(t) => Some(Forall({item: t, ann}))
+    | None => None
+    }
+  | (Forall(_), _) => None
+  | (Var({item: n1, ann}), Var({item: n2, _})) =>
+    if (n1 == n2) {
+      Some(Var({item: n1, ann}));
+    } else {
+      None;
+    }
+  | (Var(_), _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -197,49 +197,153 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Bool, _) => None
   | (String, String) => Some(String)
   | (String, _) => None
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = join'(ty1, ty1');
-    let+ ty2 = join'(ty2, ty2');
-    Arrow(ty1, ty2);
+  | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+    | _ => None
+    }
   | (Arrow(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    let* tys = ListUtil.map2_opt(join(ctx), tys1, tys2);
-    let+ tys = OptUtil.sequence(tys);
-    Prod(tys);
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      switch (List.map2(join, tys1, tys2) |> Util.OptUtil.sequence) {
+      | None => None
+      | Some(tys) => Some(Prod(tys))
+      };
+    }
   | (Prod(_), _) => None
-  | (Sum(sm1), Sum(sm2)) =>
-    let* ty =
-      ListUtil.map2_opt(
-        join_sum_entries(ctx),
-        TagMap.sort(sm1),
-        TagMap.sort(sm2),
-      );
-    let+ ty = OptUtil.sequence(ty);
-    Sum(ty);
+  | (LabelSum(tys1), LabelSum(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let (tys1, tys2) = (Typ.sort_tagged(tys1), Typ.sort_tagged(tys2));
+      switch (
+        List.map2(
+          (t1: Typ.tagged, t2: Typ.tagged) =>
+            t1.tag == t2.tag ? join(t1.typ, t2.typ) : None,
+          tys1,
+          tys2,
+        )
+        |> Util.OptUtil.sequence
+      ) {
+      | None => None
+      | Some(tys) =>
+        Some(
+          LabelSum(
+            List.map2(
+              (t1: Typ.tagged, typ) => Typ.{tag: t1.tag, typ},
+              tys1,
+              tys,
+            ),
+          ),
+        )
+      };
+    }
+  | (LabelSum(_), _) => None
+  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
   | (Sum(_), _) => None
-  | (List(ty1), List(ty2)) =>
-    let+ ty = join'(ty1, ty2);
-    List(ty);
+  | (List(ty_1), List(ty_2)) =>
+    switch (join(ty_1, ty_2)) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
   | (List(_), _) => None
   };
-}
-and join_sum_entries =
-    (ctx: Ctx.t, (tag1, ty1): sum_entry, (tag2, ty2): sum_entry)
-    : option(sum_entry) =>
-  switch (ty1, ty2) {
-  | (None, None) when tag1 == tag2 => Some((tag1, None))
-  | (Some(ty1), Some(ty2)) when tag1 == tag2 =>
-    let+ ty_join = join(ctx, ty1, ty2);
-    (tag1, Some(ty_join));
-  | _ => None
-  };
+};
 
-let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
+let join_all = (ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => Util.OptUtil.and_then(join(ty), acc),
     Some(Unknown(Internal)),
     ts,
   );
+
+// /* Lattice join on types. This is a LUB join in the hazel2
+//    sense in that any type dominates Unknown. The optional
+//    resolve parameter specifies whether, in the case of a type
+//    variable and a succesful join, to return the resolved join type,
+//    or to return the (first) type variable for readability */
+// let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+//   let join' = join(ctx);
+//   switch (ty1, ty2) {
+//   | (Unknown(p1), Unknown(p2)) =>
+//     Some(Unknown(join_type_provenance(p1, p2)))
+//   | (Unknown(_), ty)
+//   | (ty, Unknown(_)) => Some(ty)
+//   | (Rec(x1, ty1), Rec(x2, ty2)) =>
+//     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
+//     Rec(x1, ty_body);
+//   | (Rec(_), _) => None
+//   | (Var(n1), Var(n2)) =>
+//     if (n1 == n2) {
+//       Some(Var(n1));
+//     } else {
+//       let* ty1 = Ctx.lookup_alias(ctx, n1);
+//       let* ty2 = Ctx.lookup_alias(ctx, n2);
+//       let+ ty_join = join'(ty1, ty2);
+//       resolve ? ty_join : Var(n1);
+//     }
+//   | (Var(name), ty)
+//   | (ty, Var(name)) =>
+//     let* ty_name = Ctx.lookup_alias(ctx, name);
+//     let+ ty_join = join'(ty_name, ty);
+//     resolve ? ty_join : Var(name);
+//   | (Int, Int) => Some(Int)
+//   | (Int, _) => None
+//   | (Float, Float) => Some(Float)
+//   | (Float, _) => None
+//   | (Bool, Bool) => Some(Bool)
+//   | (Bool, _) => None
+//   | (String, String) => Some(String)
+//   | (String, _) => None
+//   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+//     let* ty1 = join'(ty1, ty1');
+//     let+ ty2 = join'(ty2, ty2');
+//     Arrow(ty1, ty2);
+//   | (Arrow(_), _) => None
+//   | (Prod(tys1), Prod(tys2)) =>
+//     let* tys = ListUtil.map2_opt(join(ctx), tys1, tys2);
+//     let+ tys = OptUtil.sequence(tys);
+//     Prod(tys);
+//   | (Prod(_), _) => None
+//   | (Sum(sm1), Sum(sm2)) =>
+//     let* ty =
+//       ListUtil.map2_opt(
+//         join_sum_entries(ctx),
+//         TagMap.sort(sm1),
+//         TagMap.sort(sm2),
+//       );
+//     let+ ty = OptUtil.sequence(ty);
+//     Sum(ty);
+//   | (Sum(_), _) => None
+//   | (List(ty1), List(ty2)) =>
+//     let+ ty = join'(ty1, ty2);
+//     List(ty);
+//   | (List(_), _) => None
+//   };
+// }
+// and join_sum_entries =
+//     (ctx: Ctx.t, (tag1, ty1): sum_entry, (tag2, ty2): sum_entry)
+//     : option(sum_entry) =>
+//   switch (ty1, ty2) {
+//   | (None, None) when tag1 == tag2 => Some((tag1, None))
+//   | (Some(ty1), Some(ty2)) when tag1 == tag2 =>
+//     let+ ty_join = join(ctx, ty1, ty2);
+//     (tag1, Some(ty_join));
+//   | _ => None
+//   };
+
+// let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
+//   List.fold_left(
+//     (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+//     Some(Unknown(Internal)),
+//     ts,
+//   );
 
 let rec normalize_shallow = (ctx: Ctx.t, ty: t): t =>
   switch (ty) {

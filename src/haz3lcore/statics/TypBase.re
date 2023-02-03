@@ -11,6 +11,13 @@ module rec Typ: {
     | TypeHole
     | Internal;
 
+  /* TYP.ann: any type annotation */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type ann('item) = {
+    item: 'item,
+    name: string,
+  };
+
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -19,12 +26,13 @@ module rec Typ: {
     | Float
     | Bool
     | String
-    | Var(Token.t)
+    | Var(ann(option(int)))
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(Token.t, t)
+    | Rec(ann(t))
+    | Forall(ann(t))
   and sum_map = VarMap.t_(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,6 +55,13 @@ module rec Typ: {
     | TypeHole
     | Internal;
 
+  /* TYP.ann: any type annotation */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type ann('item) = {
+    item: 'item,
+    name: string,
+  };
+
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -55,12 +70,13 @@ module rec Typ: {
     | Float
     | Bool
     | String
-    | Var(Token.t)
+    | Var(ann(option(int)))
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(Token.t, t)
+    | Rec(ann(t))
+    | Forall(ann(t))
   and sum_map = VarMap.t_(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -37,7 +37,9 @@ module UTyp = {
     | Tag
     | Parens
     | Ap
-    | USum;
+    | USum
+    | Forall
+    | Rec;
 
   include TermBase.UTyp;
 
@@ -68,7 +70,9 @@ module UTyp = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | USum(_) => USum;
+    | USum(_) => USum
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
 
   let show_cls: cls => string =
     fun
@@ -87,7 +91,9 @@ module UTyp = {
     | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
     | Ap => "Sum Constructor Application"
-    | USum => "Sum Type";
+    | USum => "Sum Type"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
