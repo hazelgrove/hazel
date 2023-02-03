@@ -187,7 +187,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                  switch (acc) {
                  | None => None
                  | Some((pats, args)) =>
-                   let name = "arg" ++ string_of_int(List.length(pats));
+                   let name = "~defer" ++ string_of_int(List.length(pats));
                    if (is_deferral(e)) {
                      Some((
                        pats @ [DHPat.Var(name)],
