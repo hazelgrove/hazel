@@ -5,70 +5,67 @@ open Util;
 open Util.Web;
 
 let of_delim' =
-  Core.Memo.general(
-    ~cache_size_bound=100000,
     ((sort, is_consistent, is_complete, label, i, inject, livelit_state)) => {
-      let cls =
-        switch (label) {
-        | [_] when !is_consistent => "mono-inconsistent"
-        | [s] when Form.is_string(s) => "mono-string-lit"
-        | [_] => "mono"
-        | _ when !is_consistent => "delim-inconsistent"
-        | _ when !is_complete => "delim-incomplete"
-        | _ => "delim"
-        };
-      // TODO FontMetrics
-      let font_height = 10.0;
-      let font_width = 10.0;
-      let livelit_width = 10.0; // TODO Pull from livelit
+  let cls =
+    switch (label) {
+    | [_] when !is_consistent => "mono-inconsistent"
+    | [s] when Form.is_string(s) => "mono-string-lit"
+    | [_] => "mono"
+    | _ when !is_consistent => "delim-inconsistent"
+    | _ when !is_complete => "delim-incomplete"
+    | _ => "delim"
+    };
+  // TODO FontMetrics
+  let font_height = 10.0;
+  let font_width = 10.0;
+  let livelit_width = 10.0; // TODO Pull from livelit
 
-      let style =
-        Printf.sprintf(
-          "width: %fpx; height: %fpx;",
-          livelit_width *. font_width,
-          font_height,
-        );
-      let callback = (_evt, str): Virtual_dom.Vdom.Effect.t(unit) => {
-        inject(UpdateAction.LivelitStateChange(int_of_string(str)));
-      };
+  let style =
+    Printf.sprintf(
+      "width: %fpx; height: %fpx;",
+      livelit_width *. font_width,
+      font_height,
+    );
+  let callback = (_evt, str): Virtual_dom.Vdom.Effect.t(unit) => {
+    inject(UpdateAction.LivelitStateChange(int_of_string(str)));
+  };
 
-      let attr: Attr.t = Attr.on_input(callback);
-      let livelit_node: list(t) =
-        switch (label) {
-        | ["^int"] => [
-            Node.input(
-              ~attr=
-                Attr.many([
-                  Attr.create("type", "range"),
-                  Attr.create("style", style),
-                  Attr.create("value", string_of_int(livelit_state)),
-                  attr,
-                ]),
-              (),
-            ),
-          ]
-        | ["^str"] => [
-            Node.input(
-              ~attr=
-                Attr.many([
-                  Attr.create("type", "text"),
-                  Attr.create("style", style),
-                  attr,
-                ]),
-              (),
-            ),
-          ]
-        | _ => []
-        };
-      [
-        span(
+  let attr: Attr.t = Attr.on_input(callback);
+  let livelit_node: list(t) =
+    switch (label) {
+    | ["^int"] => [
+        Node.input(
           ~attr=
-            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-          List.append([Node.text(List.nth(label, i))], livelit_node),
+            Attr.many([
+              Attr.create("type", "range"),
+              Attr.create("style", style),
+              Attr.create("value", string_of_int(livelit_state)),
+              attr,
+            ]),
+          (),
         ),
-      ];
-    },
-  );
+      ]
+    | ["^str"] => [
+        Node.input(
+          ~attr=
+            Attr.many([
+              Attr.create("type", "text"),
+              Attr.create("style", style),
+              attr,
+            ]),
+          (),
+        ),
+      ]
+    | _ => []
+    };
+  [
+    span(
+      ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+      List.append([Node.text(List.nth(label, i))], livelit_node),
+    ),
+  ];
+};
+
 let of_delim =
     (
       sort: Sort.t,
