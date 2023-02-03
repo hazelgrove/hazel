@@ -2,30 +2,8 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-// TODO: (poly) Finish the skeleton
-
-// TODO: (poly) Finish the skeleton
-let view = (ty: Haz3lcore.Kind.t): list(Node.t) =>
-  switch (ty) {
-  | Singleton(ty) => [
-      text("::"),
-      div(
-        ~attr=clss(["kind-view"]),
-        [div(~attr=clss(["kind-view", "Singleton"]), [Type.view(ty)])],
-      ),
-    ]
-  | Abstract => [
-      text("::"),
-      div(
-        ~attr=clss(["kind-view"]),
-        [div(~attr=clss(["kind-view", "Type"]), [text("Type")])],
-      ),
-    ]
+let view = (kind: Haz3lcore.Kind.t): Node.t =>
+  switch (kind) {
+  | Singleton(ty) => div_c("kind-view", [Type.view(ty)])
+  | Abstract => div_c("kind-view", [text("Type")])
   };
-
-let view_entry = (name, kind) => [
-  text("type "),
-  text(name),
-  text(" "),
-  ...view(kind),
-];

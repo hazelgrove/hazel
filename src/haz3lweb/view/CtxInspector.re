@@ -5,19 +5,37 @@ open Util.Web;
 let jump_to = entry =>
   UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
 
-let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["context-entry"]),
-        Attr.on_click(_ => inject(jump_to(entry))),
-      ]),
-    switch (entry) {
-    | VarEntry({name, typ, _})
-    | TagEntry({name, typ, _}) => Type.view_entry(name, typ)
-    | TVarEntry({name, kind, _}) => Kind.view_entry(name, kind)
-    },
-  );
+let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
+  let div_name =
+    div(
+      ~attr=
+        Attr.many([
+          clss(["name"]),
+          Attr.on_click(_ => inject(jump_to(entry))),
+        ]),
+    );
+  switch (entry) {
+  | VarEntry({name, typ, _})
+  | TagEntry({name, typ, _}) =>
+    div_c(
+      "context-entry",
+      [
+        div_name([text(name)]),
+        div(~attr=clss(["seperator"]), [text(":")]),
+        Type.view(typ),
+      ],
+    )
+  | TVarEntry({name, kind, _}) =>
+    div_c(
+      "context-entry",
+      [
+        div_name([Type.alias_view(name)]),
+        div(~attr=clss(["seperator"]), [text("::")]),
+        Kind.view(kind),
+      ],
+    )
+  };
+};
 
 let div_ctx = div(~attr=clss(["context-entries"]));
 
@@ -29,13 +47,17 @@ let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
     ),
   );
 
-let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t): Node.t => {
+let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t) => {
   switch (ci) {
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
-  | InfoTPat({ctx, _}) => ctx_view(~inject, ctx)
-  | Invalid(_) => div_ctx([])
+  | InfoTPat({ctx, _}) =>
+    List.map(
+      context_entry_view(~inject),
+      ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
+    )
+  | Invalid(_) => []
   };
 };
 
@@ -46,7 +68,7 @@ let inspector_view =
     clss(
       ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
     );
-  div(~attr=clss, [ctx_sorts_view(~inject, ci)]);
+  div(~attr=clss, ctx_sorts_view(~inject, ci));
 };
 
 let view =

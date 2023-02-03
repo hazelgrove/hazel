@@ -362,7 +362,7 @@ let view =
         ],
       )
     // TODO lang doc visibility tied to ci visibility (is this desired?)
-    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)]
+    @ ci_view
     @ (
       langDocMessages.show && settings.statics
         ? [

@@ -31,12 +31,17 @@ let lang_doc_toggle = (~inject, ~show_lang_doc) => {
   );
 };
 
-let term_tag = (~inject, ~show_lang_doc, is_err, sort) =>
+let term_tag =
+    (~inject, ~settings: Model.settings, ~show_lang_doc, is_err, sort) =>
   div(
     ~attr=
       clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : [])),
     [
-      div(~attr=clss(["gamma"]), [text("Γ")]),
+      div(
+        ~attr=
+          clss(["gamma"] @ (settings.context_inspector ? ["visible"] : [])),
+        [text("Γ")],
+      ),
       text(sort),
       lang_doc_toggle(~inject, ~show_lang_doc),
     ],
@@ -62,8 +67,8 @@ let error_view = (err: Info.error_common) =>
     ])
   };
 
-let happy_view = (suc: Info.happy_common) => {
-  switch (suc) {
+let happy_view = (ok: Info.happy_common) => {
+  switch (ok) {
   | SynConsistent(ty_syn) =>
     div_happy([text("has type"), Type.view(ty_syn)])
   | AnaConsistent({ana, syn, _}) when ana == syn =>
@@ -97,10 +102,10 @@ let info_common_view = (mode, self, ctx) => {
   };
 };
 
-let info_typ_view = ({ctx, mode, self, _}: Info.info_typ) =>
+let info_typ_view = ({ctx, mode, self, ty, _}: Info.info_typ) =>
   switch (Info.status_typ(mode, self)) {
   | NotInHole(Variant) =>
-    div_happy([text("Sum type constuctor definition")])
+    div_happy([text("Sum type constuctor"), Type.view(ty)])
   | NotInHole(Type(Var(_) as ty)) =>
     div_happy([
       Type.view(ty),
@@ -112,12 +117,14 @@ let info_typ_view = ({ctx, mode, self, _}: Info.info_typ) =>
       ty |> Typ.normalize_shallow(ctx) |> Type.view,
       text("is a type"),
     ])
-  | InHole(FreeTypeVar) => div_error([text("Type Variable is not bound")])
+  | InHole(FreeTypeVar) =>
+    div_error([text("Type Variable"), Type.view(ty), text("is not bound")])
   | InHole(TagExpected) =>
-    div_error([text("Expected a constructor, found a type")])
+    div_error([text("Expected a constructor, found type "), Type.view(ty)])
   | InHole(ApOutsideSum) =>
     div_error([text("Constructor application must be in sum")])
-  | InHole(DuplicateTag) => div_error([text("Duplicate constructor")])
+  | InHole(DuplicateTag) =>
+    div_error([Type.view(ty), text("already used in this sum")])
   };
 
 let info_tpat_view = ({term, _}: Info.info_tpat) =>
@@ -127,12 +134,16 @@ let info_tpat_view = ({term, _}: Info.info_tpat) =>
   | InHole(NotAVar) => div_error([text("Not a valid type name")])
   };
 
-let view_of_info = (~inject, ~show_lang_doc: bool, ci: Info.t): Node.t => {
+let view_of_info =
+    (~inject, ~settings, ~show_lang_doc: bool, ci: Info.t): Node.t => {
   let is_err = Info.is_error(ci);
   let wrapper = (str, status_view) =>
     div(
       ~attr=clss(["info", str]),
-      [term_tag(~inject, ~show_lang_doc, is_err, str), status_view],
+      [
+        term_tag(~inject, ~settings, ~show_lang_doc, is_err, str),
+        status_view,
+      ],
     );
   switch (ci) {
   | InfoExp({mode, self, ctx, _})
@@ -151,24 +162,16 @@ let view_of_info = (~inject, ~show_lang_doc: bool, ci: Info.t): Node.t => {
 let cls_view = (ci: Info.t): Node.t =>
   div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]);
 
-let id_view = (id): Node.t =>
+let id_view = (id: Id.t): Node.t =>
   div(~attr=clss(["id"]), [text(string_of_int(id + 1))]);
 
-let extra_view = (visible: bool, id: int, ci: Info.t): Node.t =>
+let cls_and_id_view = (id: int, ci: Info.t): Node.t =>
   div(
-    ~attr=Attr.many([clss(["extra"] @ (visible ? ["visible"] : []))]),
-    [id_view(id), cls_view(ci)],
+    ~attr=Attr.many([clss(["id-and-class"])]),
+    [cls_view(ci), id_view(id)],
   );
 
-let inspector_view =
-    (
-      ~inject,
-      ~settings: Model.settings,
-      ~show_lang_doc: bool,
-      id: int,
-      ci: Info.t,
-    )
-    : Node.t =>
+let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
   div(
     ~attr=
       Attr.many([
@@ -176,8 +179,7 @@ let inspector_view =
         Attr.on_click(_ => inject(Update.Set(ContextInspector))),
       ]),
     [
-      extra_view(settings.context_inspector, id, ci),
-      view_of_info(~inject, ~show_lang_doc, ci),
+      view_of_info(~inject, ~settings, ~show_lang_doc, ci),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );
@@ -185,36 +187,29 @@ let inspector_view =
 let view =
     (
       ~inject,
-      ~settings,
+      ~settings: Model.settings,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.map,
     ) => {
-  let backpack = zipper.backpack;
-  if (List.length(backpack) > 0) {
-    div([]);
-  } else {
-    let index = Indicated.index(zipper);
-
-    switch (index) {
-    | Some(index) =>
-      switch (Id.Map.find_opt(index, info_map)) {
-      | Some(ci) =>
-        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
-      | None =>
-        div(
-          ~attr=clss(["cursor-inspector"]),
-          [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
-        )
-      }
-    | None =>
-      div(
-        ~attr=clss(["cursor-inspector"]),
-        [
-          div(~attr=clss(["icon"]), [Icons.magnify]),
-          text("No Indicated Index"),
-        ],
-      )
-    };
+  let bar_view = div_c("bottom-bar");
+  let err_view' = err =>
+    div(
+      ~attr=clss(["cursor-inspector", "no-info"]),
+      [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
+    );
+  let err_view = err => bar_view([err_view'(err)]);
+  switch (zipper.backpack, Indicated.index(zipper)) {
+  | ([_, ..._], _) => err_view("No information while backpack in use")
+  | (_, None) => err_view("No cursor in program")
+  | (_, Some(id)) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | None => err_view("Whitespace or Comment")
+    | Some(ci) =>
+      bar_view([
+        inspector_view(~inject, ~settings, ~show_lang_doc, id, ci),
+        cls_and_id_view(id, ci),
+      ])
+    }
   };
 };

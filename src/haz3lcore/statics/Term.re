@@ -77,13 +77,13 @@ module UTyp = {
     | String
     | Bool => "Base Type"
     | Var => "Type Variable"
-    | Tag => "Sum Constructor Definition"
+    | Tag => "Sum Constructor"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
-    | Ap => "Sum Constructor Application Definition"
+    | Ap => "Sum Constructor Application"
     | USum => "Sum Type";
 
   let rec is_arrow = (typ: t) => {
@@ -245,18 +245,18 @@ module UPat = {
     | EmptyHole => "Empty Pattern Hole"
     | MultiHole => "Multi Pattern Hole"
     | Wild => "Wildcard Pattern"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | Bool => "Boolean Literal"
-    | String => "String Literal"
-    | Triv => "Trivial Literal. Pathetic, really."
+    | Int => "Integer Pattern Literal"
+    | Float => "Float Pattern Literal"
+    | Bool => "Boolean Pattern Literal"
+    | String => "String Pattern Literal"
+    | Triv => "Trivial Pattern Literal"
     | ListLit => "List Literal Pattern"
     | Tag => "Constructor Pattern"
-    | Cons => "List Cons"
+    | Cons => "Cons Pattern"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
-    | Ap => "Constructor Application"
+    | Ap => "Constructor Application Pattern"
     | TypeAnn => "Type Annotation";
 
   let rec is_var = (pat: t) => {
