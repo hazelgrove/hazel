@@ -93,6 +93,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
           List.init(String.length(s), i => String.make(1, s.[i]));
         typ_string
         |> explode
+        |> List.filter(s => s != "?")
         |> List.map(str => now_save(Insert(str)))
         |> List.flatten;
       | None => now_save(Insert(Whitespace.linebreak))
