@@ -416,7 +416,7 @@ let apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
-    | LivelitStateChange(livelit_state) =>
+    | LivelitStateChange(livelit_id, livelit_state) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       let editor =
         Editors.put_editor_and_id(
@@ -427,7 +427,12 @@ let apply =
               ...ed.state,
               meta: {
                 ...ed.state.meta,
-                livelit_state,
+                livelit_state:
+                  Id.Map.add(
+                    livelit_id,
+                    livelit_state,
+                    ed.state.meta.livelit_state,
+                  ),
               },
             },
           },

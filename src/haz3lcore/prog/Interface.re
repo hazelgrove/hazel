@@ -1,5 +1,5 @@
 exception DoesNotElaborate;
-let elaborate = (~livelit_state=0, map, term): DHExp.t =>
+let elaborate = (~livelit_state=Id.Map.empty, map, term): DHExp.t =>
   switch (Elaborator.uexp_elab(map, term, livelit_state)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate EXCEPTION");

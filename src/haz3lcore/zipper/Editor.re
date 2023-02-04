@@ -7,7 +7,7 @@ module Meta = {
     measured: Measured.t,
     term_ranges: TermRanges.t,
     col_target: int,
-    livelit_state: int // TODO Replace with map of id to state or somehting
+    livelit_state: Id.Map.t(int) // TODO Replace int with actual types for livelit states
   };
 
   let init = (z: Zipper.t) => {
@@ -17,7 +17,7 @@ module Meta = {
       measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
-      livelit_state: 50,
+      livelit_state: Id.Map.empty,
     };
   };
 

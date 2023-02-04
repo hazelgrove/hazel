@@ -5,7 +5,18 @@ open Util;
 open Util.Web;
 
 let of_delim' =
-    ((sort, is_consistent, is_complete, label, i, inject, livelit_state)) => {
+    (
+      (
+        sort,
+        is_consistent,
+        is_complete,
+        label,
+        i,
+        inject,
+        livelit_state: Id.Map.t(int),
+        tile_id: Id.t,
+      ),
+    ) => {
   let cls =
     switch (label) {
     | [_] when !is_consistent => "mono-inconsistent"
@@ -27,7 +38,7 @@ let of_delim' =
       font_height,
     );
   let callback = (_evt, str): Virtual_dom.Vdom.Effect.t(unit) => {
-    inject(UpdateAction.LivelitStateChange(int_of_string(str)));
+    inject(UpdateAction.LivelitStateChange(tile_id, int_of_string(str)));
   };
 
   let attr: Attr.t = Attr.on_input(callback);
@@ -39,7 +50,15 @@ let of_delim' =
             Attr.many([
               Attr.create("type", "range"),
               Attr.create("style", style),
-              Attr.create("value", string_of_int(livelit_state)),
+              Attr.create(
+                "value",
+                string_of_int(
+                  switch (Id.Map.find_opt(tile_id, livelit_state)) {
+                  | Some(v) => v
+                  | None => 50
+                  },
+                ),
+              ),
               attr,
             ]),
           (),
@@ -73,7 +92,7 @@ let of_delim =
       t: Piece.tile,
       i: int,
       ~inject,
-      ~livelit_state,
+      ~livelit_state: Id.Map.t(int),
     )
     : list(Node.t) =>
   of_delim'((
@@ -84,6 +103,7 @@ let of_delim =
     i,
     inject,
     livelit_state,
+    Tile.id(t),
   ));
 
 let of_grout = [Node.text(Unicode.nbsp)];
@@ -119,7 +139,7 @@ module Text = (M: {
             ~sort=Sort.root,
             seg: Segment.t,
             ~inject,
-            ~livelit_state,
+            ~livelit_state: Id.Map.t(int),
           )
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
@@ -152,7 +172,7 @@ module Text = (M: {
   and of_tile =
       (expected_sort: Sort.t, t: Tile.t, ~inject, ~livelit_state)
       : list(Node.t) => {
-    // print_endline("Tile:" ++ Tile.show(t));
+    print_endline("Tile:" ++ Tile.show(t));
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -161,7 +181,8 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    Aba.mk(t.shards, children_and_sorts)
+    let foo = Aba.mk(t.shards, children_and_sorts);
+    foo
     |> Aba.join(
          of_delim(t.mold.out, is_consistent, t, ~inject, ~livelit_state),
          ((seg, sort)) =>
@@ -201,7 +222,7 @@ let simple_view =
     [
       span_c(
         "code-text",
-        Text.of_segment(unselected, ~inject, ~livelit_state=0),
+        Text.of_segment(unselected, ~inject, ~livelit_state=Id.Map.empty),
       ),
     ] // TODO livelit_state
   );
@@ -215,7 +236,7 @@ let view =
       ~measured,
       ~settings: Model.settings,
       ~inject,
-      ~livelit_state,
+      ~livelit_state: Id.Map.t(int),
     )
     : Node.t => {
   module Text =

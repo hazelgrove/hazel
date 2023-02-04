@@ -36,7 +36,7 @@ let backpack_sel_view =
       ~no_sorts=true,
       content,
       ~inject=_ => Ui_effect.Ignore,
-      ~livelit_state=0,
+      ~livelit_state=Id.Map.empty,
     )  // TODO Livelit state
     @ [text(Unicode.zwsp)],
   );
