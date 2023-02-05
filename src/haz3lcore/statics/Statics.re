@@ -136,7 +136,7 @@ and uexp_to_info_map =
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Info.self =
-      switch (Typ.join_all(ctx, tys)) {
+      switch (Typ.join_all(tys)) {
       | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, e_ids, tys))
       | Some(ty) => Just(List(ty))
       };
@@ -190,7 +190,7 @@ and uexp_to_info_map =
     let (ty_e1, free_e1, m2) = go(~mode, e1);
     let (ty_e2, free_e2, m3) = go(~mode, e2);
     let self: Info.self =
-      switch (Typ.join(ctx, ty_e1, ty_e2)) {
+      switch (Typ.join(ty_e1, ty_e2)) {
       | None =>
         NoJoin([{id: exp_id(e1), ty: ty_e1}, {id: exp_id(e2), ty: ty_e2}])
       | Some(ty) => Just(ty)
@@ -212,7 +212,7 @@ and uexp_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode =
       switch (fn) {
-      | {term: Tag(name), _} => Typ.tag_ap_mode(ctx, mode, name)
+      | {term: Tag(name), _} => Typ.tag_ap_mode(mode, name)
       | _ => Typ.ap_mode
       };
     let (ty_fn, free_fn, m_fn) = uexp_to_info_map(~ctx, ~mode=fn_mode, fn);
@@ -265,8 +265,8 @@ and uexp_to_info_map =
       let (ty_def, ctx_def, ctx_body) = {
         let ty_pre = Term.UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
         switch (utyp.term) {
-        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
-          let ty_rec = Typ.Rec(name, ty_pre);
+        | USum(_) when Typ.lookup_surface(ty_pre) =>
+          let ty_rec = Typ.Rec({item: ty_pre, name});
           let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
@@ -277,13 +277,13 @@ and uexp_to_info_map =
       let ctx_body =
         switch (ty_def) {
         | Sum(sm)
-        | Rec(_, Sum(sm)) =>
+        | Rec({item: Sum(sm), _}) =>
           Ctx.add_tags(ctx_body, {item: Some(0), name}, typ_id(utyp), sm)
         | _ => ctx_body
         };
       let (ty_body, free, m_body) =
         uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let ty_escape = Typ.subst(ty_def, ty_body);
       let m_typ = utyp_to_info_map(~ctx=ctx_def, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
     | _ =>
@@ -321,7 +321,7 @@ and uexp_to_info_map =
         pat_infos,
       );
     let self: Info.self =
-      switch (Typ.join_all(ctx, Info.source_tys(branch_sources))) {
+      switch (Typ.join_all(Info.source_tys(branch_sources))) {
       | None => NoJoin(branch_sources)
       | Some(ty) => Just(ty)
       };
@@ -373,7 +373,7 @@ and upat_to_info_map =
       );
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Info.self =
-      switch (Typ.join_all(ctx, tys)) {
+      switch (Typ.join_all(tys)) {
       | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, p_ids, tys))
       | Some(ty) => Just(List(ty))
       };
@@ -415,7 +415,7 @@ and upat_to_info_map =
     /* Constructors */
     let fn_mode =
       switch (fn) {
-      | {term: Tag(name), _} => Typ.tag_ap_mode(ctx, mode, name)
+      | {term: Tag(name), _} => Typ.tag_ap_mode(mode, name)
       | _ => Typ.ap_mode
       };
     let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=fn_mode, fn);

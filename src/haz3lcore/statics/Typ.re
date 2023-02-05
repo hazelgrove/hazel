@@ -360,28 +360,29 @@ let ana_sum = (tag: Token.t, sm: sum_map, ty_ana: t): option(t) =>
   | None => None
   };
 
-// let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) =>
-//   /* If a tag is being analyzed against (an arrow type returning)
-//      a sum type having that tag as a variant, we consider the
-//      tag's type to be determined by the sum type */
-//   switch (mode) {
-//   | Ana(Arrow(_, ty_ana))
-//   | Ana(ty_ana) =>
-//     switch (normalize_shallow(ctx, ty_ana)) {
-//     | Sum(sm)
-//     | Rec({item: Sum(sm), _}) => ana_sum(tag, sm, unroll(ty_ana))
-//     | _ => None
-//     }
-//   | _ => None
-//   };
+let tag_ana_typ = (mode: mode, tag: Token.t): option(t) =>
+  /* If a tag is being analyzed against (an arrow type returning)
+     a sum type having that tag as a variant, we consider the
+     tag's type to be determined by the sum type */
+  switch (mode) {
+  | Ana(Arrow(_, ty_ana))
+  | Ana(ty_ana) =>
+    switch (ty_ana) {
+    // switch (normalize_shallow(ctx, ty_ana)) {
+    | Sum(sm)
+    | Rec({item: Sum(sm), _}) => ana_sum(tag, sm, unroll(ty_ana))
+    | _ => None
+    }
+  | _ => None
+  };
 
-// let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
-//   /* If a tag application is being analyzed against a sum type for
-//      which that tag is a variant, then we consider the tag to be in
-//      analytic mode against an arrow returning that sum type; otherwise
-//      we use the typical mode for function applications */
-//   switch (tag_ana_typ(ctx, mode, name)) {
-//   | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
-//   | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
-//   | _ => ap_mode
-//   };
+let tag_ap_mode = (mode: mode, name: Token.t): mode =>
+  /* If a tag application is being analyzed against a sum type for
+     which that tag is a variant, then we consider the tag to be in
+     analytic mode against an arrow returning that sum type; otherwise
+     we use the typical mode for function applications */
+  switch (tag_ana_typ(mode, name)) {
+  | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
+  | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
+  | _ => ap_mode
+  };

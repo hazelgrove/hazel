@@ -153,6 +153,28 @@ module UTyp = {
     };
   };
 
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow(_)
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Tag(_)
+    | Ap(_)
+    | USum(_)
+    | Rec(_) => false
+    };
+  };
+
   /* Converts a syntactic type into a semantic type */
   let rec to_typ: (Ctx.t, t) => Typ.t =
     (ctx, utyp) =>
@@ -407,7 +429,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -490,11 +512,13 @@ module UExp = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -567,11 +591,13 @@ module UExp = {
     | ListLit => "List Literal"
     | Tag => "Constructor"
     | Fun => "Function Literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | TyAlias => "Type Alias Definition"
     | Ap => "Function/Contructor Application"
+    | TypAp => "Type Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -583,7 +609,8 @@ module UExp = {
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e)
+    | TypFun(_, e) => is_fun(e)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
@@ -599,6 +626,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -626,10 +654,12 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | If(_)
       | Seq(_)
       | Test(_)

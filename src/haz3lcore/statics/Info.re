@@ -180,12 +180,12 @@ let rec status_common =
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
   | (Just(ty), SynFun) =>
-    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    switch (Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
     | Some(_) => NotInHole(SynConsistent(ty))
     | None => InHole(NoFun(ty))
     }
   | (Just(syn), Ana(ana)) =>
-    switch (Typ.join(ctx, ana, syn)) {
+    switch (Typ.join(ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
     | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
     }
@@ -195,7 +195,7 @@ let rec status_common =
        a sum type having that tag as a variant, its self type is
        considered to be determined by the sum type; otherwise,
        check the context for the tag's type */
-    switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
+    switch (Typ.tag_ana_typ(mode, name), syn_ty) {
     | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
