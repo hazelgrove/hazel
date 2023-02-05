@@ -164,6 +164,8 @@ and Ctx: {
   let extend = List.cons;
 
   let lookup = (ctx, name) =>
+    // TODO: will use lookup for everything cause a namespace collision?
+    // NOTE: we may need separate lookup functions for each entry type
     List.find_map(
       fun
       | Ctx.VarEntry(v) when v.name == name => Some(VarEntry(v))
@@ -177,10 +179,21 @@ and Ctx: {
     extend(TVarEntry({name, id, kind: Abstract}), ctx);
 
   let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
+    // TODO: see comments in lookup
     switch (lookup(ctx, name)) {
     | Some(TVarEntry(t)) => Some(t)
     | _ => None
     };
+
+  let rec lookup_tvar_idx = (~i=0, ctx: t, x: Token.t) => {
+    switch (ctx) {
+    | [] => None
+    | [TVarEntry({name, _}), ..._] when Token.compare(name, x) == 0 =>
+      Some(i)
+    | [TVarEntry(_), ...ctx] => lookup_tvar_idx(ctx, x, ~i=i + 1)
+    | [_entry, ...ctx] => lookup_tvar_idx(ctx, x, ~i)
+    };
+  };
 
   let lookup_alias = (ctx: t, t: Token.t): option(Typ.t) =>
     switch (lookup_tvar(ctx, t)) {

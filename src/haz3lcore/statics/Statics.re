@@ -277,7 +277,8 @@ and uexp_to_info_map =
       let ctx_body =
         switch (ty_def) {
         | Sum(sm)
-        | Rec(_, Sum(sm)) => Ctx.add_tags(ctx_body, name, typ_id(utyp), sm)
+        | Rec(_, Sum(sm)) =>
+          Ctx.add_tags(ctx_body, {item: Some(0), name}, typ_id(utyp), sm)
         | _ => ctx_body
         };
       let (ty_body, free, m_body) =

@@ -17,8 +17,44 @@
    without correponding syntax classes */
 
 include TermBase.Any;
-
 type any = t;
+
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Var;
+
+  include TermBase.UTPat;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type Variable"
+    | EmptyHole => "Empty Type Variable Hole"
+    | MultiHole => "Multi Type Variable Hole"
+    | Var => "Type Variable";
+};
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -111,7 +147,9 @@ module UTyp = {
     | Var(_)
     | Tag(_)
     | Ap(_)
-    | USum(_) => false
+    | USum(_)
+    | Forall(_)
+    | Rec(_) => false
     };
   };
 
@@ -126,13 +164,14 @@ module UTyp = {
       | Int => Int
       | Float => Float
       | String => String
-      | Var(name) =>
-        //Var(name)
-        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
-        switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(_) => Var(name)
-        | None => Unknown(TypeHole)
-        }
+      // | Var(name) =>
+      //   //Var(name)
+      //   //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
+      //   switch (Ctx.lookup_tvar(ctx, name)) {
+      //   | Some(_) => Var({item, name})
+      //   | None => Unknown(TypeHole)
+      //   }
+      | Var(name) => Var({item: Ctx.lookup_tvar_idx(ctx, name), name})
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | USum(uts) => Sum(to_tag_map(ctx, uts))
@@ -141,6 +180,41 @@ module UTyp = {
       /* The below cases should occur only inside sums */
       | Tag(_)
       | Ap(_) => Unknown(Internal)
+      | Forall(utpat, tbody) =>
+        let (ctx, name) =
+          switch (utpat.term) {
+          | TermBase.UTPat.Var(name) => (
+              Ctx.extend(
+                Ctx.TVarEntry({
+                  name,
+                  id: UTPat.rep_id(utpat),
+                  kind: Kind.Abstract,
+                }),
+                ctx,
+              ),
+              name,
+            )
+          | _ => (ctx, "tvar_hole")
+          };
+        Forall({item: to_typ(ctx, tbody), name});
+      // Forall is same as Rec
+      | Rec(utpat, tbody) =>
+        let (ctx, name) =
+          switch (utpat.term) {
+          | TermBase.UTPat.Var(name) => (
+              Ctx.extend(
+                Ctx.TVarEntry({
+                  name,
+                  id: UTPat.rep_id(utpat),
+                  kind: Kind.Abstract,
+                }),
+                ctx,
+              ),
+              name,
+            )
+          | _ => (ctx, "tvar_hole")
+          };
+        Rec({item: to_typ(ctx, tbody), name});
       }
   and to_variant = ctx =>
     fun
@@ -163,42 +237,6 @@ module UTyp = {
       Util.ListUtil.flat_map(to_variant(ctx), uts),
     );
   };
-};
-
-module UTPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Var;
-
-  include TermBase.UTPat;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type Variable"
-    | EmptyHole => "Empty Type Variable Hole"
-    | MultiHole => "Multi Type Variable Hole"
-    | Var => "Type Variable";
 };
 
 module UPat = {

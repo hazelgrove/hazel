@@ -30,7 +30,8 @@ let is_alias = (ctx: t, name: Token.t): bool =>
 let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
   extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
-let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
+let add_tags =
+    (ctx: t, sum_idx: Typ.ann(option(int)), id: Id.t, tags: Typ.sum_map): t =>
   List.map(
     ((tag, typ)) =>
       TagEntry({
@@ -38,8 +39,8 @@ let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
         id,
         typ:
           switch (typ) {
-          | None => Var(name)
-          | Some(typ) => Arrow(typ, Var(name))
+          | None => Var(sum_idx)
+          | Some(typ) => Arrow(typ, Var(sum_idx))
           },
       }),
     tags,
