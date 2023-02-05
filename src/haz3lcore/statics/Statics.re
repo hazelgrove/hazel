@@ -514,6 +514,7 @@ and uexp_to_info_map =
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~mode=Syn, ~body_ids=body.ids @ def.ids, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    // use this ^^ to determine if recursive let or not
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
@@ -555,9 +556,17 @@ and uexp_to_info_map =
       );
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
-    let branch_frees = List.map(((_, free, _)) => free, branch_infos);
+    let branch_frees =
+      List.map2(
+        ((_, body_free, _), (_, ctx_pat, _)) => {
+          Ctx.subtract_typ(ctx_pat, body_free)
+        },
+        branch_infos,
+        pat_infos,
+      );
     let self = Typ.Joined(Fun.id, branch_sources);
-    let free = Ctx.union([free_scrut] @ branch_frees);
+    /* let free = Ctx.union([free_scrut] @ branch_frees); */
+    let free = Ctx.union([free_scrut, ...branch_frees]);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
   };
 }

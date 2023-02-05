@@ -250,7 +250,24 @@ let view =
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
       | Some(ci) =>
-        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
+        let _ =
+          List.map(
+            usage => {
+              print_string(fst(usage));
+              print_string(": ");
+              let _ =
+                List.map(
+                  id => {
+                    print_int(id);
+                    print_string(", ");
+                  },
+                  snd(usage),
+                );
+              print_newline();
+            },
+            Haz3lcore.Statics.binding_uses(ci, info_map),
+          );
+        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci);
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),
