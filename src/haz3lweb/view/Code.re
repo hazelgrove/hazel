@@ -29,15 +29,7 @@ let of_delim' =
   // TODO FontMetrics
   let font_height = 10.0;
   let font_width = 10.0;
-  let livelit_width = 10.0; // TODO Pull from livelit
 
-  let callback = (_evt, str): Virtual_dom.Vdom.Effect.t(unit) => {
-    inject(
-      UpdateAction.LivelitStateChange(tile_id, IntLit(int_of_string(str))),
-    );
-  };
-
-  let attr: Attr.t = Attr.on_input(callback);
   let livelit_node: list(t) =
     switch (label) {
     | ["^slider"] => [
@@ -49,7 +41,7 @@ let of_delim' =
                 "style",
                 Printf.sprintf(
                   "width: %fpx; height: %fpx;",
-                  livelit_width *. font_width,
+                  10.0 *. font_width,
                   font_height,
                 ),
               ),
@@ -62,12 +54,40 @@ let of_delim' =
                   },
                 ),
               ),
-              attr,
+              Attr.on_input((_evt, str) =>
+                (
+                  {
+                    inject(
+                      UpdateAction.LivelitStateChange(
+                        tile_id,
+                        IntLit(int_of_string(str)),
+                      ),
+                    );
+                  }:
+                    Virtual_dom.Vdom.Effect.t(unit)
+                )
+              ),
             ]),
           (),
         ),
       ]
-    | ["^checkbox"] => [
+    | ["^checkbox"] =>
+      let checkbox_state: bool =
+        switch (Id.Map.find_opt(tile_id, livelit_state)) {
+        | Some(BoolLit(b)) => b
+        | _ => false
+        };
+      let checkbox_callback: Attr.t =
+        Attr.on_change((_evt, _str) => {
+          inject(
+            UpdateAction.LivelitStateChange(
+              tile_id,
+              BoolLit(!checkbox_state),
+            ),
+          )
+        });
+
+      [
         Node.input(
           ~attr=
             Attr.many([
@@ -80,11 +100,12 @@ let of_delim' =
                   font_height,
                 ),
               ),
-              attr,
+              checkbox_state ? Attr.checked : Attr.create("foo", "bar"),
+              checkbox_callback,
             ]),
           (),
         ),
-      ]
+      ];
     | _ => []
     };
   [
@@ -182,7 +203,6 @@ module Text = (M: {
   and of_tile =
       (expected_sort: Sort.t, t: Tile.t, ~inject, ~livelit_state)
       : list(Node.t) => {
-    print_endline("Tile:" ++ Tile.show(t));
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>

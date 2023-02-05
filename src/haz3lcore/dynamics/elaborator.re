@@ -282,18 +282,31 @@ let rec dhexp_of_uexp =
         };
       | LivelitAp({livelit_name, width: _}) =>
         let id = Term.UExp.rep_id(uexp);
-        let livelit_value =
-          switch (Id.Map.find_opt(id, livelit_state)) {
-          | Some(v) =>
-            switch (v) {
-            | IntLit(i) => i
-            | _ => assert(false)
-            }
-          | None => 50
-          };
+
         switch (livelit_name) {
-        | "^slider" => Some(IntLit(livelit_value))
-        | "^checkbox" => Some(StringLit("livelit string"))
+        | "^slider" =>
+          let livelit_value =
+            switch (Id.Map.find_opt(id, livelit_state)) {
+            | Some(v) =>
+              switch (v) {
+              | IntLit(i) => i
+              | _ => assert(false)
+              }
+            | None => 50
+            };
+          Some(IntLit(livelit_value));
+        | "^checkbox" =>
+          let livelit_value =
+            switch (Id.Map.find_opt(id, livelit_state)) {
+            | Some(v) =>
+              switch (v) {
+              | BoolLit(b) => b
+              | _ => assert(false)
+              }
+            | None => false
+            };
+
+          Some(BoolLit(livelit_value));
         | _ => None
         };
       | Match(scrut, rules) =>

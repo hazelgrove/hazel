@@ -464,7 +464,7 @@ and uexp_to_info_map =
   | LivelitAp({livelit_name, width: _}) =>
     switch (livelit_name) {
     | "^slider" => atomic(Just(Int))
-    | "^checkbox" => atomic(Just(String))
+    | "^checkbox" => atomic(Just(Bool))
     | _ => atomic(Just(Unknown(TypeHole)))
     }
   | Match(scrut, rules) =>
