@@ -339,6 +339,7 @@ and merge_nonempty = (l, r) =>
       // the grout may lead to sort inconsistency in general.
       // or this may be fine under interpretation of grout
       // sort being upper bound on its parent's expected sort.
+      // todo: fixed dropped tls
       Piece.mk(G(Grout.mk_concave(sort, prec)))
       |> Piece.pad(~l=s_lr, ~r=s_rl)
       |> of_piece(~l=?kid_l, ~r=?kid_r)
