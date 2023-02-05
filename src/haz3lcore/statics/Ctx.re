@@ -1,6 +1,79 @@
-include TypBase.Ctx;
+open Sexplib.Std;
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type var_entry = {
+  name: Token.t,
+  id: Id.t,
+  typ: Typ.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tvar_entry = {
+  name: Token.t,
+  id: Id.t,
+  kind: Kind.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type entry =
+  | VarEntry(var_entry)
+  | TagEntry(var_entry)
+  | TVarEntry(tvar_entry);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = list(entry);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type co_entry = {
+  id: Id.t,
+  mode: Typ.mode,
+};
+/* Each co-context entry is a list of the uses of a variable
+   within some scope, including their type demands */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type co = VarMap.t_(list(co_entry));
+
+let extend = List.cons;
+
+let lookup = (ctx: t, name: Token.t): option(entry) =>
+  // TODO: will use lookup for everything cause a namespace collision?
+  // NOTE: we may need separate lookup functions for each entry type
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(VarEntry(v))
+    | TagEntry(v) when v.name == name => Some(TagEntry(v))
+    | TVarEntry(v) when v.name == name => Some(TVarEntry(v))
+    | _ => None,
+    ctx,
+  );
+
+let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
+  extend(TVarEntry({name, id, kind: Abstract}), ctx);
+
+let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
+  // TODO: see comments in lookup
+  switch (lookup(ctx, name)) {
+  | Some(TVarEntry(t)) => Some(t)
+  | _ => None
+  };
+
+let rec lookup_tvar_idx = (~i=0, ctx: t, x: Token.t): option(int) => {
+  switch (ctx) {
+  | [] => None
+  | [TVarEntry({name, _}), ..._] when Token.compare(name, x) == 0 =>
+    Some(i)
+  | [TVarEntry(_), ...ctx] => lookup_tvar_idx(ctx, x, ~i=i + 1)
+  | [_entry, ...ctx] => lookup_tvar_idx(ctx, x, ~i)
+  };
+};
+
+let lookup_alias = (ctx: t, t: Token.t): option(Typ.t) =>
+  switch (lookup_tvar(ctx, t)) {
+  | Some({kind: Singleton(ty), _}) => Some(ty)
+  | Some({kind: Abstract, _})
+  | _ => None
+  };
 let empty: t = VarMap.empty;
 
 let get_id: entry => int =
