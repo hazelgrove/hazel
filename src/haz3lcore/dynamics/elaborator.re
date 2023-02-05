@@ -65,7 +65,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     }
   | Ana(ana_ty) =>
     /* Normalize types */
-    let ana_ty = Typ.normalize(ctx, ana_ty);
+    let ana_ty = Ctx.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
@@ -78,6 +78,16 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty)
+      | _ => d
+      }
+    | TypFun(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(
+          d,
+          Forall({item: Unknown(prov), name: "grounded_forall"}),
+          ana_ty,
+        )
       | _ => d
       }
     | Tuple(ds) =>
@@ -124,7 +134,10 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | TestLit(_)
+    | TypAp(_) =>
+      // TODO: check with andrew
+      DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -135,7 +148,7 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
   switch (Info.typ_of_self(ctx, self)) {
   | None => d
   | Some(self_ty) =>
-    let self_ty = Typ.normalize(ctx, self_ty);
+    let self_ty = Ctx.normalize(ctx, self_ty);
     switch (Info.status_common(ctx, mode, self)) {
     | NotInHole(_) => cast(ctx, mode, self_ty, d)
     | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
@@ -174,6 +187,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = Statics.fixed_pat_typ(ctx, m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TypFun(tpat, body) =>
+        // TODO (typfun)
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.TypFun(tpat, d1);
       | Tuple(es) =>
         let+ ds =
           List.fold_right(
@@ -257,6 +274,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | TypAp(fn, uty_arg) =>
+        let+ d_fn = dhexp_of_uexp(m, fn);
+        DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);

@@ -337,40 +337,6 @@ let join_all = (ts: list(t)): option(t) =>
     ts,
   );
 
-// let rec normalize_shallow = (ctx: Ctx.t, ty: t): t =>
-//   switch (ty) {
-//   | Var(x) =>
-//     switch (Ctx.lookup_alias(ctx, x)) {
-//     | Some(ty) => normalize_shallow(ctx, ty)
-//     | None => ty
-//     }
-//   | _ => ty
-//   };
-
-// let rec normalize = (ctx: Ctx.t, ty: t): t => {
-//   switch (ty) {
-//   | Var(x) =>
-//     switch (Ctx.lookup_alias(ctx, x)) {
-//     | Some(ty) => normalize(ctx, ty)
-//     | None => ty
-//     }
-//   | Unknown(_)
-//   | Int
-//   | Float
-//   | Bool
-//   | String => ty
-//   | List(t) => List(normalize(ctx, t))
-//   | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-//   | Prod(ts) => Prod(List.map(normalize(ctx), ts))
-//   | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
-//   | Rec(x, ty) =>
-//     /* NOTE: Fake -1 id below is a hack, but shouldn't matter
-//        as in current implementation Recs do not occur in the
-//        surface syntax, so we won't try to jump to them. */
-//     Rec(x, normalize(Ctx.add_abstract(ctx, x, -1), ty))
-//   };
-// };
-
 let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
@@ -406,12 +372,12 @@ let tag_ana_typ = (mode: mode, tag: Token.t): option(t) =>
   | _ => None
   };
 
-let tag_ap_mode = (mode: mode, name: Token.t): mode =>
+let tag_ap_mode = (mode: mode, tag: Token.t): mode =>
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
-  switch (tag_ana_typ(mode, name)) {
+  switch (tag_ana_typ(mode, tag)) {
   | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
   | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => ap_mode
