@@ -378,8 +378,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let livelit_padding =
               switch (t.label) {
-              | ["^int"] => 10 // TODO Pull of livelit
-              | ["^str"] => 10 // TODO Pull of livelit
+              | ["^slider"] => 10 // TODO Pull of livelit
+              | ["^checkbox"] => 1 // TODO Pull of livelit
               | _ => 0
               };
             let token = List.nth(t.label);

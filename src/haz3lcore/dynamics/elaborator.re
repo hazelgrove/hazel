@@ -292,8 +292,8 @@ let rec dhexp_of_uexp =
           | None => 50
           };
         switch (livelit_name) {
-        | "^int" => Some(IntLit(livelit_value))
-        | "^str" => Some(StringLit("livelit string"))
+        | "^slider" => Some(IntLit(livelit_value))
+        | "^checkbox" => Some(StringLit("livelit string"))
         | _ => None
         };
       | Match(scrut, rules) =>

@@ -31,12 +31,6 @@ let of_delim' =
   let font_width = 10.0;
   let livelit_width = 10.0; // TODO Pull from livelit
 
-  let style =
-    Printf.sprintf(
-      "width: %fpx; height: %fpx;",
-      livelit_width *. font_width,
-      font_height,
-    );
   let callback = (_evt, str): Virtual_dom.Vdom.Effect.t(unit) => {
     inject(
       UpdateAction.LivelitStateChange(tile_id, IntLit(int_of_string(str))),
@@ -46,12 +40,19 @@ let of_delim' =
   let attr: Attr.t = Attr.on_input(callback);
   let livelit_node: list(t) =
     switch (label) {
-    | ["^int"] => [
+    | ["^slider"] => [
         Node.input(
           ~attr=
             Attr.many([
               Attr.create("type", "range"),
-              Attr.create("style", style),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "width: %fpx; height: %fpx;",
+                  livelit_width *. font_width,
+                  font_height,
+                ),
+              ),
               Attr.create(
                 "value",
                 string_of_int(
@@ -66,12 +67,19 @@ let of_delim' =
           (),
         ),
       ]
-    | ["^str"] => [
+    | ["^checkbox"] => [
         Node.input(
           ~attr=
             Attr.many([
               Attr.create("type", "checkbox"),
-              Attr.create("style", style),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "width: %fpx; height: %fpx; margin: 0",
+                  1.0 *. font_width,
+                  font_height,
+                ),
+              ),
               attr,
             ]),
           (),
