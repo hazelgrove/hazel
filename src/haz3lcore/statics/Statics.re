@@ -311,12 +311,13 @@ let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
   |> List.fold_left(Id.Map.disj_union, m);
 
 let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t) =>
+    (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t)
+    : (Ctx.t, bool) =>
   if (Term.UPat.is_tuple_of_arrows(pat)
       && Term.UExp.is_tuple_of_functions(def)) {
-    VarMap.concat(ctx, pat_ctx);
+    (VarMap.concat(ctx, pat_ctx), true);
   } else {
-    ctx;
+    (ctx, false);
   };
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
@@ -513,19 +514,32 @@ and uexp_to_info_map =
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~mode=Syn, ~body_ids=body.ids @ def.ids, pat);
-    let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    let (def_ctx, is_rec) = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     // use this ^^ to determine if recursive let or not
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
+    let pat_body_ids =
+      if (is_rec) {
+        body.ids @ def.ids;
+      } else {
+        body.ids;
+      };
     let (_, ctx_pat_ana, m_pat) =
-      upat_to_info_map(~mode=Ana(ty_def), ~body_ids=body.ids @ def.ids, pat);
+      upat_to_info_map(~mode=Ana(ty_def), ~body_ids=pat_body_ids, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+      ~free=
+        Ctx.union([
+          free_def,
+          Ctx.subtract_typ(
+            def_ctx,
+            Ctx.subtract_typ(ctx_pat_ana, free_body),
+          ),
+        ]),
       union_m([m_pat, m_def, m_body]),
     );
   | Match(scrut, rules) =>
