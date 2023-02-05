@@ -224,6 +224,12 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
+  | TypAp(fn, utyp) =>
+    let (ty_fn, free_fn, m_fn) =
+      uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let Typ.{item: ty_body, _} = Typ.matched_forall(ty_fn);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    add(~self=Just(Typ.subst(ty, ty_body)), ~free=free_fn, m_fn);
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
@@ -233,6 +239,27 @@ and uexp_to_info_map =
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
       ~free=Ctx.free_in(ctx, ctx_pat, free_body),
+      union_m([m_pat, m_body]),
+    );
+  | TypFun({term: Var(name), _} as utpat, body) =>
+    let mode_body = Typ.matched_forall_mode(mode);
+    let m_pat = utpat_to_info_map(~ctx, utpat);
+    let ctx_body = Ctx.add_abstract(ctx, name, Term.UTPat.rep_id(utpat));
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
+    add(
+      ~self=Just(Forall({item: ty_body, name})),
+      ~free=free_body, // TODO: check with andrew
+      union_m([m_pat, m_body]),
+    );
+  | TypFun(utpat, body) =>
+    let mode_body = Typ.matched_forall_mode(mode);
+    let m_pat = utpat_to_info_map(~ctx, utpat);
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx, ~mode=mode_body, body);
+    add(
+      ~self=Just(Forall({item: ty_body, name: "expected_type_variable"})),
+      ~free=free_body, // TODO: check with andrew
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
@@ -497,6 +524,12 @@ and utyp_to_info_map =
         ts,
       );
     add(union_m(ms));
+  | Forall(_utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    add(m); // TODO: check with andrew
+  | Rec(_utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    add(m); // TODO: check with andrew
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(union_m(maps));

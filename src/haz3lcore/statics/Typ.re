@@ -74,6 +74,18 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
+let matched_forall: t => ann(t) =
+  fun
+  | Forall(ann) => ann
+  | Unknown(prov) => {item: Unknown(prov), name: "expected_forall"}
+  | _ => {item: Unknown(Internal), name: "expected_forall"};
+
+let matched_rec: t => ann(t) =
+  fun
+  | Rec(ann) => ann
+  | Unknown(prov) => {item: Unknown(prov), name: "expected_rec"}
+  | _ => {item: Unknown(Internal), name: "expected_rec"};
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | SynFun
@@ -90,6 +102,24 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
   | _ => List.init(length, _ => Syn)
   };
+
+let matched_forall_mode: mode => mode =
+  fun
+  | SynFun
+  | Syn => Syn
+  | Ana(ty) => {
+      let ann = matched_forall(ty);
+      Ana(ann.item);
+    };
+
+let matched_rec_mode: mode => mode =
+  fun
+  | SynFun
+  | Syn => Syn
+  | Ana(ty) => {
+      let ann = matched_rec(ty);
+      Ana(ann.item);
+    };
 
 let matched_list: t => t =
   fun
