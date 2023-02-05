@@ -43,7 +43,7 @@ type t =
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | LivelitStateChange(Id.t, int);
+  | LivelitStateChange(Id.t, DHExp.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

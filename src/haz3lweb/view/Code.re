@@ -13,7 +13,7 @@ let of_delim' =
         label,
         i,
         inject,
-        livelit_state: Id.Map.t(int),
+        livelit_state: Id.Map.t(DHExp.t),
         tile_id: Id.t,
       ),
     ) => {
@@ -38,7 +38,9 @@ let of_delim' =
       font_height,
     );
   let callback = (_evt, str): Virtual_dom.Vdom.Effect.t(unit) => {
-    inject(UpdateAction.LivelitStateChange(tile_id, int_of_string(str)));
+    inject(
+      UpdateAction.LivelitStateChange(tile_id, IntLit(int_of_string(str))),
+    );
   };
 
   let attr: Attr.t = Attr.on_input(callback);
@@ -54,8 +56,8 @@ let of_delim' =
                 "value",
                 string_of_int(
                   switch (Id.Map.find_opt(tile_id, livelit_state)) {
-                  | Some(v) => v
-                  | None => 50
+                  | Some(IntLit(i)) => i
+                  | _ => 50
                   },
                 ),
               ),
@@ -68,7 +70,7 @@ let of_delim' =
         Node.input(
           ~attr=
             Attr.many([
-              Attr.create("type", "text"),
+              Attr.create("type", "checkbox"),
               Attr.create("style", style),
               attr,
             ]),
@@ -92,7 +94,7 @@ let of_delim =
       t: Piece.tile,
       i: int,
       ~inject,
-      ~livelit_state: Id.Map.t(int),
+      ~livelit_state: Id.Map.t(DHExp.t),
     )
     : list(Node.t) =>
   of_delim'((
@@ -139,7 +141,7 @@ module Text = (M: {
             ~sort=Sort.root,
             seg: Segment.t,
             ~inject,
-            ~livelit_state: Id.Map.t(int),
+            ~livelit_state: Id.Map.t(DHExp.t),
           )
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
@@ -236,7 +238,7 @@ let view =
       ~measured,
       ~settings: Model.settings,
       ~inject,
-      ~livelit_state: Id.Map.t(int),
+      ~livelit_state: Id.Map.t(DHExp.t),
     )
     : Node.t => {
   module Text =
