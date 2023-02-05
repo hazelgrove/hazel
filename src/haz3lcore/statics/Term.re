@@ -206,14 +206,7 @@ module UTyp = {
         let (ctx, name) =
           switch (utpat.term) {
           | TermBase.UTPat.Var(name) => (
-              Ctx.extend(
-                Ctx.TVarEntry({
-                  name,
-                  id: UTPat.rep_id(utpat),
-                  kind: Kind.Abstract,
-                }),
-                ctx,
-              ),
+              Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat)),
               name,
             )
           | _ => (ctx, "tvar_hole")
@@ -224,14 +217,7 @@ module UTyp = {
         let (ctx, name) =
           switch (utpat.term) {
           | TermBase.UTPat.Var(name) => (
-              Ctx.extend(
-                Ctx.TVarEntry({
-                  name,
-                  id: UTPat.rep_id(utpat),
-                  kind: Kind.Abstract,
-                }),
-                ctx,
-              ),
+              Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat)),
               name,
             )
           | _ => (ctx, "tvar_hole")

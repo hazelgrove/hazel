@@ -285,7 +285,7 @@ and uexp_to_info_map =
       /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
          errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
-         in the definition would be oblierated. But we need to check for free
+         in the definition would be obliterated. But we need to check for free
          variables to decide whether to make a recursive type or not. So we
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
@@ -297,6 +297,7 @@ and uexp_to_info_map =
           let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
+          // TODO: check with andrew: `ty` is just `ty_pre`?
           let ty = Term.UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
         };
