@@ -2513,7 +2513,7 @@ let livelit_ap_exp_group = "livelit_ap_exp_group";
 
 let livelit_ap_exp: form = {
   let explanation = {message: "Livelit Application", feedback: Unselected};
-  let form = [];
+  let form = [exp("^slider")];
   {
     id: "livelit_ap_exp",
     syntactic_form: form,
@@ -3218,6 +3218,9 @@ let get_group = (group_id, doc: t) => {
 let get_form_and_options = (group_id, doc: t) => {
   print_endline(group_id);
   let form_group = get_group(group_id, doc);
+  print_endline(
+    Printf.sprintf("%s : %s", group_id, show_form_group(form_group)),
+  );
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
   let form = List.find(({id, _}) => id == selected_id, doc.forms);
@@ -3541,7 +3544,7 @@ let init = {
     ),
     (
       livelit_ap_exp_group,
-      init_options([(livelit_ap_exp.id, [pat("p")])]),
+      init_options([(livelit_ap_exp.id, [exp("e")])]),
     ),
     (
       livelit_def_exp_group,
