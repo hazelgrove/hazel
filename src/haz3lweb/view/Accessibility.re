@@ -95,7 +95,7 @@ let position_view = (editor: Editor.t) => {
     | Some(str) =>
       switch (pos_mode) {
       | Line => str
-      | Character => String.sub(str, col, 1)
+      | Character => String.sub(str, max(0, col - 1), 1)
       }
     | None => ""
     }
