@@ -132,11 +132,11 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
    for elaborated expressions */
 let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
   /* Normalize types */
-  switch (Info.typ_of_self(ctx, self)) {
+  switch (Info.typ_of_self_exp(ctx, self)) {
   | None => d
   | Some(self_ty) =>
     let self_ty = Typ.normalize(ctx, self_ty);
-    switch (Info.status_common(ctx, mode, self)) {
+    switch (Info.status_exp(ctx, mode, self)) {
     | NotInHole(_) => cast(ctx, mode, self_ty, d)
     | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
     };
@@ -147,7 +147,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
-    let err_status = Info.status_common(ctx, mode, self);
+    let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
       switch (uexp.term) {
@@ -209,7 +209,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVar) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Let(p, def, body) =>
@@ -265,7 +265,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(SynInconsistentBranches(_)) =>
+        | InHole(Common(SynInconsistentBranches(_))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -283,7 +283,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(SynInconsistentBranches(_)) =>
+        | InHole(Common(SynInconsistentBranches(_))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -297,7 +297,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
-    let err_status = Info.status_common(ctx, mode, self);
+    let err_status = Info.status_pat(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None

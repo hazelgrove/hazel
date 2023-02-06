@@ -117,11 +117,12 @@ and uexp_to_info_map =
     | _ => mode
     };
   let cls = Term.UExp.cls_of_term(term);
-  let add = (~self, ~free, m) => {
-    let ty = Info.typ_after_fix(ctx, mode, self);
+  let add' = (~self, ~free, m) => {
+    let ty = Info.typ_after_fix_exp(ctx, mode, self);
     let info = Info.{cls, self, ty, mode, ctx, free, ancestors, term: uexp};
     (info, add_info(ids, InfoExp(info), m));
   };
+  let add = (~self, ~free, m) => add'(~self=Common(self), ~free, m);
   let ancestors = [exp_id(uexp)] @ ancestors;
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
@@ -146,10 +147,12 @@ and uexp_to_info_map =
       List.map2((e, mode) => go(~mode, e), es, modes) |> List.split;
     let tys = List.map(Info.exp_ty, infos);
     let frees = List.map(Info.exp_free, infos);
-    let self: Info.self =
+    let self =
       switch (Typ.join_all(ctx, tys)) {
       | None =>
-        NoJoin(List.map2((e, ty) => Info.{id: exp_id(e), ty}, es, tys))
+        Info.NoJoin(
+          List.map2((e, ty) => Info.{id: exp_id(e), ty}, es, tys),
+        )
       | Some(ty) => Just(List(ty))
       };
     add(~self, ~free=Ctx.union(frees), union_m(ms));
@@ -163,12 +166,16 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    let self: Info.self =
+    let self =
       switch (Ctx.lookup_var(ctx, name)) {
-      | None => FreeVar
-      | Some(var) => Just(var.typ)
+      | None => Info.FreeVar
+      | Some(var) => Common(Just(var.typ))
       };
-    add(~self, ~free=[(name, [{id: exp_id(uexp), mode}])], Id.Map.empty);
+    add'(
+      ~self,
+      ~free=[(name, [{id: exp_id(uexp), mode}])],
+      Id.Map.empty,
+    );
   | Parens(e) =>
     let (Info.{free, ty, _}, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -199,10 +206,13 @@ and uexp_to_info_map =
     let (Info.{free: free0, _}, m0) = go(~mode=Ana(Bool), e0);
     let (Info.{free: free1, ty: ty1, _}, m1) = go(~mode, e1);
     let (Info.{free: free2, ty: ty2, _}, m2) = go(~mode, e2);
-    let self: Info.self =
+    let self =
       switch (Typ.join(ctx, ty1, ty2)) {
       | None =>
-        NoJoin([{id: exp_id(e1), ty: ty1}, {id: exp_id(e2), ty: ty2}])
+        Info.NoJoin([
+          {id: exp_id(e1), ty: ty1},
+          {id: exp_id(e2), ty: ty2},
+        ])
       | Some(ty) => Just(ty)
       };
     add(
@@ -313,10 +323,12 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, e_infos);
     let e_frees =
       List.map2(Ctx.free_in(ctx), p_ctxs, List.map(Info.exp_free, e_infos));
-    let self: Info.self =
+    let self =
       switch (Typ.join_all(ctx, e_tys)) {
       | None =>
-        NoJoin(List.map2((e, ty) => Info.{id: exp_id(e), ty}, es, e_tys))
+        Info.NoJoin(
+          List.map2((e, ty) => Info.{id: exp_id(e), ty}, es, e_tys),
+        )
       | Some(ty) => Just(ty)
       };
     add(
@@ -337,7 +349,7 @@ and upat_to_info_map =
     : (Info.pat, map) => {
   let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => {
-    let ty = Info.typ_after_fix(ctx, mode, self);
+    let ty = Info.typ_after_fix_pat(ctx, mode, self);
     let info = Info.{cls, self, mode, ty, ctx, ancestors, term: upat};
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -373,9 +385,10 @@ and upat_to_info_map =
       );
     let (infos, ms) = List.split(rets);
     let tys = List.map(Info.pat_ty, infos);
-    let self: Info.self =
+    let self =
       switch (Typ.join_all(ctx, tys)) {
-      | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, p_ids, tys))
+      | None =>
+        Info.NoJoin(List.map2((id, ty) => Info.{id, ty}, p_ids, tys))
       | Some(ty) => Just(List(ty))
       };
     add(~self, ~ctx, union_m(ms));
@@ -386,7 +399,7 @@ and upat_to_info_map =
     add(~self=Just(List(ty1)), ~ctx, union_m([m_hd, m_tl]));
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    let typ = Info.typ_after_fix(ctx, mode, Just(Unknown(Internal)));
+    let typ = Info.typ_after_fix_pat(ctx, mode, Just(Unknown(Internal)));
     let entry = Ctx.VarEntry({name, id: pat_id(upat), typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
   | Tuple(ps) =>

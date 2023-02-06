@@ -19,19 +19,22 @@ type source = {
    of pattern term in isolation, using the typing context but not
    the syntactic context i.e. typing mode */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type self =
+type self_pat =
   | Just(Typ.t) /* Just a regular type */
-  | FreeVar //TODO: make exp-only; doesn't apply to pats
   | NoJoin(list(source)) /* inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsTag(Token.t, option(Typ.t)); /* Tags have special ana logic */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type error_common =
+type self_exp =
+  | FreeVar
+  | Common(self_pat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_pat =
   | BadToken(Token.t)
   | NoFun(Typ.t)
-  | FreeVar
   | FreeTag
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent({
@@ -39,9 +42,14 @@ type error_common =
       syn: Typ.t,
     });
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_exp =
+  | FreeVariable
+  | Common(error_pat);
+
 /* Statics non-error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ok_common =
+type ok_pat =
   | SynConsistent(Typ.t)
   | AnaConsistent({
       ana: Typ.t,
@@ -54,9 +62,17 @@ type ok_common =
     });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type status_common =
-  | InHole(error_common)
-  | NotInHole(ok_common);
+type ok_exp = ok_pat;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_exp =
+  | InHole(error_exp)
+  | NotInHole(ok_exp);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_pat =
+  | InHole(error_pat)
+  | NotInHole(ok_pat);
 
 /* Info for expression terms */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -66,7 +82,7 @@ type exp = {
   ancestors,
   ctx: Ctx.t,
   mode: Typ.mode,
-  self,
+  self: self_exp,
   free: Ctx.co, /* _Locally_ unbound variables */
   ty: Typ.t,
 };
@@ -79,7 +95,7 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   mode: Typ.mode,
-  self,
+  self: self_pat,
   ty: Typ.t,
 };
 
@@ -174,12 +190,7 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 
-/* Determines whether an expression or pattern is in an error hole,
-   depending on the mode, which represents the expectations of the
-   surrounding syntactic context, and the self which represents the
-   makeup of the expression / pattern itself. */
-let rec status_common =
-        (ctx: Ctx.t, mode: Typ.mode, self: self): status_common =>
+let rec status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
   switch (self, mode) {
   | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
   | (IsMulti, Syn | SynFun | Ana(_)) =>
@@ -195,21 +206,34 @@ let rec status_common =
     | None => InHole(TypeInconsistent({syn, ana}))
     | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
     }
-  | (FreeVar, _) => InHole(FreeVar)
   | (IsTag(name, syn_ty), _) =>
     /* If a tag is being analyzed against (an arrow type returning)
        a sum type having that tag as a variant, its self type is
        considered to be determined by the sum type; otherwise,
        check the context for the tag's type */
     switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
-    | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
-    | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
+    | (Some(ana_ty), _) => status_pat(ctx, mode, Just(ana_ty))
+    | (_, Some(syn_ty)) => status_pat(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
     }
   | (NoJoin(tys), Syn | SynFun) =>
     InHole(SynInconsistentBranches(source_tys(tys)))
   | (NoJoin(tys), Ana(ana)) =>
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
+  };
+
+/* Determines whether an expression or pattern is in an error hole,
+   depending on the mode, which represents the expectations of the
+   surrounding syntactic context, and the self which represents the
+   makeup of the expression / pattern itself. */
+let status_exp = (ctx: Ctx.t, mode: Typ.mode, self: self_exp): status_exp =>
+  switch (self, mode) {
+  | (FreeVar, _) => InHole(FreeVariable)
+  | (Common(self_pat), _) =>
+    switch (status_pat(ctx, mode, self_pat)) {
+    | NotInHole(ok_exp) => NotInHole(ok_exp)
+    | InHole(err_pat) => InHole(Common(err_pat))
+    }
   };
 
 /* This logic determines whether a type should be put
@@ -269,9 +293,13 @@ let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | InfoExp({mode, self, ctx, _})
+  | InfoExp({mode, self, ctx, _}) =>
+    switch (status_exp(ctx, mode, self)) {
+    | InHole(_) => true
+    | NotInHole(_) => false
+    }
   | InfoPat({mode, self, ctx, _}) =>
-    switch (status_common(ctx, mode, self)) {
+    switch (status_pat(ctx, mode, self)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -291,42 +319,56 @@ let is_error = (ci: t): bool => {
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
-let typ_after_fix = (ctx, mode: Typ.mode, self: self): Typ.t =>
-  switch (status_common(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
-  | NotInHole(SynConsistent(syn)) => syn
-  | NotInHole(AnaConsistent({join, _})) => join
-  | NotInHole(AnaInternalInconsistent({ana, _})) => ana
-  };
+let typ_ok: ok_pat => Typ.t =
+  fun
+  | SynConsistent(syn) => syn
+  | AnaConsistent({join, _}) => join
+  | AnaInternalInconsistent({ana, _}) => ana;
 
+let typ_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
+  switch (status_pat(ctx, mode, self)) {
+  | InHole(_) => Unknown(Internal)
+  | NotInHole(ok) => typ_ok(ok)
+  };
+let typ_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
+  switch (status_exp(ctx, mode, self)) {
+  | InHole(_) => Unknown(Internal)
+  | NotInHole(ok) => typ_ok(ok)
+  };
 let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
   switch (info) {
-  | InfoExp({mode, self, _})
-  | InfoPat({mode, self, _}) => Some(typ_after_fix(ctx, mode, self))
+  | InfoExp({mode, self, _}) => Some(typ_after_fix_exp(ctx, mode, self))
+  | InfoPat({mode, self, _}) => Some(typ_after_fix_pat(ctx, mode, self))
   | InfoTyp(_)
   | InfoTPat(_) => None
   };
 
+/* Type of a tag in synthetic position */
+//TODO(andrew):ADTs cleanup move this
 let syn_tag_typ = (ctx: Ctx.t, tag: Token.t): option(Typ.t) =>
   switch (Ctx.lookup_tag(ctx, tag)) {
   | None => None
   | Some({typ, _}) => Some(typ)
   };
 
-let typ_of_self: (Ctx.t, self) => option(Typ.t) =
+let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
   ctx =>
     fun
     | Just(typ) => Some(typ)
     | IsTag(tag, _) => syn_tag_typ(ctx, tag)
-    | FreeVar
     | BadToken(_)
     | IsMulti
     | NoJoin(_) => None;
+let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
+  ctx =>
+    fun
+    | FreeVar => None
+    | Common(self_pat) => typ_of_self_pat(ctx, self_pat);
 
 let typ_of_self_info = (ctx: Ctx.t, info: t): option(Typ.t) =>
   switch (info) {
-  | InfoExp({self, _})
-  | InfoPat({self, _}) => typ_of_self(ctx, self)
+  | InfoExp({self, _}) => typ_of_self_exp(ctx, self)
+  | InfoPat({self, _}) => typ_of_self_pat(ctx, self)
   | InfoTyp(_)
   | InfoTPat(_) => None
   };
