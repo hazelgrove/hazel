@@ -212,10 +212,9 @@ let rec mk =
           |> annot(DHAnnot.InconsistentBranches((u, i)))
         | _ => fdoc(~enforce_inline, ~d=d')
         // DHDoc_common.mk_StringLit("Help:PostprocessedNonHoleInClosure")
-        }
-
-      /* Hole expressions must appear within a closure in
+        } /* Hole expressions must appear within a closure in
          the postprocessed result */
+
       | EmptyHole(_)
       | NonEmptyHole(_)
       | ExpandingKeyword(_)
@@ -336,35 +335,7 @@ let rec mk =
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
-        hcats([d_doc, decoration]);
-      /* | InvalidOperation(d, err) => */
-      /*   switch (err) { */
-      /*   | DivideByZero => */
-      /*     let (d_doc, _) = go'(d); */
-      /*     let decoration = */
-      /*       Doc.text(InvalidOperationError.err_msg(err)) */
-      /*       |> annot(DHAnnot.DivideByZero); */
-      /*     hcats([d_doc, decoration]); */
-      /*   } */
-      /*
-       let (d_doc, d_cast) as dcast_doc = go'(d);
-       let cast_decoration =
-         hcats([
-           DHDoc_common.Delim.open_FailedCast,
-           hseps([
-             DHDoc_Typ.mk(~enforce_inline=true, ty1),
-             DHDoc_common.Delim.arrow_FailedCast,
-             DHDoc_Typ.mk(~enforce_inline=true, ty2),
-           ]),
-           DHDoc_common.Delim.close_FailedCast,
-         ])
-         |> annot(DHAnnot.FailedCastDecoration);
-       switch (d_cast) {
-       | Some(ty1') when Typ.eq(ty1, ty1') =>
-         hcats([d_doc, cast_decoration])
-       | _ => hcats([mk_cast(dcast_doc), cast_decoration])
-       };
-       */
+        hcats([d_doc, decoration /*  let (d_doc, d_cast) as dcast_doc = go'(d);  let cast_decoration =    hcats([      DHDoc_common.Delim.open_FailedCast,      hseps([        DHDoc_Typ.mk(~enforce_inline=true, ty1),        DHDoc_common.Delim.arrow_FailedCast,        DHDoc_Typ.mk(~enforce_inline=true, ty2),      ]),      DHDoc_common.Delim.close_FailedCast,    ])    |> annot(DHAnnot.FailedCastDecoration);  switch (d_cast) {  | Some(ty1') when Typ.eq(ty1, ty1') =>    hcats([d_doc, cast_decoration])  | _ => hcats([mk_cast(dcast_doc), cast_decoration])  };  */ /*     let (d_doc, _) = go'(d); */ /*   | DivideByZero => */ /*   switch (err) { */ /* | InvalidOperation(d, err) => */ /*   } */ /*     hcats([d_doc, decoration]); */ /*       |> annot(DHAnnot.DivideByZero); */]) /*       Doc.text(InvalidOperationError.err_msg(err)) */; /*     let decoration = */
 
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {

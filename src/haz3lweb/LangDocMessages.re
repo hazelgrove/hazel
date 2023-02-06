@@ -2558,8 +2558,7 @@ let case_exp: form = {
     explanation,
     examples: [case_example_int, case_example_bool],
   };
-};
-/*let case_exp_rules: form = {
+} /*let case_exp_rules: form = {
     let explanation = {
       message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",
       feedback: Unselected,
@@ -2581,7 +2580,7 @@ let case_exp: form = {
       explanation,
       examples: [case_example_int, case_example_bool],
     };
-  };*/
+  };*/;
 
 let empty_hole_pat_group = "empty_hole_pat_group";
 let empty_hole_pat: form = {
