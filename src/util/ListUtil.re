@@ -431,3 +431,17 @@ let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
       );
     (acc, List.rev(rev_xs));
   };
+
+let partition3_map =
+    (f: 'x => Either3.t('l, 'm, 'r), xs: list('x))
+    : (list('l), list('m), list('r)) =>
+  List.fold_right(
+    (x, (ls, ms, rs)) =>
+      switch (f(x)) {
+      | L(l) => ([l, ...ls], ms, rs)
+      | M(m) => (ls, [m, ...ms], rs)
+      | R(r) => (ls, ms, [r, ...rs])
+      },
+    xs,
+    ([], [], []),
+  );

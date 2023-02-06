@@ -3,7 +3,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | S(Space.t)
+  | S(Space.Char.t)
   | G(Grout.t)
   | T(Tile.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,7 +25,7 @@ let token =
   fun
   | G(g) => g.fill
   | T(t) => t.token
-  | S(s) => Space.to_string(s);
+  | S(s) => Space.Char.to_string(s);
 
 let id =
   fun
@@ -39,17 +39,14 @@ let to_piece =
   | G(g) => Some(Piece.mk(G(g)))
   | T(t) => Some(Piece.mk(T(t)));
 
-let s_of_space: Space.s => s = List.map(s => S(s));
+let s_of_space = (s: Space.t) => List.map(s => S(s), s.chars);
 
 // postcond: output is nonempty
-let s_of_piece = ({shape, space: (l, r)}: Piece.t) => {
-  let of_shape =
-    switch (shape) {
-    | T(t) => T(t)
-    | G(g) => G(g)
-    };
-  s_of_space(l) @ [of_shape, ...s_of_space(r)];
-};
+let of_piece = (p: Piece.t) =>
+  switch (p.shape) {
+  | T(t) => T(t)
+  | G(g) => G(g)
+  };
 
 let uncons_char = (lx: t): option((t, t)) =>
   switch (lx) {

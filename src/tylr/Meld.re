@@ -1,11 +1,48 @@
 open Sexplib.Std;
 open Util;
 
+module Paths = {
+  // current a list but could turn into record for specific paths
+  // (eg cursor vs variable uses)
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(Path.t);
+
+  let merge = List.concat;
+
+  let link = (ps_kid, ps_p, ps_mel: t) => {
+    let ps_kid = List.map(Path.cons(0), ps_kid);
+    let ps_p = List.map(Path.of_piece(0), ps_p);
+    let ps_mel = List.map(Path.link, ps_mel);
+    merge([ps_kid, ps_p, ps_mel]);
+  };
+  let knil = (~len, ps_mel: t, ps_p, ps_kid) => {
+    let ps_mel = List.map(Path.knil(~len), ps_mel);
+    let ps_p = List.map(Path.of_piece(len), ps_p);
+    let ps_kid = List.map(Path.cons(len + 1), ps_kid);
+    merge([ps_mel, ps_p, ps_kid]);
+  };
+
+  let unlink = ListUtil.partition3_map(Path.unlink);
+  let unknil = (~len) => ListUtil.partition3_map(Path.unknil(~len));
+
+  // let trim = step => List.map(Path.trim(step));
+  let with_kid = (ps: t, kid: int) =>
+    List.filter_map(Path.with_kid(kid), ps);
+  let with_piece = (ps: t, index: int) =>
+    List.filter_map(Path.with_piece(index), ps);
+  let with_space = (ps: t, side: Dir.t) =>
+    List.filter_map(Path.with_space(side), ps);
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Chain.t(option(kid), Piece.t)
-[@deriving (show({with_path: false}), sexp, yojson)]
-and kid =
-  | K(t);
+type t = {
+  chain: Chain.t(option(t), Piece.t),
+  paths: Paths.t,
+  space: (Space.t, Space.t),
+};
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// and kid =
+//   | K(t);
 
 // for use in submodules below
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -20,8 +57,73 @@ exception Orphaned_kid;
 exception Invalid_prec;
 exception Missing_root;
 
-let empty = Chain.of_loop(None);
-let is_empty: t => bool = (==)(empty);
+let mk = (~l=Space.empty, ~r=Space.empty, ~paths=[], chain) => {
+  space: (l, r),
+  paths,
+  chain,
+};
+let empty_chain = Chain.of_loop(None);
+let empty = mk(empty_chain);
+let is_empty = (mel: t) => mel.chain == empty_chain;
+
+let pad = (~l=Space.empty, ~r=Space.empty, mel) => {
+  let paths =
+    List.concat([
+      List.map(Path.of_space(L), l.paths),
+      List.map(Path.shift_space(~side=L, Space.length(l)), mel.paths),
+      List.map(Path.of_space(R), r.paths),
+    ]);
+
+  let (l', r') = mel.space;
+  let space = Space.(cat(clear_paths(l), l'), cat(r', clear_paths(r)));
+  {...mel, paths, space};
+};
+
+let add_paths = (paths, mel) => {...mel, paths: paths @ mel.paths};
+let clear_paths = mel => {...mel, paths: []};
+
+let paths_of_kid =
+  fun
+  | None => []
+  | Some(kid) => kid.paths;
+
+let distribute_paths = mel => {
+  let with_k = Paths.with_kid(mel.paths);
+  let with_p = Paths.with_piece(mel.paths);
+  let with_s = Paths.with_space(mel.paths);
+
+  let (l, r) = mel.space;
+  let space = Space.(add_paths(with_s(L), l), add_paths(with_s(R), r));
+  let chain =
+    mel.chain
+    |> Chain.mapi(
+         i => Option.map(add_paths(with_k(i))),
+         j => Piece.add_paths(with_p(j)),
+       );
+  {chain, space, paths: []};
+};
+
+let aggregate_paths = mel => {
+  let (l, r) = mel.space;
+  let ps_space =
+    List.map(Path.of_space(L), l.paths)
+    @ List.map(Path.of_space(R), r.paths);
+  let space = Space.(clear_paths(l), clear_paths(r));
+
+  let ps_chain =
+    mel.chain
+    |> Chain.mapi(
+         (i, kid) => List.map(Path.cons(i), paths_of_kid(kid)),
+         (i, p: Piece.t) => List.map(Path.of_piece(i), p.paths),
+       )
+    |> Chain.to_list(Fun.id, Fun.id)
+    |> List.concat;
+  let chain =
+    mel.chain |> Chain.map(Option.map(clear_paths), Piece.clear_paths);
+
+  // todo: maintain order if invariant
+  {chain, space, paths: ps_space @ ps_chain};
+};
 
 let of_piece = (~l=?, ~r=?, p: Piece.t) => Chain.mk([l, r], [p]);
 let of_grout = (~l=?, ~r=?, g: Grout.t) =>
@@ -29,18 +131,85 @@ let of_grout = (~l=?, ~r=?, g: Grout.t) =>
 let of_tile = (~l=?, ~r=?, t: Tile.t) =>
   of_piece(~l?, ~r?, Piece.mk(T(t)));
 
-let link = (~kid=None, p, mel) => Chain.link(kid, p, mel);
-let knil = (mel, p, ~kid=None, ()) => Chain.knil(mel, p, kid);
+let root = mel => Chain.links(mel.chain);
+let kids = mel => Chain.loops(mel.chain);
+let length = mel => List.length(root(mel));
 
-let root: t => list(Piece.t) = Chain.links;
-let kids: t => list(option(kid)) = Chain.loops;
+// todo: review in wrt to preserving space paths
+let absorb_space_l = mel => {
+  let (l, r) = mel.space;
+  let chain = mel.chain |> Chain.map_fst(Option.map(kid => pad(~l, kid)));
+  let paths =
+    mel.paths
+    |> List.map((path: Path.t) =>
+         switch (path) {
+         | {kids: [], here: Space(L, _)} => {...path, kids: [0]}
+         | _ => path
+         }
+       );
+  mk(~r, ~paths, chain);
+};
+let absorb_space_r = mel => {
+  let (l, r) = mel.space;
+  let chain = mel.chain |> Chain.map_lst(Option.map(kid => pad(kid, ~r)));
+  let paths =
+    mel.paths
+    |> List.map((path: Path.t) =>
+         switch (path) {
+         | {kids: [], here: Space(L, _)} => {...path, kids: [length(mel)]}
+         | _ => path
+         }
+       );
+  mk(~l, ~paths, chain);
+};
 
-let rec to_lexemes = c =>
-  c |> Chain.to_list(kid_to_lexemes, Lexeme.s_of_piece) |> List.concat
+let link = (~kid=None, p: Piece.t, mel) => {
+  let mel = absorb_space_l(mel);
+  let paths = Paths.link(paths_of_kid(kid), p.paths, mel.paths);
+  let chain = Chain.link(Option.map(clear_paths, kid), p, mel.chain);
+  mk(~paths, chain);
+};
+let knil = (~kid=None, mel, p: Piece.t) => {
+  let mel = absorb_space_r(mel);
+  let paths =
+    Paths.knil(~len=length(mel), mel.paths, p.paths, paths_of_kid(kid));
+  let chain = Chain.knil(mel.chain, p, Option.map(clear_paths, kid));
+  mk(~paths, chain);
+};
+
+let unlink = mel =>
+  Chain.unlink(mel.chain)
+  |> Option.map(((kid, p, tl)) => {
+       let (ps_kid, ps_p, ps_tl) = Paths.unlink(mel.paths);
+       let kid = Option.map(add_paths(ps_kid), kid);
+       let p = Piece.{...p, paths: ps_p};
+       let tl = mk(~paths=ps_tl, tl);
+       (kid, p, tl);
+     });
+let unknil = mel =>
+  Chain.unknil(mel.chain)
+  |> Option.map(((tl, p, kid)) => {
+       let (ps_tl, ps_p, ps_kid) =
+         Paths.unknil(~len=length(mel), mel.paths);
+       let tl = mk(~paths=ps_tl, tl);
+       let p = Piece.{...p, paths: ps_p};
+       let kid = Option.map(add_paths(ps_kid), kid);
+       (tl, p, kid);
+     });
+
+let rec to_lexemes = (mel): Lexeme.s => {
+  let (l, r) = mel.space;
+  let (l, r) = Lexeme.(s_of_space(l), s_of_space(r));
+  mel.chain
+  |> Chain.to_list(kid_to_lexemes, p => [Lexeme.of_piece(p)])
+  |> List.cons(l)
+  |> Fun.flip((@), [r])
+  |> List.concat;
+}
 and kid_to_lexemes =
   fun
   | None => []
-  | Some(K(c)) => to_lexemes(c);
+  | Some(mel) => to_lexemes(mel);
 
 let tip = (side: Dir.t, mel: t): option(Tip.t) => {
   let tip = (kid, p) =>
@@ -49,65 +218,95 @@ let tip = (side: Dir.t, mel: t): option(Tip.t) => {
     | Some(_) => Tip.Convex
     };
   switch (side) {
-  | L => Chain.unlink(mel) |> Option.map(((kid, p, _)) => tip(kid, p))
-  | R => Chain.unknil(mel) |> Option.map(((_, p, kid)) => tip(kid, p))
+  | L => unlink(mel) |> Option.map(((kid, p, _)) => tip(kid, p))
+  | R => unknil(mel) |> Option.map(((_, p, kid)) => tip(kid, p))
   };
 };
 
-let uncons_space_l = mel =>
-  switch (Chain.unlink(mel)) {
-  | None
-  | Some((Some(_), _, _)) => (Space.empty, mel)
-  | Some((None, p, tl)) =>
-    let (s, p) = Piece.pop_space_l(p);
-    (s, Chain.link(None, p, tl));
-  };
-let uncons_space_r = mel =>
-  switch (Chain.unknil(mel)) {
-  | None
-  | Some((_, _, Some(_))) => (mel, Space.empty)
-  | Some((tl, p, None)) =>
-    let (p, s) = Piece.pop_space_r(p);
-    (Chain.knil(tl, p, None), s);
-  };
+// let uncons_space_l = mel =>
+//   switch (Chain.unlink(mel)) {
+//   | None
+//   | Some((Some(_), _, _)) => (Space.empty, mel)
+//   | Some((None, p, tl)) =>
+//     let (s, p) = Piece.pop_space_l(p);
+//     (s, Chain.link(None, p, tl));
+//   };
+// let uncons_space_r = mel =>
+//   switch (Chain.unknil(mel)) {
+//   | None
+//   | Some((_, _, Some(_))) => (mel, Space.empty)
+//   | Some((tl, p, None)) =>
+//     let (p, s) = Piece.pop_space_r(p);
+//     (Chain.knil(tl, p, None), s);
+//   };
 
 // precond: root(c) != []
 let sort = mel => {
   let (_, p, _) =
-    Chain.unlink(mel) |> OptUtil.get_or_raise(Invalid_argument("Meld.sort"));
+    unlink(mel) |> OptUtil.get_or_raise(Invalid_argument("Meld.sort"));
   Piece.sort(p);
 };
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
-let rec to_prefix = (mel: t): Chain.t(Space.s, t) => {
-  let kid_pre =
-    switch (Chain.lst(mel)) {
-    | None => Chain.of_loop(Space.empty)
-    | Some(K(kid)) => to_prefix(kid)
-    };
-  switch (Chain.unknil(mel)) {
-  | None => kid_pre
-  | Some((tl_mel, p, _kid)) =>
-    let (p, s) = Piece.pop_space_r(p);
-    let mel = knil(tl_mel, p, ());
-    Chain.(link(Space.empty, mel, map_fst((@)(s), kid_pre)));
-  };
+module Segment = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Chain.t(Space.t, meld);
+  let of_space = (s: Space.t): t => Chain.of_loop(s);
+  let empty = of_space(Space.empty);
+  let of_meld = (mel: meld): t =>
+    is_empty(mel) ? empty : Chain.mk(Space.[empty, empty], [mel]);
+  let is_empty: t => bool = (==)(empty);
+  let cons_space = s => Chain.map_fst(Space.cat(s));
+  let snoc_space = (seg, s) => Chain.map_lst(Fun.flip(Space.cat, s), seg);
+  let link = (~s=Space.empty, mel, seg) => Chain.link(s, mel, seg);
+  let knil = (~s=Space.empty, seg, mel) => Chain.knil(seg, mel, s);
 };
-let rec to_suffix = (mel: t): Chain.t(Space.s, t) => {
-  let kid_suf =
-    switch (Chain.fst(mel)) {
-    | None => Chain.of_loop(Space.empty)
-    | Some(K(kid)) => to_suffix(kid)
-    };
-  switch (Chain.unlink(mel)) {
-  | None => kid_suf
-  | Some((_kid, p, tl)) =>
-    let (s, p) = Piece.pop_space_l(p);
-    let mel = link(p, tl);
-    Chain.(knil(map_lst(Fun.flip((@), s), kid_suf), mel, Space.empty));
+
+// let distribute_paths = (mel: t) =>
+
+let unwrap = mel =>
+  switch (unlink(mel)) {
+  | Some(_) => Some(mel)
+  | None =>
+    Chain.fst(mel.chain)
+    |> Option.map(add_paths(Paths.with_kid(mel.paths, 0)))
   };
-};
+
+// todo: may want to be more careful about distributing paths in space
+let rec to_prefix = (mel: t): Segment.t => {
+  let (l, r) = mel.space;
+  let seg =
+    switch (unknil(mel)) {
+    | None => kid_to_prefix(unwrap(mel))
+    | Some((tl_mel, p, kid)) =>
+      // let (p, s) = Piece.pop_space_r(p);
+      let mel = knil(tl_mel, p);
+      let kid_pre = kid_to_prefix(kid);
+      Segment.link(mel, kid_pre);
+    };
+  Segment.(cons_space(l, snoc_space(seg, r)));
+}
+and kid_to_prefix =
+  fun
+  | None => Segment.empty
+  | Some(kid) => to_prefix(kid);
+let rec to_suffix = (mel: t): Segment.t => {
+  let (l, r) = mel.space;
+  let seg =
+    switch (unlink(mel)) {
+    | None => kid_to_suffix(unwrap(mel))
+    | Some((kid, p, tl)) =>
+      let mel = link(p, tl);
+      let kid_suf = kid_to_suffix(kid);
+      Segment.knil(kid_suf, mel);
+    };
+  Segment.(cons_space(l, snoc_space(seg, r)));
+}
+and kid_to_suffix =
+  fun
+  | None => Segment.empty
+  | Some(kid) => to_suffix(kid);
 
 let mold = (mel: t, ~kid: option(Sort.o)=?, t: Token.t): Mold.Result.t => {
   open Result.Syntax;
@@ -123,8 +322,8 @@ let mold = (mel: t, ~kid: option(Sort.o)=?, t: Token.t): Mold.Result.t => {
 
 let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
   switch (side) {
-  | L => Chain.unlink(mel) |> Option.map(((_, p, _)) => p)
-  | R => Chain.unknil(mel) |> Option.map(((_, p, _)) => p)
+  | L => unlink(mel) |> Option.map(((_, p, _)) => p)
+  | R => unknil(mel) |> Option.map(((_, p, _)) => p)
   };
 
 let fst_id = mel => Option.map(Piece.id, end_piece(~side=L, mel));
@@ -136,78 +335,59 @@ let complement = (~side: Dir.t, mel: t) =>
   | Some(p) => Piece.complement(~side, p)
   };
 
-module Padded = {
-  // meld with padding (ie single-meld segment)
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (meld, (Space.s, Space.s));
-  let mk = (~l=Space.empty, ~r=Space.empty, mel): t => (mel, (l, r));
-  let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty);
-  let is_empty = ((mel, (l, r))) => is_empty(mel) ? Some(l @ r) : None;
-  let pad = (~l=Space.empty, ~r=Space.empty, (c, (l', r')): t) => (
-    c,
-    (l @ l', r' @ r),
-  );
-};
+// module Padded = {
+//   // meld with padding (ie single-meld segment)
+//   [@deriving (show({with_path: false}), sexp, yojson)]
+//   type t = (meld, (Space.s, Space.s));
+//   let mk = (~l=Space.empty, ~r=Space.empty, mel): t => (mel, (l, r));
+//   let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty);
+//   let is_empty = ((mel, (l, r))) => is_empty(mel) ? Some(l @ r) : None;
+//   let pad = (~l=Space.empty, ~r=Space.empty, (c, (l', r')): t) => (
+//     c,
+//     (l @ l', r' @ r),
+//   );
+// };
 
-let length = mel => List.length(root(mel));
+// module Zipped = {
+//   [@deriving (show({with_path: false}), sexp, yojson)]
+//   type t = (Padded.t, Path.t);
+//   exception Invalid(t);
+//   let init = offset => (Padded.empty(), Path.mk(~offset, ()));
+// };
 
-module Step = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = int;
-};
-module Path = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    // top-down
-    steps: list(Step.t),
-    // negative offset: last piece of last meld
-    // positive offset: trailing space
-    offset: int,
-  };
-  let mk = (~steps=[], ~offset=0, ()) => {steps, offset};
-  let empty = mk();
+// let split_nth_kid = (n, mel: t) => {
+//   let (ks, ps) = mel;
+//   print_endline("split_nth_kid bef");
+//   let (ks_l, k, ks_r) = ListUtil.split_nth(n, ks);
+//   print_endline("split_nth_kid aft");
+//   let (ps_l, ps_r) = ListUtil.split_n(n, ps);
+//   (Chain.mk(ks_l @ [None], ps_l), k, Chain.mk([None, ...ks_r], ps_r));
+// };
 
-  let cons = (step, path) => {...path, steps: [step, ...path.steps]};
-  let cons_s = (steps, path) => List.fold_right(cons, steps, path);
-};
-module Zipped = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Padded.t, Path.t);
-  exception Invalid(t);
-  let init = offset => (Padded.empty(), Path.mk(~offset, ()));
-};
-
-let split_nth_kid = (n, mel: t) => {
-  let (ks, ps) = mel;
-  print_endline("split_nth_kid bef");
-  let (ks_l, k, ks_r) = ListUtil.split_nth(n, ks);
-  print_endline("split_nth_kid aft");
-  let (ps_l, ps_r) = ListUtil.split_n(n, ps);
-  (Chain.mk(ks_l @ [None], ps_l), k, Chain.mk([None, ...ks_r], ps_r));
-};
-
+// todo: adjust paths
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
   open OptUtil.Syntax;
-  let* (kid, p_r, tl) = Chain.unlink(mel);
+  let* (kid, p_r, tl) = unlink(mel);
   let+ p = Piece.zip(p_l, p_r);
   assert(kid == None);
-  Chain.link(kid, p, tl);
+  link(~kid, p, tl);
 };
+// todo: adjust paths
 let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
   open OptUtil.Syntax;
-  let* (tl, p_l, kid) = Chain.unknil(mel);
+  let* (tl, p_l, kid) = unknil(mel);
   let+ p = Piece.zip(p_l, p_r);
   assert(kid == None);
-  Chain.knil(tl, p, kid);
+  knil(tl, p, ~kid);
 };
 
 let is_closed_l = mel =>
-  switch (Chain.unlink(mel)) {
+  switch (unlink(mel)) {
   | Some((None, p, tl)) => Some((p, tl))
   | _ => None
   };
 let is_closed_r = mel =>
-  switch (Chain.unknil(mel)) {
+  switch (unknil(mel)) {
   | Some((tl, p, None)) => Some((tl, p))
   | _ => None
   };
@@ -225,41 +405,39 @@ let cmp = (l: t, r: t) =>
   | (Some((_, p_l)), Some((p_r, _))) => Piece.cmp(p_l, p_r)
   };
 
-let convexify_l = (~expected: Sort.Ana.t, c) =>
-  if (is_empty(c)) {
+let convexify_l = (~expected: Sort.Ana.t, mel: t): t =>
+  if (is_empty(mel)) {
     of_grout(Grout.mk_convex(expected.sort));
   } else {
-    let (kid, p, tl) =
-      Chain.unlink(c) |> OptUtil.get_or_raise(Orphaned_kid);
+    let (kid, p, tl) = unlink(mel) |> OptUtil.get_or_raise(Orphaned_kid);
     switch (Piece.tip(L, p)) {
     | Convex =>
       assert(kid == None);
-      c;
+      mel;
     | Concave(s, _) =>
       switch (kid) {
-      | Some(_) => c
+      | Some(_) => mel
       | None =>
         let kid = of_grout(Grout.mk_convex(s));
-        Chain.link(Some(K(kid)), p, tl);
+        link(~kid, p, tl);
       }
     };
   };
-let convexify_r = (~expected: Sort.Ana.t, c) =>
-  if (is_empty(c)) {
+let convexify_r = (~expected: Sort.Ana.t, mel) =>
+  if (is_empty(mel)) {
     of_grout(Grout.mk_convex(expected.sort));
   } else {
-    let (tl, p, kid) =
-      Chain.unknil(c) |> OptUtil.get_or_raise(Orphaned_kid);
+    let (tl, p, kid) = unknil(mel) |> OptUtil.get_or_raise(Orphaned_kid);
     switch (Piece.tip(R, p)) {
     | Convex =>
       assert(kid == None);
-      c;
+      mel;
     | Concave(s, _) =>
       switch (kid) {
-      | Some(_) => c
+      | Some(_) => mel
       | None =>
         let kid = of_grout(Grout.mk_convex(s));
-        Chain.knil(tl, p, Some(K(kid)));
+        knil(tl, p, ~kid);
       }
     };
   };
@@ -281,8 +459,8 @@ let rec degrout = (l: Padded.t, r: Padded.t): option(Padded.t) => {
   let (mel_l, (s_ll, s_lr)) = l;
   let (mel_r, (s_rl, s_rr)) = r;
   open OptUtil.Syntax;
-  let* (tl_l, p_l, kid_l) = Chain.unknil(mel_l);
-  let* (kid_r, p_r, tl_r) = Chain.unlink(mel_r);
+  let* (tl_l, p_l, kid_l) = unknil(mel_l);
+  let* (kid_r, p_r, tl_r) = unlink(mel_r);
   let* dg = Piece.degrout(p_l, p_r);
   switch (dg) {
   | Degrout =>
@@ -313,6 +491,8 @@ let rec degrout = (l: Padded.t, r: Padded.t): option(Padded.t) => {
     degrout(l, r);
   };
 };
+
+let merge = (l: t, r: t): t => {};
 
 let rec merge = (l: Padded.t, r: Padded.t): Padded.t =>
   switch (Padded.is_empty(l), Padded.is_empty(r)) {

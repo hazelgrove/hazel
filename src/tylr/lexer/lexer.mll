@@ -33,8 +33,8 @@ let token =
   | paren | brack
 
 rule next_lexeme = parse
-| newline { Some (Lexeme.S (Space.mk(Newline))) }
-| space   { Some (Lexeme.S (Space.mk(Space))) }
+| newline { Some (Lexeme.S (Space.Char.mk(Newline))) }
+| space   { Some (Lexeme.S (Space.Char.mk(Space))) }
 | token   {
     (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
