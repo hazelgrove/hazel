@@ -77,7 +77,7 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let is_deferral = str => str == "~";
+let is_deferral = str => str == "_";
 let is_triv = str => str == "triv";
 let is_bool = str => str == "true" || str == "false";
 let is_listnil = str => str == "nil";
