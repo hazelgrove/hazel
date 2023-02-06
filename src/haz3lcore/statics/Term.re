@@ -22,6 +22,7 @@ type any = t;
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
+    | Invalid
     | EmptyHole
     | MultiHole
     | Int
@@ -53,6 +54,7 @@ module UTyp = {
 
   let cls_of_term: term => cls =
     fun
+    | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Int => Int
@@ -70,6 +72,7 @@ module UTyp = {
 
   let show_cls: cls => string =
     fun
+    | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
     | MultiHole => "Multi Type Hole"
     | Int
@@ -77,19 +80,20 @@ module UTyp = {
     | String
     | Bool => "Base Type"
     | Var => "Type Variable"
-    | Tag => "Sum Constructor Definition"
+    | Tag => "Sum Constructor"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
-    | Ap => "Sum Constructor Application Definition"
+    | Ap => "Sum Constructor Application"
     | USum => "Sum Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
     | Parens(typ) => is_arrow(typ)
     | Arrow(_) => true
+    | Invalid(_)
     | EmptyHole
     | MultiHole(_)
     | Int
@@ -109,22 +113,28 @@ module UTyp = {
   let rec to_typ: (Ctx.t, t) => Typ.t =
     (ctx, utyp) =>
       switch (utyp.term) {
+      | Invalid(_)
       | MultiHole(_) => Unknown(Internal)
-      | Tag(_)
-      | Ap(_) =>
-        /* Should occur only inside sums */
-        Unknown(Internal)
       | EmptyHole => Unknown(TypeHole)
       | Bool => Bool
       | Int => Int
       | Float => Float
       | String => String
-      | Var(name) => Var(name)
+      | Var(name) =>
+        //Var(name)
+        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
+        switch (Ctx.lookup_tvar(ctx, name)) {
+        | Some(_) => Var(name)
+        | None => Unknown(TypeHole)
+        }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | USum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
+      /* The below cases should occur only inside sums */
+      | Tag(_)
+      | Ap(_) => Unknown(Internal)
       }
   and to_variant = ctx =>
     fun
@@ -245,18 +255,18 @@ module UPat = {
     | EmptyHole => "Empty Pattern Hole"
     | MultiHole => "Multi Pattern Hole"
     | Wild => "Wildcard Pattern"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | Bool => "Boolean Literal"
-    | String => "String Literal"
-    | Triv => "Trivial Literal. Pathetic, really."
+    | Int => "Integer Pattern Literal"
+    | Float => "Float Pattern Literal"
+    | Bool => "Boolean Pattern Literal"
+    | String => "String Pattern Literal"
+    | Triv => "Trivial Pattern Literal"
     | ListLit => "List Literal Pattern"
     | Tag => "Constructor Pattern"
-    | Cons => "List Cons"
+    | Cons => "Cons Pattern"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
-    | Ap => "Constructor Application"
+    | Ap => "Constructor Application Pattern"
     | TypeAnn => "Type Annotation";
 
   let rec is_var = (pat: t) => {

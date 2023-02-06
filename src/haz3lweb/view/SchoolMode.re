@@ -173,7 +173,7 @@ let view =
             switch (specific_ctx) {
             | None => Node.div([text("No context available")]) // TODO show exercise configuration error
             | Some(specific_ctx) =>
-              CtxInspector.exp_ctx_view(~inject, specific_ctx)
+              CtxInspector.ctx_view(~inject, specific_ctx)
             };
           };
         };
@@ -362,7 +362,7 @@ let view =
         ],
       )
     // TODO lang doc visibility tied to ci visibility (is this desired?)
-    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)]
+    @ ci_view
     @ (
       langDocMessages.show && settings.statics
         ? [

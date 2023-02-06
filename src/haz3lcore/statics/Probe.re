@@ -9,7 +9,7 @@ type binding_tree_frame = {
   id: Id.t,
   frame: binding_tree_frame',
 };
-let info_to_frame = (info: Statics.t): option(binding_tree_frame') =>
+let info_to_frame = (info: Info.t): option(binding_tree_frame') =>
   switch (info) {
   | InfoExp({cls: Let, _}) => Some(Single)
   | InfoExp({cls: Match, _}) => Some(Single)
@@ -17,20 +17,12 @@ let info_to_frame = (info: Statics.t): option(binding_tree_frame') =>
   | InfoExp({cls: _, _}) => None
   | InfoPat(_)
   | InfoTyp(_)
-  | InfoTPat(_)
-  | Invalid(_) => None
+  | InfoTPat(_) => None
   };
-let ancestors = (info: Statics.t): option(Statics.ancestors) =>
-  switch (info) {
-  | InfoExp({ancestors, _})
-  | InfoPat({ancestors, _})
-  | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => Some(ancestors)
-  | Invalid(_) => None
-  };
+
 let get_binding_stack =
     (id: Id.t, map: Statics.map): list(binding_tree_frame) =>
-  switch (Id.Map.find_opt(id, map) |> OptUtil.and_then(ancestors)) {
+  switch (Id.Map.find_opt(id, map) |> Option.map(Info.ancestors_of)) {
   | Some(ancestors) =>
     ancestors
     |> List.map(id => (id, Id.Map.find_opt(id, map)))

@@ -486,7 +486,7 @@ type message_mode =
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Statics.t), mode: message_mode)
+    (~docs: LangDocMessages.t, info: option(Info.t), mode: message_mode)
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -2743,6 +2743,7 @@ let get_doc =
     | USum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
     | Parens(_) => default // Shouldn't be hit?
+    | Invalid(_) => default
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
@@ -2766,8 +2767,7 @@ let get_doc =
         [],
       );
     }
-  | None
-  | Some(Invalid(_)) => default
+  | None => default
   };
 };
 
@@ -2779,7 +2779,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 
 let get_color_map =
     (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
-  let info: option(Statics.t) =
+  let info: option(Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2801,7 +2801,7 @@ let view =
       index': option(int),
       info_map: Statics.map,
     ) => {
-  let info: option(Statics.t) =
+  let info: option(Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
