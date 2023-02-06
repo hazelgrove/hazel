@@ -155,6 +155,18 @@ let test_result_layer =
   );
 };
 
+let get_usage_ids = (zipper, info_map) => {
+  /* bad style, does reason have let*? */
+  switch (Haz3lcore.Indicated.index(zipper)) {
+  | Some(index) =>
+    switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
+    | Some(ci) => Haz3lcore.Statics.binding_uses(ci, info_map)
+    | None => []
+    }
+  | None => []
+  };
+};
+
 let deco =
     (
       ~zipper,
@@ -168,6 +180,16 @@ let deco =
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   let unselected = Zipper.unselect_and_zip(zipper);
+  let use_ids = get_usage_ids(zipper, info_map);
+  let use_highlights =
+    List.flatten(
+      List.map(
+        ((_tok, ids): Haz3lcore.Statics.usage_info) => {
+          List.map(id => (id, "orange"), ids)
+        },
+        use_ids,
+      ),
+    );
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
@@ -179,6 +201,7 @@ let deco =
       let tiles = TileMap.mk(unselected);
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos = decos @ Deco.color_highlights(use_highlights);
   let decos =
     switch (test_results) {
     | None => decos
