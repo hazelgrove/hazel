@@ -45,9 +45,8 @@ let term_tag =
     ],
   );
 
-let common_err_view = (err: Info.error_common) =>
+let common_err_view = (err: Info.error_pat) =>
   switch (err) {
-  | FreeVar => [text("Variable is not bound")]
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid token", token)),
     ]
@@ -68,7 +67,7 @@ let common_err_view = (err: Info.error_common) =>
     ]
   };
 
-let common_ok_view = (ok: Info.ok_common) => {
+let common_ok_view = (ok: Info.ok_pat) => {
   switch (ok) {
   | SynConsistent(ty_syn) => [text("has type"), Type.view(ty_syn)]
   | AnaConsistent({ana, syn, _}) when ana == syn => [
@@ -95,13 +94,18 @@ let common_ok_view = (ok: Info.ok_common) => {
   };
 };
 
-let info_common_view = (mode, self, ctx) => {
-  let status_common = Info.status_common(ctx, mode, self);
-  switch (status_common) {
+let exp_view = ({mode, self, ctx, _}: Info.exp) =>
+  switch (Info.status_exp(ctx, mode, self)) {
+  | InHole(FreeVariable) => div_err([text("Variable is not bound")])
+  | InHole(Common(error)) => div_err(common_err_view(error))
+  | NotInHole(ok) => div_ok(common_ok_view(ok))
+  };
+
+let pat_view = ({mode, self, ctx, _}: Info.pat) =>
+  switch (Info.status_pat(ctx, mode, self)) {
   | InHole(error) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok))
   };
-};
 
 let typ_ok_view = (ok: Info.ok_typ, ctx: Ctx.t, ty: Typ.t) =>
   switch (ok) {
@@ -161,35 +165,29 @@ let tpat_view = ({term, _}: Info.tpat) =>
 
 let view_of_info =
     (~inject, ~settings, ~show_lang_doc: bool, ci: Info.t): Node.t => {
-  let is_err = Info.is_error(ci);
   let wrapper = (sort, status_view) =>
     div(
       ~attr=clss(["info", sort]),
       [
-        term_tag(~inject, ~settings, ~show_lang_doc, is_err, sort),
+        term_tag(~inject, ~settings, ~show_lang_doc, Info.is_error(ci), sort),
         status_view,
       ],
     );
   switch (ci) {
-  | InfoExp({mode, self, ctx, _}) =>
-    wrapper("exp", info_common_view(mode, self, ctx))
-  | InfoPat({mode, self, ctx, _}) =>
-    wrapper("pat", info_common_view(mode, self, ctx))
+  | InfoExp(info) => wrapper("exp", exp_view(info))
+  | InfoPat(info) => wrapper("pat", pat_view(info))
   | InfoTyp(info) => wrapper("typ", typ_view(info))
   | InfoTPat(info) => wrapper("tpat", tpat_view(info))
   };
 };
 
-let cls_view = (ci: Info.t): Node.t =>
-  div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]);
-
-let id_view = (id: Id.t): Node.t =>
-  div(~attr=clss(["id"]), [text(string_of_int(id + 1))]);
-
 let cls_and_id_view = (id: int, ci: Info.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["id-and-class"])]),
-    [cls_view(ci), id_view(id)],
+    [
+      div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]),
+      div(~attr=clss(["id"]), [text(string_of_int(id + 1))]),
+    ],
   );
 
 let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
@@ -214,12 +212,13 @@ let view =
       info_map: Statics.map,
     ) => {
   let bar_view = div_c("bottom-bar");
-  let err_view' = err =>
-    div(
-      ~attr=clss(["cursor-inspector", "no-info"]),
-      [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
-    );
-  let err_view = err => bar_view([err_view'(err)]);
+  let err_view = err =>
+    bar_view([
+      div(
+        ~attr=clss(["cursor-inspector", "no-info"]),
+        [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
+      ),
+    ]);
   switch (zipper.backpack, Indicated.index(zipper)) {
   | ([_, ..._], _) => err_view("No information while backpack in use")
   | (_, None) => err_view("No cursor in program")
