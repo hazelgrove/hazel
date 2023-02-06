@@ -19,24 +19,24 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = Id.Map.t(Info.t);
 
-let exp_id = Term.UExp.rep_id;
-let pat_id = Term.UPat.rep_id;
-let typ_id = Term.UTyp.rep_id;
-let utpat_id = Term.UTPat.rep_id;
+let exp_id = UExp.rep_id;
+let pat_id = UPat.rep_id;
+let typ_id = UTyp.rep_id;
+let utpat_id = UTPat.rep_id;
 
 /* The type of an expression after hole wrapping */
-let fixed_exp_typ = (ctx, m: map, e: Term.UExp.t): option(Typ.t) => {
+let fixed_exp_typ = (ctx, m: map, e: UExp.t): option(Typ.t) => {
   let* info = Id.Map.find_opt(exp_id(e), m);
   Info.typ_after_fix_opt(ctx, info);
 };
 
 /* The type of a pattern after hole wrapping */
-let fixed_pat_typ = (ctx, m: map, e: Term.UPat.t): option(Typ.t) => {
+let fixed_pat_typ = (ctx, m: map, e: UPat.t): option(Typ.t) => {
   let* info = Id.Map.find_opt(pat_id(e), m);
   Info.typ_after_fix_opt(ctx, info);
 };
 
-let pat_self_typ = (ctx, m: map, p: Term.UPat.t): option(Typ.t) => {
+let pat_self_typ = (ctx, m: map, p: UPat.t): option(Typ.t) => {
   let* info = Id.Map.find_opt(pat_id(p), m);
   Info.typ_of_self_info(ctx, info);
 };
@@ -49,43 +49,41 @@ let add_info = (ids: list(Id.t), info: Info.t, m: map): map =>
   |> List.fold_left(Id.Map.disj_union, m);
 
 let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t): Ctx.t =>
-  if (Term.UPat.is_tuple_of_arrows(pat)
-      && Term.UExp.is_tuple_of_functions(def)) {
+    (ctx: Ctx.t, pat: UPat.t, pat_ctx: Ctx.t, def: UExp.t): Ctx.t =>
+  if (UPat.is_tuple_of_arrows(pat) && UExp.is_tuple_of_functions(def)) {
     pat_ctx;
   } else {
     ctx;
   };
 
-let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
+let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Int
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 
-let typ_exp_binop_bin_float: Term.UExp.op_bin_float => Typ.t =
+let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Float
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 
-let typ_exp_binop_bin_string: Term.UExp.op_bin_string => Typ.t =
+let typ_exp_binop_bin_string: UExp.op_bin_string => Typ.t =
   fun
   | Equals as _op => Bool;
 
-let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
+let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool, Bool, Bool)
   | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
   | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
   | String(op) => (String, String, typ_exp_binop_bin_string(op));
 
-let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
+let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   fun
   | Int(Minus) => (Int, Int);
 
-let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: Term.any): (Ctx.co, map) =>
+let rec any_to_info_map = (~ctx: Ctx.t, ~ancestors, any: any): (Ctx.co, map) =>
   switch (any) {
   | Exp(e) =>
     let (Info.{free, _}, m) = uexp_to_info_map(~ctx, ~ancestors, e);
@@ -103,12 +101,7 @@ let rec any_to_info_map =
   | Any () => (VarMap.empty, Id.Map.empty)
   }
 and uexp_to_info_map =
-    (
-      ~ctx: Ctx.t,
-      ~mode=Typ.Syn,
-      ~ancestors,
-      {ids, term} as uexp: Term.UExp.t,
-    )
+    (~ctx: Ctx.t, ~mode=Typ.Syn, ~ancestors, {ids, term} as uexp: UExp.t)
     : (Info.exp, map) => {
   /* Maybe switch mode to syn */
   let mode =
@@ -116,8 +109,8 @@ and uexp_to_info_map =
     | Ana(Unknown(SynSwitch)) => Typ.Syn
     | _ => mode
     };
-  let cls = Term.UExp.cls_of_term(term);
   let add' = (~self, ~free, m) => {
+    let cls = UExp.cls_of_term(term);
     let ty = Info.typ_after_fix_exp(ctx, mode, self);
     let info = Info.{cls, self, ty, mode, ctx, free, ancestors, term: uexp};
     (info, add_info(ids, InfoExp(info), m));
@@ -282,14 +275,14 @@ and uexp_to_info_map =
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
       let (ty_def, ctx_def, ctx_body) = {
-        let ty_pre = Term.UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
+        let ty_pre = UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
         switch (utyp.term) {
         | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_rec = Typ.Rec(name, ty_pre);
           let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
-          let ty = Term.UTyp.to_typ(ctx, utyp);
+          let ty = UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
         };
       };
@@ -300,13 +293,12 @@ and uexp_to_info_map =
         | _ => ctx_body
         };
       let (Info.{free, ty: ty_body, _}, m_body) =
-        uexp_to_info_map(~ctx=ctx_body, ~ancestors, ~mode, body);
+        go'(~ctx=ctx_body, ~mode, body);
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m_typ = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
     | _ =>
-      let (Info.{free, ty: ty_body, _}, m_body) =
-        uexp_to_info_map(~ctx, ~ancestors, ~mode, body);
+      let (Info.{free, ty: ty_body, _}, m_body) = go'(~ctx, ~mode, body);
       let m_typ = utyp_to_info_map(~ctx, ~ancestors, utyp) |> snd;
       add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
     };
@@ -344,11 +336,11 @@ and upat_to_info_map =
       ~ctx,
       ~ancestors: Info.ancestors,
       ~mode: Typ.mode=Typ.Syn,
-      {ids, term} as upat: Term.UPat.t,
+      {ids, term} as upat: UPat.t,
     )
     : (Info.pat, map) => {
-  let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => {
+    let cls = UPat.cls_of_term(term);
     let ty = Info.typ_after_fix_pat(ctx, mode, self);
     let info = Info.{cls, self, mode, ty, ctx, ancestors, term: upat};
     (info, add_info(ids, InfoPat(info), m));
@@ -443,22 +435,24 @@ and upat_to_info_map =
 and utyp_to_info_map =
     (
       ~ctx,
-      ~mode=Info.TypeExpected,
+      ~expects=Info.TypeExpected,
       ~ancestors,
-      {ids, term} as utyp: Term.UTyp.t,
+      {ids, term} as utyp: UTyp.t,
     )
     : (Info.typ, map) => {
-  let cls: Term.UTyp.cls =
-    switch (mode, Term.UTyp.cls_of_term(term)) {
+  let cls: UTyp.cls =
+    switch (expects, UTyp.cls_of_term(term)) {
     | (VariantExpected(_), Var) => Tag
     | (_, cls) => cls
     };
-  let ty = Term.UTyp.to_typ(ctx, utyp);
-  let info = Info.{cls, ctx, ancestors, mode, ty, term: utyp};
-  let add = m => (info, add_info(ids, InfoTyp(info), m));
+  let ty = UTyp.to_typ(ctx, utyp);
+  let add = m => {
+    let info = Info.{cls, ctx, ancestors, expects, ty, term: utyp};
+    (info, add_info(ids, InfoTyp(info), m));
+  };
   let ancestors = [typ_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
-  let go = go'(~mode=TypeExpected);
+  let go = go'(~expects=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
   | Invalid(_)
@@ -476,16 +470,16 @@ and utyp_to_info_map =
   | Arrow(t1, t2) => add(union_m([go(t1) |> snd, go(t2) |> snd]))
   | Tuple(ts) => add(ts |> List.map(go) |> List.map(snd) |> union_m)
   | Ap(t1, t2) =>
-    let ty_in = Term.UTyp.to_typ(ctx, t2);
-    let t1_mode: Info.typ_mode =
-      switch (mode) {
+    let ty_in = UTyp.to_typ(ctx, t2);
+    let t1_mode: Info.typ_expects =
+      switch (expects) {
       | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_in, sum_ty))
       | _ => TagExpected(Unique, Arrow(ty_in, Unknown(Internal)))
       };
     let m =
       union_m([
-        go'(~mode=t1_mode, t1) |> snd,
-        go'(~mode=TypeExpected, t2) |> snd,
+        go'(~expects=t1_mode, t1) |> snd,
+        go'(~expects=TypeExpected, t2) |> snd,
       ]);
     add(m);
   | USum(ts) =>
@@ -493,12 +487,12 @@ and utyp_to_info_map =
       List.fold_left(
         ((acc, tags), ut) => {
           let (status, tag) =
-            switch (Term.UTyp.get_tag(ctx, ut)) {
+            switch (UTyp.get_tag(ctx, ut)) {
             | None => (Info.Unique, [])
             | Some(tag) when !List.mem(tag, tags) => (Unique, [tag])
             | Some(tag) => (Duplicate, [tag])
             };
-          let m = go'(~mode=VariantExpected(status, ty), ut) |> snd;
+          let m = go'(~expects=VariantExpected(status, ty), ut) |> snd;
           (acc @ [m], tags @ tag);
         },
         ([], []),
@@ -512,10 +506,12 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term} as utpat: Term.UTPat.t): (Info.tpat, map) => {
-  let cls = Term.UTPat.cls_of_term(term);
-  let info = Info.{cls, ancestors, ctx, term: utpat};
-  let add = m => (info, add_info(ids, InfoTPat(info), m));
+    (~ctx, ~ancestors, {ids, term} as utpat: UTPat.t): (Info.tpat, map) => {
+  let add = m => {
+    let cls = UTPat.cls_of_term(term);
+    let info = Info.{cls, ancestors, ctx, term: utpat};
+    (info, add_info(ids, InfoTPat(info), m));
+  };
   let ancestors = [utpat_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>

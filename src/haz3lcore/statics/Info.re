@@ -5,7 +5,7 @@ open Util.OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
-/* SOURCE: Hazel type annotated with a relevant source location.
+/* Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
    branches errors, but could perhaps be used more broadly
    for type debugging UI. */
@@ -15,17 +15,19 @@ type source = {
   ty: Typ.t,
 };
 
-/* Self: The (synthetic) type information derivable from an expression
-   of pattern term in isolation, using the typing context but not
-   the syntactic context i.e. typing mode */
+/* The (synthetic) type information derivable from a pattern
+   term in isolation, using the typing context but not the
+   syntactic context i.e. typing mode */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_pat =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(source)) /* inconsistent types for e.g match, listlits */
+  | NoJoin(list(source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsTag(Token.t, option(Typ.t)); /* Tags have special ana logic */
 
+/* The self for expressions is the same as for patterns, except
+   with the additional possibility of a free variable */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_exp =
   | FreeVar
@@ -33,10 +35,10 @@ type self_exp =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
-  | BadToken(Token.t)
-  | NoFun(Typ.t)
-  | FreeTag
-  | SynInconsistentBranches(list(Typ.t))
+  | BadToken(Token.t) /* Invalid expression token, treated as hole */
+  | FreeTag /* Sum constructor neiter bound nor in ana type */
+  | InconsistentWithArrow(Typ.t) /* Bad function position */
+  | SynInconsistentBranches(list(Typ.t)) /* Inconsistent match or listlit */
   | TypeInconsistent({
       ana: Typ.t,
       syn: Typ.t,
@@ -47,7 +49,10 @@ type error_exp =
   | FreeVariable
   | Common(error_pat);
 
-/* Statics non-error classes */
+/* Non-error statuses. The third represents the possibility of a
+   match or list literal which has inconsisent branches. This is
+   fine since the branches are in analytic position, but we may
+   want to warn about this inconsistency in the cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_pat =
   | SynConsistent(Typ.t)
@@ -74,38 +79,15 @@ type status_pat =
   | InHole(error_pat)
   | NotInHole(ok_pat);
 
-/* Info for expression terms */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type exp = {
-  cls: Term.UExp.cls,
-  term: Term.UExp.t,
-  ancestors,
-  ctx: Ctx.t,
-  mode: Typ.mode,
-  self: self_exp,
-  free: Ctx.co, /* _Locally_ unbound variables */
-  ty: Typ.t,
-};
-
-/* Info for pattern terms */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type pat = {
-  cls: Term.UPat.cls,
-  term: Term.UPat.t,
-  ancestors,
-  ctx: Ctx.t,
-  mode: Typ.mode,
-  self: self_pat,
-  ty: Typ.t,
-};
-
+/* Expectation imposed on a type by the parent form.
+   TODO: This is fundamentally syntactic and should
+   eventually be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_variant =
   | Unique
   | Duplicate;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typ_mode =
+type typ_expects =
   | TypeExpected
   | TagExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
@@ -136,16 +118,6 @@ type status_typ =
   | NotInHole(ok_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typ = {
-  cls: Term.UTyp.cls,
-  term: Term.UTyp.t,
-  ancestors,
-  ctx: Ctx.t,
-  mode: typ_mode,
-  ty: Typ.t,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
   | NotAVar;
 
@@ -158,6 +130,39 @@ type ok_tpat =
 type status_tpat =
   | NotInHole(ok_tpat)
   | InHole(error_tpat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp = {
+  cls: Term.UExp.cls,
+  term: Term.UExp.t,
+  ancestors,
+  ctx: Ctx.t,
+  mode: Typ.mode,
+  self: self_exp,
+  free: Ctx.co, /* _Locally_ unbound variables */
+  ty: Typ.t /* The type AFTER hole fixing */
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat = {
+  cls: Term.UPat.cls,
+  term: Term.UPat.t,
+  ancestors,
+  ctx: Ctx.t,
+  mode: Typ.mode,
+  self: self_pat,
+  ty: Typ.t /* The type AFTER hole fixing */
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ = {
+  cls: Term.UTyp.cls,
+  term: Term.UTyp.t,
+  ancestors,
+  ctx: Ctx.t,
+  expects: typ_expects,
+  ty: Typ.t,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
@@ -199,7 +204,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
   | (Just(ty), SynFun) =>
     switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
     | Some(_) => NotInHole(SynConsistent(ty))
-    | None => InHole(NoFun(ty))
+    | None => InHole(InconsistentWithArrow(ty))
     }
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join(ctx, ana, syn)) {
@@ -244,13 +249,13 @@ let status_exp = (ctx: Ctx.t, mode: Typ.mode, self: self_exp): status_exp =>
    such as whether or not a type variable reference is
    free, and whether a tag name is a dupe. */
 let status_typ =
-    (ctx: Ctx.t, mode: typ_mode, term: TermBase.UTyp.t): status_typ =>
+    (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t): status_typ =>
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type)
   | Var(name)
   | Tag(name) =>
-    switch (mode) {
+    switch (expects) {
     | VariantExpected(Unique, sum_ty)
     | TagExpected(Unique, sum_ty) => NotInHole(Variant(name, sum_ty))
     | VariantExpected(Duplicate, _)
@@ -263,7 +268,7 @@ let status_typ =
     }
   | Ap(t1, t2) =>
     let ty_in = Term.UTyp.to_typ(ctx, t2);
-    switch (mode) {
+    switch (expects) {
     | VariantExpected(status_variant, ty_variant) =>
       switch (status_variant, t1.term) {
       | (Unique, Var(name) | Tag(name)) =>
@@ -275,7 +280,7 @@ let status_typ =
     };
   | _ =>
     let ty = Term.UTyp.to_typ(ctx, term);
-    switch (mode) {
+    switch (expects) {
     | TypeExpected => NotInHole(Type)
     | TagExpected(_)
     | VariantExpected(_) => InHole(WantTagFoundType(ty))
@@ -303,8 +308,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({mode, ctx, term, _}) =>
-    switch (status_typ(ctx, mode, term)) {
+  | InfoTyp({expects, ctx, term, _}) =>
+    switch (status_typ(ctx, expects, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -359,6 +364,7 @@ let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
     | BadToken(_)
     | IsMulti
     | NoJoin(_) => None;
+
 let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
   ctx =>
     fun
