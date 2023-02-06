@@ -1,6 +1,4 @@
-open Util;
 open Term;
-open OptUtil.Syntax;
 
 /* STATICS
 
@@ -18,28 +16,6 @@ open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = Id.Map.t(Info.t);
-
-let exp_id = UExp.rep_id;
-let pat_id = UPat.rep_id;
-let typ_id = UTyp.rep_id;
-let utpat_id = UTPat.rep_id;
-
-/* The type of an expression after hole wrapping */
-let fixed_exp_typ = (ctx, m: map, e: UExp.t): option(Typ.t) => {
-  let* info = Id.Map.find_opt(exp_id(e), m);
-  Info.typ_after_fix_opt(ctx, info);
-};
-
-/* The type of a pattern after hole wrapping */
-let fixed_pat_typ = (ctx, m: map, e: UPat.t): option(Typ.t) => {
-  let* info = Id.Map.find_opt(pat_id(e), m);
-  Info.typ_after_fix_opt(ctx, info);
-};
-
-let pat_self_typ = (ctx, m: map, p: UPat.t): option(Typ.t) => {
-  let* info = Id.Map.find_opt(pat_id(p), m);
-  Info.typ_of_self_info(ctx, info);
-};
 
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
 
@@ -116,7 +92,7 @@ and uexp_to_info_map =
     (info, add_info(ids, InfoExp(info), m));
   };
   let add = (~self, ~free, m) => add'(~self=Common(self), ~free, m);
-  let ancestors = [exp_id(uexp)] @ ancestors;
+  let ancestors = [UExp.rep_id(uexp)] @ ancestors;
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
@@ -144,7 +120,7 @@ and uexp_to_info_map =
       switch (Typ.join_all(ctx, tys)) {
       | None =>
         Info.NoJoin(
-          List.map2((e, ty) => Info.{id: exp_id(e), ty}, es, tys),
+          List.map2((e, ty) => Info.{id: UExp.rep_id(e), ty}, es, tys),
         )
       | Some(ty) => Just(List(ty))
       };
@@ -166,7 +142,7 @@ and uexp_to_info_map =
       };
     add'(
       ~self,
-      ~free=[(name, [{id: exp_id(uexp), mode}])],
+      ~free=[(name, [{id: UExp.rep_id(uexp), mode}])],
       Id.Map.empty,
     );
   | Parens(e) =>
@@ -203,8 +179,8 @@ and uexp_to_info_map =
       switch (Typ.join(ctx, ty1, ty2)) {
       | None =>
         Info.NoJoin([
-          {id: exp_id(e1), ty: ty1},
-          {id: exp_id(e2), ty: ty2},
+          {id: UExp.rep_id(e1), ty: ty1},
+          {id: UExp.rep_id(e2), ty: ty2},
         ])
       | Some(ty) => Just(ty)
       };
@@ -279,17 +255,19 @@ and uexp_to_info_map =
         switch (utyp.term) {
         | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_rec = Typ.Rec(name, ty_pre);
-          let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+          let ctx_def =
+            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
+          (ty, ctx, Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty));
         };
       };
       let ctx_body =
         switch (ty_def) {
         | Sum(sm)
-        | Rec(_, Sum(sm)) => Ctx.add_tags(ctx_body, name, typ_id(utyp), sm)
+        | Rec(_, Sum(sm)) =>
+          Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
         | _ => ctx_body
         };
       let (Info.{free, ty: ty_body, _}, m_body) =
@@ -319,7 +297,7 @@ and uexp_to_info_map =
       switch (Typ.join_all(ctx, e_tys)) {
       | None =>
         Info.NoJoin(
-          List.map2((e, ty) => Info.{id: exp_id(e), ty}, es, e_tys),
+          List.map2((e, ty) => Info.{id: UExp.rep_id(e), ty}, es, e_tys),
         )
       | Some(ty) => Just(ty)
       };
@@ -346,7 +324,7 @@ and upat_to_info_map =
     (info, add_info(ids, InfoPat(info), m));
   };
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
-  let ancestors = [pat_id(upat)] @ ancestors;
+  let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   switch (term) {
@@ -364,7 +342,7 @@ and upat_to_info_map =
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
     let modes = List.init(List.length(ps), _ => Typ.matched_list_mode(mode));
-    let p_ids = List.map(pat_id, ps);
+    let p_ids = List.map(UPat.rep_id, ps);
     let (ctx, rets) =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
@@ -392,7 +370,7 @@ and upat_to_info_map =
   | Wild => atomic(Just(unknown))
   | Var(name) =>
     let typ = Info.typ_after_fix_pat(ctx, mode, Just(Unknown(Internal)));
-    let entry = Ctx.VarEntry({name, id: pat_id(upat), typ});
+    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
@@ -450,7 +428,7 @@ and utyp_to_info_map =
     let info = Info.{cls, ctx, ancestors, expects, ty, term: utyp};
     (info, add_info(ids, InfoTyp(info), m));
   };
-  let ancestors = [typ_id(utyp)] @ ancestors;
+  let ancestors = [UTyp.rep_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
@@ -512,7 +490,7 @@ and utpat_to_info_map =
     let info = Info.{cls, ancestors, ctx, term: utpat};
     (info, add_info(ids, InfoTPat(info), m));
   };
-  let ancestors = [utpat_id(utpat)] @ ancestors;
+  let ancestors = [UTPat.rep_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>
     let ms =
