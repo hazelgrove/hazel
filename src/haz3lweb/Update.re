@@ -170,7 +170,14 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | Undo
-  | Redo => true;
+  | Redo
+  | LoadReplay(_)
+  | EnableReplay(_)
+  | ForwardReplay
+  | BackwardReplay
+  | TogglePlayReplay
+  | StepReplay
+  | DisableReplay => true;
 
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
@@ -415,6 +422,69 @@ let apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | LoadReplay(file) =>
+      JsUtil.read_file(file, data => schedule_action(EnableReplay(data)));
+      Ok(model);
+    | EnableReplay(data) =>
+      switch (data) {
+      | None => Error(CantReplay)
+      | Some(data) =>
+        let all = data |> Yojson.Safe.from_string |> Export.all_of_yojson;
+        let log = all.log |> Log.logstring_to_entries;
+        let replay = Some(Replay.of_log(log));
+        Ok({...model, replay});
+      }
+    | ForwardReplay =>
+      switch (model.replay) {
+      | None => Error(CantReplay)
+      | Some(replay) =>
+        switch (Replay.forward(replay)) {
+        | None => Error(CantReplay)
+        | Some((replay, update)) =>
+          schedule_action(update);
+          Ok({...model, replay: Some(replay)});
+        }
+      }
+    | BackwardReplay =>
+      switch (model.replay) {
+      | None => Error(CantReplay)
+      | Some(replay) =>
+        switch (Replay.backward(replay)) {
+        | None => Error(CantReplay)
+        | Some((replay, update)) =>
+          ignore(update); // Using native undo is not a great implementation of scrubbing
+          schedule_action(Undo);
+          Ok({...model, replay: Some(replay)});
+        }
+      }
+    | TogglePlayReplay =>
+      switch (model.replay) {
+      | None => Error(CantReplay)
+      | Some(replay) =>
+        let replay = Replay.toggle_play(replay);
+        schedule_action(StepReplay);
+        Ok({...model, replay: Some(replay)});
+      }
+    | StepReplay =>
+      switch (model.replay) {
+      | None => Error(CantReplay)
+      | Some(replay) =>
+        switch (replay.is_playing) {
+        | false => Error(CantReplay)
+        | true =>
+          switch (Replay.step(replay)) {
+          | Replay.StepResult.Fail => Ok(model)
+          | EndOfReplay(replay, update) =>
+            schedule_action(update);
+            Ok({...model, replay: Some(replay)});
+          | Step((replay, delay, update)) =>
+            Delay.delay(() => schedule_action(StepReplay), delay);
+            schedule_action(update);
+            Ok({...model, replay: Some(replay)});
+          }
+        }
+      }
+    | DisableReplay => Ok({...model, replay: None})
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

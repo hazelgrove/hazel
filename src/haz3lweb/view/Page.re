@@ -139,6 +139,18 @@ let top_bar_view =
               },
               ~tooltip="Import Submission",
             ),
+            file_select_button(
+              "replay-submission",
+              Icons.import,
+              file => {
+                print_endline("in replay submision handler");
+                switch (file) {
+                | None => Virtual_dom.Vdom.Effect.Ignore
+                | Some(file) => inject(LoadReplay(file))
+                };
+              },
+              ~tooltip="Replay Submission",
+            ),
             button(
               Icons.eye,
               _ => inject(Set(SecondaryIcons)),
@@ -186,6 +198,7 @@ let main_ui_view =
         mousedown,
         results,
         langDocMessages,
+        replay,
         _,
       } as model: Model.t,
     ) => {
@@ -211,6 +224,7 @@ let main_ui_view =
         ~settings,
         ~langDocMessages,
         ~editor,
+        ~replay,
         ~result,
       ),
     ];
