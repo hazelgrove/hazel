@@ -50,7 +50,7 @@ let common_err_view = (err: Info.error_pat) =>
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid token", token)),
     ]
-  | NoFun(typ) => [
+  | InconsistentWithArrow(typ) => [
       Type.view(typ),
       text("is not consistent with arrow type"),
     ]
