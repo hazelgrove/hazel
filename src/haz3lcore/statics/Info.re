@@ -340,10 +340,10 @@ let typ_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
   };
-let typ_after_fix_opt = (ctx, info: t): option(Typ.t) =>
+let typ_after_fix_opt = (info: t): option(Typ.t) =>
   switch (info) {
-  | InfoExp({mode, self, _}) => Some(typ_after_fix_exp(ctx, mode, self))
-  | InfoPat({mode, self, _}) => Some(typ_after_fix_pat(ctx, mode, self))
+  | InfoExp({ty, _})
+  | InfoPat({ty, _}) => Some(ty)
   | InfoTyp(_)
   | InfoTPat(_) => None
   };
@@ -356,6 +356,9 @@ let syn_tag_typ = (ctx: Ctx.t, tag: Token.t): option(Typ.t) =>
   | Some({typ, _}) => Some(typ)
   };
 
+/* What the type would be if the position had been
+   synthetic, so no hole fixing. Returns none if
+   there's no applicable synthetic rule. */
 let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
   ctx =>
     fun
@@ -370,14 +373,6 @@ let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
     fun
     | FreeVar => None
     | Common(self_pat) => typ_of_self_pat(ctx, self_pat);
-
-let typ_of_self_info = (ctx: Ctx.t, info: t): option(Typ.t) =>
-  switch (info) {
-  | InfoExp({self, _}) => typ_of_self_exp(ctx, self)
-  | InfoPat({self, _}) => typ_of_self_pat(ctx, self)
-  | InfoTyp(_)
-  | InfoTPat(_) => None
-  };
 
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs */

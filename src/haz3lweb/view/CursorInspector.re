@@ -149,8 +149,8 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let typ_view = ({ctx, mode, term, ty, _}: Info.typ) =>
-  switch (Info.status_typ(ctx, mode, term)) {
+let typ_view = ({ctx, expects, term, ty, _}: Info.typ) =>
+  switch (Info.status_typ(ctx, expects, term)) {
   | NotInHole(ok) => div_ok(typ_ok_view(ok, ctx, ty))
   | InHole(err) => div_err(typ_err_view(err))
   };

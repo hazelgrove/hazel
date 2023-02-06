@@ -53,6 +53,28 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
+let fixed_exp_typ = (m: Statics.map, e: Term.UExp.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
+  | Some(InfoExp({ty, _})) => Some(ty)
+  | _ => None
+  };
+
+let fixed_pat_typ = (m: Statics.map, p: Term.UPat.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+  | Some(InfoPat({ty, _})) => Some(ty)
+  | _ => None
+  };
+
+let pat_self_typ = (ctx: Ctx.t, m: Statics.map, p: Term.UPat.t): Typ.t =>
+  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+  | Some(InfoPat({self, _})) =>
+    switch (Info.typ_of_self_pat(ctx, self)) {
+    | Some(typ) => typ
+    | None => Unknown(Internal)
+    }
+  | _ => Unknown(Internal)
+  };
+
 let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -165,14 +187,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | String(s) => Some(StringLit(s))
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        let+ ty = Statics.fixed_exp_typ(ctx, m, uexp);
+        let+ ty = fixed_exp_typ(m, uexp);
         let ty = Typ.matched_list(ty);
         //TODO: why is there an err status on below?
         DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
-        let+ ty = Statics.fixed_pat_typ(ctx, m, p);
+        let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
       | Tuple(es) =>
         let+ ds =
@@ -221,8 +243,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         );
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
-        let* dbody = dhexp_of_uexp(m, body);
-        let+ ty = Statics.pat_self_typ(ctx, m, p);
+        let+ dbody = dhexp_of_uexp(m, body);
+        //TODO(andrew): ADTs: what shoule below be if no syn type? should elab fail?
+        let ty = pat_self_typ(ctx, m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
@@ -323,7 +346,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      let* ty = Statics.fixed_pat_typ(ctx, m, upat);
+      let* ty = fixed_pat_typ(m, upat);
       let ty = Typ.matched_list(ty);
       wrap(ListLit(ty, ds));
     | Tag(name) => wrap(Tag(name))
