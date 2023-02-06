@@ -144,6 +144,8 @@ let forms: list((string, t)) = [
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
+  ("power", mk_infix("**", Exp, P.power)),
+  ("fpower", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
   ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
@@ -180,7 +182,7 @@ let forms: list((string, t)) = [
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
-  ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
+  ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),

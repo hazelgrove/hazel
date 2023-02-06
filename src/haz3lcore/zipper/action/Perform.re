@@ -94,7 +94,7 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(z)
+      | Outer => Zipper.put_down(Left, z)
       };
     z
     |> Option.map(z => remold_regrout(Left, z, id_gen))

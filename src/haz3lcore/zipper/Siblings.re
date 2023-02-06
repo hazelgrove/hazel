@@ -90,11 +90,12 @@ let regrout = ((pre, suf): t) => {
   ((pre, s_l, trim_l), suf);
 };
 
+let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
+
+let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
+
 let neighbors: t => (option(Piece.t), option(Piece.t)) =
-  ((l, r)) => (
-    l == [] ? None : Some(ListUtil.last(l)),
-    r == [] ? None : Some(List.hd(r)),
-  );
+  n => (left_neighbor(n), right_neighbor(n));
 
 let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Right, l_sibs),
