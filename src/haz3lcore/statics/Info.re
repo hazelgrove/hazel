@@ -1,6 +1,9 @@
 open Sexplib.Std;
 open Util.OptUtil.Syntax;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type ancestors = list(Id.t);
+
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
    branches errors, but could perhaps be used more broadly
@@ -34,6 +37,7 @@ type self =
 type info_exp = {
   cls: Term.UExp.cls,
   term: Term.UExp.t,
+  ancestors,
   mode: Typ.mode,
   self,
   ctx: Ctx.t,
@@ -47,6 +51,7 @@ type info_exp = {
 type info_pat = {
   cls: Term.UPat.cls,
   term: Term.UPat.t,
+  ancestors,
   mode: Typ.mode,
   self,
   ctx: Ctx.t,
@@ -92,6 +97,7 @@ type status_typ =
 type info_typ = {
   cls: Term.UTyp.cls,
   term: Term.UTyp.t,
+  ancestors,
   mode: typ_mode,
   ctx: Ctx.t,
   ty: Typ.t,
@@ -115,6 +121,7 @@ type status_tpat =
 type info_tpat = {
   cls: Term.UTPat.cls,
   term: Term.UTPat.t,
+  ancestors,
   ctx: Ctx.t,
 };
 
