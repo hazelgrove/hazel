@@ -167,7 +167,7 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
     let id = grout.id;
     let info = Id.Map.find_opt(id, info_map);
     switch (info) {
-    | Some(InfoExp(info_exp)) => Some(info_exp.ctx)
+    | Some(info) => Some(Info.ctx_of(info))
     | _ => None
     };
   };

@@ -145,13 +145,13 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let info_typ_view = ({ctx, mode, term, ty, _}: Info.info_typ) =>
+let typ_view = ({ctx, mode, term, ty, _}: Info.typ) =>
   switch (Info.status_typ(ctx, mode, term)) {
   | NotInHole(ok) => div_ok(typ_ok_view(ok, ctx, ty))
   | InHole(err) => div_err(typ_err_view(err))
   };
 
-let info_tpat_view = ({term, _}: Info.info_tpat) =>
+let tpat_view = ({term, _}: Info.tpat) =>
   switch (Info.status_tpat(term)) {
   | NotInHole(Empty) => div_ok([text("Enter a new type alias")])
   | NotInHole(Var(name)) =>
@@ -171,11 +171,12 @@ let view_of_info =
       ],
     );
   switch (ci) {
-  | InfoExp({mode, self, ctx, _})
+  | InfoExp({mode, self, ctx, _}) =>
+    wrapper("exp", info_common_view(mode, self, ctx))
   | InfoPat({mode, self, ctx, _}) =>
     wrapper("pat", info_common_view(mode, self, ctx))
-  | InfoTyp(info) => wrapper("typ", info_typ_view(info))
-  | InfoTPat(info) => wrapper("tpat", info_tpat_view(info))
+  | InfoTyp(info) => wrapper("typ", typ_view(info))
+  | InfoTPat(info) => wrapper("tpat", tpat_view(info))
   };
 };
 
