@@ -297,7 +297,6 @@ and uexp_to_info_map =
           let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
-          // TODO: check with andrew: `ty` is just `ty_pre`?
           let ty = Term.UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
         };

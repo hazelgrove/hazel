@@ -5,7 +5,7 @@ open Util;
 type var_entry = {
   name: Token.t,
   id: Id.t,
-  typ: Typ.t,
+  typ: TypBase.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -27,7 +27,7 @@ type t = list(entry);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type co_entry = {
   id: Id.t,
-  mode: Typ.mode,
+  mode: TypBase.mode,
 };
 /* Each co-context entry is a list of the uses of a variable
    within some scope, including their type demands */
@@ -68,7 +68,7 @@ let rec lookup_tvar_idx = (~i=0, ctx: t, x: Token.t): option(int) => {
   };
 };
 
-let rec lookup_typ_by_idx = (~i, ctx: t): option(Typ.t) => {
+let rec lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
   switch (ctx) {
   | [] => None
   | [TVarEntry({kind, _}), ..._] when i == 0 =>
@@ -81,7 +81,7 @@ let rec lookup_typ_by_idx = (~i, ctx: t): option(Typ.t) => {
   };
 };
 
-let lookup_alias = (ctx: t, t: Token.t): option(Typ.t) =>
+let lookup_alias = (ctx: t, t: Token.t): option(TypBase.t) =>
   switch (lookup_tvar(ctx, t)) {
   | Some({kind: Singleton(ty), _}) => Some(ty)
   | Some({kind: Abstract, _})
@@ -113,11 +113,17 @@ let is_alias = (ctx: t, name: Token.t): bool =>
   | None => false
   };
 
-let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
+let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: TypBase.t): t =>
   extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
 let add_tags =
-    (ctx: t, sum_idx: Typ.ann(option(int)), id: Id.t, tags: Typ.sum_map): t =>
+    (
+      ctx: t,
+      sum_idx: TypBase.ann(option(int)),
+      id: Id.t,
+      tags: TypBase.sum_map,
+    )
+    : t =>
   List.map(
     ((tag, typ)) =>
       TagEntry({
@@ -195,43 +201,3 @@ let filter_duplicates = (ctx: t): t =>
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
-
-let rec normalize_shallow = (ctx: t, ty: Typ.t): Typ.t =>
-  switch (ty) {
-  | Var({item: Some(idx), _}) =>
-    switch (lookup_typ_by_idx(ctx, ~i=idx)) {
-    | Some(ty) => normalize_shallow(ctx, ty)
-    | None => ty
-    }
-  | _ => ty
-  };
-
-let rec normalize = (ctx: t, ty: Typ.t): Typ.t => {
-  switch (ty) {
-  | Var({item: Some(idx), _}) =>
-    switch (lookup_typ_by_idx(ctx, ~i=idx)) {
-    | Some(ty) => normalize(ctx, ty)
-    | None => ty
-    }
-  | Var(_)
-  | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String => ty
-  | List(t) => List(normalize(ctx, t))
-  | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts))
-  | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
-  | Forall({item: ty, name}) =>
-    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Forall({item: normalize(add_abstract(ctx, name, -1), ty), name})
-  | Rec({item: ty, name}) =>
-    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec({item: normalize(add_abstract(ctx, name, -1), ty), name})
-  };
-};

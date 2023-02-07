@@ -65,7 +65,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     }
   | Ana(ana_ty) =>
     /* Normalize types */
-    let ana_ty = Ctx.normalize(ctx, ana_ty);
+    let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
@@ -148,7 +148,7 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
   switch (Info.typ_of_self(ctx, self)) {
   | None => d
   | Some(self_ty) =>
-    let self_ty = Ctx.normalize(ctx, self_ty);
+    let self_ty = Typ.normalize(ctx, self_ty);
     switch (Info.status_common(ctx, mode, self)) {
     | NotInHole(_) => cast(ctx, mode, self_ty, d)
     | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)

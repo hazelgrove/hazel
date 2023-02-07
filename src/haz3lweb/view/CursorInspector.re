@@ -118,7 +118,7 @@ let typ_ok_view = (ok: Info.ok_typ, ctx: Ctx.t, ty: Typ.t) =>
   | TypeAlias(name) => [
       Type.view(Var({name, item: None})),
       text("is a type alias for"),
-      Type.view(Ctx.normalize_shallow(ctx, ty)),
+      Type.view(Typ.normalize_shallow(ctx, ty)),
     ]
   };
 
