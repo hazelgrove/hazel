@@ -34,3 +34,14 @@ let get_binding_stack =
     |> List.filter_map(x => x)
   | None => []
   };
+
+let rec get_exp_parent = (map: Statics.map, id: Id.t): option(Id.t) =>
+  switch (Id.Map.find_opt(id, map)) {
+  | None => None
+  | Some(InfoExp(_)) => Some(id)
+  | Some(info) =>
+    switch (Info.ancestors_of(info)) {
+    | [] => None
+    | [pid, ..._] => get_exp_parent(map, pid)
+    }
+  };

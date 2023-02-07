@@ -41,6 +41,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     let get_elab = z => {
       let term = z |> get_term;
       let map = term |> Statics.mk_map;
+      let index = index |> Util.OptUtil.and_then(Probe.get_exp_parent(map));
       Interface.elaborate(~probe_ids=Option.to_list(index), map, term);
     };
     switch (key) {
@@ -81,7 +82,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       |> ProgramResult.get_state
       |> EvaluatorState.get_probes
       |> ProbeMap.filtershit
-      |> ProbeMap.show
+      |> ProbeMap.show_nuer_map
       |> print
     | _ => []
     };

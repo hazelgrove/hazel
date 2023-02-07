@@ -47,22 +47,60 @@ let abbreviate_envs = (probemap: t): abbr => {
   };
 };
 
-let fuckin_n_truckin: instance => instance =
+let g: DHExp.t => DHExp.t =
+  fun
+  | Closure(_) => BoundVar("fun")
+  | d => DHExp.strip_casts(d);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type nu_map = list((string, DHExp.t));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type nu_instance = {
+  res: DHExp.t,
+  env: nu_map,
+};
+
+let fuckin_n_truckin: instance => nu_instance =
   ({env, res}) => {
     env:
-      ClosureEnvironment.filter(
-        ((v, d)) =>
-          switch (d) {
-          | _ when v == "pi" => false
-          | Closure(_) => false
-          | _ => true
-          },
-        env,
-        EnvironmentIdGen.init,
-      )
-      |> fst,
-    res,
+      env
+      |> ClosureEnvironment.to_list
+      |> List.filter_map(((v, d)) =>
+           switch (d) {
+           | _ when v == "pi" => None
+           | DHExp.Closure(_) => None
+           | _ => Some((v, g(d)))
+           }
+         ),
+    res:
+      switch (res) {
+      | BoxedValue(res) => g(res)
+      | Indet(res) => g(res)
+      },
   };
 
-let filtershit = (probemap: t): t =>
+[@deriving (show({with_path: false}), sexp, yojson)]
+type nuer_map = Id.Map.t(list(nu_instance));
+
+let filtershit = (probemap: t): nuer_map =>
   Id.Map.map(instances => List.map(fuckin_n_truckin, instances), probemap);
+
+/*
+ TODO:
+ for probe id, get measurements
+ and get get ctx
+ foreach var in env,
+   look up var in ctx; get binding id
+   get measurements
+
+
+  */
+
+//let map = Measured.of_segment(unselected)
+
+type final_env_entry = {
+  v: DHExp.t,
+  id: Id.t, // id of the binding
+  measure: Measured.measurement //Measured.find_by_id(id, map):option(measurement)
+};
