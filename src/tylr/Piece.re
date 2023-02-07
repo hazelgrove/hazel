@@ -85,6 +85,9 @@ let mold = p =>
 let sort = p => Mold.sort_(mold(p));
 let prec = p => Mold.prec_(mold(p));
 let tip = (side, p) => Mold.tip(side, mold(p));
+let tips = (side, p) => Mold.tips(side, mold(p));
+
+let convexable = (side, p) => List.mem(Tip.Convex, tips(side, p));
 
 let is_grout = p =>
   switch (p.shape) {

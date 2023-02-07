@@ -515,16 +515,16 @@ let rec merge = (l: t, r: t): t => {
       | In((sort, prec)) =>
         assert_empty(kid_l);
         assert_empty(kid_r);
-        of_grout(~l, ~r, Grout.mk_concave(sort, prec));
+        of_grout(~l, Grout.mk_concave(sort, prec), ~r);
       | Lt(expected) =>
         assert_empty(kid_l);
-        knil(tl_l, p_l, ~kid=Some(complete(r)));
+        knil(tl_l, p_l, ~kid=Some(complete(~expected, r)));
       | Eq(expected) =>
         let kid = Some(merge(kid_l, kid_r));
         append(tl_l, p_l, link(~kid, p_r, tl_r));
       | Gt(expected) =>
         assert_empty(kid_r);
-        link(~kid=Some(complete(l)), p_r, tl_r);
+        link(~kid=Some(complete(~expected, l)), p_r, tl_r);
       };
     }
   };
@@ -567,176 +567,45 @@ and degrout = (l: t, r: t): option(t) =>
       degrout(l, pad(~l=Space.cat(passed, s_r), tl_r));
     };
   }
-and complete = (mel: t): t => failwith("todo");
-
-let complete_l = (~expected: Sort.Ana.t, mel: t): t =>
-  switch (unlink(mel)) {
-  | Error(kid) =>
-    switch (is_empty(kid)) {
-    | Some(s) => of_grout(Grout.mk_convex(expected.sort)) |> pad(~r=s)
-    | None => failwith("unexpected singleton kid")
-    }
-  | Ok((kid, p, tl)) =>
-    switch (Piece.tip(L, p)) {
-    | Convex =>
-      assert(Option.is_some(is_empty(kid)));
-      mel;
-    | Concave(s, _) =>
-      switch (kid) {
-      | Some(_) => mel
-      | None =>
-        let kid = of_grout(Grout.mk_convex(s));
-        link(~kid, p, tl);
-      }
-    }
-  };
-
-let convexify_l = (~expected: Sort.Ana.t, mel: t): t =>
-  if (is_empty(mel)) {
-    of_grout(Grout.mk_convex(expected.sort));
-  } else {
-    let (kid, p, tl) = unlink(mel) |> OptUtil.get_or_raise(Orphaned_kid);
-    switch (Piece.tip(L, p)) {
-    | Convex =>
-      assert(kid == None);
-      mel;
-    | Concave(s, _) =>
-      switch (kid) {
-      | Some(_) => mel
-      | None =>
-        let kid = of_grout(Grout.mk_convex(s));
-        link(~kid, p, tl);
-      }
-    };
-  };
-let convexify_r = (~expected: Sort.Ana.t, mel) =>
-  if (is_empty(mel)) {
-    of_grout(Grout.mk_convex(expected.sort));
-  } else {
-    let (tl, p, kid) = unknil(mel) |> OptUtil.get_or_raise(Orphaned_kid);
-    switch (Piece.tip(R, p)) {
-    | Convex =>
-      assert(kid == None);
-      mel;
-    | Concave(s, _) =>
-      switch (kid) {
-      | Some(_) => mel
-      | None =>
-        let kid = of_grout(Grout.mk_convex(s));
-        knil(tl, p, ~kid);
-      }
-    };
-  };
-let convexify = (~expected: Sort.Ana.t, c) =>
-  c |> convexify_r(~expected) |> convexify_l(~expected);
-
-// precond: l and r are nonempty
-let rec degrout = (l: Padded.t, r: Padded.t): option(Padded.t) => {
-  let (mel_l, (s_ll, s_lr)) = l;
-  let (mel_r, (s_rl, s_rr)) = r;
-  open OptUtil.Syntax;
-  let* (tl_l, p_l, kid_l) = unknil(mel_l);
-  let* (kid_r, p_r, tl_r) = unlink(mel_r);
-  let* dg = Piece.degrout(p_l, p_r);
-  switch (dg) {
-  | Degrout =>
-    let* s_l = kid_is_porous(kid_l);
-    let* s_r = kid_is_porous(kid_r);
-    let l = Padded.mk(~l=s_ll, ~r=s_lr @ s_l, tl_l);
-    let r = Padded.mk(~l=s_r @ s_rl, ~r=s_rr, tl_r);
-    degrout(l, r);
-  | Fill(d) =>
-    let+ s_l = kid_is_porous(kid_l)
-    and+ s_r = kid_is_porous(kid_r);
-    let s_mid = List.concat([s_l, s_lr, s_rl, s_r]);
-    let p =
-      switch (d) {
-      | L => Piece.pad(~l=Piece.space(p_l) @ s_mid, p_r)
-      | R => Piece.pad(~r=s_mid @ Piece.space(p_r), p_l)
-      };
-    Padded.mk(~l=s_ll, ~r=s_rr, Chain.append(tl_l, p, tl_r));
-  | Pass(L) =>
-    let* s_l = kid_is_porous(kid_l);
-    let s_mid = List.concat([Piece.space(p_l), s_l, s_lr]);
-    let l = Padded.mk(~l=s_ll, ~r=s_mid, tl_l);
-    degrout(l, r);
-  | Pass(R) =>
-    let* s_r = kid_is_porous(kid_r);
-    let s_mid = List.concat([s_rl, s_r, Piece.space(p_l)]);
-    let r = Padded.mk(~l=s_mid, ~r=s_rr, tl_r);
-    degrout(l, r);
-  };
-};
-
-let rec merge = (l: Padded.t, r: Padded.t): Padded.t =>
-  switch (Padded.is_empty(l), Padded.is_empty(r)) {
-  | (Some(l), Some(r)) => Padded.empty(~l, ~r, ())
-  | (Some(l), None) => Padded.pad(~l, r)
-  | (None, Some(r)) => Padded.pad(~r, l)
-  | (None, None) => merge_nonempty(l, r)
+and complete = (~side: option(Dir.t)=?, ~expected: Sort.Ana.t, mel: t): t =>
+  switch (side) {
+  | None => complete_l(~expected, complete_r(~expected, mel))
+  | Some(L) => complete_l(~expected, mel)
+  | Some(R) => complete_r(~expected, mel)
   }
-and merge_nonempty = (l, r) =>
-  switch (degrout(l, r)) {
-  | Some(c) => c
-  | None =>
-    let (c_l, (s_ll, s_lr)) = l;
-    let (c_r, (s_rl, s_rr)) = r;
-    let (tl_l, p_l, kid_l) =
-      Chain.unknil(c_l) |> OptUtil.get_or_raise(Orphaned_kid);
-    let (kid_r, p_r, tl_r) =
-      Chain.unlink(c_r) |> OptUtil.get_or_raise(Orphaned_kid);
-    switch (Piece.cmp(p_l, p_r)) {
-    | In((sort, prec)) =>
-      assert(kid_l == None && kid_r == None);
-      // todo: may want to use expected sort here.
-      // as it stands, this bottom-up method of sorting
-      // the grout may lead to sort inconsistency in general.
-      // or this may be fine under interpretation of grout
-      // sort being upper bound on its parent's expected sort.
-      // todo: fixed dropped tls
-      Piece.mk(G(Grout.mk_concave(sort, prec)))
-      |> Piece.pad(~l=s_lr, ~r=s_rl)
-      |> of_piece(~l=?kid_l, ~r=?kid_r)
-      |> Padded.mk(~l=s_ll, ~r=s_rr);
-    | Lt(expected) =>
-      assert(kid_l == None);
-      let p_l = Piece.pad(~r=s_lr @ s_rl, p_l);
-      let r = mk_kid(~expected, c_r);
-      Chain.knil(tl_l, p_l, Some(r)) |> Padded.mk(~l=s_ll, ~r=s_rr);
-    | Eq(expected) =>
-      let (kid, (l, r)) = merge_kids(~expected, kid_l, s_lr, s_rl, kid_r);
-      let p_l = Piece.pad(~r=l, p_l);
-      let p_r = Piece.pad(~l=r, p_r);
-      Chain.append(tl_l, p_l, Chain.link(Some(K(kid)), p_r, tl_r))
-      |> Padded.mk(~l=s_ll, ~r=s_rr);
-    | Gt(expected) =>
-      assert(kid_l == None);
-      let p_r = Piece.pad(~l=s_lr @ s_rl, p_r);
-      let l = mk_kid(~expected, c_l);
-      Chain.link(Some(l), p_r, tl_r) |> Padded.mk(~l=s_ll, ~r=s_rr);
-    };
-  }
-and merge_kids =
-    (
-      ~expected: Sort.Ana.t,
-      l: option(kid),
-      s_l: Space.s,
-      s_r: Space.s,
-      r: option(kid),
-    )
-    : Padded.t =>
-  switch (l, r) {
-  | (None, None) =>
-    of_grout(Grout.mk_convex(expected.sort)) |> Padded.mk(~l=s_l, ~r=s_r)
-  | (None, Some(K(r))) => Padded.mk(~l=s_l @ s_r, r)
-  | (Some(K(l)), None) => Padded.mk(~r=s_l @ s_r, l)
-  | (Some(K(l)), Some(K(r))) =>
-    let l = Padded.mk(~r=s_l, l);
-    let r = Padded.mk(~l=s_r, r);
-    merge(l, r);
-  }
-and mk_kid = (~expected: Sort.Ana.t, c: t): kid =>
-  K(convexify(~expected, c));
+and complete_l = (~expected: Sort.Ana.t, mel: t): t => {
+  let complete_kid = complete_kid(~expected);
+  let complemented =
+    List.fold_right(
+      ((sugg, mold)) => merge(of_grout(Grout.mk(~sugg, mold))),
+      complement(~side=L, mel),
+      mel,
+    );
+  switch (unlink(complemented)) {
+  | Ok((_, p, _)) when Piece.convexable(L, p) => complemented
+  | Ok((kid, p, tl)) => link(~kid=Some(complete_kid(kid)), p, tl)
+  | Error(kid) => complete_kid(kid)
+  };
+}
+and complete_r = (~expected: Sort.Ana.t, mel: t): t => {
+  let complete_kid = complete_kid(~expected);
+  let complemented =
+    List.fold_left(
+      (mel, (sugg, mold)) => merge(mel, of_grout(Grout.mk(~sugg, mold))),
+      mel,
+      complement(~side=L, mel),
+    );
+  switch (unknil(complemented)) {
+  | Ok((_, p, _)) when Piece.convexable(R, p) => complemented
+  | Ok((tl, p, kid)) => knil(tl, p, ~kid=Some(complete_kid(kid)))
+  | Error(kid) => complete_kid(kid)
+  };
+}
+and complete_kid = (~expected, kid) =>
+  switch (is_empty(kid)) {
+  | None => kid
+  | Some(s) => Grout.mk_convex(expected.sort) |> of_grout |> pad(~r=s)
+  };
 
 let merge_all = pcs => List.fold_right(merge, pcs, Padded.empty());
 
