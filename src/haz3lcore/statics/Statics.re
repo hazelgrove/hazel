@@ -300,6 +300,19 @@ and uexp_to_info_map =
           let ty = Term.UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
         };
+        /* NOTE(yuchen): Below is an alternative implementation that attempts to
+           add a rec whenever type alias is present. It may cause trouble to the
+           runtime, so precede with caution. */
+        // Typ.lookup_surface(ty_pre)
+        //   ? {
+        //     let ty_rec = Typ.Rec({item: ty_pre, name});
+        //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+        //     (ty_rec, ctx_def, ctx_def);
+        //   }
+        //   : {
+        //     let ty = Term.UTyp.to_typ(ctx, utyp);
+        //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
+        //   };
       };
       let ctx_body =
         switch (ty_def) {
