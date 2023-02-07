@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Util.OptUtil.Syntax;
+open Term;
 
 /* The ids of a term's ancestors in the AST */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -26,8 +27,7 @@ type self_common =
   | IsMulti /* Multihole, treated as hole */
   | IsTag(Token.t, option(Typ.t)); /* Tags have special ana logic */
 
-/* The self for expressions has the additional
-   possibility of a free variable */
+/* The self for expressions could also be a free variable */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_exp =
   | FreeVar
@@ -37,6 +37,7 @@ type self_exp =
 type self_pat =
   | Common(self_common);
 
+/* Common errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
@@ -48,16 +49,18 @@ type error_common =
       syn: Typ.t,
     });
 
+/* Expression term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable
   | Common(error_common);
 
+/* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | Common(error_common);
 
-/* Non-error statuses. The third represents the possibility of a
+/* Common ok statuses. The third represents the possibility of a
    match or list literal which has inconsisent branches. This is
    fine since the branches are in analytic position, but we may
    want to warn about this inconsistency in the cursor inspector */
@@ -95,23 +98,24 @@ type status_pat =
   | InHole(error_pat)
   | NotInHole(ok_pat);
 
-/* Expectation imposed on a type by the parent form.
-   TODO: This is fundamentally syntactic and should
-   eventually be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_variant =
   | Unique
   | Duplicate;
+
+/* Expectation imposed on a type by the parent form.
+   TODO: This is fundamentally syntactic and should
+   eventually be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_expects =
   | TypeExpected
   | TagExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
-/* A type can be either valid, a free type variable,
-   or a duplicate tag. TODO: The additional errors statuses
-   are fundamentally syntactic and should eventually
-   be reimplemeted via a seperate sort */
+/* Type term errors
+   TODO: The three additional errors statuses
+   are fundamentally syntactic and should when
+   possible be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
@@ -121,22 +125,25 @@ type error_typ =
   | WantTagFoundType(Typ.t)
   | WantTagFoundAp;
 
+/* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_typ =
   | Variant(Token.t, Typ.t)
   | VariantIncomplete(Typ.t)
-  | TypeAlias(Token.t)
-  | Type;
+  | TypeAlias(Token.t, Typ.t)
+  | Type(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
   | InHole(error_typ)
   | NotInHole(ok_typ);
 
+/* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
   | NotAVar;
 
+/* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_tpat =
   | Empty
@@ -149,46 +156,50 @@ type status_tpat =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
-  cls: Term.UExp.cls,
-  term: Term.UExp.t,
+  term: UExp.t,
   ancestors,
   ctx: Ctx.t,
   mode: Typ.mode,
   self: self_exp,
   free: Ctx.co, /* _Locally_ unbound variables */
-  ty: Typ.t /* The type AFTER hole fixing */
+  cls: UExp.cls, /* derived */
+  status: status_exp, /* derived: cursor inspector */
+  ty: Typ.t /* derived: type after hole fixing */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat = {
-  cls: Term.UPat.cls,
-  term: Term.UPat.t,
+  term: UPat.t,
   ancestors,
   ctx: Ctx.t,
   mode: Typ.mode,
   self: self_pat,
-  ty: Typ.t /* The type AFTER hole fixing */
+  cls: UPat.cls, /* derived */
+  status: status_pat, /* derived: cursor inspector */
+  ty: Typ.t /* derived: type after hole fixing */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
-  cls: Term.UTyp.cls,
-  term: Term.UTyp.t,
+  term: UTyp.t,
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
-  ty: Typ.t,
+  cls: UTyp.cls, /* derived */
+  status: status_typ, /* derived: cursor inspector */
+  ty: Typ.t /* derived: represented type */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
-  cls: Term.UTPat.cls,
-  term: Term.UTPat.t,
+  term: UTPat.t,
   ancestors,
   ctx: Ctx.t,
+  cls: UTPat.cls, /* derived: from term */
+  status: status_tpat /* derived : cursor inspector */
 };
 
-/* The Info aka Cursorinfo assigned to each subterm. */
+/* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoExp(exp)
@@ -275,10 +286,11 @@ let status_exp = (ctx: Ctx.t, mode: Typ.mode, self: self_exp): status_exp =>
    such as whether or not a type variable reference is
    free, and whether a tag name is a dupe. */
 let status_typ =
-    (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t): status_typ =>
+    (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
+    : status_typ =>
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
-  | EmptyHole => NotInHole(Type)
+  | EmptyHole => NotInHole(Type(ty))
   | Var(name)
   | Tag(name) =>
     switch (expects) {
@@ -289,11 +301,11 @@ let status_typ =
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false => InHole(FreeTypeVar(name))
-      | true => NotInHole(TypeAlias(name))
+      | true => NotInHole(TypeAlias(name, Typ.normalize_shallow(ctx, ty)))
       }
     }
   | Ap(t1, t2) =>
-    let ty_in = Term.UTyp.to_typ(ctx, t2);
+    let ty_in = UTyp.to_typ(ctx, t2);
     switch (expects) {
     | VariantExpected(status_variant, ty_variant) =>
       switch (status_variant, t1.term) {
@@ -305,15 +317,14 @@ let status_typ =
     | TypeExpected => InHole(WantTypeFoundAp)
     };
   | _ =>
-    let ty = Term.UTyp.to_typ(ctx, term);
     switch (expects) {
-    | TypeExpected => NotInHole(Type)
+    | TypeExpected => NotInHole(Type(ty))
     | TagExpected(_)
     | VariantExpected(_) => InHole(WantTagFoundType(ty))
-    };
+    }
   };
 
-let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
+let status_tpat = (utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
   | Var(name) => NotInHole(Var(name))
@@ -334,8 +345,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({expects, ctx, term, _}) =>
-    switch (status_typ(ctx, expects, term)) {
+  | InfoTyp({expects, ctx, term, ty, _}) =>
+    switch (status_typ(ctx, expects, term, ty)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -356,23 +367,52 @@ let typ_ok: ok_pat => Typ.t =
   | AnaConsistent({join, _}) => join
   | AnaInternalInconsistent({ana, _}) => ana;
 
-let typ_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
+let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
   };
-let typ_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
+let ty_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
   };
-let typ_after_fix_opt = (info: t): option(Typ.t) =>
-  switch (info) {
-  | InfoExp({ty, _})
-  | InfoPat({ty, _}) => Some(ty)
-  | InfoTyp(_)
-  | InfoTPat(_) => None
-  };
+
+/* Add derivable attributes for expression terms */
+let derived_exp = (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~free): exp => {
+  let cls = UExp.cls_of_term(uexp.term);
+  let status = status_exp(ctx, mode, self);
+  let ty = ty_after_fix_exp(ctx, mode, self);
+  {cls, self, ty, mode, status, ctx, free, ancestors, term: uexp};
+};
+
+/* Add derivable attributes for pattern terms */
+let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
+  let cls = UPat.cls_of_term(upat.term);
+  let status = status_pat(ctx, mode, self);
+  let ty = ty_after_fix_pat(ctx, mode, self);
+  {cls, self, mode, ty, status, ctx, ancestors, term: upat};
+};
+
+/* Add derivable attributes for types */
+let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
+  let cls: UTyp.cls =
+    /* Hack to improve CI display */
+    switch (expects, UTyp.cls_of_term(utyp.term)) {
+    | (VariantExpected(_), Var) => Tag
+    | (_, cls) => cls
+    };
+  let ty = UTyp.to_typ(ctx, utyp);
+  let status = status_typ(ctx, expects, utyp, ty);
+  {cls, ctx, ancestors, status, expects, ty, term: utyp};
+};
+
+/* Add derivable attributes for type patterns */
+let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
+  let cls = UTPat.cls_of_term(utpat.term);
+  let status = status_tpat(utpat);
+  {cls, ancestors, status, ctx, term: utpat};
+};
 
 /* Type of a tag in synthetic position */
 //TODO(andrew):ADTs cleanup move this

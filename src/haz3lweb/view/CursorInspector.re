@@ -94,20 +94,7 @@ let common_ok_view = (ok: Info.ok_pat) => {
   };
 };
 
-let exp_view = ({mode, self, ctx, _}: Info.exp) =>
-  switch (Info.status_exp(ctx, mode, self)) {
-  | InHole(FreeVariable) => div_err([text("Variable is not bound")])
-  | InHole(Common(error)) => div_err(common_err_view(error))
-  | NotInHole(ok) => div_ok(common_ok_view(ok))
-  };
-
-let pat_view = ({mode, self, ctx, _}: Info.pat) =>
-  switch (Info.status_pat(ctx, mode, self)) {
-  | InHole(Common(error)) => div_err(common_err_view(error))
-  | NotInHole(ok) => div_ok(common_ok_view(ok))
-  };
-
-let typ_ok_view = (ok: Info.ok_typ, ctx: Ctx.t, ty: Typ.t) =>
+let typ_ok_view = (ok: Info.ok_typ) =>
   switch (ok) {
   | Variant(name, sum_ty) => [
       Type.view(Var(name)),
@@ -118,11 +105,11 @@ let typ_ok_view = (ok: Info.ok_typ, ctx: Ctx.t, ty: Typ.t) =>
       text("An incomplete sum type constuctor of type"),
       Type.view(sum_ty),
     ]
-  | Type => [Type.view(ty), text("is a type")]
-  | TypeAlias(name) => [
+  | Type(ty) => [Type.view(ty), text("is a type")]
+  | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
       text("is a type alias for"),
-      Type.view(Typ.normalize_shallow(ctx, ty)),
+      Type.view(ty_lookup),
     ]
   };
 
@@ -149,19 +136,28 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let typ_view = ({ctx, expects, term, ty, _}: Info.typ) =>
-  switch (Info.status_typ(ctx, expects, term)) {
-  | NotInHole(ok) => div_ok(typ_ok_view(ok, ctx, ty))
-  | InHole(err) => div_err(typ_err_view(err))
-  };
+let exp_view: Info.status_exp => t =
+  fun
+  | InHole(FreeVariable) => div_err([text("Variable is not bound")])
+  | InHole(Common(error)) => div_err(common_err_view(error))
+  | NotInHole(ok) => div_ok(common_ok_view(ok));
 
-let tpat_view = ({term, _}: Info.tpat) =>
-  switch (Info.status_tpat(term)) {
+let pat_view: Info.status_pat => t =
+  fun
+  | InHole(Common(error)) => div_err(common_err_view(error))
+  | NotInHole(ok) => div_ok(common_ok_view(ok));
+
+let typ_view: Info.status_typ => t =
+  fun
+  | NotInHole(ok) => div_ok(typ_ok_view(ok))
+  | InHole(err) => div_err(typ_err_view(err));
+
+let tpat_view: Info.status_tpat => t =
+  fun
   | NotInHole(Empty) => div_ok([text("Enter a new type alias")])
   | NotInHole(Var(name)) =>
     div_ok([Type.alias_view(name), text("is a new type alias")])
-  | InHole(NotAVar) => div_err([text("Not a valid type name")])
-  };
+  | InHole(NotAVar) => div_err([text("Not a valid type name")]);
 
 let view_of_info =
     (~inject, ~settings, ~show_lang_doc: bool, ci: Info.t): Node.t => {
@@ -174,10 +170,10 @@ let view_of_info =
       ],
     );
   switch (ci) {
-  | InfoExp(info) => wrapper("exp", exp_view(info))
-  | InfoPat(info) => wrapper("pat", pat_view(info))
-  | InfoTyp(info) => wrapper("typ", typ_view(info))
-  | InfoTPat(info) => wrapper("tpat", tpat_view(info))
+  | InfoExp({status, _}) => wrapper("exp", exp_view(status))
+  | InfoPat({status, _}) => wrapper("pat", pat_view(status))
+  | InfoTyp({status, _}) => wrapper("typ", typ_view(status))
+  | InfoTPat({status, _}) => wrapper("tpat", tpat_view(status))
   };
 };
 

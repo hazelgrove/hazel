@@ -94,9 +94,7 @@ and uexp_to_info_map =
     | _ => mode
     };
   let add' = (~self, ~free, m) => {
-    let cls = UExp.cls_of_term(term);
-    let ty = Info.typ_after_fix_exp(ctx, mode, self);
-    let info = Info.{cls, self, ty, mode, ctx, free, ancestors, term: uexp};
+    let info = Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~free);
     (info, add_info(ids, InfoExp(info), m));
   };
   let add = (~self, ~free, m) => add'(~self=Common(self), ~free, m);
@@ -300,10 +298,8 @@ and upat_to_info_map =
     )
     : (Info.pat, map) => {
   let add = (~self, ~ctx, m) => {
-    let cls = UPat.cls_of_term(term);
-    let ty = Info.typ_after_fix_pat(ctx, mode, Common(self));
     let info =
-      Info.{cls, self: Common(self), mode, ty, ctx, ancestors, term: upat};
+      Info.derived_pat(~upat, ~ctx, ~mode, ~ancestors, ~self=Common(self));
     (info, add_info(ids, InfoPat(info), m));
   };
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
@@ -346,7 +342,7 @@ and upat_to_info_map =
   | Wild => atomic(Just(unknown))
   | Var(name) =>
     let ctx_typ =
-      Info.typ_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
   | Tuple(ps) =>
@@ -381,14 +377,8 @@ and utyp_to_info_map =
       {ids, term} as utyp: UTyp.t,
     )
     : (Info.typ, map) => {
-  let cls: UTyp.cls =
-    switch (expects, UTyp.cls_of_term(term)) {
-    | (VariantExpected(_), Var) => Tag
-    | (_, cls) => cls
-    };
-  let ty = UTyp.to_typ(ctx, utyp);
   let add = m => {
-    let info = Info.{cls, ctx, ancestors, expects, ty, term: utyp};
+    let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   };
   let ancestors = [UTyp.rep_id(utyp)] @ ancestors;
@@ -433,7 +423,8 @@ and utyp_to_info_map =
             | Some(tag) when !List.mem(tag, tags) => (Unique, [tag])
             | Some(tag) => (Duplicate, [tag])
             };
-          let m = go'(~expects=VariantExpected(status, ty), uty) |> snd;
+          let ty_sum = UTyp.to_typ(ctx, utyp);
+          let m = go'(~expects=VariantExpected(status, ty_sum), uty) |> snd;
           (acc @ [m], tags @ tag);
         },
         ([], []),
@@ -449,8 +440,7 @@ and utyp_to_info_map =
 and utpat_to_info_map =
     (~ctx, ~ancestors, {ids, term} as utpat: UTPat.t): (Info.tpat, map) => {
   let add = m => {
-    let cls = UTPat.cls_of_term(term);
-    let info = Info.{cls, ancestors, ctx, term: utpat};
+    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
     (info, add_info(ids, InfoTPat(info), m));
   };
   let ancestors = [UTPat.rep_id(utpat)] @ ancestors;
