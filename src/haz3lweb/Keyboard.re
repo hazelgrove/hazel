@@ -75,7 +75,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       /* Print program evaluation */
       zipper |> get_elab |> Interface.evaluate |> ProgramResult.show |> print
     | "F8" =>
-      /* TODO(andrew): testing for probe */
+      /* TODO(andrew): cleanup. testing for probe */
       zipper
       |> get_elab
       |> Interface.evaluate

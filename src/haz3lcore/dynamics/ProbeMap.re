@@ -53,13 +53,26 @@ let g: DHExp.t => DHExp.t =
   | d => DHExp.strip_casts(d);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type nu_map = list((string, DHExp.t));
+type init_env_entry = (string, DHExp.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type final_env_entry = {
+  v: DHExp.t,
+  id: Id.t, // id of the binding
+  measure: Measured.measurement //Measured.find_by_id(id, map):option(measurement)
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type nu_env = list((string, DHExp.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type nu_instance = {
   res: DHExp.t,
-  env: nu_map,
+  env: nu_env,
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type nuer_map = Id.Map.t(list(nu_instance));
 
 let fuckin_n_truckin: instance => nu_instance =
   ({env, res}) => {
@@ -80,8 +93,6 @@ let fuckin_n_truckin: instance => nu_instance =
       },
   };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type nuer_map = Id.Map.t(list(nu_instance));
 
 let filtershit = (probemap: t): nuer_map =>
   Id.Map.map(instances => List.map(fuckin_n_truckin, instances), probemap);
@@ -99,8 +110,4 @@ let filtershit = (probemap: t): nuer_map =>
 
 //let map = Measured.of_segment(unselected)
 
-type final_env_entry = {
-  v: DHExp.t,
-  id: Id.t, // id of the binding
-  measure: Measured.measurement //Measured.find_by_id(id, map):option(measurement)
-};
+

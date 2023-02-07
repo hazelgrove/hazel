@@ -303,6 +303,27 @@ module Deco =
     go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
   };
 
+  let live_aid = (zipper: Zipper.t) => {
+    let index = Indicated.index(zipper);
+    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+    let get_elab = z => {
+      let term = z |> get_term;
+      let map = term |> Statics.mk_map;
+      let index = index |> Util.OptUtil.and_then(Probe.get_exp_parent(map));
+      Interface.elaborate(~probe_ids=Option.to_list(index), map, term);
+    };
+    let nuer_map =
+      zipper
+      |> get_elab
+      |> Interface.evaluate
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_probes
+      |> ProbeMap.filtershit;
+    print_endline("liveaid");
+    let _ = nuer_map |> ProbeMap.show_nuer_map |> print_endline;
+    [];
+  };
+
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
@@ -311,5 +332,6 @@ module Deco =
       backback(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
+      live_aid(zipper),
     ]);
 };
