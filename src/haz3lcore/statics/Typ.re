@@ -158,43 +158,6 @@ let rec lookup_surface = (~x: int=0, ty: t) => {
   };
 };
 
-/* equality
-   At the moment, this coincides with default equality,
-   but this will change when polymorphic types are implemented */
-/* equality
-   At the moment, this coincides with default equality,
-   but this will change when polymorphic types are implemented */
-let rec eq = (t1, t2) => {
-  switch (t1, t2) {
-  | (Int, Int) => true
-  | (Int, _) => false
-  | (Float, Float) => true
-  | (Float, _) => false
-  | (Bool, Bool) => true
-  | (Bool, _) => false
-  | (String, String) => true
-  | (String, _) => false
-  | (Unknown(_), Unknown(_)) => true
-  | (Unknown(_), _) => false
-  | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
-    eq(t1_1, t2_1) && eq(t1_2, t2_2)
-  | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) =>
-    List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
-  | (Prod(_), _) => false
-  | (List(t1), List(t2)) => eq(t1, t2)
-  | (List(_), _) => false
-  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
-  | (Sum(_), _) => false
-  | (Var({item: x1, _}), Var({item: x2, _})) => x1 == x2
-  | (Var(_), _) => false
-  | (Rec({item: t1, _}), Rec({item: t2, _})) => eq(t1, t2)
-  | (Rec(_), _) => false
-  | (Forall({item: t1, _}), Forall({item: t2, _})) => eq(t1, t2)
-  | (Forall(_), _) => false
-  };
-};
-
 let unroll = (ty: t): t =>
   switch (ty) {
   | Rec({item: ty, _}) => subst(ty, ty)
@@ -206,30 +169,46 @@ let unroll = (ty: t): t =>
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (ty1: t, ty2: t): option(t) => {
+let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
   | (Rec({item: t1, name}), Rec({item: t2, _})) =>
-    switch (join(t1, t2)) {
+    switch (join(Ctx.add_abstract(ctx, name, -1), t1, t2)) {
     | Some(t) => Some(Rec({item: t, name}))
     | None => None
     }
   | (Rec(_), _) => None
   | (Forall({item: t1, name}), Forall({item: t2, _})) =>
-    switch (join(t1, t2)) {
+    switch (join(Ctx.add_abstract(ctx, name, -1), t1, t2)) {
     | Some(t) => Some(Forall({item: t, name}))
     | None => None
     }
   | (Forall(_), _) => None
-  | (Var({item: n1, name}), Var({item: n2, _})) =>
-    if (n1 == n2) {
-      Some(Var({item: n1, name}));
-    } else {
-      None;
-    }
+  | (Var({item: Some(n1), name}), Var({item: Some(n2), _})) =>
+    let ob1 = Ctx.resolve_var_kind(ctx, ~remaining=n1);
+    let ob2 = Ctx.resolve_var_kind(ctx, ~remaining=n2);
+    Kind.Observation.eq(ob1, ob2)
+      ? Some(Var({item: Some(n1), name})) : None;
+  // switch (
+  //   Ctx.lookup_typ_by_idx(ctx, ~i=n1),
+  //   Ctx.lookup_typ_by_idx(ctx, ~i=n2),
+  // ) {
+  // | (Some(t1), Some(t2)) when eq(t1, t2) =>
+  //   Some(Var({item: Some(n1), name}))
+  // | _ => None
+  // }
+  // n1 == n2
+  //   ? {
+  //     Some(Var({item: Some(n1), name}));
+  //   }
+  //   : {
+  //     Ctx.lookup_typ_by_idx(ctx, ~i=n1)
+  //     == Ctx.lookup_typ_by_idx(ctx, ~i=n2)
+  //       ? Some(Var({item: Some(n1), name})) : None;
+  //   }
   | (Var(_), _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
@@ -240,7 +219,7 @@ let rec join = (ty1: t, ty2: t): option(t) => {
   | (String, String) => Some(String)
   | (String, _) => None
   | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
-    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    switch (join(ctx, ty1_1, ty2_1), join(ctx, ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
@@ -249,7 +228,7 @@ let rec join = (ty1: t, ty2: t): option(t) => {
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      switch (List.map2(join, tys1, tys2) |> Util.OptUtil.sequence) {
+      switch (List.map2(join(ctx), tys1, tys2) |> Util.OptUtil.sequence) {
       | None => None
       | Some(tys) => Some(Prod(tys))
       };
@@ -258,7 +237,7 @@ let rec join = (ty1: t, ty2: t): option(t) => {
   | (Sum(sm1), Sum(sm2)) =>
     let* ty =
       ListUtil.map2_opt(
-        join_sum_entries,
+        join_sum_entries(ctx),
         TagMap.sort(sm1),
         TagMap.sort(sm2),
       );
@@ -266,7 +245,7 @@ let rec join = (ty1: t, ty2: t): option(t) => {
     Sum(ty);
   | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>
-    switch (join(ty_1, ty_2)) {
+    switch (join(ctx, ty_1, ty_2)) {
     | Some(ty) => Some(List(ty))
     | None => None
     }
@@ -274,18 +253,19 @@ let rec join = (ty1: t, ty2: t): option(t) => {
   };
 }
 and join_sum_entries =
-    ((tag1, ty1): sum_entry, (tag2, ty2): sum_entry): option(sum_entry) =>
+    (ctx: Ctx.t, (tag1, ty1): sum_entry, (tag2, ty2): sum_entry)
+    : option(sum_entry) =>
   switch (ty1, ty2) {
   | (None, None) when tag1 == tag2 => Some((tag1, None))
   | (Some(ty1), Some(ty2)) when tag1 == tag2 =>
-    let+ ty_join = join(ty1, ty2);
+    let+ ty_join = join(ctx, ty1, ty2);
     (tag1, Some(ty_join));
   | _ => None
   };
 
-let join_all = (ts: list(t)): option(t) =>
+let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => Util.OptUtil.and_then(join(ty), acc),
+    (acc, ty) => Util.OptUtil.and_then(join(ctx, ty), acc),
     Some(Unknown(Internal)),
     ts,
   );

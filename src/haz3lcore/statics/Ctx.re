@@ -39,6 +39,7 @@ let extend = List.cons;
 let lookup = (ctx: t, name: Token.t): option(entry) =>
   // TODO: will use lookup for everything cause a namespace collision?
   // NOTE: we may need separate lookup functions for each entry type
+  // TODO: check with andrew
   List.find_map(
     fun
     | VarEntry(v) when v.name == name => Some(VarEntry(v))
@@ -68,17 +69,40 @@ let rec lookup_tvar_idx = (~i=0, ctx: t, x: Token.t): option(int) => {
   };
 };
 
-let rec lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
+let rec lookup_kind_by_idx = (~i, ctx: t): option(Kind.t) => {
   switch (ctx) {
   | [] => None
-  | [TVarEntry({kind, _}), ..._] when i == 0 =>
-    switch (kind) {
-    | Singleton(typ) => Some(typ)
-    | Abstract => None
-    }
-  | [TVarEntry(_), ...ctx] => lookup_typ_by_idx(~i=i - 1, ctx)
-  | [_entry, ...ctx] => lookup_typ_by_idx(~i, ctx)
+  | [TVarEntry({kind, _}), ..._] when i == 0 => Some(kind)
+  | [TVarEntry(_), ...ctx] => lookup_kind_by_idx(~i=i - 1, ctx)
+  | [_entry, ...ctx] => lookup_kind_by_idx(~i, ctx)
   };
+};
+
+let lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
+  switch (lookup_kind_by_idx(~i, ctx)) {
+  | Some(Kind.Singleton(ty)) => Some(ty)
+  | _ => None
+  };
+};
+
+let rec resolve_var_kind =
+        (~remaining: int, ~total: int=0, ctx: t): Kind.Observation.t => {
+  Kind.Observation.(
+    switch (ctx) {
+    | [] => Free
+    | [TVarEntry({kind, _}), ..._] when remaining == 0 =>
+      switch (kind) {
+      | Singleton(Var({item: Some(i), _})) =>
+        resolve_var_kind(~remaining=i, ~total, ctx)
+      | Singleton(Var({item: None, _})) => Free
+      | Singleton(ty) => Base(ty)
+      | Abstract => Depth(total)
+      }
+    | [TVarEntry(_), ...ctx] =>
+      resolve_var_kind(~remaining=remaining - 1, ~total=total + 1, ctx)
+    | [_entry, ...ctx] => resolve_var_kind(~remaining, ~total, ctx)
+    }
+  );
 };
 
 let lookup_alias = (ctx: t, t: Token.t): option(TypBase.t) =>

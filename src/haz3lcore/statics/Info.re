@@ -180,12 +180,12 @@ let rec status_common =
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
   | (Just(ty), SynFun) =>
-    switch (Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
     | Some(_) => NotInHole(SynConsistent(ty))
     | None => InHole(NoFun(ty))
     }
   | (Just(syn), Ana(ana)) =>
-    switch (Typ.join(ana, syn)) {
+    switch (Typ.join(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
     | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
     }

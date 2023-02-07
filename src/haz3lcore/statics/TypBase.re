@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 /* TYPE_PROVENANCE: From whence does an unknown type originate?
    Is it generated from an unannotated pattern variable (SynSwitch),
@@ -47,3 +48,40 @@ type mode =
   | SynFun
   | Syn
   | Ana(t);
+
+/* equality
+   At the moment, this coincides with default equality,
+   but this will change when polymorphic types are implemented */
+/* equality
+   At the moment, this coincides with default equality,
+   but this will change when polymorphic types are implemented */
+let rec eq = (t1, t2) => {
+  switch (t1, t2) {
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
+  | (Bool, Bool) => true
+  | (Bool, _) => false
+  | (String, String) => true
+  | (String, _) => false
+  | (Unknown(_), Unknown(_)) => true
+  | (Unknown(_), _) => false
+  | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
+    eq(t1_1, t2_1) && eq(t1_2, t2_2)
+  | (Arrow(_), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
+  | (Prod(_), _) => false
+  | (List(t1), List(t2)) => eq(t1, t2)
+  | (List(_), _) => false
+  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
+  | (Sum(_), _) => false
+  | (Var({item: x1, _}), Var({item: x2, _})) => x1 == x2
+  | (Var(_), _) => false
+  | (Rec({item: t1, _}), Rec({item: t2, _})) => eq(t1, t2)
+  | (Rec(_), _) => false
+  | (Forall({item: t1, _}), Forall({item: t2, _})) => eq(t1, t2)
+  | (Forall(_), _) => false
+  };
+};

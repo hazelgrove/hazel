@@ -136,7 +136,7 @@ and uexp_to_info_map =
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Info.self =
-      switch (Typ.join_all(tys)) {
+      switch (Typ.join_all(ctx, tys)) {
       | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, e_ids, tys))
       | Some(ty) => Just(List(ty))
       };
@@ -190,7 +190,7 @@ and uexp_to_info_map =
     let (ty_e1, free_e1, m2) = go(~mode, e1);
     let (ty_e2, free_e2, m3) = go(~mode, e2);
     let self: Info.self =
-      switch (Typ.join(ty_e1, ty_e2)) {
+      switch (Typ.join(ctx, ty_e1, ty_e2)) {
       | None =>
         NoJoin([{id: exp_id(e1), ty: ty_e1}, {id: exp_id(e2), ty: ty_e2}])
       | Some(ty) => Just(ty)
@@ -348,7 +348,7 @@ and uexp_to_info_map =
         pat_infos,
       );
     let self: Info.self =
-      switch (Typ.join_all(Info.source_tys(branch_sources))) {
+      switch (Typ.join_all(ctx, Info.source_tys(branch_sources))) {
       | None => NoJoin(branch_sources)
       | Some(ty) => Just(ty)
       };
@@ -400,7 +400,7 @@ and upat_to_info_map =
       );
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Info.self =
-      switch (Typ.join_all(tys)) {
+      switch (Typ.join_all(ctx, tys)) {
       | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, p_ids, tys))
       | Some(ty) => Just(List(ty))
       };
