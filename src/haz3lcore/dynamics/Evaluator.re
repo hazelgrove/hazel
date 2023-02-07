@@ -84,10 +84,16 @@ let cast_sum_maps =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
-  | (_, Cast(d, Rec(_, _) as r, ty)) when !Typ.is_rec(ty) =>
-    matches(dp, Cast(d, Typ.unroll(r), ty))
-  | (_, Cast(d, ty, Rec(_, _) as r)) when !Typ.is_rec(ty) =>
-    matches(dp, Cast(d, ty, Typ.unroll(r)))
+  //TODO(andrew):ADTs
+  
+  /*| (_, Cast(d, Rec(x1, b1), Rec(x2, b2))) =>
+    matches(dp, Cast(d, b1, Typ.subst(Var(x1), x2, b2)))*/
+
+  /*| (_, Cast(d, Rec(_, _) as r, ty)) when !Typ.is_rec(ty) =>
+      matches(dp, Cast(d, Typ.unroll(r), ty))
+    | (_, Cast(d, ty, Rec(_, _) as r)) when !Typ.is_rec(ty) =>
+      matches(dp, Cast(d, ty, Typ.unroll(r)))*/
+
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
@@ -172,6 +178,9 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | Some(castmap) => matches_cast_Sum(tag, dp_opt, d, [castmap])
     | None => DoesNotMatch
     }
+  //TODO(andrew):ADTs
+  /*| (Ap(_, _), Cast(d, Rec(_, Sum(_)), Unknown(_)))
+    | (Ap(_, _), Cast(d, Unknown(_), Rec(_, Sum(_)))) => matches(dp, d)*/
   | (Ap(_, _), Cast(d, Sum(_), Unknown(_)))
   | (Ap(_, _), Cast(d, Unknown(_), Sum(_))) => matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch

@@ -245,10 +245,7 @@ let rec status_common =
        considered to be determined by the sum type; otherwise,
        check the context for the tag's type */
     switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
-    | (Some(ana_ty), _) =>
-      print_endline("ana tag typ case");
-      ana_ty |> Typ.show |> print_endline;
-      status_common(ctx, mode, Just(ana_ty));
+    | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
     }
