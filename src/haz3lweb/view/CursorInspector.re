@@ -9,7 +9,7 @@ let okc = "ok";
 let div_err = div(~attr=clss([errc]));
 let div_ok = div(~attr=clss([okc]));
 
-let cls_str = (ci: Info.t): string =>
+let cls_str = (ci: Statics.Info.t): string =>
   switch (ci) {
   | InfoExp({cls, _}) => Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Term.UPat.show_cls(cls)
@@ -160,7 +160,7 @@ let tpat_view: Info.status_tpat => t =
   | InHole(NotAVar) => div_err([text("Not a valid type name")]);
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Info.t): Node.t => {
+    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
   let wrapper = (sort, status_view) =>
     div(
       ~attr=clss(["info", sort]),
@@ -177,7 +177,7 @@ let view_of_info =
   };
 };
 
-let cls_and_id_view = (id: int, ci: Info.t): Node.t =>
+let cls_and_id_view = (id: int, ci: Statics.Info.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["id-and-class"])]),
     [
@@ -205,7 +205,7 @@ let view =
       ~settings: Model.settings,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     ) => {
   let bar_view = div_c("bottom-bar");
   let err_view = err =>

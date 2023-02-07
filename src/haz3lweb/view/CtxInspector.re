@@ -47,14 +47,19 @@ let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
     ),
   );
 
-let ctx_sorts_view = (~inject, ci: Haz3lcore.Info.t) =>
+let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
   Haz3lcore.Info.ctx_of(ci)
   |> Haz3lcore.Ctx.filter_duplicates
   |> List.rev
   |> List.map(context_entry_view(~inject));
 
 let inspector_view =
-    (~inject, ~settings: Model.settings, _id: int, ci: Haz3lcore.Info.t)
+    (
+      ~inject,
+      ~settings: Model.settings,
+      _id: int,
+      ci: Haz3lcore.Statics.Info.t,
+    )
     : Node.t => {
   let clss =
     clss(
@@ -68,7 +73,7 @@ let view =
       ~inject,
       ~settings: Model.settings,
       index': option(int),
-      info_map: Haz3lcore.Statics.map,
+      info_map: Haz3lcore.Statics.Map.t,
     ) => {
   let (index, ci) =
     switch (index') {
