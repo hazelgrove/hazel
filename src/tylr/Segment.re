@@ -1,51 +1,29 @@
 open Sexplib.Std;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Chain.t(Space.s, Meld.t);
+include Meld.Segment;
 
 // when input meld structure (specifically parent-kid relations)
 // must be broken to give proper assembly
 exception Nonmonotonic;
-
 // ill-fitting tips
 exception Disconnected(int);
-
-let empty = ([Space.empty], []);
-let is_empty: t => bool = (==)(empty);
 
 let melds: t => list(Meld.t) = Chain.links;
 let has_meld = seg => Option.is_some(Chain.unlink(seg));
 
-let cat: (t, t) => t = Chain.cat((@));
-let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
-
-let link = (~s=Space.empty, ~mel=?, seg) =>
-  switch (mel) {
-  | None => Chain.map_fst((@)(s), seg)
-  | Some(mel) => Chain.link(s, mel, seg)
-  };
-let knil = (seg, ~mel=?, ~s=Space.empty, ()) =>
-  switch (mel) {
-  | None => Chain.map_lst(Fun.flip((@), s), seg)
-  | Some(mel) => Chain.knil(seg, mel, s)
-  };
-
-let of_space = (s: Space.s): t => Chain.of_loop(s);
-let of_meld = (mel: Meld.t): t =>
-  Meld.is_empty(mel) ? empty : Chain.mk(Space.[empty, empty], [mel]);
-let of_padded = (mel: Meld.Padded.t): t =>
-  switch (Meld.Padded.is_empty(mel)) {
-  | Some(s) => of_space(s)
-  | None =>
-    let (mel, (l, r)) = mel;
-    Chain.mk([l, r], [mel]);
-  };
-let to_padded =
-  fun
-  | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
-  | ([l, r], [mel]) => Some(Meld.Padded.mk(~l, ~r, mel))
-  | _ => None;
+// let of_padded = (mel: Meld.Padded.t): t =>
+//   switch (Meld.Padded.is_empty(mel)) {
+//   | Some(s) => of_space(s)
+//   | None =>
+//     let (mel, (l, r)) = mel;
+//     Chain.mk([l, r], [mel]);
+//   };
+// let to_padded =
+//   fun
+//   | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
+//   | ([l, r], [mel]) => Some(Meld.Padded.mk(~l, ~r, mel))
+//   | _ => None;
 
 let zip_piece_l = (p_l, seg) =>
   switch (Chain.unlink(seg)) {

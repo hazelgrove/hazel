@@ -62,8 +62,15 @@ let mk = (~l=Space.empty, ~r=Space.empty, ~paths=[], chain) => {
   chain,
 };
 let empty_chain = Chain.of_loop(None);
-let empty = mk(empty_chain);
+let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty_chain);
 let is_empty = (mel: t) => mel.chain == empty_chain;
+
+let add_paths = (paths, mel) => {...mel, paths: paths @ mel.paths};
+let clear_paths = mel => {...mel, paths: []};
+let paths_of_kid =
+  fun
+  | None => []
+  | Some(kid) => kid.paths;
 
 // todo: defer path management to aggregate_paths
 let pad = (~l=Space.empty, ~r=Space.empty, mel) => {
@@ -73,20 +80,10 @@ let pad = (~l=Space.empty, ~r=Space.empty, mel) => {
       List.map(Path.shift_space(~side=L, Space.length(l)), mel.paths),
       List.map(Path.of_space(R), r.paths),
     ]);
-
   let (l', r') = mel.space;
   let space = Space.(cat(clear_paths(l), l'), cat(r', clear_paths(r)));
   {...mel, paths, space};
 };
-
-let add_paths = (paths, mel) => {...mel, paths: paths @ mel.paths};
-let clear_paths = mel => {...mel, paths: []};
-
-let paths_of_kid =
-  fun
-  | None => []
-  | Some(kid) => kid.paths;
-
 let unpad = mel => {
   let (l, r) = mel.space;
   let with_s = Paths.with_space(mel.paths);
@@ -95,7 +92,6 @@ let unpad = mel => {
 };
 
 let distribute_paths = mel => {
-  // distribute paths into space
   let (space, mel) = unpad(mel);
   let with_k = Paths.with_kid(mel.paths);
   let with_p = Paths.with_piece(mel.paths);
@@ -107,14 +103,10 @@ let distribute_paths = mel => {
        );
   {chain, space, paths: []};
 };
-
 let aggregate_paths = mel => {
   let (l, r) = mel.space;
-  let ps_space =
-    List.map(Path.of_space(L), l.paths)
-    @ List.map(Path.of_space(R), r.paths);
-  let space = Space.(clear_paths(l), clear_paths(r));
-
+  let ps_l = List.map(Path.of_space(L), l.paths);
+  let ps_r = List.map(Path.of_space(R), r.paths);
   let ps_chain =
     mel.chain
     |> Chain.mapi(
@@ -123,11 +115,11 @@ let aggregate_paths = mel => {
        )
     |> Chain.to_list(Fun.id, Fun.id)
     |> List.concat;
+  let paths = List.concat([ps_l, ps_chain, ps_r]);
+  let space = Space.(clear_paths(l), clear_paths(r));
   let chain =
     mel.chain |> Chain.map(Option.map(clear_paths), Piece.clear_paths);
-
-  // todo: maintain order if invariant
-  {chain, space, paths: ps_space @ ps_chain};
+  {paths, space, chain};
 };
 
 let is_empty = (mel: t) => {
@@ -136,7 +128,9 @@ let is_empty = (mel: t) => {
   mel.chain == empty_chain ? Some(Space.cat(l, r)) : None;
 };
 
-let of_piece = (~l=?, ~r=?, p: Piece.t) => Chain.mk([l, r], [p]);
+// todo: review for externalizing padding
+let of_piece = (~l=?, ~r=?, p: Piece.t) =>
+  mk(Chain.mk([l, r], [p])) |> aggregate_paths;
 let of_grout = (~l=?, ~r=?, g: Grout.t) =>
   of_piece(~l?, ~r?, Piece.mk(G(g)));
 let of_tile = (~l=?, ~r=?, t: Tile.t) =>
@@ -179,6 +173,7 @@ let map_chain = (f, mel) => {...mel, chain: f(mel.chain)};
 let link = (~s=Space.empty, ~kid=None, p: Piece.t, mel) =>
   absorb_space_l(mel)
   |> distribute_paths
+  // todo: externalize kid's left padding
   |> map_chain(Chain.link(kid, p))
   |> pad(~l=s)
   |> aggregate_paths;
@@ -191,6 +186,7 @@ let link = (~s=Space.empty, ~kid=None, p: Piece.t, mel) =>
 let knil = (~kid=None, ~s=Space.empty, mel, p: Piece.t) =>
   absorb_space_r(mel)
   |> distribute_paths
+  // todo: externalize kid's right padding
   |> map_chain(c => Chain.knil(c, p, kid))
   |> pad(~r=s)
   |> aggregate_paths;
@@ -319,14 +315,40 @@ module Segment = {
   let of_meld = (mel: meld): t =>
     switch (is_empty(mel)) {
     | Some(s) => of_space(s)
-    | None => Chain.mk(Space.[empty, empty], [mel])
+    | None =>
+      let ((l, r), mel) = unpad(mel);
+      Chain.mk(Space.[l, r], [mel]);
     };
-  let is_empty: t => bool = (==)(empty);
   let cons_space = s => Chain.map_fst(Space.cat(s));
   let snoc_space = (seg, s) => Chain.map_lst(Fun.flip(Space.cat, s), seg);
-  let link = (~s=Space.empty, mel, seg) => Chain.link(s, mel, seg);
-  let knil = (~s=Space.empty, seg, mel) => Chain.knil(seg, mel, s);
+  let cat: (t, t) => t = Chain.cat(Space.cat);
+  let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
+  let link = (~s=Space.empty, mel, seg) =>
+    switch (is_empty(mel)) {
+    | Some(s') => cons_space(Space.cat(s, s'), seg)
+    | None => Chain.link(s, mel, seg)
+    };
+  let knil = (~s=Space.empty, seg, mel) =>
+    switch (is_empty(mel)) {
+    | Some(s') => snoc_space(seg, Space.cat(s', s))
+    | None => Chain.knil(seg, mel, s)
+    };
+  let is_empty: t => bool = (==)(empty);
 };
+
+let rec is_porous = mel =>
+  mel.chain
+  |> Chain.to_list(
+       fun
+       | None => Some(Space.empty)
+       | Some(kid) => is_porous(kid),
+       Piece.is_porous,
+     )
+  |> OptUtil.sequence
+  |> Option.map(spaces => {
+       let ((l, r), _) = unpad(mel);
+       Space.concat([l, ...spaces] @ [r]);
+     });
 
 // let distribute_paths = (mel: t) =>
 
@@ -348,9 +370,9 @@ let rec to_prefix = (mel: t): Segment.t =>
     }
   | Ok((tl_mel, p, kid)) =>
     // let (p, s) = Piece.pop_space_r(p);
-    let mel = knil(tl_mel, p);
-    let kid_pre = to_prefix(kid);
-    Segment.(link(mel, kid_pre));
+    let seg_mel = Segment.of_meld(knil(tl_mel, p));
+    let seg_kid = to_prefix(kid);
+    Segment.cat(seg_mel, seg_kid);
   };
 // and kid_to_prefix =
 //   fun
@@ -364,9 +386,9 @@ let rec to_suffix = (mel: t): Segment.t =>
     | None => to_suffix(kid)
     }
   | Ok((kid, p, tl)) =>
-    let mel = link(p, tl);
-    let kid_suf = to_suffix(kid);
-    Segment.knil(kid_suf, mel);
+    let seg_kid = to_suffix(kid);
+    let seg_mel = Segment.of_meld(link(p, tl));
+    Segment.cat(seg_kid, seg_mel);
   };
 // and kid_to_suffix =
 //   fun
@@ -434,14 +456,14 @@ let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
   let* (kid, p_r, tl) = Result.to_option(unlink(mel));
   let+ p = Piece.zip(p_l, p_r);
   assert(Option.is_some(is_empty(kid)));
-  pad(~l=Option.get(is_empty(kid)), link(p, tl));
+  link(p, tl);
 };
 let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
   open OptUtil.Syntax;
   let* (tl, p_l, kid) = Result.to_option(unknil(mel));
   let+ p = Piece.zip(p_l, p_r);
   assert(Option.is_some(is_empty(kid)));
-  pad(knil(tl, p), ~r=Option.get(is_empty(kid)));
+  knil(tl, p);
 };
 
 let is_closed_l = mel =>
@@ -468,6 +490,105 @@ let cmp = (l: t, r: t) =>
     print_endline("r = " ++ show(r));
     raise(Invalid_argument("Meld.cmp"));
   | (Some((_, p_l, _)), Some((_, p_r, _))) => Piece.cmp(p_l, p_r)
+  };
+
+let rec merge = (l: t, r: t): t => {
+  let get = OptUtil.get_or_raise(Orphaned_kid);
+  switch (unknil(l), unlink(r)) {
+  | (Error(l), Error(r)) =>
+    let l = get(is_empty(l));
+    let r = get(is_empty(r));
+    empty(~l, ~r, ());
+  | (Error(l), Ok(_)) =>
+    let l = get(is_empty(l));
+    pad(~l, r);
+  | (Ok(_), Error(r)) =>
+    let r = get(is_empty(r));
+    pad(l, ~r);
+  | (Ok((tl_l, p_l, kid_l)), Ok((kid_r, p_r, tl_r))) =>
+    switch (degrout(l, r)) {
+    | Some(degrouted) => degrouted
+    | None =>
+      let get = OptUtil.get_or_raise(Invalid_prec);
+      let assert_empty = kid => assert(Option.is_some(is_empty(kid)));
+      switch (Piece.cmp(p_l, p_r)) {
+      | In((sort, prec)) =>
+        assert_empty(kid_l);
+        assert_empty(kid_r);
+        of_grout(~l, ~r, Grout.mk_concave(sort, prec));
+      | Lt(expected) =>
+        assert_empty(kid_l);
+        knil(tl_l, p_l, ~kid=Some(complete(r)));
+      | Eq(expected) =>
+        let kid = Some(merge(kid_l, kid_r));
+        append(tl_l, p_l, link(~kid, p_r, tl_r));
+      | Gt(expected) =>
+        assert_empty(kid_r);
+        link(~kid=Some(complete(l)), p_r, tl_r);
+      };
+    }
+  };
+  // todo: aggregate paths
+}
+and degrout = (l: t, r: t): option(t) =>
+  /**
+    type degrouted =
+    | Degrouted(Space.t, Space.t)
+    | Replaced({d: Dir.t, replaced: Space.t, replacer: Piece.t})
+    | Passed({d: Dir.t, passed: Space.t, passer: Piece.t})
+
+   */
+  {
+    open OptUtil.Syntax;
+    let* (tl_l, p_l, kid_l) = Result.to_option(unknil(l));
+    let* (kid_r, p_r, tl_r) = Result.to_option(unlink(r));
+    let* dg = Piece.degrout(p_l, p_r);
+    switch (dg) {
+    | Degrouted(dg_l, dg_r) =>
+      let+ s_l = is_porous(kid_l)
+      and+ s_r = is_porous(kid_r);
+      let l = pad(tl_l, ~r=Space.cat(dg_l, s_l));
+      let r = pad(~l=Space.cat(s_r, dg_r), tl_r);
+      merge(l, r);
+    | Replaced({d, replaced, replacer}) =>
+      let+ s_l = is_porous(kid_l)
+      and+ s_r = is_porous(kid_r);
+      let (s_l, s_r) =
+        switch (d) {
+        | L => (Space.cat(s_l, replaced), s_r)
+        | R => (s_l, Space.cat(replaced, s_r))
+        };
+      append(pad(tl_l, ~r=s_l), replacer, pad(~l=s_r, tl_r));
+    | Passed({d: L, passed}) =>
+      let* s_l = is_porous(kid_l);
+      degrout(pad(tl_l, ~r=Space.cat(s_l, passed)), r);
+    | Passed({d: R, passed}) =>
+      let* s_r = is_porous(kid_r);
+      degrout(l, pad(~l=Space.cat(passed, s_r), tl_r));
+    };
+  }
+and complete = (mel: t): t => failwith("todo");
+
+let complete_l = (~expected: Sort.Ana.t, mel: t): t =>
+  switch (unlink(mel)) {
+  | Error(kid) =>
+    switch (is_empty(kid)) {
+    | Some(s) => of_grout(Grout.mk_convex(expected.sort)) |> pad(~r=s)
+    | None => failwith("unexpected singleton kid")
+    }
+  | Ok((kid, p, tl)) =>
+    switch (Piece.tip(L, p)) {
+    | Convex =>
+      assert(Option.is_some(is_empty(kid)));
+      mel;
+    | Concave(s, _) =>
+      switch (kid) {
+      | Some(_) => mel
+      | None =>
+        let kid = of_grout(Grout.mk_convex(s));
+        link(~kid, p, tl);
+      }
+    }
   };
 
 let convexify_l = (~expected: Sort.Ana.t, mel: t): t =>
@@ -509,16 +630,6 @@ let convexify_r = (~expected: Sort.Ana.t, mel) =>
 let convexify = (~expected: Sort.Ana.t, c) =>
   c |> convexify_r(~expected) |> convexify_l(~expected);
 
-let rec is_porous = c =>
-  c
-  |> Chain.to_list(kid_is_porous, Piece.is_porous)
-  |> OptUtil.sequence
-  |> Option.map(List.concat)
-and kid_is_porous =
-  fun
-  | None => Some(Space.empty)
-  | Some(K(kid)) => is_porous(kid);
-
 // precond: l and r are nonempty
 let rec degrout = (l: Padded.t, r: Padded.t): option(Padded.t) => {
   let (mel_l, (s_ll, s_lr)) = l;
@@ -556,8 +667,6 @@ let rec degrout = (l: Padded.t, r: Padded.t): option(Padded.t) => {
     degrout(l, r);
   };
 };
-
-let merge = (l: t, r: t): t => {};
 
 let rec merge = (l: Padded.t, r: Padded.t): Padded.t =>
   switch (Padded.is_empty(l), Padded.is_empty(r)) {

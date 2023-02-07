@@ -47,6 +47,7 @@ let cat = (l: t, r: t) =>
     ~paths=l.paths @ List.map(Path.shift(length(l)), r.paths),
     l.chars @ r.chars,
   );
+let concat = ss => List.fold_right(cat, ss, empty);
 
 // let split_newlines = (ss: s): Chain.t(s, t) =>
 //   List.fold_right(
