@@ -186,43 +186,24 @@ module UTyp = {
       | Int => Int
       | Float => Float
       | String => String
-      // | Var(name) =>
-      //   //Var(name)
-      //   //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
-      //   switch (Ctx.lookup_tvar(ctx, name)) {
-      //   | Some(_) => Var({item, name})
-      //   | None => Unknown(TypeHole)
-      //   }
       | Var(name) => Var({item: Ctx.lookup_tvar_idx(ctx, name), name})
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | USum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
+      | Forall({term: Var(name), _} as utpat, tbody) =>
+        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
+        Forall({item: to_typ(ctx, tbody), name});
+      | Forall(_, tbody) => to_typ(ctx, tbody)
+      // Forall is same as Rec
+      | Rec({term: Var(name), _} as utpat, tbody) =>
+        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
+        Rec({item: to_typ(ctx, tbody), name});
+      | Rec(_, tbody) => to_typ(ctx, tbody)
       /* The below cases should occur only inside sums */
       | Tag(_)
       | Ap(_) => Unknown(Internal)
-      | Forall(utpat, tbody) =>
-        let (ctx, name) =
-          switch (utpat.term) {
-          | TermBase.UTPat.Var(name) => (
-              Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat)),
-              name,
-            )
-          | _ => (ctx, "tvar_hole")
-          };
-        Forall({item: to_typ(ctx, tbody), name});
-      // Forall is same as Rec
-      | Rec(utpat, tbody) =>
-        let (ctx, name) =
-          switch (utpat.term) {
-          | TermBase.UTPat.Var(name) => (
-              Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat)),
-              name,
-            )
-          | _ => (ctx, "tvar_hole")
-          };
-        Rec({item: to_typ(ctx, tbody), name});
       }
   and to_variant = ctx =>
     fun

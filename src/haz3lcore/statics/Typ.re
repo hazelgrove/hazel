@@ -358,6 +358,14 @@ let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
+let rec lookup_sum = (t: t): option(sum_map) =>
+  switch (t) {
+  | Sum(sm) => Some(sm)
+  | Forall({item, _}) => lookup_sum(item)
+  | Rec({item, _}) => lookup_sum(item)
+  | _ => None
+  };
+
 let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
