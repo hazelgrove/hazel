@@ -109,7 +109,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Prod(us), ana_ty);
       | _ => d
       }
-    | Ap(_, _)
+    | Ap(Tag(_), _)
     | Tag(_) =>
       switch (ana_ty, self_ty /*Typ.unroll(self_ty)*/) {
       | (Unknown(prov), Rec(x, _)) =>
@@ -143,6 +143,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
+    | Ap(_)
     | ApBuiltin(_)
     | Prj(_)
     | BoolLit(_)
