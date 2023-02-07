@@ -111,7 +111,14 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Ap(_, _)
     | Tag(_) =>
-      switch (ana_ty, Typ.unroll(self_ty)) {
+      switch (ana_ty, self_ty /*Typ.unroll(self_ty)*/) {
+      | (Unknown(prov), Rec(x, _)) =>
+        switch (Typ.unroll(self_ty)) {
+        | Sum(sm) =>
+          let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
+          DHExp.cast(d, Rec(x, Sum(sm')), ana_ty);
+        | _ => d
+        }
       | (Unknown(prov), Sum(sm)) =>
         let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
         DHExp.cast(d, Sum(sm'), ana_ty);
