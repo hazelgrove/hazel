@@ -307,10 +307,12 @@ let editor_view =
 };
 
 let get_elab = (editor: Editor.t): DHExp.t => {
-  let seg = Editor.get_seg(editor);
-  let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
-  Interface.elaborate(info_map, term);
+  let term = editor |> Editor.get_seg |> MakeTerm.go |> fst;
+  Interface.elaborate(
+    ~probe_ids=editor |> Editor.get_indicated |> Option.to_list,
+    Statics.mk_map(term),
+    term,
+  );
 };
 
 let editor_with_result_view =

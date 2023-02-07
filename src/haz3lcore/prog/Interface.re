@@ -1,6 +1,6 @@
 exception DoesNotElaborate;
-let elaborate = (map, term): DHExp.t =>
-  switch (Elaborator.uexp_elab(map, term)) {
+let elaborate = (~probe_ids=[], map, term): DHExp.t =>
+  switch (Elaborator.uexp_elab(~probe_ids, map, term)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate EXCEPTION");
     //HACK(andrew): supress exceptions for release
@@ -91,16 +91,4 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
-let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (get_result(map, term)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
-  };
-
 include TestResults;
-
-let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (get_result(map, term)) {
-  | (_, state, _) =>
-    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
-  };
-};

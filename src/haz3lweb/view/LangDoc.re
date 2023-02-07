@@ -411,19 +411,18 @@ let example_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Statics.mk_map(uhexp);
-            let result_view =
-              switch (Interface.evaluation_result(info_map, uhexp)) {
-              | None => []
-              | Some(dhexp) => [
-                  DHCode.view_tylr(
-                    ~settings=Settings.Evaluation.init,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    dhexp,
-                  ),
-                ]
-              };
+            let elab = Interface.elaborate(info_map, uhexp);
+            let (result, _, _) = Interface.evaluate(elab);
+            let dhexp = EvaluatorResult.unbox(result);
+            let result_view = [
+              DHCode.view_tylr(
+                ~settings=Settings.Evaluation.init,
+                ~selected_hole_instance=None,
+                ~font_metrics,
+                ~width=80,
+                dhexp,
+              ),
+            ];
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
             div(

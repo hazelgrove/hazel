@@ -26,7 +26,10 @@ let extend = (id: Id.t, instance: instance, t: t): t => {
   Id.Map.add(id, [instance, ...instances], t);
 };
 
-let abbreviate_envs = (probemap: t): list((Id.t, entry)) => {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type abbr = list((Id.t, entry));
+
+let abbreviate_envs = (probemap: t): abbr => {
   let bindings = Id.Map.bindings(probemap);
   // first, assert that all instances have equal length:
   assert(
@@ -43,3 +46,23 @@ let abbreviate_envs = (probemap: t): list((Id.t, entry)) => {
   | _ => bindings
   };
 };
+
+let fuckin_n_truckin: instance => instance =
+  ({env, res}) => {
+    env:
+      ClosureEnvironment.filter(
+        ((v, d)) =>
+          switch (d) {
+          | _ when v == "pi" => false
+          | Closure(_) => false
+          | _ => true
+          },
+        env,
+        EnvironmentIdGen.init,
+      )
+      |> fst,
+    res,
+  };
+
+let filtershit = (probemap: t): t =>
+  Id.Map.map(instances => List.map(fuckin_n_truckin, instances), probemap);

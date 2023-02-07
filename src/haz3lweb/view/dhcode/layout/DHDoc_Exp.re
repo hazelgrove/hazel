@@ -228,7 +228,8 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | Monitor(_) => Doc.text(ExpandingKeyword.to_string(Test))
+      | Monitor(Test, id) => Doc.text("test-" ++ string_of_int(id))
+      | Monitor(Probe, id) => Doc.text("probe-" ++ string_of_int(id))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));

@@ -143,8 +143,10 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
   };
 };
 
-let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
+let rec dhexp_of_uexp =
+        (~probe_ids, m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
+  let dhexp_of_uexp = dhexp_of_uexp(~probe_ids);
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_common(ctx, mode, self);
@@ -289,7 +291,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
+    let d = wrap(ctx, id, mode, self, d);
+    /* Wrap with probe if indicated by id */
+    List.mem(id, probe_ids) ? DHExp.Ap(Monitor(Probe, id), d) : d;
   | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
   | None => None
   };
@@ -370,8 +374,9 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
     Builtins.forms(Builtins.Pervasives.builtins),
   );
 
-let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+let uexp_elab =
+    (~probe_ids=[], m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
+  switch (dhexp_of_uexp(~probe_ids, m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
     let d = uexp_elab_wrap_builtins(d);

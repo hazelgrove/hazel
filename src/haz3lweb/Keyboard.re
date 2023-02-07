@@ -36,18 +36,16 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
+    let index = Indicated.index(zipper);
     let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
-    switch (key) {
-    | "F1" => zipper |> Zipper.show |> print
-    | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
-    | "F3" => zipper |> get_term |> TermBase.UExp.show |> print
-    | "F4" => zipper |> get_term |> Statics.mk_map |> Statics.show_map |> print
-    | "F5" =>
-      let term = zipper |> get_term;
+    let get_elab = z => {
+      let term = z |> get_term;
       let map = term |> Statics.mk_map;
-      Interface.get_result(map, term) |> ProgramResult.show |> print;
-    | "F6" =>
-      let index = Indicated.index(zipper);
+      Interface.elaborate(~probe_ids=Option.to_list(index), map, term);
+    };
+    switch (key) {
+    | "F1" =>
+      /* Print cursor info for current position */
       let map = zipper |> get_term |> Statics.mk_map;
       switch (index) {
       | Some(index) =>
@@ -57,6 +55,34 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
+    | "F2" =>
+      /* Print program zipper */
+      zipper |> Zipper.show |> print
+    | "F3" =>
+      /* Print program as unzipped segment */
+      zipper |> Zipper.unselect_and_zip |> Segment.show |> print
+    | "F4" =>
+      /* Print program term */
+      zipper |> get_term |> TermBase.UExp.show |> print
+    | "F5" =>
+      /* Print entire static info map */
+      zipper |> get_term |> Statics.mk_map |> Statics.show_map |> print
+    | "F6" =>
+      /* Print program elaboration */
+      zipper |> get_elab |> DHExp.show |> print
+    | "F7" =>
+      /* Print program evaluation */
+      zipper |> get_elab |> Interface.evaluate |> ProgramResult.show |> print
+    | "F8" =>
+      /* TODO(andrew): testing for probe */
+      zipper
+      |> get_elab
+      |> Interface.evaluate
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_probes
+      |> ProbeMap.filtershit
+      |> ProbeMap.show
+      |> print
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
