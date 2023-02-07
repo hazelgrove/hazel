@@ -45,7 +45,7 @@ let term_tag =
     ],
   );
 
-let common_err_view = (err: Info.error_pat) =>
+let common_err_view = (err: Info.error_common) =>
   switch (err) {
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid token", token)),
@@ -103,7 +103,7 @@ let exp_view = ({mode, self, ctx, _}: Info.exp) =>
 
 let pat_view = ({mode, self, ctx, _}: Info.pat) =>
   switch (Info.status_pat(ctx, mode, self)) {
-  | InHole(error) => div_err(common_err_view(error))
+  | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok))
   };
 

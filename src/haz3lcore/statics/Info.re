@@ -15,26 +15,30 @@ type source = {
   ty: Typ.t,
 };
 
-/* The (synthetic) type information derivable from a pattern
-   term in isolation, using the typing context but not the
-   syntactic context i.e. typing mode */
+/* The common (synthetic) type information derivable from pattern
+   or expression terms in isolation, using the typing context but
+   not the syntactic context i.e. typing mode */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type self_pat =
+type self_common =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(list(source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsTag(Token.t, option(Typ.t)); /* Tags have special ana logic */
 
-/* The self for expressions is the same as for patterns, except
-   with the additional possibility of a free variable */
+/* The self for expressions has the additional
+   possibility of a free variable */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_exp =
   | FreeVar
-  | Common(self_pat);
+  | Common(self_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type error_pat =
+type self_pat =
+  | Common(self_common);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_common =
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | FreeTag /* Sum constructor neiter bound nor in ana type */
   | InconsistentWithArrow(Typ.t) /* Bad function position */
@@ -47,14 +51,18 @@ type error_pat =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable
-  | Common(error_pat);
+  | Common(error_common);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_pat =
+  | Common(error_common);
 
 /* Non-error statuses. The third represents the possibility of a
    match or list literal which has inconsisent branches. This is
    fine since the branches are in analytic position, but we may
    want to warn about this inconsistency in the cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ok_pat =
+type ok_common =
   | SynConsistent(Typ.t)
   | AnaConsistent({
       ana: Typ.t,
@@ -67,7 +75,15 @@ type ok_pat =
     });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ok_exp = ok_pat;
+type ok_exp = ok_common;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type ok_pat = ok_common;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_common =
+  | InHole(error_common)
+  | NotInHole(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_exp =
@@ -195,7 +211,8 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 
-let rec status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
+let rec status_common =
+        (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
   | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
   | (IsMulti, Syn | SynFun | Ana(_)) =>
@@ -217,14 +234,23 @@ let rec status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
        considered to be determined by the sum type; otherwise,
        check the context for the tag's type */
     switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
-    | (Some(ana_ty), _) => status_pat(ctx, mode, Just(ana_ty))
-    | (_, Some(syn_ty)) => status_pat(ctx, mode, Just(syn_ty))
+    | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
+    | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
     }
   | (NoJoin(tys), Syn | SynFun) =>
     InHole(SynInconsistentBranches(source_tys(tys)))
   | (NoJoin(tys), Ana(ana)) =>
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
+  };
+
+let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
+  switch (self, mode) {
+  | (Common(self_pat), _) =>
+    switch (status_common(ctx, mode, self_pat)) {
+    | NotInHole(ok_exp) => NotInHole(ok_exp)
+    | InHole(err_pat) => InHole(Common(err_pat))
+    }
   };
 
 /* Determines whether an expression or pattern is in an error hole,
@@ -235,7 +261,7 @@ let status_exp = (ctx: Ctx.t, mode: Typ.mode, self: self_exp): status_exp =>
   switch (self, mode) {
   | (FreeVar, _) => InHole(FreeVariable)
   | (Common(self_pat), _) =>
-    switch (status_pat(ctx, mode, self_pat)) {
+    switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
@@ -359,7 +385,7 @@ let syn_tag_typ = (ctx: Ctx.t, tag: Token.t): option(Typ.t) =>
 /* What the type would be if the position had been
    synthetic, so no hole fixing. Returns none if
    there's no applicable synthetic rule. */
-let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
+let typ_of_self_common: (Ctx.t, self_common) => option(Typ.t) =
   ctx =>
     fun
     | Just(typ) => Some(typ)
@@ -372,7 +398,12 @@ let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
   ctx =>
     fun
     | FreeVar => None
-    | Common(self_pat) => typ_of_self_pat(ctx, self_pat);
+    | Common(self) => typ_of_self_common(ctx, self);
+
+let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
+  ctx =>
+    fun
+    | Common(self) => typ_of_self_common(ctx, self);
 
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs */
