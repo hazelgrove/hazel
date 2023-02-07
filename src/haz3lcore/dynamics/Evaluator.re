@@ -85,7 +85,7 @@ let cast_sum_maps =
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
   //TODO(andrew):ADTs
-  
+
   /*| (_, Cast(d, Rec(x1, b1), Rec(x2, b2))) =>
     matches(dp, Cast(d, b1, Typ.subst(Var(x1), x2, b2)))*/
 
