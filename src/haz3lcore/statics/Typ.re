@@ -101,12 +101,21 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   };
 };
 
+let unroll = (ty: t): t =>
+  switch (ty) {
+  | Rec(x, ty_body) => subst(ty, x, ty_body)
+  | _ => ty
+  };
+
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
 let rec eq = (t1: t, t2: t): bool => {
   let eq' = eq;
   switch (t1, t2) {
+  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
+  | (Rec(_), _) => eq(unroll(t1), t2)
+  | (_, Rec(_)) => eq(t1, unroll(t2))
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -127,8 +136,6 @@ let rec eq = (t1: t, t2: t): bool => {
   | (Sum(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
-  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
-  | (Rec(_), _) => false
   };
 };
 
@@ -153,19 +160,13 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };
 
-let unroll = (ty: t): t =>
-  switch (ty) {
-  | Rec(x, ty) => subst(ty, x, ty)
-  | _ => ty
-  };
-
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(ctx);
+  let join' = join(~resolve, ctx);
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)))
@@ -174,7 +175,12 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Rec(x1, ty1), Rec(x2, ty2)) =>
     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
     Rec(x1, ty_body);
-  | (Rec(_), _) => None
+  | (Rec(_), _) =>
+    let+ _ = join'(unroll(ty1), ty2);
+    ty1;
+  | (_, Rec(_)) =>
+    let+ _ = join'(ty1, unroll(ty2));
+    ty2;
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(Var(n1));
@@ -289,8 +295,13 @@ let ana_sum = (tag: Token.t, sm: sum_map, ty_ana: t): option(t) =>
      ty_ana itself is returned; otherwise an arrow from tag's parameter
      type to ty_ana */
   switch (sum_entry(tag, sm)) {
-  | Some((_, Some(ty_in))) => Some(Arrow(ty_in, ty_ana))
-  | Some((_, None)) => Some(ty_ana)
+  | Some((_, Some(ty_in))) =>
+    print_endline("ana_sum: Some(ty_in)");
+    ty_in |> show |> print_endline;
+    Some(Arrow(ty_in, ty_ana));
+  | Some((_, None)) =>
+    print_endline("ana_sum: None");
+    Some(ty_ana);
   | None => None
   };
 
@@ -302,8 +313,17 @@ let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) =>
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
     switch (normalize_shallow(ctx, ty_ana)) {
-    | Sum(sm)
-    | Rec(_, Sum(sm)) => ana_sum(tag, sm, unroll(ty_ana))
+    | Sum(sm) =>
+      ana_sum(tag, sm, ty_ana);
+    | Rec(_, Sum(_sm)) =>
+      // note: unroll here is JUST to get right tag types, NOT typ itself
+      // this is import as if the type name P is not in scope
+      // we don't want a rec constructor to have type P -> something
+      switch (unroll(ty_ana)) {
+      | Sum(sm) =>
+        ana_sum(tag, sm, ty_ana);
+      | _ => None
+      };
     | _ => None
     }
   | _ => None

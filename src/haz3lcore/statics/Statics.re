@@ -265,6 +265,7 @@ and uexp_to_info_map =
         };
       let (Info.{free, ty: ty_body, _}, m_body) =
         go'(~ctx=ctx_body, ~mode, body);
+      //TODO(andrew): ADTS: is this right approach to normalization?
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m_typ = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
