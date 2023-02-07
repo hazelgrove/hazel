@@ -281,53 +281,48 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
+let sum_entry = (tag: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
-    | (tag, typ) when tag == t => Some((tag, typ))
+    | (t, typ) when t == tag => Some((t, typ))
     | _ => None,
     tags,
   );
 
-let ana_sum = (tag: Token.t, sm: sum_map, ty_ana: t): option(t) =>
-  /* Returns the type of a tag if that tag is given a type by the sum
-     type ty_ana having tags as variants. If tag is a nullart constructor,
-     ty_ana itself is returned; otherwise an arrow from tag's parameter
-     type to ty_ana */
-  switch (sum_entry(tag, sm)) {
-  | Some((_, Some(ty_in))) =>
-    print_endline("ana_sum: Some(ty_in)");
-    ty_in |> show |> print_endline;
-    Some(Arrow(ty_in, ty_ana));
-  | Some((_, None)) =>
-    print_endline("ana_sum: None");
-    Some(ty_ana);
-  | None => None
+let get_sum_tags = (ctx: Ctx.t, ty_ana: t): option(sum_map) => {
+  let ty_ana = normalize_shallow(ctx, ty_ana);
+  switch (ty_ana) {
+  | Sum(sm) => Some(sm)
+  | Rec(_) =>
+    /* Note: We unroll here to get right tag types; this is important
+       as if alias for the recursive sum type (say P) is no longer in
+       scope at the point of analysis, we don't want the tag to claim
+       to have type P -> something, so we need to replace the 'P' in
+       the tag's type with the Rec type by unrolling */
+    switch (unroll(ty_ana)) {
+    | Sum(sm) => Some(sm)
+    | _ => None
+    }
+  | _ => None
   };
+};
 
-let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) =>
+let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
   /* If a tag is being analyzed against (an arrow type returning)
      a sum type having that tag as a variant, we consider the
      tag's type to be determined by the sum type */
   switch (mode) {
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
-    switch (normalize_shallow(ctx, ty_ana)) {
-    | Sum(sm) =>
-      ana_sum(tag, sm, ty_ana);
-    | Rec(_, Sum(_sm)) =>
-      // note: unroll here is JUST to get right tag types, NOT typ itself
-      // this is import as if the type name P is not in scope
-      // we don't want a rec constructor to have type P -> something
-      switch (unroll(ty_ana)) {
-      | Sum(sm) =>
-        ana_sum(tag, sm, ty_ana);
-      | _ => None
-      };
-    | _ => None
-    }
+    let* tags = get_sum_tags(ctx, ty_ana);
+    let+ (_, ty_entry) = sum_entry(tag, tags);
+    switch (ty_entry) {
+    | None => ty_ana
+    | Some(ty_in) => Arrow(ty_in, ty_ana)
+    };
   | _ => None
   };
+};
 
 let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
   /* If a tag application is being analyzed against a sum type for
