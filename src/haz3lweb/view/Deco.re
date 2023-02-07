@@ -10,7 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-           let info_map: Statics.map;
+           let info_map: Statics.Map.t;
            let tiles: TileMap.t;
          },
        ) => {

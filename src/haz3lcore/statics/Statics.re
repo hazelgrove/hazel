@@ -14,12 +14,16 @@ open Term;
      depends on static information.
    */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type map = Id.Map.t(Info.t);
+module Info = Info;
+
+module Map = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Id.Map.t(Info.t);
+};
 
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
 
-let add_info = (ids: list(Id.t), info: Info.t, m: map): map =>
+let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids
   |> List.map(id => Id.Map.singleton(id, info))
   |> List.fold_left(Id.Map.disj_union, m);
@@ -67,7 +71,8 @@ let joint_self =
   | Some(ty) => Just(wrap(ty))
   };
 
-let rec any_to_info_map = (~ctx: Ctx.t, ~ancestors, any: any): (Ctx.co, map) =>
+let rec any_to_info_map =
+        (~ctx: Ctx.t, ~ancestors, any: any): (Ctx.co, Map.t) =>
   switch (any) {
   | Exp(e) =>
     let (Info.{free, _}, m) = uexp_to_info_map(~ctx, ~ancestors, e);
@@ -86,7 +91,7 @@ let rec any_to_info_map = (~ctx: Ctx.t, ~ancestors, any: any): (Ctx.co, map) =>
   }
 and uexp_to_info_map =
     (~ctx: Ctx.t, ~mode=Typ.Syn, ~ancestors, {ids, term} as uexp: UExp.t)
-    : (Info.exp, map) => {
+    : (Info.exp, Map.t) => {
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
@@ -296,7 +301,7 @@ and upat_to_info_map =
       ~mode: Typ.mode=Typ.Syn,
       {ids, term} as upat: UPat.t,
     )
-    : (Info.pat, map) => {
+    : (Info.pat, Map.t) => {
   let add = (~self, ~ctx, m) => {
     let info =
       Info.derived_pat(~upat, ~ctx, ~mode, ~ancestors, ~self=Common(self));
@@ -376,7 +381,7 @@ and utyp_to_info_map =
       ~ancestors,
       {ids, term} as utyp: UTyp.t,
     )
-    : (Info.typ, map) => {
+    : (Info.typ, Map.t) => {
   let add = m => {
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
@@ -438,7 +443,7 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term} as utpat: UTPat.t): (Info.tpat, map) => {
+    (~ctx, ~ancestors, {ids, term} as utpat: UTPat.t): (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
     (info, add_info(ids, InfoTPat(info), m));

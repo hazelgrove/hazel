@@ -486,7 +486,11 @@ type message_mode =
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Info.t), mode: message_mode)
+    (
+      ~docs: LangDocMessages.t,
+      info: option(Statics.Info.t),
+      mode: message_mode,
+    )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -2778,8 +2782,8 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
-  let info: option(Info.t) =
+    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.Map.t) => {
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2799,9 +2803,9 @@ let view =
       ~settings: Model.settings,
       ~doc: LangDocMessages.t,
       index': option(int),
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     ) => {
-  let info: option(Info.t) =
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {

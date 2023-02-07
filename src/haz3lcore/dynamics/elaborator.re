@@ -53,22 +53,22 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
-let fixed_exp_typ = (m: Statics.map, e: Term.UExp.t): option(Typ.t) =>
+let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
   | Some(InfoExp({ty, _})) => Some(ty)
   | _ => None
   };
 
-let fixed_pat_typ = (m: Statics.map, p: Term.UPat.t): option(Typ.t) =>
+let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({ty, _})) => Some(ty)
   | _ => None
   };
 
-let pat_self_typ = (ctx: Ctx.t, m: Statics.map, p: Term.UPat.t): Typ.t =>
+let pat_self_typ = (ctx: Ctx.t, m: Statics.Map.t, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({self, _})) =>
-    switch (Info.typ_of_self_pat(ctx, self)) {
+    switch (Statics.Info.typ_of_self_pat(ctx, self)) {
     | Some(typ) => typ
     | None => Unknown(Internal)
     }
@@ -154,7 +154,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
    for elaborated expressions */
 let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
   /* Normalize types */
-  switch (Info.typ_of_self_exp(ctx, self)) {
+  switch (Statics.Info.typ_of_self_exp(ctx, self)) {
   | None => d
   | Some(self_ty) =>
     let self_ty = Typ.normalize(ctx, self_ty);
@@ -165,7 +165,8 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
   };
 };
 
-let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
+let rec dhexp_of_uexp =
+        (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
@@ -317,7 +318,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   | None => None
   };
 }
-and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
+and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
     let err_status = Info.status_pat(ctx, mode, self);
@@ -393,7 +394,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
     Builtins.forms(Builtins.Pervasives.builtins),
   );
 
-let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
