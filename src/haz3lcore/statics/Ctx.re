@@ -85,26 +85,6 @@ let lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
   };
 };
 
-let rec resolve_var_kind =
-        (~remaining: int, ~total: int=0, ctx: t): Kind.Observation.t => {
-  Kind.Observation.(
-    switch (ctx) {
-    | [] => Free
-    | [TVarEntry({kind, _}), ..._] when remaining == 0 =>
-      switch (kind) {
-      | Singleton(Var({item: Some(i), _})) =>
-        resolve_var_kind(~remaining=i, ~total, ctx)
-      | Singleton(Var({item: None, _})) => Free
-      | Singleton(ty) => Base(ty)
-      | Abstract => Depth(total)
-      }
-    | [TVarEntry(_), ...ctx] =>
-      resolve_var_kind(~remaining=remaining - 1, ~total=total + 1, ctx)
-    | [_entry, ...ctx] => resolve_var_kind(~remaining, ~total, ctx)
-    }
-  );
-};
-
 let lookup_alias = (ctx: t, t: Token.t): option(TypBase.t) =>
   switch (lookup_tvar(ctx, t)) {
   | Some({kind: Singleton(ty), _}) => Some(ty)
@@ -141,13 +121,7 @@ let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: TypBase.t): t =>
   extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
 
 let add_tags =
-    (
-      ctx: t,
-      sum_idx: TypBase.ann(option(int)),
-      id: Id.t,
-      tags: TypBase.sum_map,
-    )
-    : t =>
+    (ctx: t, sum_typ: TypBase.t, id: Id.t, tags: TypBase.sum_map): t =>
   List.map(
     ((tag, typ)) =>
       TagEntry({
@@ -155,8 +129,8 @@ let add_tags =
         id,
         typ:
           switch (typ) {
-          | None => Var(sum_idx)
-          | Some(typ) => Arrow(typ, Var(sum_idx))
+          | None => sum_typ
+          | Some(typ) => Arrow(typ, sum_typ)
           },
       }),
     tags,

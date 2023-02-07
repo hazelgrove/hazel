@@ -228,7 +228,7 @@ module rec DHExp: {
     | xs => Tuple(xs);
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+    if (Typ.eq_syntactic(t1, t2) || t2 == Unknown(SynSwitch)) {
       d;
     } else {
       Cast(d, t1, t2);

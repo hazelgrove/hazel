@@ -164,6 +164,111 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
+/* Syntactic equality checking, may not be applicable to many use cases;
+   needs to be normalized during elabration */
+let rec eq_syntactic = (t1, t2): bool => {
+  switch (t1, t2) {
+  | (Var({item: Some(x1), _}), Var({item: Some(x2), _})) => x1 == x2
+  | (Var(_), _) => false
+  | (Rec({item: t1, _}), Rec({item: t2, _})) => eq_syntactic(t1, t2)
+  | (Rec(_), _) => false
+  | (Forall({item: t1, _}), Forall({item: t2, _})) => eq_syntactic(t1, t2)
+  | (Forall(_), _) => false
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
+  | (Bool, Bool) => true
+  | (Bool, _) => false
+  | (String, String) => true
+  | (String, _) => false
+  | (Unknown(_), Unknown(_)) => true
+  | (Unknown(_), _) => false
+  | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
+    eq_syntactic(t1_1, t2_1) && eq_syntactic(t1_2, t2_2)
+  | (Arrow(_), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    List.length(tys1) == List.length(tys2)
+    && List.for_all2(eq_syntactic, tys1, tys2)
+  | (Prod(_), _) => false
+  | (List(t1), List(t2)) => eq_syntactic(t1, t2)
+  | (List(_), _) => false
+  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
+  | (Sum(_), _) => false
+  };
+};
+
+module Observation = {
+  open Sexplib.Std;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Base(TypBase.t)
+    | Depth(int)
+    | Free;
+
+  let rec eq_typ = (ctx: Ctx.t, t1, t2) => {
+    switch (t1, t2) {
+    | (Var({item: Some(x1), _}), Var({item: Some(x2), _})) =>
+      eq_observation(
+        ctx,
+        resolve_var_kind(ctx, ~remaining=x1),
+        resolve_var_kind(ctx, ~remaining=x2),
+      )
+    | (Var(_), _) => false
+    | (Rec({item: t1, name}), Rec({item: t2, _})) =>
+      eq_typ(Ctx.add_abstract(ctx, name, -1), t1, t2)
+    | (Rec(_), _) => false
+    | (Forall({item: t1, name}), Forall({item: t2, _})) =>
+      eq_typ(Ctx.add_abstract(ctx, name, -1), t1, t2)
+    | (Forall(_), _) => false
+    | (Int, Int) => true
+    | (Int, _) => false
+    | (Float, Float) => true
+    | (Float, _) => false
+    | (Bool, Bool) => true
+    | (Bool, _) => false
+    | (String, String) => true
+    | (String, _) => false
+    | (Unknown(_), Unknown(_)) => true
+    | (Unknown(_), _) => false
+    | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
+      eq_typ(ctx, t1_1, t2_1) && eq_typ(ctx, t1_2, t2_2)
+    | (Arrow(_), _) => false
+    | (Prod(tys1), Prod(tys2)) =>
+      List.length(tys1) == List.length(tys2)
+      && List.for_all2(eq_typ(ctx), tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(t1), List(t2)) => eq_typ(ctx, t1, t2)
+    | (List(_), _) => false
+    | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
+    | (Sum(_), _) => false
+    };
+  }
+  and eq_observation = (ctx: Ctx.t, x, y) => {
+    switch (x, y) {
+    | (Base(x), Base(y)) => eq_typ(ctx, x, y)
+    | (Depth(x), Depth(y)) => x == y
+    | _ => false
+    };
+  }
+  and resolve_var_kind = (~remaining: int, ~total: int=0, ctx: Ctx.t): t => {
+    switch (ctx) {
+    | [] => Free
+    | [TVarEntry({kind, _}), ..._] when remaining == 0 =>
+      switch (kind) {
+      | Singleton(Var({item: Some(i), _})) =>
+        resolve_var_kind(~remaining=i, ~total, ctx)
+      | Singleton(Var({item: None, _})) => Free
+      | Singleton(ty) => Base(ty)
+      | Abstract => Depth(total)
+      }
+    | [TVarEntry(_), ...ctx] =>
+      resolve_var_kind(~remaining=remaining - 1, ~total=total + 1, ctx)
+    | [_entry, ...ctx] => resolve_var_kind(~remaining, ~total, ctx)
+    };
+  };
+};
+
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
@@ -175,6 +280,19 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
+  | (Var({item: Some(n1), name: name1}), Var({item: Some(n2), name: name2})) =>
+    let ob1 = Observation.resolve_var_kind(ctx, ~remaining=n1);
+    let ob2 = Observation.resolve_var_kind(ctx, ~remaining=n2);
+    name1 |> Printf.printf("%d :: %s\n", n1);
+    Observation.show(ob1) |> print_endline;
+    name2 |> Printf.printf("%d :: %s\n", n2);
+    Observation.show(ob2) |> print_endline;
+    (Observation.eq_observation(ctx, ob1, ob2) ? "true" : "false")
+    |> print_endline;
+    let name = name1;
+    Observation.eq_observation(ctx, ob1, ob2)
+      ? Some(Var({item: Some(n1), name})) : None;
+  | (Var(_), _) => None
   | (Rec({item: t1, name}), Rec({item: t2, _})) =>
     switch (join(Ctx.add_abstract(ctx, name, -1), t1, t2)) {
     | Some(t) => Some(Rec({item: t, name}))
@@ -187,29 +305,6 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     | None => None
     }
   | (Forall(_), _) => None
-  | (Var({item: Some(n1), name}), Var({item: Some(n2), _})) =>
-    let ob1 = Ctx.resolve_var_kind(ctx, ~remaining=n1);
-    let ob2 = Ctx.resolve_var_kind(ctx, ~remaining=n2);
-    Kind.Observation.eq(ob1, ob2)
-      ? Some(Var({item: Some(n1), name})) : None;
-  // switch (
-  //   Ctx.lookup_typ_by_idx(ctx, ~i=n1),
-  //   Ctx.lookup_typ_by_idx(ctx, ~i=n2),
-  // ) {
-  // | (Some(t1), Some(t2)) when eq(t1, t2) =>
-  //   Some(Var({item: Some(n1), name}))
-  // | _ => None
-  // }
-  // n1 == n2
-  //   ? {
-  //     Some(Var({item: Some(n1), name}));
-  //   }
-  //   : {
-  //     Ctx.lookup_typ_by_idx(ctx, ~i=n1)
-  //     == Ctx.lookup_typ_by_idx(ctx, ~i=n2)
-  //       ? Some(Var({item: Some(n1), name})) : None;
-  //   }
-  | (Var(_), _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)

@@ -995,7 +995,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           switch (d1') {
           | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
+            if (Typ.eq_syntactic(ty'', ty')) {
               BoxedValue(d1'') |> return;
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
@@ -1019,7 +1019,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           BoxedValue(Cast(d1', ty, ty')) |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
+          if (Typ.eq_syntactic(ty, ty')) {
             result |> return;
           } else {
             BoxedValue(Cast(d1', ty, ty')) |> return;
@@ -1037,7 +1037,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | (Hole, Ground) =>
           switch (d1') {
           | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
+            if (Typ.eq_syntactic(ty'', ty')) {
               Indet(d1'') |> return;
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
@@ -1059,7 +1059,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           Indet(Cast(d1', ty, ty')) |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* it might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
+          if (Typ.eq_syntactic(ty, ty')) {
             result |> return;
           } else {
             Indet(Cast(d1', ty, ty')) |> return;
