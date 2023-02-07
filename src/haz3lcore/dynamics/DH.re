@@ -45,6 +45,11 @@ module rec DHExp: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type monitor =
+    | Test
+    | Probe;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
@@ -60,7 +65,7 @@ module rec DHExp: {
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
     | ApBuiltin(string, list(t))
-    | TestLit(Id.t)
+    | Monitor(monitor, Id.t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -138,6 +143,11 @@ module rec DHExp: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type monitor =
+    | Test
+    | Probe;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -156,7 +166,7 @@ module rec DHExp: {
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
     | ApBuiltin(string, list(t))
-    | TestLit(Id.t)
+    | Monitor(monitor, Id.t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -194,7 +204,8 @@ module rec DHExp: {
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
-    | TestLit(_) => "TestLit"
+    | Monitor(Test, _) => "TestLit"
+    | Monitor(Probe, _) => "Probe"
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
@@ -268,7 +279,7 @@ module rec DHExp: {
     | FreeVar(_) as d
     | InvalidText(_) as d
     | BoundVar(_) as d
-    | TestLit(_) as d
+    | Monitor(_) as d
     | BoolLit(_) as d
     | IntLit(_) as d
     | FloatLit(_) as d
@@ -282,7 +293,7 @@ module rec DHExp: {
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
     /* TODO: Not sure if this is right... */
-    | (TestLit(_), _)
+    | (Monitor(_), _)
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)

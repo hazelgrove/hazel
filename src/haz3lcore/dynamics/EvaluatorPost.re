@@ -53,7 +53,7 @@ exception Exception(error);
 let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
-  | TestLit(_)
+  | Monitor(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -262,7 +262,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     }
 
   /* Non-hole expressions: expand recursively */
-  | TestLit(_)
+  | Monitor(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -431,7 +431,7 @@ let rec track_children_of_hole =
         : HoleInstanceInfo.t =>
   switch (d) {
   | Tag(_)
-  | TestLit(_)
+  | Monitor(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

@@ -2,7 +2,7 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type instance = {
-  env: Environment.t,
+  env: ClosureEnvironment.t, //what is ClosureEnvironment vs Environment?
   res: EvaluatorResult.t,
 };
 

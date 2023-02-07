@@ -25,3 +25,4 @@ let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t)) => t('a);
 let take_step: t(unit);
 
 let add_test: (Id.t, TestMap.instance_report) => t(unit);
+let add_probe: (Id.t, ProbeMap.instance) => t(unit);

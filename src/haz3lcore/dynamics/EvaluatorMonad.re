@@ -10,3 +10,6 @@ let take_step = get >>= (state => put(EvaluatorState.take_step(state)));
 
 let add_test = (id, report) =>
   get >>= (state => put(EvaluatorState.add_test(state, id, report)));
+
+let add_probe = (id, instance) =>
+  get >>= (state => put(EvaluatorState.add_probe(state, id, instance)));

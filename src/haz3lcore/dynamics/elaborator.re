@@ -124,7 +124,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Monitor(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -206,7 +206,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Ap(TestLit(id), dtest);
+        DHExp.Ap(Monitor(Test, id), dtest);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVar) => Some(FreeVar(id, 0, name))
