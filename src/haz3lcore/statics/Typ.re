@@ -280,16 +280,9 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Var({item: Some(n1), name: name1}), Var({item: Some(n2), name: name2})) =>
+  | (Var({item: Some(n1), name}), Var({item: Some(n2), _})) =>
     let ob1 = Observation.resolve_var_kind(ctx, ~remaining=n1);
     let ob2 = Observation.resolve_var_kind(ctx, ~remaining=n2);
-    name1 |> Printf.printf("%d :: %s\n", n1);
-    Observation.show(ob1) |> print_endline;
-    name2 |> Printf.printf("%d :: %s\n", n2);
-    Observation.show(ob2) |> print_endline;
-    (Observation.eq_observation(ctx, ob1, ob2) ? "true" : "false")
-    |> print_endline;
-    let name = name1;
     Observation.eq_observation(ctx, ob1, ob2)
       ? Some(Var({item: Some(n1), name})) : None;
   | (Var(_), _) => None

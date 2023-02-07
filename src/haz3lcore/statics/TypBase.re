@@ -47,3 +47,31 @@ type mode =
   | SynFun
   | Syn
   | Ana(t);
+
+let rec incr = (ty: t, i: int): t => {
+  switch (ty) {
+  | Var({item: Some(j), name}) => Var({item: Some(i + j), name})
+  | Var(_) => ty
+  | List(ty) => List(incr(ty, i))
+  | Arrow(ty1, ty2) => Arrow(incr(ty1, i), incr(ty2, i))
+  | Sum(map) =>
+    Sum(
+      VarMap.map(
+        ((_, ty)) =>
+          switch (ty) {
+          | Some(ty) => Some(incr(ty, i))
+          | None => None
+          },
+        map,
+      ),
+    )
+  | Prod(tys) => Prod(List.map(ty => incr(ty, i), tys))
+  | Rec({item, name}) => Rec({item: incr(item, i), name})
+  | Forall({item, name}) => Forall({item: incr(item, i), name})
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | Unknown(_) => ty
+  };
+};

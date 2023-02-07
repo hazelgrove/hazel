@@ -16,9 +16,12 @@ type tvar_entry = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type tag_entry = var_entry;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
-  | TagEntry(var_entry)
+  | TagEntry(tag_entry)
   | TVarEntry(tvar_entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -34,30 +37,31 @@ type co_entry = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type co = VarMap.t_(list(co_entry));
 
+let empty: t = VarMap.empty;
 let extend = List.cons;
 
-let lookup = (ctx: t, name: Token.t): option(entry) =>
-  // TODO: will use lookup for everything cause a namespace collision?
-  // NOTE: we may need separate lookup functions for each entry type
-  // TODO: check with andrew
-  List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(VarEntry(v))
-    | TagEntry(v) when v.name == name => Some(TagEntry(v))
-    | TVarEntry(v) when v.name == name => Some(TVarEntry(v))
-    | _ => None,
-    ctx,
-  );
+let rec lookup = (~i=0, ctx: t, pred: entry => bool): option((entry, int)) =>
+  switch (ctx) {
+  | [entry, ..._] when pred(entry) => Some((entry, i))
+  | [TVarEntry(_), ...ctx] => lookup(ctx, pred, ~i=i + 1)
+  | [_, ...ctx] => lookup(ctx, pred, ~i)
+  | [] => None
+  };
 
 let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
   extend(TVarEntry({name, id, kind: Abstract}), ctx);
 
-let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
-  // TODO: see comments in lookup
-  switch (lookup(ctx, name)) {
-  | Some(TVarEntry(t)) => Some(t)
+let lookup_tvar = (ctx: t, name': Token.t): option(tvar_entry) => {
+  let pred =
+    fun
+    | TVarEntry({name, _}) => name == name'
+    | _ => false;
+  switch (lookup(ctx, pred)) {
+  | Some((TVarEntry({name, id, kind: Singleton(ty)}), i)) =>
+    Some({name, id, kind: Singleton(TypBase.incr(ty, i))})
   | _ => None
   };
+};
 
 let rec lookup_tvar_idx = (~i=0, ctx: t, x: Token.t): option(int) => {
   switch (ctx) {
@@ -85,13 +89,12 @@ let lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
   };
 };
 
-let lookup_alias = (ctx: t, t: Token.t): option(TypBase.t) =>
-  switch (lookup_tvar(ctx, t)) {
+let lookup_alias = (ctx: t, name: Token.t): option(TypBase.t) =>
+  switch (lookup_tvar(ctx, name)) {
   | Some({kind: Singleton(ty), _}) => Some(ty)
   | Some({kind: Abstract, _})
   | _ => None
   };
-let empty: t = VarMap.empty;
 
 let get_id: entry => int =
   fun
@@ -99,17 +102,29 @@ let get_id: entry => int =
   | TagEntry({id, _})
   | TVarEntry({id, _}) => id;
 
-let lookup_var = (ctx: t, name: string): option(var_entry) =>
-  switch (lookup(ctx, name)) {
-  | Some(VarEntry(v)) => Some(v)
+let lookup_var = (ctx: t, name': string): option(var_entry) => {
+  let pred =
+    fun
+    | VarEntry({name, _}) => name == name'
+    | _ => false;
+  switch (lookup(ctx, pred)) {
+  | Some((VarEntry({name, id, typ}), i)) =>
+    Some({name, id, typ: TypBase.incr(typ, i)})
   | _ => None
   };
+};
 
-let lookup_tag = (ctx: t, name: string): option(var_entry) =>
-  switch (lookup(ctx, name)) {
-  | Some(TagEntry(t)) => Some(t)
+let lookup_tag = (ctx: t, name': string): option(tag_entry) => {
+  let pred =
+    fun
+    | TagEntry({name, _}) => name == name'
+    | _ => false;
+  switch (lookup(ctx, pred)) {
+  | Some((TagEntry({name, id, typ}), i)) =>
+    Some({name, id, typ: TypBase.incr(typ, i)})
   | _ => None
   };
+};
 
 let is_alias = (ctx: t, name: Token.t): bool =>
   switch (lookup_alias(ctx, name)) {

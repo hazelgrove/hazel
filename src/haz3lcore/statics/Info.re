@@ -327,11 +327,16 @@ let typ_of_self_info = (ctx: Ctx.t, info: t): option(Typ.t) =>
 
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({term: {term: Var(name) | Tag(name), _}, ctx, _})
-  | InfoPat({term: {term: Tag(name), _}, ctx, _})
+  | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
+    let+ entry = Ctx.lookup_var(ctx, name);
+    Ctx.get_id(VarEntry(entry));
+  | InfoExp({term: {term: Tag(name), _}, ctx, _})
+  | InfoPat({term: {term: Tag(name), _}, ctx, _}) =>
+    let+ entry = Ctx.lookup_tag(ctx, name);
+    Ctx.get_id(TagEntry(entry));
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup(ctx, name);
-    Ctx.get_id(entry);
+    let+ entry = Ctx.lookup_tvar(ctx, name);
+    Ctx.get_id(TVarEntry(entry));
   | _ => None
   };
 };
