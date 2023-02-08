@@ -218,6 +218,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
@@ -234,6 +235,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | (["@<", ">"], [Typ(ty)]) => TypAp(l, ty)
         | _ => hole(tm)
         },
       )
@@ -383,6 +385,14 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
     | ([(_, (["+"], []))], []) => ret(USum([t]))
+    | ([(_id, x)], []) =>
+      ret(
+        switch (x) {
+        | (["forall", "->"], [TPat(tpat)]) => Forall(tpat, t)
+        | (["rec", "->"], [TPat(tpat)]) => Rec(tpat, t)
+        | _ => hole(tm)
+        },
+      )
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
