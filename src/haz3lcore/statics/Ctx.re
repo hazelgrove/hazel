@@ -57,7 +57,7 @@ let rec lookup = (~i=0, ctx: t, pred: entry => bool): option((entry, int)) =>
 let lookup_tvar = (ctx: t, name': Token.t): option(tvar_entry) => {
   let pred =
     fun
-    | TVarEntry({name, _}) => name == name'
+    | TVarEntry({name, _}) when Token.compare(name, name') == 0 => true
     | _ => false;
   switch (lookup(ctx, pred)) {
   | Some((TVarEntry({name, id, kind: Singleton(ty)}), i)) =>
@@ -96,7 +96,7 @@ let lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
 let lookup_var = (ctx: t, name': string): option(var_entry) => {
   let pred =
     fun
-    | VarEntry({name, _}) => name == name'
+    | VarEntry({name, _}) when Token.compare(name, name') == 0 => true
     | _ => false;
   switch (lookup(ctx, pred)) {
   | Some((VarEntry({name, id, typ}), i)) =>
@@ -108,7 +108,7 @@ let lookup_var = (ctx: t, name': string): option(var_entry) => {
 let lookup_tag = (ctx: t, name': string): option(tag_entry) => {
   let pred =
     fun
-    | TagEntry({name, _}) => name == name'
+    | TagEntry({name, _}) when Token.compare(name, name') == 0 => true
     | _ => false;
   switch (lookup(ctx, pred)) {
   | Some((TagEntry({name, id, typ}), i)) =>
