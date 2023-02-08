@@ -5,7 +5,27 @@ open Haz3lcore;
 type timestamp = float;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type live_inspector = {
+  on: bool,
+  ids: list(Id.t),
+  use_cursor: bool,
+  cur_env_idx: int,
+  cur_env: ProbeMap.dhexp_env,
+  show_fns_in_env: bool,
+};
+
+let live_inspector_init = {
+  on: true,
+  ids: [],
+  use_cursor: true,
+  cur_env_idx: 0,
+  cur_env: [],
+  show_fns_in_env: false,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
+  live_inspector,
   captions: bool,
   secondary_icons: bool,
   statics: bool,
@@ -18,6 +38,7 @@ type settings = {
 };
 
 let settings_init = {
+  live_inspector: live_inspector_init,
   captions: true,
   secondary_icons: false,
   statics: true,

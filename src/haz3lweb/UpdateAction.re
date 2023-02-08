@@ -3,6 +3,15 @@ open Util;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type live_inspector_action =
+  | ToggleOn
+  | ToggleCursor
+  | ToggleShowFnsInEnv
+  | UpdateIds(list(Id.t) => list(Id.t))
+  | SetCurrentEnvIdx(int)
+  | UpdateCurrentEnv(ProbeMap.dhexp_env => ProbeMap.dhexp_env);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
   | SecondaryIcons
@@ -11,6 +20,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | LiveInspector(live_inspector_action)
   | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

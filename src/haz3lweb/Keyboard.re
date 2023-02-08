@@ -76,14 +76,15 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       zipper |> get_elab |> Interface.evaluate |> ProgramResult.show |> print
     | "F8" =>
       /* TODO(andrew): cleanup. testing for probe */
-      zipper
-      |> get_elab
-      |> Interface.evaluate
-      |> ProgramResult.get_state
-      |> EvaluatorState.get_probes
-      |> ProbeMap.filtershit
-      |> ProbeMap.show_nuer_map
-      |> print
+      /*zipper
+        |> get_elab
+        |> Interface.evaluate
+        |> ProgramResult.get_state
+        |> EvaluatorState.get_probes
+        |> ProbeMap.process
+        |> ProbeMap.show_processed_map
+        |> print*/
+      []
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

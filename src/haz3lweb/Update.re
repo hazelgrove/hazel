@@ -13,10 +13,39 @@ let save_editors = (model: Model.t): unit =>
     )
   };
 
+let set_set = (model, settings): Model.t => {...model, settings};
+
 let update_settings = (a: settings_action, model: Model.t): Model.t => {
   let settings = model.settings;
   let model =
     switch (a) {
+    | LiveInspector(a) =>
+      let live_inspector = settings.live_inspector;
+      let live_inspector =
+        switch (a) {
+        | ToggleOn => {...live_inspector, on: !live_inspector.on}
+        | ToggleCursor => {
+            ...live_inspector,
+            use_cursor: !live_inspector.use_cursor,
+          }
+        | ToggleShowFnsInEnv => {
+            ...live_inspector,
+            show_fns_in_env: !live_inspector.show_fns_in_env,
+          }
+        | UpdateIds(f) => {...live_inspector, ids: f(live_inspector.ids)}
+        | SetCurrentEnvIdx(i) => {...live_inspector, cur_env_idx: i}
+        | UpdateCurrentEnv(f) => {
+            ...live_inspector,
+            cur_env: f(live_inspector.cur_env),
+          }
+        };
+      {
+        ...model,
+        settings: {
+          ...settings,
+          live_inspector,
+        },
+      };
     | Statics =>
       /* NOTE: dynamics depends on statics, so if dynamics is on and
          we're turning statics off, turn dynamics off as well */
@@ -129,6 +158,7 @@ let reevaluate_post_update =
   fun
   | Set(s_action) =>
     switch (s_action) {
+    | LiveInspector(_) => true //TODO(andrew): revisit
     | Captions
     | SecondaryIcons
     | Statics

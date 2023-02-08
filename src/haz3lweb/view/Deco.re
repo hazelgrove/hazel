@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Util;
 open Haz3lcore;
+open OptUtil.Syntax;
 
 module Deco =
        (
@@ -303,25 +304,79 @@ module Deco =
     go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
   };
 
-  let live_aid = (zipper: Zipper.t) => {
-    let index = Indicated.index(zipper);
-    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
-    let get_elab = z => {
-      let term = z |> get_term;
-      let map = term |> Statics.mk_map;
-      let index = index |> Util.OptUtil.and_then(Probe.get_exp_parent(map));
-      Interface.elaborate(~probe_ids=Option.to_list(index), map, term);
-    };
-    let nuer_map =
-      zipper
-      |> get_elab
-      |> Interface.evaluate
+  let live_aid_target_data =
+      (zipper: Zipper.t): option((Id.t, Measured.measurement)) => {
+    let* index = Indicated.index(zipper);
+    let+ measurement = Measured.find_by_id(index, M.map);
+    (index, measurement);
+  };
+
+  let live_aid_data =
+      (zipper: Zipper.t): option(list(ProbeMap.processed_instance)) => {
+    let* index = Indicated.index(zipper);
+    //TODO: ask d how to get term from terms?
+    let term = zipper |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+    let* up_index = index |> Probe.get_exp_parent(M.info_map);
+    let elab = Interface.elaborate(~probe_ids=[up_index], M.info_map, term);
+    let eval_result = Interface.evaluate(elab);
+    let* index_info = Id.Map.find_opt(index, M.info_map);
+    let processed_map =
+      eval_result
       |> ProgramResult.get_state
       |> EvaluatorState.get_probes
-      |> ProbeMap.filtershit;
-    print_endline("liveaid");
-    let _ = nuer_map |> ProbeMap.show_nuer_map |> print_endline;
-    [];
+      |> ProbeMap.process(index_info, M.map);
+    Id.Map.find_opt(up_index, processed_map); //return entry for cursor
+  };
+
+  let live_aid_val_view = (d: DHExp.t) => {
+    DHCode.view_tylr(
+      ~settings={
+        evaluate: true,
+        show_case_clauses: true,
+        show_fn_bodies: true,
+        show_casts: true,
+        show_unevaluated_elaboration: false,
+      },
+      ~selected_hole_instance=None,
+      ~font_metrics,
+      ~width=10,
+      d,
+    );
+  };
+
+  let env_entry_view = (~env=false, d: DHExp.t, m) => {
+    Node.div(
+      ~attr=
+        Attr.many([
+          Attr.classes(["env-entry"]),
+          DecUtil.pos_abs_basic(
+            ~font_metrics,
+            m,
+            ~style=
+              env ? "color: #169fdc !important" : "color: #7a6219 !important",
+          ),
+        ]),
+      [live_aid_val_view(d)],
+    );
+  };
+
+  let live_aid = (zipper: Zipper.t) => {
+    let col = 25;
+    switch (live_aid_target_data(zipper), live_aid_data(zipper)) {
+    | (Some((_res_id, res_m)), Some([{res, env}, ..._])) =>
+      [env_entry_view(res, {row: res_m.origin.row, col})]
+      @ List.map(
+          ((_, entry: ProbeMap.final_env_entry)) =>
+            env_entry_view(
+              ~env=true,
+              entry.v,
+              {row: entry.measurement.origin.row, col},
+            ),
+          env,
+        )
+    | (_, Some([])) => [Node.text("no live aid")]
+    | _ => []
+    };
   };
 
   let all = (zipper, sel_seg) =>

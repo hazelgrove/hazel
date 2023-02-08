@@ -34,6 +34,25 @@ let jagged_edge_w = child_border_thickness /. 1.;
 
 let short_tip_width = (1. -. t) *. tip_width;
 
+let pos_abs_basic =
+    (
+      ~style="",
+      ~left_fudge=0.0,
+      ~top_fudge=0.0,
+      ~font_metrics: FontMetrics.t,
+      origin: Haz3lcore.Measured.Point.t,
+    ) =>
+  Attr.create(
+    "style",
+    style
+    ++ ";"
+    ++ Printf.sprintf(
+         "position: absolute; left: %fpx; top: %fpx;",
+         Float.of_int(origin.col) *. font_metrics.col_width +. left_fudge,
+         Float.of_int(origin.row) *. font_metrics.row_height +. top_fudge,
+       ),
+  );
+
 let position =
     (
       ~style="",

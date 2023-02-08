@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util.OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type instance = {
@@ -27,87 +28,74 @@ let extend = (id: Id.t, instance: instance, t: t): t => {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type abbr = list((Id.t, entry));
-
-let abbreviate_envs = (probemap: t): abbr => {
-  let bindings = Id.Map.bindings(probemap);
-  // first, assert that all instances have equal length:
-  assert(
-    Util.ListUtil.all_eq(
-      List.map(((_, is)) => List.length(is), bindings),
-    ),
-  );
-  switch (bindings) {
-  | [] => []
-  | _
-      when
-        List.map(((_, e)) => List.hd(e), bindings) |> Util.ListUtil.all_eq =>
-    List.map(((id, entry)) => (id, List.tl(entry)), bindings)
-  | _ => bindings
-  };
-};
-
-let g: DHExp.t => DHExp.t =
-  fun
-  | Closure(_) => BoundVar("fun")
-  | d => DHExp.strip_casts(d);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type init_env_entry = (string, DHExp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type final_env_entry = {
   v: DHExp.t,
-  id: Id.t, // id of the binding
-  measure: Measured.measurement //Measured.find_by_id(id, map):option(measurement)
+  binding_id: Id.t, // id of the binding
+  measurement: Measured.measurement // location of binding
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type nu_env = list((string, DHExp.t));
+type dhexp_env = list((string, final_env_entry));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type nu_instance = {
+type processed_instance = {
   res: DHExp.t,
-  env: nu_env,
+  env: dhexp_env,
 };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type processed_instances = list(processed_instance);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type nuer_map = Id.Map.t(list(nu_instance));
+type processed_map = Id.Map.t(processed_instances);
 
-let fuckin_n_truckin: instance => nu_instance =
-  ({env, res}) => {
-    env:
-      env
-      |> ClosureEnvironment.to_list
-      |> List.filter_map(((v, d)) =>
-           switch (d) {
-           | _ when v == "pi" => None
-           | DHExp.Closure(_) => None
-           | _ => Some((v, g(d)))
-           }
-         ),
-    res:
-      switch (res) {
-      | BoxedValue(res) => g(res)
-      | Indet(res) => g(res)
-      },
+let process_d: DHExp.t => DHExp.t =
+  fun
+  | Closure(_) => BoundVar("fun")
+  | DHExp.FixF(_) => BoundVar("fix")
+  | d => DHExp.strip_casts(d);
+
+let add_derived =
+    (indicated_info: Info.t, measured: Measured.t, (name, d): init_env_entry)
+    : option(final_env_entry) => {
+  let ctx = Info.ctx_of(indicated_info);
+  let* {id, typ: _, _} = Ctx.lookup_var(ctx, name);
+  let+ measurement = Measured.find_by_id(id, measured);
+  {v: process_d(d), binding_id: id, measurement};
+};
+
+let process_entry = (index_info, measured, (name, d)) =>
+  switch (d) {
+  /* Note builtins are implictly filtered
+     because their id lookup fails */
+  //| _ when name == "pi" => None
+  | DHExp.Closure(_) => None
+  | DHExp.FixF(_) => None
+  | _ =>
+    let+ b = add_derived(index_info, measured, (name, d));
+    (name, b);
   };
 
+let process_res = (res: EvaluatorResult.t) =>
+  switch (res) {
+  | BoxedValue(res) => process_d(res)
+  | Indet(res) => process_d(res)
+  //| Indet(_res) => BoundVar("indet")
+  };
 
-let filtershit = (probemap: t): nuer_map =>
-  Id.Map.map(instances => List.map(fuckin_n_truckin, instances), probemap);
+let fuckin_n_truckin =
+    (index_info, measured, {env, res}: instance): processed_instance => {
+  env:
+    env
+    |> ClosureEnvironment.to_list
+    |> List.filter_map(process_entry(index_info, measured)),
+  res: process_res(res),
+};
 
-/*
- TODO:
- for probe id, get measurements
- and get get ctx
- foreach var in env,
-   look up var in ctx; get binding id
-   get measurements
-
-
-  */
-
-//let map = Measured.of_segment(unselected)
-
-
+let process = (index_info, measured, probemap: t): processed_map =>
+  Id.Map.map(
+    instances => List.map(fuckin_n_truckin(index_info, measured), instances),
+    probemap,
+  );
