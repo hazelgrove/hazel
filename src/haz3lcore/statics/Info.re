@@ -226,7 +226,7 @@ let status_typ =
     | VariantExpected(Duplicate, _)
     | TagExpected(Duplicate, _) => InHole(DuplicateTag(name))
     | TypeExpected =>
-      switch (Ctx.is_alias(ctx, name)) {
+      switch (Ctx.is_typ_valid(ctx, name)) {
       | false => InHole(FreeTypeVar(name))
       | true => NotInHole(TypeAlias(name))
       }

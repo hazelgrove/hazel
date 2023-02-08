@@ -40,6 +40,12 @@ type co = VarMap.t_(list(co_entry));
 let empty: t = VarMap.empty;
 let extend = List.cons;
 
+let get_id: entry => int =
+  fun
+  | VarEntry({id, _})
+  | TagEntry({id, _})
+  | TVarEntry({id, _}) => id;
+
 let rec lookup = (~i=0, ctx: t, pred: entry => bool): option((entry, int)) =>
   switch (ctx) {
   | [entry, ..._] when pred(entry) => Some((entry, i))
@@ -47,9 +53,6 @@ let rec lookup = (~i=0, ctx: t, pred: entry => bool): option((entry, int)) =>
   | [_, ...ctx] => lookup(ctx, pred, ~i)
   | [] => None
   };
-
-let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
-  extend(TVarEntry({name, id, kind: Abstract}), ctx);
 
 let lookup_tvar = (ctx: t, name': Token.t): option(tvar_entry) => {
   let pred =
@@ -59,6 +62,7 @@ let lookup_tvar = (ctx: t, name': Token.t): option(tvar_entry) => {
   switch (lookup(ctx, pred)) {
   | Some((TVarEntry({name, id, kind: Singleton(ty)}), i)) =>
     Some({name, id, kind: Singleton(TypBase.incr(ty, i))})
+  | Some((TVarEntry({name, id, kind}), _)) => Some({name, id, kind})
   | _ => None
   };
 };
@@ -89,19 +93,6 @@ let lookup_typ_by_idx = (~i, ctx: t): option(TypBase.t) => {
   };
 };
 
-let lookup_alias = (ctx: t, name: Token.t): option(TypBase.t) =>
-  switch (lookup_tvar(ctx, name)) {
-  | Some({kind: Singleton(ty), _}) => Some(ty)
-  | Some({kind: Abstract, _})
-  | _ => None
-  };
-
-let get_id: entry => int =
-  fun
-  | VarEntry({id, _})
-  | TagEntry({id, _})
-  | TVarEntry({id, _}) => id;
-
 let lookup_var = (ctx: t, name': string): option(var_entry) => {
   let pred =
     fun
@@ -126,11 +117,15 @@ let lookup_tag = (ctx: t, name': string): option(tag_entry) => {
   };
 };
 
-let is_alias = (ctx: t, name: Token.t): bool =>
-  switch (lookup_alias(ctx, name)) {
+let is_typ_valid = (ctx: t, name: string): bool => {
+  switch (lookup_tvar(ctx, name)) {
   | Some(_) => true
   | None => false
   };
+};
+
+let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
+  extend(TVarEntry({name, id, kind: Abstract}), ctx);
 
 let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: TypBase.t): t =>
   extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);

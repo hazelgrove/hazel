@@ -315,9 +315,8 @@ and uexp_to_info_map =
         //   };
       };
       let ctx_body =
-        switch (ty_def) {
-        | Sum(sm)
-        | Rec({item: Sum(sm), _}) =>
+        switch (Typ.lookup_sum(ty_def)) {
+        | Some(sm) =>
           Ctx.add_tags(
             ctx_body,
             Var({item: Some(0), name}),
@@ -542,11 +541,16 @@ and utyp_to_info_map =
         ts,
       );
     add(union_m(ms));
-  | Forall(_utpat, tbody) =>
-    let (_, m) = utyp_to_info_map(~ctx, tbody);
-    add(m); // TODO: check with andrew
+  | Forall({term: Var(_), _} as utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody, ~mode=TypeExpected);
+    let m_tpat = utpat_to_info_map(~ctx, utpat);
+    add(union_m([m, m_tpat])); // TODO: check with andrew
+  | Forall(utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody, ~mode=TypeExpected);
+    let m_tpat = utpat_to_info_map(~ctx, utpat);
+    add(union_m([m, m_tpat])); // TODO: check with andrew
   | Rec(_utpat, tbody) =>
-    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    let (_, m) = utyp_to_info_map(~ctx, tbody, ~mode=TypeExpected);
     add(m); // TODO: check with andrew
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;

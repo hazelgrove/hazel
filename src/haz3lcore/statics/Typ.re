@@ -206,47 +206,9 @@ module Observation = {
     | Depth(int)
     | Free;
 
-  let rec eq_typ = (ctx: Ctx.t, t1, t2) => {
-    switch (t1, t2) {
-    | (Var({item: Some(x1), _}), Var({item: Some(x2), _})) =>
-      eq_observation(
-        ctx,
-        resolve_var_kind(ctx, ~remaining=x1),
-        resolve_var_kind(ctx, ~remaining=x2),
-      )
-    | (Var(_), _) => false
-    | (Rec({item: t1, name}), Rec({item: t2, _})) =>
-      eq_typ(Ctx.add_abstract(ctx, name, -1), t1, t2)
-    | (Rec(_), _) => false
-    | (Forall({item: t1, name}), Forall({item: t2, _})) =>
-      eq_typ(Ctx.add_abstract(ctx, name, -1), t1, t2)
-    | (Forall(_), _) => false
-    | (Int, Int) => true
-    | (Int, _) => false
-    | (Float, Float) => true
-    | (Float, _) => false
-    | (Bool, Bool) => true
-    | (Bool, _) => false
-    | (String, String) => true
-    | (String, _) => false
-    | (Unknown(_), Unknown(_)) => true
-    | (Unknown(_), _) => false
-    | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
-      eq_typ(ctx, t1_1, t2_1) && eq_typ(ctx, t1_2, t2_2)
-    | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) =>
-      List.length(tys1) == List.length(tys2)
-      && List.for_all2(eq_typ(ctx), tys1, tys2)
-    | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq_typ(ctx, t1, t2)
-    | (List(_), _) => false
-    | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
-    | (Sum(_), _) => false
-    };
-  }
-  and eq_observation = (ctx: Ctx.t, x, y) => {
+  let rec eq_observation = (x, y) => {
     switch (x, y) {
-    | (Base(x), Base(y)) => eq_typ(ctx, x, y)
+    | (Base(x), Base(y)) => eq_syntactic(x, y)
     | (Depth(x), Depth(y)) => x == y
     | _ => false
     };
@@ -283,7 +245,7 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Var({item: Some(n1), name}), Var({item: Some(n2), _})) =>
     let ob1 = Observation.resolve_var_kind(ctx, ~remaining=n1);
     let ob2 = Observation.resolve_var_kind(ctx, ~remaining=n2);
-    Observation.eq_observation(ctx, ob1, ob2)
+    Observation.eq_observation(ob1, ob2)
       ? Some(Var({item: Some(n1), name})) : None;
   | (Var(_), _) => None
   | (Rec({item: t1, name}), Rec({item: t2, _})) =>
