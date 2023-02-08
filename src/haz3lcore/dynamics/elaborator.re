@@ -65,16 +65,18 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let pat_self_typ = (ctx: Ctx.t, m: Statics.Map.t, p: Term.UPat.t): Typ.t =>
-  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
-  | Some(InfoPat({self, _})) =>
-    switch (Statics.Info.typ_of_self_pat(ctx, self)) {
-    | Some(typ) => typ
-    | None => Unknown(Internal)
-    }
-  | _ => Unknown(Internal)
-  };
-
+//TODO(andrew): cleanup
+/*
+ let pat_self_typ = (ctx: Ctx.t, m: Statics.Map.t, p: Term.UPat.t): Typ.t =>
+   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+   | Some(InfoPat({self, _})) =>
+     switch (Statics.Info.typ_of_self_pat(ctx, self)) {
+     | Some(typ) => typ
+     | None => Unknown(Internal)
+     }
+   | _ => Unknown(Internal)
+   };
+ */
 let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -111,17 +113,9 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Ap(Tag(_), _)
     | Tag(_) =>
-      switch (ana_ty, self_ty /*Typ.unroll(self_ty)*/) {
-      | (Unknown(prov), Rec(x, _)) =>
-        switch (Typ.unroll(self_ty)) {
-        | Sum(sm) =>
-          let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
-          DHExp.cast(d, Rec(x, Sum(sm')), ana_ty);
-        | _ => d
-        }
-      | (Unknown(prov), Sum(sm)) =>
-        let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
-        DHExp.cast(d, Sum(sm'), ana_ty);
+      switch (ana_ty, self_ty) {
+      | (Unknown(prov), Rec(_, Sum(_)))
+      | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -252,16 +246,16 @@ let rec dhexp_of_uexp =
         );
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
-        let+ dbody = dhexp_of_uexp(m, body);
+        let* dbody = dhexp_of_uexp(m, body);
         //TODO(andrew): ADTs: what shoule below be if no syn type? should elab fail?
-        let ty = pat_self_typ(ctx, m, p);
+        let+ ty_body = fixed_exp_typ(m, body);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+          Let(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -283,7 +277,7 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          Let(dp, FixF(self_id, ty, substituted_def), dbody);
+          Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
@@ -407,5 +401,10 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   | None => DoesNotElaborate
   | Some(d) =>
     let d = uexp_elab_wrap_builtins(d);
-    Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci
+    let ty =
+      switch (fixed_exp_typ(m, uexp)) {
+      | Some(ty) => ty
+      | None => Typ.Unknown(Internal)
+      };
+    Elaborates(d, ty, Delta.empty);
   };
