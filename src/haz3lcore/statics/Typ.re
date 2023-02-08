@@ -114,8 +114,9 @@ let rec eq = (t1: t, t2: t): bool => {
   let eq' = eq;
   switch (t1, t2) {
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
-  | (Rec(_), _) => eq(unroll(t1), t2)
-  | (_, Rec(_)) => eq(t1, unroll(t2))
+  | (Rec(_), _) => false
+  /*| (Rec(_), _) => eq(unroll(t1), t2)
+    | (_, Rec(_)) => eq(t1, unroll(t2))*/
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true

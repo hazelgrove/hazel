@@ -305,17 +305,17 @@ let status_typ =
       }
     }
   | Ap(t1, t2) =>
-    let ty_in = UTyp.to_typ(ctx, t2);
     switch (expects) {
     | VariantExpected(status_variant, ty_variant) =>
+      let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
       | (Unique, Var(name) | Tag(name)) =>
         NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
-      }
+      };
     | TagExpected(_) => InHole(WantTagFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
-    };
+    }
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
@@ -440,10 +440,13 @@ let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
     | FreeVar => None
     | Common(self) => typ_of_self_common(ctx, self);
 
-let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
-  ctx =>
-    fun
-    | Common(self) => typ_of_self_common(ctx, self);
+//TODO(andrew): cleanup
+/*
+ let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
+   ctx =>
+     fun
+     | Common(self) => typ_of_self_common(ctx, self);
+ */
 
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs */
