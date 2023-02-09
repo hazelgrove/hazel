@@ -109,6 +109,14 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
+  //TODO(andrew): cleanup
+  /* | _ when UExp.is_intro(uexp) && Typ.mode_is_ana_rec(mode, ctx) != None =>
+     uexp_to_info_map(
+       ~ctx: Ctx.t,
+       ~mode=Ana(Typ.mode_is_ana_rec(mode, ctx) |> Option.get),
+       ~ancestors=List.tl(ancestors),
+       uexp,
+     )*/
   | Invalid(token) => atomic(BadToken(token))
   | MultiHole(tms) =>
     let (frees, ms) =
