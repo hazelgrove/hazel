@@ -35,7 +35,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
   let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
   let print = str => str |> print_endline |> (_ => []);
-  let toggle = m => (m := ! m^) |> (_ => []);
   switch (k) {
   | {key: U(key), _} =>
     switch (key) {
@@ -46,17 +45,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
     switch (key) {
-    | "F1" => print(Log.serialize())
     | "F2" => print(Zipper.show(zipper))
-    | "F3" => toggle(Log.debug_update)
-    | "F4" => toggle(Log.debug_keystroke)
-    | "F5" => toggle(Log.debug_zipper)
-    | "F6" => []
-    | "F7" => []
-    | "F8" => []
-    | "F10" =>
-      Log.reset_json_log();
-      [];
+    | "F6" =>
+      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(zipper));
+      print(TermBase.UExp.show(term));
     | _ => []
     }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
@@ -78,7 +70,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
-      //TODO(andrew): using funky char to avoid weird regexp issues with using \n
       let retrieve_string = (): option(string) => {
         open Util.OptUtil.Syntax;
         let* (p, _) = Zipper.representative_piece(zipper);
@@ -96,7 +87,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         |> List.filter(s => s != "?")
         |> List.map(str => now_save(Insert(str)))
         |> List.flatten;
-      | None => now_save(Insert(Whitespace.linebreak))
+      | None => now_save(Insert(Secondary.linebreak))
       };
     | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things

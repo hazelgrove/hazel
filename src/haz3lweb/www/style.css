@@ -964,7 +964,7 @@ svg.tile-selected {
   font-family: 'Fira Code';
 }
 
-.whitespace {
+.secondary {
   color: rgb(126, 80, 0);
   opacity: 20%;
 }
@@ -1257,6 +1257,10 @@ svg.tile-selected {
   color: var(--light-text-color);
   background-color: #f7ebc5;
   /*#fbebaa;*/
+}
+
+.comment {
+  color: #a0c1aa;
 }
 
 /* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though...*/
