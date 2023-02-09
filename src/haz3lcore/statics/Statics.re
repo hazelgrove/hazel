@@ -186,16 +186,6 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m1) = go(~mode=Ana(Bool), e);
     add(~self=Just(Prod([])), ~free=e.free, m1);
-  | If(e0, e1, e2) =>
-    let branch_ids = List.map(UExp.rep_id, [e1, e2]);
-    let (cond, m0) = go(~mode=Ana(Bool), e0);
-    let (cons, m1) = go(~mode, e1);
-    let (alt, m2) = go(~mode, e2);
-    add(
-      ~self=joint_self(Fun.id, [cons.ty, alt.ty], branch_ids, ctx),
-      ~free=Ctx.union([cond.free, cons.free, alt.free]),
-      union_m([m0, m1, m2]),
-    );
   | Seq(e1, e2) =>
     let (e1, m1) = go(~mode=Syn, e1);
     let (e2, m2) = go(~mode, e2);
@@ -240,48 +230,16 @@ and uexp_to_info_map =
       ~free=Ctx.union([def.free, Ctx.free_in(ctx, p_ana.ctx, body.free)]),
       union_m([m_pat, m_def, m_body]),
     );
-  | TyAlias(typat, utyp, body) =>
-    let m_typat = utpat_to_info_map(~ctx, ~ancestors, typat) |> snd;
-    switch (typat.term) {
-    | Var(name) =>
-      /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
-         errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
-         for any type variable reference not in its ctx. So any free variables
-         in the definition would be oblierated. But we need to check for free
-         variables to decide whether to make a recursive type or not. So we
-         tentatively add an abtract type to the ctx, representing the
-         speculative rec parameter. */
-      let (ty_def, ctx_def, ctx_body) = {
-        let ty_pre = UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
-        switch (utyp.term) {
-        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
-          let ty_rec = Typ.Rec(name, ty_pre);
-          let ctx_def =
-            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
-          (ty_rec, ctx_def, ctx_def);
-        | _ =>
-          let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty));
-        };
-      };
-      let ctx_body =
-        switch (ty_def) {
-        | Sum(sm)
-        | Rec(_, Sum(sm)) =>
-          Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
-        | _ => ctx_body
-        };
-      let (Info.{free, ty: ty_body, _}, m_body) =
-        go'(~ctx=ctx_body, ~mode, body);
-      //TODO(andrew): ADTS: is this right approach to normalization?
-      let ty_escape = Typ.subst(ty_def, name, ty_body);
-      let m_typ = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp) |> snd;
-      add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
-    | _ =>
-      let (Info.{free, ty: ty_body, _}, m_body) = go'(~ctx, ~mode, body);
-      let m_typ = utyp_to_info_map(~ctx, ~ancestors, utyp) |> snd;
-      add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
-    };
+  | If(e0, e1, e2) =>
+    let branch_ids = List.map(UExp.rep_id, [e1, e2]);
+    let (cond, m0) = go(~mode=Ana(Bool), e0);
+    let (cons, m1) = go(~mode, e1);
+    let (alt, m2) = go(~mode, e2);
+    add(
+      ~self=joint_self(Fun.id, [cons.ty, alt.ty], branch_ids, ctx),
+      ~free=Ctx.union([cond.free, cons.free, alt.free]),
+      union_m([m0, m1, m2]),
+    );
   | Match(scrut, rules) =>
     let (scrut, m_scrut) = go(~mode=Syn, scrut);
     let (ps, es) = List.split(rules);
@@ -300,6 +258,46 @@ and uexp_to_info_map =
       ~free=Ctx.union([scrut.free] @ e_frees),
       union_m([m_scrut] @ pat_ms @ e_ms),
     );
+  | TyAlias(typat, utyp, body) =>
+    let m_typat = utpat_to_info_map(~ctx, ~ancestors, typat) |> snd;
+    switch (typat.term) {
+    | Var(name) =>
+      /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
+         errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
+         for any type variable reference not in its ctx. So any free variables
+         in the definition would be oblierated. But we need to check for free
+         variables to decide whether to make a recursive type or not. So we
+         tentatively add an abtract type to the ctx, representing the
+         speculative rec parameter. */
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre = UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
+        switch (utyp.term) {
+        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+        | _ =>
+          let ty = UTyp.to_typ(ctx, utyp);
+          (ty, ctx, Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty));
+        };
+      };
+      let ctx_body =
+        switch (Typ.get_sum_tags(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
+        | None => ctx_body
+        };
+      let (Info.{free, ty: ty_body, _}, m_body) =
+        go'(~ctx=ctx_body, ~mode, body);
+      //TODO(andrew): ADTS: is this right approach to normalization?
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let m_typ = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp) |> snd;
+      add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
+    | _ =>
+      let (Info.{free, ty: ty_body, _}, m_body) = go'(~ctx, ~mode, body);
+      let m_typ = utyp_to_info_map(~ctx, ~ancestors, utyp) |> snd;
+      add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
+    };
   };
 }
 and upat_to_info_map =
