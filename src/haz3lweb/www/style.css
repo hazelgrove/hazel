@@ -1075,7 +1075,8 @@ svg.tile-selected {
 
 /* CONTEXT INSPECTOR */
 .context-inspector {
-  scroll-snap-type: y mandatory;
+  /* below triggers chrome jank bug */
+  /*scroll-snap-type: y mandatory;*/
   direction: rtl;
   position: absolute;
   z-index: 20;
@@ -1093,8 +1094,14 @@ svg.tile-selected {
   color: #586e75;
   border-top: 1px solid #e6ce8f;
   border-right: 1px solid #c7b480;
+  border-bottom: 1px solid #c7b480;
   background-color: #f7ebc5;
   box-shadow: 0px 20px 20px #77580255;
+  scrollbar-color: #c7b480 #e4d6a6;
+  scrollbar-width: thin;
+}
+@supports (-moz-appearance:none) {
+  .context-inspector  { scroll-snap-type: y mandatory; }
 }
 
 .context-inspector::-webkit-scrollbar {
@@ -1197,7 +1204,7 @@ svg.tile-selected {
   padding-left: 0.5em;
   padding-right: 0.7em;
   color: var(--light-page-color);
-  height: -webkit-fill-available;
+  height: 100%;
 }
 
 .bottom-bar .cursor-inspector .gamma:hover,
