@@ -2728,7 +2728,6 @@ let get_doc =
     | Var(_) when cls == Tag =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
-      //TODO(andrew): constructor/tag case
       let (doc, options) =
         LangDocMessages.get_form_and_options(
           LangDocMessages.var_typ_group,

@@ -65,18 +65,6 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-//TODO(andrew): cleanup
-/*
- let pat_self_typ = (ctx: Ctx.t, m: Statics.Map.t, p: Term.UPat.t): Typ.t =>
-   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
-   | Some(InfoPat({self, _})) =>
-     switch (Statics.Info.typ_of_self_pat(ctx, self)) {
-     | Some(typ) => typ
-     | None => Unknown(Internal)
-     }
-   | _ => Unknown(Internal)
-   };
- */
 let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -247,7 +235,6 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        //TODO(andrew): ADTs: what shoule below be if no syn type? should elab fail?
         let+ ty_body = fixed_exp_typ(m, body);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>

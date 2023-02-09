@@ -109,14 +109,6 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  //TODO(andrew): cleanup
-  /* | _ when UExp.is_intro(uexp) && Typ.mode_is_ana_rec(mode, ctx) != None =>
-     uexp_to_info_map(
-       ~ctx: Ctx.t,
-       ~mode=Ana(Typ.mode_is_ana_rec(mode, ctx) |> Option.get),
-       ~ancestors=List.tl(ancestors),
-       uexp,
-     )*/
   | Invalid(token) => atomic(BadToken(token))
   | MultiHole(tms) =>
     let (frees, ms) =
@@ -289,7 +281,7 @@ and uexp_to_info_map =
         };
       let (Info.{free, ty: ty_body, _}, m_body) =
         go'(~ctx=ctx_body, ~mode, body);
-      //TODO(andrew): ADTS: is this right approach to normalization?
+      /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m_typ = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
