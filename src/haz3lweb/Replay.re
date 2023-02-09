@@ -43,8 +43,7 @@ let backward = t => {
 };
 
 module StepResult = {
-  // I forget how to refer to outer type of same name, so this is a hack
-  type t' =
+  type nonrec t =
     | Step((t, int, UpdateAction.t))
     | EndOfReplay(t, UpdateAction.t)
     | Fail;
