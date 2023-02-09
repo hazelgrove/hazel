@@ -115,8 +115,6 @@ let rec eq = (t1: t, t2: t): bool => {
   switch (t1, t2) {
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
   | (Rec(_), _) => false
-  /*| (Rec(_), _) => eq(unroll(t1), t2)
-    | (_, Rec(_)) => eq(t1, unroll(t2))*/
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -173,15 +171,6 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Rec(x1, ty1), Rec(x2, ty2)) =>
-    let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
-    Rec(x1, ty_body);
-  | (Rec(_), _) =>
-    let+ _ = join'(unroll(ty1), ty2);
-    ty1;
-  | (_, Rec(_)) =>
-    let+ _ = join'(ty1, unroll(ty2));
-    ty2;
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(Var(n1));
@@ -196,6 +185,11 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
     resolve ? ty_join : Var(name);
+  /* Note: ordering of unknown, var, and rec is load-bearing */
+  | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
+    Rec(x1, ty_body);
+  | (Rec(_), _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -335,3 +329,17 @@ let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
   | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => ap_mode
   };
+
+//TODO(andrew): cleanup
+/*
+ let mode_is_ana_rec = (m: mode, ctx): option(t) => {
+   switch (m) {
+   | Ana(ty) =>
+     switch (normalize(ctx, ty)) {
+     | Rec(_) as ty => Some(unroll(ty))
+     | _ => None
+     }
+   | _ => None
+   };
+ };
+ */
