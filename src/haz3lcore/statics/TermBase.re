@@ -98,6 +98,35 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Constructor
+    | Fun
+    | TypFun
+    | Tuple
+    | Var
+    | Let
+    | TyAlias
+    | Ap
+    | TypAp
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
@@ -110,11 +139,13 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -194,6 +225,35 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Constructor
+    | Fun
+    | TypFun
+    | Tuple
+    | Var
+    | Let
+    | TyAlias
+    | Ap
+    | TypAp
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
@@ -206,11 +266,13 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -338,10 +400,16 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
+<<<<<<< HEAD
     | Sum(list(variant))
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
+=======
+    | USum(list(t))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
+>>>>>>> 4c7587694 (merge in poly-adt)
   and t = {
     ids: list(Id.t),
     term,
@@ -363,10 +431,16 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
+<<<<<<< HEAD
     | Sum(list(variant))
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
+=======
+    | USum(list(t))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
+>>>>>>> 4c7587694 (merge in poly-adt)
   and t = {
     ids: list(Id.t),
     term,
