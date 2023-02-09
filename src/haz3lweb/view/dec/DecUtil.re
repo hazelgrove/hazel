@@ -52,7 +52,7 @@ let fzero: fdims = {width: 0., height: 0., left: 0., top: 0.};
 
 let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
   Printf.sprintf(
-    "left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+    "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
     Float.of_int(d.left) *. font_metrics.col_width +. fudge.left,
     Float.of_int(d.top) *. font_metrics.row_height +. fudge.top,
     Float.of_int(d.width) *. (font_metrics.col_width +. fudge.width),
