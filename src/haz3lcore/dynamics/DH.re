@@ -58,6 +58,8 @@ module rec DHExp: {
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
+    | TypFun(Term.UTPat.t, t)
+    | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
@@ -154,6 +156,8 @@ module rec DHExp: {
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
+    | TypFun(Term.UTPat.t, t)
+    | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
@@ -191,8 +195,10 @@ module rec DHExp: {
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
+    | TypFun(_) => "TypFun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
+    | TypAp(_) => "TypAp"
     | ApBuiltin(_, _) => "ApBuiltin"
     | TestLit(_) => "TestLit"
     | BoolLit(_) => "BoolLit"
@@ -222,7 +228,7 @@ module rec DHExp: {
     | xs => Tuple(xs);
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+    if (Typ.eq_syntactic(t1, t2) || t2 == Unknown(SynSwitch)) {
       d;
     } else {
       Cast(d, t1, t2);
@@ -246,7 +252,9 @@ module rec DHExp: {
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
+    | TypFun(a, b) => TypFun(a, strip_casts(b))
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+    | TypAp(a, b) => TypAp(strip_casts(a), b)
     | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
@@ -299,6 +307,10 @@ module rec DHExp: {
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
+    | (TypFun(_tpat1, d1), TypFun(_tpat2, d2)) =>
+      // TODO (poly)
+      fast_equal(d1, d2)
+    | (TypAp(d1, ty1), TypAp(d2, ty2)) => fast_equal(d1, d2) && ty1 == ty2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -331,7 +343,9 @@ module rec DHExp: {
     | (Let(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
+    | (TypFun(_), _)
     | (Ap(_), _)
+    | (TypAp(_), _)
     | (ApBuiltin(_), _)
     | (Cons(_), _)
     | (ListLit(_), _)

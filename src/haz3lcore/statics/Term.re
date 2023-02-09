@@ -17,147 +17,7 @@
    without correponding syntax classes */
 
 include TermBase.Any;
-
 type any = t;
-module UTyp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Int
-    | Float
-    | Bool
-    | String
-    | Arrow
-    | Tuple
-    | Sum
-    | List
-    | Var
-    | Tag
-    | Parens
-    | Ap
-    | USum;
-
-  include TermBase.UTyp;
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | String => String
-    | List(_) => List
-    | Arrow(_) => Arrow
-    | Var(_) => Var
-    | Tag(_) => Tag
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens
-    | Ap(_) => Ap
-    | USum(_) => USum;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type"
-    | EmptyHole => "Empty Type Hole"
-    | MultiHole => "Multi Type Hole"
-    | Int
-    | Float
-    | String
-    | Bool => "Base Type"
-    | Var => "Type Variable"
-    | Tag => "Sum Constructor"
-    | List => "List Type"
-    | Arrow => "Function Type"
-    | Tuple => "Product Type"
-    | Sum => "Sum Type"
-    | Parens => "Parenthesized Type Term"
-    | Ap => "Sum Constructor Application"
-    | USum => "Sum Type";
-
-  let rec is_arrow = (typ: t) => {
-    switch (typ.term) {
-    | Parens(typ) => is_arrow(typ)
-    | Arrow(_) => true
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Int
-    | Float
-    | Bool
-    | String
-    | List(_)
-    | Tuple(_)
-    | Var(_)
-    | Tag(_)
-    | Ap(_)
-    | USum(_) => false
-    };
-  };
-
-  /* Converts a syntactic type into a semantic type */
-  let rec to_typ: (Ctx.t, t) => Typ.t =
-    (ctx, utyp) =>
-      switch (utyp.term) {
-      | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(TypeHole)
-      | Bool => Bool
-      | Int => Int
-      | Float => Float
-      | String => String
-      | Var(name) =>
-        //Var(name)
-        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
-        switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(_) => Var(name)
-        | None => Unknown(TypeHole)
-        }
-      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | USum(uts) => Sum(to_tag_map(ctx, uts))
-      | List(u) => List(to_typ(ctx, u))
-      | Parens(u) => to_typ(ctx, u)
-      /* The below cases should occur only inside sums */
-      | Tag(_)
-      | Ap(_) => Unknown(Internal)
-      }
-  and to_variant = ctx =>
-    fun
-    | {term: Var(tag), _} => [(tag, None)]
-    | {term: Ap({term: Var(tag), _}, u), _} => [
-        (tag, Some(to_typ(ctx, u))),
-      ]
-    | _ => []
-  and get_tag = (ctx, ut) =>
-    switch (to_variant(ctx, ut)) {
-    | [(tag, _)] => Some(tag)
-    | _ => None
-    }
-  and to_tag_map = (ctx, uts: list(t)): Typ.sum_map => {
-    List.fold_left(
-      (acc, ut) =>
-        List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
-          ? acc @ [ut] : acc,
-      [],
-      Util.ListUtil.flat_map(to_variant(ctx), uts),
-    );
-  };
-};
 
 module UTPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -193,6 +53,179 @@ module UTPat = {
     | EmptyHole => "Empty Type Variable Hole"
     | MultiHole => "Multi Type Variable Hole"
     | Var => "Type Variable";
+};
+
+module UTyp = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow
+    | Tuple
+    | Sum
+    | List
+    | Var
+    | Tag
+    | Parens
+    | Ap
+    | USum
+    | Forall
+    | Rec;
+
+  include TermBase.UTyp;
+
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | List(_) => List
+    | Arrow(_) => Arrow
+    | Var(_) => Var
+    | Tag(_) => Tag
+    | Tuple(_) => Tuple
+    | Parens(_) => Parens
+    | Ap(_) => Ap
+    | USum(_) => USum
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type"
+    | EmptyHole => "Empty Type Hole"
+    | MultiHole => "Multi Type Hole"
+    | Int
+    | Float
+    | String
+    | Bool => "Base Type"
+    | Var => "Type Variable"
+    | Tag => "Sum Constructor"
+    | List => "List Type"
+    | Arrow => "Function Type"
+    | Tuple => "Product Type"
+    | Sum => "Sum Type"
+    | Parens => "Parenthesized Type Term"
+    | Ap => "Sum Constructor Application"
+    | USum => "Sum Type"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
+
+  let rec is_arrow = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_arrow(typ)
+    | Arrow(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Tag(_)
+    | Ap(_)
+    | USum(_)
+    | Forall(_)
+    | Rec(_) => false
+    };
+  };
+
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow(_)
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Tag(_)
+    | Ap(_)
+    | USum(_)
+    | Rec(_) => false
+    };
+  };
+
+  /* Converts a syntactic type into a semantic type */
+  let rec to_typ: (Ctx.t, t) => Typ.t =
+    (ctx, utyp) =>
+      switch (utyp.term) {
+      | Invalid(_)
+      | MultiHole(_) => Unknown(Internal)
+      | EmptyHole => Unknown(TypeHole)
+      | Bool => Bool
+      | Int => Int
+      | Float => Float
+      | String => String
+      | Var(name) => Var({item: Ctx.lookup_tvar_idx(ctx, name), name})
+      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | USum(uts) => Sum(to_tag_map(ctx, uts))
+      | List(u) => List(to_typ(ctx, u))
+      | Parens(u) => to_typ(ctx, u)
+      | Forall({term: Var(name), _} as utpat, tbody) =>
+        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
+        Forall({item: to_typ(ctx, tbody), name});
+      | Forall(_, tbody) => to_typ(ctx, tbody)
+      // Forall is same as Rec
+      | Rec({term: Var(name), _} as utpat, tbody) =>
+        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
+        Rec({item: to_typ(ctx, tbody), name});
+      | Rec(_, tbody) => to_typ(ctx, tbody)
+      /* The below cases should occur only inside sums */
+      | Tag(_)
+      | Ap(_) => Unknown(Internal)
+      }
+  and to_variant = ctx =>
+    fun
+    | {term: Var(tag), _} => [(tag, None)]
+    | {term: Ap({term: Var(tag), _}, u), _} => [
+        (tag, Some(to_typ(ctx, u))),
+      ]
+    | _ => []
+  and get_tag = (ctx, ut) =>
+    switch (to_variant(ctx, ut)) {
+    | [(tag, _)] => Some(tag)
+    | _ => None
+    }
+  and to_tag_map = (ctx, uts: list(t)): Typ.sum_map => {
+    List.fold_left(
+      (acc, ut) =>
+        List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
+          ? acc @ [ut] : acc,
+      [],
+      Util.ListUtil.flat_map(to_variant(ctx), uts),
+    );
+  };
 };
 
 module UPat = {
@@ -363,7 +396,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -446,11 +479,13 @@ module UExp = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -523,11 +558,13 @@ module UExp = {
     | ListLit => "List Literal"
     | Tag => "Constructor"
     | Fun => "Function Literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | TyAlias => "Type Alias Definition"
     | Ap => "Function/Contructor Application"
+    | TypAp => "Type Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -539,7 +576,8 @@ module UExp = {
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e)
+    | TypFun(_, e) => is_fun(e)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
@@ -555,6 +593,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -582,10 +621,12 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | If(_)
       | Seq(_)
       | Test(_)

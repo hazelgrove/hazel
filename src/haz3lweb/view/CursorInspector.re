@@ -97,7 +97,7 @@ let common_ok_view = (ok: Info.ok_pat) => {
 let typ_ok_view = (ok: Info.ok_typ) =>
   switch (ok) {
   | Variant(name, sum_ty) => [
-      Type.view(Var(name)),
+      Type.view(Var({name, item: None})),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
     ]
@@ -107,7 +107,7 @@ let typ_ok_view = (ok: Info.ok_typ) =>
     ]
   | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
-      Type.view(Var(name)),
+      Type.view(Var({name, item: None})),
       text("is a type alias for"),
       Type.view(ty_lookup),
     ]
@@ -117,7 +117,7 @@ let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
   | FreeTypeVar(name) => [
       text("Type variable"),
-      Type.view(Var(name)),
+      Type.view(Var({name, item: None})),
       text("is not bound"),
     ]
   | BadToken(token) => [
@@ -131,7 +131,7 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantTypeFoundAp => [text("Constructor application must be in sum")]
   | DuplicateTag(name) => [
       text("Constructor"),
-      Type.view(Var(name)),
+      Type.view(Var({name, item: None})),
       text("already used in this sum"),
     ]
   };

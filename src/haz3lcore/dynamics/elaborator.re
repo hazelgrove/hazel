@@ -91,6 +91,16 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
       | _ => d
       }
+    | TypFun(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(
+          d,
+          Forall({item: Unknown(prov), name: "grounded_forall"}),
+          ana_ty,
+        )
+      | _ => d
+      }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -101,7 +111,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | Ap(Tag(_), _)
     | Tag(_) =>
       switch (ana_ty, self_ty) {
-      | (Unknown(prov), Rec(_, Sum(_)))
+      | (Unknown(prov), Rec({item: Sum(_), _}))
       | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
       | _ => d
       }
@@ -135,7 +145,10 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | TestLit(_)
+    | TypAp(_) =>
+      // TODO: check with andrew
+      DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -184,6 +197,10 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TypFun(tpat, body) =>
+        // TODO (typfun)
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.TypFun(tpat, d1);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -262,6 +279,9 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | TypAp(fn, uty_arg) =>
+        let+ d_fn = dhexp_of_uexp(m, fn);
+        DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);

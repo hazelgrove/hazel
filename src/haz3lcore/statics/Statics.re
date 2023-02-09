@@ -201,6 +201,11 @@ and uexp_to_info_map =
       ~free=Ctx.union([fn.free, arg.free]),
       union_m([m_fn, m_arg]),
     );
+  | TypAp(fn, utyp) =>
+    let (fn, m_fn) = go(~mode=Typ.ap_mode, fn);
+    let Typ.{item: ty_body, _} = Typ.matched_forall(fn.ty);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    add(~self=Just(Typ.subst(ty, ty_body)), ~free=fn.free, m_fn);
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (p, m_pat) = go_pat(~is_synswitch=false, ~mode=mode_pat, p);
@@ -209,6 +214,25 @@ and uexp_to_info_map =
       ~self=Just(Arrow(p.ty, e.ty)),
       ~free=Ctx.free_in(ctx, p.ctx, e.free),
       union_m([m_pat, m_body]),
+    );
+  | TypFun({term: Var(name), _} as utpat, body) =>
+    let mode_body = Typ.matched_forall_mode(mode);
+    let m_typat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
+    let ctx_body = Ctx.add_abstract(ctx, name, Term.UTPat.rep_id(utpat));
+    let (body, m_body) = go'(~ctx=ctx_body, ~mode=mode_body, body);
+    add(
+      ~self=Just(Forall({item: body.ty, name})),
+      ~free=body.free,
+      union_m([m_typat, m_body]),
+    );
+  | TypFun(utpat, body) =>
+    let mode_body = Typ.matched_forall_mode(mode);
+    let m_typat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
+    let (body, m_body) = go(~mode=mode_body, body);
+    add(
+      ~self=Just(Forall({item: body.ty, name: "expected_type_variable"})),
+      ~free=body.free,
+      union_m([m_typat, m_body]),
     );
   | Let(p, def, body) =>
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p);
@@ -257,15 +281,15 @@ and uexp_to_info_map =
       /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
          errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
-         in the definition would be oblierated. But we need to check for free
+         in the definition would be obliterated. But we need to check for free
          variables to decide whether to make a recursive type or not. So we
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
       let (ty_def, ctx_def, ctx_body) = {
         let ty_pre = UTyp.to_typ(Ctx.add_abstract(ctx, name, -1), utyp);
         switch (utyp.term) {
-        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
-          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+        | USum(_) when Typ.lookup_surface(ty_pre) =>
+          let ty_rec = Typ.Rec({item: ty_pre, name: "α"});
           let ctx_def =
             Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -273,16 +297,45 @@ and uexp_to_info_map =
           let ty = UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty));
         };
+        /* NOTE(yuchen): Below is an alternative implementation that attempts to
+           add a rec whenever type alias is present. It may cause trouble to the
+           runtime, so precede with caution. */
+        // Typ.lookup_surface(ty_pre)
+        //   ? {
+        //     let ty_rec = Typ.Rec({item: ty_pre, name});
+        //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+        //     (ty_rec, ctx_def, ctx_def);
+        //   }
+        //   : {
+        //     let ty = Term.UTyp.to_typ(ctx, utyp);
+        //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
+        //   };
       };
       let ctx_body =
-        switch (Typ.get_sum_tags(ctx, ty_def)) {
+        switch (Typ.lookup_sum(ty_def)) {
+        | Some(sm) =>
+          Ctx.add_tags(
+            ctx_body,
+            Var({item: Some(0), name}),
+            UTyp.rep_id(utyp),
+            sm,
+          )
+        | _ => ctx_body
+        };
+      /*NOTE FROM ANDREW: the below commented code is my version of
+        the previous switch. One thing my version does which yours doesn't
+        is that it unrolls rec types; without doing this, the types of
+        sum constructors will be wrong. Should be possible to adapt your
+        version to do the same thing, but I haven't done it in case I'm
+        missing something. ping me for details if the issue isn't clear.*/
+      /*switch (Typ.get_sum_tags(ctx, ty_def)) {
         | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
-        };
+        };*/
       let (Info.{free, ty: ty_body, _}, m_body) =
         go'(~ctx=ctx_body, ~mode, body);
       /* Make sure types don't escape their scope */
-      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let ty_escape = Typ.subst(ty_def, ty_body);
       let m_typ = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp) |> snd;
       add(~self=Just(ty_escape), ~free, union_m([m_typat, m_body, m_typ]));
     | _ =>
@@ -435,6 +488,23 @@ and utyp_to_info_map =
         ts,
       );
     add(union_m(ms));
+  | Forall({term: Var(_), _} as utpat, tbody) =>
+    /* NOTE FROM ANDREW: probably want to add var to the body's ctx in this case? */
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected) |> snd;
+    let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
+    add(union_m([m, m_tpat])); // TODO: check with andrew
+  | Forall(utpat, tbody) =>
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected) |> snd;
+    let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
+    add(union_m([m, m_tpat])); // TODO: check with andrew
+  | Rec(utpat, tbody) =>
+    /* NOTE FROM ANDREW: probably want to add var to the body's ctx in this case? */
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected) |> snd;
+    let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
+    add(union_m([m, m_tpat])); // TODO: check with andrew
   | MultiHole(tms) =>
     let (_, ms) =
       tms |> List.map(any_to_info_map(~ctx, ~ancestors)) |> List.split;
