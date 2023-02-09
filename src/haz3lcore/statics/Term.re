@@ -596,35 +596,6 @@ module UExp = {
       | Tag(_) => false
       }
     );
-  //TODO(andrew): cleanup
-  /*let rec is_intro = (e: t) => {
-      switch (e.term) {
-      | Parens(e) => is_intro(e)
-      | Triv
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
-      | ListLit(_)
-      | Tuple(_)
-      | Cons(_)
-      | Ap(_)
-      | Fun(_)
-      | Tag(_) => true
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Let(_)
-      | TyAlias(_)
-      | Var(_)
-      | If(_)
-      | Seq(_)
-      | Test(_)
-      | UnOp(_)
-      | BinOp(_)
-      | Match(_) => false
-      };
-    };*/
 };
 
 // TODO(d): consider just folding this into UExp

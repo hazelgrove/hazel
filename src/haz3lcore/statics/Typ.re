@@ -59,11 +59,6 @@ let matched_list_mode: mode => mode =
 
 let ap_mode: mode = SynFun;
 
-let is_rec: t => bool =
-  fun
-  | Rec(_, _) => true
-  | _ => false;
-
 /* Legacy precedence code from HTyp */
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
@@ -185,7 +180,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
     resolve ? ty_join : Var(name);
-  /* Note: ordering of unknown, var, and rec is load-bearing */
+  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(x1, ty1), Rec(x2, ty2)) =>
     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
     Rec(x1, ty_body);
@@ -284,17 +279,14 @@ let sum_entry = (tag: Token.t, tags: sum_map): option(sum_entry) =>
     tags,
   );
 
-let get_sum_tags = (ctx: Ctx.t, ty_ana: t): option(sum_map) => {
-  let ty_ana = normalize_shallow(ctx, ty_ana);
-  switch (ty_ana) {
+let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let ty = normalize_shallow(ctx, ty);
+  switch (ty) {
   | Sum(sm) => Some(sm)
   | Rec(_) =>
-    /* Note: We unroll here to get right tag types; this is important
-       as if alias for the recursive sum type (say P) is no longer in
-       scope at the point of analysis, we don't want the tag to claim
-       to have type P -> something, so we need to replace the 'P' in
-       the tag's type with the Rec type by unrolling */
-    switch (unroll(ty_ana)) {
+    /* Note: We must unroll here to get right tag types;
+       otherwise the rec parameter will leak */
+    switch (unroll(ty)) {
     | Sum(sm) => Some(sm)
     | _ => None
     }
@@ -329,17 +321,3 @@ let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
   | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => ap_mode
   };
-
-//TODO(andrew): cleanup
-/*
- let mode_is_ana_rec = (m: mode, ctx): option(t) => {
-   switch (m) {
-   | Ana(ty) =>
-     switch (normalize(ctx, ty)) {
-     | Rec(_) as ty => Some(unroll(ty))
-     | _ => None
-     }
-   | _ => None
-   };
- };
- */

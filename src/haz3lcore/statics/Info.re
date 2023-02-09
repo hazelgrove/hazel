@@ -415,7 +415,6 @@ let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
 };
 
 /* Type of a tag in synthetic position */
-//TODO(andrew):ADTs cleanup move this
 let syn_tag_typ = (ctx: Ctx.t, tag: Token.t): option(Typ.t) =>
   switch (Ctx.lookup_tag(ctx, tag)) {
   | None => None
@@ -439,14 +438,6 @@ let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
     fun
     | FreeVar => None
     | Common(self) => typ_of_self_common(ctx, self);
-
-//TODO(andrew): cleanup
-/*
- let typ_of_self_pat: (Ctx.t, self_pat) => option(Typ.t) =
-   ctx =>
-     fun
-     | Common(self) => typ_of_self_common(ctx, self);
- */
 
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs */
