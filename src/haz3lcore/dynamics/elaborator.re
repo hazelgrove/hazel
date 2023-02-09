@@ -144,12 +144,12 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
 let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t =>
   switch (Info.status_exp(ctx, mode, self)) {
   | NotInHole(_) =>
-    switch (Statics.Info.typ_of_self_exp(ctx, self)) {
-    | None => d
-    | Some(self_ty) =>
-      let self_ty = Typ.normalize(ctx, self_ty);
-      cast(ctx, mode, self_ty, d);
-    }
+    let self_ty =
+      switch (Statics.Info.typ_of_self_exp(ctx, self)) {
+      | Some(self_ty) => Typ.normalize(ctx, self_ty)
+      | None => Unknown(Internal)
+      };
+    cast(ctx, mode, self_ty, d);
   | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
   };
 
