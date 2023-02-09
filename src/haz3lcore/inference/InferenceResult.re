@@ -13,14 +13,14 @@ type global_inference_info = {
   solution_statuses: type_hole_to_solution,
 };
 
-let empty_annotations = (): type_hole_to_solution => Hashtbl.create(20);
+let empty_solutions = (): type_hole_to_solution => Hashtbl.create(20);
 
 let mk_global_inference_info = (enabled, annotations) => {
   {enabled, solution_statuses: annotations};
 };
 
 let empty_info = (): global_inference_info =>
-  mk_global_inference_info(true, empty_annotations());
+  mk_global_inference_info(true, empty_solutions());
 
 let get_desired_solutions =
     (inference_results: list(t)): type_hole_to_solution => {

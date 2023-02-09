@@ -1,11 +1,15 @@
-// NOTE: Current formulation does not unify constraints comparing inconsistent constructors.
-//       Unifying these would cause EqClasses to be potentially considered invalid without any
-//       inconsistencies within them, which is a confusing result to represent to a user and may
-//       pollute other equivalence classes with unhelpful error statuses that static inference can
-//       already give better results on.
-//       We decide here that we will only draw inference results on holes and the things these holes
-//       are compared to through their neighborhood of implied consistencies as governed by attempted
-//       consistency checks in synthesis and analysis.
+/**
+ * NOTE:
+ * Current formulation does not unify constraints comparing inconsistent constructors.
+ * Unifying these would cause EqClasses to be potentially considered invalid without any
+ * inconsistencies within them, which is a confusing result to represent to a user and may
+ * pollute other equivalence classes with unhelpful error statuses that static inference can
+ * already give better results on.
+ * We decide here that we will only draw inference results on holes and the things these holes
+ * are compared to through their neighborhood of implied consistencies as governed by attempted
+ * consistency checks in synthesis and analysis.
+ */
+// A unification algorithm based on Hindley-Milner unification adjusted so it does not fail
 let rec unify = (eq_graph: EqGraph.t, constraints: ITyp.constraints): unit => {
   List.iter(unify_one(eq_graph), constraints);
 }

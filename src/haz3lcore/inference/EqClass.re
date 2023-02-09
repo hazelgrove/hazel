@@ -2,6 +2,16 @@ open Util;
 open OptUtil.Syntax;
 open Sexplib.Std;
 
+/**
+ * An EqClass.t is a condensed representation of a list of types.
+ * It can be a single type, or a composition of other EqClass.t
+ *
+ * We use EqClass to maintain all possible combinations of solutions during unification
+ * and properly report errors/solutions without combinatorial explosion.
+ * Inconsistent types and types failing an occurs check can be added to the same EqClass without issue,
+ * preventing unification from ever having to crash.
+ */
+
 [@deriving (show({with_path: false}), sexp)]
 type base_typ =
   | BUnit
@@ -131,7 +141,7 @@ let split_eq_typ: eq_typ => option((t, t)) =
   | Base(_) => None
   | Compound(_, eq_class1, eq_class2) => Some((eq_class1, eq_class2));
 
-// not currently in use
+// not currently in use but kept for utility
 let split_eq_class = (ctor_used: binary_ctor, eq_class: t) => {
   let split_result_of: eq_typ => split_result =
     fun

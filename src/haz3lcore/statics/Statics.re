@@ -810,17 +810,7 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   };
 };
 
-// Needs to populate editor.state sometimes...
-// Specifically, if we care about annotations
-// I think its only necessary from:
-//  Perform.go_z (called by someone (Perform.go) with an editor)
-//  ScratchMode.view (has editor)
-//  Cell.get_elab (has editor)
-//  ScratchSlide.spliced_elabs (has editor)
-//
-// Others from LangDoc, EditorUtil, SchoolMode, SchoolExercises
-// omitted due to lack of necessity (want only info_map, or color_map, only for validation, etc)
-let mk_map_and_annotations =
+let mk_map_and_inference_solutions =
   Core.Memo.general(
     ~cache_size_bound=1000,
     e => {
@@ -831,13 +821,12 @@ let mk_map_and_annotations =
       let global_inference_solutions =
         InferenceResult.get_desired_solutions(inference_results);
 
-      // InferenceResult.add_on_new_annotations(annotation_map);
-
       (info_map, global_inference_solutions);
     },
   );
+
 let mk_map = e => {
-  let (info_map, _) = mk_map_and_annotations(e);
+  let (info_map, _) = mk_map_and_inference_solutions(e);
   info_map;
 };
 

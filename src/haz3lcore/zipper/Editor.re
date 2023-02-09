@@ -55,7 +55,7 @@ module Meta = {
     let (term, _) = MakeTerm.go(unselected);
     // TODO Raef: add in flow for the enabled flag
     let (_, global_inference_solutions) =
-      Statics.mk_map_and_annotations(term);
+      Statics.mk_map_and_inference_solutions(term);
     let measured =
       Measured.of_segment(
         ~touched,
