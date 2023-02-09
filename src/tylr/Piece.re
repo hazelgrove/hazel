@@ -150,7 +150,12 @@ type dg =
   | Fill(Dir.t)
   | Pass(Dir.t);
 
-let degrout = (l: t, r: t): option(dg) =>
+type degrouted =
+  | Removed(Space.t, Space.t)
+  | Replaced(Space.t, t, Space.t)
+  | Passed;
+
+let degrout = (l: t, ~kid_l=?, ~kid_r=?, r: t): option(dg) =>
   switch (l.shape, r.shape) {
   | (T(_), T(_)) => None
   | (G(_), _) when mold(l) == mold(r) => Some(Fill(L))
@@ -163,12 +168,13 @@ let degrout = (l: t, r: t): option(dg) =>
   | (G(_), G(_))
       when Tip.fits(Mold.tip(L, mold(l)), Mold.tip(R, mold(r))) =>
     Some(Degrout)
-  | (G(_), _) =>
-    Tip.same_shape(Mold.tip(L, mold(l)), Mold.tip(L, mold(r)))
-      ? Some(Fill(L)) : None
-  | (_, G(_)) =>
-    Tip.same_shape(Mold.tip(R, mold(l)), Mold.tip(R, mold(r)))
-      ? Some(Fill(R)) : None
+  | (G(_), _)
+      when Tip.same_shape(Mold.tip(L, mold(l)), Mold.tip(L, mold(r))) =>
+    Some(Fill(L))
+  | (_, G(_))
+      when Tip.same_shape(Mold.tip(R, mold(l)), Mold.tip(R, mold(r))) =>
+    Some(Fill(R))
+  | _ => None
   };
 
 let cmp = (l: t, r: t): (Cmp.i_leg((Sort.o, Prec.t), Sort.Ana.t) as 'r) => {

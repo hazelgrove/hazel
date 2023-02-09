@@ -12,18 +12,18 @@ exception Disconnected(int);
 let melds: t => list(Meld.t) = Chain.links;
 let has_meld = seg => Option.is_some(Chain.unlink(seg));
 
-// let of_padded = (mel: Meld.Padded.t): t =>
-//   switch (Meld.Padded.is_empty(mel)) {
-//   | Some(s) => of_space(s)
-//   | None =>
-//     let (mel, (l, r)) = mel;
-//     Chain.mk([l, r], [mel]);
-//   };
-// let to_padded =
-//   fun
-//   | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
-//   | ([l, r], [mel]) => Some(Meld.Padded.mk(~l, ~r, mel))
-//   | _ => None;
+let of_padded = (mel: Meld.Padded.t): t =>
+  switch (Meld.Padded.is_empty(mel)) {
+  | Some(s) => of_space(s)
+  | None =>
+    let (mel, (l, r)) = mel;
+    Chain.mk([l, r], [mel]);
+  };
+let to_padded =
+  fun
+  | ([s], []) => Some(Meld.Padded.empty(~r=s, ()))
+  | ([l, r], [mel]) => Some(Meld.Padded.mk(~l, ~r, mel))
+  | _ => None;
 
 let zip_piece_l = (p_l, seg) =>
   switch (Chain.unlink(seg)) {

@@ -612,6 +612,103 @@ let merge_all = pcs => List.fold_right(merge, pcs, Padded.empty());
 let cmp_mold = (_: t, _: Mold.t): option(Cmp.t) =>
   failwith("todo cmp_mold");
 
+let merge_kids = (~expected: Sort.Ana.t, kids: list(t)) => {
+  let (s, padded) =
+    List.fold_right(
+      (kid, (s, padded)) =>
+        switch (is_empty(kid)) {
+        | Some(s') => (Space.cat(s', s), padded)
+        | None => (Space.empty, [pad(kid, ~r=s), ...padded])
+        },
+      kids,
+      (Space.empty, []),
+    );
+  switch (padded) {
+  | [] => Grout.mk_convex(expected.sort) |> of_grout |> pad(~l=s)
+  | [hd, ...tl] =>
+    let kids = [pad(~l=s, hd), ...tl];
+    let (sort_min, prec_min) =
+      kids
+      |> List.fold_left(
+           ((s, p), kid) => {
+             // safe gets bc we padded away empty melds above
+             let s = Sort.lca(s, sort(kid));
+             let p = Prec.min(p, prec(kid));
+             (s, p);
+           },
+           (Sort.root_o, Prec.max),
+         );
+    let kids = List.map(Option.some, kids);
+    let grout =
+      List.(
+        init(length(kids) - 1, _ => Grout.mk_concave(sort_min, prec_min))
+        |> map(Piece.of_grout)
+      );
+    mk(Chain.mk(kids, grout)) |> aggregate_paths;
+  };
+};
+
+let eq_merge = (l: t, ~kid=empty(), r: t): option(t) =>
+  switch (unknil(l), unlink(r)) {
+  | (Error(_), Ok(_))
+  | (Ok(_), Error(_)) => None
+  | (Error(l), Error(r)) =>
+    open OptUtil.Syntax;
+    let+ l = is_empty(l)
+    and+ r = is_empty(r)
+    and+ kid = is_empty(kid);
+    empty(~l, ~r=Space.cat(kid, r), ());
+  | (Ok((tl_l, p_l, kid_l)), Ok((kid_r, p_r, tl_r))) =>
+    open OptUtil.Syntax;
+    let get = OptUtil.get_or_raise(Invalid_argument("eq_merge"));
+    let (l, r) = (get(is_empty(kid_l)), get(is_empty(kid_r)));
+    let kid = pad(~l, kid, ~r);
+    switch (
+      is_empty(kid),
+      Piece.replaces(p_l, p_r),
+      Piece.passes(p_l, p_r),
+    ) {
+    | (Some(s), Some(L), _) => return(append(pad(tl_l, ~r=s), p_r, tl_r))
+    | (Some(s), Some(R), _) => return(append(tl_l, p_l, pad(~l=s, tl_r)))
+    | (Some(s), _, Some(L)) => eq_merge(pad(tl_l, ~r=s), p_r, tl_r)
+    | (Some(s), _, Some(R)) => eq_merge(tl_l, p_l, pad(~l=s, tl_r))
+    | _ =>
+      let+ compl = Piece.eq(p_l, p_r);
+      let (hd_r, tl_r) =
+        List.fold_right(
+          ((sugg, mold), (p, tl)) =>
+            switch (Mold.tip(R, mold)) {
+            | Convex => raise(Invalid_prec)
+            | Concave(s, _) =>
+              let kid = Some(of_grout(Grout.mk_convex(s)));
+              let g = Piece.of_grout(Grout.mk(~sugg, mold));
+              (g, link(~kid, p, tl));
+            },
+          compl,
+          (p_r, tl_r),
+        );
+      append(tl_l, p_l, link(~kid=Some(kid), hd_r, tl_r));
+    };
+  };
+// let eq_merge = (l: t, ~kid=empty(), r: t): option(t) => {
+//   let (l, r) = (trim(l), trim(r));
+//   switch (unknil(l), unlink(r)) {
+//   | (Error(_), Ok(_))
+//   | (Ok(_), Error(_)) => None
+//   | (Error(l), Error(r)) =>
+//     let+ l = is_empty(l)
+//     and+ r = is_empty(r)
+//     and+ kid = is_empty(kid);
+//     empty(~l, ~r=Space.cat(kid, r), ());
+//   | (Ok((tl_l, p_l, kid_l)), Ok((kid_r, p_r, tl_r))) =>
+//     switch (Piece.eq(p_l, p_r)) {
+//     |
+//     }
+
+//     failwith("todo")
+//   };
+// };
+
 let cmp_merge = (l: t, ~kid=Padded.empty(), r: t): Cmp.s(Padded.t) =>
   // todo: incorporate sort info produced by cmp
   switch (cmp(l, r)) {
@@ -623,3 +720,75 @@ let cmp_merge = (l: t, ~kid=Padded.empty(), r: t): Cmp.s(Padded.t) =>
   | Eq(_) => Eq(merge_all([Padded.mk(l), kid, Padded.mk(r)]))
   | Gt(_) => Gt(merge(Padded.mk(l), kid))
   };
+
+// let eq_merge_r = (l: t, ~kid=empty(), r: Piece.t): option(t) => {
+//   let get = OptUtil.get_or_raise(Invalid_argument("Meld.eq_merge_r"));
+//   switch (unknil(l)) {
+//   | Error(l) =>
+//     let s_kid = get(is_empty(kid));
+//     let l = pad(l, ~r=s_kid);
+//     Some(of_piece(~l, r));
+//   | Ok((tl_l, {shape: G(_), _} as p_l, kid_l)) when
+//       Piece.(mold(p_l) == mold(r)) =>
+//     let tl_l = pad(tl_l, ~r=get(is_empty(kid_l)));
+//     Some(knil(tl_l, r));
+//   | Ok((tl_l))
+//   | _ =>
+//     failwith("todo")
+//   };
+// };
+
+// let eq_merge = (l: t, ~kid=empty(), r: t): option(t) => {
+//   let get = OptUtil.get_or_raise(Invalid_argument("Meld.cmp_merge"));
+//   switch (unknil(l), unlink(r)) {
+//   | (Error(l), Error(r)) =>
+//     let l = get(is_empty(l));
+//     let r = get(is_empty(r));
+//     Some(empty(~l, ~r, ()));
+//   | (Error(l), Ok(_)) =>
+//     let l = get(is_empty(l));
+//     Lt(pad(~l, kid));
+//   }
+// };
+
+let rec cmp_merge = (l: t, ~kid=empty(), r: t): Cmp.s(t) => {
+  let get = OptUtil.get_or_raise(Orphaned_kid);
+  switch (unknil(l), unlink(r)) {
+  | (Error(l), Error(r)) =>
+    let l = get(is_empty(l));
+    let r = Space.cat(get(is_empty(kid)), get(is_empty(r)));
+    Eq(empty(~l, ~r, ()));
+  | (Error(l), Ok(_)) =>
+    let l = get(is_empty(l));
+    Lt(pad(~l, kid));
+  | (Ok(_), Error(r)) =>
+    let r = get(is_empty(l));
+    Gt(pad(kid, ~r));
+  | (Ok((tl_l, p_l, kid_l)), Ok((kid_r, p_r, tl_r))) =>
+    let kid = pad(~l=get(is_empty(kid_l)), kid, ~r=get(is_empty(kid_r)));
+    switch (eq_merge((tl_l, p_l), ~kid, (p_r, tl_r))) {
+    | Some(mel) => Eq(mel)
+    | None =>
+      Piece.lt(p_l, p_r)
+        ? Lt(link(~kid=Some(kid), p_r, tl_r))
+        : Gt(knil(tl_l, p_l, ~kid=Some(kid)))
+    };
+  };
+}
+and eq_merge = (l: t, ~kid=empty(), r: t): option(t) => {
+  let get = OptUtil.get_or_raise(Invalid_argument("Meld.cmp_merge"));
+  switch (unknil(l), unlink(r)) {
+  | (Error(l), Error(r)) =>
+    let l = get(is_empty(l));
+    let r = get(is_empty(r));
+    ();
+  };
+};
+
+let cmp_merge = (l: t, ~kid=empty(), r: t): Cmp.s(t) => {
+  let get = OptUtil.get_or_raise(Invalid_argument("Meld.cmp_merge"));
+  let (tl_l, hd_l, s_l) = get(is_closed_r(l));
+  let (s_r, hd_r, tl_r) = get(is_closed_l(r));
+  let kid = pad(~l=s_l, ~r=s_r, kid);
+  ();
+};
