@@ -76,27 +76,26 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
   | Ana(ana_ty) =>
-    /* Normalize types */
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
     | Cons(_) =>
       switch (ana_ty) {
-      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), ana_ty)
+      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
       | _ => d
       }
     | Fun(_) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty)
+        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
       | _ => d
       }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DHExp.cast(d, Prod(us), ana_ty);
+        DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
     | Ap(Tag(_), _)
@@ -142,22 +141,20 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
-  /* Normalize types */
-  switch (Statics.Info.typ_of_self_exp(ctx, self)) {
-  | None => d
-  | Some(self_ty) =>
-    let self_ty = Typ.normalize(ctx, self_ty);
-    switch (Info.status_exp(ctx, mode, self)) {
-    | NotInHole(_) => cast(ctx, mode, self_ty, d)
-    | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
-    };
+let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t =>
+  switch (Info.status_exp(ctx, mode, self)) {
+  | NotInHole(_) =>
+    switch (Statics.Info.typ_of_self_exp(ctx, self)) {
+    | None => d
+    | Some(self_ty) =>
+      let self_ty = Typ.normalize(ctx, self_ty);
+      cast(ctx, mode, self_ty, d);
+    }
+  | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
   };
-};
 
 let rec dhexp_of_uexp =
         (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
-  /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
@@ -188,18 +185,8 @@ let rec dhexp_of_uexp =
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
       | Tuple(es) =>
-        let+ ds =
-          List.fold_right(
-            (e, ds_opt) => {
-              let* ds = ds_opt;
-              let+ d = dhexp_of_uexp(m, e);
-              [d, ...ds];
-            },
-            es,
-            Some([]),
-          );
+        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
-      | Tag(name) => Some(Tag(name))
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
@@ -224,6 +211,11 @@ let rec dhexp_of_uexp =
         switch (err_status) {
         | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
+        }
+      | Tag(name) =>
+        switch (err_status) {
+        | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
+        | _ => Some(Tag(name))
         }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -337,30 +329,19 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       let* ty = fixed_pat_typ(m, upat);
-      let ty = Typ.matched_list(ty);
-      wrap(ListLit(ty, ds));
-    | Tag(name) => wrap(Tag(name))
+      wrap(ListLit(Typ.matched_list(ty), ds));
+    | Tag(name) =>
+      switch (err_status) {
+      | InHole(Common(FreeTag)) => Some(BadTag(u, 0, name))
+      | _ => wrap(Tag(name))
+      }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
     | Tuple(ps) =>
-      let dps =
-        List.fold_right(
-          (p, dps_opt) => {
-            switch (dps_opt) {
-            | None => None
-            | Some(dps) =>
-              switch (dhpat_of_upat(m, p)) {
-              | None => None
-              | Some(dp) => Some([dp, ...dps])
-              }
-            }
-          },
-          ps,
-          Some([]),
-        );
-      dps |> Option.map(ds => DHPat.Tuple(ds));
+      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
+      wrap(DHPat.Tuple(ds));
     | Var(name) => Some(Var(name))
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>
