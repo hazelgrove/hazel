@@ -17,7 +17,6 @@
    without correponding syntax classes */
 
 include TermBase.Any;
-
 type any = t;
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -36,7 +35,9 @@ module UTyp = {
     | Var
     | Constructor
     | Parens
-    | Ap;
+    | Ap
+    | Forall
+    | Rec;
 
   include TermBase.UTyp;
 
@@ -67,7 +68,9 @@ module UTyp = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | Sum(_) => Sum;
+    | Sum(_) => Sum
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
 
   let show_cls: cls => string =
     fun
@@ -85,7 +88,9 @@ module UTyp = {
     | Tuple => "Product type"
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
-    | Ap => "Constructor application";
+    | Ap => "Constructor application"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -103,7 +108,30 @@ module UTyp = {
     | Var(_)
     | Constructor(_)
     | Ap(_)
-    | Sum(_) => false
+    | Sum(_)
+    | Forall(_)
+    | Rec(_) => false
+    };
+    
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow(_)
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Constructor(_)
+    | Ap(_)
+    | Sum(_)
+    | Rec(_) => false
     };
   };
 
@@ -128,6 +156,15 @@ module UTyp = {
       | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
+      | Forall({term: Var(name), _} as utpat, tbody) =>
+        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
+        Forall({item: to_typ(ctx, tbody), name});
+      | Forall(_, tbody) => to_typ(ctx, tbody)
+      // Forall is same as Rec
+      | Rec({term: Var(name), _} as utpat, tbody) =>
+        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
+        Rec({item: to_typ(ctx, tbody), name});
+      | Rec(_, tbody) => to_typ(ctx, tbody)
       /* The below cases should occur only inside sums */
       | Constructor(_)
       | Ap(_) => Unknown(Internal)
@@ -353,7 +390,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -431,11 +468,13 @@ module UExp = {
     | ListLit
     | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
     | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -470,11 +509,13 @@ module UExp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -548,7 +589,7 @@ module UExp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | Triv => "Trivial litera"
+    | Triv => "Trivial literal"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -556,11 +597,13 @@ module UExp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | TypAp => "Type Application"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -573,7 +616,8 @@ module UExp = {
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e)
+    | TypFun(_, e) => is_fun(e)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
@@ -589,6 +633,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -617,10 +662,12 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | If(_)
       | Seq(_)
       | Test(_)

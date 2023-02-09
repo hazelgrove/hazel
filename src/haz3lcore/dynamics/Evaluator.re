@@ -23,6 +23,11 @@ let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
 
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+// TODO (typfun): Maybe the Forall should allow a hole in the variable position?
+let grounded_Forall =
+  NotGroundOrHole(
+    Forall({item: Unknown(Internal), name: "grounded_forall"}),
+  );
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
@@ -61,6 +66,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Sum(sm) =>
     sm |> ConstructorMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
   | Arrow(_, _) => grounded_Arrow
+  | Forall(_) => grounded_Forall
   | List(_) => grounded_List
   };
 };
@@ -177,8 +183,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | None => DoesNotMatch
     }
 
-  | (Ap(_, _), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_)))
-  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+  | (Ap(_, _), Cast(d, Sum(_) | Rec({item: Sum(_), _}), Unknown(_)))
+  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec({item: Sum(_), _}))) =>
     matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
@@ -285,7 +291,11 @@ and matches_cast_Sum =
       matches(dp, DHExp.apply_casts(d', side_casts))
     | _ => DoesNotMatch
     }
-  | Cast(d', Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))) =>
+  | Cast(
+      d',
+      Sum(sm1) | Rec({item: Sum(sm1), _}),
+      Sum(sm2) | Rec({item: Sum(sm2), _}),
+    ) =>
     switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
@@ -298,6 +308,7 @@ and matches_cast_Sum =
   | InvalidText(_)
   | Let(_)
   | Ap(_)
+  | TypAp(_)
   | ApBuiltin(_)
   | BinBoolOp(_)
   | BinIntOp(_)
@@ -312,6 +323,7 @@ and matches_cast_Sum =
   | BoundVar(_)
   | FixF(_)
   | Fun(_)
+  | TypFun(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -389,7 +401,9 @@ and matches_cast_Tuple =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
+  | Closure(_, Fun(_) | TypFun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -526,6 +540,8 @@ and matches_cast_Cons =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -672,6 +688,15 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       evaluate(env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
+    | TypFun(_) => BoxedValue(Closure(env, d)) |> return
+
+    | TypAp(d1, _ty) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>
+        evaluate(closure_env, d3)
+      | _ => failwith("InvalidBoxedTypFun")
+      };
 
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -978,7 +1003,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
        lambda closures are BoxedValues; other closures are all Indet. */
     | Closure(_, d') =>
       switch (d') {
-      | Fun(_) => BoxedValue(d) |> return
+      | Fun(_)
+      | TypFun(_) => BoxedValue(d) |> return
       | _ => Indet(d) |> return
       }
 
@@ -1023,7 +1049,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           switch (d1') {
           | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
+            if (Typ.eq_syntactic(ty'', ty')) {
               BoxedValue(d1'') |> return;
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
@@ -1045,7 +1071,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           BoxedValue(Cast(d1', ty, ty')) |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
+          if (Typ.eq_syntactic(ty, ty')) {
             result |> return;
           } else {
             BoxedValue(Cast(d1', ty, ty')) |> return;
@@ -1063,7 +1089,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | (Hole, Ground) =>
           switch (d1') {
           | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
+            if (Typ.eq_syntactic(ty'', ty')) {
               Indet(d1'') |> return;
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
@@ -1085,7 +1111,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           Indet(Cast(d1', ty, ty')) |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* it might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
+          if (Typ.eq_syntactic(ty, ty')) {
             result |> return;
           } else {
             Indet(Cast(d1', ty, ty')) |> return;

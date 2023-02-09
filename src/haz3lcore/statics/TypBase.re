@@ -33,6 +33,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | Forall(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -52,6 +53,7 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: t => (t, t);
+  let matched_forall: t => t;
   let matched_prod: (int, t) => list(t);
   let matched_cons: t => (t, t);
   let matched_list: t => t;
@@ -91,6 +93,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | Forall(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -128,6 +131,12 @@ module rec Typ: {
     | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
     | _ => (Unknown(Internal), Unknown(Internal));
 
+  let matched_forall: t => (TypVar.t, t) =
+    fun
+    | Forall(t, ty) => (t, ty)
+    | Unknown(prov) => ("matched_forall", Unknown(prov))
+    | _ => ("matched_forall", Unknown(Internal)); /* TODO: Might need to be fresh? */
+  
   let matched_prod: (int, t) => list(t) =
     length =>
       fun
@@ -156,6 +165,7 @@ module rec Typ: {
     | Unknown(_)
     | Var(_)
     | Rec(_)
+    | Forall(_)
     | Sum(_) => precedence_Sum
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
@@ -174,6 +184,8 @@ module rec Typ: {
     | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
+    | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
+    | Forall(y, ty) => Forall(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
     };
@@ -191,6 +203,8 @@ module rec Typ: {
     switch (t1, t2) {
     | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
     | (Rec(_), _) => false
+    | (Forall(x1, t1), Forall(x2, t2)) => eq(t1, subst(Var(x1), x2, t2)) /* TODO: correct? */
+    | (Forall(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true
@@ -234,6 +248,8 @@ module rec Typ: {
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Forall({item: inside, name: n}) => [] /* free_vars(~bound=[x, ...bound], ty) */ 
+      /* TODO: unclear how to finish this until Typ is fully rebased. */
     };
 
   /* Lattice join on types. This is a LUB join in the hazel2
@@ -281,7 +297,14 @@ module rec Typ: {
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Rec(x1, ty_body);
+    | (Forall({item: t1, name}), Forall({item: t2, _})) =>
+      /* See note above in Rec case */
+      switch (join(Ctx.add_abstract(ctx, name, -1), t1, t2)) {
+      | Some(t) => Some(Forall({item: t, name}))
+      | None => None
+      }
     | (Rec(_), _) => None
+    | (Forall(_), _) => None
     | (Int, Int) => Some(Int)
     | (Int, _) => None
     | (Float, Float) => Some(Float)
@@ -381,6 +404,8 @@ module rec Typ: {
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | Forall(name, ty) =>
+      Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
     };
   };
 
@@ -413,6 +438,7 @@ module rec Typ: {
     | _ => false
     };
 }
+
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -606,4 +632,35 @@ and Kind: {
   type t =
     | Singleton(Typ.t)
     | Abstract;
+
+/* Is not needed as not using debrujin indices */
+/*
+  let rec incr = (ty: t, i: int): t => {
+    switch (ty) {
+    | Var({item: Some(j), name}) => Var({item: Some(i + j), name})
+    | Var(_) => ty
+    | List(ty) => List(incr(ty, i))
+    | Arrow(ty1, ty2) => Arrow(incr(ty1, i), incr(ty2, i))
+    | Sum(map) =>
+      Sum(
+        VarMap.map(
+          ((_, ty)) =>
+            switch (ty) {
+            | Some(ty) => Some(incr(ty, i))
+            | None => None
+            },
+          map,
+        ),
+      )
+    | Prod(tys) => Prod(List.map(ty => incr(ty, i), tys))
+    | Rec({item, name}) => Rec({item: incr(item, i), name})
+    | Forall({item, name}) => Forall({item: incr(item, i), name})
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | Unknown(_) => ty
+    };
+*/
+
 };

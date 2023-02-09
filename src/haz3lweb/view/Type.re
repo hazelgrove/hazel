@@ -33,11 +33,16 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
-  | Var(name) => ty_view("Var", name)
-  | Rec(x, t) =>
+  | Var({name, _}) => ty_view("Var", name)
+  | Rec({item: t, name}) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("Rec " ++ x ++ ". "), view_ty(t)],
+      [text("Rec " ++ name ++ ". "), view_ty(t)],
+    )
+  | Forall({item: t, name}) =>
+    div(
+      ~attr=clss(["typ-view", "Forall"]),
+      [text("Forall " ++ name ++ ". "), view_ty(t)],
     )
   | List(t) =>
     div(
