@@ -145,7 +145,7 @@ let top_bar_view =
               file => {
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
-                | Some(file) => inject(LoadReplay(file))
+                | Some(file) => inject(ReplayAction(LoadReplay(file)))
                 }
               },
               ~tooltip="Replay Submission",

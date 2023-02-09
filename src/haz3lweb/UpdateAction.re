@@ -43,13 +43,7 @@ type t =
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | LoadReplay([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-  | EnableReplay(option(string))
-  | ForwardReplay
-  | BackwardReplay
-  | TogglePlayReplay
-  | StepReplay
-  | DisableReplay;
+  | ReplayAction(ReplayAction.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

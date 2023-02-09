@@ -40,24 +40,24 @@ let view = (~inject, replay: Replay.t) => {
         [
           button_d(
             Icons.undo,
-            inject(UpdateAction.BackwardReplay),
+            inject(UpdateAction.ReplayAction(BackwardReplay)),
             ~disabled=!Replay.can_backward(replay),
             ~tooltip="Step Backward",
           ),
           button_d(
             Icons.redo,
-            inject(ForwardReplay),
+            inject(ReplayAction(ForwardReplay)),
             ~disabled=!Replay.can_forward(replay),
             ~tooltip="Step Forward",
           ),
           button(
             replay.is_playing ? Icons.eye : Icons.circle_question,
-            _ => inject(TogglePlayReplay),
+            _ => inject(ReplayAction(TogglePlayReplay)),
             ~tooltip="Toggle Play",
           ),
           button(
             text("X"),
-            _ => inject(DisableReplay),
+            _ => inject(ReplayAction(DisableReplay)),
             ~tooltip="End Replay",
           ),
         ],
