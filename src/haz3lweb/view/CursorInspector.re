@@ -244,7 +244,7 @@ let inspector_view =
     (
       ~inject,
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~show_lang_doc: bool,
       id: int,
       ci: Haz3lcore.Statics.t,

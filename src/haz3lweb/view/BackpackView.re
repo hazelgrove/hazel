@@ -15,7 +15,7 @@ let backpack_sel_view =
     Code.Text({
       let map = Measured.of_segment(content);
       let global_inference_info = global_inference_info;
-      let settings = Model.settings_init;
+      let settings = ModelSettings.init;
     });
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(

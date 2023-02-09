@@ -75,7 +75,7 @@ module Text =
          M: {
            let map: Measured.t;
            let global_inference_info: InferenceResult.global_inference_info;
-           let settings: Model.settings;
+           let settings: ModelSettings.t;
          },
        ) => {
   let m = p => Measured.find_p(p, M.map);
@@ -163,7 +163,7 @@ let rec holes =
      );
 
 let simple_view =
-    (~unselected, ~map, ~global_inference_info, ~settings: Model.settings)
+    (~unselected, ~map, ~global_inference_info, ~settings: ModelSettings.t)
     : Node.t => {
   module Text =
     Text({
@@ -189,7 +189,7 @@ let view =
       ~unselected,
       ~measured,
       ~global_inference_info,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
     )
     : Node.t => {
   module Text =
