@@ -349,18 +349,10 @@ let rec eq = (t1, t2) =>
   | (Var(_), _) => false
   };
 
-let prov_to_string: type_provenance => string =
-  fun
-  | Inference(_)
-  | Internal(_)
-  | Anonymous => ""
-  | TypeHole(_) => "𝜏"
-  | SynSwitch(_) => "⇒";
-
 let rec typ_to_string = (ty: t): string =>
   //TODO: parens on ops when ambiguous
   switch (ty) {
-  | Unknown(prov) => "?" ++ prov_to_string(prov)
+  | Unknown(_) => "?"
   | Int => "Int"
   | Float => "Float"
   | String => "String"
