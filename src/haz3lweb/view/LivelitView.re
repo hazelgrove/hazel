@@ -68,20 +68,22 @@ let view =
     [
       Node.input(
         ~attr=
-          Attr.many([
-            Attr.create("type", "checkbox"),
-            livelit_style(font_metrics, 1),
-            checkbox_state ? Attr.checked : Attr.create("foo", "bar"),
-            Attr.on_change((_evt, _str) => {
-              inject(
-                UpdateAction.LivelitStateChange(
-                  tile_id,
-                  BoolLit(!checkbox_state),
-                ),
-              )
-            }),
-            stop_mousedown_propagation,
-          ]),
+          Attr.many(
+            [
+              Attr.create("type", "checkbox"),
+              livelit_style(font_metrics, 1),
+              Attr.on_change((_evt, _str) => {
+                inject(
+                  UpdateAction.LivelitStateChange(
+                    tile_id,
+                    BoolLit(!checkbox_state),
+                  ),
+                )
+              }),
+              stop_mousedown_propagation,
+            ]
+            @ (checkbox_state ? [Attr.checked] : []),
+          ),
         (),
       ),
     ];
