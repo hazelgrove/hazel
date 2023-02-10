@@ -1921,3 +1921,8 @@ svg.expandable path {
 .replay-control .other-update {
   font-weight: normal;
 }
+
+.replay-control .help-text {
+  padding: 0.5em;
+  font-style: italic;
+}
