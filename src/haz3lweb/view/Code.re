@@ -14,7 +14,7 @@ let of_delim' =
         i,
         inject,
         livelit_state: Id.Map.t(DHExp.t),
-        _font_metrics: FontMetrics.t,
+        font_metrics: FontMetrics.t,
         tile_id: Id.t,
       ),
     ) => {
@@ -27,9 +27,6 @@ let of_delim' =
     | _ when !is_complete => "delim-incomplete"
     | _ => "delim"
     };
-  // TODO FontMetrics
-  let font_height = 10.0;
-  let font_width = 10.0;
 
   let stop_mousedown_propagation =
     Attr.on_mousedown(evt => {
@@ -44,13 +41,12 @@ let of_delim' =
           ~attr=
             Attr.many([
               Attr.create("type", "range"),
-              Attr.create("vertical-align", "middle"),
               Attr.create(
                 "style",
                 Printf.sprintf(
-                  "width: %fpx; height: %fpx;",
-                  10.0 *. font_width,
-                  font_height,
+                  "width: %fpx; height: %fpx; margin: 0; vertical-align: bottom",
+                  10.0 *. font_metrics.col_width,
+                  font_metrics.row_height,
                 ),
               ),
               Attr.create(
@@ -104,9 +100,9 @@ let of_delim' =
               Attr.create(
                 "style",
                 Printf.sprintf(
-                  "width: %fpx; height: %fpx; margin: 0",
-                  1.0 *. font_width,
-                  font_height,
+                  "width: %fpx; height: %fpx; margin: 0; vertical-align: bottom",
+                  1.0 *. font_metrics.col_width,
+                  font_metrics.row_height,
                 ),
               ),
               checkbox_state ? Attr.checked : Attr.create("foo", "bar"),
