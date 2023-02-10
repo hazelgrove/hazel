@@ -26,7 +26,6 @@ let view_log_entries = (replay: Replay.t) => {
       };
     div(~attr=clss([cur_clss]), [element]);
   };
-  // Ideally, we want to view
   let viewable_indices = {
     // Try to view 10 actions on either side (past/future) of current one
     let k = 10;
