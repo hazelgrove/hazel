@@ -6,6 +6,16 @@ let stop_mousedown_propagation =
     Js_of_ocaml.Dom_html.stopPropagation(evt);
     Virtual_dom.Vdom.Effect.Ignore;
   });
+
+let livelit_style = (font_metrics: FontMetrics.t, livelit_width: int) =>
+  Attr.create(
+    "style",
+    Printf.sprintf(
+      "width: %fpx; height: %fpx; margin: 0; vertical-align: bottom",
+      float_of_int(livelit_width) *. font_metrics.col_width,
+      font_metrics.row_height,
+    ),
+  );
 let view =
     (
       font_metrics: FontMetrics.t,
@@ -13,21 +23,14 @@ let view =
       name,
       livelit_state: Id.Map.t(DHExp.t),
       tile_id,
-    ) =>
+    ) => {
   switch (name) {
   | "^slider" => [
       Node.input(
         ~attr=
           Attr.many([
             Attr.create("type", "range"),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "width: %fpx; height: %fpx; margin: 0; vertical-align: bottom",
-                10.0 *. font_metrics.col_width,
-                font_metrics.row_height,
-              ),
-            ),
+            livelit_style(font_metrics, 10),
             Attr.create(
               "value",
               string_of_int(
@@ -61,28 +64,22 @@ let view =
       | Some(BoolLit(b)) => b
       | _ => false
       };
-    let checkbox_callback: Attr.t =
-      Attr.on_change((_evt, _str) => {
-        inject(
-          UpdateAction.LivelitStateChange(tile_id, BoolLit(!checkbox_state)),
-        )
-      });
 
     [
       Node.input(
         ~attr=
           Attr.many([
             Attr.create("type", "checkbox"),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "width: %fpx; height: %fpx; margin: 0; vertical-align: bottom",
-                1.0 *. font_metrics.col_width,
-                font_metrics.row_height,
-              ),
-            ),
+            livelit_style(font_metrics, 1),
             checkbox_state ? Attr.checked : Attr.create("foo", "bar"),
-            checkbox_callback,
+            Attr.on_change((_evt, _str) => {
+              inject(
+                UpdateAction.LivelitStateChange(
+                  tile_id,
+                  BoolLit(!checkbox_state),
+                ),
+              )
+            }),
             stop_mousedown_propagation,
           ]),
         (),
@@ -90,3 +87,4 @@ let view =
     ];
   | _ => []
   };
+};
