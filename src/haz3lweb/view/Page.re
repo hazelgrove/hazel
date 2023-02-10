@@ -118,15 +118,21 @@ let top_bar_view =
               _ =>
               inject(Set(Benchmark))
             ),
-            button(
+            submenu(
               Icons.export,
-              _ => {
-                download_editor_state(
-                  ~instructor_mode=model.settings.instructor_mode,
-                );
-                Virtual_dom.Vdom.Effect.Ignore;
-              },
-              ~tooltip="Export Submission",
+              [
+                text_button(
+                  "Export Submission",
+                  _ => {
+                    download_editor_state(
+                      ~instructor_mode=model.settings.instructor_mode,
+                    );
+                    Virtual_dom.Vdom.Effect.Ignore;
+                  },
+                  ~tooltip="Export Submission",
+                ),
+              ],
+              ~tooltip="Export",
             ),
             file_select_button(
               "import-submission",
