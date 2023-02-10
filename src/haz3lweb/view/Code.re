@@ -29,6 +29,11 @@ let of_delim' =
   // TODO FontMetrics
   let font_height = 10.0;
   let font_width = 10.0;
+  let stop_mousedown_propagation =
+    Attr.on_mousedown(evt => {
+      Js_of_ocaml.Dom_html.stopPropagation(evt);
+      Virtual_dom.Vdom.Effect.Ignore;
+    });
 
   let livelit_node: list(t) =
     switch (label) {
@@ -67,6 +72,7 @@ let of_delim' =
                     Virtual_dom.Vdom.Effect.t(unit)
                 )
               ),
+              stop_mousedown_propagation,
             ]),
           (),
         ),
@@ -102,6 +108,7 @@ let of_delim' =
               ),
               checkbox_state ? Attr.checked : Attr.create("foo", "bar"),
               checkbox_callback,
+              stop_mousedown_propagation,
             ]),
           (),
         ),
