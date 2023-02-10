@@ -77,18 +77,18 @@ let view = (~inject, replay: Replay.t) => {
       div(
         ~attr=clss(["help-text"]),
         /*
-        There are a number of tricky-to-resolve issues with replay functionality.
+         There are a number of tricky-to-resolve issues with replay functionality.
 
-        (1) Replay initial state may differ from current state, which will cause
-        a divergence in the replay. We currently don't track initial state in the log,
-        so this is hard to resolve. Notably, this can mean a replay may occur in a different
-        slide than the one that the user is currently viewing.
+         (1) Replay initial state may differ from current state, which will cause
+         a divergence in the replay. We currently don't track initial state in the log,
+         so this is hard to resolve. Notably, this can mean a replay may occur in a different
+         slide than the one that the user is currently viewing.
 
-        (2) User actions during a replay may cause inconsistency in the replay by diverging
-        the current state from the replayed state. Worse, the replay Undo function hooks into
-        the underlying Undo functionality, so in the presence of user actions, an Undo may
-        incorrectly scroll the replay back an action while undoing a user action.
-        */
+         (2) User actions during a replay may cause inconsistency in the replay by diverging
+         the current state from the replayed state. Worse, the replay Undo function hooks into
+         the underlying Undo functionality, so in the presence of user actions, an Undo may
+         incorrectly scroll the replay back an action while undoing a user action.
+         */
         [text("Warning: Replay viewer in development")],
       ),
     ],
