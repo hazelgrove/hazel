@@ -24,9 +24,7 @@ module Map = {
 let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
 
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
-  ids
-  |> List.map(id => Id.Map.singleton(id, info))
-  |> List.fold_left(Id.Map.disj_union, m);
+  ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: UPat.t, pat_ctx: Ctx.t, def: UExp.t): Ctx.t =>
