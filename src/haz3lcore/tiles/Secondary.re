@@ -8,11 +8,7 @@ and secondary_content =
   | Whitespace(string)
   | Comment(string);
 
-let space = " ";
-let linebreak = "⏎"; //alternative: "¶"
-let comment = Re.Str.regexp("^#[^#]*#$");
-
-let mk_space = id => {content: Whitespace(space), id};
+let mk_space = id => {content: Whitespace(Form.space), id};
 
 let construct_comment = content =>
   if (String.equal(content, "#")) {
@@ -24,14 +20,14 @@ let construct_comment = content =>
 let is_space: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == space
+    | Whitespace(s) => s == Form.space
     | _ => false
     };
 
 let is_linebreak: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == linebreak
+    | Whitespace(s) => s == Form.linebreak
     | _ => false
     };
 

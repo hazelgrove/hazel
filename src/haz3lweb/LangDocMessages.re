@@ -94,8 +94,8 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
-let linebreak = () => Example.mk_secondary(Secondary.linebreak);
-let space = () => Example.mk_secondary(Secondary.space);
+let linebreak = () => Example.mk_secondary(Form.linebreak);
+let space = () => Example.mk_secondary(Form.space);
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
