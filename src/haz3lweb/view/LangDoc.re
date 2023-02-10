@@ -2159,19 +2159,6 @@ let get_doc =
           ),
           [],
         );
-      // | LivelitDef(_livelit_def) =>
-      //   let (doc, options) =
-      //     LangDocMessages.get_form_and_options(
-      //       LangDocMessages.livelit_def_exp_group,
-      //       docs,
-      //     );
-      //   get_message(
-      //     doc,
-      //     options,
-      //     LangDocMessages.livelit_def_exp_group,
-      //     doc.explanation.message,
-      //     [],
-      //   );
       | LivelitAp(_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(

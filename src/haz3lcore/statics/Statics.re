@@ -459,7 +459,7 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
-  | LivelitAp({livelit_name, width: _}) =>
+  | LivelitAp({livelit_name}) =>
     switch (Livelit.find_livelit(livelit_name)) {
     | Some(ll) => atomic(Just(ll.expansion_type))
     | None => atomic(Just(Unknown(TypeHole)))

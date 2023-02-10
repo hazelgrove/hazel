@@ -278,7 +278,7 @@ let rec dhexp_of_uexp =
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
-      | LivelitAp({livelit_name, width: _}) =>
+      | LivelitAp({livelit_name}) =>
         let id = Term.UExp.rep_id(uexp);
         switch (Id.Map.find_opt(id, livelit_state)) {
         | Some(t) => Some(t)

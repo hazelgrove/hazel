@@ -159,8 +159,7 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    let foo = Aba.mk(t.shards, children_and_sorts);
-    foo
+    Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(
            t.mold.out,

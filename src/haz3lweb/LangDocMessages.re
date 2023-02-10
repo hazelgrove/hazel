@@ -3216,11 +3216,7 @@ let get_group = (group_id, doc: t) => {
 };
 
 let get_form_and_options = (group_id, doc: t) => {
-  print_endline(group_id);
   let form_group = get_group(group_id, doc);
-  print_endline(
-    Printf.sprintf("%s : %s", group_id, show_form_group(form_group)),
-  );
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
   let form = List.find(({id, _}) => id == selected_id, doc.forms);

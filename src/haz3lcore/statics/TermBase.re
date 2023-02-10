@@ -109,7 +109,6 @@ and UExp: {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match
-    // | LivelitDef
     | LivelitAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -138,11 +137,7 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    // | LivelitDef(livelit_record)
-    | LivelitAp({
-        livelit_name: string,
-        width: int,
-      })
+    | LivelitAp({livelit_name: string})
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -224,7 +219,6 @@ and UExp: {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match
-    // | LivelitDef
     | LivelitAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -253,11 +247,7 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    // | LivelitDef(livelit_record)
-    | LivelitAp({
-        livelit_name: string,
-        width: int,
-      })
+    | LivelitAp({livelit_name: string})
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
