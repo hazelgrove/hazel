@@ -1893,7 +1893,6 @@ svg.expandable path {
   justify-content: center;
   align-items: center;
   width: 100%;
-  background: #7f7149;
   flex-direction: row;
   padding: 0.5em 0em;
 }
@@ -1910,14 +1909,20 @@ svg.expandable path {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  opacity: 0;
-  width: 0em;
   top: 0;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.07s ease, background-color 0.07s ease;
+  background-color: #a69461;
 }
 
 .submenu:hover > .submenu-content {
-  opacity: 1;
+  transform: scaleX(1);
   width: fit-content;
+  background: #7f7149;
+}
+
+.submenu:hover {
   background: #7f7149;
 }
 
