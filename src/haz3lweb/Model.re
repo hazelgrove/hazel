@@ -7,20 +7,20 @@ type timestamp = float;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type live_inspector = {
   on: bool,
-  ids: list(Id.t),
   use_cursor: bool,
+  show_fns_in_env: bool,
+  ids: list(Id.t),
   cur_env_idx: int,
   cur_env: ProbeMap.dhexp_env,
-  show_fns_in_env: bool,
 };
 
 let live_inspector_init = {
   on: true,
-  ids: [],
   use_cursor: true,
+  show_fns_in_env: false,
+  ids: [],
   cur_env_idx: 0,
   cur_env: [],
-  show_fns_in_env: false,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

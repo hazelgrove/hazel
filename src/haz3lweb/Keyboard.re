@@ -67,7 +67,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       zipper |> get_term |> TermBase.UExp.show |> print
     | "F5" =>
       /* Print entire static info map */
-      zipper |> get_term |> Statics.mk_map |> Statics.show_map |> print
+      zipper |> get_term |> Statics.mk_map |> Statics.Map.show |> print
     | "F6" =>
       /* Print program elaboration */
       zipper |> get_elab |> DHExp.show |> print

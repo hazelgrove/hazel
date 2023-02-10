@@ -59,11 +59,6 @@ let matched_list_mode: mode => mode =
 
 let ap_mode: mode = SynFun;
 
-let is_rec: t => bool =
-  fun
-  | Rec(_, _) => true
-  | _ => false;
-
 /* Legacy precedence code from HTyp */
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
@@ -101,12 +96,20 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   };
 };
 
+let unroll = (ty: t): t =>
+  switch (ty) {
+  | Rec(x, ty_body) => subst(ty, x, ty_body)
+  | _ => ty
+  };
+
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
 let rec eq = (t1: t, t2: t): bool => {
   let eq' = eq;
   switch (t1, t2) {
+  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
+  | (Rec(_), _) => false
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -127,8 +130,6 @@ let rec eq = (t1: t, t2: t): bool => {
   | (Sum(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
-  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
-  | (Rec(_), _) => false
   };
 };
 
@@ -153,28 +154,18 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };
 
-let unroll = (ty: t): t =>
-  switch (ty) {
-  | Rec(x, ty) => subst(ty, x, ty)
-  | _ => ty
-  };
-
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(ctx);
+  let join' = join(~resolve, ctx);
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Rec(x1, ty1), Rec(x2, ty2)) =>
-    let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
-    Rec(x1, ty_body);
-  | (Rec(_), _) => None
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(Var(n1));
@@ -189,6 +180,11 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
     resolve ? ty_join : Var(name);
+  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
+    Rec(x1, ty_body);
+  | (Rec(_), _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -268,46 +264,52 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Prod(ts) => Prod(List.map(normalize(ctx), ts))
   | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
   | Rec(x, ty) =>
-    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
+    /* NOTE: Fake id below is a hack, but shouldn't matter
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
-    Rec(x, normalize(Ctx.add_abstract(ctx, x, -1), ty))
+    Rec(x, normalize(Ctx.add_abstract(ctx, x, Id.invalid), ty))
   };
 };
 
-let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
+let sum_entry = (tag: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
-    | (tag, typ) when tag == t => Some((tag, typ))
+    | (t, typ) when t == tag => Some((t, typ))
     | _ => None,
     tags,
   );
 
-let ana_sum = (tag: Token.t, sm: sum_map, ty_ana: t): option(t) =>
-  /* Returns the type of a tag if that tag is given a type by the sum
-     type ty_ana having tags as variants. If tag is a nullart constructor,
-     ty_ana itself is returned; otherwise an arrow from tag's parameter
-     type to ty_ana */
-  switch (sum_entry(tag, sm)) {
-  | Some((_, Some(ty_in))) => Some(Arrow(ty_in, ty_ana))
-  | Some((_, None)) => Some(ty_ana)
-  | None => None
+let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let ty = normalize_shallow(ctx, ty);
+  switch (ty) {
+  | Sum(sm) => Some(sm)
+  | Rec(_) =>
+    /* Note: We must unroll here to get right tag types;
+       otherwise the rec parameter will leak */
+    switch (unroll(ty)) {
+    | Sum(sm) => Some(sm)
+    | _ => None
+    }
+  | _ => None
   };
+};
 
-let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) =>
+let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
   /* If a tag is being analyzed against (an arrow type returning)
      a sum type having that tag as a variant, we consider the
      tag's type to be determined by the sum type */
   switch (mode) {
   | Ana(Arrow(_, ty_ana))
   | Ana(ty_ana) =>
-    switch (normalize_shallow(ctx, ty_ana)) {
-    | Sum(sm)
-    | Rec(_, Sum(sm)) => ana_sum(tag, sm, unroll(ty_ana))
-    | _ => None
-    }
+    let* tags = get_sum_tags(ctx, ty_ana);
+    let+ (_, ty_entry) = sum_entry(tag, tags);
+    switch (ty_entry) {
+    | None => ty_ana
+    | Some(ty_in) => Arrow(ty_in, ty_ana)
+    };
   | _ => None
   };
+};
 
 let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
   /* If a tag application is being analyzed against a sum type for

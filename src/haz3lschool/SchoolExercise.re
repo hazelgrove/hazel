@@ -566,7 +566,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module StaticsItem = {
     type t = {
       term: TermBase.UExp.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     };
   };
 
@@ -719,7 +719,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module DynamicsItem = {
     type t = {
       term: TermBase.UExp.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
       simple_result: ModelResult.simple,
     };
   };

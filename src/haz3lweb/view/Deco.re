@@ -11,7 +11,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-           let info_map: Statics.map;
+           let info_map: Statics.Map.t;
            let tiles: TileMap.t;
          },
        ) => {
@@ -313,8 +313,14 @@ module Deco =
 
   let live_aid_data =
       (zipper: Zipper.t): option(list(ProbeMap.processed_instance)) => {
+    Printf.printf(
+      "program metrics: %d %d\n",
+      Measured.height(M.map),
+      Measured.width(M.map),
+    );
     let* index = Indicated.index(zipper);
     //TODO: ask d how to get term from terms?
+    //let term = Id.Map.find(what_id, M.terms);
     let term = zipper |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     let* up_index = index |> Probe.get_exp_parent(M.info_map);
     let elab = Interface.elaborate(~probe_ids=[up_index], M.info_map, term);
@@ -328,54 +334,107 @@ module Deco =
     Id.Map.find_opt(up_index, processed_map); //return entry for cursor
   };
 
-  let live_aid_val_view = (d: DHExp.t) => {
-    DHCode.view_tylr(
-      ~settings={
-        evaluate: true,
-        show_case_clauses: true,
-        show_fn_bodies: true,
-        show_casts: true,
-        show_unevaluated_elaboration: false,
-      },
-      ~selected_hole_instance=None,
-      ~font_metrics,
-      ~width=10,
-      d,
+  let live_aid_val_view = (~env, ~width, d: DHExp.t) =>
+    Node.div(
+      ~attr=Attr.classes(["env-entry"] @ (env ? ["env"] : ["res"])),
+      [
+        DHCode.view_tylr(
+          ~settings={
+            evaluate: true,
+            show_case_clauses: true,
+            show_fn_bodies: false,
+            show_casts: false,
+            show_unevaluated_elaboration: false,
+          },
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width,
+          d,
+        ),
+      ],
     );
-  };
 
-  let env_entry_view = (~env=false, d: DHExp.t, m) => {
+  let env_entries_row = (m, ns: list(Node.t)) => {
     Node.div(
       ~attr=
         Attr.many([
-          Attr.classes(["env-entry"]),
-          DecUtil.pos_abs_basic(
-            ~font_metrics,
-            m,
-            ~style=
-              env ? "color: #169fdc !important" : "color: #7a6219 !important",
-          ),
+          Attr.classes(["env-entries-row"]),
+          DecUtil.pos_abs_basic(~font_metrics, m),
         ]),
-      [live_aid_val_view(d)],
+      ns,
     );
   };
 
+  open Sexplib.Std;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type entry = ProbeMap.final_env_entry;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type env_layout = list((int, list(entry)));
+
+  let layout_env = (env: ProbeMap.dhexp_env) => {
+    let m: Ptmap.t(list(ProbeMap.final_env_entry)) = Id.Map.empty;
+    let add_entry = (entry, es) =>
+      switch (es) {
+      | Some(es) => Some([entry, ...es])
+      | None => Some([entry])
+      };
+    let sort_by_col =
+      List.sort((e1: entry, e2: entry) =>
+        e1.measurement.origin.col - e2.measurement.origin.col
+      );
+    let env_layout =
+      List.fold_right(
+        ((_, e: entry)) =>
+          Id.Map.update(e.measurement.origin.row, add_entry(e)),
+        env,
+        m,
+      )
+      |> Id.Map.bindings
+      |> List.map(((row, es)) => (row, sort_by_col(es)))
+      |> List.sort(((r1, _), (r2, _)) => compare(r1, r2));
+    print_endline("ENV_LAYOUT:");
+    env_layout |> show_env_layout |> print_endline;
+    env_layout;
+  };
+
+  let get_extremes = (e: env_layout): (int, int) =>
+    /* Preconsition: e is nonempty */
+    (e |> List.hd |> fst, e |> List.rev |> List.hd |> fst);
+
   let live_aid = (zipper: Zipper.t) => {
-    let col = 25;
+    let col = Measured.width(M.map) + 2;
+    let width = 40;
     switch (live_aid_target_data(zipper), live_aid_data(zipper)) {
-    | (Some((_res_id, res_m)), Some([{res, env}, ..._])) =>
-      [env_entry_view(res, {row: res_m.origin.row, col})]
-      @ List.map(
-          ((_, entry: ProbeMap.final_env_entry)) =>
-            env_entry_view(
-              ~env=true,
-              entry.v,
-              {row: entry.measurement.origin.row, col},
-            ),
-          env,
-        )
-    | (_, Some([])) => [Node.text("no live aid")]
-    | _ => []
+    | (Some((res_id, res_m)), Some([{res, env}, ..._])) =>
+      let layout_env =
+        layout_env(
+          env @ [("RES", {v: res, measurement: res_m, binding_id: res_id})],
+        );
+      let (fst_row, lst_row) = get_extremes(layout_env);
+      Printf.printf("LIVE AID: fst_row: %d, lst_row: %d\n", fst_row, lst_row);
+      layout_env
+      |> List.map(((row, es)) =>
+           env_entries_row(
+             {row, col},
+             List.map(
+               (entry: entry) =>
+                 live_aid_val_view(
+                   ~width,
+                   ~env=entry.binding_id != res_id,
+                   entry.v,
+                 ),
+               es,
+             )
+             |> (
+               xs =>
+                 ListUtil.interleave(
+                   xs,
+                   List.init(List.length(xs) - 1, _ => Node.text(",")),
+                 )
+             ),
+           )
+         );
+    | _ => [Node.text("no live aid")]
     };
   };
 

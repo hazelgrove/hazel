@@ -72,6 +72,7 @@ let simple_cell_view = (items: list(Node.t)) =>
 let code_cell_view =
     (
       ~inject,
+      ~settings as _: Model.settings,
       ~font_metrics,
       ~clss=[],
       ~selected: bool,
@@ -93,6 +94,16 @@ let code_cell_view =
     | None => []
     | Some(node) => [node]
     };
+  let on_mousedown = evt =>
+    JsUtil.is_double_click(evt)
+      ? inject(Update.PerformAction(Select(Term(Current))))
+      : mousedown_handler(
+          ~inject,
+          ~font_metrics,
+          ~target_id=code_id,
+          ~additional_updates=mousedown_updates,
+          evt,
+        );
   Node.div(
     ~attr=Attr.class_("cell-container"),
     [
@@ -103,17 +114,7 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(evt =>
-              JsUtil.is_double_click(evt)
-                ? inject(Update.PerformAction(Select(Term(Current))))
-                : mousedown_handler(
-                    ~inject,
-                    ~font_metrics,
-                    ~target_id=code_id,
-                    ~additional_updates=mousedown_updates,
-                    evt,
-                  )
-            ),
+            Attr.on_mousedown(on_mousedown),
           ]),
         Option.to_list(caption) @ code,
       ),
@@ -261,7 +262,7 @@ let editor_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
@@ -294,6 +295,7 @@ let editor_view =
     );
   code_cell_view(
     ~inject,
+    ~settings,
     ~font_metrics,
     ~clss,
     ~selected,
@@ -328,7 +330,7 @@ let editor_with_result_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {

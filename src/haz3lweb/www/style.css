@@ -496,8 +496,7 @@ body,
 
 .cell-container {
   width: fit-content;
-  min-width: 70vw;
-  max-width: 70vw;
+  min-width: 34em;
 }
 
 .cell-container .cell-item:first-child {
@@ -1075,7 +1074,8 @@ svg.tile-selected {
 
 /* CONTEXT INSPECTOR */
 .context-inspector {
-  scroll-snap-type: y mandatory;
+  /* below triggers chrome jank bug */
+  /*scroll-snap-type: y mandatory;*/
   direction: rtl;
   position: absolute;
   z-index: 20;
@@ -1093,8 +1093,14 @@ svg.tile-selected {
   color: #586e75;
   border-top: 1px solid #e6ce8f;
   border-right: 1px solid #c7b480;
+  border-bottom: 1px solid #c7b480;
   background-color: #f7ebc5;
   box-shadow: 0px 20px 20px #77580255;
+  scrollbar-color: #c7b480 #e4d6a6;
+  scrollbar-width: thin;
+}
+@supports (-moz-appearance:none) {
+  .context-inspector  { scroll-snap-type: y mandatory; }
 }
 
 .context-inspector::-webkit-scrollbar {
@@ -1197,7 +1203,7 @@ svg.tile-selected {
   padding-left: 0.5em;
   padding-right: 0.7em;
   color: var(--light-page-color);
-  height: -webkit-fill-available;
+  height: 100%;
 }
 
 .bottom-bar .cursor-inspector .gamma:hover,
@@ -1874,6 +1880,37 @@ svg.expandable path {
 
 /* live aid */
 
-.env-entry {
+.env-entries-row {
   position: absolute;
+  display: flex;
+  gap: 0.2em;
+  color: #c7b480;
+}
+
+.env-entry {
+  -webkit-mask-image: linear-gradient(to right, black 6.5em, transparent);
+  overflow: hidden;
+  max-width: 8em;
+  height: 1.4em;
+  border-bottom: 1px solid #0000;
+  border-top: 1px solid #0000;
+}
+.env-entry.res {
+  color: #7a6219 !important;
+}
+.env-entry.env {
+  color: #169fdc !important;
+}
+
+.env-entry:hover {
+  -webkit-mask-image: none;
+  position: relative;
+  background: rgb(240 231 214);
+  box-shadow: 0px 6px 14px #e2d9c4;
+  border-radius: 0.3em;
+  overflow: visible;
+  max-width: fit-content;
+  height: auto;
+  border-bottom: 1px solid #baac84;
+  border-top: 1px solid white;
 }

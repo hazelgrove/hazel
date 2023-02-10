@@ -53,6 +53,18 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
+let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
+  | Some(InfoExp({ty, _})) => Some(ty)
+  | _ => None
+  };
+
+let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+  | Some(InfoPat({ty, _})) => Some(ty)
+  | _ => None
+  };
+
 let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -64,35 +76,33 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
   | Ana(ana_ty) =>
-    /* Normalize types */
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
     | Cons(_) =>
       switch (ana_ty) {
-      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), ana_ty)
+      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
       | _ => d
       }
     | Fun(_) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty)
+        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
       | _ => d
       }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DHExp.cast(d, Prod(us), ana_ty);
+        DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
     | Ap(Tag(_), _)
     | Tag(_) =>
-      switch (ana_ty, Typ.unroll(self_ty)) {
-      | (Unknown(prov), Sum(sm)) =>
-        let sm' = sm |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
-        DHExp.cast(d, Sum(sm'), ana_ty);
+      switch (ana_ty, self_ty) {
+      | (Unknown(prov), Rec(_, Sum(_)))
+      | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -131,26 +141,25 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t => {
-  /* Normalize types */
-  switch (Info.typ_of_self(ctx, self)) {
-  | None => d
-  | Some(self_ty) =>
-    let self_ty = Typ.normalize(ctx, self_ty);
-    switch (Info.status_common(ctx, mode, self)) {
-    | NotInHole(_) => cast(ctx, mode, self_ty, d)
-    | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
-    };
+let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t =>
+  switch (Info.status_exp(ctx, mode, self)) {
+  | NotInHole(_) =>
+    let self_ty =
+      switch (Statics.Info.typ_of_self_exp(ctx, self)) {
+      | Some(self_ty) => Typ.normalize(ctx, self_ty)
+      | None => Unknown(Internal)
+      };
+    cast(ctx, mode, self_ty, d);
+  | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
   };
-};
 
 let rec dhexp_of_uexp =
-        (~probe_ids, m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
+        (~probe_ids, m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   let dhexp_of_uexp = dhexp_of_uexp(~probe_ids);
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
-    let err_status = Info.status_common(ctx, mode, self);
+    let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
       switch (uexp.term) {
@@ -168,28 +177,18 @@ let rec dhexp_of_uexp =
       | String(s) => Some(StringLit(s))
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        let+ ty = Statics.fixed_exp_typ(ctx, m, uexp);
+        let+ ty = fixed_exp_typ(m, uexp);
         let ty = Typ.matched_list(ty);
         //TODO: why is there an err status on below?
         DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
-        let+ ty = Statics.fixed_pat_typ(ctx, m, p);
+        let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
       | Tuple(es) =>
-        let+ ds =
-          List.fold_right(
-            (e, ds_opt) => {
-              let* ds = ds_opt;
-              let+ d = dhexp_of_uexp(m, e);
-              [d, ...ds];
-            },
-            es,
-            Some([]),
-          );
+        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
-      | Tag(name) => Some(Tag(name))
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
@@ -212,8 +211,13 @@ let rec dhexp_of_uexp =
         DHExp.Ap(Monitor(Test, id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVar) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
+        }
+      | Tag(name) =>
+        switch (err_status) {
+        | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
+        | _ => Some(Tag(name))
         }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -225,14 +229,14 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let+ ty = Statics.pat_self_typ(ctx, m, p);
+        let+ ty_body = fixed_exp_typ(m, body);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+          Let(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -254,7 +258,7 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          Let(dp, FixF(self_id, ty, substituted_def), dbody);
+          Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
@@ -268,7 +272,7 @@ let rec dhexp_of_uexp =
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(SynInconsistentBranches(_)) =>
+        | InHole(Common(SynInconsistentBranches(_))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -286,7 +290,7 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(SynInconsistentBranches(_)) =>
+        | InHole(Common(SynInconsistentBranches(_))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -299,10 +303,10 @@ let rec dhexp_of_uexp =
   | None => None
   };
 }
-and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
+and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
-    let err_status = Info.status_common(ctx, mode, self);
+    let err_status = Info.status_pat(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
@@ -328,31 +332,20 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      let* ty = Statics.fixed_pat_typ(ctx, m, upat);
-      let ty = Typ.matched_list(ty);
-      wrap(ListLit(ty, ds));
-    | Tag(name) => wrap(Tag(name))
+      let* ty = fixed_pat_typ(m, upat);
+      wrap(ListLit(Typ.matched_list(ty), ds));
+    | Tag(name) =>
+      switch (err_status) {
+      | InHole(Common(FreeTag)) => Some(BadTag(u, 0, name))
+      | _ => wrap(Tag(name))
+      }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
     | Tuple(ps) =>
-      let dps =
-        List.fold_right(
-          (p, dps_opt) => {
-            switch (dps_opt) {
-            | None => None
-            | Some(dps) =>
-              switch (dhpat_of_upat(m, p)) {
-              | None => None
-              | Some(dp) => Some([dp, ...dps])
-              }
-            }
-          },
-          ps,
-          Some([]),
-        );
-      dps |> Option.map(ds => DHPat.Tuple(ds));
+      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
+      wrap(DHPat.Tuple(ds));
     | Var(name) => Some(Var(name))
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>
@@ -376,10 +369,15 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   );
 
 let uexp_elab =
-    (~probe_ids=[], m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
+    (~probe_ids=[], m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(~probe_ids, m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
     let d = uexp_elab_wrap_builtins(d);
-    Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci
+    let ty =
+      switch (fixed_exp_typ(m, uexp)) {
+      | Some(ty) => ty
+      | None => Typ.Unknown(Internal)
+      };
+    Elaborates(d, ty, Delta.empty);
   };

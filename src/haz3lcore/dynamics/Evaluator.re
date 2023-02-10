@@ -84,16 +84,13 @@ let cast_sum_maps =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
-  | (_, Cast(d, Rec(_, _) as r, ty)) when !Typ.is_rec(ty) =>
-    matches(dp, Cast(d, Typ.unroll(r), ty))
-  | (_, Cast(d, ty, Rec(_, _) as r)) when !Typ.is_rec(ty) =>
-    matches(dp, Cast(d, ty, Typ.unroll(r)))
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
+  | (BadTag(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
@@ -167,23 +164,34 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
-  | (Ap(Tag(tag), dp_opt), Cast(d, Sum(sm1), Sum(sm2))) =>
+  | (
+      Ap(Tag(tag), dp_opt),
+      Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
+    ) =>
     switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(tag, dp_opt, d, [castmap])
+    | Some(castmap) => matches_cast_Sum(tag, Some(dp_opt), d, [castmap])
     | None => DoesNotMatch
     }
-  | (Ap(_, _), Cast(d, Sum(_), Unknown(_)))
-  | (Ap(_, _), Cast(d, Unknown(_), Sum(_))) => matches(dp, d)
+
+  | (Ap(_, _), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_)))
+  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+    matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
-  | (Tag(n1), Tag(n2)) =>
-    if (n1 == n2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
+  | (Tag(tag), Tag(tag')) =>
+    tag == tag' ? Matches(Environment.empty) : DoesNotMatch
+  | (
+      Tag(tag),
+      Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
+    ) =>
+    switch (cast_sum_maps(sm1, sm2)) {
+    | Some(castmap) => matches_cast_Sum(tag, None, d, [castmap])
+    | None => DoesNotMatch
     }
-  | (Tag(_), Cast(d, _, Unknown(_))) => matches(dp, d)
-  | (Tag(_), Cast(d, Unknown(_), _)) => matches(dp, d)
+  | (Tag(_), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_))) =>
+    matches(dp, d)
+  | (Tag(_), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+    matches(dp, d)
   | (Tag(_), _) => DoesNotMatch
 
   | (Tuple(dps), Tuple(ds)) =>
@@ -249,28 +257,38 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
 and matches_cast_Sum =
     (
       tag: string,
-      dp: DHPat.t,
+      dp: option(DHPat.t),
       d: DHExp.t,
       castmaps: list(TagMap.t((Typ.t, Typ.t))),
     )
     : match_result =>
   switch (d) {
-  | Ap(Tag(tag), d') =>
+  | Tag(tag') =>
     switch (
-      castmaps
-      |> List.map(castmap => TagMap.find_opt(tag, castmap))
-      |> OptUtil.sequence
+      dp,
+      castmaps |> List.map(TagMap.find_opt(tag')) |> OptUtil.sequence,
     ) {
-    | Some(side_casts) => matches(dp, DHExp.apply_casts(d', side_casts))
-    | None => DoesNotMatch
+    | (None, Some(_)) =>
+      tag == tag' ? Matches(Environment.empty) : DoesNotMatch
+    | _ => DoesNotMatch
     }
-  | Cast(d', Sum(sm1), Sum(sm2)) =>
+  | Ap(Tag(tag'), d') =>
+    switch (
+      dp,
+      castmaps |> List.map(TagMap.find_opt(tag')) |> OptUtil.sequence,
+    ) {
+    | (Some(dp), Some(side_casts)) =>
+      matches(dp, DHExp.apply_casts(d', side_casts))
+    | _ => DoesNotMatch
+    }
+  | Cast(d', Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))) =>
     switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(tag, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
     }
-  | Cast(d', Sum(_), Unknown(_))
-  | Cast(d', Unknown(_), Sum(_)) => matches_cast_Sum(tag, dp, d', castmaps)
+  | Cast(d', Sum(_) | Rec(_, Sum(_)), Unknown(_))
+  | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
+    matches_cast_Sum(tag, dp, d', castmaps)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
@@ -297,7 +315,6 @@ and matches_cast_Sum =
   | ListLit(_)
   | Tuple(_)
   | Prj(_)
-  | Tag(_)
   | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)

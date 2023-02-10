@@ -21,7 +21,7 @@ let info_to_frame = (info: Info.t): option(binding_tree_frame') =>
   };
 
 let get_binding_stack =
-    (id: Id.t, map: Statics.map): list(binding_tree_frame) =>
+    (id: Id.t, map: Statics.Map.t): list(binding_tree_frame) =>
   switch (Id.Map.find_opt(id, map) |> Option.map(Info.ancestors_of)) {
   | Some(ancestors) =>
     ancestors
@@ -35,7 +35,7 @@ let get_binding_stack =
   | None => []
   };
 
-let rec get_exp_parent = (map: Statics.map, id: Id.t): option(Id.t) =>
+let rec get_exp_parent = (map: Statics.Map.t, id: Id.t): option(Id.t) =>
   switch (Id.Map.find_opt(id, map)) {
   | None => None
   | Some(InfoExp(_)) => Some(id)
