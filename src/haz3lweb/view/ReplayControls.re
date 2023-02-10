@@ -26,8 +26,20 @@ let view_log_entries = (replay: Replay.t) => {
       };
     div(~attr=clss([cur_clss]), [element]);
   };
-  let k = 10;
-  let viewable_indices = Base.List.range(- k, k, ~stop=`inclusive);
+  // Ideally, we want to view
+  let viewable_indices = {
+    // Try to view 10 actions on either side (past/future) of current one
+    let k = 10;
+    // Optimistically, if we are at the beginning of replay, display more actions at the end
+    let leftover_left = max(k - replay.pos, 0);
+    // Optimistically, if we are at the end of replay, display more actions at the beginning
+    let leftover_right = max(k + replay.pos - replay.len, 0);
+    Base.List.range(
+      - k - leftover_right,
+      k + leftover_left,
+      ~stop=`inclusive,
+    );
+  };
   List.map(view_log_entry, viewable_indices);
 };
 
