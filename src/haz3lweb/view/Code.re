@@ -14,6 +14,7 @@ let of_delim' =
         i,
         inject,
         livelit_state: Id.Map.t(DHExp.t),
+        _font_metrics: FontMetrics.t,
         tile_id: Id.t,
       ),
     ) => {
@@ -29,6 +30,7 @@ let of_delim' =
   // TODO FontMetrics
   let font_height = 10.0;
   let font_width = 10.0;
+
   let stop_mousedown_propagation =
     Attr.on_mousedown(evt => {
       Js_of_ocaml.Dom_html.stopPropagation(evt);
@@ -42,6 +44,7 @@ let of_delim' =
           ~attr=
             Attr.many([
               Attr.create("type", "range"),
+              Attr.create("vertical-align", "middle"),
               Attr.create(
                 "style",
                 Printf.sprintf(
@@ -131,6 +134,7 @@ let of_delim =
       i: int,
       ~inject,
       ~livelit_state: Id.Map.t(DHExp.t),
+      ~font_metrics: FontMetrics.t,
     )
     : list(Node.t) =>
   of_delim'((
@@ -141,6 +145,7 @@ let of_delim =
     i,
     inject,
     livelit_state,
+    font_metrics,
     Tile.id(t),
   ));
 
@@ -177,6 +182,7 @@ module Text = (M: {
             ~sort=Sort.root,
             seg: Segment.t,
             ~inject,
+            ~font_metrics: FontMetrics.t,
             ~livelit_state: Id.Map.t(DHExp.t),
           )
           : list(Node.t) => {
@@ -194,21 +200,40 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(sort_of_p_idx(i), p, ~inject, ~livelit_state)
+         of_piece(
+           sort_of_p_idx(i),
+           p,
+           ~inject,
+           ~font_metrics,
+           ~livelit_state,
+         )
        );
   }
   and of_piece =
-      (expected_sort: Sort.t, p: Piece.t, ~inject, ~livelit_state)
+      (
+        expected_sort: Sort.t,
+        p: Piece.t,
+        ~inject,
+        ~font_metrics,
+        ~livelit_state,
+      )
       : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t, ~inject, ~livelit_state)
+    | Tile(t) =>
+      of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelit_state)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
   and of_tile =
-      (expected_sort: Sort.t, t: Tile.t, ~inject, ~livelit_state)
+      (
+        expected_sort: Sort.t,
+        t: Tile.t,
+        ~inject,
+        ~font_metrics,
+        ~livelit_state,
+      )
       : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
@@ -221,9 +246,16 @@ module Text = (M: {
     let foo = Aba.mk(t.shards, children_and_sorts);
     foo
     |> Aba.join(
-         of_delim(t.mold.out, is_consistent, t, ~inject, ~livelit_state),
+         of_delim(
+           t.mold.out,
+           is_consistent,
+           t,
+           ~inject,
+           ~font_metrics,
+           ~livelit_state,
+         ),
          ((seg, sort)) =>
-         of_segment(~sort, seg, ~inject, ~livelit_state)
+         of_segment(~sort, seg, ~inject, ~font_metrics, ~livelit_state)
        )
     |> List.concat;
   };
@@ -248,7 +280,8 @@ let rec holes =
      );
 
 let simple_view =
-    (~unselected, ~map, ~settings: Model.settings, ~inject): Node.t => {
+    (~unselected, ~map, ~settings: Model.settings, ~inject, ~font_metrics)
+    : Node.t => {
   module Text =
     Text({
       let map = map;
@@ -259,9 +292,14 @@ let simple_view =
     [
       span_c(
         "code-text",
-        Text.of_segment(unselected, ~inject, ~livelit_state=Id.Map.empty),
+        Text.of_segment(
+          unselected,
+          ~inject,
+          ~font_metrics,
+          ~livelit_state=Id.Map.empty,
+        ),
       ),
-    ] // TODO livelit_state
+    ],
   );
 };
 
@@ -283,7 +321,7 @@ let view =
     });
   let unselected: list(t) =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected, ~inject, ~livelit_state)
+      Text.of_segment(unselected, ~inject, ~font_metrics, ~livelit_state)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

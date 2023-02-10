@@ -9,6 +9,7 @@ let backpack_sel_view =
       scale: float,
       opacity: float,
       {focus: _, content}: Selection.t,
+      ~font_metrics,
     ) => {
   module Text =
     Code.Text({
@@ -36,6 +37,7 @@ let backpack_sel_view =
       ~no_sorts=true,
       content,
       ~inject=_ => Ui_effect.Ignore,
+      ~font_metrics,
       ~livelit_state=Id.Map.empty,
     )  // TODO Livelit state
     @ [text(Unicode.zwsp)],
@@ -101,7 +103,15 @@ let view =
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
-        let v = backpack_sel_view(x_offset, new_y_offset, scale, opacity, s);
+        let v =
+          backpack_sel_view(
+            x_offset,
+            new_y_offset,
+            scale,
+            opacity,
+            s,
+            ~font_metrics,
+          );
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
         //TODO(andrew): am i making this difficult by going backwards?

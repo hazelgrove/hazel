@@ -278,6 +278,7 @@ let deco =
                         ~map,
                         ~settings,
                         ~inject,
+                        ~font_metrics,
                       );
                     let classes = get_clss(segment);
                     id == form_id
@@ -383,7 +384,8 @@ let syntactic_form_view =
       ~form_id,
     ) => {
   let map = Measured.of_segment(unselected);
-  let code_view = Code.simple_view(~unselected, ~map, ~settings, ~inject);
+  let code_view =
+    Code.simple_view(~unselected, ~map, ~settings, ~inject, ~font_metrics);
   let deco_view =
     deco(
       ~doc,
@@ -425,6 +427,7 @@ let example_view =
                 ~map=map_code,
                 ~settings,
                 ~inject,
+                ~font_metrics,
               );
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Statics.mk_map(uhexp);
