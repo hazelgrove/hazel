@@ -107,9 +107,17 @@ let top_bar_view =
             toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
               inject(Set(Statics))
             ),
-            toggle(
-              "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
-              inject(Set(Dynamics))
+            submenu(
+              toggle(
+                "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
+                inject(Set(Dynamics))
+              ),
+              [
+                submenu_switch(
+                  "Toggle Dynamics", "𝛿", model.settings.dynamics, _ =>
+                  inject(Set(Dynamics))
+                ),
+              ],
             ),
             toggle(
               "b",
@@ -119,20 +127,22 @@ let top_bar_view =
               inject(Set(Benchmark))
             ),
             submenu(
-              Icons.export,
+              div(
+                ~attr=
+                  Attr.many([
+                    clss(["icon"]),
+                    Attr.title("Export Submission"),
+                  ]),
+                [Icons.export],
+              ),
               [
-                text_button(
-                  "Export Submission",
-                  _ => {
-                    download_editor_state(
-                      ~instructor_mode=model.settings.instructor_mode,
-                    );
-                    Virtual_dom.Vdom.Effect.Ignore;
-                  },
-                  ~tooltip="Export Submission",
-                ),
+                submenu_button("Export Submission", _ => {
+                  download_editor_state(
+                    ~instructor_mode=model.settings.instructor_mode,
+                  );
+                  Virtual_dom.Vdom.Effect.Ignore;
+                }),
               ],
-              ~tooltip="Export",
             ),
             file_select_button(
               "import-submission",

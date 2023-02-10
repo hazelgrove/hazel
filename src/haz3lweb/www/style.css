@@ -1905,6 +1905,14 @@ svg.expandable path {
   padding: 0.5em;
 }
 
+.submenu > .toggle-switch {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0.5em;
+}
+
 .submenu-content {
   position: absolute;
   left: 2.75em;
@@ -1924,18 +1932,13 @@ svg.expandable path {
   background: #7f7149;
 }
 
-.submenu-content > .itext:hover {
-  transform: scale(130%);
-}
-
-#top-bar .text:hover {
-  /* transform: scale(130%); */
+.submenu-button:hover {
   /* animation: wobble 0.6s ease 0s 1 normal forwards; */
   filter: brightness(1.2);
   transition: 0.6s;
 }
 
-#top-bar .text {
+.submenu-button {
   cursor: pointer;
   color: var(--top_bar_icon_fill);
   width: fit-content;
@@ -1944,11 +1947,25 @@ svg.expandable path {
   height: 20px;
 }
 
-#top-bar .text.disabled {
+.submenu-button.disabled {
   opacity: 0.35;
 }
 
-#top-bar .icon.disabled:hover svg {
+.submenu-button.disabled:hover svg {
   transform: scale(100%);
   cursor: not-allowed;
+}
+
+.submenu-text {
+  color: var(--top_bar_icon_fill);
+  width: fit-content;
+  white-space: nowrap;
+  padding: 0.5em;
+  height: 20px;
+}
+
+.submenu-text:hover {
+  /* animation: wobble 0.6s ease 0s 1 normal forwards; */
+  filter: brightness(1.2);
+  transition: 0.6s;
 }
