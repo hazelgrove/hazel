@@ -459,13 +459,10 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
-  // | LivelitDef(livelit_record) =>
-  //   atomic(Just(Term.utyp_to_ty(livelit_record.expansion_type))) // TODO: I don't actually know what I'm doing here. I just did something close to list literals.
   | LivelitAp({livelit_name, width: _}) =>
-    switch (livelit_name) {
-    | "^slider" => atomic(Just(Int))
-    | "^checkbox" => atomic(Just(Bool))
-    | _ => atomic(Just(Unknown(TypeHole)))
+    switch (Livelit.find_livelit(livelit_name)) {
+    | Some(ll) => atomic(Just(ll.expansion_type))
+    | None => atomic(Just(Unknown(TypeHole)))
     }
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);

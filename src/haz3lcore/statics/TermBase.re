@@ -85,14 +85,6 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type livelit_record = {
-    name: string,
-    expansion_type: UTyp.t,
-    // init: UExp.t,
-    // TODO: The rest of the stuff
-    body: UExp.t,
-  };
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -206,14 +198,6 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type livelit_record = {
-    name: string,
-    expansion_type: UTyp.t,
-    // init: UExp.t
-    body: UExp.t,
-  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =

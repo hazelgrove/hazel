@@ -140,8 +140,6 @@ let rec dhexp_of_uexp =
         : option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  // print_endline(Term.UExp.show(uexp));
-
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */

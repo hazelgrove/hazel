@@ -10,8 +10,6 @@
      WARNING: This module is still structurally in flux.
    */
 
-// TODO Livelit Expression and Term
-
 open Util;
 open Term;
 
@@ -211,7 +209,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
   let _unrecog = UExp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
-
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -252,11 +249,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        // | (
-        //     ["livelit", "at", "in"],
-        //     [Pat({ids: [_var_id], term: Var(livelit_name)}), Typ(typ)],
-        //   ) =>
-        //   LivelitDef({name: livelit_name, expansion_type: typ, body: r})
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

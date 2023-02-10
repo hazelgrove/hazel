@@ -378,10 +378,14 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let livelit_padding =
               switch (t.label) {
-              | ["^slider"] => 10 // TODO Pull of livelit
-              | ["^checkbox"] => 1 // TODO Pull of livelit
+              | [possible_livelit_name] =>
+                switch (Livelit.find_livelit(possible_livelit_name)) {
+                | Some(ll) => ll.width
+                | None => 0
+                }
               | _ => 0
               };
+
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
               let last =
