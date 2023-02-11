@@ -16,6 +16,13 @@ type source = {
   ty: Typ.t,
 };
 
+/* A term can be either ok, in error, or have a warning */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_cls =
+  | Ok
+  | Error
+  | Warn;
+
 /* Classifies patterns into those whose parent expects a single
    case like lets and funs and those who expect multiple cases like match */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -69,7 +76,7 @@ type error_exp =
 /* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
-  | SoloRefutable(Typ.t)
+  //| SoloRefutable(Typ.t)
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -96,6 +103,10 @@ type ok_exp = ok_common;
 type ok_pat = ok_common;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type warning_pat =
+  | SoloRefutable(Typ.t, ok_pat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
   | InHole(error_common)
   | NotInHole(ok_common);
@@ -108,6 +119,7 @@ type status_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_pat =
   | InHole(error_pat)
+  | Warning(warning_pat)
   | NotInHole(ok_pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -219,11 +231,18 @@ type t =
   | InfoTyp(typ)
   | InfoTPat(tpat);
 
+let sort_of: t => Sort.t =
+  fun
+  | InfoExp(_) => Exp
+  | InfoPat(_) => Pat
+  | InfoTyp(_) => Typ
+  | InfoTPat(_) => TPat;
+
 let ctx_of: t => Ctx.t =
   fun
-  | InfoExp({ctx, _}) => ctx
-  | InfoPat({ctx, _}) => ctx
-  | InfoTyp({ctx, _}) => ctx
+  | InfoExp({ctx, _})
+  | InfoPat({ctx, _})
+  | InfoTyp({ctx, _})
   | InfoTPat({ctx, _}) => ctx;
 
 let exp_free: exp => Ctx.co = ({free, _}) => free;
@@ -279,8 +298,8 @@ let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
     switch (status_common(ctx, mode, self)) {
     | NotInHole(ok_pat) =>
       let ty = ty_ok_pat(ok_pat);
-      UPat.is_refutable(ctx, upat, ty)
-        ? InHole(SoloRefutable(ty)) : NotInHole(ok_pat);
+      UPat.locally_refutable(ctx, upat, ty)
+        ? Warning(SoloRefutable(ty, ok_pat)) : NotInHole(ok_pat);
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   | (Common(self), _) =>
@@ -359,27 +378,28 @@ let status_tpat = (utpat: UTPat.t): status_tpat =>
   };
 
 /* Determines whether any term is in an error hole. */
-let is_error = (ci: t): bool => {
+let status_cls = (ci: t): status_cls => {
   switch (ci) {
   | InfoExp({mode, self, ctx, _}) =>
     switch (status_exp(ctx, mode, self)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
     }
   | InfoPat({mode, self, ctx, _}) =>
     switch (status_pat(ctx, mode, self)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
+    | Warning(_) => Warn
     }
   | InfoTyp({expects, ctx, term, ty, _}) =>
     switch (status_typ(ctx, expects, term, ty)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
     }
   | InfoTPat({term, _}) =>
     switch (status_tpat(term)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
     }
   };
 };
@@ -396,6 +416,7 @@ let typ_ok: ok_pat => Typ.t =
 let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
+  | Warning(SoloRefutable(_, ok)) => typ_ok(ok)
   | NotInHole(ok) => typ_ok(ok)
   };
 let ty_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>

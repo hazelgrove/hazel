@@ -306,6 +306,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
+      | Warning(_) => None // TODO(andrew): decide what to do here
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */

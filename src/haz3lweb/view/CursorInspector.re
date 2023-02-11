@@ -4,18 +4,27 @@ open Util.Web;
 open Util;
 open Haz3lcore;
 
-let errc = "error";
-let okc = "ok";
-let div_err = div(~attr=clss([errc]));
-let div_ok = div(~attr=clss([okc]));
+let sort_cls = (ci: Statics.Info.t): string =>
+  ci |> Statics.Info.sort_of |> Sort.to_string;
 
-let cls_str = (ci: Statics.Info.t): string =>
+let status_cls: Statics.Info.status_cls => string =
+  fun
+  | Ok => "ok"
+  | Error => "error"
+  | Warn => "warn";
+
+let cls_cls = (ci: Statics.Info.t): string =>
   switch (ci) {
   | InfoExp({cls, _}) => Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Term.UTyp.show_cls(cls)
   | InfoTPat({cls, _}) => Term.UTPat.show_cls(cls)
   };
+
+let status_view = status => div(~attr=clss([status_cls(status)]));
+let view_err = status_view(Error);
+let view_warn = status_view(Warn);
+let view_ok = status_view(Ok);
 
 let lang_doc_toggle = (~inject, ~show_lang_doc) => {
   let tooltip = "Toggle language documentation";
@@ -30,17 +39,17 @@ let lang_doc_toggle = (~inject, ~show_lang_doc) => {
   );
 };
 
-let term_tag =
-    (~inject, ~settings: Model.settings, ~show_lang_doc, is_err, sort) =>
+let term_tag = (~inject, ~settings: Model.settings, ~show_lang_doc, ci) =>
   div(
-    ~attr=clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errc] : [])),
+    ~attr=
+      clss(["term-tag", sort_cls(ci), status_cls(Info.status_cls(ci))]),
     [
       div(
         ~attr=
           clss(["gamma"] @ (settings.context_inspector ? ["visible"] : [])),
         [text("Γ")],
       ),
-      text(sort),
+      text(sort_cls(ci)),
       lang_doc_toggle(~inject, ~show_lang_doc),
     ],
   );
@@ -138,55 +147,51 @@ let typ_err_view = (ok: Info.error_typ) =>
 
 let exp_view: Info.status_exp => t =
   fun
-  | InHole(FreeVariable) => div_err([text("Variable is not bound")])
-  | InHole(Common(error)) => div_err(common_err_view(error))
-  | NotInHole(ok) => div_ok(common_ok_view(ok));
+  | InHole(FreeVariable) => view_err([text("Variable is not bound")])
+  | InHole(Common(error)) => view_err(common_err_view(error))
+  | NotInHole(ok) => view_ok(common_ok_view(ok));
 
 let pat_view: Info.status_pat => t =
   fun
-  | InHole(SoloRefutable(ty)) =>
-    div_err([
-      text("Pattern not in case must cover all cases for type"),
-      Type.view(ty),
-    ])
-  | InHole(Common(error)) => div_err(common_err_view(error))
-  | NotInHole(ok) => div_ok(common_ok_view(ok));
+  | Warning(SoloRefutable(_ty, ok)) =>
+    view_warn([text("Doesn't cover all cases but ")] @ common_ok_view(ok))
+  | InHole(Common(error)) => view_err(common_err_view(error))
+  | NotInHole(ok) => view_ok(common_ok_view(ok));
 
 let typ_view: Info.status_typ => t =
   fun
-  | NotInHole(ok) => div_ok(typ_ok_view(ok))
-  | InHole(err) => div_err(typ_err_view(err));
+  | NotInHole(ok) => view_ok(typ_ok_view(ok))
+  | InHole(err) => view_err(typ_err_view(err));
 
 let tpat_view: Info.status_tpat => t =
   fun
-  | NotInHole(Empty) => div_ok([text("Enter a new type alias")])
+  | NotInHole(Empty) => view_ok([text("Enter a new type alias")])
   | NotInHole(Var(name)) =>
-    div_ok([Type.alias_view(name), text("is a new type alias")])
-  | InHole(NotAVar) => div_err([text("Not a valid type name")]);
+    view_ok([Type.alias_view(name), text("is a new type alias")])
+  | InHole(NotAVar) => view_err([text("Not a valid type name")]);
+
+let view_of_info_sort: Statics.Info.t => Node.t =
+  fun
+  | InfoExp({status, _}) => exp_view(status)
+  | InfoPat({status, _}) => pat_view(status)
+  | InfoTyp({status, _}) => typ_view(status)
+  | InfoTPat({status, _}) => tpat_view(status);
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
-  let wrapper = (sort, status_view) =>
-    div(
-      ~attr=clss(["info", sort]),
-      [
-        term_tag(~inject, ~settings, ~show_lang_doc, Info.is_error(ci), sort),
-        status_view,
-      ],
-    );
-  switch (ci) {
-  | InfoExp({status, _}) => wrapper("exp", exp_view(status))
-  | InfoPat({status, _}) => wrapper("pat", pat_view(status))
-  | InfoTyp({status, _}) => wrapper("typ", typ_view(status))
-  | InfoTPat({status, _}) => wrapper("tpat", tpat_view(status))
-  };
-};
+    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t =>
+  div(
+    ~attr=clss(["info", sort_cls(ci)]),
+    [
+      term_tag(~inject, ~settings, ~show_lang_doc, ci),
+      view_of_info_sort(ci),
+    ],
+  );
 
 let cls_and_id_view = (id: int, ci: Statics.Info.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["id-and-class"])]),
     [
-      div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]),
+      div(~attr=clss(["syntax-class"]), [text(cls_cls(ci))]),
       div(~attr=clss(["id"]), [text(string_of_int(id + 1))]),
     ],
   );
@@ -195,7 +200,7 @@ let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
   div(
     ~attr=
       Attr.many([
-        clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+        clss(["cursor-inspector", status_cls(Info.status_cls(ci))]),
         Attr.on_click(_ => inject(Update.Set(ContextInspector))),
       ]),
     [

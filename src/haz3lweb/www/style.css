@@ -60,7 +60,9 @@
   --code-emphasis: #ce9600;
 
   --err-color: red;
-  --err-color-dark: #c00;
+  --err-color-dark: #830000;
+  --warn-color: orange;
+  --warn-color-dark: #c96e00;
 
   --selection-color: #fae294;
   --selection-shadow-color: rosybrown;
@@ -141,16 +143,17 @@
   --genie-z: 1;
   --empty-hole-z: 5;
   --tile-z: 4;
-  --err-hole-z: 5;
-  --code-text-z: 6;
-  --code-text-shards-z: 7;
+  --warn-hole-z: 5;
+  --err-hole-z: 6;
+  --code-text-z: 7;
+  --code-text-shards-z: 8;
   --bar-z: 0;
-  --inner-cousin-z: 9;
-  --outer-cousin-caret-position-z: 9;
+  --inner-cousin-z: 10;
+  --outer-cousin-caret-position-z: 10;
   --caret-position-z: 13;
   --current-caret-pos-z: 15;
   --caret-z: 14;
-  --docs-highlight-z:8;
+  --docs-highlight-z:9;
 
   --type-inspector-z: 14;
   --top-bar-z: 15;
@@ -805,31 +808,31 @@ svg.tile-selected {
 
 /* OTHER SORT COLORS */
 
-.term-tag-nul {
+.term-tag.Nul {
   background-color: var(--nul-bg-color);
   color: var(--nul-off-color);
 }
-.term-tag-any {
+.term-tag.Any {
   background-color: var(--any-bg-color);
   color: var(--any-off-color);
 }
-.term-tag-exp {
+.term-tag.Exp {
   background-color: var(--exp-bg-color);
   color: var(--exp-off-color);
 }
-.term-tag-pat {
+.term-tag.Pat {
   background-color: var(--pat-bg-color);
   color: var(--pat-off-color);
 }
-.term-tag-typ {
+.term-tag.Typ {
   background-color: var(--typ-bg-color);
   color: var(--typ-off-color);
 }
-.term-tag-rul {
+.term-tag.Rul {
   background-color: var(--rul-bg-color);
   color: var(--rul-off-color);
 }
-.term-tag-tpat {
+.term-tag.TPat {
   background-color: var(--tpat-bg-color);
   color: var(--tpat-off-color);
 }
@@ -982,6 +985,19 @@ svg.tile-selected {
   vector-effect: non-scaling-stroke;
 }
 
+.code-container svg.warn-hole {
+  fill: rgba(221, 166, 0, 0.067);
+  stroke-dasharray: 1, 1;
+  stroke: var(--warn-color);
+  stroke-width: 1.2px;
+  /* mix-blend-mode: color; */
+  z-index: var(--warn-hole-z);
+}
+
+.code-container svg.warn-hole path {
+  vector-effect: non-scaling-stroke;
+}
+
 .typ-view {
   color: var(--typ-text-color);
   display: flex;
@@ -1021,7 +1037,13 @@ svg.tile-selected {
 
 .term-tag.error {
   background-color: var(--err-color);
-  color: #830000 !important;
+  color: var(--err-color-dark) !important;
+  /* HACK(andrew) */
+}
+
+.term-tag.warn {
+  background-color: var(--warn-color);
+  color: var(--warn-color-dark) !important;
   /* HACK(andrew) */
 }
 
@@ -1049,6 +1071,10 @@ svg.tile-selected {
   border-color: var(--err-color);
 }
 
+.cursor-inspector.warn {
+  border-color: var(--warn-color);
+}
+
 .cursor-inspector:hover .context-inspector,
 .context-inspector.visible {
   display: flex;
@@ -1062,7 +1088,8 @@ svg.tile-selected {
 }
 
 .cursor-inspector .info .ok,
-.cursor-inspector .info .error {
+.cursor-inspector .info .error,
+.cursor-inspector .info .warn {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -1071,6 +1098,9 @@ svg.tile-selected {
 
 .cursor-inspector .info .error {
   color: var(--err-color);
+}
+.cursor-inspector .info .warn {
+  color: var(--warn-color-dark);
 }
 
 /* CONTEXT INSPECTOR */
