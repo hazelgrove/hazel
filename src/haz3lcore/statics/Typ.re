@@ -28,6 +28,12 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
+let matched_list: t => t =
+  fun
+  | List(ty) => ty
+  | Unknown(prov) => Unknown(prov)
+  | _ => Unknown(Internal);
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | SynFun
@@ -37,7 +43,13 @@ let matched_arrow_mode: mode => (mode, mode) =
       (Ana(ty_in), Ana(ty_out));
     };
 
-let matched_prod_mode = (mode: mode, length): list(mode) =>
+let matched_list_mode: mode => mode =
+  fun
+  | SynFun
+  | Syn => Syn
+  | Ana(ty) => Ana(matched_list(ty));
+
+let matched_prod_modes = (mode: mode, length): list(mode) =>
   switch (mode) {
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
@@ -45,19 +57,8 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   | _ => List.init(length, _ => Syn)
   };
 
-let matched_list: t => t =
-  fun
-  | List(ty) => ty
-  | Unknown(prov) => Unknown(prov)
-  | _ => Unknown(Internal);
-
-let matched_list_mode: mode => mode =
-  fun
-  | SynFun
-  | Syn => Syn
-  | Ana(ty) => Ana(matched_list(ty));
-
-let ap_mode: mode = SynFun;
+let matched_list_lit_modes = (mode: mode, length): list(mode) =>
+  List.init(length, _ => matched_list_mode(mode));
 
 /* Legacy precedence code from HTyp */
 let precedence_Prod = 1;
@@ -311,13 +312,17 @@ let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
   };
 };
 
-let tag_ap_mode = (ctx: Ctx.t, mode: mode, name: Token.t): mode =>
+let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
-  switch (tag_ana_typ(ctx, mode, name)) {
-  | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
-  | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
-  | _ => ap_mode
+  switch (tag_name) {
+  | Some(name) =>
+    switch (tag_ana_typ(ctx, mode, name)) {
+    | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
+    | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
+    | _ => SynFun
+    }
+  | None => SynFun
   };
