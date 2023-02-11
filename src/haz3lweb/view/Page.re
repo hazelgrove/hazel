@@ -104,8 +104,12 @@ let top_bar_view =
         div(
           ~attr=clss(["menu"]),
           [
-            toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
-              inject(Set(Statics))
+            submenu(
+              toggle(
+                "τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
+                inject(Set(Statics))
+              ),
+              [submenu_label("Toggle Statics")],
             ),
             submenu(
               toggle(
@@ -119,12 +123,15 @@ let top_bar_view =
                 ),
               ],
             ),
-            toggle(
-              "b",
-              ~tooltip="Toggle Performance Benchmark",
-              model.settings.benchmark,
-              _ =>
-              inject(Set(Benchmark))
+            submenu(
+              toggle(
+                "b",
+                ~tooltip="Toggle Performance Benchmark",
+                model.settings.benchmark,
+                _ =>
+                inject(Set(Benchmark))
+              ),
+              [submenu_label("Toggle Performance Benchmark")],
             ),
             submenu(
               div(
@@ -144,26 +151,35 @@ let top_bar_view =
                 }),
               ],
             ),
-            file_select_button(
-              "import-submission",
-              Icons.import,
-              file => {
-                switch (file) {
-                | None => Virtual_dom.Vdom.Effect.Ignore
-                | Some(file) => inject(InitImportAll(file))
-                }
-              },
-              ~tooltip="Import Submission",
+            submenu(
+              file_select_button(
+                "import-submission",
+                Icons.import,
+                file => {
+                  switch (file) {
+                  | None => Virtual_dom.Vdom.Effect.Ignore
+                  | Some(file) => inject(InitImportAll(file))
+                  }
+                },
+                ~tooltip="Import Submission",
+              ),
+              [submenu_label("Import Submission")],
             ),
-            button(
-              Icons.eye,
-              _ => inject(Set(SecondaryIcons)),
-              ~tooltip="Toggle Visible Secondary",
+            submenu(
+              button(
+                Icons.eye,
+                _ => inject(Set(SecondaryIcons)),
+                ~tooltip="Toggle Visible Secondary",
+              ),
+              [submenu_label("Toggle Visible Secondary")],
             ),
-            link(
-              Icons.github,
-              "https://github.com/hazelgrove/hazel",
-              ~tooltip="Hazel on GitHub",
+            submenu(
+              link(
+                Icons.github,
+                "https://github.com/hazelgrove/hazel",
+                ~tooltip="Hazel on GitHub",
+              ),
+              [submenu_label("Hazel on GitHub")],
             ),
           ],
         ),

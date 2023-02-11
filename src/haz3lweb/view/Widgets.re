@@ -49,6 +49,16 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
 
+let menu_item = (item, title, submenu) =>
+  div(
+    ~attr=clss(["menu-item"]),
+    [
+      div(~attr=clss(["menu-item-thing"]), [item]),
+      div(~attr=clss(["menu-item-title"]), [text(title)]),
+      submenu,
+    ],
+  );
+
 let submenu_button = (title, action) =>
   div(
     ~attr=Attr.many([clss(["submenu-button"]), Attr.on_mousedown(action)]),
@@ -65,6 +75,9 @@ let submenu_toggle = (~tooltip="", label, active, action) =>
       ]),
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
+
+let submenu_label = content =>
+  div(~attr=clss(["submenu-label"]), [text(content)]);
 
 let submenu_switch = (title, label, active, action) =>
   div(

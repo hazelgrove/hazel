@@ -342,9 +342,9 @@ body {
   top: 2.75em;
   left: 0;
   width: 2.75em;
-  padding-top: 1em;
-  padding-bottom: 1em;
-  gap: 1em;
+  /* padding-top: 1em; */
+  /* padding-bottom: 1em; */
+  /* gap: 1em; */
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -1927,14 +1927,16 @@ svg.expandable path {
 }
 
 .submenu-text:hover,
-.submenu-button:hover {
+.submenu-button:hover,
+.submenu-label:hover {
   /* animation: wobble 0.6s ease 0s 1 normal forwards; */
   filter: brightness(1.2);
   transition: 0.6s;
 }
 
 .submenu-text,
-.submenu-button {
+.submenu-button,
+.submenu-label {
   color: var(--top_bar_icon_fill);
   width: fit-content;
   white-space: nowrap;
@@ -1942,7 +1944,8 @@ svg.expandable path {
 }
 
 .submenu-switch,
-.submenu-button {
+.submenu-button,
+.submenu-label {
   padding: 0.5em 0.875em;
 }
 
