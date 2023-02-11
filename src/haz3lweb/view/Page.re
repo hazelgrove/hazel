@@ -104,6 +104,9 @@ let top_bar_view =
         div(
           ~attr=clss(["menu"]),
           [
+            toggle("i", ~tooltip="Toggle Statics", model.settings.statics, _ =>
+              inject(Set(LiveInspector(ToggleOn)))
+            ),
             toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
               inject(Set(Statics))
             ),

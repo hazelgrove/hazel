@@ -15,7 +15,7 @@ type live_inspector = {
 };
 
 let live_inspector_init = {
-  on: true,
+  on: false,
   use_cursor: true,
   show_fns_in_env: false,
   ids: [],

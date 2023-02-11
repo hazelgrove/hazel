@@ -159,6 +159,7 @@ let test_result_layer =
 let deco =
     (
       ~zipper,
+      ~settings: Model.settings,
       ~measured,
       ~segment,
       ~font_metrics,
@@ -171,6 +172,7 @@ let deco =
   let unselected = Zipper.unselect_and_zip(zipper);
   module Deco =
     Deco.Deco({
+      let settings = settings;
       let font_metrics = font_metrics;
       let map = measured;
       let show_backpack_targets = show_backpack_targets;
@@ -279,6 +281,7 @@ let editor_view =
   let deco_view =
     deco(
       ~zipper,
+      ~settings,
       ~measured,
       ~segment,
       ~font_metrics,

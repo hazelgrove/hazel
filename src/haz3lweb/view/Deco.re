@@ -6,6 +6,7 @@ open OptUtil.Syntax;
 module Deco =
        (
          M: {
+           let settings: Model.settings;
            let font_metrics: FontMetrics.t;
            let map: Measured.t;
            let show_backpack_targets: bool;
@@ -16,6 +17,7 @@ module Deco =
          },
        ) => {
   let font_metrics = M.font_metrics;
+  let settings = M.settings;
 
   let tile = id => Id.Map.find(id, M.tiles);
 
@@ -439,13 +441,15 @@ module Deco =
   };
 
   let all = (zipper, sel_seg) =>
-    List.concat([
-      caret(zipper),
-      indicated_piece_deco(zipper),
-      selected_pieces(zipper),
-      backback(zipper),
-      targets'(zipper.backpack, sel_seg),
-      err_holes(zipper),
-      live_aid(zipper),
-    ]);
+    List.concat(
+      [
+        caret(zipper),
+        indicated_piece_deco(zipper),
+        selected_pieces(zipper),
+        backback(zipper),
+        targets'(zipper.backpack, sel_seg),
+        err_holes(zipper),
+      ]
+      @ (settings.live_inspector.on ? [live_aid(zipper)] : []),
+    );
 };
