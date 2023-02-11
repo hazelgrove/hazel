@@ -116,12 +116,7 @@ let top_bar_view =
                 "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
                 inject(Set(Dynamics))
               ),
-              [
-                submenu_switch(
-                  "Toggle Dynamics", "𝛿", model.settings.dynamics, _ =>
-                  inject(Set(Dynamics))
-                ),
-              ],
+              [submenu_label("Toggle Dynamics")],
             ),
             submenu(
               toggle(
