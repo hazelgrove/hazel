@@ -417,6 +417,12 @@ module UPat = {
       }
     };
   };
+
+  let tag_name = (p: t): option(Token.t) =>
+    switch (p.term) {
+    | Tag(name) => Some(name)
+    | _ => None
+    };
 };
 
 module UExp = {
@@ -596,6 +602,12 @@ module UExp = {
       | Tag(_) => false
       }
     );
+
+  let tag_name = (e: t): option(Token.t) =>
+    switch (e.term) {
+    | Tag(name) => Some(name)
+    | _ => None
+    };
 };
 
 // TODO(d): consider just folding this into UExp

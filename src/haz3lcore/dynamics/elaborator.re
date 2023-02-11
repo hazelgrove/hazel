@@ -364,6 +364,8 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
     Builtins.forms(Builtins.Pervasives.builtins),
   );
 
+//let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
+
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
