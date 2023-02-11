@@ -16,6 +16,13 @@ type source = {
   ty: Typ.t,
 };
 
+/* Classifies patterns into those whose parent expects a single
+   case like lets and funs and those who expect multiple cases like match */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_form =
+  | Solo
+  | Branch;
+
 /* The common (synthetic) type information derivable from pattern
    or expression terms in isolation, using the typing context but
    not the syntactic context i.e. typing mode */
@@ -38,6 +45,7 @@ type self_exp =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_pat =
+  | SoloPos(UPat.t, self_common)
   | Common(self_common);
 
 /* Common errors which can apply to either expression or patterns */
@@ -61,6 +69,7 @@ type error_exp =
 /* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
+  | SoloRefutable(Typ.t)
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -258,11 +267,25 @@ let rec status_common =
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
   };
 
+let ty_ok_pat: ok_pat => Typ.t =
+  fun
+  | SynConsistent(ty) => ty
+  | AnaConsistent({ana, _}) => ana
+  | AnaInternalInconsistent({ana, _}) => ana;
+
 let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
   switch (self, mode) {
-  | (Common(self_pat), _) =>
-    switch (status_common(ctx, mode, self_pat)) {
-    | NotInHole(ok_exp) => NotInHole(ok_exp)
+  | (SoloPos(upat, self), _) =>
+    switch (status_common(ctx, mode, self)) {
+    | NotInHole(ok_pat) =>
+      let ty = ty_ok_pat(ok_pat);
+      UPat.is_refutable(ctx, upat, ty)
+        ? InHole(SoloRefutable(ty)) : NotInHole(ok_pat);
+    | InHole(err_pat) => InHole(Common(err_pat))
+    }
+  | (Common(self), _) =>
+    switch (status_common(ctx, mode, self)) {
+    | NotInHole(ok_pat) => NotInHole(ok_pat)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   };

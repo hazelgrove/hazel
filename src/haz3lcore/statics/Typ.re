@@ -34,6 +34,14 @@ let matched_list: t => t =
   | Unknown(prov) => Unknown(prov)
   | _ => Unknown(Internal);
 
+let matched_prod = (ty: t, length: int): list(t) =>
+  switch (ty) {
+  | Prod(tys) when List.length(tys) == length => tys
+  | Unknown(prod) => List.init(length, _ => Unknown(prod))
+  /* If the type is something else, we're in a hole, so switch to syn */
+  | _ => List.init(length, _ => Unknown(SynSwitch))
+  };
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | SynFun
@@ -49,13 +57,24 @@ let matched_list_mode: mode => mode =
   | Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
-let matched_prod_modes = (mode: mode, length): list(mode) =>
+let mode_switch = (mode: mode): t =>
   switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-  | _ => List.init(length, _ => Syn)
+  | Syn
+  | SynFun => Unknown(SynSwitch)
+  | Ana(ty) => ty
   };
+let matched_prod_modes = (mode: mode, length): list(mode) =>
+  List.map(ty => Ana(ty), matched_prod(mode_switch(mode), length));
+/*  switch (mode) {
+    | Ana(ana_ty) => List.map(ty => Ana(ty), matched_prod(ana_ty, length))
+    | Syn
+    | SynFun => List.init(length, _ => Syn)
+    //TODO(andrew): cleanup
+    /*| Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
+        List.map(ty => Ana(ty), ana_tys)
+      | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
+      | _ => List.init(length, _ => Syn)*/
+    };*/
 
 let matched_list_lit_modes = (mode: mode, length): list(mode) =>
   List.init(length, _ => matched_list_mode(mode));
@@ -325,4 +344,10 @@ let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
     | _ => SynFun
     }
   | None => SynFun
+  };
+
+let is_singleton_sum = (ctx: Ctx.t, ty: t): bool =>
+  switch (get_sum_tags(ctx, ty)) {
+  | Some(tags) => VarMap.length(tags) == 1
+  | _ => false
   };

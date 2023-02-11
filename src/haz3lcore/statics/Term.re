@@ -423,6 +423,35 @@ module UPat = {
     | Tag(name) => Some(name)
     | _ => None
     };
+
+  let rec is_refutable = (ctx: Ctx.t, p: t, ty: Typ.t) => {
+    switch (p.term) {
+    /* Considers incomplete patterns same as holes */
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => false
+    | Parens(_p) => false // _LOCALLY_ refutable
+    //is_refutable(ctx, p, ty)
+    | TypeAnn(p, _typ) => is_refutable(ctx, p, ty) //TODO: iffy
+    | Tuple(_ps) => false // _LOCALLY_ refutable
+    /*List.exists2(
+        is_refutable(ctx),
+        ps,
+        Typ.matched_prod(ty, List.length(ps)),
+      )*/
+    | Tag(_)
+    | Ap(_) => !Typ.is_singleton_sum(ctx, ty)
+    | Wild
+    | Var(_) => false
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _) => true
+    };
+  };
 };
 
 module UExp = {

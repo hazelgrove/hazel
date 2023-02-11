@@ -74,7 +74,15 @@ let rec any_to_info_map =
     (free, m);
   | Pat(p) =>
     let m =
-      upat_to_info_map(~is_synswitch=false, ~ancestors, ~ctx, p, m) |> snd;
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~pat_form=Info.Solo,
+        ~ancestors,
+        ~ctx,
+        p,
+        m,
+      )
+      |> snd;
     (VarMap.empty, m);
   | TPat(tp) => (
       VarMap.empty,
@@ -196,7 +204,8 @@ and uexp_to_info_map =
     add(~self=Just(ty_out), ~free=Ctx.union([fn.free, arg.free]), m);
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
-    let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
+    let (p, m) =
+      go_pat(~is_synswitch=false, ~mode=mode_pat, ~pat_form=Solo, p, m);
     let (e, m) = go'(~ctx=p.ctx, ~mode=mode_body, e, m);
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
@@ -204,11 +213,14 @@ and uexp_to_info_map =
       m,
     );
   | Let(p, def, body) =>
-    let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
+    //TODO(andrew): below call gets wrong ty in cases like let 1 = 1. in ...
+    let (p_syn, _) =
+      go_pat(~is_synswitch=true, ~mode=Syn, ~pat_form=Solo, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
+    let (p_ana, m) =
+      go_pat(~is_synswitch=false, ~mode=Ana(def.ty), ~pat_form=Solo, p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),
@@ -230,7 +242,15 @@ and uexp_to_info_map =
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
     let (ps, m) =
-      map_m(go_pat(~is_synswitch=false, ~mode=Typ.Ana(scrut.ty)), ps, m);
+      map_m(
+        go_pat(
+          ~is_synswitch=false,
+          ~mode=Typ.Ana(scrut.ty),
+          ~pat_form=Branch,
+        ),
+        ps,
+        m,
+      );
     let p_ctxs = List.map(Info.pat_ctx, ps);
     let (es, m) =
       List.fold_left2(
@@ -294,6 +314,7 @@ and uexp_to_info_map =
 and upat_to_info_map =
     (
       ~is_synswitch,
+      ~pat_form: Info.pat_form,
       ~ctx,
       ~ancestors: Info.ancestors,
       ~mode: Typ.mode=Typ.Syn,
@@ -303,12 +324,18 @@ and upat_to_info_map =
     : (Info.pat, Map.t) => {
   let add = (~self, ~ctx, m) => {
     let info =
-      Info.derived_pat(~upat, ~ctx, ~mode, ~ancestors, ~self=Common(self));
+      Info.derived_pat(
+        ~upat,
+        ~ctx,
+        ~mode,
+        ~ancestors,
+        ~self=pat_form == Solo ? SoloPos(upat, self) : Common(self),
+      );
     (info, add_info(ids, InfoPat(info), m));
   };
   let atomic = self => add(~self, ~ctx, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors);
+  let go = upat_to_info_map(~pat_form, ~is_synswitch, ~ancestors);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
