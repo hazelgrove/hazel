@@ -164,3 +164,13 @@ let cat =
 let append =
     (l: t('loop, 'link), lk: 'link, r: t('loop, 'link)): t('loop, 'link) =>
   l |> fold_right(link, lp => link(lp, lk, r));
+
+let trim = ((lps, lks): t('lp, 'lk)): option(('lp, t('lk, 'lp), 'lp)) =>
+  switch (lks) {
+  | [] => None
+  | [_, ..._] =>
+    let (l, lps) = ListUtil.split_first(lps);
+    let (lps, r) = ListUtil.split_last(lps);
+    Some((l, mk(lks, lps), r));
+  };
+let untrim = (_, _, _) => failwith("todo");
