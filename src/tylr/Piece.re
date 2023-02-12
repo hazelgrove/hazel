@@ -155,7 +155,7 @@ type degrouted =
   | Replaced(Space.t, t, Space.t)
   | Passed;
 
-let degrout = (l: t, ~kid_l=?, ~kid_r=?, r: t): option(dg) =>
+let degrout = (l: t, r: t): option(dg) =>
   switch (l.shape, r.shape) {
   | (T(_), T(_)) => None
   | (G(_), _) when mold(l) == mold(r) => Some(Fill(L))

@@ -1,6 +1,3 @@
-// halves of an arch
-// http://lly.org/~rcw/cwf/dictionary/arch/arch_nomenclature.html
-
 module Up = {
   // left-to-right, hierarchically upward
   type t = Chain.t(Space.t, Meld.Closed.l);
@@ -27,7 +24,7 @@ module Up = {
       | (None, None, None) =>
         let s =
           Meld.is_empty(kid)
-          |> OptUtil.get_or_raise(Invalid_argument("Suffix.cons_meld"));
+          |> OptUtil.get_or_raise(Invalid_argument("Slope.Up.cons_meld"));
         let mel_hd = Meld.in_(mel, ~s, hd);
         Ok(cat(of_meld(hd_mel), tl));
       };
@@ -35,9 +32,9 @@ module Up = {
 };
 
 module Dn = {
-  // left-to-right in edit state: hierarchically downward
+  // left-to-right: hierarchically downward
   // (but stored right-to-left in chain for efficiency, since
-  // we always start traversals at lowest point of haunch)
+  // we always start traversals at lowest point of slope)
   type t = Chain.t(Space.t, Meld.Closed.r);
 
   let empty = Chain.of_loop(Space.empty);
@@ -61,7 +58,7 @@ module Dn = {
       | (None, None, None) =>
         let s =
           Meld.is_empty(kid)
-          |> OptUtil.get_or_raise(Invalid_argument("Prefix.cons_meld"));
+          |> OptUtil.get_or_raise(Invalid_argument("Slope.Dn.cons_meld"));
         let hd_mel = Meld.in_(hd, ~s, mel);
         Ok(cat(of_meld(hd_mel), tl));
       };

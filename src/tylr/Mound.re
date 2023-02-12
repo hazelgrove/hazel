@@ -1,7 +1,6 @@
 open Slope;
 
-module Key = {
-  // the "keystone" of the arch
+module Peak = {
   type t = Meld.Closed.t;
 
   let mk_l = ((hd, tl): Meld.Closed.l, p: Piece.t) =>
@@ -12,58 +11,59 @@ module Key = {
   let of_piece = _ => failwith("todo");
 };
 
-// left-to-right-: up key dn
-type t = {
+// left-to-right: up peak dn
+type t' = {
   up: Up.t,
-  key: option(Key.t),
+  peak: Peak.t,
   dn: Dn.t,
 };
+type t = option(t');
 
-let mk = (~up=[], ~key=?, ~dn=[], ()) => {up, key, dn};
+let mk = (~up=[], ~peak=?, ~dn=[], ()) =>
+  peak |> Option.map(peak => {up, peak, dn});
 let empty = mk();
-// invariant: if key == None, then up == [] == dn
-// iow "can't have arch without keystone"
-let is_empty = a => Option.is_none(a.key);
+let is_empty: t => _ = Option.is_none;
 
-let map_up = (f, a) => {...a, up: f(a.up)};
-let map_dn = (f, a) => {...a, dn: f(a.dn)};
+let map: (_, t) => t = Option.map;
+let map_up = f => map(m => {...m, up: f(m.up)});
+let map_dn = f => map(m => {...m, dn: f(m.dn)});
 
-let rec cons_meld = (mel: Meld.Closed.r, a: t) =>
-  if (is_empty(a)) {
+let rec cons_meld = (mel: Meld.Closed.r, m: t) =>
+  if (is_empty(m)) {
     let (tl, hd) = mel;
     switch (Meld.Closed.mk_l(tl)) {
-    | Error(kid) => cons_meld(kid, mk(~key=Key.of_piece(hd), ()))
+    | Error(kid) => cons_meld(kid, mk(~key=Peak.of_piece(hd), ()))
     | Ok((kid, closed)) =>
-      mk(~up=Up.of_meld(kid), ~key=Key.mk_l(closed, hd), ())
+      mk(~up=Up.of_meld(kid), ~key=Peak.mk_l(closed, hd), ())
     };
   } else {
-    map_up(Up.cons_meld(mel), a);
+    map_up(Up.cons_meld(mel), m);
   };
-let rec snoc_meld = (a: t, mel: Meld.Closed.l) =>
-  if (is_empty(a)) {
+let rec snoc_meld = (m: t, mel: Meld.Closed.l) =>
+  if (is_empty(m)) {
     let (hd, tl) = mel;
     switch (Meld.Closed.mk_r(tl)) {
-    | Error(kid) => snoc_meld(mk(~key=Key.of_piece(hd), ()), kid)
+    | Error(kid) => snoc_meld(mk(~key=Peak.of_piece(hd), ()), kid)
     | Ok((closed, kid)) =>
-      mk(~key=Key.mk_r(hd, closed), ~dn=Dn.of_meld(kid), ())
+      mk(~key=Peak.mk_r(hd, closed), ~dn=Dn.of_meld(kid), ())
     };
   } else {
-    map_dn(Dn.cons_meld(mel), a);
+    map_dn(Dn.cons_meld(mel), m);
   };
 
-let onto_up = (a: t, up: Up.t): Up.t =>
-  a.dn
+let onto_up = (m: t, up: Up.t): Up.t =>
+  m.dn
   |> Dn.fold(
        s => Up.cons_space(s, up),
        (up, mel, s) => up |> Up.cons_meld(mel) |> Up.cons_space(s),
      )
-  |> Up.cons_meld(Meld.Closed.r_of_t(a.key))
-  |> Up.cat(a.up);
-let onto_dn = (dn: Dn.t, a: t): Dn.t =>
-  a.up
+  |> Up.cons_meld(Meld.Closed.r_of_t(m.peak))
+  |> Up.cat(m.up);
+let onto_dn = (dn: Dn.t, m: t): Dn.t =>
+  m.up
   |> Up.fold(
        s => Dn.cons_space(s, dn),
        (dn, mel, s) => dn |> Dn.cons_meld(mel) |> Dn.cons_space(s),
      )
-  |> Dn.cons_meld(Meld.Closed.l_of_t(a.key))
-  |> Dn.cat(a.dn);
+  |> Dn.cons_meld(Meld.Closed.l_of_t(m.peak))
+  |> Dn.cat(m.dn);

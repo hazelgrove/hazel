@@ -110,9 +110,11 @@ let distribute_paths = mel => {
   let with_p = Paths.with_piece(mel.paths);
   let chain =
     mel.chain
-    |> Chain.mapi(
-         i => Option.map(add_paths(with_k(i))),
-         j => Piece.add_paths(with_p(j)),
+    |> Option.map(
+         Chain.mapi(
+           i => add_paths(with_k(i)),
+           j => Piece.add_paths(with_p(j)),
+         ),
        );
   {chain, space, paths: []};
 };
@@ -122,23 +124,27 @@ let aggregate_paths = mel => {
   let ps_r = List.map(Path.of_space(R), r.paths);
   let ps_chain =
     mel.chain
-    |> Chain.mapi(
-         (i, kid) => List.map(Path.cons(i), paths_of_kid(kid)),
-         (i, p: Piece.t) => List.map(Path.of_piece(i), p.paths),
+    |> Option.map(c =>
+         c
+         |> Chain.mapi(
+              (i, kid) => List.map(Path.cons(i), kid.paths),
+              (i, p: Piece.t) => List.map(Path.of_piece(i), p.paths),
+            )
+         |> Chain.to_list(Fun.id, Fun.id)
+         |> List.concat
        )
-    |> Chain.to_list(Fun.id, Fun.id)
-    |> List.concat;
+    |> Option.value(~default=[]);
   let paths = List.concat([ps_l, ps_chain, ps_r]);
   let space = Space.(clear_paths(l), clear_paths(r));
   let chain =
-    mel.chain |> Chain.map(Option.map(clear_paths), Piece.clear_paths);
+    mel.chain |> Option.map(Chain.map(clear_paths, Piece.clear_paths));
   {paths, space, chain};
 };
 
 let is_empty = (mel: t) => {
   let mel = distribute_paths(mel);
   let (l, r) = mel.space;
-  mel.chain == empty_chain ? Some(Space.cat(l, r)) : None;
+  Option.is_none(mel.chain) ? Some(Space.cat(l, r)) : None;
 };
 
 // todo: review for externalizing padding
@@ -149,8 +155,10 @@ let of_grout = (~l=?, ~r=?, g: Grout.t) =>
 let of_tile = (~l=?, ~r=?, t: Tile.t) =>
   of_piece(~l?, ~r?, Piece.mk(T(t)));
 
-let root = mel => Chain.links(mel.chain);
-let kids = mel => Chain.loops(mel.chain);
+let root = mel =>
+  mel.chain |> Option.map(Chain.links) |> Option.value(~default=[]);
+let kids = mel =>
+  mel.chain |> Option.map(Chain.loops) |> Option.value(~default=[]);
 let length = mel => List.length(root(mel));
 
 // todo: review in wrt to preserving space paths
