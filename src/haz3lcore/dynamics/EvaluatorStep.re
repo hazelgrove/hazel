@@ -834,8 +834,7 @@ module EvalObj = {
         ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(obj.ctx)),
       );
       raise(EvaluatorError.Exception(StepDoesNotMatch));
-    | (NonEmptyHole, _)
-    | (InconsistentBranches, _) =>
+    | (NonEmptyHole, _) =>
       raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
     | (Closure, Closure(_, c))
     | (Let, Let(_, c, _))
@@ -856,9 +855,12 @@ module EvalObj = {
       } else {
         None;
       }
+    | (InconsistentBranches, InconsistentBranches(_, _, Case(scrut, _, _))) =>
+      Some({...obj, ctx: scrut})
     | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) =>
       Some({...obj, ctx: scrut})
-    | (Cast, Cast(c, _, _)) => Some({...obj, ctx: c})
+    | (Cast, Cast(c, _, _))
+    | (FailedCast, FailedCast(c, _, _)) => Some({...obj, ctx: c})
     | (Ap1, Ap2(_, _))
     | (Ap2, Ap1(_, _))
     | (BinBoolOp1, BinBoolOp2(_))
@@ -884,6 +886,40 @@ let rec decompose =
         (env: ClosureEnvironment.t, d: DHExp.t): m(list(EvalObj.t)) => {
   let wrap = (fctx: EvalCtx.t => EvalCtx.t, ld: list(EvalObj.t)) =>
     List.map((obj: EvalObj.t) => {...obj, ctx: fctx(obj.ctx)}, ld);
+
+  let go = (dcs: list((DHExp.t, EvalCtx.t => EvalCtx.t))) => {
+    let* is_final = {
+      let f = (pr, d) => {
+        let* r = transition(env, d);
+        let* pr = pr;
+        (pr && is_final(r)) |> return;
+      };
+      dcs |> List.map(fst) |> List.fold_left(f, true |> return);
+    };
+    if (is_final) {
+      print_endline("is final");
+      [EvalObj.mk(env, Mark, d)] |> return;
+    } else {
+      print_endline("not final");
+      List.fold_left(
+        (rc, (d, f)) => {
+          print_endline(
+            "recursively decomposing "
+            ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+          );
+          let* c = decompose(env, d);
+          print_endline(
+            "recursively decomposed "
+            ++ Sexplib.Sexp.to_string_hum(sexp_of_list(EvalObj.sexp_of_t, c)),
+          );
+          let* rc = rc;
+          rc @ wrap(f, c) |> return;
+        },
+        return([]),
+        dcs,
+      );
+    };
+  };
 
   let* r = transition(env, d);
   if (is_final(r)) {
@@ -917,155 +953,45 @@ let rec decompose =
     | FixF(_, _, _)
     | BoundVar(_)
     | ExpandingKeyword(_) => [EvalObj.mk(env, Mark, d)] |> return
-    | Ap(d1, d2) =>
-      let* r1 = transition(env, d1);
-      let* r2 = transition(env, d2);
-      if (is_final(r1) && is_final(r2)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        let* ld2 = decompose(env, d2);
-        wrap(c => Ap1(c, d2), ld1) @ wrap(c => Ap2(d1, c), ld2) |> return;
-      };
+    | Ap(d1, d2) => go([(d1, c => Ap1(c, d2)), (d2, c => Ap2(d1, c))])
     | NonEmptyHole(reason, u, i, d1) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => NonEmptyHole(reason, u, i, c), ld1) |> return;
-      };
+      go([(d1, c => NonEmptyHole(reason, u, i, c))])
     | BinBoolOp(op, d1, d2) =>
-      let* r1 = transition(env, d1);
-      let* r2 = transition(env, d2);
-      if (is_final(r1) && is_final(r2)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        let* ld2 = decompose(env, d2);
-        wrap(c => BinBoolOp1(op, c, d2), ld1)
-        @ wrap(c => BinBoolOp2(op, d1, c), ld2)
-        |> return;
-      };
+      go([
+        (d1, c => BinBoolOp1(op, c, d2)),
+        (d2, c => BinBoolOp2(op, d1, c)),
+      ])
     | BinIntOp(op, d1, d2) =>
-      let* r1 = transition(env, d1);
-      let* r2 = transition(env, d2);
-      if (is_final(r1) && is_final(r2)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        let* ld2 = decompose(env, d2);
-        wrap(c => BinIntOp1(op, c, d2), ld1)
-        @ wrap(c => BinIntOp2(op, d1, c), ld2)
-        |> return;
-      };
+      go([
+        (d1, c => BinIntOp1(op, c, d2)),
+        (d2, c => BinIntOp2(op, d1, c)),
+      ])
     | BinFloatOp(op, d1, d2) =>
-      let* r1 = transition(env, d1);
-      let* r2 = transition(env, d2);
-      if (is_final(r1) && is_final(r2)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        let* ld2 = decompose(env, d2);
-        wrap(c => BinFloatOp1(op, c, d2), ld1)
-        @ wrap(c => BinFloatOp2(op, d1, c), ld2)
-        |> return;
-      };
+      go([
+        (d1, c => BinFloatOp1(op, c, d2)),
+        (d2, c => BinFloatOp2(op, d1, c)),
+      ])
     | Cons(d1, d2) =>
-      let* r1 = transition(env, d1);
-      let* r2 = transition(env, d2);
-      if (is_final(r1) && is_final(r2)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        let* ld2 = decompose(env, d2);
-        wrap(c => Cons1(c, d2), ld1)
-        @ wrap(c => Cons2(d1, c), ld2)
-        |> return;
-      };
-    | Cast(d1, ty1, ty2) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => Cast(c, ty1, ty2), ld1) |> return;
-      };
-    | FailedCast(d1, ty1, ty2) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => FailedCast(c, ty1, ty2), ld1) |> return;
-      };
-    | Tuple(ld) =>
-      let* is_final = {
-        let f = (pr, d) => {
-          let* r = transition(env, d);
-          let* pr = pr;
-          (pr && is_final(r)) |> return;
+      go([(d1, c => Cons1(c, d2)), (d2, c => Cons2(d1, c))])
+    | Cast(d1, ty1, ty2) => go([(d1, c => Cast(c, ty1, ty2))])
+    | FailedCast(d1, ty1, ty2) => go([(d1, c => FailedCast(c, ty1, ty2))])
+    | Tuple(ds) =>
+      let rec walk = (ld, rd, rc) =>
+        switch (rd) {
+        | [] => rc
+        | [hd, ...tl] =>
+          let rc = rc @ [(hd, (c => EvalCtx.Tuple(c, (ld, tl))))];
+          walk(ld @ [hd], tl, rc);
         };
-        ld |> List.fold_left(f, false |> return);
-      };
-      if (is_final) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let rec walk = (ld, rd, rc) =>
-          switch (rd) {
-          | [] => rc |> return
-          | [hd, ...tl] =>
-            let* c = decompose(env, hd);
-            let f = (obj: EvalObj.t) =>
-              EvalObj.mk(env, Tuple(obj.ctx, (ld, tl)), obj.exp);
-            walk(ld @ [hd], tl, rc @ (c |> List.map(f)));
-          };
-        let* ret = walk([], ld, []);
-        ret |> return;
-      };
-    | Let(dp, d1, d2) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => Let(dp, c, d2), ld1) |> return;
-      };
-    | Inj(ty, side, d1) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => Inj(ty, side, c), ld1) |> return;
-      };
+      go(walk([], ds, []));
+    | Let(dp, d1, d2) => go([(d1, c => Let(dp, c, d2))])
+    | Inj(ty, side, d1) => go([(d1, c => Inj(ty, side, c))])
     | InvalidOperation(d1, err) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => InvalidOperation(c, err), ld1) |> return;
-      };
+      go([(d1, c => InvalidOperation(c, err))])
     | ConsistentCase(Case(d1, rule, n)) =>
-      print_endline("decomposing ConsistentCase...");
-      let* r1 = transition(env, d1);
-      print_endline("r1: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r1)));
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => ConsistentCase(Case(c, rule, n)), ld1) |> return;
-      };
+      go([(d1, c => ConsistentCase(Case(c, rule, n)))])
     | InconsistentBranches(u, i, Case(d1, rule, n)) =>
-      let* r1 = transition(env, d1);
-      if (is_final(r1)) {
-        [EvalObj.mk(env, Mark, d)] |> return;
-      } else {
-        let* ld1 = decompose(env, d1);
-        wrap(c => InconsistentBranches(u, i, Case(c, rule, n)), ld1)
-        |> return;
-      };
+      go([(d1, c => InconsistentBranches(u, i, Case(c, rule, n)))])
     };
   };
 };
