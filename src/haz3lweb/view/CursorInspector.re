@@ -153,8 +153,12 @@ let exp_view: Info.status_exp => t =
 
 let pat_view: Info.status_pat => t =
   fun
-  | Warning(SoloRefutable(_ty, ok)) =>
+  | Warning(ok, SoloRefutable) =>
     view_warn([text("Doesn't cover all cases but ")] @ common_ok_view(ok))
+  | Warning(ok, Shadowing(_id)) =>
+    view_warn(
+      [text("Shadowing previous binding but ")] @ common_ok_view(ok),
+    )
   | InHole(Common(error)) => view_err(common_err_view(error))
   | NotInHole(ok) => view_ok(common_ok_view(ok));
 

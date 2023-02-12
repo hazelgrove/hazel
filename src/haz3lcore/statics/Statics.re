@@ -213,7 +213,6 @@ and uexp_to_info_map =
       m,
     );
   | Let(p, def, body) =>
-    //TODO(andrew): below call gets wrong ty in cases like let 1 = 1. in ...
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~mode=Syn, ~pat_form=Solo, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
@@ -322,16 +321,16 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, m) => {
-    let info =
-      Info.derived_pat(
-        ~upat,
-        ~ctx,
-        ~mode,
-        ~ancestors,
-        ~self=pat_form == Solo ? SoloPos(upat, self) : Common(self),
-      );
+  let add' = (~self, ~ctx, m) => {
+    let info = Info.derived_pat(~upat, ~ctx, ~mode, ~ancestors, ~self);
     (info, add_info(ids, InfoPat(info), m));
+  };
+  let add = (~self, ~ctx, m) => {
+    add'(
+      ~self=pat_form == Solo ? SoloPos(upat, self) : Common(self),
+      ~ctx,
+      m,
+    );
   };
   let atomic = self => add(~self, ~ctx, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
@@ -376,7 +375,11 @@ and upat_to_info_map =
     let ctx_typ =
       Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), m);
+    add'(
+      ~self=PatVar(Just(unknown), name),
+      ~ctx=Ctx.extend(entry, ctx),
+      m,
+    );
   | Tuple(ps) =>
     let modes = Typ.matched_prod_modes(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);

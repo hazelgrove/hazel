@@ -53,6 +53,7 @@ type self_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_pat =
   | SoloPos(UPat.t, self_common)
+  | PatVar(self_common, Token.t)
   | Common(self_common);
 
 /* Common errors which can apply to either expression or patterns */
@@ -76,7 +77,6 @@ type error_exp =
 /* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
-  //| SoloRefutable(Typ.t)
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -104,7 +104,8 @@ type ok_pat = ok_common;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type warning_pat =
-  | SoloRefutable(Typ.t, ok_pat);
+  | SoloRefutable
+  | Shadowing(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
@@ -119,7 +120,7 @@ type status_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_pat =
   | InHole(error_pat)
-  | Warning(warning_pat)
+  | Warning(ok_pat, warning_pat)
   | NotInHole(ok_pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -294,12 +295,22 @@ let ty_ok_pat: ok_pat => Typ.t =
 
 let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
   switch (self, mode) {
+  | (PatVar(self, name), _) =>
+    switch (status_common(ctx, mode, self)) {
+    | NotInHole(ok_pat) =>
+      switch (Ctx.lookup_var(List.tl(ctx), name)) {
+      /* Uncomment to enable shadowing warnings */
+      //| Some({id, _}) => Warning(ok_pat, Shadowing(id))
+      | _ => NotInHole(ok_pat)
+      }
+    | InHole(err_pat) => InHole(Common(err_pat))
+    }
   | (SoloPos(upat, self), _) =>
     switch (status_common(ctx, mode, self)) {
     | NotInHole(ok_pat) =>
       let ty = ty_ok_pat(ok_pat);
       UPat.locally_refutable(ctx, upat, ty)
-        ? Warning(SoloRefutable(ty, ok_pat)) : NotInHole(ok_pat);
+        ? Warning(ok_pat, SoloRefutable) : NotInHole(ok_pat);
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   | (Common(self), _) =>
@@ -416,7 +427,7 @@ let typ_ok: ok_pat => Typ.t =
 let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | Warning(SoloRefutable(_, ok)) => typ_ok(ok)
+  | Warning(ok, _)
   | NotInHole(ok) => typ_ok(ok)
   };
 let ty_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
