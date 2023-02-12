@@ -119,6 +119,11 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   };
 };
 
+let nop = (d: DHExp.t): ProgramResult.t => {
+  let es = EvaluatorState.init;
+  (BoxedValue(d), es, HoleInstanceInfo.empty);
+};
+
 let decompose =
   Core.Memo.general(
     ~cache_size_bound=1000,

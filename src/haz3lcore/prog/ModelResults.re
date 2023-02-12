@@ -17,11 +17,7 @@ let init = (~step=false, ds: list((Key.t, DHExp.t))): t => {
   |> List.map(((key, d)) =>
        (
          key,
-         ModelResult.init(
-           step
-             ? Interface.step(EvaluatorStep.EvalObj.init(d))
-             : Interface.evaluate(d),
-         ),
+         ModelResult.init(step ? Interface.nop(d) : Interface.evaluate(d)),
        )
      )
   |> List.to_seq
