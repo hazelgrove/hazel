@@ -828,7 +828,12 @@ module EvalObj = {
 
   let unwrap = (obj: t, sel: EvalCtx.cls): option(t) => {
     switch (sel, obj.ctx) {
-    | (Mark, _) => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | (Mark, _) =>
+      print_endline(
+        "Mark does not match with "
+        ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(obj.ctx)),
+      );
+      raise(EvaluatorError.Exception(StepDoesNotMatch));
     | (NonEmptyHole, _)
     | (InconsistentBranches, _) =>
       raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
@@ -853,6 +858,7 @@ module EvalObj = {
       }
     | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) =>
       Some({...obj, ctx: scrut})
+    | (Cast, Cast(c, _, _)) => Some({...obj, ctx: c})
     | (Ap1, Ap2(_, _))
     | (Ap2, Ap1(_, _))
     | (BinBoolOp1, BinBoolOp2(_))
@@ -863,7 +869,13 @@ module EvalObj = {
     | (BinFloatOp2, BinFloatOp1(_))
     | (Cons1, Cons2(_))
     | (Cons2, Cons1(_)) => None
-    | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | (tag, ctx) =>
+      print_endline(
+        Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_cls(tag))
+        ++ " does not match with "
+        ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
+      );
+      raise(EvaluatorError.Exception(StepDoesNotMatch));
     };
   };
 };

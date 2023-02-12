@@ -358,6 +358,7 @@ let rec mk =
         let objs = unwrap(objs, ConsistentCase);
         go_case(dscrut, objs, drs);
       | Cast(d, _, _) =>
+        let objs = unwrap(objs, Cast);
         let (doc, _) = go'(d, objs);
         doc;
       | Let(dp, ddef, dbody) =>
