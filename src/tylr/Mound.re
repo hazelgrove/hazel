@@ -1,4 +1,4 @@
-open Haunch;
+open Slope;
 
 module Key = {
   // the "keystone" of the arch

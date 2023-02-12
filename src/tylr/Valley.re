@@ -1,18 +1,18 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Chain.t(Siblings.t, Parent.t);
+type t = Chain.t(Vee.t, Bridge.t);
 
 // immediate siblings
-let of_sib: Siblings.t => t = Chain.of_loop;
-let get_sib: t => Siblings.t = Chain.fst;
+let of_sib: Vee.t => t = Chain.of_loop;
+let get_sib: t => Vee.t = Chain.fst;
 let map_sib: (_, t) => t = Chain.map_fst;
 let put_sib = sib => map_sib(_ => sib);
-let cons_sib = (sib, rel) => map_sib(Siblings.cat(sib), rel);
+let cons_sib = (sib, rel) => map_sib(Vee.cat(sib), rel);
 
-let empty = of_sib(Siblings.empty);
+let empty = of_sib(Vee.empty);
 
-let cat: (t, t) => t = Chain.cat(Siblings.cat);
+let cat: (t, t) => t = Chain.cat(Vee.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
 let rec cons_meld_l = (~kid=Meld.empty(), mel: Meld.Closed.l, rel: t): t => {
@@ -26,7 +26,7 @@ let rec cons_meld_l = (~kid=Meld.empty(), mel: Meld.Closed.l, rel: t): t => {
       put_sib((dn, up), rel);
     | Some((_sib, (l, r), rel)) =>
       switch (Meld.cmp(l, ~kid, mel)) {
-      | {lt: None, eq: None, gt: None} => raise(Parent.Convex_inner_tips)
+      | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
       | {lt: Some(kid_mel), _} => put_sib((Dn.of_meld(kid_mel), suf), rel)
       | {eq: Some(l_kid_mel), _} =>
         let dn = Dn.of_meld(l_kid_mel);
@@ -34,9 +34,7 @@ let rec cons_meld_l = (~kid=Meld.empty(), mel: Meld.Closed.l, rel: t): t => {
         cons_sib((dn, up), rel);
       | {gt: Some(l_kid), _} =>
         let up = Up.cat(up, Up.of_closed(r));
-        rel
-        |> cons_sib(Siblings.mk(~r=up, ()))
-        |> cons_meld_l(~kid=l_kid, mel);
+        rel |> cons_sib(Vee.mk(~r=up, ())) |> cons_meld_l(~kid=l_kid, mel);
       }
     }
   };
@@ -53,7 +51,7 @@ let rec cons_meld_r =
       put_sib((dn, up), rel);
     | Some((_sib, (l, r), rel)) =>
       switch (Meld.cmp(mel, ~kid, r)) {
-      | {lt: None, eq: None, gt: None} => raise(Parent.Convex_inner_tips)
+      | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
       | {gt: Some(mel_kid), _} => put_sib((dn, Up.of_meld(mel_kid)), rel)
       | {eq: Some(mel_kid_r), _} =>
         let dn = Dn.cat(of_closed(l), dn);
@@ -61,9 +59,7 @@ let rec cons_meld_r =
         cons_sib((dn, up), rel);
       | {lt: Some(kid_r), _} =>
         let dn = Dn.cat(Dn.of_closed(l), dn);
-        rel
-        |> cons_sib(Siblings.mk(~l=dn, ()))
-        |> cons_meld_r(mel, ~kid=kid_r);
+        rel |> cons_sib(Vee.mk(~l=dn, ())) |> cons_meld_r(mel, ~kid=kid_r);
       }
     }
   };
@@ -74,7 +70,7 @@ let cons_meld = (~onto: Dir.t, mel, rel) =>
   | R => rel |> cons_meld_r(mel)
   };
 let cons_space = (~onto: Dir.t, s, rel) =>
-  rel |> map_sib(Siblings.cons_space(~onto, s));
+  rel |> map_sib(Vee.cons_space(~onto, s));
 let cons_seg = (~onto: Dir.t, seg, rel) => {
   let cons_space = cons_space(~onto);
   let cons_meld = cons_meld(~onto);
@@ -95,10 +91,10 @@ let cons_seg = (~onto: Dir.t, seg, rel) => {
 };
 let cons_parent = (par, rel) =>
   switch (par) {
-  | _ when Parent.is_empty(par) => rel
+  | _ when Bridge.is_empty(par) => rel
   | (l, r) when Meld.is_empty(l) => cons_meld(~onto=R, r, rel)
   | (l, r) when Meld.is_empty(r) => cons_meld(~onto=L, l, rel)
-  | _ => Chain.link(Siblings.empty, par, rel)
+  | _ => Chain.link(Vee.empty, par, rel)
   };
 
 let assemble = (~sel=Segment.empty, rel: t): t => {
@@ -135,13 +131,13 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
       }
     };
 
-  // let (pre, suf) = Siblings.assemble(get_sib(rel));
+  // let (pre, suf) = Vee.assemble(get_sib(rel));
   let (pre, suf) = get_sib(rel);
   // separate siblings that belong to the selection
   let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
   let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
   rel
-  |> put_sib(Siblings.empty)
+  |> put_sib(Vee.empty)
   |> go((pre_lt_sel, sel_gt_suf))
   |> cons_sib((pre_geq_sel, sel_leq_suf));
 };
@@ -167,13 +163,13 @@ let uncons = (~from_sib, ~from_par, ~from: Dir.t, rel: t) =>
     open OptUtil.Syntax;
     let+ (sib, par, rel) = Chain.unlink(rel);
     let (a, par) = from_par(~from, par);
-    let rel = rel |> cons_sib(Siblings.cat(sib, par)) |> assemble;
+    let rel = rel |> cons_sib(Vee.cat(sib, par)) |> assemble;
     (a, rel);
   };
 let uncons_char =
-  uncons(~from_sib=Siblings.uncons_char, ~from_par=Parent.uncons_char);
+  uncons(~from_sib=Vee.uncons_char, ~from_par=Bridge.uncons_char);
 let uncons_lexeme =
-  uncons(~from_sib=Siblings.uncons_lexeme, ~from_par=Parent.uncons_lexeme);
+  uncons(~from_sib=Vee.uncons_lexeme, ~from_par=Bridge.uncons_lexeme);
 let uncons_opt_lexeme = (~from, rel) =>
   switch (uncons_lexeme(~from, rel)) {
   | None => (None, rel)
@@ -248,7 +244,7 @@ let mold_ =
             LangUtil.mold_of_token(kid, Sort.root_o, t),
           )
     | Some((_sib, par, rel)) =>
-      let/ kid = Parent.mold(~match, ~kid?, t, par);
+      let/ kid = Bridge.mold(~match, ~kid?, t, par);
       match ? go(~kid?, rel) : Error(kid);
     };
   };
@@ -261,7 +257,7 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
 };
 
 let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
-  let bounds = Siblings.bounds(get_sib(rel));
+  let bounds = Vee.bounds(get_sib(rel));
   switch (bounds, Chain.unlink(rel)) {
   | (_, None)
   | ((Some(_), Some(_)), _) => bounds
@@ -277,7 +273,7 @@ let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
 let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
   let (p, rest) =
     Meld.is_closed_l(mel)
-    |> OptUtil.get_or_raise(Invalid_argument("Relatives.insert_meld"));
+    |> OptUtil.get_or_raise(Invalid_argument("Valley.insert_meld"));
   switch (p.shape) {
   | G(g) =>
     // todo: may need to remold?
@@ -337,10 +333,10 @@ let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
   };
 
 let regrout = rel => {
-  let sib_of_g = g => Siblings.mk(~r=Segment.of_meld(Meld.of_grout(g)), ());
+  let sib_of_g = g => Vee.mk(~r=Segment.of_meld(Meld.of_grout(g)), ());
   let sib_of_p = (side: Dir.t, mel) =>
     switch (Option.get(Meld.tip(Dir.toggle(side), mel))) {
-    | Convex => Siblings.empty
+    | Convex => Vee.empty
     | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
     };
   let sib =
@@ -390,16 +386,15 @@ let path = (rel: t): Meld.Path.t =>
   |> Chain.fold_right(
        (sib, par, path) =>
          path
-         |> Meld.Path.cons(Parent.step(par))
-         |> Meld.Path.cons_s(Siblings.steps(sib)),
-       Siblings.path,
+         |> Meld.Path.cons(Bridge.step(par))
+         |> Meld.Path.cons_s(Vee.steps(sib)),
+       Vee.path,
      );
 
 let zip = (rel: t): Meld.t =>
   rel
-  |> Chain.fold_left(
-       Siblings.zip_init,
-       (zipped, par, sib) => zipped |> Parent.zip(par) |> Siblings.zip(sib),
+  |> Chain.fold_left(Vee.zip_init, (zipped, par, sib) =>
+       zipped |> Bridge.zip(par) |> Vee.zip(sib)
      );
 let unzip = (zipped: Meld.Zipped.t): t => {
   let invalid = Meld.Zipped.Invalid(zipped);
@@ -418,7 +413,7 @@ let unzip = (zipped: Meld.Zipped.t): t => {
       switch (Chain.unlink(seg)) {
       | None => raise(invalid)
       | Some((s, mel, seg)) =>
-        let (kid, par) = Parent.unzip(step, mel);
+        let (kid, par) = Bridge.unzip(step, mel);
         let rel = rel |> cons_space(~onto=L, s) |> cons_parent(par);
         switch (Meld.Padded.is_empty(kid)) {
         | None => go((kid, {...path, steps}), rel)

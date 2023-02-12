@@ -11,7 +11,7 @@ module Up = {
 
   let cons_meld =
       (mel: Meld.Closed.r, ~kid=Meld.empty(), suf: t): Result.t(t, Meld.t) =>
-    switch (Chain.unlink(suf)) {j
+    switch (Chain.unlink(suf)) {
     | None => Error(Meld.pad(kid, ~r=Chain.lst(suf)))
     | Some((s, hd, tl)) =>
       // left-to-right: mel kid s hd tl

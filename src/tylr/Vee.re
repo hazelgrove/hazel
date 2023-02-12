@@ -1,5 +1,5 @@
 open Util;
-open Haunch;
+open Slope;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (Dn.t, Up.t);
