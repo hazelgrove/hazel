@@ -1,12 +1,12 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   foc: Dir.t,
-  seg: Segment.t,
+  seg: Arch.t,
 };
 
-let empty = {foc: L, seg: Segment.empty};
+let empty = {foc: L, seg: Arch.empty};
 
-let is_empty = sel => Segment.is_empty(sel.seg);
+let is_empty = sel => Arch.is_empty(sel.seg);
 
 let cons_lexeme = (lx, sel, (l, r)) => {
   open Segment.Bounded;

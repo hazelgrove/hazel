@@ -74,7 +74,8 @@ let mk = (~l=Space.empty, ~r=Space.empty, ~paths=[], ~chain=?, ()) => {
   paths,
   chain,
 };
-let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, ());
+let empty = (~l=Space.empty, ~r=Space.empty, ~paths=[], ()) =>
+  mk(~l, ~r, ());
 let is_empty = (mel: t) => Option.is_none(mel.chain);
 
 let add_paths = (paths, mel) => {...mel, paths: paths @ mel.paths};
@@ -267,6 +268,17 @@ let rec eq = (l: Closed.r, ~kid=empty(), r: Closed.l): option(t) => {
       );
     prepend(l, link(~kid, hd_r, tl_r));
   };
+};
+
+type cmp = {
+  lt: option(t),
+  eq: option(t),
+  gt: option(t),
+};
+let cmp = (l: Closed.r, ~kid=empty(), r: Closed.l) => {
+  lt: lt(l, ~kid, r),
+  eq: eq(l, ~kid, r),
+  gt: gt(l, ~kid, r),
 };
 
 let of_kid =

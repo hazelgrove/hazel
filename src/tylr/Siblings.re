@@ -1,9 +1,11 @@
 open Util;
+open Haunch;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Segment.t, Segment.t);
+type t = (Dn.t, Up.t);
+// type t = (Segment.t, Segment.t);
 
-let mk = (~l=Segment.empty, ~r=Segment.empty, ()) => (l, r);
+let mk = (~l=Dn.empty, ~r=Up.empty, ()) => (l, r);
 let empty = mk();
 
 let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
@@ -97,67 +99,27 @@ let steps = ((l, _): t) => List.map(Meld.length, Segment.melds(l));
 let path = (sib: t) =>
   Meld.Path.mk(~offset=offset(sib), ~steps=steps(sib), ());
 
-let zip = ((l, r) as sib, (mel, path): Meld.Zipped.t) => {
-  let mel =
-    // todo: consider doing cmp-based zip
-    Segment.Bounded.concat(None, [l, Segment.of_padded(mel), r], None)
-    |> Segment.to_padded
-    |> OptUtil.get_or_raise(Meld.Invalid_prec);
-  let path = Meld.Path.cons_s(steps(sib), path);
-  (mel, path);
-};
-let zip_init = sib => zip(sib, Meld.Zipped.init(offset(sib)));
-
-// let
-// ---
-// 1
-// ---
-// let <> ><
-
-// let <> >=<
-// -
-// 1 +
-// -
-// 2 \n
-// ---
-// let
-// ---
-// let <> >=< 1 + 2 >in< \n
-
-// assuming external newline separates pre from p
-// assuming prefix melds are always left-complete
-// let unrack_melds = (pre: Segment.t): Segment.t => {
-//   pre
-//   |> Chain.fold_left(
-//        _ => [],
-//        (unracked, mel, _) => Meld.rack(~side=R, mel) @ unracked,
-//      )
-//   |> List.map(((fill, mold)) => Meld.of_grout(Grout.mk(~fill, mold)))
-//   |> List.fold_left(Segment.hsup_meld_leq, pre);
-// };
-
-// [@warning "-27"]
-// let grout_sort = (pre: Segment.t, p: Piece.t) => failwith("todo");
-
-// let grout = (p: Piece.t, (pre, suf): t): t => {
-//   let pre = {
-//     let lines = Segment.lines(pre);
-//     switch (Chain.unknil(lines)) {
-//     | None => grout_sort(Chain.lst(lines), p)
-//     | Some((lines, newline, line)) =>
-
-//     };
-//   };
-//   (pre, suf);
-// };
-
-// let grout = (p: Piece.t, (pre, suf): t): t => {
-//   let pre =
-//     Segment.lines(pre)
-//     |> Chain.fold_right(
-//       (line, newline, pre) => {
-
-//       },
-//       line => grout_sort(line, p),
-//     );
-//   (pre, suf);
+let rec zip = ((dn, up): t, kid: Meld.t) =>
+  switch (Dn.uncons(dn), Up.uncons(up)) {
+  | (Error(s), _) => Up.zip(Meld.pad(~l=s, kid), up)
+  | (_, Error(s)) => Dn.zip(dn, Meld.pad(kid, ~r=s))
+  | (Ok((dn', l, s_l)), Ok((s_r, r, up'))) =>
+    let kid = Meld.pad(~l=s_l, kid, ~r=s_r);
+    switch (Meld.cmp(l, ~kid, r)) {
+    | {lt: None, eq: None, gt: None} => raise(Meld.Invalid_prec)
+    | {lt: Some(kid_r), _} => zip((dn, up'), kid_r)
+    | {gt: Some(l_kid), _} => zip((dn', up), l_kid)
+    | {eq: Some(l_kid_r), _} => zip((dn', up'), l_kid_r)
+    };
+  };
+let zip_init = ((dn, up): t) =>
+  switch (Dn.uncons(dn), Up.uncons(up)) {
+  | (Ok((dn, (tl_l, hd_l), s_l)), Ok((s_r, (hd_r, tl_r), up)))
+      when
+        Space.(is_empty(s_l) && is_empty(s_r))
+        && Option.is_some(Piece.zip(hd_l, hd_r)) =>
+    let p = Option.get(Piece.zip(hd_l, hd_r));
+    let kid = Meld.append(tl_l, p, tl_r);
+    zip((dn, up), kid);
+  | _ => zip((dn, up), Meld.empty(~paths=[Path.mk()], ()))
+  };

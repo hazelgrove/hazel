@@ -1,7 +1,7 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Meld.t, Meld.t);
+type t = (Meld.Closed.r, Meld.Closed.l);
 // <let< x >=< _kid_ >in< 1
 // -----------       ------
 
@@ -33,33 +33,9 @@ let uncons_lexeme =
 [@warning "-27"]
 let mold = (~match, ~kid=?, t, par) => failwith("todo mold");
 
-let step = ((l, _): t) => Meld.length(l);
-let zip =
-    ((par_l, par_r) as par: t, (kid, path): Meld.Zipped.t): Meld.Zipped.t => {
-  let (mel, (l, r)) = kid;
-  let zipped =
-    switch (Chain.unknil(par_l), Chain.unlink(par_r)) {
-    | (None, None) => kid
-    | (None, Some((kid_r, p_r, tl_r))) =>
-      assert(kid_r == None);
-      let p_r = Piece.pad(~l=r, p_r);
-      Meld.(Padded.mk(~l, Chain.link(Some(K(mel)), p_r, tl_r)));
-    | (Some((tl_l, p_l, kid_l)), None) =>
-      assert(kid_l == None);
-      let p_l = Piece.pad(~r=l, p_l);
-      Meld.Padded.mk(~r, Chain.knil(tl_l, p_l, Some(K(mel))));
-    | (Some((tl_l, p_l, kid_l)), Some((kid_r, p_r, tl_r))) =>
-      assert(kid_l == None && kid_r == None);
-      let p_l = Piece.pad(~r=l, p_l);
-      let p_r = Piece.pad(~l=r, p_r);
-      Meld.(
-        Padded.mk(
-          Chain.(append(tl_l, p_l, link(Some(K(mel)), p_r, tl_r))),
-        )
-      );
-    };
-  let path = Meld.Path.cons(step(par), path);
-  (zipped, path);
+let zip = (par: t, mel: Meld.t): Meld.t => {
+  let ((tl_l, hd_l), r) = par;
+  Meld.(append(tl_l, hd_l, Closed.open_l(mel, r)));
 };
 
 let unzip = (step, mel) => {

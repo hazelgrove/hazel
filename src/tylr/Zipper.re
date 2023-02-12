@@ -14,17 +14,20 @@ let mk = (~sel=Selection.empty, rel) => {sel, rel};
 let init =
   mk(
     Relatives.of_sib(
-      Segment.(
-        empty,
-        of_meld(
-          Meld.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),
-        ),
+      Siblings.mk(
+        ~r=
+          Haunch.Up.of_meld(
+            Meld.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),
+          ),
+        (),
       ),
     ),
   );
 
+// let unselect = (d: Dir.t, {sel, rel}: t) =>
+//   rel |> Relatives.cons_seg(~onto=Dir.toggle(d), sel.seg) |> mk;
 let unselect = (d: Dir.t, {sel, rel}: t) =>
-  rel |> Relatives.cons_seg(~onto=Dir.toggle(d), sel.seg) |> mk;
+  rel |> Relatives.cons_arch(~onto=Dir.toggle(d), sel.arch) |> mk;
 
 let zip = (~d=Dir.L, z: t): Meld.Zipped.t => {
   let z = unselect(d, z);

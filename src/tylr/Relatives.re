@@ -15,58 +15,55 @@ let empty = of_sib(Siblings.empty);
 let cat: (t, t) => t = Chain.cat(Siblings.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
-let rec cons_meld_l = (~kid=Meld.Padded.empty(), mel: Meld.t, rel: t): t => {
-  let (pre, suf) = get_sib(rel);
-  switch (Segment.snoc_meld(pre, ~kid, mel)) {
-  | In(pre)
-  | Lt(pre)
-  | Eq(pre) => put_sib((pre, suf), rel)
-  | Gt(pre_kid) =>
+let rec cons_meld_l = (~kid=Meld.empty(), mel: Meld.Closed.l, rel: t): t => {
+  let (dn, up) = get_sib(rel);
+  switch (Dn.cons_meld(dn, ~kid, mel)) {
+  | Ok(dn) => put_sib((dn, up), rel)
+  | Error(kid) =>
     switch (Chain.unlink(rel)) {
     | None =>
-      let pre = Segment.of_padded(Meld.(merge(pre_kid, Padded.mk(mel))));
-      put_sib((pre, suf), rel);
-    | Some((_sib, (par_l, par_r), rel)) =>
-      switch (Meld.cmp_merge(par_l, ~kid=pre_kid, mel)) {
-      | In(_) => raise(Parent.Convex_inner_tips)
-      | Lt(kid_mel) => put_sib((Segment.of_padded(kid_mel), suf), rel)
-      | Gt(par_l_kid) =>
-        let r = Segment.(cat(suf, of_meld(par_r)));
+      let dn = Dn.of_meld(Meld.Closed.open_l(kid, mel));
+      put_sib((dn, up), rel);
+    | Some((_sib, (l, r), rel)) =>
+      switch (Meld.cmp(l, ~kid, mel)) {
+      | {lt: None, eq: None, gt: None} => raise(Parent.Convex_inner_tips)
+      | {lt: Some(kid_mel), _} => put_sib((Dn.of_meld(kid_mel), suf), rel)
+      | {eq: Some(l_kid_mel), _} =>
+        let dn = Dn.of_meld(l_kid_mel);
+        let up = Up.cat(up, Up.of_closed(r));
+        cons_sib((dn, up), rel);
+      | {gt: Some(l_kid), _} =>
+        let up = Up.cat(up, Up.of_closed(r));
         rel
-        |> cons_sib(Siblings.mk(~r, ()))
-        |> cons_meld_l(~kid=par_l_kid, mel);
-      | Eq(par_l_mel) =>
-        let l = Segment.of_padded(par_l_mel);
-        let r = Segment.(cat(suf, of_meld(par_r)));
-        rel |> cons_sib(Siblings.mk(~l, ~r, ()));
+        |> cons_sib(Siblings.mk(~r=up, ()))
+        |> cons_meld_l(~kid=l_kid, mel);
       }
     }
   };
 };
-let rec cons_meld_r = (mel: Meld.t, ~kid=Meld.Padded.empty(), rel: t): t => {
-  let (pre, suf) = get_sib(rel);
-  switch (Segment.cons_meld(mel, ~kid, suf)) {
-  | In(suf)
-  | Eq(suf)
-  | Gt(suf) => put_sib((pre, suf), rel)
-  | Lt(kid_suf) =>
+let rec cons_meld_r =
+        (mel: Meld.Closed.r, ~kid=Meld.Padded.empty(), rel: t): t => {
+  let (dn, up) = get_sib(rel);
+  switch (Up.cons_meld(mel, ~kid, up)) {
+  | Ok(up) => put_sib((dn, up), rel)
+  | Error(kid) =>
     switch (Chain.unlink(rel)) {
     | None =>
-      let suf = Segment.of_padded(Meld.(merge(Padded.mk(mel), kid_suf)));
-      put_sib((pre, suf), rel);
-    | Some((_sib, (par_l, par_r), rel)) =>
-      switch (Meld.cmp_merge(mel, ~kid=kid_suf, par_r)) {
-      | In(_) => raise(Parent.Convex_inner_tips)
-      | Gt(mel_kid) => put_sib((pre, Segment.of_padded(mel_kid)), rel)
-      | Lt(kid_par_r) =>
-        let l = Segment.(cat(of_meld(par_l), pre));
+      let up = Up.of_meld(Meld.Closed.open_r(mel, kid));
+      put_sib((dn, up), rel);
+    | Some((_sib, (l, r), rel)) =>
+      switch (Meld.cmp(mel, ~kid, r)) {
+      | {lt: None, eq: None, gt: None} => raise(Parent.Convex_inner_tips)
+      | {gt: Some(mel_kid), _} => put_sib((dn, Up.of_meld(mel_kid)), rel)
+      | {eq: Some(mel_kid_r), _} =>
+        let dn = Dn.cat(of_closed(l), dn);
+        let up = Up.of_meld(mel_kid_r);
+        cons_sib((dn, up), rel);
+      | {lt: Some(kid_r), _} =>
+        let dn = Dn.cat(Dn.of_closed(l), dn);
         rel
-        |> cons_sib(Siblings.mk(~l, ()))
-        |> cons_meld_r(mel, ~kid=kid_par_r);
-      | Eq(mel_par_r) =>
-        let l = Segment.(cat(of_meld(par_l), pre));
-        let r = Segment.of_padded(mel_par_r);
-        rel |> cons_sib(Siblings.mk(~l, ~r, ()));
+        |> cons_sib(Siblings.mk(~l=dn, ()))
+        |> cons_meld_r(mel, ~kid=kid_r);
       }
     }
   };
@@ -398,11 +395,11 @@ let path = (rel: t): Meld.Path.t =>
        Siblings.path,
      );
 
-let zip = (rel: t): Meld.Zipped.t =>
+let zip = (rel: t): Meld.t =>
   rel
-  |> Chain.fold_right(
-       (sib, par, zipped) => zipped |> Parent.zip(par) |> Siblings.zip(sib),
+  |> Chain.fold_left(
        Siblings.zip_init,
+       (zipped, par, sib) => zipped |> Parent.zip(par) |> Siblings.zip(sib),
      );
 let unzip = (zipped: Meld.Zipped.t): t => {
   let invalid = Meld.Zipped.Invalid(zipped);
