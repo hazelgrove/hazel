@@ -197,7 +197,7 @@ let eval_result_footer_view =
       ~inject,
       ~font_metrics,
       ~elab,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       simple: ModelResult.simple,
     ) => {
   let d_view =
@@ -346,7 +346,7 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -410,7 +410,7 @@ let editor_with_result_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
