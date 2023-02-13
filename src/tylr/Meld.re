@@ -27,11 +27,32 @@ module Paths = {
 
   // let trim = step => List.map(Path.trim(step));
   let with_kid = (ps: t, kid: int) =>
-    List.filter_map(Path.with_kid(kid), ps);
+    List.partition_map(
+      p =>
+        switch (Path.with_kid(kid, p)) {
+        | Some(p) => Left(p)
+        | None => Right(p)
+        },
+      ps,
+    );
   let with_piece = (ps: t, index: int) =>
-    List.filter_map(Path.with_piece(index), ps);
+    List.partition_map(
+      p =>
+        switch (Path.with_piece(index, p)) {
+        | Some(p) => Left(p)
+        | None => Right(p)
+        },
+      ps,
+    );
   let with_space = (ps: t, side: Dir.t) =>
-    List.filter_map(Path.with_space(side), ps);
+    List.partition_map(
+      p =>
+        switch (Path.with_space(side, p)) {
+        | Some(p) => Left(p)
+        | None => Right(p)
+        },
+      ps,
+    );
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -80,10 +101,6 @@ let is_empty = (mel: t) => Option.is_none(mel.chain);
 
 let add_paths = (paths, mel) => {...mel, paths: paths @ mel.paths};
 let clear_paths = mel => {...mel, paths: []};
-let paths_of_kid =
-  fun
-  | None => []
-  | Some(kid) => kid.paths;
 
 // todo: defer path management to aggregate_paths
 let pad = (~l=Space.empty, ~r=Space.empty, mel) => {
@@ -97,63 +114,126 @@ let pad = (~l=Space.empty, ~r=Space.empty, mel) => {
   let space = Space.(cat(clear_paths(l), l'), cat(r', clear_paths(r)));
   {...mel, paths, space};
 };
+let unpad_ = (side, mel) => {
+  let (this, that) = Dir.order(side, mel.space);
+  let (with_s, paths) = Paths.with_space(mel.paths, side);
+  let this = Space.add_paths(with_s, this);
+  let space = Dir.unorder(side, (Space.empty, that));
+  (this, {...mel, space, paths});
+};
 let unpad = mel => {
-  let (l, r) = mel.space;
-  let with_s = Paths.with_space(mel.paths);
-  let space = Space.(add_paths(with_s(L), l), add_paths(with_s(R), r));
-  (space, {...mel, space: Space.(empty, empty)});
+  let (l, mel) = unpad_(L, mel);
+  let (r, mel) = unpad_(R, mel);
+  ((l, r), mel);
 };
 
+let map_chain = (f, mel) =>
+  switch (mel.chain) {
+  | None => mel
+  | Some(c) => {...mel, chain: Some(f(c))}
+  };
+let bind_chain = (f, mel) =>
+  switch (mel.chain) {
+  | None => mel
+  | Some(c) => f(c)
+  };
+
+// let distribute_space = mel =>
+//   switch (mel.chain) {
+//   | None => mel
+//   | Some(c) =>
+//     let (l, r) = mel.space;
+//     let chain = c
+//     |> Chain.map_fst(kid => pad(~l, kid))
+//     |> Chain.map_lst(kid => pad(kid, ~r))
+//     |> Option.some;
+//     {...mel, chain, space: Space.(empty, empty)};
+//   };
+// let aggregate_space = mel =>
+//   switch (mel.chain) {
+//   | None => mel
+//   | Some(c) =>
+//     let
+//   }
+
 let distribute_paths = mel => {
-  let (space, mel) = unpad(mel);
-  let with_k = Paths.with_kid(mel.paths);
-  let with_p = Paths.with_piece(mel.paths);
-  let chain =
-    mel.chain
-    |> Option.map(
-         Chain.mapi(
-           i => add_paths(with_k(i)),
-           j => Piece.add_paths(with_p(j)),
-         ),
-       );
-  {chain, space, paths: []};
+  let ((l, r), mel) = unpad(mel);
+  let ps = mel.paths;
+  {...mel, space: (l, r), paths: []}
+  |> map_chain(
+       Chain.mapi(
+         i => add_paths(fst(Paths.with_kid(ps, i))),
+         j => Piece.add_paths(fst(Paths.with_piece(ps, j))),
+       ),
+     );
 };
+let distribute_space = mel => {
+  let (l, r) = mel.space;
+  mel
+  |> bind_chain(c => {
+       assert(mel.paths == []);
+       let chain =
+         c
+         |> Chain.map_fst(kid => pad(~l, kid))
+         |> Chain.map_lst(kid => pad(kid, ~r));
+       mk(~chain, ());
+     });
+};
+let distribute = mel =>
+  // order important
+  mel |> distribute_paths |> distribute_space;
+
 let aggregate_paths = mel => {
   let (l, r) = mel.space;
   let ps_l = List.map(Path.of_space(L), l.paths);
   let ps_r = List.map(Path.of_space(R), r.paths);
-  let ps_chain =
-    mel.chain
-    |> Option.map(c =>
-         c
-         |> Chain.mapi(
-              (i, kid) => List.map(Path.cons(i), kid.paths),
-              (i, p: Piece.t) => List.map(Path.of_piece(i), p.paths),
-            )
-         |> Chain.to_list(Fun.id, Fun.id)
-         |> List.concat
-       )
-    |> Option.value(~default=[]);
-  let paths = List.concat([ps_l, ps_chain, ps_r]);
-  let space = Space.(clear_paths(l), clear_paths(r));
-  let chain =
-    mel.chain |> Option.map(Chain.map(clear_paths, Piece.clear_paths));
-  {paths, space, chain};
-};
+  let ps_c =
+    switch (mel.chain) {
+    | None => []
+    | Some(c) =>
+      c
+      |> Chain.mapi(
+           (i, kid) => List.map(Path.cons(i), kid.paths),
+           (i, p: Piece.t) => List.map(Path.of_piece(i), p.paths),
+         )
+      |> Chain.to_list(Fun.id, Fun.id)
+      |> List.concat
+    };
 
-let is_empty = (mel: t) => {
-  let mel = distribute_paths(mel);
-  let (l, r) = mel.space;
-  Option.is_none(mel.chain) ? Some(Space.cat(l, r)) : None;
+  let paths = List.concat([ps_l, ps_c, ps_r]);
+  let (l, r) = Space.(clear_paths(l), clear_paths(r));
+  let chain =
+    Option.map(Chain.map(clear_paths, Piece.clear_paths), mel.chain);
+  mk(~l, ~r, ~paths, ~chain?, ());
 };
+let aggregate_space = mel =>
+  mel
+  |> bind_chain(c => {
+       let (l, r) = mel.space;
+       let (l', fst) = unpad_(L, Chain.fst(c));
+       let c = Chain.put_fst(fst, c);
+       let (r', lst) = unpad_(R, Chain.lst(c));
+       let c = Chain.put_lst(lst, c);
+       let space = Space.(cat(l, l'), cat(r', r));
+       {...mel, space, chain: Some(c)};
+     });
+let aggregate = mel => mel |> aggregate_paths |> aggregate_space;
+
+let is_empty = (mel: t) =>
+  switch (mel.chain) {
+  | Some(_) => None
+  | None =>
+    let (l, r) = distribute(mel).space;
+    Some(Space.cat(l, r));
+  };
 
 // todo: review for externalizing padding
-let of_piece = (~l=?, ~r=?, p: Piece.t) =>
-  mk(Chain.mk([l, r], [p])) |> aggregate_paths;
-let of_grout = (~l=?, ~r=?, g: Grout.t) =>
-  of_piece(~l?, ~r?, Piece.mk(G(g)));
-let of_tile = (~l=?, ~r=?, t: Tile.t) =>
-  of_piece(~l?, ~r?, Piece.mk(T(t)));
+let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
+  mk(~chain=Chain.mk([l, r], [p]), ()) |> aggregate;
+let of_grout = (~l=empty(), ~r=empty(), g: Grout.t) =>
+  of_piece(~l, Piece.of_grout(g), ~r);
+let of_tile = (~l=empty(), ~r=empty(), t: Tile.t) =>
+  of_piece(~l, Piece.of_tile(t), ~r);
 
 let root = mel =>
   mel.chain |> Option.map(Chain.links) |> Option.value(~default=[]);
@@ -161,50 +241,24 @@ let kids = mel =>
   mel.chain |> Option.map(Chain.loops) |> Option.value(~default=[]);
 let length = mel => List.length(root(mel));
 
-// todo: review in wrt to preserving space paths
-let absorb_space_l = mel => {
-  let (l, r) = mel.space;
-  let chain = mel.chain |> Chain.map_fst(Option.map(kid => pad(~l, kid)));
-  let paths =
-    mel.paths
-    |> List.map((path: Path.t) =>
-         switch (path) {
-         | {kids: [], here: Space(L, _)} => {...path, kids: [0]}
-         | _ => path
-         }
-       );
-  mk(~r, ~paths, chain);
+let link = (~kid=empty(), p: Piece.t, mel) => {
+  let mel = distribute(mel);
+  let linked =
+    switch (mel.chain) {
+    | None => of_piece(~l=kid, p)
+    | Some(c) => mk(~chain=Chain.link(kid, p, c), ())
+    };
+  aggregate(linked);
 };
-let absorb_space_r = mel => {
-  let (l, r) = mel.space;
-  let chain = mel.chain |> Chain.map_lst(Option.map(kid => pad(kid, ~r)));
-  let paths =
-    mel.paths
-    |> List.map((path: Path.t) =>
-         switch (path) {
-         | {kids: [], here: Space(L, _)} => {...path, kids: [length(mel)]}
-         | _ => path
-         }
-       );
-  mk(~l, ~paths, chain);
+let knil = (~kid=empty(), mel, p: Piece.t) => {
+  let mel = distribute(mel);
+  let linked =
+    switch (mel.chain) {
+    | None => of_piece(p, ~r=kid)
+    | Some(c) => mk(~chain=Chain.knil(c, p, kid), ())
+    };
+  aggregate(linked);
 };
-
-let map_chain = (f, mel) => {...mel, chain: f(mel.chain)};
-
-let link = (~s=Space.empty, ~kid=?, p: Piece.t, mel) =>
-  absorb_space_l(mel)
-  |> distribute_paths
-  // todo: externalize kid's left padding
-  |> map_chain(Chain.link(kid, p))
-  |> pad(~l=s)
-  |> aggregate_paths;
-let knil = (~kid=?, ~s=Space.empty, mel, p: Piece.t) =>
-  absorb_space_r(mel)
-  |> distribute_paths
-  // todo: externalize kid's right padding
-  |> map_chain(c => Chain.knil(c, p, kid))
-  |> pad(~r=s)
-  |> aggregate_paths;
 
 let prepend = (_: Closed.r, _: t) => failwith("todo prepend");
 let append = (_: t, _: Closed.l) => failwith("todo append");
