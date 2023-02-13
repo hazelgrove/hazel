@@ -41,26 +41,36 @@ use diagnostics -verbose;
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.12.27');
+    our $VERSION = version->declare('v2023.02.13');
 # end prelude
 
-my ($column_index, $token) = @ARGV;
-assert(defined($column_index));
-assert(defined($token));
-my $row = do {
+my ($hazel_grading_repo_path, $token) = @ARGV;
+# `cat.pl` wraps the editor state json as a json string
+my $in = do {
     local $/ = undef;
     JSON::from_json <STDIN>;
 };
-my @row = @$row;
-if($row[$column_index] eq $token){
-    exit 0;
+my %in = %{JSON::from_json $in};
+#my %in = %{$in};
+my $tmpfile = File::Temp->new();
+print $tmpfile (JSON::to_json \%in);
+chdir $hazel_grading_repo_path;
+say STDERR $token;
+my $report = capture_stdout {
+    system('dune', 'exec', 'src/haz3lschool/gradescope.exe', $tmpfile);
+}, $? >> 8 && confess "something went wrong with '$token'";
+# NOTE: this is an extremely hacky way to ``grep" the json output from the
+# haz3lschool/gradescope.exe output, relying heavily on the exact output format
+$report =~ s/^.*(?:Finished(?:\s|\\n)+)(\[.*)$/$1/s;
+my $out = JSON::from_json $report;
+my @out = @{$out};
+for my $exercise (@out){
+    $exercise->{report}->{'pretty-summary'} = [split /\n/, $exercise->{report}{summary}];
 }
-else{
-    exit 1;
-}
+print JSON::to_json \@out;
 
-# PODNAME: field-n-eq?.pl
-# ABSTRACT: Gradescope submission script F<split.pl> lambda
+# PODNAME: hazel.pl
+# ABSTRACT: Gradescope submission script component
 
 __END__
 
@@ -70,17 +80,17 @@ __END__
 
 =head1 NAME
 
-field-n-eq?.pl - Gradescope submission script F<split.pl> lambda
+hazel.pl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 
-field-n-eq?.pl I<column_index> I<token>
+hazel.pl I<hazel_grading_repo_path> I<token>
 
-field-n-eq?.pl 0 token < csv_row.json
+map.pl -f ./hazel.pl -f ~/Downloads/hazel-490
 
 =head1 DESCRIPTION
 

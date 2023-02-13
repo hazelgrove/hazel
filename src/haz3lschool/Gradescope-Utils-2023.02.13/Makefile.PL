@@ -17,6 +17,7 @@ my %WriteMakefileArgs = (
     "bin/cat.pl",
     "bin/csv2json.pl",
     "bin/field-n-eq?.pl",
+    "bin/hazel.pl",
     "bin/id.pl",
     "bin/join.pl",
     "bin/map.pl",
@@ -28,7 +29,7 @@ my %WriteMakefileArgs = (
   "LICENSE" => "bsd",
   "NAME" => "Gradescope::Utils",
   "PREREQ_PM" => {},
-  "VERSION" => "2023.01.23",
+  "VERSION" => "2023.02.13",
   "test" => {
     "TESTS" => ""
   }

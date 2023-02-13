@@ -26,15 +26,13 @@ use diagnostics -verbose;
     use Capture::Tiny qw(:all);
     # for more complicated stuff
     # eg timeout, redirection
-    use IPC::Run qw(run);
-    use IPC::Cmd qw(can_run);
+    use IPC::Run;
 # option/arg handling
     use Getopt::Long qw(:config gnu_getopt auto_version); # auto_help not the greatest
     use Pod::Usage;
 # use local modules
     use lib (
         dirname(abs_path($0)),
-        abs_path(File::Spec->rel2abs('../lib/', dirname(abs_path($0)))),
         ); # https://stackoverflow.com/a/46550384
  
 # turn on features
@@ -45,17 +43,12 @@ use diagnostics -verbose;
 
     our $VERSION = version->declare('v2022.12.27');
 # end prelude
-use Gradescope::Color qw(color_print);
 
-my ($n) = @ARGV;
-assert(defined($n));
-do {
-    local $/ = undef;
-    color_print(JSON::to_json(JSON::from_json(<STDIN>)->[$n], {pretty => 1, canonical => 1}), 'JSON');
-};
+my $ret = $ARGV[0] le $ARGV[1];
+exit $ret;
 
-# PODNAME: proj.pl
-# ABSTRACT: Gradescope submission script helper
+# PODNAME: sort.pl
+# ABSTRACT: Gradescope submission script lambda
 
 __END__
 
@@ -65,11 +58,11 @@ __END__
 
 =head1 NAME
 
-proj.pl - Gradescope submission script helper
+sort.pl - Gradescope submission script lambda
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 

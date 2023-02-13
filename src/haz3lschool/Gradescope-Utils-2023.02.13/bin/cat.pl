@@ -21,12 +21,8 @@ use diagnostics -verbose;
     use JSON;
     use YAML::XS;
 # misc scripting IO utilities
-    use IO::Prompter;
-    # `capture_stdout` for backticks w/o shell (escaping issues)
+    # `capture_stdout` for backticks w/o shell
     use Capture::Tiny qw(:all);
-    # for more complicated stuff
-    # eg timeout, redirection
-    use IPC::Run;
 # option/arg handling
     use Getopt::Long qw(:config gnu_getopt auto_version); # auto_help not the greatest
     use Pod::Usage;
@@ -36,19 +32,18 @@ use diagnostics -verbose;
         ); # https://stackoverflow.com/a/46550384
  
 # turn on features
-    use builtin qw(true false is_bool reftype);
-    no warnings 'experimental::builtin';
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.12.27');
+    our $VERSION = version->declare('v2022.11.13');
 # end prelude
 
-my $ret = $ARGV[0] le $ARGV[1];
-exit $ret;
+my $submission_dir = $ARGV[0];
+assert(defined($submission_dir));
+system('cat', glob "$submission_dir/*");
 
-# PODNAME: sort.pl
-# ABSTRACT: Gradescope submission script lambda
+# PODNAME: cat.pl
+# ABSTRACT: Gradescope submission script F<join.pl> lambda
 
 __END__
 
@@ -58,17 +53,17 @@ __END__
 
 =head1 NAME
 
-sort.pl - Gradescope submission script lambda
+cat.pl - Gradescope submission script F<join.pl> lambda
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 
-=head1 DESCRIPTION
+cat.pl I<dir>
 
-=head1 NAME
+=head1 DESCRIPTION
 
 =head1 AUTHOR
 

@@ -42,7 +42,7 @@ use diagnostics -verbose;
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.12.30');
+    our $VERSION = version->declare('v2023.02.13');
 # end prelude
 use Data::Printer;
 
@@ -77,12 +77,12 @@ for my $token (keys %submissions){
                 (@{$options{fun}},
                     $token)
             ], '<', \(JSON::to_json $submissions{$token});
-            $? >> 8 && die;
+            $? >> 8 && die "${\(join ' ', (@{$options{fun}}, $token))} failed";
         };
         $json_obj = JSON::from_json $json_str;
     }
     catch($e){
-        carp "[warning] problem with $token: $e; skipping…";
+        carp "[warning] problem with $token: ($e); skipping…";
     }
     $mapped{$token} = $json_obj;
 }
@@ -104,7 +104,7 @@ map.pl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 

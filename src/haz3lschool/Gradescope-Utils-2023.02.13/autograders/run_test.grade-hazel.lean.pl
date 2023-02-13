@@ -41,9 +41,9 @@ my @files = glob('/autograder/submission/*.json');
 should(@files, 1);
 my $submission_path = $files[0];
 my $submission  = JSON::from_json File::Slurp::read_file($submission_path);
-should(reftype $submission, 'HASH');
-assert(defined $submission->{school});
-my $score = 100;
+# upload is a json array of hazel exercises
+should(reftype $submission, 'ARRAY');
+my $score = [4, 4, 7, 10, 15, 20, 20, 20];
 my %output; # gradescope expects JSON test output
 if(!defined reftype $score){
     say '[debug] Using top level (total) score grading';
@@ -51,13 +51,27 @@ if(!defined reftype $score){
 }
 elsif(reftype $score eq 'ARRAY'){
     say '[debug] Using individual tests grading';
-    $output{tests} = $score;
+    $output{tests} = [];
+    for my $exercise (@{$submission}){
+        should(reftype $exercise, 'HASH');
+        my %test;
+        my $expected_max_score = shift @{$score};
+        should($exercise->{report}->{overall}->[1], $expected_max_score);
+        $test{name} = $exercise->{name};
+        $test{score} = $exercise->{report}->{overall}->[0];
+        $test{max_score} = $exercise->{report}->{overall}->[1];
+        $test{output} = join "\n", @{$exercise->{report}->{'pretty-summary'}};
+        $output{tests} = [@{$output{tests}}, \%test];
+    }
 }
 else{
-    confess "[error] Hazel code upload sanity check FAILED";
+    confess "[error] Hazel code feeback autograder FAILED";
 }
 $output{'stdout_visibility'} = 'visible'; # we shouldn't need to hide any output from this script
-$output{'output'} = 'Hazel code upload sanity check PASSED ';
+$output{'output'} = <<~"EOF"
+    Hazel code feedback autograder seems okay.
+EOF
+;
 # test output
 open(my $output_fh,
     '>:utf8',

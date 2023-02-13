@@ -100,11 +100,11 @@ join.pl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 
-join.pl : B<zip> (gradescope export submissions zip) B<->> B<[>B<json> (token2uniqname), B<json> (token ↦ submission)B<]> (json array)
+join.pl : B<zip> (gradescope export submissions zip) B<->> B<[>B<json> (token2uniqname), B<json> (token B<->> submission)B<]> (json array)
 
 join.pl [options] I<gradescope_export_submissions_zip>
 

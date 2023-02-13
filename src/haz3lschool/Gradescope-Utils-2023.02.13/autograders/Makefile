@@ -5,8 +5,12 @@ default: lib setup.sh
 	fatpack pack run_test.lean.pl > run_test.fat.pl
 	zip AG *
 # code upload sanity check
-hazel: lib setup.sh
-	fatpack pack run_test.hazel.lean.pl > run_test.fat.pl
+check-hazel: lib setup.sh
+	fatpack pack run_test.$@.lean.pl > run_test.fat.pl
+	zip AG *
+# grade haz3l A1
+grade-hazel: lib setup.sh
+	fatpack pack run_test.$@.lean.pl > run_test.fat.pl
 	zip AG *
 
 ## other stuff

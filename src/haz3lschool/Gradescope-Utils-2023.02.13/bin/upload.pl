@@ -41,7 +41,7 @@ use diagnostics -verbose;
 
     our $VERSION = version->declare('v2022.11.13');
 # end prelude
-use Gradescope::Translate qw(token2uniqname);
+use Gradescope::Translate;
 use Gradescope::Curl qw(:config baseurl https://www.gradescope.com);
 
 my %options;
@@ -69,11 +69,13 @@ my %submissions = %$submissions; # token ↦ submission
 
 my $auth_token = Gradescope::Curl::login();
 my $tmpdir = File::Temp->newdir();
-File::Slurp::write_file(File::Spec->catfile($tmpdir, "$_$options{filetype}"), $submissions{$_}) for keys %submissions;
+carp "[debug] $tmpdir";
+File::Slurp::write_file(File::Spec->catfile($tmpdir, "$_$options{filetype}"), JSON::to_json $submissions{$_}, {pretty => 1, canonical => 1}) for keys %submissions;
 for my $t (keys %token2uniqname){
     my $f = File::Spec->catfile($tmpdir, "$t$options{filetype}");
     #say `curl -s -H 'access-token: $auth_token' -F 'owner_email=$token2uniqname{$t}\@umich.edu' -F 'files[]=\@$f' $Gradescope::Curl::baseurl/api/v1/courses/$class_id/assignments/$assignment_id/submissions`;
     system('curl', '-s', '-H', "access-token: $auth_token", '-F', "owner_email=$token2uniqname{$t}\@umich.edu", '-F', "files[]=\@$f", "$Gradescope::Curl::baseurl/api/v1/courses/$class_id/assignments/$assignment_id/submissions");
+    say STDERR "";
     carp "[warning] curl return code on $t: ${\($? >> 8)}" if $? >> 8;
     carp "[warning] does $f actually exist?" if $? >> 8;
 }
@@ -93,15 +95,15 @@ upload.pl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 
 upload.pl : [token2uniqname, submissions] (json array) -> ()
 
-upload.pl submissions token2uniqname class_id assignment_id
+upload.pl class_id assignment_id
 
-upload.pl output/ token2uniqname.csv 1234 5678
+upload.pl 1234 5678
 
 =head1 DESCRIPTION
 

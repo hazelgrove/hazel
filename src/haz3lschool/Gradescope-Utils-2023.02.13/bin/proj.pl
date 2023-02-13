@@ -21,29 +21,41 @@ use diagnostics -verbose;
     use JSON;
     use YAML::XS;
 # misc scripting IO utilities
-    # `capture_stdout` for backticks w/o shell
+    use IO::Prompter;
+    # `capture_stdout` for backticks w/o shell (escaping issues)
     use Capture::Tiny qw(:all);
+    # for more complicated stuff
+    # eg timeout, redirection
+    use IPC::Run qw(run);
+    use IPC::Cmd qw(can_run);
 # option/arg handling
     use Getopt::Long qw(:config gnu_getopt auto_version); # auto_help not the greatest
     use Pod::Usage;
 # use local modules
     use lib (
         dirname(abs_path($0)),
+        abs_path(File::Spec->rel2abs('../lib/', dirname(abs_path($0)))),
         ); # https://stackoverflow.com/a/46550384
  
 # turn on features
+    use builtin qw(true false is_bool reftype);
+    no warnings 'experimental::builtin';
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.11.13');
+    our $VERSION = version->declare('v2022.12.27');
 # end prelude
+use Gradescope::Color qw(color_print);
 
-my $submission_dir = $ARGV[0];
-assert(defined($submission_dir));
-system('cat', glob "$submission_dir/*");
+my ($n) = @ARGV;
+assert(defined($n));
+do {
+    local $/ = undef;
+    color_print(JSON::to_json(JSON::from_json(<STDIN>)->[$n], {pretty => 1, canonical => 1}), 'JSON');
+};
 
-# PODNAME: cat.pl
-# ABSTRACT: Gradescope submission script F<join.pl> lambda
+# PODNAME: proj.pl
+# ABSTRACT: Gradescope submission script helper
 
 __END__
 
@@ -53,17 +65,17 @@ __END__
 
 =head1 NAME
 
-cat.pl - Gradescope submission script F<join.pl> lambda
+proj.pl - Gradescope submission script helper
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 SYNOPSIS
 
-cat.pl I<dir>
-
 =head1 DESCRIPTION
+
+=head1 NAME
 
 =head1 AUTHOR
 

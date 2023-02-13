@@ -53,8 +53,9 @@ package Gradescope::Curl v2022.11.13 {
     sub login {
         # hacked together from the python script and a lot of netcat (thanks 489)
         # aka the curl snippets took a lot of trial and error
-        my $email = IO::Prompter::prompt('Enter your email: ', -in => *STDIN);
-        my $password = IO::Prompter::prompt('Enter your password: ', -in => *STDIN, -echo => '');
+        open my $tty, '<', '/dev/tty' or confess 'This needs to be run in an interactive shell!';
+        my $email = IO::Prompter::prompt('Enter your email: ', -in => $tty);
+        my $password = IO::Prompter::prompt('Enter your password: ', -in => $tty, -echo => '');
         my %response = %{JSON::from_json(`curl -s --data 'email=$email&password=$password' $baseurl/api/v1/user_session`)};
         carp '[warning] curl returned error code on gradescope auth' if $? >> 8;
         $response{token} // confess "[error] Your gradescope login credentials are probably wrong";
@@ -79,7 +80,7 @@ Gradescope::Curl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.01.23
+version 2023.02.13
 
 =head1 DESCRIPTION
 
