@@ -90,33 +90,3 @@ module Delim = {
     mk(Unicode.castArrowSym) |> Doc.annot(DHAnnot.FailedCastDelim);
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
-
-let mk_EmptyHole = (~selected=false, (u, i)) =>
-  Delim.empty_hole((u, i))
-  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
-
-let mk_Keyword = (u, i, k) =>
-  Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), (u, i)));
-
-let mk_IntLit = n => Doc.text(string_of_int(n));
-
-let mk_FloatLit = (f: float) =>
-  switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
-  | (false, true, _) => Doc.text("Inf")
-  /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
-  | (true, true, _) => Doc.text("NegInf")
-  | (_, _, true) => Doc.text("NaN")
-  | _ => Doc.text(string_of_float(f))
-  };
-
-let mk_BoolLit = b => Doc.text(string_of_bool(b));
-
-let mk_Inj = (inj_side, padded_child) =>
-  Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
-
-let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
-
-let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
-
-//let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
