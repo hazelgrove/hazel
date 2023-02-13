@@ -99,8 +99,15 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
-let clipboard_shim = {
-  Node.textarea(~attr=Attr.many([Attr.id(clipboard_shim_id)]), []);
+let clipboard_shim = (~text="", ()) => {
+  Node.textarea(
+    ~attr=
+      Attr.many([
+        Attr.id(clipboard_shim_id),
+        Attr.create("aria-describedby", "accessibility"),
+      ]),
+    [Node.text(text)],
+  );
 };
 
 let copy = (str: string) => {

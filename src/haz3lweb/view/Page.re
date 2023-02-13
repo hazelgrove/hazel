@@ -287,7 +287,6 @@ let view = (~inject, ~handlers, model: Model.t) => {
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
       Accessibility.view(model),
-      JsUtil.clipboard_shim,
     ]
     @ main_ui,
   );
