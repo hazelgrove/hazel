@@ -54,7 +54,7 @@ let of_secondary =
 
 module Text = (M: {
                  let map: Measured.t;
-                 let settings: Model.settings;
+                 let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
@@ -116,7 +116,7 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
+let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
   module Text =
     Text({
       let map = map;
@@ -134,7 +134,7 @@ let view =
       ~segment,
       ~unselected,
       ~measured,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
     )
     : Node.t => {
   module Text =
