@@ -24,8 +24,12 @@ type t('sort) =
   | Seq(list(t('sort)))
   | Alt(list(t('sort)));
 
-// simplifying assumption, not fundamentally necessary
-exception No_consecutive_tokens;
+// currently assuming:
+// (1) no consecutive kids
+// (2) no consecutive tokens
+// (3) every sort is convex
+// only (1) fundamentally necessary
+exception Ill_typed;
 
 let tok_shape = (t: Token.Shape.t) => Atom(Tok(t));
 let tok = (s: string) => tok_shape(Const(s));

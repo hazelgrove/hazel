@@ -76,8 +76,8 @@ type t = {
 type meld = t;
 
 module Closed = {
-  type l = (meld, Piece.t);
-  type r = (Piece.t, meld);
+  type l = (Piece.t, meld);
+  type r = (meld, Piece.t);
   type t = Chain.t(Piece.t, meld);
 };
 
@@ -227,7 +227,6 @@ let is_empty = (mel: t) =>
     Some(Space.cat(l, r));
   };
 
-// todo: review for externalizing padding
 let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
   mk(~chain=Chain.mk([l, r], [p]), ()) |> aggregate;
 let of_grout = (~l=empty(), ~r=empty(), g: Grout.t) =>

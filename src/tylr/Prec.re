@@ -9,3 +9,6 @@ let min = Int.min_int;
 
 let max = Int.max_int;
 let max_op = max - 1;
+
+let lt = (~a, l, r) =>
+  compare(l, r) < 0 || compare(l, r) == 0 && a(l) == Some(Dir.L);

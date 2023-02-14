@@ -25,5 +25,8 @@ module Ana = {
     // or anything prec-lower-bounded by sort
     strict: bool,
   };
-  let mk = (~strict=false, ~sort=?, ()) => {sort, strict};
+  let mk = (~strict=false, ~sort=None, ()) => {sort, strict};
 };
+
+let leq = (_, _) => failwith("todo Sort.leq");
+let geq = (_, _) => failwith("todo Sort.geq");

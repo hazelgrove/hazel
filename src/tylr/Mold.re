@@ -40,8 +40,9 @@ let tips = (d: Dir.t, m: t): list(Tip.t) =>
   |> List.map(
        fun
        | None => Tip.Convex
-       | Some(Gram.Atom.Tok(_)) => raise(Gram.No_consecutive_tokens)
+       | Some(Gram.Atom.Tok(_)) => raise(Gram.Ill_typed)
        | Some(Kid(s)) => {
+           // todo: this should be no_tokens
            let p = Gram.Frame.nullable(d, m.frames) ? m.prec : Prec.min;
            Concave(s, p);
          },
@@ -52,6 +53,21 @@ let tip = (d: Dir.t, m: t): Tip.t =>
 
 let must_match = (d: Dir.t, m: t): bool =>
   Gram.Frame.must_match(d, m.frames);
+
+let concave_tips = (side, m) =>
+  m
+  |> tips(side)
+  |> List.filter_map(
+       fun
+       | Tip.Concave(s, p) => Some((s, p))
+       | Convex => None,
+     );
+
+// if (l.sort == r.sort) {
+
+// } else {
+
+// };
 
 module Rack = {
   type mold = t;

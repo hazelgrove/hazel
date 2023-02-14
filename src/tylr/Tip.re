@@ -15,3 +15,31 @@ let fits = (l, r) =>
 let same_shape = (l, r) => !fits(l, r);
 
 let root = Concave(Sort.root_o, Prec.min);
+
+let lt = (~assoc, l: t, r: t): option((Sort.o, Prec.t)) =>
+  switch (l) {
+  | Convex => None
+  | Concave(s, p) =>
+    switch (r) {
+    | Convex => Some((s, p))
+    | Concave(t, q) =>
+      // todo: review this sort comparison
+      // esp in light of losing sort order
+      Sort.compare_o(s, t) <= 0
+      && (p < q || p == q && assoc(p) == Some(Dir.L))
+        ? Some((s, p)) : None
+    }
+  };
+
+let gt = (~assoc, l: t, r: t): option((Sort.o, Prec.t)) =>
+  switch (r) {
+  | Convex => None
+  | Concave(s, p) =>
+    switch (l) {
+    | Convex => Some((s, p))
+    | Concave(t, q) =>
+      Sort.compare_o(t, s) >= 0
+      && (p < q || p == q && assoc(p) == Some(Dir.R))
+        ? Some((s, p)) : None
+    }
+  };

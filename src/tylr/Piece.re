@@ -131,7 +131,7 @@ let eq = (l: t, r: t): option(Sort.Ana.t) => {
       Gram.Zipper.(move_to_tok(R, z_l), move_to_tok(L, z_r));
     let strict = is_strict(l) || is_strict(r);
     List.mem(z_l, moved_r) && List.mem(z_r, moved_l)
-      ? Some(Sort.Ana.mk(~strict, ~sort?, ())) : None;
+      ? Some(Sort.Ana.mk(~strict, ~sort, ())) : None;
   };
 };
 
@@ -177,55 +177,38 @@ let degrout = (l: t, r: t): option(dg) =>
   | _ => None
   };
 
-let cmp = (l: t, r: t): (Cmp.i_leg((Sort.o, Prec.t), Sort.Ana.t) as 'r) => {
-  let (m_l, m_r) = (mold(l), mold(r));
-  switch (eq(l, r)) {
-  | Some(s) => Eq(s)
-  | None =>
-    let in_ = {
-      let sort = Sort.lca(m_l.sort, m_r.sort);
-      let prec = min(m_l.prec, m_r.prec);
-      Cmp.In((sort, prec));
-    };
-    let lt = sort => Cmp.Lt(Sort.Ana.mk(~strict=is_strict(l), ~sort?, ()));
-    let gt = sort => Cmp.Gt(Sort.Ana.mk(~strict=is_strict(r), ~sort?, ()));
-    let eq = sort => {
-      let strict = is_strict(l) || is_strict(r);
-      Cmp.Eq(Sort.Ana.mk(~strict, ~sort?, ()));
-    };
-    let try_lt = (~else_=in_, sort_l): 'r =>
-      Sort.compare_o(sort_l, sort(r)) <= 0 ? lt(sort_l) : else_;
-    let try_gt = (~else_=in_, sort_r): 'r =>
-      Sort.compare_o(sort(l), sort_r) >= 0 ? gt(sort_r) : else_;
-    switch (Mold.tip(R, m_l), Mold.tip(L, m_r)) {
-    | (Convex, Convex) => in_
-    | (Convex, Concave(sort_r, _)) => try_gt(sort_r)
-    | (Concave(sort_l, _), Convex) => try_lt(sort_l)
-    | (Concave(sort_l, prec_l), Concave(sort_r, prec_r)) =>
-      // todo: revise when generalizing to sort partial order
-      switch (Sort.compare_o(sort(l), sort(r))) {
-      | c when c < 0 => lt(sort_l)
-      | c when c > 0 => gt(sort_r)
-      | _zero =>
-        switch (Prec.compare(prec_l, prec_r)) {
-        | c when c < 0 => try_lt(~else_=try_gt(sort_r), sort_l)
-        | c when c > 0 => try_gt(~else_=try_lt(sort_l), sort_r)
-        | _ =>
-          switch (LangUtil.assoc(sort(l), prec_l)) {
-          | Some(L) => gt(sort_r)
-          | Some(R) => lt(sort_l)
-          | None => eq(sort_l)
-          }
-        }
-      }
-    };
+let fst_set = _ => failwith("todo fst");
+
+let lt_ = (l: t, r: t): list(Sort.Ana.t) => {
+  open ListUtil.Syntax;
+  let (l, r) = (mold(l), mold(r));
+  let* (s, p) = Mold.concave_tips(R, l);
+  let* tip = Sort.leq(s, r.sort) ? Mold.tips(L, r) : [];
+  switch (tip) {
+  | Concave(t, q)
+      when Sort.geq(l.sort, t) && !Prec.lt(~a=LangUtil.assoc(l.sort), p, q) =>
+    []
+  | _ =>
+    // todo: strict based on piece shape
+    [Sort.Ana.mk(~sort=s, ())]
   };
 };
+// todo: avoid arbitrary preemptive choice
+let lt = (l, r) => ListUtil.hd_opt(lt_(l, r));
 
-// module Step = {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t = int;
-// };
+let gt_ = (l: t, r: t): list(Sort.Ana.t) => {
+  open ListUtil.Syntax;
+  let (l, r) = (mold(l), mold(r));
+  let* (s, p) = Mold.concave_tips(L, r);
+  let* tip = Sort.geq(l.sort, s) ? Mold.tips(R, l) : [];
+  switch (tip) {
+  | Concave(t, q)
+      when Sort.geq(r.sort, t) && !Prec.lt(~a=LangUtil.assoc(r.sort), p, q) =>
+    []
+  | _ => [Sort.Ana.mk(~sort=s, ())]
+  };
+};
+let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
 
 // let unzip = (step: Step.t, p: t): Either.t(Dir.t, (t, t)) => {
 //   let (l, r) = p.space;
