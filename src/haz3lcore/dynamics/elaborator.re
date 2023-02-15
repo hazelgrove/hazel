@@ -56,7 +56,7 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
 /* Wrap: Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
 let wrap =
-    (u, mode, self, ctx, d: DHExp.t, dl: Delta.t)
+    (u, mode, self, ctx, d: DHExp.t, dl: Delta.t, delta_ty: Typ.t)
     : option((DHExp.t, Delta.t)) =>
   switch (Statics.error_status(mode, self)) {
   | NotInHole(_) =>
@@ -144,22 +144,10 @@ let wrap =
       }
     }
   | InHole(_) =>
-    let delta_ty: Typ.t =
-      switch (mode) {
-      | Syn
-      | SynFun => Unknown(TypeHole)
-      | Ana(ana_ty) => ana_ty
-      };
-    let dl_update: Delta.t =
-      switch (d) {
-      | EmptyHole(_) =>
-        Delta.add(u, (ExpressionHole, delta_ty, ctx), Delta.empty)
-      | _ => dl
-      };
     Some((
       NonEmptyHole(TypeInconsistent, u, 0, d),
-      Delta.add(u, (ExpressionHole, delta_ty, ctx), dl_update),
-    ));
+      Delta.add(u, (ExpressionHole, delta_ty, ctx), dl),
+    ))
   };
 
 let rec dhexp_of_uexp =
@@ -169,10 +157,20 @@ let rec dhexp_of_uexp =
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+    let delta_ty: Typ.t =
+      switch (mode) {
+      | Syn
+      | SynFun => Unknown(TypeHole)
+      | Ana(ana_ty) => ana_ty
+      };
     let* (d, dl): (DHExp.t, Delta.t) =
       switch (uexp.term) {
       | Invalid(_) /* NOTE: treating invalid as a hole for now */
-      | EmptyHole => Some((DHExp.EmptyHole(id, 0), Delta.empty))
+      | EmptyHole =>
+        Some((
+          DHExp.EmptyHole(id, 0),
+          Delta.add(id, (ExpressionHole, delta_ty, ctx), Delta.empty),
+        ))
       | MultiHole(_tms) =>
         /* TODO: add a dhexp case and eval logic for multiholes.
            Make sure new dhexp form is properly considered Indet
@@ -349,7 +347,7 @@ let rec dhexp_of_uexp =
         | _ => (ConsistentCase(d), dl)
         };
       };
-    wrap(id, mode, self, ctx, d, dl);
+    wrap(id, mode, self, ctx, d, dl, delta_ty);
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
@@ -432,7 +430,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
-  | Some((d, _)) =>
+  | Some((d, dl)) =>
     let d = uexp_elab_wrap_builtins(d);
-    Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci, left delta empty
+    Elaborates(d, Typ.Unknown(Internal), dl); //TODO: get type from ci, left delta empty
   };
