@@ -63,19 +63,5 @@ let concave_tips = (side, m) =>
        | Convex => None,
      );
 
-// if (l.sort == r.sort) {
-
-// } else {
-
-// };
-
-module Rack = {
-  type mold = t;
-  type t = list((Token.t, mold));
-};
-
-module Result = {
-  type m = t;
-  type kid = option(Sort.o);
-  type t = Result.t(m, kid);
-};
+// todo: need to review this and completion
+let expected = (~side as _: Dir.t, _) => failwith("todo Mold.expected");

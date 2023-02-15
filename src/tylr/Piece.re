@@ -210,6 +210,9 @@ let gt_ = (l: t, r: t): list(Sort.Ana.t) => {
 };
 let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
 
+let replaces = (_, _): option(Dir.t) => failwith("todo Piece.replaces");
+let passes = (_, _): option(Dir.t) => failwith("todo Piece.passes");
+
 // let unzip = (step: Step.t, p: t): Either.t(Dir.t, (t, t)) => {
 //   let (l, r) = p.space;
 //   switch (p.shape) {
