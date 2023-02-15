@@ -144,6 +144,7 @@ type status_typ =
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
+  | ShadowsBaseType(Token.t)
   | NotAVar;
 
 /* Type pattern ok statuses for cursor inspector */
@@ -330,6 +331,7 @@ let status_typ =
 let status_tpat = (utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
+  | Var(name) when Form.is_base_type(name) => InHole(ShadowsBaseType(name))
   | Var(name) => NotInHole(Var(name))
   | Invalid(_)
   | MultiHole(_) => InHole(NotAVar)

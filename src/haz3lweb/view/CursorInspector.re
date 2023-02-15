@@ -157,7 +157,9 @@ let tpat_view: Info.status_tpat => t =
   | NotInHole(Empty) => div_ok([text("Enter a new type alias")])
   | NotInHole(Var(name)) =>
     div_ok([Type.alias_view(name), text("is a new type alias")])
-  | InHole(NotAVar) => div_err([text("Not a valid type name")]);
+  | InHole(NotAVar) => div_err([text("Not a valid type name")])
+  | InHole(ShadowsBaseType(name)) =>
+    div_err([text("Can't shadow base type"), Type.view(Var(name))]);
 
 let view_of_info =
     (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {

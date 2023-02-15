@@ -87,14 +87,14 @@ let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
 let is_typ_var = is_capitalized_name;
-let is_concrete_typ = str =>
+let is_base_type = str =>
   str == "String"
   || str == "Int"
   || str == "Float"
   || str == "Bool"
   || str == "Unit";
 let is_partial_concrete_typ = x =>
-  !is_concrete_typ(x) && is_capitalized_name(x);
+  !is_base_type(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
@@ -129,7 +129,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("type", (is_concrete_typ, [mk_op(Typ, [])])),
+  ("type", (is_base_type, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
