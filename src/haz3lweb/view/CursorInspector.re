@@ -31,7 +31,7 @@ let lang_doc_toggle = (~inject, ~show_lang_doc) => {
 };
 
 let term_tag =
-    (~inject, ~settings: Model.settings, ~show_lang_doc, is_err, sort) =>
+    (~inject, ~settings: ModelSettings.t, ~show_lang_doc, is_err, sort) =>
   div(
     ~attr=clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errc] : [])),
     [
@@ -202,7 +202,7 @@ let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
 let view =
     (
       ~inject,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,

@@ -6,7 +6,7 @@ open OptUtil.Syntax;
 module Deco =
        (
          M: {
-           let settings: Model.settings;
+           let settings: ModelSettings.t;
            let font_metrics: FontMetrics.t;
            let map: Measured.t;
            let show_backpack_targets: bool;

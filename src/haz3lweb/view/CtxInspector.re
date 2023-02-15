@@ -56,7 +56,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
 let inspector_view =
     (
       ~inject,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       _id: int,
       ci: Haz3lcore.Statics.Info.t,
     )
@@ -71,7 +71,7 @@ let inspector_view =
 let view =
     (
       ~inject,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       index': option(int),
       info_map: Haz3lcore.Statics.Map.t,
     ) => {

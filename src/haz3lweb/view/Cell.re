@@ -72,7 +72,7 @@ let simple_cell_view = (items: list(Node.t)) =>
 let code_cell_view =
     (
       ~inject,
-      ~settings as _: Model.settings,
+      ~settings as _: ModelSettings.t,
       ~font_metrics,
       ~clss=[],
       ~selected: bool,
@@ -159,7 +159,7 @@ let test_result_layer =
 let deco =
     (
       ~zipper,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~measured,
       ~segment,
       ~font_metrics,
@@ -260,7 +260,7 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -328,7 +328,7 @@ let editor_with_result_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
