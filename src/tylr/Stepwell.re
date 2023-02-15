@@ -273,7 +273,7 @@ let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
 let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
   let (p, rest) =
     Meld.is_closed_l(mel)
-    |> OptUtil.get_or_raise(Invalid_argument("Valley.insert_meld"));
+    |> OptUtil.get_or_raise(Invalid_argument("Stepwell.insert_meld"));
   switch (p.shape) {
   | G(g) =>
     // todo: may need to remold?
