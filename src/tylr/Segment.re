@@ -1,7 +1,32 @@
 open Sexplib.Std;
 open Util;
 
-include Meld.Segment;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = Chain.t(Space.t, Meld.t);
+let of_space = (s: Space.t): t => Chain.of_loop(s);
+let empty = of_space(Space.empty);
+let of_meld = (mel: Meld.t): t =>
+  switch (Meld.is_empty(mel)) {
+  | Some(s) => of_space(s)
+  | None =>
+    let ((l, r), mel) = Meld.unpad(mel);
+    Chain.mk(Space.[l, r], [mel]);
+  };
+let cons_space = s => Chain.map_fst(Space.cat(s));
+let snoc_space = (seg, s) => Chain.map_lst(Fun.flip(Space.cat, s), seg);
+let cat: (t, t) => t = Chain.cat(Space.cat);
+let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
+let link = (~s=Space.empty, mel, seg) =>
+  switch (Meld.is_empty(mel)) {
+  | Some(s') => cons_space(Space.cat(s, s'), seg)
+  | None => Chain.link(s, mel, seg)
+  };
+let knil = (~s=Space.empty, seg, mel) =>
+  switch (Meld.is_empty(mel)) {
+  | Some(s') => snoc_space(seg, Space.cat(s', s))
+  | None => Chain.knil(seg, mel, s)
+  };
+let is_empty: t => bool = (==)(empty);
 
 // when input meld structure (specifically parent-kid relations)
 // must be broken to give proper assembly
