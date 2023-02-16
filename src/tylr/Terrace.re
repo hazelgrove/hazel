@@ -1,101 +1,125 @@
-// todo: unify as
-// type t = {hd: Piece.t, tl: Meld.t};
-type l = (Piece.t, Meld.t);
-type r = (Meld.t, Piece.t);
+open Util;
 
-// maybe move this to zigg
-type t = Chain.t(Piece.t, Meld.t);
+type t = {
+  retainer: Retainer.t,
+  backfill: Meld.t,
+};
+type terr = t;
 
-let open_l = (kid, (p, mel): l) => Meld.link(~kid, p, mel);
-let open_r = ((mel, p): r, kid) => Meld.knil(mel, p, ~kid);
+let map_retainer = (f, terr) => {...terr, retainer: f(terr.retainer)};
 
-let mk_l = (mel: Meld.t): option((Meld.t, l)) =>
-  Meld.unlink(mel)
-  |> Result.to_option
-  |> Option.map(((kid, p, tl)) => (kid, (p, tl)));
-let mk_r = (mel: Meld.t): option((r, Meld.t)) =>
-  Meld.unknil(mel)
-  |> Result.to_option
-  |> Option.map(((tl, p, kid)) => ((tl, p), kid));
+let split_face = ({retainer, backfill}: t): (Piece.t, Meld.t) =>
+  switch (Chain.unlink(retainer)) {
+  | None => (Chain.fst(retainer), backfill)
+  | Some((face, kid, rest)) => (
+      face,
+      Retainer.to_meld(~l=kid, rest, ~r=backfill),
+    )
+  };
+let face = terr => fst(split_face(terr));
 
-let prepend = (_: Closed.r, _: t) => failwith("todo prepend");
-let append = (_: t, _: Closed.l) => failwith("todo append");
+module L = {
+  type t = terr; // left-to-right: retainer backfill
+  let mk = (mel: Meld.t): option((Meld.t, t)) =>
+    Retainer.of_meld(mel)
+    |> Option.map(((kid, retainer, backfill)) =>
+         (kid, {retainer, backfill})
+       );
+  let unmk = (kid, {retainer, backfill}: t) =>
+    Retainer.to_meld(~l=kid, retainer, ~r=backfill);
+  let append = (_: Meld.t, _: t) => failwith("todo append");
+};
 
-let lt = (l: r, ~kid=empty(), r: l): option(t) => {
+module R = {
+  type t = terr; // left-to-right: backfill retainer
+  let mk = (mel: Meld.t): option((t, Meld.t)) =>
+    Retainer.of_meld(mel)
+    |> Option.map(((backfill, retainer, kid)) =>
+         ({backfill, retainer}, kid)
+       );
+  let unmk = ({backfill, retainer}: t, kid) =>
+    Retainer.to_meld(~l=backfill, retainer, ~r=kid);
+  let prepend = (_: t, _: Meld.t) => failwith("todo prepend");
+};
+
+// todo: consider requiring kid already be completed
+let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
   open OptUtil.Syntax;
-  let (_, p_l) = l;
-  let (p_r, _) = r;
+  let (p_l, p_r) = (face(l), face(r));
   let+ _ = Piece.lt(p_l, p_r);
   let kid =
     switch (Piece.tip(L, p_r)) {
     | Convex =>
-      assert(Option.is_some(is_empty(kid)));
+      assert(Option.is_some(Meld.is_empty(kid)));
       kid;
     | Concave(s, _) =>
       // todo review strict flag
       Meld.complete(~expected=Sort.Ana.mk(~sort=s, ()), kid)
     };
-  open_l(kid, r);
+  L.unmk(kid, r);
 };
 
-let gt = (l: r, ~kid=empty(), r: l): option(t) => {
+let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
   open OptUtil.Syntax;
-  let (_, p_l) = l;
-  let (p_r, _) = r;
+  let (p_l, p_r) = (face(l), face(r));
   let+ _ = Piece.gt(p_l, p_r);
   let kid =
     switch (Piece.tip(R, p_l)) {
     | Convex =>
-      assert(Option.is_some(is_empty(kid)));
+      assert(Option.is_some(Meld.is_empty(kid)));
       kid;
     | Concave(s, _) =>
       // todo review strict flag
       Meld.complete(~expected=Sort.Ana.mk(~sort=s, ()), kid)
     };
-  open_r(l, kid);
+  R.unmk(l, kid);
 };
 
-let rec eq = (l: r, ~kid=empty(), r: l): option(Meld.t) => {
+let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
   open OptUtil.Syntax;
-  let (tl_l, p_l) = l;
-  let (p_r, tl_r) = r;
-  switch (is_empty(kid), Piece.replaces(p_l, p_r), Piece.passes(p_l, p_r)) {
-  | (Some(s), Some(L), _) => return(append(pad(tl_l, ~r=s), r))
-  | (Some(s), Some(R), _) => return(prepend(l, pad(~l=s, tl_r)))
+  let ((p_l, tl_l), (p_r, tl_r)) = (split_face(l), split_face(r));
+  // left-to-right: tl_l p_l p_r tl_r
+  switch (
+    Meld.is_empty(kid),
+    Piece.replaces(p_l, p_r),
+    Piece.passes(p_l, p_r),
+  ) {
+  | (Some(s), Some(L), _) => return(L.append(Meld.pad(tl_l, ~r=s), r))
+  | (Some(s), Some(R), _) => return(R.prepend(l, Meld.pad(~l=s, tl_r)))
   | (Some(s), _, Some(L)) =>
-    let* (l, kid) = mk_r(tl_l);
-    let kid = Meld.pad(kid, ~r);
-    eq(l, ~kid, r);
+    let* (l, kid) = R.mk(tl_l);
+    eq(l, ~kid=Meld.pad(kid, ~r=s), r);
   | (Some(s), _, Some(R)) =>
-    let (kid, r) = mk_l(tl_r);
-    let kid = Meld.pad(~l, kid);
-    eq(l, ~kid, r);
+    let* (kid, r) = L.mk(r.backfill);
+    eq(l, ~kid=Meld.pad(~l=s, kid), r);
   | _ =>
     let+ compl = Piece.eq(p_l, p_r);
     // todo: abstract into some join-complement fn
-    let (hd_r, tl_r) =
+    let r =
       List.fold_right(
-        ((sugg, mold), (p, tl)) =>
+        ((sugg, mold), r) =>
           switch (Mold.tip(R, mold)) {
-          | Convex => raise(Invalid_prec)
+          | Convex => raise(Gram.Ill_typed)
           | Concave(s, _) =>
-            let kid = Some(of_grout(Grout.mk_convex(s)));
+            let kid = Meld.of_grout(Grout.mk_convex(s));
             let g = Piece.of_grout(Grout.mk(~sugg, mold));
-            (g, Meld.link(~kid, p, tl));
+            map_retainer(Chain.link(g, kid), r);
           },
         compl,
-        (p_r, tl_r),
+        r,
       );
-    prepend(l, link(~kid, hd_r, tl_r));
+    R.prepend(l, L.unmk(kid, r));
   };
 };
 
+let in_ = (_, ~s as _: Space.t, _) => failwith("todo Terrace.in_");
+
 type cmp = {
-  lt: option(t),
-  eq: option(t),
-  gt: option(t),
+  lt: option(Meld.t),
+  eq: option(Meld.t),
+  gt: option(Meld.t),
 };
-let cmp = (l: r, ~kid=empty(), r: l) => {
+let cmp = (l: R.t, ~kid=Meld.empty(), r: L.t) => {
   lt: lt(l, ~kid, r),
   eq: eq(l, ~kid, r),
   gt: gt(l, ~kid, r),

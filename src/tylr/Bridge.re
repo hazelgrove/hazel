@@ -1,7 +1,8 @@
 open Util;
 
+// constituent terraces are the bridge's "base"
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Meld.Closed.r, Meld.Closed.l);
+type t = (Terrace.t, Terrace.t);
 // <let< x >=< _kid_ >in< 1
 // -----------       ------
 

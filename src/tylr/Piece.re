@@ -122,18 +122,19 @@ let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
   go(zipper(p));
 };
 
-let eq = (l: t, r: t): option(Sort.Ana.t) => {
-  switch (Mold.tip(R, mold(l))) {
-  | Convex => None
-  | Concave(sort, _) =>
-    let (z_l, z_r) = (zipper(l), zipper(r));
-    let (moved_l, moved_r) =
-      Gram.Zipper.(move_to_tok(R, z_l), move_to_tok(L, z_r));
-    let strict = is_strict(l) || is_strict(r);
-    List.mem(z_l, moved_r) && List.mem(z_r, moved_l)
-      ? Some(Sort.Ana.mk(~strict, ~sort, ())) : None;
-  };
-};
+// let eq = (l: t, r: t): option(Sort.Ana.t) => {
+//   switch (Mold.tip(R, mold(l))) {
+//   | Convex => None
+//   | Concave(sort, _) =>
+//     let (z_l, z_r) = (zipper(l), zipper(r));
+//     let (moved_l, moved_r) =
+//       Gram.Zipper.(move_to_tok(R, z_l), move_to_tok(L, z_r));
+//     let strict = is_strict(l) || is_strict(r);
+//     List.mem(z_l, moved_r) && List.mem(z_r, moved_l)
+//       ? Some(Sort.Ana.mk(~strict, ~sort, ())) : None;
+//   };
+// };
+let eq = (_, _) => failwith("todo: find and return complement");
 
 let eq_transitive = (l: t, r: t): bool => {
   let rec go = (z_l, z_r) => {
