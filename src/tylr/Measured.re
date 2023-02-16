@@ -97,63 +97,62 @@ let union = List.fold_left(union2, empty);
 let add_p = (_, _, _) => failwith("todo add_p");
 let add_space = (_, _, _) => failwith("todo add_space");
 
-type state = {
-  map: t,
-  indent: int,
-  origin: Point.t,
-};
-let init = {map: empty, indent: 0, origin: Point.zero};
+module Traversal = {
+  type map = t;
+  type t = {
+    map,
+    indent: int,
+    origin: Point.t,
+  };
+  let init = {map: empty, indent: 0, origin: Point.zero};
 
-// todo
-let tile_indent = _ => false;
+  // todo
+  let is_indenting = _ => false;
 
-let of_space = (~tile_indent=false, ~state, s: Space.s): state =>
-  s
-  |> List.fold_left(
-       (({map, indent, origin}, indented), s: Space.t) =>
-         switch (s.shape) {
-         | Space =>
-           let last = {...origin, col: origin.col + 1};
-           let map = add_space(s, {origin, last}, map);
-           ({map, indent, origin: last}, indented);
-         | Newline =>
-           let (indent, indented) =
-             tile_indent && !indented
-               ? (indent + 2, true) : (indent, indented);
-           let last = Point.{row: origin.row + 1, col: indent};
-           let map = add_space(s, {origin, last}, map);
-           ({map, indent, origin: last}, indented);
-         },
-       (state, false),
-     )
-  |> fst;
+  let add_space = (~to_be_indented=false, s: Space.t, state: t): t =>
+    s.chars
+    |> List.fold_left(
+         (({map, indent, origin}, indented), s: Space.Char.t) =>
+           switch (s.shape) {
+           | Space =>
+             let last = {...origin, col: origin.col + 1};
+             let map = add_space(s, {origin, last}, map);
+             ({map, indent, origin: last}, indented);
+           | Newline =>
+             let (indent, indented) =
+               to_be_indented && !indented
+                 ? (indent + 2, true) : (indent, indented);
+             let last = Point.{row: origin.row + 1, col: indent};
+             let map = add_space(s, {origin, last}, map);
+             ({map, indent, origin: last}, indented);
+           },
+         (state, false),
+       )
+    |> fst;
 
-let rec of_meld = (~state=init, c: Meld.t) =>
-  c
-  |> Chain.fold_left(
-       of_kid(~state),
-       (state, p, k) => {
-         let state = of_piece(~state, p);
-         of_kid(~state, k);
-       },
-     )
-and of_kid = (~state, k: option(Meld.kid)) =>
-  switch (k) {
-  | None => state
-  | Some(K(kid)) => of_meld(~state, kid)
-  }
-and of_piece = (~state: state, p: Piece.t) => {
-  let (l, r) = p.space;
-  let state = of_space(~state, l);
-  let state = {
+  let rec add_meld = (~to_be_indented=false, mel: Meld.t, state: t): t =>
+    state
+    |> add_space(~to_be_indented, fst(mel.space))
+    |> (
+      switch (mel.chain) {
+      | None => Fun.id
+      | Some(c) => add_chain(c)
+      }
+    )
+    |> add_space(snd(mel.space))
+  and add_chain = (c, state) =>
+    c
+    |> Chain.fold_left(
+         kid => add_meld(kid, state),
+         (state, p, kid) =>
+           state
+           |> add_piece(p)
+           |> add_meld(~to_be_indented=is_indenting(p), kid),
+       )
+  and add_piece = (p: Piece.t, state: t) => {
     let origin = state.origin;
     let last = {...origin, col: origin.col + Piece.length(p)};
     let map = state.map |> add_p(p, {origin, last});
     {...state, map, origin: last};
   };
-  of_space(~state, ~tile_indent=tile_indent(p), r);
 };
-
-// let rec of_segment =
-//         (~indent=0, ~origin=Point.zero, seg: Segment.t): (Point.t, t) =>
-//   failwith("todo");
