@@ -1,9 +1,11 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   retainer: Retainer.t,
   backfill: Meld.t,
 };
+[@deriving (show({with_path: false}), sexp, yojson)]
 type terr = t;
 
 let map_retainer = (f, terr) => {...terr, retainer: f(terr.retainer)};

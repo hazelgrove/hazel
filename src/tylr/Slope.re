@@ -1,9 +1,12 @@
+open Sexplib.Std;
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   space: Space.t,
   terrs: list(Terrace.t),
 };
+[@deriving (show({with_path: false}), sexp, yojson)]
 type slope = t;
 // type dn = t; // left-to-right: terrs space
 // type up = t; // left-to-right: space terrs
@@ -16,6 +19,7 @@ let map_space = (f, s) => {...s, space: f(s.space)};
 let cat = (_, _) => failwith("todo");
 
 module Dn = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = slope;
 
   let of_meld = _ => failwith("todo");
@@ -51,6 +55,7 @@ module Dn = {
   };
 };
 module Up = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = slope;
 
   let of_meld = _ => failwith("todo");

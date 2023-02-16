@@ -1,5 +1,6 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = Chain.t(Piece.t, Meld.t);
 
 let of_piece: _ => t = Chain.of_loop;

@@ -8,9 +8,6 @@ type t = (Terrace.t, Terrace.t);
 
 exception Convex_inner_tips;
 
-let empty: t = Meld.(empty, empty);
-let is_empty = (==)(empty);
-
 let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   switch (from) {
   | L =>

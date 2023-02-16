@@ -14,7 +14,7 @@ let mk = (~sel=Selection.empty, rel) => {sel, rel};
 let init =
   mk(
     Stepwell.of_sib(
-      Vee.mk(
+      Slopes.mk(
         ~r=
           Slope.Up.of_meld(
             Meld.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),

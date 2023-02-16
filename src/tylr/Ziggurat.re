@@ -2,6 +2,7 @@
 open Slope;
 
 // left-to-right: up top dn
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   up: Up.t,
   top: Retainer.t,
