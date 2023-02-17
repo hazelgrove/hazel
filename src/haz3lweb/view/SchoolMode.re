@@ -6,7 +6,7 @@ type t = {
   exercise: SchoolExercise.state,
   results: option(ModelResults.t),
   settings: ModelSettings.t,
-  langDocMessages: LangDocMessages.t,
+  explainThisMessages: ExplainThisMessages.t,
   stitched_dynamics: SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
 };
@@ -16,7 +16,7 @@ let mk =
       ~exercise: SchoolExercise.state,
       ~results: option(ModelResults.t),
       ~settings,
-      ~langDocMessages,
+      ~explainThisMessages,
     )
     : t => {
   let SchoolExercise.{eds, _} = exercise;
@@ -30,7 +30,7 @@ let mk =
     exercise,
     results,
     settings,
-    langDocMessages,
+    explainThisMessages,
     stitched_dynamics,
     grading_report,
   };
@@ -59,7 +59,7 @@ let view =
     settings,
     stitched_dynamics,
     grading_report,
-    langDocMessages,
+    explainThisMessages,
   } = self;
   let SchoolExercise.{pos, eds} = exercise;
   let SchoolExercise.{
@@ -75,12 +75,12 @@ let view =
     SchoolExercise.focus(exercise, stitched_dynamics);
 
   let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
+    if (explainThisMessages.highlight && explainThisMessages.show) {
       let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));
       let map = Statics.mk_map(term);
       Some(
-        LangDoc.get_color_map(
-          ~doc=langDocMessages,
+        ExplainThis.get_color_map(
+          ~doc=explainThisMessages,
           Indicated.index(focal_zipper),
           map,
         ),
@@ -334,7 +334,7 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~show_lang_doc=langDocMessages.show,
+          ~show_lang_doc=explainThisMessages.show,
           focal_zipper,
           focal_info_map,
         ),
@@ -364,13 +364,13 @@ let view =
     // TODO lang doc visibility tied to ci visibility (is this desired?)
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)]
     @ (
-      langDocMessages.show && settings.statics
+      explainThisMessages.show && settings.statics
         ? [
-          LangDoc.view(
+          ExplainThis.view(
             ~inject,
             ~font_metrics,
             ~settings,
-            ~doc=langDocMessages,
+            ~doc=explainThisMessages,
             Indicated.index(focal_zipper),
             focal_info_map,
           ),

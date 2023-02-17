@@ -30,7 +30,7 @@ let feedback_view = (message, up_active, up_action, down_active, down_action) =>
 };
 
 let explanation_feedback_view =
-    (~inject, id, explanation: LangDocMessages.explanation) => {
+    (~inject, id, explanation: ExplainThisMessages.explanation) => {
   let (up_active, down_active) =
     switch (explanation.feedback) {
     | ThumbsUp => (true, false)
@@ -42,21 +42,22 @@ let explanation_feedback_view =
     up_active,
     _ =>
       inject(
-        Update.UpdateLangDocMessages(
+        Update.UpdateExplainThisMessages(
           ToggleExplanationFeedback(id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
-        Update.UpdateLangDocMessages(
+        Update.UpdateExplainThisMessages(
           ToggleExplanationFeedback(id, ThumbsDown),
         ),
       ),
   );
 };
 
-let example_feedback_view = (~inject, id, example: LangDocMessages.example) => {
+let example_feedback_view =
+    (~inject, id, example: ExplainThisMessages.example) => {
   let (up_active, down_active) =
     switch (example.feedback) {
     | ThumbsUp => (true, false)
@@ -68,14 +69,14 @@ let example_feedback_view = (~inject, id, example: LangDocMessages.example) => {
     up_active,
     _ =>
       inject(
-        Update.UpdateLangDocMessages(
+        Update.UpdateExplainThisMessages(
           ToggleExampleFeedback(id, example.sub_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
-        Update.UpdateLangDocMessages(
+        Update.UpdateExplainThisMessages(
           ToggleExampleFeedback(id, example.sub_id, ThumbsDown),
         ),
       ),
@@ -204,7 +205,7 @@ let mk_explanation =
 
 let deco =
     (
-      ~doc: LangDocMessages.t,
+      ~doc: ExplainThisMessages.t,
       ~settings,
       ~colorings,
       ~expandable: option(Id.t),
@@ -282,8 +283,8 @@ let deco =
                               clss(["selected"] @ classes),
                               Attr.on_click(_ =>
                                 inject(
-                                  Update.UpdateLangDocMessages(
-                                    LangDocMessages.UpdateGroupSelection(
+                                  Update.UpdateExplainThisMessages(
+                                    ExplainThisMessages.UpdateGroupSelection(
                                       group_id,
                                       index,
                                     ),
@@ -299,8 +300,8 @@ let deco =
                               clss(classes),
                               Attr.on_click(_ =>
                                 inject(
-                                  Update.UpdateLangDocMessages(
-                                    LangDocMessages.UpdateGroupSelection(
+                                  Update.UpdateExplainThisMessages(
+                                    ExplainThisMessages.UpdateGroupSelection(
                                       group_id,
                                       index,
                                     ),
@@ -338,8 +339,8 @@ let deco =
                   DecUtil.abs_position(~font_metrics, origin),
                   Attr.on_click(_ => {
                     inject(
-                      Update.UpdateLangDocMessages(
-                        LangDocMessages.SpecificityOpen(
+                      Update.UpdateExplainThisMessages(
+                        ExplainThisMessages.SpecificityOpen(
                           !doc.specificity_open,
                         ),
                       ),
@@ -405,14 +406,14 @@ let example_view =
       ~font_metrics,
       ~settings,
       ~id,
-      ~examples: list(LangDocMessages.example),
+      ~examples: list(ExplainThisMessages.example),
     ) => {
   div(
     ~attr=Attr.id("examples"),
     List.length(examples) == 0
       ? [text("No examples available")]
       : List.map(
-          ({term, message, _} as example: LangDocMessages.example) => {
+          ({term, message, _} as example: ExplainThisMessages.example) => {
             let map_code = Measured.of_segment(term);
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
@@ -493,7 +494,11 @@ type message_mode =
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Statics.t), mode: message_mode)
+    (
+      ~docs: ExplainThisMessages.t,
+      info: option(Statics.t),
+      mode: message_mode,
+    )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -502,7 +507,7 @@ let get_doc =
   );
   let get_message =
       (
-        doc: LangDocMessages.form,
+        doc: ExplainThisMessages.form,
         options,
         group_id,
         explanation_msg,
@@ -565,105 +570,105 @@ let get_doc =
       | TermBase.UExp.Invalid(_) => default
       | EmptyHole =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.empty_hole_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.empty_hole_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.empty_hole_exp_group,
+          ExplainThisMessages.empty_hole_exp_group,
           doc.explanation.message,
           [],
         );
       | MultiHole(_children) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.multi_hole_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.multi_hole_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.multi_hole_exp_group,
+          ExplainThisMessages.multi_hole_exp_group,
           doc.explanation.message,
           [],
         );
       | Triv =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.triv_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.triv_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.triv_exp_group,
+          ExplainThisMessages.triv_exp_group,
           doc.explanation.message,
           [],
         );
       | Bool(_bool_lit) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.bool_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.bool_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.bool_exp_group,
+          ExplainThisMessages.bool_exp_group,
           doc.explanation.message,
           [],
         );
       | Int(_int_lit) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.int_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.int_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.int_exp_group,
+          ExplainThisMessages.int_exp_group,
           doc.explanation.message,
           [],
         );
       | Float(_float_lit) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.float_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.float_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.float_exp_group,
+          ExplainThisMessages.float_exp_group,
           doc.explanation.message,
           [],
         );
       | String(_str_lit) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.string_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.string_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.string_exp_group,
+          ExplainThisMessages.string_exp_group,
           doc.explanation.message,
           [],
         );
       | ListLit(terms) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.list_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.list_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.list_exp_group,
+          ExplainThisMessages.list_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i"),
             List.length(terms),
@@ -671,7 +676,7 @@ let get_doc =
           [],
         );
       | Fun(pat, body) =>
-        let basic = (doc: LangDocMessages.form, group_id, options) => {
+        let basic = (doc: ExplainThisMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
           get_message(
@@ -683,99 +688,107 @@ let get_doc =
               pat_id,
               body_id,
             ),
-            LangDocMessages.function_exp_coloring_ids(~pat_id, ~body_id),
+            ExplainThisMessages.function_exp_coloring_ids(~pat_id, ~body_id),
           );
         };
         let pat = bypass_parens_and_annot_pat(pat);
         switch (pat.term) {
         | EmptyHole =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_empty_hole_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_empty_hole_group,
               docs,
             );
-          if (LangDocMessages.function_empty_hole_exp.id == doc.id) {
+          if (ExplainThisMessages.function_empty_hole_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_empty_hole_group,
+              ExplainThisMessages.function_empty_hole_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
                 body_id,
                 pat_id,
               ), // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
-              LangDocMessages.function_empty_hole_exp_coloring_ids(
+              ExplainThisMessages.function_empty_hole_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_empty_hole_group, options);
+            basic(
+              doc,
+              ExplainThisMessages.function_empty_hole_group,
+              options,
+            );
           };
         | MultiHole(_) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_multi_hole_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_multi_hole_group,
               docs,
             );
-          if (LangDocMessages.function_multi_hole_exp.id == doc.id) {
+          if (ExplainThisMessages.function_multi_hole_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_multi_hole_group,
+              ExplainThisMessages.function_multi_hole_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
                 body_id,
                 pat_id,
               ),
-              LangDocMessages.function_multi_hole_exp_coloring_ids(
+              ExplainThisMessages.function_multi_hole_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_multi_hole_group, options);
+            basic(
+              doc,
+              ExplainThisMessages.function_multi_hole_group,
+              options,
+            );
           };
         | Wild =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_wild_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_wild_group,
               docs,
             );
-          if (LangDocMessages.function_wild_exp.id == doc.id) {
+          if (ExplainThisMessages.function_wild_exp.id == doc.id) {
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_wild_group,
+              ExplainThisMessages.function_wild_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i"),
                 body_id,
               ),
-              LangDocMessages.function_wild_exp_coloring_ids(~body_id),
+              ExplainThisMessages.function_wild_exp_coloring_ids(~body_id),
             );
           } else {
-            basic(doc, LangDocMessages.function_wild_group, options);
+            basic(doc, ExplainThisMessages.function_wild_group, options);
           };
         | Int(i) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_int_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_int_group,
               docs,
             );
-          if (LangDocMessages.function_intlit_exp.id == doc.id) {
+          if (ExplainThisMessages.function_intlit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_int_group,
+              ExplainThisMessages.function_int_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
                 pat_id,
@@ -783,27 +796,27 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_intlit_exp_coloring_ids(
+              ExplainThisMessages.function_intlit_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_int_group, options);
+            basic(doc, ExplainThisMessages.function_int_group, options);
           };
         | Float(f) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_float_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_float_group,
               docs,
             );
-          if (LangDocMessages.function_floatlit_exp.id == doc.id) {
+          if (ExplainThisMessages.function_floatlit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_float_group,
+              ExplainThisMessages.function_float_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%f%i%i"),
                 pat_id,
@@ -811,27 +824,27 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_floatlit_exp_coloring_ids(
+              ExplainThisMessages.function_floatlit_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_float_group, options);
+            basic(doc, ExplainThisMessages.function_float_group, options);
           };
         | Bool(b) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_bool_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_bool_group,
               docs,
             );
-          if (LangDocMessages.function_boollit_exp.id == doc.id) {
+          if (ExplainThisMessages.function_boollit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_bool_group,
+              ExplainThisMessages.function_bool_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%b%i%i"),
                 pat_id,
@@ -839,27 +852,27 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_boollit_exp_coloring_ids(
+              ExplainThisMessages.function_boollit_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_bool_group, options);
+            basic(doc, ExplainThisMessages.function_bool_group, options);
           };
         | String(s) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_str_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_str_group,
               docs,
             );
-          if (LangDocMessages.function_strlit_exp.id == doc.id) {
+          if (ExplainThisMessages.function_strlit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_str_group,
+              ExplainThisMessages.function_str_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
                 pat_id,
@@ -867,82 +880,82 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_strlit_exp_coloring_ids(
+              ExplainThisMessages.function_strlit_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_str_group, options);
+            basic(doc, ExplainThisMessages.function_str_group, options);
           };
         | Triv =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_triv_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_triv_group,
               docs,
             );
-          if (LangDocMessages.function_triv_exp.id == doc.id) {
+          if (ExplainThisMessages.function_triv_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_triv_group,
+              ExplainThisMessages.function_triv_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_triv_exp_coloring_ids(
+              ExplainThisMessages.function_triv_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_triv_group, options);
+            basic(doc, ExplainThisMessages.function_triv_group, options);
           };
         | ListLit(elements) =>
           if (List.length(elements) == 0) {
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.function_listnil_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.function_listnil_group,
                 docs,
               );
-            if (LangDocMessages.function_listnil_exp.id == doc.id) {
+            if (ExplainThisMessages.function_listnil_exp.id == doc.id) {
               let pat_id = List.nth(pat.ids, 0);
               let body_id = List.nth(body.ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.function_listnil_group,
+                ExplainThisMessages.function_listnil_group,
                 Printf.sprintf(
                   Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                   pat_id,
                   pat_id,
                   body_id,
                 ),
-                LangDocMessages.function_listnil_exp_coloring_ids(
+                ExplainThisMessages.function_listnil_exp_coloring_ids(
                   ~pat_id,
                   ~body_id,
                 ),
               );
             } else {
-              basic(doc, LangDocMessages.function_listnil_group, options);
+              basic(doc, ExplainThisMessages.function_listnil_group, options);
             };
           } else {
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.function_listlit_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.function_listlit_group,
                 docs,
               );
-            if (LangDocMessages.function_listlit_exp.id == doc.id) {
+            if (ExplainThisMessages.function_listlit_exp.id == doc.id) {
               let pat_id = List.nth(pat.ids, 0);
               let body_id = List.nth(body.ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.function_listlit_group,
+                ExplainThisMessages.function_listlit_group,
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
@@ -953,75 +966,75 @@ let get_doc =
                   pat_id,
                   body_id,
                 ),
-                LangDocMessages.function_listlit_exp_coloring_ids(
+                ExplainThisMessages.function_listlit_exp_coloring_ids(
                   ~pat_id,
                   ~body_id,
                 ),
               );
             } else {
-              basic(doc, LangDocMessages.function_listlit_group, options);
+              basic(doc, ExplainThisMessages.function_listlit_group, options);
             };
           }
         | Cons(hd, tl) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_cons_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_cons_group,
               docs,
             );
-          if (LangDocMessages.function_cons_exp.id == doc.id) {
+          if (ExplainThisMessages.function_cons_exp.id == doc.id) {
             let hd_id = List.nth(hd.ids, 0);
             let tl_id = List.nth(tl.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_cons_group,
+              ExplainThisMessages.function_cons_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 hd_id,
                 tl_id,
                 body_id,
               ),
-              LangDocMessages.function_cons_exp_coloring_ids(
+              ExplainThisMessages.function_cons_exp_coloring_ids(
                 ~hd_id,
                 ~tl_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_cons_group, options);
+            basic(doc, ExplainThisMessages.function_cons_group, options);
           };
         | Var(var) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_var_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_var_group,
               docs,
             );
-          if (LangDocMessages.function_var_exp.id == doc.id) {
+          if (ExplainThisMessages.function_var_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_var_group,
+              ExplainThisMessages.function_var_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%s%i"),
                 pat_id,
                 var,
                 body_id,
               ),
-              LangDocMessages.function_var_exp_coloring_ids(
+              ExplainThisMessages.function_var_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_var_group, options);
+            basic(doc, ExplainThisMessages.function_var_group, options);
           };
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
-          let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
+          let basic_tuple = (doc: ExplainThisMessages.form, group_id, options) => {
             get_message(
               doc,
               options,
@@ -1033,7 +1046,7 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_tuple_exp_coloring_ids(
+              ExplainThisMessages.function_tuple_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
@@ -1043,52 +1056,52 @@ let get_doc =
           switch (List.length(elements)) {
           | 2 =>
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.function_tuple_2_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.function_tuple_2_group,
                 docs,
               );
-            if (LangDocMessages.function_tuple2_exp.id == doc.id) {
+            if (ExplainThisMessages.function_tuple2_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.function_tuple_2_group,
+                ExplainThisMessages.function_tuple_2_group,
                 Printf.sprintf(
                   Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                   pat1_id,
                   pat2_id,
                   body_id,
                 ),
-                LangDocMessages.function_tuple2_exp_coloring_ids(
+                ExplainThisMessages.function_tuple2_exp_coloring_ids(
                   ~pat1_id,
                   ~pat2_id,
                   ~body_id,
                 ),
               );
-            } else if (LangDocMessages.function_tuple_exp.id == doc.id) {
+            } else if (ExplainThisMessages.function_tuple_exp.id == doc.id) {
               basic_tuple(
                 doc,
-                LangDocMessages.function_tuple_2_group,
+                ExplainThisMessages.function_tuple_2_group,
                 options,
               );
             } else {
-              basic(doc, LangDocMessages.function_tuple_2_group, options);
+              basic(doc, ExplainThisMessages.function_tuple_2_group, options);
             };
           | 3 =>
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.function_tuple_3_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.function_tuple_3_group,
                 docs,
               );
-            if (LangDocMessages.function_tuple3_exp.id == doc.id) {
+            if (ExplainThisMessages.function_tuple3_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
               let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.function_tuple_3_group,
+                ExplainThisMessages.function_tuple_3_group,
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
@@ -1099,76 +1112,80 @@ let get_doc =
                   pat3_id,
                   body_id,
                 ),
-                LangDocMessages.function_tuple3_exp_coloring_ids(
+                ExplainThisMessages.function_tuple3_exp_coloring_ids(
                   ~pat1_id,
                   ~pat2_id,
                   ~pat3_id,
                   ~body_id,
                 ),
               );
-            } else if (LangDocMessages.function_tuple_exp.id == doc.id) {
+            } else if (ExplainThisMessages.function_tuple_exp.id == doc.id) {
               basic_tuple(
                 doc,
-                LangDocMessages.function_tuple_3_group,
+                ExplainThisMessages.function_tuple_3_group,
                 options,
               );
             } else {
-              basic(doc, LangDocMessages.function_tuple_3_group, options);
+              basic(doc, ExplainThisMessages.function_tuple_3_group, options);
             };
           | _ =>
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.function_tuple_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.function_tuple_group,
                 docs,
               );
-            if (LangDocMessages.function_tuple_exp.id == doc.id) {
-              basic_tuple(doc, LangDocMessages.function_tuple_group, options);
+            if (ExplainThisMessages.function_tuple_exp.id == doc.id) {
+              basic_tuple(
+                doc,
+                ExplainThisMessages.function_tuple_group,
+                options,
+              );
             } else {
-              basic(doc, LangDocMessages.function_tuple_group, options);
+              basic(doc, ExplainThisMessages.function_tuple_group, options);
             };
           };
         | Ap(con, arg) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_ap_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_ap_group,
               docs,
             );
-          if (LangDocMessages.function_ap_exp.id == doc.id) {
+          if (ExplainThisMessages.function_ap_exp.id == doc.id) {
             let con_id = List.nth(con.ids, 0);
             let arg_id = List.nth(arg.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_ap_group,
+              ExplainThisMessages.function_ap_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 con_id,
                 arg_id,
                 body_id,
               ),
-              LangDocMessages.function_ap_exp_coloring_ids(
+              ExplainThisMessages.function_ap_exp_coloring_ids(
                 ~con_id,
                 ~arg_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_ap_group, options);
+            basic(doc, ExplainThisMessages.function_ap_group, options);
           };
         | Tag(v) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.function_tag_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.function_tag_group,
               docs,
             );
-          if (LangDocMessages.function_tag_exp.id == doc.id) {
+          if (ExplainThisMessages.function_tag_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_tag_group,
+              ExplainThisMessages.function_tag_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
                 pat_id,
@@ -1176,13 +1193,13 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_tag_exp_coloring_ids(
+              ExplainThisMessages.function_tag_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_tag_group, options);
+            basic(doc, ExplainThisMessages.function_tag_group, options);
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
@@ -1203,82 +1220,82 @@ let get_doc =
         switch (List.length(terms)) {
         | 2 =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.tuple_exp_2_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.tuple_exp_2_group,
               docs,
             );
-          if (LangDocMessages.tuple_exp_size2.id == doc.id) {
+          if (ExplainThisMessages.tuple_exp_size2.id == doc.id) {
             let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
             let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.tuple_exp_2_group,
+              ExplainThisMessages.tuple_exp_2_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i"),
                 exp1_id,
                 exp2_id,
               ),
-              LangDocMessages.tuple_exp_size2_coloring_ids(
+              ExplainThisMessages.tuple_exp_size2_coloring_ids(
                 ~exp1_id,
                 ~exp2_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.tuple_exp_2_group, options);
+            basic(doc, ExplainThisMessages.tuple_exp_2_group, options);
           };
         | 3 =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.tuple_exp_3_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.tuple_exp_3_group,
               docs,
             );
-          if (LangDocMessages.tuple_exp_size3.id == doc.id) {
+          if (ExplainThisMessages.tuple_exp_size3.id == doc.id) {
             let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
             let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
             let exp3_id = List.nth(List.nth(terms, 2).ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.tuple_exp_3_group,
+              ExplainThisMessages.tuple_exp_3_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 exp1_id,
                 exp2_id,
                 exp3_id,
               ),
-              LangDocMessages.tuple_exp_size3_coloring_ids(
+              ExplainThisMessages.tuple_exp_size3_coloring_ids(
                 ~exp1_id,
                 ~exp2_id,
                 ~exp3_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.tuple_exp_3_group, options);
+            basic(doc, ExplainThisMessages.tuple_exp_3_group, options);
           };
         | _ =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.tuple_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.tuple_exp_group,
               docs,
             );
-          basic(doc, LangDocMessages.tuple_exp_group, options);
+          basic(doc, ExplainThisMessages.tuple_exp_group, options);
         };
       | Var(_var) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.var_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.var_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.var_exp_group,
+          ExplainThisMessages.var_exp_group,
           doc.explanation.message,
           [],
         );
       | Let(pat, def, body) =>
-        let basic = (doc: LangDocMessages.form, group_id, options) => {
+        let basic = (doc: ExplainThisMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
           get_message(
@@ -1290,103 +1307,106 @@ let get_doc =
               def_id,
               pat_id,
             ),
-            LangDocMessages.let_base_exp_coloring_ids(~pat_id, ~def_id),
+            ExplainThisMessages.let_base_exp_coloring_ids(~pat_id, ~def_id),
           );
         };
         let pat = bypass_parens_and_annot_pat(pat);
         switch (pat.term) {
         | EmptyHole =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_empty_hole_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_empty_hole_exp_group,
               docs,
             );
-          if (LangDocMessages.let_empty_hole_exp.id == doc.id) {
+          if (ExplainThisMessages.let_empty_hole_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_empty_hole_exp_group,
+              ExplainThisMessages.let_empty_hole_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
                 def_id,
                 pat_id,
               ),
-              LangDocMessages.let_empty_hole_exp_coloring_ids(
+              ExplainThisMessages.let_empty_hole_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_empty_hole_exp_group, options);
+            basic(doc, ExplainThisMessages.let_empty_hole_exp_group, options);
           };
         | MultiHole(_) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_multi_hole_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_multi_hole_exp_group,
               docs,
             );
-          if (LangDocMessages.let_multi_hole_exp.id == doc.id) {
+          if (ExplainThisMessages.let_multi_hole_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_multi_hole_exp_group,
+              ExplainThisMessages.let_multi_hole_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
                 def_id,
                 pat_id,
               ),
-              LangDocMessages.let_multi_hole_exp_coloring_ids(
+              ExplainThisMessages.let_multi_hole_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_multi_hole_exp_group, options);
+            basic(doc, ExplainThisMessages.let_multi_hole_exp_group, options);
           };
         | Wild =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_wild_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_wild_exp_group,
               docs,
             );
-          if (LangDocMessages.let_wild_exp.id == doc.id) {
+          if (ExplainThisMessages.let_wild_exp.id == doc.id) {
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_wild_exp_group,
+              ExplainThisMessages.let_wild_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 def_id,
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_wild_exp_coloring_ids(~def_id, ~body_id),
+              ExplainThisMessages.let_wild_exp_coloring_ids(
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
-            basic(doc, LangDocMessages.let_wild_exp_group, options);
+            basic(doc, ExplainThisMessages.let_wild_exp_group, options);
           };
         | Int(i) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_int_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_int_exp_group,
               docs,
             );
-          if (LangDocMessages.let_int_exp.id == doc.id) {
+          if (ExplainThisMessages.let_int_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_int_exp_group,
+              ExplainThisMessages.let_int_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1398,7 +1418,7 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_int_exp_coloring_ids(
+              ExplainThisMessages.let_int_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
@@ -1408,17 +1428,17 @@ let get_doc =
             /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
             basic(
               doc,
-              LangDocMessages.let_int_exp_group,
+              ExplainThisMessages.let_int_exp_group,
               options,
             );
           };
         | Float(f) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_float_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_float_exp_group,
               docs,
             );
-          if (LangDocMessages.let_float_exp.id == doc.id) {
+          if (ExplainThisMessages.let_float_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
@@ -1426,7 +1446,7 @@ let get_doc =
             get_message(
               doc,
               options,
-              LangDocMessages.let_float_exp_group,
+              ExplainThisMessages.let_float_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1438,7 +1458,7 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_float_exp_coloring_ids(
+              ExplainThisMessages.let_float_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
@@ -1448,24 +1468,24 @@ let get_doc =
             /* TODO The coloring for the syntactic form is sometimes wrong here... */
             basic(
               doc,
-              LangDocMessages.let_float_exp_group,
+              ExplainThisMessages.let_float_exp_group,
               options,
             );
           };
         | Bool(b) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_bool_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_bool_exp_group,
               docs,
             );
-          if (LangDocMessages.let_bool_exp.id == doc.id) {
+          if (ExplainThisMessages.let_bool_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_bool_exp_group,
+              ExplainThisMessages.let_bool_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1477,7 +1497,7 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_bool_exp_coloring_ids(
+              ExplainThisMessages.let_bool_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
@@ -1487,24 +1507,24 @@ let get_doc =
             /* TODO The coloring for the syntactic form is sometimes wrong here... */
             basic(
               doc,
-              LangDocMessages.let_bool_exp_group,
+              ExplainThisMessages.let_bool_exp_group,
               options,
             );
           };
         | String(s) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_str_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_str_exp_group,
               docs,
             );
-          if (LangDocMessages.let_str_exp.id == doc.id) {
+          if (ExplainThisMessages.let_str_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_str_exp_group,
+              ExplainThisMessages.let_str_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1516,7 +1536,7 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_str_exp_coloring_ids(
+              ExplainThisMessages.let_str_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
@@ -1526,24 +1546,24 @@ let get_doc =
             /* TODO The coloring for the syntactic form is sometimes wrong here... */
             basic(
               doc,
-              LangDocMessages.let_str_exp_group,
+              ExplainThisMessages.let_str_exp_group,
               options,
             );
           };
         | Triv =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_triv_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_triv_exp_group,
               docs,
             );
-          if (LangDocMessages.let_triv_exp.id == doc.id) {
+          if (ExplainThisMessages.let_triv_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_triv_exp_group,
+              ExplainThisMessages.let_triv_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
                 def_id,
@@ -1551,7 +1571,7 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_triv_exp_coloring_ids(
+              ExplainThisMessages.let_triv_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
@@ -1561,25 +1581,25 @@ let get_doc =
             /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
             basic(
               doc,
-              LangDocMessages.let_triv_exp_group,
+              ExplainThisMessages.let_triv_exp_group,
               options,
             );
           };
         | ListLit(elements) =>
           if (List.length(elements) == 0) {
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.let_listnil_exp_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.let_listnil_exp_group,
                 docs,
               );
-            if (LangDocMessages.let_listnil_exp.id == doc.id) {
+            if (ExplainThisMessages.let_listnil_exp.id == doc.id) {
               let pat_id = List.nth(pat.ids, 0);
               let def_id = List.nth(def.ids, 0);
               let body_id = List.nth(body.ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.let_listnil_exp_group,
+                ExplainThisMessages.let_listnil_exp_group,
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
@@ -1590,86 +1610,86 @@ let get_doc =
                   def_id,
                   body_id,
                 ),
-                LangDocMessages.let_listnil_exp_coloring_ids(
+                ExplainThisMessages.let_listnil_exp_coloring_ids(
                   ~pat_id,
                   ~def_id,
                   ~body_id,
                 ),
               );
             } else {
-              basic(doc, LangDocMessages.let_listnil_exp_group, options);
+              basic(doc, ExplainThisMessages.let_listnil_exp_group, options);
             };
           } else {
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.let_listlit_exp_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.let_listlit_exp_group,
                 docs,
               );
-            if (LangDocMessages.let_listlit_exp.id == doc.id) {
+            if (ExplainThisMessages.let_listlit_exp.id == doc.id) {
               let pat_id = List.nth(pat.ids, 0);
               let def_id = List.nth(def.ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.let_listlit_exp_group,
+                ExplainThisMessages.let_listlit_exp_group,
                 Printf.sprintf(
                   Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                   def_id,
                   pat_id,
                   List.length(elements),
                 ),
-                LangDocMessages.let_listlit_exp_coloring_ids(
+                ExplainThisMessages.let_listlit_exp_coloring_ids(
                   ~pat_id,
                   ~def_id,
                 ),
               );
             } else {
-              basic(doc, LangDocMessages.let_listlit_exp_group, options);
+              basic(doc, ExplainThisMessages.let_listlit_exp_group, options);
             };
           }
         | Cons(hd, tl) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_cons_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_cons_exp_group,
               docs,
             );
-          if (LangDocMessages.let_cons_exp.id == doc.id) {
+          if (ExplainThisMessages.let_cons_exp.id == doc.id) {
             let hd_id = List.nth(hd.ids, 0);
             let tl_id = List.nth(tl.ids, 0);
             let def_id = List.nth(def.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_cons_exp_group,
+              ExplainThisMessages.let_cons_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 def_id,
                 hd_id,
                 tl_id,
               ),
-              LangDocMessages.let_cons_exp_coloring_ids(
+              ExplainThisMessages.let_cons_exp_coloring_ids(
                 ~hd_id,
                 ~tl_id,
                 ~def_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_cons_exp_group, options);
+            basic(doc, ExplainThisMessages.let_cons_exp_group, options);
           };
         | Var(var) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_var_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_var_exp_group,
               docs,
             );
-          if (LangDocMessages.let_var_exp.id == doc.id) {
+          if (ExplainThisMessages.let_var_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_var_exp_group,
+              ExplainThisMessages.let_var_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%s%i"),
                 def_id,
@@ -1677,19 +1697,19 @@ let get_doc =
                 var,
                 body_id,
               ),
-              LangDocMessages.let_var_exp_coloring_ids(
+              ExplainThisMessages.let_var_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_var_exp_group, options);
+            basic(doc, ExplainThisMessages.let_var_exp_group, options);
           };
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
-          let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
+          let basic_tuple = (doc: ExplainThisMessages.form, group_id, options) => {
             get_message(
               doc,
               options,
@@ -1700,56 +1720,63 @@ let get_doc =
                 pat_id,
                 List.length(elements),
               ),
-              LangDocMessages.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+              ExplainThisMessages.let_tuple_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+              ),
             );
           };
 
           switch (List.length(elements)) {
           | 2 =>
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.let_tuple2_exp_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.let_tuple2_exp_group,
                 docs,
               );
-            if (LangDocMessages.let_tuple2_exp.id == doc.id) {
+            if (ExplainThisMessages.let_tuple2_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.let_tuple2_exp_group,
+                ExplainThisMessages.let_tuple2_exp_group,
                 Printf.sprintf(
                   Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                   def_id,
                   pat1_id,
                   pat2_id,
                 ),
-                LangDocMessages.let_tuple2_exp_coloring_ids(
+                ExplainThisMessages.let_tuple2_exp_coloring_ids(
                   ~pat1_id,
                   ~pat2_id,
                   ~def_id,
                 ),
               );
-            } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
-              basic_tuple(doc, LangDocMessages.let_tuple2_exp_group, options);
+            } else if (ExplainThisMessages.let_tuple_exp.id == doc.id) {
+              basic_tuple(
+                doc,
+                ExplainThisMessages.let_tuple2_exp_group,
+                options,
+              );
             } else {
-              basic(doc, LangDocMessages.let_tuple2_exp_group, options);
+              basic(doc, ExplainThisMessages.let_tuple2_exp_group, options);
             };
           | 3 =>
             let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.let_tuple3_exp_group,
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.let_tuple3_exp_group,
                 docs,
               );
             // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
-            if (LangDocMessages.let_tuple3_exp.id == doc.id) {
+            if (ExplainThisMessages.let_tuple3_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
               let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
               get_message(
                 doc,
                 options,
-                LangDocMessages.let_tuple3_exp_group,
+                ExplainThisMessages.let_tuple3_exp_group,
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
@@ -1760,77 +1787,85 @@ let get_doc =
                   pat2_id,
                   pat3_id,
                 ),
-                LangDocMessages.let_tuple3_exp_coloring_ids(
+                ExplainThisMessages.let_tuple3_exp_coloring_ids(
                   ~pat1_id,
                   ~pat2_id,
                   ~pat3_id,
                   ~def_id,
                 ),
               );
-            } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
-              basic_tuple(doc, LangDocMessages.let_tuple3_exp_group, options);
-            } else {
-              basic(doc, LangDocMessages.let_tuple3_exp_group, options);
-            };
-          | _ =>
-            let (doc, options) =
-              LangDocMessages.get_form_and_options(
-                LangDocMessages.let_tuple_base_exp_group,
-                docs,
-              );
-            if (LangDocMessages.let_tuple_exp.id == doc.id) {
+            } else if (ExplainThisMessages.let_tuple_exp.id == doc.id) {
               basic_tuple(
                 doc,
-                LangDocMessages.let_tuple_base_exp_group,
+                ExplainThisMessages.let_tuple3_exp_group,
                 options,
               );
             } else {
-              basic(doc, LangDocMessages.let_tuple_base_exp_group, options);
+              basic(doc, ExplainThisMessages.let_tuple3_exp_group, options);
+            };
+          | _ =>
+            let (doc, options) =
+              ExplainThisMessages.get_form_and_options(
+                ExplainThisMessages.let_tuple_base_exp_group,
+                docs,
+              );
+            if (ExplainThisMessages.let_tuple_exp.id == doc.id) {
+              basic_tuple(
+                doc,
+                ExplainThisMessages.let_tuple_base_exp_group,
+                options,
+              );
+            } else {
+              basic(
+                doc,
+                ExplainThisMessages.let_tuple_base_exp_group,
+                options,
+              );
             };
           };
         | Ap(con, arg) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_ap_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_ap_exp_group,
               docs,
             );
-          if (LangDocMessages.let_ap_exp.id == doc.id) {
+          if (ExplainThisMessages.let_ap_exp.id == doc.id) {
             let con_id = List.nth(con.ids, 0);
             let arg_id = List.nth(arg.ids, 0);
             let def_id = List.nth(def.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_ap_exp_group,
+              ExplainThisMessages.let_ap_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 def_id,
                 con_id,
                 arg_id,
               ),
-              LangDocMessages.let_ap_exp_coloring_ids(
+              ExplainThisMessages.let_ap_exp_coloring_ids(
                 ~con_id,
                 ~arg_id,
                 ~def_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_ap_exp_group, options);
+            basic(doc, ExplainThisMessages.let_ap_exp_group, options);
           };
         | Tag(v) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.let_tag_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.let_tag_exp_group,
               docs,
             );
-          if (LangDocMessages.let_tag_exp.id == doc.id) {
+          if (ExplainThisMessages.let_tag_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_tag_exp_group,
+              ExplainThisMessages.let_tag_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1842,14 +1877,14 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_tag_exp_coloring_ids(
+              ExplainThisMessages.let_tag_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_tag_exp_group, options);
+            basic(doc, ExplainThisMessages.let_tag_exp_group, options);
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
@@ -1859,7 +1894,7 @@ let get_doc =
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
         let basic =
-            (doc: LangDocMessages.form, group, options, msg, coloring_ids) => {
+            (doc: ExplainThisMessages.form, group, options, msg, coloring_ids) => {
           get_message(
             doc,
             options,
@@ -1871,13 +1906,13 @@ let get_doc =
         switch (x.term) {
         | Tag(v) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.conapp_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.conapp_exp_group,
               docs,
             );
           basic(
             doc,
-            LangDocMessages.conapp_exp_group,
+            ExplainThisMessages.conapp_exp_group,
             options,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%s%i%i"),
@@ -1885,30 +1920,30 @@ let get_doc =
               x_id,
               arg_id,
             ),
-            LangDocMessages.conapp_exp_coloring_ids,
+            ExplainThisMessages.conapp_exp_coloring_ids,
           );
         | _ =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.funapp_exp_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.funapp_exp_group,
               docs,
             );
           basic(
             doc,
-            LangDocMessages.funapp_exp_group,
+            ExplainThisMessages.funapp_exp_group,
             options,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i"),
               x_id,
               arg_id,
             ),
-            LangDocMessages.funapp_exp_coloring_ids,
+            ExplainThisMessages.funapp_exp_coloring_ids,
           );
         };
       | If(cond, then_, else_) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.if_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.if_exp_group,
             docs,
           );
         let cond_id = List.nth(cond.ids, 0);
@@ -1917,19 +1952,23 @@ let get_doc =
         get_message(
           doc,
           options,
-          LangDocMessages.if_exp_group,
+          ExplainThisMessages.if_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
             cond_id,
             then_id,
             else_id,
           ),
-          LangDocMessages.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
+          ExplainThisMessages.if_exp_coloring_ids(
+            ~cond_id,
+            ~then_id,
+            ~else_id,
+          ),
         );
       | Seq(left, right) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.seq_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.seq_exp_group,
             docs,
           );
         let exp1_id = List.nth(left.ids, 0);
@@ -1937,36 +1976,36 @@ let get_doc =
         get_message(
           doc,
           options,
-          LangDocMessages.seq_exp_group,
+          ExplainThisMessages.seq_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i%i"),
             exp1_id,
             exp2_id,
           ),
-          LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
+          ExplainThisMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
       | Test(body) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.test_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.test_group,
             docs,
           );
         let body_id = List.nth(body.ids, 0);
         get_message(
           doc,
           options,
-          LangDocMessages.test_group,
+          ExplainThisMessages.test_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i"),
             body_id,
           ),
-          LangDocMessages.test_exp_coloring_ids(~body_id),
+          ExplainThisMessages.test_exp_coloring_ids(~body_id),
         );
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.cons_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.cons_exp_group,
             docs,
           );
         let hd_id = List.nth(hd.ids, 0);
@@ -1974,132 +2013,132 @@ let get_doc =
         get_message(
           doc,
           options,
-          LangDocMessages.cons_exp_group,
+          ExplainThisMessages.cons_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i%i"),
             hd_id,
             tl_id,
           ),
-          LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
+          ExplainThisMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
       | UnOp(op, exp) =>
         switch (op) {
         | Int(Minus) =>
           let (doc, options) =
-            LangDocMessages.get_form_and_options(
-              LangDocMessages.int_unary_minus_group,
+            ExplainThisMessages.get_form_and_options(
+              ExplainThisMessages.int_unary_minus_group,
               docs,
             );
           let exp_id = List.nth(exp.ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.int_unary_minus_group,
+            ExplainThisMessages.int_unary_minus_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i"),
               exp_id,
             ),
-            LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
+            ExplainThisMessages.int_unary_minus_exp_coloring_ids(~exp_id),
           );
         }
       | BinOp(op, left, right) =>
         let (group, coloring_ids) =
           switch (op) {
           | Int(Plus) => (
-              LangDocMessages.int_plus_group,
-              LangDocMessages.int_plus_exp_coloring_ids,
+              ExplainThisMessages.int_plus_group,
+              ExplainThisMessages.int_plus_exp_coloring_ids,
             )
           | Int(Minus) => (
-              LangDocMessages.int_minus_group,
-              LangDocMessages.int_minus_exp_coloring_ids,
+              ExplainThisMessages.int_minus_group,
+              ExplainThisMessages.int_minus_exp_coloring_ids,
             )
           | Int(Times) => (
-              LangDocMessages.int_times_group,
-              LangDocMessages.int_times_exp_coloring_ids,
+              ExplainThisMessages.int_times_group,
+              ExplainThisMessages.int_times_exp_coloring_ids,
             )
           | Int(Power) => (
-              LangDocMessages.int_power_group,
-              LangDocMessages.int_power_exp_coloring_ids,
+              ExplainThisMessages.int_power_group,
+              ExplainThisMessages.int_power_exp_coloring_ids,
             )
           | Int(Divide) => (
-              LangDocMessages.int_divide_group,
-              LangDocMessages.int_divide_exp_coloring_ids,
+              ExplainThisMessages.int_divide_group,
+              ExplainThisMessages.int_divide_exp_coloring_ids,
             )
           | Int(LessThan) => (
-              LangDocMessages.int_lt_group,
-              LangDocMessages.int_lt_exp_coloring_ids,
+              ExplainThisMessages.int_lt_group,
+              ExplainThisMessages.int_lt_exp_coloring_ids,
             )
           | Int(LessThanOrEqual) => (
-              LangDocMessages.int_lte_group,
-              LangDocMessages.int_lte_exp_coloring_ids,
+              ExplainThisMessages.int_lte_group,
+              ExplainThisMessages.int_lte_exp_coloring_ids,
             )
           | Int(GreaterThan) => (
-              LangDocMessages.int_gt_group,
-              LangDocMessages.int_gt_exp_coloring_ids,
+              ExplainThisMessages.int_gt_group,
+              ExplainThisMessages.int_gt_exp_coloring_ids,
             )
           | Int(GreaterThanOrEqual) => (
-              LangDocMessages.int_gte_group,
-              LangDocMessages.int_gte_exp_coloring_ids,
+              ExplainThisMessages.int_gte_group,
+              ExplainThisMessages.int_gte_exp_coloring_ids,
             )
           | Int(Equals) => (
-              LangDocMessages.int_eq_group,
-              LangDocMessages.int_eq_exp_coloring_ids,
+              ExplainThisMessages.int_eq_group,
+              ExplainThisMessages.int_eq_exp_coloring_ids,
             )
           | Float(Plus) => (
-              LangDocMessages.float_plus_group,
-              LangDocMessages.float_plus_exp_coloring_ids,
+              ExplainThisMessages.float_plus_group,
+              ExplainThisMessages.float_plus_exp_coloring_ids,
             )
           | Float(Minus) => (
-              LangDocMessages.float_minus_group,
-              LangDocMessages.float_minus_exp_coloring_ids,
+              ExplainThisMessages.float_minus_group,
+              ExplainThisMessages.float_minus_exp_coloring_ids,
             )
           | Float(Times) => (
-              LangDocMessages.float_times_group,
-              LangDocMessages.float_times_exp_coloring_ids,
+              ExplainThisMessages.float_times_group,
+              ExplainThisMessages.float_times_exp_coloring_ids,
             )
           | Float(Power) => (
-              LangDocMessages.float_power_group,
-              LangDocMessages.float_power_exp_coloring_ids,
+              ExplainThisMessages.float_power_group,
+              ExplainThisMessages.float_power_exp_coloring_ids,
             )
           | Float(Divide) => (
-              LangDocMessages.float_divide_group,
-              LangDocMessages.float_divide_exp_coloring_ids,
+              ExplainThisMessages.float_divide_group,
+              ExplainThisMessages.float_divide_exp_coloring_ids,
             )
           | Float(LessThan) => (
-              LangDocMessages.float_lt_group,
-              LangDocMessages.float_lt_exp_coloring_ids,
+              ExplainThisMessages.float_lt_group,
+              ExplainThisMessages.float_lt_exp_coloring_ids,
             )
           | Float(LessThanOrEqual) => (
-              LangDocMessages.float_lte_group,
-              LangDocMessages.float_lte_exp_coloring_ids,
+              ExplainThisMessages.float_lte_group,
+              ExplainThisMessages.float_lte_exp_coloring_ids,
             )
           | Float(GreaterThan) => (
-              LangDocMessages.float_gt_group,
-              LangDocMessages.float_gt_exp_coloring_ids,
+              ExplainThisMessages.float_gt_group,
+              ExplainThisMessages.float_gt_exp_coloring_ids,
             )
           | Float(GreaterThanOrEqual) => (
-              LangDocMessages.float_gte_group,
-              LangDocMessages.float_gte_exp_coloring_ids,
+              ExplainThisMessages.float_gte_group,
+              ExplainThisMessages.float_gte_exp_coloring_ids,
             )
           | Float(Equals) => (
-              LangDocMessages.float_eq_group,
-              LangDocMessages.float_eq_exp_coloring_ids,
+              ExplainThisMessages.float_eq_group,
+              ExplainThisMessages.float_eq_exp_coloring_ids,
             )
           | Bool(And) => (
-              LangDocMessages.bool_and_group,
-              LangDocMessages.bool_and_exp_coloring_ids,
+              ExplainThisMessages.bool_and_group,
+              ExplainThisMessages.bool_and_exp_coloring_ids,
             )
           | Bool(Or) => (
-              LangDocMessages.bool_or_group,
-              LangDocMessages.bool_or_exp_coloring_ids,
+              ExplainThisMessages.bool_or_group,
+              ExplainThisMessages.bool_or_exp_coloring_ids,
             )
           | String(Equals) => (
-              LangDocMessages.str_eq_group,
-              LangDocMessages.str_eq_exp_coloring_ids,
+              ExplainThisMessages.str_eq_group,
+              ExplainThisMessages.str_eq_exp_coloring_ids,
             )
           };
         let (doc, options) =
-          LangDocMessages.get_form_and_options(group, docs);
+          ExplainThisMessages.get_form_and_options(group, docs);
         let left_id = List.nth(left.ids, 0);
         let right_id = List.nth(right.ids, 0);
         get_message(
@@ -2115,31 +2154,31 @@ let get_doc =
         );
       | Match(scrut, _rules) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.case_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.case_exp_group,
             docs,
           );
         let scrut_id = List.nth(scrut.ids, 0);
         get_message(
           doc,
           options,
-          LangDocMessages.case_exp_group,
+          ExplainThisMessages.case_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i"),
             scrut_id,
           ),
-          LangDocMessages.case_exp_coloring_ids(~scrut_id),
+          ExplainThisMessages.case_exp_coloring_ids(~scrut_id),
         );
       | Tag(v) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tag_exp_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tag_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.tag_exp_group,
+          ExplainThisMessages.tag_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%s"),
             v,
@@ -2152,53 +2191,53 @@ let get_doc =
     switch (bypass_parens_pat(term).term) {
     | EmptyHole =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.empty_hole_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.empty_hole_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.empty_hole_pat_group,
+        ExplainThisMessages.empty_hole_pat_group,
         doc.explanation.message,
         [],
       );
     | MultiHole(_) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.multi_hole_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.multi_hole_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.multi_hole_pat_group,
+        ExplainThisMessages.multi_hole_pat_group,
         doc.explanation.message,
         [],
       );
     | Wild =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.wild_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.wild_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.wild_pat_group,
+        ExplainThisMessages.wild_pat_group,
         doc.explanation.message,
         [],
       );
     | Int(i) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.intlit_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.intlit_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.intlit_pat_group,
+        ExplainThisMessages.intlit_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%i%i"),
           i,
@@ -2208,14 +2247,14 @@ let get_doc =
       );
     | Float(f) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.floatlit_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.floatlit_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.floatlit_pat_group,
+        ExplainThisMessages.floatlit_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%f%f"),
           f,
@@ -2225,14 +2264,14 @@ let get_doc =
       );
     | Bool(b) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.boollit_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.boollit_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.boollit_pat_group,
+        ExplainThisMessages.boollit_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%b%b"),
           b,
@@ -2242,14 +2281,14 @@ let get_doc =
       );
     | String(s) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.strlit_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.strlit_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.strlit_pat_group,
+        ExplainThisMessages.strlit_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%s%s"),
           s,
@@ -2259,41 +2298,41 @@ let get_doc =
       );
     | Triv =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.triv_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.triv_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.triv_pat_group,
+        ExplainThisMessages.triv_pat_group,
         doc.explanation.message,
         [],
       );
     | ListLit(elements) =>
       if (List.length(elements) == 0) {
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.listnil_pat_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.listnil_pat_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.function_listnil_group,
+          ExplainThisMessages.function_listnil_group,
           doc.explanation.message,
           [],
         );
       } else {
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.listlit_pat_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.listlit_pat_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.listlit_pat_group,
+          ExplainThisMessages.listlit_pat_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i"),
             List.length(elements),
@@ -2314,55 +2353,55 @@ let get_doc =
             hd_id,
             tl_id,
           ),
-          LangDocMessages.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
+          ExplainThisMessages.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
         );
       switch (tl.term) {
       | TermBase.UPat.Cons(hd2, tl2) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.cons2_pat_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.cons2_pat_group,
             docs,
           );
-        if (LangDocMessages.cons2_pat.id == doc.id) {
+        if (ExplainThisMessages.cons2_pat.id == doc.id) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.cons2_pat_group,
+            ExplainThisMessages.cons2_pat_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
               hd_id,
               hd2_id,
               tl2_id,
             ),
-            LangDocMessages.cons2_pat_coloring_ids(
+            ExplainThisMessages.cons2_pat_coloring_ids(
               ~fst_id=hd_id,
               ~snd_id=hd2_id,
               ~tl_id=tl2_id,
             ),
           );
         } else {
-          basic(doc, LangDocMessages.cons2_pat_group, options);
+          basic(doc, ExplainThisMessages.cons2_pat_group, options);
         };
       | _ =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.cons_pat_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.cons_pat_group,
             docs,
           );
-        basic(doc, LangDocMessages.cons_pat_group, options);
+        basic(doc, ExplainThisMessages.cons_pat_group, options);
       };
     | Var(v) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.var_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.var_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.var_pat_group,
+        ExplainThisMessages.var_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%s"),
           v,
@@ -2384,71 +2423,71 @@ let get_doc =
       switch (List.length(elements)) {
       | 2 =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tuple_pat_2_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tuple_pat_2_group,
             docs,
           );
-        if (LangDocMessages.tuple_pat_size2.id == doc.id) {
+        if (ExplainThisMessages.tuple_pat_size2.id == doc.id) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
           let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.tuple_pat_2_group,
+            ExplainThisMessages.tuple_pat_2_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i"),
               elem1_id,
               elem2_id,
             ),
-            LangDocMessages.tuple_pat_size2_coloring_ids(
+            ExplainThisMessages.tuple_pat_size2_coloring_ids(
               ~elem1_id,
               ~elem2_id,
             ),
           );
         } else {
-          basic(doc, LangDocMessages.tuple_pat_2_group, options);
+          basic(doc, ExplainThisMessages.tuple_pat_2_group, options);
         };
       | 3 =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tuple_pat_3_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tuple_pat_3_group,
             docs,
           );
-        if (LangDocMessages.tuple_pat_size3.id == doc.id) {
+        if (ExplainThisMessages.tuple_pat_size3.id == doc.id) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
           let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
           let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.tuple_pat_3_group,
+            ExplainThisMessages.tuple_pat_3_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
               elem1_id,
               elem2_id,
               elem3_id,
             ),
-            LangDocMessages.tuple_pat_size3_coloring_ids(
+            ExplainThisMessages.tuple_pat_size3_coloring_ids(
               ~elem1_id,
               ~elem2_id,
               ~elem3_id,
             ),
           );
         } else {
-          basic(doc, LangDocMessages.tuple_pat_3_group, options);
+          basic(doc, ExplainThisMessages.tuple_pat_3_group, options);
         };
       | _ =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tuple_pat_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tuple_pat_group,
             docs,
           );
-        basic(doc, LangDocMessages.tuple_pat_group, options);
+        basic(doc, ExplainThisMessages.tuple_pat_group, options);
       };
     | Ap(con, arg) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.ap_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.ap_pat_group,
           docs,
         );
       let con_id = List.nth(con.ids, 0);
@@ -2456,24 +2495,24 @@ let get_doc =
       get_message(
         doc,
         options,
-        LangDocMessages.ap_pat_group,
+        ExplainThisMessages.ap_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%i%i"),
           con_id,
           arg_id,
         ),
-        LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
+        ExplainThisMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
     | Tag(con) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.tag_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.tag_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.tag_pat_group,
+        ExplainThisMessages.tag_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%s"),
           con,
@@ -2482,8 +2521,8 @@ let get_doc =
       );
     | TypeAnn(pat, typ) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.typann_pat_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.typann_pat_group,
           docs,
         );
       let pat_id = List.nth(pat.ids, 0);
@@ -2491,13 +2530,13 @@ let get_doc =
       get_message(
         doc,
         options,
-        LangDocMessages.typann_pat_group,
+        ExplainThisMessages.typann_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%i%i"),
           pat_id,
           typ_id,
         ),
-        LangDocMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
+        ExplainThisMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
       );
     | Invalid(_) // Shouldn't be hit
     | Parens(_) =>
@@ -2508,98 +2547,98 @@ let get_doc =
     switch (bypass_parens_typ(term).term) {
     | EmptyHole =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.empty_hole_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.empty_hole_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.empty_hole_typ_group,
+        ExplainThisMessages.empty_hole_typ_group,
         doc.explanation.message,
         [],
       );
     | MultiHole(_) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.multi_hole_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.multi_hole_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.multi_hole_typ_group,
+        ExplainThisMessages.multi_hole_typ_group,
         doc.explanation.message,
         [],
       );
     | Int =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.int_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.int_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.int_typ_group,
+        ExplainThisMessages.int_typ_group,
         doc.explanation.message,
         [],
       );
     | Float =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.float_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.float_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.float_typ_group,
+        ExplainThisMessages.float_typ_group,
         doc.explanation.message,
         [],
       );
     | Bool =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.bool_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.bool_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.bool_typ_group,
+        ExplainThisMessages.bool_typ_group,
         doc.explanation.message,
         [],
       );
     | String =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.str_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.str_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.str_typ_group,
+        ExplainThisMessages.str_typ_group,
         doc.explanation.message,
         [],
       );
     | List(elem) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.list_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.list_typ_group,
           docs,
         );
       let elem_id = List.nth(elem.ids, 0);
       get_message(
         doc,
         options,
-        LangDocMessages.list_typ_group,
+        ExplainThisMessages.list_typ_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%i"),
           elem_id,
         ),
-        LangDocMessages.list_typ_coloring_ids(~elem_id),
+        ExplainThisMessages.list_typ_coloring_ids(~elem_id),
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(arg.ids, 0);
@@ -2614,44 +2653,44 @@ let get_doc =
             arg_id,
             result_id,
           ),
-          LangDocMessages.arrow_typ_coloring_ids(~arg_id, ~result_id),
+          ExplainThisMessages.arrow_typ_coloring_ids(~arg_id, ~result_id),
         );
       switch (result.term) {
       | TermBase.UTyp.Arrow(arg2, result2) =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.arrow3_typ_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.arrow3_typ_group,
             docs,
           );
-        if (LangDocMessages.arrow3_typ.id == doc.id) {
+        if (ExplainThisMessages.arrow3_typ.id == doc.id) {
           let arg2_id = List.nth(arg2.ids, 0);
           let result2_id = List.nth(result2.ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.arrow3_typ_group,
+            ExplainThisMessages.arrow3_typ_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
               arg_id,
               arg2_id,
               result2_id,
             ),
-            LangDocMessages.arrow3_typ_coloring_ids(
+            ExplainThisMessages.arrow3_typ_coloring_ids(
               ~arg1_id=arg_id,
               ~arg2_id,
               ~result_id=result2_id,
             ),
           );
         } else {
-          basic(doc, LangDocMessages.arrow3_typ_group, options);
+          basic(doc, ExplainThisMessages.arrow3_typ_group, options);
         };
       | _ =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.arrow_typ_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.arrow_typ_group,
             docs,
           );
-        basic(doc, LangDocMessages.arrow_typ_group, options);
+        basic(doc, ExplainThisMessages.arrow_typ_group, options);
       };
     | Tuple(elements) =>
       let basic = (doc, group, options) =>
@@ -2668,74 +2707,74 @@ let get_doc =
       switch (List.length(elements)) {
       | 2 =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tuple2_typ_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tuple2_typ_group,
             docs,
           );
-        if (LangDocMessages.tuple2_typ.id == doc.id) {
+        if (ExplainThisMessages.tuple2_typ.id == doc.id) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
           let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.tuple2_typ_group,
+            ExplainThisMessages.tuple2_typ_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i"),
               elem1_id,
               elem2_id,
             ),
-            LangDocMessages.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
+            ExplainThisMessages.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
           );
         } else {
-          basic(doc, LangDocMessages.tuple2_typ_group, options);
+          basic(doc, ExplainThisMessages.tuple2_typ_group, options);
         };
       | 3 =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tuple3_typ_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tuple3_typ_group,
             docs,
           );
-        if (LangDocMessages.tuple3_typ.id == doc.id) {
+        if (ExplainThisMessages.tuple3_typ.id == doc.id) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
           let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
           let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
           get_message(
             doc,
             options,
-            LangDocMessages.tuple3_typ_group,
+            ExplainThisMessages.tuple3_typ_group,
             Printf.sprintf(
               Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
               elem1_id,
               elem2_id,
               elem3_id,
             ),
-            LangDocMessages.tuple3_typ_coloring_ids(
+            ExplainThisMessages.tuple3_typ_coloring_ids(
               ~elem1_id,
               ~elem2_id,
               ~elem3_id,
             ),
           );
         } else {
-          basic(doc, LangDocMessages.tuple3_typ_group, options);
+          basic(doc, ExplainThisMessages.tuple3_typ_group, options);
         };
       | _ =>
         let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.tuple_typ_group,
+          ExplainThisMessages.get_form_and_options(
+            ExplainThisMessages.tuple_typ_group,
             docs,
           );
-        basic(doc, LangDocMessages.tuple_typ_group, options);
+        basic(doc, ExplainThisMessages.tuple_typ_group, options);
       };
     | Var(v) =>
       let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.var_typ_group,
+        ExplainThisMessages.get_form_and_options(
+          ExplainThisMessages.var_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.var_typ_group,
+        ExplainThisMessages.var_typ_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%s"),
           v,
@@ -2758,7 +2797,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
+    (~doc: ExplainThisMessages.t, index': option(int), info_map: Statics.map) => {
   let info: option(Statics.t) =
     switch (index') {
     | Some(index) =>
@@ -2777,7 +2816,7 @@ let view =
       ~inject,
       ~font_metrics: FontMetrics.t,
       ~settings: ModelSettings.t,
-      ~doc: LangDocMessages.t,
+      ~doc: ExplainThisMessages.t,
       index': option(int),
       info_map: Statics.map,
     ) => {
@@ -2803,8 +2842,8 @@ let view =
             [
               toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
                 inject(
-                  Update.UpdateLangDocMessages(
-                    LangDocMessages.ToggleHighlight,
+                  Update.UpdateExplainThisMessages(
+                    ExplainThisMessages.ToggleHighlight,
                   ),
                 )
               ),
@@ -2814,8 +2853,8 @@ let view =
                     clss(["close"]),
                     Attr.on_click(_ =>
                       inject(
-                        Update.UpdateLangDocMessages(
-                          LangDocMessages.ToggleShow,
+                        Update.UpdateExplainThisMessages(
+                          ExplainThisMessages.ToggleShow,
                         ),
                       )
                     ),

@@ -2525,7 +2525,7 @@ let case_example_bool = {
 // beneficial specificity change - I think instead have generic at top level
 // and then have a slightly different setup for specific that is created more
 // dynamically calling setup methods here but more
-// work done in the LangDoc code - maybe just up to 3 or 4 branches?
+// work done in the ExplainThis code - maybe just up to 3 or 4 branches?
 let _exp_scrut = exp("e_scrut");
 let case_exp_coloring_ids = (~scrut_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp_scrut), scrut_id),
@@ -4028,8 +4028,8 @@ let unpersist =
   };
 };
 
-let serialize = (langDocMessages: t): string => {
-  persist(langDocMessages)
+let serialize = (explainThisMessages: t): string => {
+  persist(explainThisMessages)
   |> sexp_of_persistent_state
   |> Sexplib.Sexp.to_string;
 };
