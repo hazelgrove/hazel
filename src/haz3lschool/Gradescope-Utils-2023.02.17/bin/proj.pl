@@ -26,51 +26,36 @@ use diagnostics -verbose;
     use Capture::Tiny qw(:all);
     # for more complicated stuff
     # eg timeout, redirection
-    use IPC::Run;
+    use IPC::Run qw(run);
+    use IPC::Cmd qw(can_run);
 # option/arg handling
     use Getopt::Long qw(:config gnu_getopt auto_version); # auto_help not the greatest
     use Pod::Usage;
 # use local modules
     use lib (
         dirname(abs_path($0)),
+        abs_path(File::Spec->rel2abs('../lib/', dirname(abs_path($0)))),
         ); # https://stackoverflow.com/a/46550384
-
+ 
 # turn on features
     use builtin qw(true false is_bool reftype);
     no warnings 'experimental::builtin';
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2023.02.13');
+    our $VERSION = version->declare('v2022.12.27');
 # end prelude
+use Gradescope::Color qw(color_print);
 
-my ($hazel_grading_repo_path, $token) = @ARGV;
-# `cat.pl` wraps the editor state json as a json string
-my $in = do {
+my ($n) = @ARGV;
+assert(defined($n));
+do {
     local $/ = undef;
-    JSON::from_json <STDIN>;
+    color_print(JSON::to_json(JSON::from_json(<STDIN>)->[$n], {pretty => 1, canonical => 1}), 'JSON');
 };
-my %in = %{JSON::from_json $in};
-#my %in = %{$in};
-my $tmpfile = File::Temp->new();
-print $tmpfile (JSON::to_json \%in);
-chdir $hazel_grading_repo_path;
-say STDERR $token;
-my $report = capture_stdout {
-    system('dune', 'exec', 'src/haz3lschool/gradescope.exe', $tmpfile);
-}, $? >> 8 && confess "something went wrong with '$token'";
-# NOTE: this is an extremely hacky way to ``grep" the json output from the
-# haz3lschool/gradescope.exe output, relying heavily on the exact output format
-$report =~ s/^.*(?:Finished(?:\s|\\n)+)(\[.*)$/$1/s;
-my $out = JSON::from_json $report;
-my @out = @{$out};
-for my $exercise (@out){
-    $exercise->{report}->{'pretty-summary'} = [split /\n/, $exercise->{report}{summary}];
-}
-print JSON::to_json \@out;
 
-# PODNAME: hazel.pl
-# ABSTRACT: Gradescope submission script component
+# PODNAME: proj.pl
+# ABSTRACT: Gradescope submission script helper
 
 __END__
 
@@ -80,19 +65,17 @@ __END__
 
 =head1 NAME
 
-hazel.pl - Gradescope submission script component
+proj.pl - Gradescope submission script helper
 
 =head1 VERSION
 
-version 2023.02.13
+version 2023.02.17
 
 =head1 SYNOPSIS
 
-hazel.pl I<hazel_grading_repo_path> I<token>
-
-map.pl -f ./hazel.pl -f ~/Downloads/hazel-490
-
 =head1 DESCRIPTION
+
+=head1 NAME
 
 =head1 AUTHOR
 

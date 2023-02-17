@@ -80,7 +80,7 @@ Gradescope::Curl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.02.13
+version 2023.02.17
 
 =head1 DESCRIPTION
 

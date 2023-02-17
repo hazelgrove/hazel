@@ -2,7 +2,11 @@
 abstract: 'Gradescope submission scripts'
 author:
   - 'hejohns <hejohns@umich.edu>'
-build_requires: {}
+build_requires:
+  File::Spec: '0'
+  IO::Handle: '0'
+  IPC::Open3: '0'
+  Test::More: '0.94'
 configure_requires:
   ExtUtils::MakeMaker: '0'
 dynamic_config: 0
@@ -12,7 +16,9 @@ meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: '1.4'
 name: Gradescope-Utils
-version: 2023.02.13
+resources:
+  repository: https://github.com/eecs490/gradescope-utils
+version: 2023.02.17
 x_generated_by_perl: v5.36.0
 x_serialization_backend: 'YAML::Tiny version 1.73'
 x_spdx_expression: BSD

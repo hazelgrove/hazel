@@ -21,8 +21,12 @@ use diagnostics -verbose;
     use JSON;
     use YAML::XS;
 # misc scripting IO utilities
-    # `capture_stdout` for backticks w/o shell
+    use IO::Prompter;
+    # `capture_stdout` for backticks w/o shell (escaping issues)
     use Capture::Tiny qw(:all);
+    # for more complicated stuff
+    # eg timeout, redirection
+    use IPC::Run;
 # option/arg handling
     use Getopt::Long qw(:config gnu_getopt auto_version); # auto_help not the greatest
     use Pod::Usage;
@@ -30,20 +34,33 @@ use diagnostics -verbose;
     use lib (
         dirname(abs_path($0)),
         ); # https://stackoverflow.com/a/46550384
- 
+
 # turn on features
+    use builtin qw(true false is_bool reftype);
+    no warnings 'experimental::builtin';
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.11.13');
+    our $VERSION = version->declare('v2022.12.27');
 # end prelude
 
-my $submission_dir = $ARGV[0];
-assert(defined($submission_dir));
-system('cat', glob "$submission_dir/*");
+my ($column_index, $token) = @ARGV;
+assert(defined($column_index));
+assert(defined($token));
+my $row = do {
+    local $/ = undef;
+    JSON::from_json <STDIN>;
+};
+my @row = @$row;
+if($row[$column_index] eq $token){
+    exit 0;
+}
+else{
+    exit 1;
+}
 
-# PODNAME: cat.pl
-# ABSTRACT: Gradescope submission script F<join.pl> lambda
+# PODNAME: field-n-eq?.pl
+# ABSTRACT: Gradescope submission script F<split.pl> lambda
 
 __END__
 
@@ -53,15 +70,17 @@ __END__
 
 =head1 NAME
 
-cat.pl - Gradescope submission script F<join.pl> lambda
+field-n-eq?.pl - Gradescope submission script F<split.pl> lambda
 
 =head1 VERSION
 
-version 2023.02.13
+version 2023.02.17
 
 =head1 SYNOPSIS
 
-cat.pl I<dir>
+field-n-eq?.pl I<column_index> I<token>
+
+field-n-eq?.pl 0 token < csv_row.json
 
 =head1 DESCRIPTION
 

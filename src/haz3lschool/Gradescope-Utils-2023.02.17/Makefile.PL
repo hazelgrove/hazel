@@ -14,29 +14,43 @@ my %WriteMakefileArgs = (
   },
   "DISTNAME" => "Gradescope-Utils",
   "EXE_FILES" => [
+    "bin/EXAMPLES.txt",
     "bin/cat.pl",
     "bin/csv2json.pl",
     "bin/field-n-eq?.pl",
     "bin/hazel.pl",
     "bin/id.pl",
     "bin/join.pl",
+    "bin/json2string.pl",
     "bin/map.pl",
     "bin/proj.pl",
     "bin/sort.pl",
     "bin/split.pl",
+    "bin/string2json.pl",
     "bin/upload.pl"
   ],
   "LICENSE" => "bsd",
   "NAME" => "Gradescope::Utils",
   "PREREQ_PM" => {},
-  "VERSION" => "2023.02.13",
+  "TEST_REQUIRES" => {
+    "File::Spec" => 0,
+    "IO::Handle" => 0,
+    "IPC::Open3" => 0,
+    "Test::More" => "0.94"
+  },
+  "VERSION" => "2023.02.17",
   "test" => {
-    "TESTS" => ""
+    "TESTS" => "t/*.t"
   }
 );
 
 
-my %FallbackPrereqs = ();
+my %FallbackPrereqs = (
+  "File::Spec" => 0,
+  "IO::Handle" => 0,
+  "IPC::Open3" => 0,
+  "Test::More" => "0.94"
+);
 
 
 unless ( eval { ExtUtils::MakeMaker->VERSION(6.63_03) } ) {

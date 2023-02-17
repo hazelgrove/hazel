@@ -1,0 +1,17 @@
+# TODO: sorted of tested-- c/p from my bash history
+
+# schema in almost c/p able form:
+# (you'd probably want intermediate files on the first run)
+export GU_NO_PAGER=1;
+# see lib/Gradescope/Color.pm
+(printf '[';
+     # token2uniqname.json
+     ./join.pl ~/Downloads/assignment_2597151_export.zip -f ./cat.pl | ./proj.pl 0;
+ printf ',';
+    # data.json
+    ./join.pl ~/Downloads/assignment_2597151_export.zip -f ./cat.pl |
+    ./proj.pl 1 |
+    ./map.pl -f ./string2json.pl |
+    ./map.pl -f ./hazel.pl -f ~/documentsNoSync/hazel-490/;
+ printf ']') |
+./upload.pl -f json class_id assignment_id

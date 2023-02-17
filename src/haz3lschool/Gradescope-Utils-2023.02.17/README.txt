@@ -1,4 +1,4 @@
-READ.ME(1)                  EECS 490 Gradescope Utilities                  READ.ME(1)
+README(1)                   EECS 490 Gradescope Utilities                   README(1)
 
 NAME
        EECS 490 Gradescope Utilities
@@ -61,4 +61,4 @@ DEPENDENCIES
 SEE ALSO
        json_pp(1)
 
-Winter 2023                           2023-01-03                           READ.ME(1)
+2023.02.17                         Gradescope-Utils                         README(1)

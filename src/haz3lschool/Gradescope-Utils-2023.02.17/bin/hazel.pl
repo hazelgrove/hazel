@@ -34,21 +34,42 @@ use diagnostics -verbose;
     use lib (
         dirname(abs_path($0)),
         ); # https://stackoverflow.com/a/46550384
- 
+
 # turn on features
     use builtin qw(true false is_bool reftype);
     no warnings 'experimental::builtin';
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.12.27');
+    our $VERSION = version->declare('v2023.02.13');
 # end prelude
 
-my $ret = $ARGV[0] le $ARGV[1];
-exit $ret;
+my ($hazel_grading_repo_path, $token) = @ARGV;
+my $in = do {
+    local $/ = undef;
+    JSON::from_json <STDIN>;
+};
+my %in = %{$in};
+#my %in = %{$in};
+my $tmpfile = File::Temp->new();
+print $tmpfile (JSON::to_json \%in);
+chdir $hazel_grading_repo_path;
+say STDERR $token;
+my $report = capture_stdout {
+    system('dune', 'exec', 'src/haz3lschool/gradescope.exe', $tmpfile);
+}, $? >> 8 && confess "something went wrong with '$token'";
+# NOTE: this is an extremely hacky way to ``grep" the json output from the
+# haz3lschool/gradescope.exe output, relying heavily on the exact output format
+$report =~ s/^.*(?:Finished(?:\s|\\n)+)(\[.*)$/$1/s;
+my $out = JSON::from_json $report;
+my @out = @{$out};
+for my $exercise (@out){
+    $exercise->{report}->{'pretty-summary'} = [split /\n/, $exercise->{report}{summary}];
+}
+print JSON::to_json \@out;
 
-# PODNAME: sort.pl
-# ABSTRACT: Gradescope submission script lambda
+# PODNAME: hazel.pl
+# ABSTRACT: Gradescope submission script component
 
 __END__
 
@@ -58,17 +79,22 @@ __END__
 
 =head1 NAME
 
-sort.pl - Gradescope submission script lambda
+hazel.pl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.02.13
+version 2023.02.17
 
 =head1 SYNOPSIS
 
+hazel.pl I<hazel_grading_repo_path> I<token>
+
+map.pl -f ./hazel.pl -f ~/Downloads/hazel-490
+
 =head1 DESCRIPTION
 
-=head1 NAME
+this environment needs to C<dune exec src/haz3lschool/gradescope.exe>,
+so make sure C<opam switch> and everything is correct B<for this env/shell>
 
 =head1 AUTHOR
 

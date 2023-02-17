@@ -26,34 +26,49 @@ use diagnostics -verbose;
     use Capture::Tiny qw(:all);
     # for more complicated stuff
     # eg timeout, redirection
-    use IPC::Run;
+    use IPC::Run qw(run);
+    use IPC::Cmd qw(can_run);
 # option/arg handling
     use Getopt::Long qw(:config gnu_getopt auto_version); # auto_help not the greatest
     use Pod::Usage;
 # use local modules
     use lib (
         dirname(abs_path($0)),
+        abs_path(File::Spec->rel2abs('../lib/', dirname(abs_path($0)))),
         ); # https://stackoverflow.com/a/46550384
-
+ 
 # turn on features
     use builtin qw(true false is_bool reftype);
     no warnings 'experimental::builtin';
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2023.01.03');
+    our $VERSION = version->declare('v2022.12.27');
 # end prelude
+use Gradescope::Translate;
+use Gradescope::Color qw(color_print);
 
-my ($token) = @ARGV;
-my $in = do {
-    local $/ = undef;
-    JSON::from_json <STDIN>;
-};
-say STDERR $token;
-print JSON::to_json $in;
+my %options;
+GetOptions(\%options,
+    'help|h|?',
+    'delimiter|d=s',
+    'keyheader|k=s@',
+    'valueheader|v=s@',
+    ) or pod2usage(-exitval => 1, -verbose => 2);
+pod2usage(-exitval => 0, -verbose => 2) if $options{help};
 
-# PODNAME: id.pl
-# ABSTRACT: Gradescope submission script lambda
+$options{delimiter} //= ':';
+$options{keyheader} //= ['token'];
+$options{valueheader} //= ['submission'];
+
+$options{keyheader} = [$options{delimiter}, @{$options{keyheader}}];
+
+my %kv = Gradescope::Translate::read_csv(*STDIN,
+    $options{keyheader}, $options{valueheader});
+color_print(JSON::to_json(\%kv, {pretty => 1, canonical => 1}), 'JSON');
+
+# PODNAME: csv2json.pl
+# ABSTRACT: Gradescope submission script component
 
 __END__
 
@@ -63,17 +78,19 @@ __END__
 
 =head1 NAME
 
-id.pl - Gradescope submission script lambda
+csv2json.pl - Gradescope submission script component
 
 =head1 VERSION
 
-version 2023.02.13
+version 2023.02.17
 
 =head1 SYNOPSIS
 
-=head1 DESCRIPTION
+csv2json.pl [options]
 
-=head1 NAME
+csv2json.pl [-k token] [-v uniqname] < I<csv>
+
+=head1 DESCRIPTION
 
 =head1 AUTHOR
 

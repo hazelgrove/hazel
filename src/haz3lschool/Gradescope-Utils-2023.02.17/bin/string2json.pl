@@ -41,26 +41,19 @@ use diagnostics -verbose;
     use feature 'try';
     no warnings 'experimental::try';
 
-    our $VERSION = version->declare('v2022.12.27');
+    our $VERSION = version->declare('v2023.02.14');
 # end prelude
 
-my ($column_index, $token) = @ARGV;
-assert(defined($column_index));
-assert(defined($token));
-my $row = do {
+my ($token) = @ARGV;
+my $in = do {
     local $/ = undef;
     JSON::from_json <STDIN>;
 };
-my @row = @$row;
-if($row[$column_index] eq $token){
-    exit 0;
-}
-else{
-    exit 1;
-}
+say STDERR $token;
+print JSON::to_json (JSON::from_json $in);
 
-# PODNAME: field-n-eq?.pl
-# ABSTRACT: Gradescope submission script F<split.pl> lambda
+# PODNAME: string2json.pl
+# ABSTRACT: Gradescope submission script lambda
 
 __END__
 
@@ -70,19 +63,44 @@ __END__
 
 =head1 NAME
 
-field-n-eq?.pl - Gradescope submission script F<split.pl> lambda
+string2json.pl - Gradescope submission script lambda
 
 =head1 VERSION
 
-version 2023.02.13
+version 2023.02.17
 
 =head1 SYNOPSIS
 
-field-n-eq?.pl I<column_index> I<token>
+string2json.pl token
 
-field-n-eq?.pl 0 token < csv_row.json
+map.pl -f ./string2json.pl
 
 =head1 DESCRIPTION
+
+unwraps quoted json string
+
+often used to combat F<cat.pl>,
+which quotes the student submission as a (json) string
+
+=head1 EXAMPLES
+
+``on the wire"
+
+    "\"abc\"" |-> " "abc"
+
+ie
+
+    printf '"\\"abc\\""' | ./string2json.pl token
+
+likewise
+
+    "[]" |-> []
+
+while
+
+    printf '[]' | ./string2json token
+
+will fail
 
 =head1 AUTHOR
 
