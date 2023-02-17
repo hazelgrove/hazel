@@ -215,7 +215,7 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
 let inspector_view =
     (
       ~inject,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~show_lang_doc: bool,
       id: int,
       ci: Haz3lcore.Statics.t,
