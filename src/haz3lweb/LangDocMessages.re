@@ -155,6 +155,46 @@ let deferral_exp: form = {
   };
 };
 
+let _exp_fun = exp("e_fun");
+let _exp_arg = exp("e_arg");
+let deferred_ap_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_fun), x_id),
+  (Piece.id(_exp_arg), arg_id),
+];
+let deferred_ap_exp_group = "deferred_ap_exp_group";
+let deferred_ap_exp: form = {
+  // TODO
+  /* let decrement = {
+       sub_id: "decrement",
+       term: mk_example("(fun (a, b) -> a - b)(~, 1)"),
+       message: "A decrement function which is constructed by deferring the first tuple argument to a subtraction function.",
+       feedback: Unselected,
+     };
+     let explanation = {
+       message: "Deferred application expression.",
+       feedback: Unselected,
+     };
+     let ap = mk_ap_pat([[_pat_arg]]);
+     let fn = mk_fun([[space(), _pat_con, ap, space()]]);
+     let comma = comma_exp();
+     {
+       id: "deferred_ap_exp",
+       syntactic_form: [fn, space(), exp("e1"), comma, space(), exp("...")],
+       expandable_id: Some(Piece.id(comma)),
+       explanation,
+       examples: [decrement],
+     }; */
+  let explanation = {message: "Deferral expression.", feedback: Unselected};
+  {
+    id: "deferral_exp",
+    syntactic_form: [exp("Deferral")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let triv_exp_group = "triv_exp_group";
 let triv_exp: form = {
   let explanation = {message: "Trivial expression.", feedback: Unselected};
