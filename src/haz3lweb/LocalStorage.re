@@ -41,42 +41,42 @@ module Settings = {
   };
 };
 
-// LangDocMessages serialization
-module LangDocMessages = {
-  let save_langDocMessages_key: string = "LANGDOCMESSAGES";
+// ExplainThisMessages serialization
+module ExplainThisMessages = {
+  let save_ExplainThisMessages_key: string = "ExplainThisMessages";
 
-  let serialize = langDocMessages =>
-    LangDocMessages.serialize(langDocMessages);
+  let serialize = explainThisMessages =>
+    ExplainThisMessages.serialize(explainThisMessages);
 
   let deserialize = data =>
-    try(LangDocMessages.deserialize(data)) {
+    try(ExplainThisMessages.deserialize(data)) {
     | _ =>
-      print_endline("Could not deserialize langDocMessages.");
-      LangDocMessages.init;
+      print_endline("Could not deserialize ExplainThisMessages.");
+      ExplainThisMessages.init;
     };
 
-  let save = (langDocMessages: LangDocMessages.t): unit =>
+  let save = (explainThisMessages: ExplainThisMessages.t): unit =>
     JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(langDocMessages),
+      save_ExplainThisMessages_key,
+      serialize(explainThisMessages),
     );
 
   let init = () => {
     JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(LangDocMessages.init),
+      save_ExplainThisMessages_key,
+      serialize(ExplainThisMessages.init),
     );
-    LangDocMessages.init;
+    ExplainThisMessages.init;
   };
 
-  let load = (): LangDocMessages.t =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+  let load = (): ExplainThisMessages.t =>
+    switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
     | None => init()
     | Some(data) => deserialize(data)
     };
 
   let rec export = () =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+    switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
     | None =>
       let _ = init();
       export();
@@ -84,8 +84,8 @@ module LangDocMessages = {
     };
 
   let import = data => {
-    let langDocMessages = deserialize(data);
-    save(langDocMessages);
+    let explainThisMessages = deserialize(data);
+    save(explainThisMessages);
   };
 };
 

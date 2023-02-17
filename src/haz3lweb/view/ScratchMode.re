@@ -13,7 +13,7 @@ let view =
       ~mousedown,
       ~editor: Editor.t,
       ~settings: ModelSettings.t,
-      ~langDocMessages: LangDocMessages.t,
+      ~explainThisMessages: ExplainThisMessages.t,
       ~result: ModelResult.simple,
     ) => {
   let zipper = editor.state.zipper;
@@ -22,10 +22,10 @@ let view =
   let info_map = Statics.mk_map(term);
 
   let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
+    if (explainThisMessages.highlight && explainThisMessages.show) {
       Some(
-        LangDoc.get_color_map(
-          ~doc=langDocMessages,
+        ExplainThis.get_color_map(
+          ~doc=explainThisMessages,
           Indicated.index(zipper),
           info_map,
         ),
@@ -56,7 +56,7 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~show_lang_doc=langDocMessages.show,
+          ~show_lang_doc=explainThisMessages.show,
           zipper,
           info_map,
         ),
@@ -64,13 +64,13 @@ let view =
       : [];
   let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
   let right_panel =
-    langDocMessages.show && settings.statics
+    explainThisMessages.show && settings.statics
       ? [
-        LangDoc.view(
+        ExplainThis.view(
           ~inject,
           ~font_metrics,
           ~settings,
-          ~doc=langDocMessages,
+          ~doc=explainThisMessages,
           Indicated.index(zipper),
           info_map,
         ),

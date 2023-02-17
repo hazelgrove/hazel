@@ -117,7 +117,11 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
         Widgets.toggle(
           ~tooltip="Toggle language documentation", "i", show_lang_doc, _ =>
           Effect.Many([
-            inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
+            inject(
+              Update.UpdateExplainThisMessages(
+                ExplainThisMessages.ToggleShow,
+              ),
+            ),
             Effect.Stop_propagation,
           ])
         ),
