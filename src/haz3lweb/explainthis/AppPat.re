@@ -1,0 +1,24 @@
+open Haz3lcore;
+open ExampleUtil;
+open ExplainThisForm;
+
+let ap_pat_group = "ap_pat_group";
+let _pat_con = pat("p_con");
+let _pat_arg = pat("p_arg");
+let ap_pat_coloring_ids = (~con_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_con), con_id),
+  (Piece.id(_pat_arg), arg_id),
+];
+let ap_pat: form = {
+  let explanation = {
+    message: "Constructor application pattern. Only expressions that match the [*constructor*](%i) with an *argument* matching the [*argument pattern*](%i) match this *constructor application pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "ap_pat",
+    syntactic_form: [_pat_con, mk_ap_pat([[_pat_arg]])],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
