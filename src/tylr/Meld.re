@@ -342,15 +342,15 @@ and complete_r = (~expected: Sort.Ana.t, mel: t): t => {
 
 let rec to_lexemes = (mel): Lexeme.s => {
   let (l, r) = mel.space;
-  let (l, r) = Lexeme.(s_of_space(l), s_of_space(r));
+  let (l, r) = Lexeme.(S(l), S(r));
   (
     switch (mel.chain) {
     | None => []
     | Some(c) => Chain.to_list(to_lexemes, p => [Lexeme.of_piece(p)], c)
     }
   )
-  |> List.cons(l)
-  |> Fun.flip((@), [r])
+  |> List.cons([l])
+  |> Fun.flip((@), [[r]])
   |> List.concat;
 };
 

@@ -15,6 +15,15 @@ module Char = {
     let id = Id.Gen.next();
     {id, shape};
   };
+  // todo: utf
+  let of_char =
+    fun
+    | '\r'
+    | '\n' => mk(Newline)
+    | ' '
+    | '\t' => mk(Space)
+    | c =>
+      raise(Invalid_argument("Space.Char.of_char: " ++ String.make(1, c)));
   let to_string = c =>
     switch (c.shape) {
     | Space => " "
@@ -34,6 +43,24 @@ type t = {
   paths: list(Path.t),
 };
 
+let to_string = s =>
+  s.chars |> List.map(Char.to_string) |> String.concat("");
+let of_string = s => {
+  let chars = ref([]);
+  let i = ref(0);
+  while (i^ < String.length(s)) {
+    switch (s.[i^], s.[i^ + 1]) {
+    | ('\r', '\n') =>
+      chars := [Char.mk(Newline), ...chars^];
+      i := i^ + 2;
+    | (c, _) =>
+      chars := [Char.of_char(c), ...chars^];
+      i := i^ + 1;
+    };
+  };
+  List.rev(chars^);
+};
+
 let mk = (~paths=[], chars) => {paths, chars};
 let empty = mk([]);
 let is_empty = (s: t) => s.chars == [];
@@ -48,6 +75,23 @@ let cat = (l: t, r: t) =>
     l.chars @ r.chars,
   );
 let concat = ss => List.fold_right(cat, ss, empty);
+
+let uncons = (s: t) =>
+  switch (s.chars) {
+  | [] => None
+  | [hd, ...tl] =>
+    let (ps_hd, ps_tl) =
+      s.paths |> List.partition_map(p => p < 1 ? Left(p) : Right(p - 1));
+    Some(({paths: ps_hd, chars: [hd]}, {paths: ps_tl, chars: tl}));
+  };
+let unsnoc = (s: t) =>
+  ListUtil.split_last_opt(s.chars)
+  |> Option.map(((tl, hd)) => {
+       let (ps_hd, ps_tl) =
+         s.paths
+         |> List.partition_map(p => p > length(s) - 1 ? Left(p) : Right(p));
+       Some(({paths: ps_tl, chars: tl}, {paths: ps_hd, chars: [hd]}));
+     });
 
 // let split_newlines = (ss: s): Chain.t(s, t) =>
 //   List.fold_right(

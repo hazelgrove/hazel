@@ -12,7 +12,7 @@ let id_lower = alpha_lower (alpha | digit | '_')*
 let id_upper = alpha_upper (alpha | digit | '_')*
 
 let newline = '\r' | '\n' | "\r\n"
-let space = ' ' | '\t'
+let space = (' ' | '\t' | newline)+
 
 let op_int =
   '+' | '-' | '*' | '/' | "**" | '>' | ">=" | '<' | "<=" | "=="
@@ -33,9 +33,10 @@ let token =
   | paren | brack
 
 rule next_lexeme = parse
-| newline { Some (Lexeme.S (Space.Char.mk(Newline))) }
-| space   { Some (Lexeme.S (Space.Char.mk(Space))) }
-| token   {
+| space {
+    Some (Lexeme.S (Space.of_string (Lexing.lexeme lexbuf)))
+  }
+| token {
     (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
     let mold =

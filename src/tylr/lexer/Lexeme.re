@@ -3,7 +3,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | S(Space.Char.t)
+  | S(Space.t)
   | G(Grout.t)
   | T(Tile.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,21 +25,19 @@ let token =
   fun
   | G(g) => g.fill
   | T(t) => t.token
-  | S(s) => Space.Char.to_string(s);
+  | S(s) => Space.to_string(s);
 
-let id =
-  fun
-  | G(g) => g.id
-  | T(t) => t.id
-  | S(s) => s.id;
+// let id =
+//   fun
+//   | G(g) => g.id
+//   | T(t) => t.id
+//   | S(s) => s.id;
 
 let to_piece =
   fun
   | S(_) => None
   | G(g) => Some(Piece.mk(G(g)))
   | T(t) => Some(Piece.mk(T(t)));
-
-let s_of_space = (s: Space.t) => List.map(s => S(s), s.chars);
 
 // postcond: output is nonempty
 let of_piece = (p: Piece.t) =>
@@ -86,4 +84,4 @@ let length =
   fun
   | T(t) => Tile.length(t)
   | G(g) => Grout.length(g)
-  | S(_) => 1;
+  | S(s) => Space.length(s);
