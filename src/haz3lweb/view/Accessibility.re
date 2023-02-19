@@ -100,7 +100,13 @@ let cursor_char_string = (editor: Editor.t) => {
   switch (Editor.caret_point(editor)) {
   | {row, col} =>
     switch (List.nth_opt(rows, row)) {
-    | Some(str) => String.sub(str, max(0, col - 1), 1)
+    | Some(str) =>
+      switch (String.sub(str, min(col, String.length(str) - 1), 1)) {
+      | s => s
+      | exception (Invalid_argument(_)) =>
+        "";
+      }
+
     | None => ""
     }
   };
