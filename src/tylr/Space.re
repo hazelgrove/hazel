@@ -1,5 +1,5 @@
 open Sexplib.Std;
-// open Util;
+open Util;
 
 module Char = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -76,22 +76,29 @@ let cat = (l: t, r: t) =>
   );
 let concat = ss => List.fold_right(cat, ss, empty);
 
-let uncons = (s: t) =>
+let uncons = (~char=false, s: t) =>
   switch (s.chars) {
   | [] => None
-  | [hd, ...tl] =>
+  | [hd, ...tl] when char =>
     let (ps_hd, ps_tl) =
       s.paths |> List.partition_map(p => p < 1 ? Left(p) : Right(p - 1));
     Some(({paths: ps_hd, chars: [hd]}, {paths: ps_tl, chars: tl}));
+  | [_, ..._] => Some((s, empty))
   };
-let unsnoc = (s: t) =>
+let unsnoc = (~char=false, s: t) =>
   ListUtil.split_last_opt(s.chars)
-  |> Option.map(((tl, hd)) => {
-       let (ps_hd, ps_tl) =
-         s.paths
-         |> List.partition_map(p => p > length(s) - 1 ? Left(p) : Right(p));
-       Some(({paths: ps_tl, chars: tl}, {paths: ps_hd, chars: [hd]}));
-     });
+  |> Option.map(((tl, hd)) =>
+       if (char) {
+         let (ps_hd, ps_tl) =
+           s.paths
+           |> List.partition_map(p =>
+                p > length(s) - 1 ? Left(p) : Right(p)
+              );
+         ({paths: ps_tl, chars: tl}, {paths: ps_hd, chars: [hd]});
+       } else {
+         (empty, s);
+       }
+     );
 
 // let split_newlines = (ss: s): Chain.t(s, t) =>
 //   List.fold_right(

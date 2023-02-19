@@ -13,11 +13,7 @@ let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
   | L => (onto_l(l, a), r)
   | R => (l, onto_r(a, r))
   };
-let cons_space =
-  cons(
-    ~onto_l=(seg, s) => Segment.knil(seg, ~s, ()),
-    ~onto_r=(s, seg) => Segment.link(~s, seg),
-  );
+let cons_space = cons(~onto_l=Dn.snoc_space, ~onto_r=Up.cons_space);
 
 let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   switch (from) {
@@ -25,9 +21,15 @@ let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   | R => from_r(r) |> Option.map(((a, r)) => (a, (l, r)))
   };
 let uncons_lexeme =
-  uncons(~from_l=Segment.unsnoc_lexeme, ~from_r=Segment.uncons_lexeme);
+  uncons(
+    ~from_l=Dn.unsnoc_lexeme(~char=false),
+    ~from_r=Up.uncons_lexeme(~char=false),
+  );
 let uncons_char =
-  uncons(~from_l=Segment.unsnoc_char, ~from_r=Segment.uncons_char);
+  uncons(
+    ~from_l=Dn.unsnoc_lexeme(~char=true),
+    ~from_r=Up.uncons_lexeme(~char=true),
+  );
 let uncons_opt_lexeme = (~from: Dir.t, sib) =>
   switch (uncons_lexeme(~from, sib)) {
   | None => (None, sib)

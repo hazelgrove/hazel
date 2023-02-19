@@ -33,18 +33,16 @@ let token =
 //   | T(t) => t.id
 //   | S(s) => s.id;
 
-let to_piece =
-  fun
-  | S(_) => None
-  | G(g) => Some(Piece.mk(G(g)))
-  | T(t) => Some(Piece.mk(T(t)));
-
-// postcond: output is nonempty
 let of_piece = (p: Piece.t) =>
   switch (p.shape) {
   | T(t) => T(t)
   | G(g) => G(g)
   };
+let to_piece =
+  fun
+  | S(_) => None
+  | G(g) => Some(Piece.mk(G(g)))
+  | T(t) => Some(Piece.mk(T(t)));
 
 let uncons_char = (lx: t): option((t, t)) =>
   switch (lx) {

@@ -42,12 +42,12 @@ let unsnoc_char = (g: t): option((t, t)) =>
 let zip = (l, r): option(t) =>
   Id.eq(l.id, r.id) ? Some({...l, fill: l.fill ++ r.fill}) : None;
 
-let unzip = (n, g): Either.t(Dir.t, (t, t)) =>
+let unzip = (n, g): option((t, t)) =>
   switch (n) {
-  | 0 => L(L)
+  | 0 => None
   // todo: unicode length
-  | _ when n > String.length(g.fill) => L(R)
+  | _ when n > String.length(g.fill) => None
   | _ =>
     let (l, r) = Token.split(n, g.fill);
-    R(({...g, fill: l}, {...g, fill: r}));
+    Some(({...g, fill: l}, {...g, fill: r}));
   };

@@ -9,6 +9,27 @@ type t = {
   dn: Dn.t,
 };
 
+// let x = (1 + [a + b ? c / d : e * f] + 3) + 4 * 5 in x + 1
+
+// stepwell
+// .                                                         .
+// let x = ------------------------------------------in x + 1
+//         .                                [+ 4, * 5]
+//         (-------------------------------)
+//         [1 +]                       [+ 3]
+
+// selection
+//                     ? c / d :
+//                 + b           e *
+//               a                   f
+
+// selection:
+//   focus: L
+//   ziggurat: Some({ up: [a, + b], top: "? c / d :", dn: [e *, f] })
+// stepwell:
+//   slopes: ([1, +], [+, 3])
+//   bridge: ( "(" , ")" )
+
 let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};
 // let empty = mk();
 // let is_empty: t => _ = Option.is_none;

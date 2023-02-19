@@ -15,16 +15,20 @@ let mk = (~s=Space.empty, terrs) => {space: s, terrs};
 let empty = mk([]);
 
 let map_space = (f, s) => {...s, space: f(s.space)};
-
-let cat = (_, _) => failwith("todo");
+// let has_space = s =>
+//   Space.is_empty(s.space)
+//   ? None : Some((s.space, {...s, space: Space.empty}));
 
 module Dn = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = slope;
 
+  let empty = empty;
   let of_meld = _ => failwith("todo");
 
-  let snoc_space = (terr, s) => map_space(Fun.flip(Space.cat, s), terr);
+  let cat = (_, _) => failwith("todo");
+
+  let snoc_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
 
   let rec snoc =
           (dn: t, ~kid=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
@@ -53,12 +57,27 @@ module Dn = {
     ...dn,
     terrs: [terr, ...dn.terrs],
   };
+
+  let unsnoc_lexeme = (~char=false, dn: t): option((t, Lexeme.t)) =>
+    switch (Space.unsnoc(~char, dn.space)) {
+    | Some((space, s)) => Some(({...dn, space}, Lexeme.S(s)))
+    | None =>
+      switch (dn.terrs) {
+      | [] => None
+      | [hd, ...tl] =>
+        let (rest, s, lx) = Terrace.R.unsnoc_lexeme(~char, hd);
+        Some((mk(cat(tl, rest), ~s), lx));
+      }
+    };
 };
 module Up = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = slope;
 
+  let empty = empty;
   let of_meld = _ => failwith("todo");
+
+  let cat = (_, _) => failwith("todo");
 
   let cons_space = s => map_space(Space.cat(s));
 
@@ -89,6 +108,18 @@ module Up = {
     ...up,
     terrs: up.terrs @ [terr],
   };
+
+  let uncons_lexeme = (~char=false, up: t): option((Lexeme.t, t)) =>
+    switch (Space.uncons(~char, up.space)) {
+    | Some((s, space)) => Some((Lexeme.S(s), {...up, space}))
+    | None =>
+      switch (up.terrs) {
+      | [] => None
+      | [hd, ...tl] =>
+        let (lx, s, rest) = Terrace.L.uncons_lexeme(~char, hd);
+        Some((lx, mk(~s, cat(rest, tl))));
+      }
+    };
 };
 
 let dn_onto_up =
