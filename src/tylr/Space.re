@@ -43,6 +43,21 @@ type t = {
   paths: list(Path.t),
 };
 
+let mk = (~paths=[], chars) => {paths, chars};
+let empty = mk([]);
+let is_empty = (s: t) => s.chars == [];
+let length = (s: t) => List.length(s.chars);
+
+let add_paths = (ps, s) => {...s, paths: ps @ s.paths};
+let clear_paths = s => {...s, paths: []};
+
+let cat = (l: t, r: t) =>
+  mk(
+    ~paths=l.paths @ List.map(Path.shift(length(l)), r.paths),
+    l.chars @ r.chars,
+  );
+let concat = ss => List.fold_right(cat, ss, empty);
+
 let to_string = s =>
   s.chars |> List.map(Char.to_string) |> String.concat("");
 let of_string = s => {
@@ -58,23 +73,8 @@ let of_string = s => {
       i := i^ + 1;
     };
   };
-  List.rev(chars^);
+  mk(List.rev(chars^));
 };
-
-let mk = (~paths=[], chars) => {paths, chars};
-let empty = mk([]);
-let is_empty = (s: t) => s.chars == [];
-let length = (s: t) => List.length(s.chars);
-
-let add_paths = (ps, s) => {...s, paths: ps @ s.paths};
-let clear_paths = s => {...s, paths: []};
-
-let cat = (l: t, r: t) =>
-  mk(
-    ~paths=l.paths @ List.map(Path.shift(length(l)), r.paths),
-    l.chars @ r.chars,
-  );
-let concat = ss => List.fold_right(cat, ss, empty);
 
 let uncons = (~char=false, s: t) =>
   switch (s.chars) {
