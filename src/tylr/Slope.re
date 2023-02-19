@@ -1,35 +1,30 @@
 open Sexplib.Std;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  space: Space.t,
-  terrs: list(Terrace.t),
+module M = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    space: Space.t,
+    terrs: list(Terrace.t),
+  };
+
+  let mk = (~s=Space.empty, terrs) => {space: s, terrs};
+  let empty = mk([]);
+  let of_terr = terr => mk(terr);
+
+  let map_space = (f, s) => {...s, space: f(s.space)};
+  // let has_space = s =>
+  //   Space.is_empty(s.space)
+  //   ? None : Some((s.space, {...s, space: Space.empty}));
 };
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slope = t;
-// type dn = t; // left-to-right: terrs space
-// type up = t; // left-to-right: space terrs
-
-let mk = (~s=Space.empty, terrs) => {space: s, terrs};
-let empty = mk([]);
-
-let map_space = (f, s) => {...s, space: f(s.space)};
-// let has_space = s =>
-//   Space.is_empty(s.space)
-//   ? None : Some((s.space, {...s, space: Space.empty}));
+include M;
 
 module Dn = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = slope;
-
-  let empty = empty;
+  include M;
   let of_meld = _ => failwith("todo");
-
   let cat = (_, _) => failwith("todo");
 
   let snoc_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
-
   let rec snoc =
           (dn: t, ~kid=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
     let kid = Meld.pad(~l=dn.space, kid);
@@ -70,11 +65,10 @@ module Dn = {
       }
     };
 };
-module Up = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = slope;
 
-  let empty = empty;
+module Up = {
+  include M;
+
   let of_meld = _ => failwith("todo");
 
   let cat = (_, _) => failwith("todo");

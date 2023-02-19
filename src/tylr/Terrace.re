@@ -8,6 +8,8 @@ type t = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type terr = t;
 
+let of_piece = p => {retainer: Retainer.of_piece(p), backfill: Meld.empty()};
+
 let map_retainer = (f, terr) => {...terr, retainer: f(terr.retainer)};
 
 let split_face = ({retainer, backfill}: t): (Piece.t, Meld.t) =>

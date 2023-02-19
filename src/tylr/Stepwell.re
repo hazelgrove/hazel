@@ -3,78 +3,75 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Chain.t(Slopes.t, Bridge.t);
 
-// immediate siblings
-let of_sib: Slopes.t => t = Chain.of_loop;
-let get_sib: t => Slopes.t = Chain.fst;
-let map_sib: (_, t) => t = Chain.map_fst;
-let put_sib = sib => map_sib(_ => sib);
-let cons_sib = (sib, rel) => map_sib(Slopes.cat(sib), rel);
+// base slopes
+let of_slopes: Slopes.t => t = Chain.of_loop;
+let get_slopes: t => Slopes.t = Chain.fst;
+let map_slopes: (_, t) => t = Chain.map_fst;
+let put_slopes = sib => map_slopes(_ => sib);
+let cons_slopes = (sib, rel) => map_slopes(Slopes.cat(sib), rel);
 
-let empty = of_sib(Slopes.empty);
+let empty = of_slopes(Slopes.empty);
 
 let cat: (t, t) => t = Chain.cat(Slopes.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
-let rec cons_meld_l = (~kid=Meld.empty(), mel: Meld.Closed.l, rel: t): t => {
-  let (dn, up) = get_sib(rel);
-  switch (Dn.cons_meld(dn, ~kid, mel)) {
-  | Ok(dn) => put_sib((dn, up), rel)
+let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
+  let (dn, up) = get_slopes(rel);
+  switch (Dn.cons(dn, ~kid, mel)) {
+  | Ok(dn) => put_slopes((dn, up), rel)
   | Error(kid) =>
     switch (Chain.unlink(rel)) {
     | None =>
-      let dn = Dn.of_meld(Meld.Closed.open_l(kid, mel));
-      put_sib((dn, up), rel);
-    | Some((_sib, (l, r), rel)) =>
-      switch (Meld.cmp(l, ~kid, mel)) {
+      let dn = Dn.of_meld(Terrace.L.unmk(kid, mel));
+      put_slopes((dn, up), rel);
+    | Some((_slopes, (l, r), rel)) =>
+      switch (Terrace.cmp(l, ~kid, mel)) {
       | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
-      | {lt: Some(kid_mel), _} => put_sib((Dn.of_meld(kid_mel), suf), rel)
+      | {lt: Some(kid_mel), _} =>
+        put_slopes((Dn.of_meld(kid_mel), suf), rel)
       | {eq: Some(l_kid_mel), _} =>
         let dn = Dn.of_meld(l_kid_mel);
-        let up = Up.cat(up, Up.of_closed(r));
-        cons_sib((dn, up), rel);
+        let up = Up.cat(up, Up.of_terr(r));
+        cons_slopes((dn, up), rel);
       | {gt: Some(l_kid), _} =>
-        let up = Up.cat(up, Up.of_closed(r));
-        rel
-        |> cons_sib(Slopes.mk(~r=up, ()))
-        |> cons_meld_l(~kid=l_kid, mel);
+        let up = Up.cat(up, Up.of_terr(r));
+        rel |> cons_slopes(Slopes.mk(~r=up, ())) |> cons_l(~kid=l_kid, mel);
       }
     }
   };
 };
-let rec cons_meld_r =
-        (mel: Meld.Closed.r, ~kid=Meld.Padded.empty(), rel: t): t => {
-  let (dn, up) = get_sib(rel);
-  switch (Up.cons_meld(mel, ~kid, up)) {
-  | Ok(up) => put_sib((dn, up), rel)
+let rec cons_r = (mel: Terrace.R.t, ~kid=Meld.empty(), rel: t): t => {
+  let (dn, up) = get_slopes(rel);
+  switch (Up.cons(mel, ~kid, up)) {
+  | Ok(up) => put_slopes((dn, up), rel)
   | Error(kid) =>
     switch (Chain.unlink(rel)) {
     | None =>
-      let up = Up.of_meld(Meld.Closed.open_r(mel, kid));
-      put_sib((dn, up), rel);
-    | Some((_sib, (l, r), rel)) =>
-      switch (Meld.cmp(mel, ~kid, r)) {
+      let up = Up.of_meld(Terrace.R.unmk(mel, kid));
+      put_slopes((dn, up), rel);
+    | Some((_slopes, (l, r), rel)) =>
+      switch (Terrace.cmp(mel, ~kid, r)) {
       | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
-      | {gt: Some(mel_kid), _} => put_sib((dn, Up.of_meld(mel_kid)), rel)
+      | {gt: Some(mel_kid), _} =>
+        put_slopes((dn, Up.of_meld(mel_kid)), rel)
       | {eq: Some(mel_kid_r), _} =>
-        let dn = Dn.cat(of_closed(l), dn);
+        let dn = Dn.cat(Dn.of_terr(l), dn);
         let up = Up.of_meld(mel_kid_r);
-        cons_sib((dn, up), rel);
+        cons_slopes((dn, up), rel);
       | {lt: Some(kid_r), _} =>
-        let dn = Dn.cat(Dn.of_closed(l), dn);
-        rel
-        |> cons_sib(Slopes.mk(~l=dn, ()))
-        |> cons_meld_r(mel, ~kid=kid_r);
+        let dn = Dn.cat(Dn.of_terr(l), dn);
+        rel |> cons_slopes(Slopes.mk(~l=dn, ())) |> cons_r(mel, ~kid=kid_r);
       }
     }
   };
 };
-let cons_meld = (~onto: Dir.t, mel, rel) =>
-  switch (onto) {
-  | L => rel |> cons_meld_l(mel)
-  | R => rel |> cons_meld_r(mel)
-  };
+// let cons_meld = (~onto: Dir.t, mel, rel) =>
+//   switch (onto) {
+//   | L => rel |> cons_l(mel)
+//   | R => rel |> cons_r(mel)
+//   };
 let cons_space = (~onto: Dir.t, s, rel) =>
-  rel |> map_sib(Slopes.cons_space(~onto, s));
+  rel |> map_slopes(Slopes.cons_space(~onto, s));
 let cons_seg = (~onto: Dir.t, seg, rel) => {
   let cons_space = cons_space(~onto);
   let cons_meld = cons_meld(~onto);
@@ -105,10 +102,11 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
   let rec go = ((l, r) as sib, rel) =>
     switch (Chain.unlink(l), Chain.unknil(r)) {
     | (None, _)
-    | (_, None) => cons_sib(sib, rel)
+    | (_, None) => cons_slopes(sib, rel)
     | (Some((s_l, mel_l, tl_l)), Some((tl_r, mel_r, s_r))) =>
       switch (Meld.cmp(mel_l, mel_r)) {
-      | _ when Meld.(fst_id(mel_l) == lst_id(mel_r)) => rel |> cons_sib(sib)
+      | _ when Meld.(fst_id(mel_l) == lst_id(mel_r)) =>
+        rel |> cons_slopes(sib)
       | In(_) =>
         rel
         |> cons_space(~onto=L, s_l)
@@ -135,24 +133,24 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
       }
     };
 
-  // let (pre, suf) = Slopes.assemble(get_sib(rel));
-  let (pre, suf) = get_sib(rel);
+  // let (pre, suf) = Slopes.assemble(get_slopes(rel));
+  let (pre, suf) = get_slopes(rel);
   // separate siblings that belong to the selection
   let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
   let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
   rel
-  |> put_sib(Slopes.empty)
+  |> put_slopes(Slopes.empty)
   |> go((pre_lt_sel, sel_gt_suf))
-  |> cons_sib((pre_geq_sel, sel_leq_suf));
+  |> cons_slopes((pre_geq_sel, sel_leq_suf));
 };
 
 let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t) =>
   switch (lx) {
-  | S(s) => cons_space(~onto, [s])
+  | S(s) => cons_space(~onto, s)
   | G(_)
   | T(_) =>
-    let mel = Meld.of_piece(Option.get(Lexeme.to_piece(lx)));
-    cons_meld(~onto, mel);
+    let terr = Terrace.of_piece(Option.get(Lexeme.to_piece(lx)));
+    cons(~onto, terr);
   };
 let cons_opt_lexeme = (~onto: Dir.t, lx) =>
   switch (lx) {
@@ -160,20 +158,20 @@ let cons_opt_lexeme = (~onto: Dir.t, lx) =>
   | Some(lx) => cons_lexeme(~onto, lx)
   };
 
-let uncons = (~from_sib, ~from_par, ~from: Dir.t, rel: t) =>
-  switch (from_sib(~from, get_sib(rel))) {
-  | Some((a, sib)) => Some((a, put_sib(sib, rel)))
+let uncons = (~from_slopes, ~from_par, ~from: Dir.t, rel: t) =>
+  switch (from_slopes(~from, get_slopes(rel))) {
+  | Some((a, sib)) => Some((a, put_slopes(sib, rel)))
   | None =>
     open OptUtil.Syntax;
     let+ (sib, par, rel) = Chain.unlink(rel);
     let (a, par) = from_par(~from, par);
-    let rel = rel |> cons_sib(Slopes.cat(sib, par)) |> assemble;
+    let rel = rel |> cons_slopes(Slopes.cat(sib, par)) |> assemble;
     (a, rel);
   };
 let uncons_char =
-  uncons(~from_sib=Slopes.uncons_char, ~from_par=Bridge.uncons_char);
+  uncons(~from_slopes=Slopes.uncons_char, ~from_par=Bridge.uncons_char);
 let uncons_lexeme =
-  uncons(~from_sib=Slopes.uncons_lexeme, ~from_par=Bridge.uncons_lexeme);
+  uncons(~from_slopes=Slopes.uncons_lexeme, ~from_par=Bridge.uncons_lexeme);
 let uncons_opt_lexeme = (~from, rel) =>
   switch (uncons_lexeme(~from, rel)) {
   | None => (None, rel)
@@ -237,7 +235,7 @@ let mold_ =
     (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t): Mold.Result.t => {
   let rec go = (~kid: option(Sort.o)=?, rel: t): Mold.Result.t => {
     open Result.Syntax;
-    let (pre, _) = get_sib(rel);
+    let (pre, _) = get_slopes(rel);
     let/ kid = Segment.mold(~match, pre, ~kid?, t);
     switch (Chain.unlink(rel)) {
     | None =>
@@ -247,7 +245,7 @@ let mold_ =
             ~error=kid,
             LangUtil.mold_of_token(kid, Sort.root_o, t),
           )
-    | Some((_sib, par, rel)) =>
+    | Some((_slopes, par, rel)) =>
       let/ kid = Bridge.mold(~match, ~kid?, t, par);
       match ? go(~kid?, rel) : Error(kid);
     };
@@ -261,7 +259,7 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
 };
 
 let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
-  let bounds = Slopes.bounds(get_sib(rel));
+  let bounds = Slopes.bounds(get_slopes(rel));
   switch (bounds, Chain.unlink(rel)) {
   | (_, None)
   | ((Some(_), Some(_)), _) => bounds
@@ -303,7 +301,7 @@ let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
   };
 }
 and insert_complement = (rel: t) => {
-  let (pre, _) = get_sib(rel);
+  let (pre, _) = get_slopes(rel);
   Segment.complement(~side=R, pre)
   |> List.map(((tok, mol)) => Meld.of_grout(Grout.mk(~sugg=tok, mol)))
   |> List.fold_left(Fun.flip(insert_meld(~complement=false)), rel);
@@ -357,16 +355,16 @@ let regrout = rel => {
       | Gt(_) => sib_of_p(L, l)
       }
     };
-  cons_sib(sib, rel);
+  cons_slopes(sib, rel);
 };
 
 let rec remold_suffix = (rel: t): t => {
-  let (pre, suf) = get_sib(rel);
+  let (pre, suf) = get_slopes(rel);
   switch (Chain.unlink(suf)) {
   | None => rel |> insert_complement |> regrout
   | Some((s, mel, suf)) =>
     rel
-    |> put_sib((pre, suf))
+    |> put_slopes((pre, suf))
     |> insert_space(~complement=true, s)
     // note: insertion may flatten ancestors into siblings, in which
     // case additional elements may be added to suffix to be remolded
