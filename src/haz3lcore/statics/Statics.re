@@ -202,7 +202,7 @@ and uexp_to_info_map =
       union_m([m_fn, m_arg]),
     );
   | TypAp(fn, utyp) =>
-    let (fn, m_fn) = go(~mode=Typ.ap_mode, fn);
+    let (fn, m_fn) = go(~mode=Syn, fn);
     let Typ.{item: ty_body, _} = Typ.matched_forall(fn.ty);
     let ty = Term.UTyp.to_typ(ctx, utyp);
     add(~self=Just(Typ.subst(ty, ty_body)), ~free=fn.free, m_fn);
