@@ -488,10 +488,16 @@ and utyp_to_info_map =
         ts,
       );
     add(union_m(ms));
-  | Forall({term: Var(_), _} as utpat, tbody) =>
-    /* NOTE FROM ANDREW: probably want to add var to the body's ctx in this case? */
+  | Forall({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx = Ctx.add_abstract(ctx, name, Term.UTPat.rep_id(utpat));
     let m =
-      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected) |> snd;
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+      )
+      |> snd;
     let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
     add(union_m([m, m_tpat])); // TODO: check with andrew
   | Forall(utpat, tbody) =>
@@ -499,8 +505,19 @@ and utyp_to_info_map =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected) |> snd;
     let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
     add(union_m([m, m_tpat])); // TODO: check with andrew
+  | Rec({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx = Ctx.add_abstract(ctx, name, Term.UTPat.rep_id(utpat));
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+      )
+      |> snd;
+    let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
+    add(union_m([m, m_tpat])); // TODO: check with andrew
   | Rec(utpat, tbody) =>
-    /* NOTE FROM ANDREW: probably want to add var to the body's ctx in this case? */
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected) |> snd;
     let m_tpat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
