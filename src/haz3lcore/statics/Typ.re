@@ -224,6 +224,12 @@ module Observation = {
     | [_entry, ...ctx] => resolve_var_kind(~remaining, ~total, ctx)
     };
   };
+  let eq_typ = (ob1, ty2) => {
+    switch (ob1) {
+    | Base(ty1) => eq_syntactic(ty1, ty2)
+    | _ => false
+    };
+  };
 };
 
 /* Lattice join on types. This is a LUB join in the hazel2
@@ -242,6 +248,20 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let ob2 = Observation.resolve_var_kind(ctx, ~remaining=n2);
     Observation.eq_observation(ob1, ob2)
       ? Some(Var({item: Some(n1), name})) : None;
+  | (Var({item: Some(n1), _}), _) =>
+    let ob1 = Observation.resolve_var_kind(ctx, ~remaining=n1);
+    if (Observation.eq_typ(ob1, ty2)) {
+      Some(ty2);
+    } else {
+      None;
+    };
+  | (_, Var({item: Some(n2), _})) =>
+    let ob2 = Observation.resolve_var_kind(ctx, ~remaining=n2);
+    if (Observation.eq_typ(ob2, ty1)) {
+      Some(ty1);
+    } else {
+      None;
+    };
   | (Var(_), _) => None
   | (Rec({item: t1, name}), Rec({item: t2, _})) =>
     switch (join(Ctx.add_abstract(ctx, name, -1), t1, t2)) {
