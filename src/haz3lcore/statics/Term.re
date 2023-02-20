@@ -321,7 +321,8 @@ module UPat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | TypeAnn(pat, typ) =>
+      is_var(pat) && (UTyp.is_arrow(typ) || UTyp.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -614,10 +615,13 @@ module UExp = {
     | UnOp(op) => show_unop(op)
     | Match => "Case expression";
 
+  // TODO (poly): May need to create a separate is_typfun function,
+  // so that is_fun pairs with is_fun_var over Arrow
+  // and is_typfun pairs with is_typfun_var over Forall
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e)
-    | TypFun(_, e) => is_fun(e)
+    | Parens(e) => is_fun(e)
+    | TypFun(_)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
