@@ -149,7 +149,12 @@ and uexp_to_info_map =
       };
     add'(
       ~self,
-      ~free=[(name, [{id: UExp.rep_id(uexp), mode}])],
+      ~free=
+        if (self == Info.FreeVar) {
+          [(name, [{id: UExp.rep_id(uexp), mode}])];
+        } else {
+          [];
+        },
       Id.Map.empty,
     );
   | Parens(e) =>
