@@ -24,6 +24,7 @@ let split_face = ({retainer, backfill}: t): (Piece.t, Meld.t) =>
 let face = terr => fst(split_face(terr));
 
 module L = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = terr; // left-to-right: retainer backfill
 
   let mk = (mel: Meld.t): option((Meld.t, t)) =>
@@ -59,6 +60,7 @@ module L = {
 };
 
 module R = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = terr; // left-to-right: backfill retainer
 
   let mk = (mel: Meld.t): option((t, Meld.t)) =>

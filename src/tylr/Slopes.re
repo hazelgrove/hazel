@@ -1,4 +1,4 @@
-open Util;
+// open Util;
 open Slope;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -83,47 +83,50 @@ let cat = ((l_inner, r_inner), (l_outer, r_outer)) => (
 //   Segment.is_empty(sel) ? zip_piece(sib) : (sel, sib);
 // };
 
-let bounds = ((pre, suf): t): (Segment.Bound.t as 'b, 'b) => {
-  let l = Chain.unknil(pre) |> Option.map(((_, mel, _)) => mel);
-  let r = Chain.unlink(suf) |> Option.map(((_, mel, _)) => mel);
-  (l, r);
-};
+// let bounds = ((pre, suf): t): (Segment.Bound.t as 'b, 'b) => {
+//   let l = Chain.unknil(pre) |> Option.map(((_, mel, _)) => mel);
+//   let r = Chain.unlink(suf) |> Option.map(((_, mel, _)) => mel);
+//   (l, r);
+// };
 
-let peek_space = ((l, r): t) => (Chain.lst(l), Chain.fst(r));
+// let peek_space = ((l, r): t) => (Chain.lst(l), Chain.fst(r));
 
-let bound = (~l=None, ~r=None, (pre, suf): t) =>
-  Segment.Bounded.(bound_l(l, pre), bound_r(suf, r));
+// let bound = (~l=None, ~r=None, (pre, suf): t) =>
+//   Segment.Bounded.(bound_l(l, pre), bound_r(suf, r));
 
-let offset = sib =>
-  switch (peek_lexemes(sib)) {
-  | (Some(l), Some(r)) when Lexeme.(id(l) == id(r)) => - Lexeme.length(r)
-  | _ => List.length(fst(peek_space(sib)))
-  };
-let steps = ((l, _): t) => List.map(Meld.length, Segment.melds(l));
-let path = (sib: t) =>
-  Meld.Path.mk(~offset=offset(sib), ~steps=steps(sib), ());
+// let offset = sib =>
+//   switch (peek_lexemes(sib)) {
+//   | (Some(l), Some(r)) when Lexeme.(id(l) == id(r)) => - Lexeme.length(r)
+//   | _ => List.length(fst(peek_space(sib)))
+//   };
+// let steps = ((l, _): t) => List.map(Meld.length, Segment.melds(l));
+// let path = (sib: t) =>
+//   Meld.Path.mk(~offset=offset(sib), ~steps=steps(sib), ());
 
-let rec zip = ((dn, up): t, kid: Meld.t) =>
-  switch (Dn.uncons(dn), Up.uncons(up)) {
-  | (Error(s), _) => Up.zip(Meld.pad(~l=s, kid), up)
-  | (_, Error(s)) => Dn.zip(dn, Meld.pad(kid, ~r=s))
-  | (Ok((dn', l, s_l)), Ok((s_r, r, up'))) =>
-    let kid = Meld.pad(~l=s_l, kid, ~r=s_r);
-    switch (Meld.cmp(l, ~kid, r)) {
+let rec zip = ((dn, up): t, kid: Meld.t) => {
+  let kid = Meld.pad(~l=dn.space, kid, ~r=up.space);
+  switch (dn.terrs, up.terrs) {
+  | ([], _) => Up.zip(kid, up)
+  | (_, []) => Dn.zip(dn, kid)
+  | ([l, ...tl_l], [r, ...tl_r]) =>
+    switch (Terrace.cmp(l, ~kid, r)) {
     | {lt: None, eq: None, gt: None} => raise(Meld.Invalid_prec)
-    | {lt: Some(kid_r), _} => zip((dn, up'), kid_r)
-    | {gt: Some(l_kid), _} => zip((dn', up), l_kid)
-    | {eq: Some(l_kid_r), _} => zip((dn', up'), l_kid_r)
-    };
+    | {lt: Some(kid_r), _} => zip((dn, Up.mk(tl_r)), kid_r)
+    | {gt: Some(l_kid), _} => zip((Dn.mk(tl_l), up), l_kid)
+    | {eq: Some(l_kid_r), _} => zip((Dn.mk(tl_l), Up.mk(tl_r)), l_kid_r)
+    }
   };
+};
 let zip_init = ((dn, up): t) =>
-  switch (Dn.uncons(dn), Up.uncons(up)) {
-  | (Ok((dn, (tl_l, hd_l), s_l)), Ok((s_r, (hd_r, tl_r), up)))
+  switch (dn.terrs, up.terrs) {
+  | ([l, ...terrs_l], [r, ...terrs_r])
       when
-        Space.(is_empty(s_l) && is_empty(s_r))
-        && Option.is_some(Piece.zip(hd_l, hd_r)) =>
+        Space.(is_empty(dn.space) && is_empty(up.space))
+        && Option.is_some(Piece.zip(Terrace.face(l), Terrace.face(r))) =>
+    let (hd_l, tl_l) = Terrace.split_face(l);
+    let (hd_r, tl_r) = Terrace.split_face(r);
     let p = Option.get(Piece.zip(hd_l, hd_r));
     let kid = Meld.append(tl_l, p, tl_r);
-    zip((dn, up), kid);
+    zip((Dn.mk(terrs_l), Up.mk(terrs_r)), kid);
   | _ => zip((dn, up), Meld.empty(~paths=[Path.mk()], ()))
   };

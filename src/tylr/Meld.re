@@ -340,6 +340,8 @@ and complete_r = (~expected: Sort.Ana.t, mel: t): t => {
   };
 };
 
+let append = (_, _, _) => failwith("todo append");
+
 let rec to_lexemes = (mel): Lexeme.s => {
   let (l, r) = mel.space;
   let (l, r) = Lexeme.(S(l), S(r));

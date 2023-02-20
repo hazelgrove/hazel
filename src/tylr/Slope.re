@@ -10,7 +10,7 @@ module M = {
 
   let mk = (~s=Space.empty, terrs) => {space: s, terrs};
   let empty = mk([]);
-  let of_terr = terr => mk(terr);
+  let of_terr = terr => mk([terr]);
 
   let map_space = (f, s) => {...s, space: f(s.space)};
   // let has_space = s =>
@@ -64,6 +64,13 @@ module Dn = {
         Some((mk(cat(tl, rest), ~s), lx));
       }
     };
+
+  let zip = (dn: t, kid: Meld.t) =>
+    List.fold_left(
+      (kid, terr) => Terrace.R.unmk(terr, kid),
+      Meld.pad(~l=dn.space, kid),
+      dn.terrs,
+    );
 };
 
 module Up = {
@@ -114,6 +121,13 @@ module Up = {
         Some((lx, mk(~s, cat(rest, tl))));
       }
     };
+
+  let zip = (kid: Meld.t, up: t) =>
+    List.fold_left(
+      (kid, terr) => Terrace.L.unmk(kid, terr),
+      Meld.pad(kid, ~r=up.space),
+      up.terrs,
+    );
 };
 
 let dn_onto_up =
