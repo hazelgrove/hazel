@@ -691,7 +691,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       switch (r1) {
       | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>
         evaluate(closure_env, d3)
-      | _ => failwith("InvalidBoxedTypFun")
+      | Indet(_) => r1 |> return
+      | _ => failwith("InvalidBoxedTypFun: " ++ show(r1))
       };
 
     | Ap(d1, d2) =>
