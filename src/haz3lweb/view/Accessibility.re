@@ -94,21 +94,53 @@ let position_line_string = (editor: Editor.t) => {
   };
 };
 
-let cursor_char_string = (editor: Editor.t) => {
+let position_line_string = (editor: Editor.t) => {
+  // when the last action is moving up or down, we will read the full line, otherwise the character the cursor at
+  let is_line_needed =
+    switch (editor.history) {
+    | ([], _) => true
+    | ([(a, _), ..._], _) =>
+      switch (a) {
+      | Move(Extreme(Up))
+      | Move(Extreme(Down))
+      | Move(Local(Up))
+      | Move(Local(Down)) => true
+      | _ => false
+      }
+    };
+
   let program = Printer.to_string_editor(editor);
   let rows = String.split_on_char('\n', program);
   switch (Editor.caret_point(editor)) {
-  | {row, col} =>
+  | {row, _} =>
     switch (List.nth_opt(rows, row)) {
-    | Some(str) =>
-      switch (String.sub(str, min(col, String.length(str) - 1), 1)) {
-      | s => s
-      | exception (Invalid_argument(_)) =>
-        "";
-      }
-
+    | Some(str) => is_line_needed ? str : ""
     | None => ""
     }
+  };
+};
+
+let textarea_string = (editor: Editor.t) => {
+  Printer.to_string_editor(editor);
+};
+
+let rec sum_first_n = (lst: list(int), n: int) => {
+  switch (lst, n) {
+  | (_, 0) => 0
+  | ([], _) => 0
+  | ([x, ...xs], n) => x + sum_first_n(xs, n - 1)
+  };
+};
+
+let textarea_cursor_pos = (editor: Editor.t) => {
+  let program = Printer.to_string_editor(editor);
+  let rows = String.split_on_char('\n', program);
+  let caret_point = Editor.caret_point(editor);
+  switch (caret_point) {
+  | {row, col} =>
+    let lengths = List.map(String.length, rows);
+    let num = sum_first_n(lengths, row) + col;
+    num;
   };
 };
 
