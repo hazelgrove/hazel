@@ -8,7 +8,8 @@ type t = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type terr = t;
 
-let of_piece = p => {retainer: Retainer.of_piece(p), backfill: Meld.empty()};
+let of_retainer = retainer => {retainer, backfill: Meld.empty()};
+let of_piece = p => of_retainer(Retainer.of_piece(p));
 
 let map_retainer = (f, terr) => {...terr, retainer: f(terr.retainer)};
 

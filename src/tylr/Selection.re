@@ -1,28 +1,28 @@
-open Sexplib.Std;
+// open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   foc: Dir.t,
-  zig: option(Ziggurat.t),
+  seg: Segment.t,
 };
 
-let empty = {foc: L, zig: None};
-let is_empty = sel => Option.is_none(sel.zig);
+let empty = {foc: L, seg: Segment.empty};
+let is_empty = sel => Segment.is_empty(sel.seg);
 
-let cons_lexeme = (lx, sel, (l, r)) => {
-  open Segment.Bounded;
-  let zig =
-    switch (sel.foc) {
-    | L => bound_l(l, cons_lexeme(lx, sel.zig, r))
-    | R => bound_r(snoc_lexeme(l, sel.zig, lx), r)
-    };
-  {...sel, zig};
-};
+let map_seg = (f, sel) => {...sel, seg: f(sel.seg)};
 
 let uncons = (~from_l, ~from_r, sel) =>
   switch (sel.foc) {
-  | L => from_l(sel.zig) |> Option.map(((a, zig)) => (a, {...sel, zig}))
-  | R => from_r(sel.zig) |> Option.map(((zig, a)) => (a, {...sel, zig}))
+  | L => from_l(sel.seg) |> Option.map(((a, seg)) => (a, {...sel, seg}))
+  | R => from_r(sel.seg) |> Option.map(((seg, a)) => (a, {...sel, seg}))
   };
 let uncons_char =
-  uncons(~from_l=Segment.uncons_char, ~from_r=Segment.unsnoc_char);
+  uncons(
+    ~from_l=Segment.pull_lexeme(~char=true),
+    ~from_r=Segment.llup_lexeme(~char=true),
+  );
+let uncons_lexeme =
+  uncons(
+    ~from_l=Segment.pull_lexeme(~char=false),
+    ~from_r=Segment.llup_lexeme(~char=false),
+  );

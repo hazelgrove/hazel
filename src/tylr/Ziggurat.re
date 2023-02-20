@@ -9,6 +9,9 @@ type t = {
   dn: Dn.t,
 };
 
+let of_dn = _ => failwith("todo of_dn");
+let of_up = _ => failwith("todo of_up");
+
 // let x = (1 + [a + b ? c / d : e * f] + 3) + 4 * 5 in x + 1
 
 // stepwell
@@ -30,7 +33,7 @@ type t = {
 //   slopes: ([1, +], [+, 3])
 //   bridge: ( "(" , ")" )
 
-let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};
+let mk = (~up=Up.empty, ~dn=Dn.empty, top) => {up, top, dn};
 // let empty = mk();
 // let is_empty: t => _ = Option.is_none;
 

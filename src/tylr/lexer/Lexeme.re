@@ -40,9 +40,9 @@ let of_piece = (p: Piece.t) =>
   };
 let to_piece =
   fun
-  | S(_) => None
-  | G(g) => Some(Piece.mk(G(g)))
-  | T(t) => Some(Piece.mk(T(t)));
+  | S(s) => Error(s)
+  | G(g) => Ok(Piece.mk(G(g)))
+  | T(t) => Ok(Piece.mk(T(t)));
 
 let uncons_char = (lx: t): option((t, t)) =>
   switch (lx) {
