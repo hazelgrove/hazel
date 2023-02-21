@@ -16,8 +16,9 @@ let cat: (t, t) => t = Chain.cat(Slopes.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
 let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
+  open Slope;
   let (dn, up) = get_slopes(rel);
-  switch (Dn.cons(dn, ~kid, mel)) {
+  switch (Dn.snoc(dn, ~kid, mel)) {
   | Ok(dn) => put_slopes((dn, up), rel)
   | Error(kid) =>
     switch (Chain.unlink(rel)) {
@@ -28,7 +29,7 @@ let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
       switch (Terrace.cmp(l, ~kid, mel)) {
       | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
       | {lt: Some(kid_mel), _} =>
-        put_slopes((Dn.of_meld(kid_mel), suf), rel)
+        put_slopes((Dn.of_meld(kid_mel), up), rel)
       | {eq: Some(l_kid_mel), _} =>
         let dn = Dn.of_meld(l_kid_mel);
         let up = Up.cat(up, Up.of_terr(r));
@@ -41,6 +42,7 @@ let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
   };
 };
 let rec cons_r = (mel: Terrace.R.t, ~kid=Meld.empty(), rel: t): t => {
+  open Slope;
   let (dn, up) = get_slopes(rel);
   switch (Up.cons(mel, ~kid, up)) {
   | Ok(up) => put_slopes((dn, up), rel)
@@ -72,31 +74,31 @@ let rec cons_r = (mel: Terrace.R.t, ~kid=Meld.empty(), rel: t): t => {
 //   };
 let cons_space = (~onto: Dir.t, s, rel) =>
   rel |> map_slopes(Slopes.cons_space(~onto, s));
-let cons_seg = (~onto: Dir.t, seg, rel) => {
-  let cons_space = cons_space(~onto);
-  let cons_meld = cons_meld(~onto);
-  switch (onto) {
-  | L =>
-    Segment.to_suffix(seg)
-    |> Chain.fold_left(
-         s => rel |> cons_space(s),
-         (rel, mel, s) => rel |> cons_meld(mel) |> cons_space(s),
-       )
-  | R =>
-    Segment.to_prefix(seg)
-    |> Chain.fold_right(
-         (s, mel, rel) => rel |> cons_meld(mel) |> cons_space(s),
-         s => rel |> cons_space(s),
-       )
-  };
-};
-let cons_parent = (par, rel) =>
-  switch (par) {
-  | _ when Bridge.is_empty(par) => rel
-  | (l, r) when Meld.is_empty(l) => cons_meld(~onto=R, r, rel)
-  | (l, r) when Meld.is_empty(r) => cons_meld(~onto=L, l, rel)
-  | _ => Chain.link(Slopes.empty, par, rel)
-  };
+// let cons_seg = (~onto: Dir.t, seg, rel) => {
+//   let cons_space = cons_space(~onto);
+//   let cons_meld = cons_meld(~onto);
+//   switch (onto) {
+//   | L =>
+//     Segment.to_suffix(seg)
+//     |> Chain.fold_left(
+//          s => rel |> cons_space(s),
+//          (rel, mel, s) => rel |> cons_meld(mel) |> cons_space(s),
+//        )
+//   | R =>
+//     Segment.to_prefix(seg)
+//     |> Chain.fold_right(
+//          (s, mel, rel) => rel |> cons_meld(mel) |> cons_space(s),
+//          s => rel |> cons_space(s),
+//        )
+//   };
+// };
+// let cons_parent = (par, rel) =>
+//   switch (par) {
+//   | _ when Bridge.is_empty(par) => rel
+//   | (l, r) when Meld.is_empty(l) => cons_meld(~onto=R, r, rel)
+//   | (l, r) when Meld.is_empty(r) => cons_meld(~onto=L, l, rel)
+//   | _ => Chain.link(Slopes.empty, par, rel)
+//   };
 
 let assemble = (~sel=Segment.empty, rel: t): t => {
   let rec go = ((l, r) as sib, rel) =>
@@ -258,18 +260,18 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
   mold_(~match=false, ~kid?, t, rel);
 };
 
-let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
-  let bounds = Slopes.bounds(get_slopes(rel));
-  switch (bounds, Chain.unlink(rel)) {
-  | (_, None)
-  | ((Some(_), Some(_)), _) => bounds
-  | ((None, _) | (_, None), Some((_, (par_l, par_r), _))) =>
-    let (l, r) = bounds;
-    let l = Option.value(l, ~default=par_l);
-    let r = Option.value(r, ~default=par_r);
-    (Some(l), Some(r));
-  };
-};
+// let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
+//   let bounds = Slopes.bounds(get_slopes(rel));
+//   switch (bounds, Chain.unlink(rel)) {
+//   | (_, None)
+//   | ((Some(_), Some(_)), _) => bounds
+//   | ((None, _) | (_, None), Some((_, (par_l, par_r), _))) =>
+//     let (l, r) = bounds;
+//     let l = Option.value(l, ~default=par_l);
+//     let r = Option.value(r, ~default=par_r);
+//     (Some(l), Some(r));
+//   };
+// };
 
 // precond: mel is closed left
 let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {

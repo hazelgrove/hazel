@@ -12,10 +12,16 @@ module M = {
   let empty = mk([]);
   let of_terr = terr => mk([terr]);
 
+  let height = slope => List.length(slope.terrs);
+
   let map_space = (f, s) => {...s, space: f(s.space)};
   // let has_space = s =>
   //   Space.is_empty(s.space)
   //   ? None : Some((s.space, {...s, space: Space.empty}));
+
+  // always folds up the slope
+  let fold = (f_s, f_terr, slope) =>
+    List.fold_left(f_terr, f_s(slope.space), slope.terrs);
 };
 include M;
 

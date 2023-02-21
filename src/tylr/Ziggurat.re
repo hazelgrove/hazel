@@ -54,20 +54,20 @@ let put_dn = dn => map_dn(_ => dn);
 //   | Some((kid, l)) => mk(~up=Up.of_meld(kid), Retainer.of_l(l, retainer))
 //   };
 
-let cons = (terr: Terrace.R.t, zigg: t) =>
+let push = (terr: Terrace.R.t, zigg: t) =>
   switch (Up.cons(terr, zigg.up)) {
-  | Ok(up) => {...zigg, up}
-  // todo: need to handle possibility of terr >= top
+  | Ok(up) => Ok({...zigg, up})
   | Error(kid) =>
     switch (Terrace.cmp(terr, ~kid, Terrace.of_retainer(zigg.top))) {
     | {lt: None, eq: None, gt: None} => failwith("expected fit")
-    | {gt: Some(terr_kid), _} => put_up(Up.of_meld(terr_kid), zigg)
+    | {gt: Some(terr_kid), _} => Ok(put_up(Up.of_meld(terr_kid), zigg))
     | {eq: Some(terr_kid_top), _} =>
       let (l, top, r) = Option.get(Retainer.of_meld(terr_kid_top));
       zigg
       |> put_up(Up.of_meld(l))
       |> put_top(top)
-      |> map_dn(Dn.cat(Dn.of_meld(r)));
+      |> map_dn(Dn.cat(Dn.of_meld(r)))
+      |> Result.ok;
     | {lt: Some(_), _} =>
       //                                  ----------zigg
       //                -----------------terr
@@ -77,22 +77,23 @@ let cons = (terr: Terrace.R.t, zigg: t) =>
       //                                  ----------new dn
       let up = Up.of_meld(terr.backfill);
       let dn = Dn.cons(Terrace.{backfill: kid, retainer: zigg.top}, zigg.dn);
-      mk(~up, terr.retainer, ~dn);
+      Error(mk(~up, terr.retainer, ~dn));
     }
   };
-let snoc = (zigg: t, terr: Terrace.L.t) =>
+let hsup = (zigg: t, terr: Terrace.L.t) =>
   switch (Dn.snoc(zigg.dn, terr)) {
-  | Ok(dn) => {...zigg, dn}
+  | Ok(dn) => Ok({...zigg, dn})
   | Error(kid) =>
     switch (Terrace.cmp(Terrace.of_retainer(zigg.top), ~kid, terr)) {
     | {lt: None, eq: None, gt: None} => failwith("expected fit")
-    | {lt: Some(kid_terr), _} => put_dn(Dn.of_meld(kid_terr), zigg)
+    | {lt: Some(kid_terr), _} => Ok(put_dn(Dn.of_meld(kid_terr), zigg))
     | {eq: Some(top_kid_terr), _} =>
       let (l, top, r) = Option.get(Retainer.of_meld(top_kid_terr));
       zigg
       |> map_up(Fun.flip(Up.cat, Up.of_meld(l)))
       |> put_top(top)
-      |> put_dn(Dn.of_meld(r));
+      |> put_dn(Dn.of_meld(r))
+      |> Result.ok;
     | {gt: Some(_), _} =>
       //                ----------zigg
       //                           -----------------terr
@@ -102,7 +103,7 @@ let snoc = (zigg: t, terr: Terrace.L.t) =>
       //                ----------new up
       let up = Up.snoc(zigg.up, Terrace.{retainer: zigg.top, backfill: kid});
       let dn = Dn.of_meld(terr.backfill);
-      mk(~up, terr.retainer, ~dn);
+      Error(mk(~up, terr.retainer, ~dn));
     }
   };
 

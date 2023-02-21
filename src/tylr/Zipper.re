@@ -29,7 +29,7 @@ let init =
 let unselect = (d: Dir.t, {sel, rel}: t) =>
   rel |> Stepwell.cons_arch(~onto=Dir.toggle(d), sel.arch) |> mk;
 
-let zip = (~d=Dir.L, z: t): Meld.Zipped.t => {
+let zip = (~d=Dir.L, z: t): Meld.t => {
   let z = unselect(d, z);
   Stepwell.zip(z.rel);
 };
@@ -50,6 +50,68 @@ let move = (d: Dir.t, z: t): option(t) =>
     Stepwell.shift_char(~from=d, z.rel)
     |> Option.map(rel => {...z, rel: Stepwell.assemble(rel)});
   };
+let move_n = (n: int, z: t): option(t) =>
+  switch (n) {
+  | _ when n < 0 => Option.bind(move(L, z), move_n(n + 1))
+  | _ when n > 0 => Option.bind(move(R, z), move_n(n - 1))
+  | _zero => Some(z)
+  };
+
+let unzip_end = (~unzipped, side: Dir.t, mel: Meld.t) =>
+  unzipped
+  |> Stepwell.cons_slopes(
+       side == L
+         ? Slope.(Dn.empty, Up.of_meld(mel))
+         : Slope.(Dn.of_meld(mel), Up.empty),
+     )
+  |> mk;
+
+let rec unzip = (~unzipped=Stepwell.empty, mel: Meld.t): t => {
+  let (paths, mel) = (mel.paths, Meld.clear_paths(mel));
+  switch (paths) {
+  | [] => unzip_end(~unzipped, L, mel)
+  | [{kids: [], here: Space(side, n)}] =>
+    unzip_end(~unzipped, side, mel)
+    |> move_n(side == L ? n : Space.length(snd(mel.space)) - n)
+    |> OptUtil.get_or_raise(Path.Invalid)
+  | [{kids: [], here: Piece(m, n)}] =>
+    open Slope;
+    let (l, p, r) = Meld.split_piece(m, mel);
+    let slopes =
+      switch (Piece.unzip(n, p)) {
+      | Some((p_l, p_r)) => (
+          Dn.of_meld(Meld.knil(l, p_l)),
+          Up.of_meld(Meld.link(p_r, r)),
+        )
+      | None =>
+        n == 0
+          ? (Dn.of_meld(l), Up.of_meld(Meld.link(p, r)))
+          : (Dn.of_meld(Meld.knil(l, p)), Up.of_meld(r))
+      };
+    unzipped |> Stepwell.cons_slopes(slopes) |> mk;
+  | [{kids: [hd, ...tl], _} as path] =>
+    switch (Bridge.unzip(hd, mel)) {
+    | Some((b, kid)) =>
+      let unzipped = Stepwell.cons_bridge(b, unzipped);
+      let kid = Meld.add_paths([{...path, kids: tl}], kid);
+      unzip(~unzipped, kid);
+    | None =>
+      let (kid, slopes) =
+        if (hd == 0) {
+          let (kid, t) =
+            Terrace.L.mk(mel) |> OptUtil.get_or_raise(Path.Invalid);
+          (kid, Slope.(Dn.empty, Up.of_terr(t)));
+        } else {
+          let (t, kid) =
+            Terrace.R.mk(mel) |> OptUtil.get_or_raise(Path.Invalid);
+          (kid, Slope.(Dn.of_terr(t), Up.empty));
+        };
+      let unzipped = Stepwell.cons_slopes(slopes, unzipped);
+      unzip(~unzipped, kid);
+    }
+  | _ => failwith("todo unzip selection")
+  };
+};
 
 let select = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;

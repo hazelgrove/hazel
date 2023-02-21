@@ -7,6 +7,9 @@ type t =
   | S(Space.t)
   | Z(Ziggurat.t);
 
+let s = s => S(s);
+let z = z => Z(z);
+
 let empty = S(Space.empty);
 let is_empty =
   fun
@@ -23,27 +26,28 @@ let hsup_space = (seg, s) =>
   | Z(zigg) => Z(Ziggurat.snoc_space(zigg, s))
   };
 
+let push = (t: Terrace.R.t, seg: t) =>
+  switch (seg) {
+  | S(s) => Error(Z(Ziggurat.of_dn(Dn.mk([t], ~s))))
+  | Z(zigg) =>
+    Ziggurat.push(t, zigg) |> Result.map(~f=z) |> Result.map_error(~f=z)
+  };
+let hsup = (seg: t, t: Terrace.L.t) =>
+  switch (seg) {
+  | S(s) => Error(Z(Ziggurat.of_up(Up.mk(~s, [t]))))
+  | Z(zigg) =>
+    Ziggurat.hsup(zigg, t) |> Result.map(~f=z) |> Result.map_error(~f=z)
+  };
+
 let push_lexeme = (lx, seg) =>
   switch (Lexeme.to_piece(lx)) {
-  | Error(s) => push_space(s, seg)
-  | Ok(p) =>
-    Z(
-      switch (seg) {
-      | S(s) => Ziggurat.mk(Retainer.of_piece(p), ~dn=Slope.Dn.mk(~s, []))
-      | Z(zigg) => Ziggurat.cons(Terrace.of_piece(p), zigg)
-      },
-    )
+  | Error(s) => Ok(push_space(s, seg))
+  | Ok(p) => push(Terrace.of_piece(p), seg)
   };
 let hsup_lexeme = (seg, lx) =>
   switch (Lexeme.to_piece(lx)) {
-  | Error(s) => hsup_space(seg, s)
-  | Ok(p) =>
-    Z(
-      switch (seg) {
-      | S(s) => Ziggurat.mk(~up=Slope.Up.mk(~s, []), Retainer.of_piece(p))
-      | Z(zigg) => Ziggurat.snoc(zigg, Terrace.of_piece(p))
-      },
-    )
+  | Error(s) => Ok(hsup_space(seg, s))
+  | Ok(p) => hsup(seg, Terrace.of_piece(p))
   };
 
 let pull_lexeme = (~char=false, seg) =>
@@ -114,3 +118,30 @@ let llup_lexeme = (~char=false, seg) =>
       }
     }
   };
+
+let split_lt = (dn: Dn.t, seg: t): (Dn.t, Dn.t) =>
+  dn
+  |> Dn.fold(
+       s => (Dn.(empty, mk(~s, [])), push_space(s, seg)),
+       (((lt, geq), seg), t) =>
+         switch (push(t, seg)) {
+         | Ok(seg) =>
+           assert(lt == Dn.empty);
+           ((lt, Dn.cons(t, geq)), seg);
+         | Error(seg) => ((Dn.cons(t, lt), geq), seg)
+         },
+     )
+  |> fst;
+let split_gt = (seg: t, up: Up.t): (Up.t, Up.t) =>
+  up
+  |> Up.fold(
+       s => (hsup_space(seg, s), Up.(mk(~s, []), empty)),
+       ((seg, (leq, gt)), t) =>
+         switch (hsup(seg, t)) {
+         | Ok(seg) =>
+           assert(gt == Up.empty);
+           (seg, (Up.snoc(leq, t), gt));
+         | Error(seg) => (seg, (leq, Up.snoc(gt, t)))
+         },
+     )
+  |> snd;
