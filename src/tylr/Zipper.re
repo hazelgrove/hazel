@@ -13,7 +13,7 @@ let mk = (~sel=Selection.empty, rel) => {sel, rel};
 
 let init =
   mk(
-    Stepwell.of_sib(
+    Stepwell.of_slopes(
       Slopes.mk(
         ~r=
           Slope.Up.of_meld(

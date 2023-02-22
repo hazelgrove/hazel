@@ -54,12 +54,6 @@ module Dn = {
       }
     };
   };
-
-  let cons = (terr: Terrace.R.t, dn: t) => {
-    ...dn,
-    terrs: [terr, ...dn.terrs],
-  };
-
   let unsnoc_lexeme = (~char=false, dn: t): option((t, Lexeme.t)) =>
     switch (Space.unsnoc(~char, dn.space)) {
     | Some((space, s)) => Some(({...dn, space}, Lexeme.S(s)))
@@ -71,6 +65,14 @@ module Dn = {
         Some((mk(cat(tl, rest), ~s), lx));
       }
     };
+
+  let cons = (terr: Terrace.R.t, dn: t) => {
+    ...dn,
+    terrs: [terr, ...dn.terrs],
+  };
+  let uncons = dn =>
+    ListUtil.split_last_opt(dn.terrs)
+    |> Option.map(((terrs, t)) => (t, {...dn, terrs}));
 
   let zip = (dn: t, kid: Meld.t) =>
     List.fold_left(
@@ -111,12 +113,6 @@ module Up = {
       }
     };
   };
-
-  let snoc = (up: t, terr: Terrace.L.t) => {
-    ...up,
-    terrs: up.terrs @ [terr],
-  };
-
   let uncons_lexeme = (~char=false, up: t): option((Lexeme.t, t)) =>
     switch (Space.uncons(~char, up.space)) {
     | Some((s, space)) => Some((Lexeme.S(s), {...up, space}))
@@ -128,6 +124,14 @@ module Up = {
         Some((lx, mk(~s, cat(rest, tl))));
       }
     };
+
+  let snoc = (up: t, terr: Terrace.L.t) => {
+    ...up,
+    terrs: up.terrs @ [terr],
+  };
+  let unsnoc = up =>
+    ListUtil.split_first_opt(up.terrs)
+    |> Option.map(((t, terrs)) => ({...up, terrs}, t));
 
   let zip = (kid: Meld.t, up: t) =>
     List.fold_left(

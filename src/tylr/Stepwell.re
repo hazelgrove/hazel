@@ -10,6 +10,8 @@ let map_slopes: (_, t) => t = Chain.map_fst;
 let put_slopes = sib => map_slopes(_ => sib);
 let cons_slopes = (sib, rel) => map_slopes(Slopes.cat(sib), rel);
 
+let cons_bridge = bridge => Chain.link(Slopes.empty, bridge);
+
 let empty = of_slopes(Slopes.empty);
 
 let cat: (t, t) => t = Chain.cat(Slopes.cat);
@@ -68,11 +70,11 @@ let rec cons_r = (~kid=Meld.empty(), mel: Terrace.R.t, rel: t): t => {
     }
   };
 };
-// let cons_meld = (~onto: Dir.t, mel, rel) =>
-//   switch (onto) {
-//   | L => rel |> cons_l(mel)
-//   | R => rel |> cons_r(mel)
-//   };
+let cons = (~onto: Dir.t, terr, rel) =>
+  switch (onto) {
+  | L => rel |> cons_l(terr)
+  | R => rel |> cons_r(terr)
+  };
 let cons_space = (~onto: Dir.t, s, rel) =>
   rel |> map_slopes(Slopes.cons_space(~onto, s));
 // let cons_seg = (~onto: Dir.t, seg, rel) => {
@@ -101,59 +103,41 @@ let cons_space = (~onto: Dir.t, s, rel) =>
 //   | _ => Chain.link(Slopes.empty, par, rel)
 //   };
 
-let assemble = (~sel=Segment.empty, rel: t): t => {
-  let rec go = ((l, r) as sib, rel) =>
-    switch (Chain.unlink(l), Chain.unknil(r)) {
-    | (None, _)
-    | (_, None) => cons_slopes(sib, rel)
-    | (Some((s_l, mel_l, tl_l)), Some((tl_r, mel_r, s_r))) =>
-      switch (Meld.cmp(mel_l, mel_r)) {
-      | _ when Meld.(fst_id(mel_l) == lst_id(mel_r)) =>
-        rel |> cons_slopes(sib)
-      | In(_) =>
-        rel
-        |> cons_space(~onto=L, s_l)
-        |> cons_space(~onto=R, s_r)
-        |> cons_meld(~onto=L, mel_l)
-        |> cons_meld(~onto=R, mel_r)
-        |> go((tl_l, tl_r))
-      | Eq(_) =>
-        rel
-        |> cons_space(~onto=L, s_l)
-        |> cons_space(~onto=R, s_r)
-        |> cons_parent((mel_l, mel_r))
-        |> go((tl_l, tl_r))
-      | Lt(_) =>
-        rel
-        |> cons_space(~onto=L, s_l)
-        |> cons_meld(~onto=L, mel_l)
-        |> go((tl_l, r))
-      | Gt(_) =>
-        rel
-        |> cons_space(~onto=R, s_r)
-        |> cons_meld(~onto=R, mel_r)
-        |> go((l, tl_r))
-      }
-    };
+let rec unzip_slopes = ((l, r) as slopes, well) =>
+  switch (Slope.Dn.uncons(l), Slope.Up.unsnoc(r)) {
+  | (None, _)
+  | (_, None) => cons_slopes(slopes, well)
+  | (Some((hd_l, tl_l)), Some((tl_r, hd_r))) =>
+    switch (Terrace.cmp(hd_l, hd_r)) {
+    | {lt: None, eq: None, gt: None} => failwith("expected cmp")
+    | {eq: Some(_), _} =>
+      well |> cons_bridge((hd_l, hd_r)) |> unzip_slopes((tl_l, tl_r))
+    | {lt: Some(_), _} =>
+      well
+      |> cons_slopes(Slopes.mk(~l=Slope.of_terr(hd_l), ()))
+      |> unzip_slopes((tl_l, r))
+    | {gt: Some(_), _} =>
+      well
+      |> cons_slopes(Slopes.mk(~r=Slope.of_terr(hd_r), ()))
+      |> unzip_slopes((l, tl_r))
+    }
+  };
 
-  // let (pre, suf) = Slopes.assemble(get_slopes(rel));
+let assemble = (~sel=Segment.empty, rel: t): t => {
   let (pre, suf) = get_slopes(rel);
   // separate siblings that belong to the selection
   let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
   let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
   rel
   |> put_slopes(Slopes.empty)
-  |> go((pre_lt_sel, sel_gt_suf))
+  |> unzip_slopes((pre_lt_sel, sel_gt_suf))
   |> cons_slopes((pre_geq_sel, sel_leq_suf));
 };
 
 let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t) =>
-  switch (lx) {
-  | S(s) => cons_space(~onto, s)
-  | G(_)
-  | T(_) =>
-    let terr = Terrace.of_piece(Option.get(Lexeme.to_piece(lx)));
-    cons(~onto, terr);
+  switch (Lexeme.to_piece(lx)) {
+  | Error(s) => cons_space(~onto, s)
+  | Ok(p) => cons(~onto, Terrace.of_piece(p))
   };
 let cons_opt_lexeme = (~onto: Dir.t, lx) =>
   switch (lx) {
@@ -235,8 +219,9 @@ let rec shift_lexeme =
 };
 
 let mold_ =
-    (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t): Mold.Result.t => {
-  let rec go = (~kid: option(Sort.o)=?, rel: t): Mold.Result.t => {
+    (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t)
+    : Result.t(Mold.t, Sort.o) => {
+  let rec go = (~kid: option(Sort.o)=?, rel: t) => {
     open Result.Syntax;
     let (pre, _) = get_slopes(rel);
     let/ kid = Segment.mold(~match, pre, ~kid?, t);
@@ -255,7 +240,7 @@ let mold_ =
   };
   go(~kid?, rel);
 };
-let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
+let mold = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, Sort.o) => {
   open Result.Syntax;
   let/ _ = mold_(~match=true, ~kid?, t, rel);
   mold_(~match=false, ~kid?, t, rel);
