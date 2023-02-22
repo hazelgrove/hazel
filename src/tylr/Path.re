@@ -1,6 +1,21 @@
 open Sexplib.Std;
 module Either3 = Util.Either3;
 
+module Kid = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = int;
+};
+module Lex = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Space(Dir.t)
+    | Piece(int);
+};
+module Col = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = int;
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type here =
   | Space(Dir.t, Space.Path.t)

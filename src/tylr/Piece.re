@@ -214,13 +214,13 @@ let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
 let replaces = (_, _): option(Dir.t) => failwith("todo Piece.replaces");
 let passes = (_, _): option(Dir.t) => failwith("todo Piece.passes");
 
-let unzip = (path: Path.t, p: t): option((t, t)) => {
+let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
   switch (p.shape) {
   | G(g) =>
     Grout.unzip(path, g)
-    |> Option.map(((l, r)) => (of_grout(l), of_grout(r)))
+    |> Either.map_r(((l, r)) => (of_grout(l), of_grout(r)))
   | T(t) =>
     Tile.unzip(path, t)
-    |> Option.map(((l, r)) => (of_tile(l), of_tile(r)))
+    |> Either.map_r(((l, r)) => (of_tile(l), of_tile(r)))
   };
 };

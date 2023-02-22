@@ -49,7 +49,7 @@ module L = {
   let uncons_lexeme = (~char=false, l: t): (Lexeme.t, Space.t, list(t)) => {
     let (face, rest) = split_face(l);
     switch (Piece.unzip(1, face)) {
-    | Some((c, rest_face)) when char =>
+    | R((c, rest_face)) when char =>
       let (_empty, l) = Option.get(mk(Meld.link(rest_face, rest)));
       (Lexeme.of_piece(c), Space.empty, [l]);
     | _ =>
@@ -87,7 +87,7 @@ module R = {
     let (face, rest) = split_face(r);
     // left-to-right: rest face
     switch (Piece.unzip(Piece.length(face) - 1, face)) {
-    | Some((rest_face, c)) when char =>
+    | R((rest_face, c)) when char =>
       let (r, _empty) = Option.get(mk(Meld.knil(rest, rest_face)));
       ([r], Space.empty, Lexeme.of_piece(c));
     | _ =>

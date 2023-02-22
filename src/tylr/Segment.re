@@ -62,7 +62,7 @@ let pull_lexeme = (~char=false, seg) =>
       switch (Chain.unlink(zigg.top)) {
       | Some((p, kid, top)) =>
         switch (Piece.unzip(1, p)) {
-        | Some((c, rest_p)) when char =>
+        | R((c, rest_p)) when char =>
           let top = Chain.link(rest_p, kid, top);
           Some((Lexeme.of_piece(c), Z({...zigg, top})));
         | _ =>
@@ -72,7 +72,7 @@ let pull_lexeme = (~char=false, seg) =>
       | None =>
         let p = Chain.fst(zigg.top);
         switch (Piece.unzip(1, p)) {
-        | Some((c, rest_p)) when char =>
+        | R((c, rest_p)) when char =>
           let top = Retainer.of_piece(rest_p);
           Some((Lexeme.of_piece(c), Z({...zigg, top})));
         | _ =>
@@ -96,7 +96,7 @@ let llup_lexeme = (~char=false, seg) =>
       switch (Chain.unknil(zigg.top)) {
       | Some((top, kid, p)) =>
         switch (Piece.unzip(Piece.length(p) - 1, p)) {
-        | Some((rest_p, c)) when char =>
+        | R((rest_p, c)) when char =>
           let top = Chain.knil(top, kid, rest_p);
           Some((Z({...zigg, top}), Lexeme.of_piece(c)));
         | _ =>
@@ -106,7 +106,7 @@ let llup_lexeme = (~char=false, seg) =>
       | None =>
         let p = Chain.lst(zigg.top);
         switch (Piece.unzip(Piece.length(p) - 1, p)) {
-        | Some((rest_p, c)) when char =>
+        | R((rest_p, c)) when char =>
           let top = Retainer.of_piece(rest_p);
           Some((Z({...zigg, top}), Lexeme.of_piece(c)));
         | _ =>

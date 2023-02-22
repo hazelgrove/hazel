@@ -41,8 +41,9 @@ let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
     }
   };
 };
-let rec cons_r = (mel: Terrace.R.t, ~kid=Meld.empty(), rel: t): t => {
-  open Slope;
+let rec cons_r = (~kid=Meld.empty(), mel: Terrace.R.t, rel: t): t => {
+  open Slope; // left-to-right: mel kid
+
   let (dn, up) = get_slopes(rel);
   switch (Up.cons(mel, ~kid, up)) {
   | Ok(up) => put_slopes((dn, up), rel)
