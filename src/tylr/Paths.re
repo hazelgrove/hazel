@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 // current a list but could turn into record for specific paths
 // (eg cursor vs variable uses)
@@ -7,7 +8,7 @@ type t = list(Path.t);
 
 let merge = List.concat;
 
-let offsets = List.map((p: Path.t) => p.offset);
+// let offsets = List.map((p: Path.t) => p.offset);
 
 let uncons = (ps: t): option((Path.Kid.t, t)) =>
   switch (ps) {

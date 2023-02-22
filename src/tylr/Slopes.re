@@ -128,5 +128,5 @@ let zip_init = ((dn, up): t) =>
     let p = Option.get(Piece.zip(hd_l, hd_r));
     let kid = Meld.append(tl_l, p, tl_r);
     zip((Dn.mk(terrs_l), Up.mk(terrs_r)), kid);
-  | _ => zip((dn, up), Meld.empty(~paths=[Path.mk()], ()))
+  | _ => zip((dn, up), Meld.empty(~paths=[Path.mk(Space(L))], ()))
   };
