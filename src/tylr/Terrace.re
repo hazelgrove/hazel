@@ -95,6 +95,20 @@ module R = {
       (rs, s, Lexeme.of_piece(face));
     };
   };
+
+  let tip = (terr: t) => Piece.tip(R, face(terr));
+  let sort = (terr: t) => Piece.sort(face(terr));
+  // todo: remove option from return type, added just to get things typechecking
+  // todo: review whether match flag is needed here
+  let mold = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+    switch (tip(terr)) {
+    | Convex => Error(Some(sort(terr)))
+    | Concave(s, _) =>
+      LangUtil.mold_of_token(kid, s, t)
+      |> Result.of_option(~error=Some(sort(terr)))
+    };
+
+  let complement = (terr: t) => Piece.complement(~side=R, face(terr));
 };
 
 // todo: consider requiring kid already be completed

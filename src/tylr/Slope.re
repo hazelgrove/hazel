@@ -80,6 +80,19 @@ module Dn = {
       Meld.pad(~l=dn.space, kid),
       dn.terrs,
     );
+
+  let rec mold =
+          (~match, dn: t, ~kid: option(Sort.o)=?, t: Token.t)
+          : Result.t(Mold.t, option(Sort.o)) =>
+    switch (dn.terrs) {
+    | [] => Error(kid)
+    | [terr, ...terrs] =>
+      open Result.Syntax;
+      let/ kid = Terrace.R.mold(terr, ~kid?, t);
+      mold(~match, {...dn, terrs}, ~kid?, t);
+    };
+
+  let complement = dn => List.concat_map(Terrace.R.complement, dn.terrs);
 };
 
 module Up = {

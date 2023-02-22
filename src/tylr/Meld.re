@@ -328,19 +328,6 @@ let sort = mel => {
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
-let mold =
-    (mel: t, ~kid: option(Sort.o)=?, t: Token.t): Result.t(Mold.t, Sort.o) => {
-  open Result.Syntax;
-  // todo: possibly join with kid sort
-  let error = sort(mel);
-  let* tip = Result.of_option(~error, tip(R, mel));
-  switch (tip) {
-  | Tip.Convex => Error(error)
-  | Concave(sort, _) =>
-    Result.of_option(~error, LangUtil.mold_of_token(kid, sort, t))
-  };
-};
-
 // let split_nth_kid = (n, mel: t) => {
 //   let (ks, ps) = mel;
 //   print_endline("split_nth_kid bef");

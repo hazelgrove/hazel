@@ -16,6 +16,8 @@ let is_empty =
   | S(s) when Space.is_empty(s) => true
   | _ => false;
 
+let of_meld = _ => failwith("todo Segment.of_meld");
+
 let push_space = s =>
   fun
   | S(s') => S(Space.cat(s, s'))

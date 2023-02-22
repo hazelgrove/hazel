@@ -77,31 +77,6 @@ let cons = (~onto: Dir.t, terr, rel) =>
   };
 let cons_space = (~onto: Dir.t, s, rel) =>
   rel |> map_slopes(Slopes.cons_space(~onto, s));
-// let cons_seg = (~onto: Dir.t, seg, rel) => {
-//   let cons_space = cons_space(~onto);
-//   let cons_meld = cons_meld(~onto);
-//   switch (onto) {
-//   | L =>
-//     Segment.to_suffix(seg)
-//     |> Chain.fold_left(
-//          s => rel |> cons_space(s),
-//          (rel, mel, s) => rel |> cons_meld(mel) |> cons_space(s),
-//        )
-//   | R =>
-//     Segment.to_prefix(seg)
-//     |> Chain.fold_right(
-//          (s, mel, rel) => rel |> cons_meld(mel) |> cons_space(s),
-//          s => rel |> cons_space(s),
-//        )
-//   };
-// };
-// let cons_parent = (par, rel) =>
-//   switch (par) {
-//   | _ when Bridge.is_empty(par) => rel
-//   | (l, r) when Meld.is_empty(l) => cons_meld(~onto=R, r, rel)
-//   | (l, r) when Meld.is_empty(r) => cons_meld(~onto=L, l, rel)
-//   | _ => Chain.link(Slopes.empty, par, rel)
-//   };
 
 let rec unzip_slopes = ((l, r) as slopes, well) =>
   switch (Slope.Dn.uncons(l), Slope.Up.unsnoc(r)) {
@@ -220,11 +195,11 @@ let rec shift_lexeme =
 
 let mold_ =
     (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t)
-    : Result.t(Mold.t, Sort.o) => {
+    : Result.t(Mold.t, option(Sort.o)) => {
   let rec go = (~kid: option(Sort.o)=?, rel: t) => {
     open Result.Syntax;
     let (pre, _) = get_slopes(rel);
-    let/ kid = Segment.mold(~match, pre, ~kid?, t);
+    let/ kid = Slope.Dn.mold(~match, pre, ~kid?, t);
     switch (Chain.unlink(rel)) {
     | None =>
       match
@@ -234,13 +209,14 @@ let mold_ =
             LangUtil.mold_of_token(kid, Sort.root_o, t),
           )
     | Some((_slopes, par, rel)) =>
-      let/ kid = Bridge.mold(~match, ~kid?, t, par);
+      // todo: review whether match flag should be propagated to bridge
+      let/ kid = Bridge.mold(~kid?, t, par);
       match ? go(~kid?, rel) : Error(kid);
     };
   };
   go(~kid?, rel);
 };
-let mold = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, Sort.o) => {
+let mold = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
   open Result.Syntax;
   let/ _ = mold_(~match=true, ~kid?, t, rel);
   mold_(~match=false, ~kid?, t, rel);
@@ -259,23 +235,20 @@ let mold = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, Sort.o) => {
 //   };
 // };
 
-// precond: mel is closed left
-let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
-  let (p, rest) =
-    Meld.is_closed_l(mel)
-    |> OptUtil.get_or_raise(Invalid_argument("Stepwell.insert_meld"));
+let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
+  let (p, rest) = Terrace.split_face(terr);
   switch (p.shape) {
   | G(g) =>
     // todo: may need to remold?
     rel
-    |> cons_meld(~onto=L, Meld.of_grout(g))
-    |> insert_seg(~complement, Segment.of_meld(rest))
+    |> cons(~onto=L, Terrace.of_piece(Piece.of_grout(g)))
+    |> insert_up(~complement, Slope.Up.of_meld(rest))
   | T(t) =>
     switch (mold(t.token, rel)) {
     | Ok(m) when m == t.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
       // todo: convert to prefix form
-      cons_meld(~onto=L, mel, rel)
+      cons(~onto=L, terr, rel)
     | m =>
       let t =
         switch (m) {
@@ -283,43 +256,39 @@ let rec insert_meld = (~complement, mel: Meld.t, rel: t): t => {
         | Ok(mold) => {...t, mold}
         };
       rel
-      |> cons_meld(~onto=L, Meld.of_tile(t))
-      |> insert_seg(~complement, Segment.of_meld(rest));
+      |> cons(~onto=L, Terrace.of_piece(Piece.of_tile(t)))
+      |> insert_up(~complement, Slope.Up.of_meld(rest));
     }
   };
 }
 and insert_complement = (rel: t) => {
   let (pre, _) = get_slopes(rel);
-  Segment.complement(~side=R, pre)
-  |> List.map(((tok, mol)) => Meld.of_grout(Grout.mk(~sugg=tok, mol)))
-  |> List.fold_left(Fun.flip(insert_meld(~complement=false)), rel);
+  Slope.Dn.complement(pre)
+  |> List.map(((tok, mol)) =>
+       Terrace.of_piece(Piece.of_grout(Grout.mk(~sugg=tok, mol)))
+     )
+  |> List.fold_left(Fun.flip(insert_terr(~complement=false)), rel);
 }
-and insert_space = (~complement, s: Space.s, rel: t) =>
-  s
+and insert_space = (~complement, s: Space.t, rel: t) =>
+  s.chars
   |> List.fold_left(
-       (rel, s: Space.t) =>
+       (rel, s: Space.Char.t) =>
          rel
          |> (s.shape == Newline && complement ? insert_complement : Fun.id)
-         |> cons_space(~onto=L, [s]),
+         |> cons_space(~onto=L, Space.mk([s])),
        rel,
      )
-and insert_seg = (~complement, seg: Segment.t, rel: t): t => {
-  let ins_s = insert_space(~complement);
-  let ins_mel = insert_meld(~complement);
-  Segment.to_suffix(seg)
-  |> Chain.fold_left(
-       s => ins_s(s, rel),
-       (rel, mel, s) => rel |> ins_mel(mel) |> ins_s(s),
+and insert_up = (~complement, up: Slope.Up.t, rel: t): t =>
+  up
+  |> Slope.Up.fold(
+       s => insert_space(~complement, s, rel),
+       (rel, t) => insert_terr(~complement, t, rel),
      );
-};
 
 let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
-  switch (lx) {
-  | S(s) => insert_space(~complement, [s], rel)
-  | G(_)
-  | T(_) =>
-    let mel = Meld.of_piece(Option.get(Lexeme.to_piece(lx)));
-    insert_meld(~complement, mel, rel);
+  switch (Lexeme.to_piece(lx)) {
+  | Error(s) => insert_space(~complement, s, rel)
+  | Ok(p) => insert_terr(~complement, Terrace.of_piece(p), rel)
   };
 
 let regrout = rel => {
@@ -371,52 +340,11 @@ let fill = (s: string, g: Grout.t): option(Piece.t) =>
     None;
   };
 
-let path = (rel: t): Meld.Path.t =>
-  rel
-  |> Chain.fold_right(
-       (sib, par, path) =>
-         path
-         |> Meld.Path.cons(Bridge.step(par))
-         |> Meld.Path.cons_s(Slopes.steps(sib)),
-       Slopes.path,
-     );
-
 let zip = (rel: t): Meld.t =>
   rel
   |> Chain.fold_left(Slopes.zip_init, (zipped, par, sib) =>
        zipped |> Bridge.zip(par) |> Slopes.zip(sib)
      );
-let unzip = (zipped: Meld.Zipped.t): t => {
-  let invalid = Meld.Zipped.Invalid(zipped);
-  let rec go = ((mel, path): Meld.Zipped.t, rel) => {
-    let seg = Segment.(to_prefix(of_padded(mel)));
-    go_seg((seg, path), rel);
-  }
-  and go_seg = ((seg, path), rel) =>
-    switch (path.steps) {
-    | [] =>
-      rel
-      |> cons_seg(~onto=R, seg)
-      |> shift_chars(path.offset)
-      |> OptUtil.get_or_raise(invalid)
-    | [step, ...steps] =>
-      switch (Chain.unlink(seg)) {
-      | None => raise(invalid)
-      | Some((s, mel, seg)) =>
-        let (kid, par) = Bridge.unzip(step, mel);
-        let rel = rel |> cons_space(~onto=L, s) |> cons_parent(par);
-        switch (Meld.Padded.is_empty(kid)) {
-        | None => go((kid, {...path, steps}), rel)
-        | Some(s_kid) =>
-          assert(Meld.is_empty(snd(par)));
-          rel
-          |> cons_space(~onto=L, s_kid)
-          |> go_seg((seg, {...path, steps}));
-        };
-      }
-    };
-  go(zipped, empty);
-};
 
 module Lexed = {
   open Sexplib.Std;
@@ -432,17 +360,16 @@ let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
   | (Some(G(l)), Some(G(r))) when l.id == r.id =>
     let prefix = l.fill ++ s;
     switch (fill(prefix, r)) {
-    | None =>
-      relex_insert(prefix, cons_meld(~onto=R, Meld.of_grout(r), rel'))
-    | Some(p) => (Lexed.empty, cons_meld(~onto=L, Meld.of_piece(p), rel'))
+    | None => relex_insert(prefix, cons(~onto=R, Meld.of_grout(r), rel'))
+    | Some(p) => (Lexed.empty, cons(~onto=L, Meld.of_piece(p), rel'))
     };
   | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
     let p = Option.get(fill(s, r));
     let rel =
       rel'
       |> cons_opt_lexeme(~onto=L, l)
-      |> cons_meld(~onto=L, Meld.of_piece(p))
-      |> (Piece.is_grout(p) ? cons_meld(~onto=R, Meld.of_grout(r)) : Fun.id);
+      |> cons(~onto=L, Meld.of_piece(p))
+      |> (Piece.is_grout(p) ? cons(~onto=R, Meld.of_grout(r)) : Fun.id);
     (Lexed.empty, rel);
   | _ =>
     // todo: recycle ids + avoid remolding if unaffected

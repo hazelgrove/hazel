@@ -28,8 +28,7 @@ let uncons_lexeme =
     ~from_r=Terrace.L.uncons_lexeme(~char=false),
   );
 
-[@warning "-27"]
-let mold = (~match, ~kid=?, t, par) => failwith("todo mold");
+let mold = (~kid=?, t, (l, _)) => Terrace.R.mold(l, ~kid?, t);
 
 let zip = ((l, r): t, kid: Meld.t) => Option.get(Terrace.eq(l, ~kid, r));
 
