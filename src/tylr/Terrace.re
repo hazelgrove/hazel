@@ -38,6 +38,11 @@ module L = {
     Retainer.to_meld(~l=kid, retainer, ~r=backfill);
   let append = (_: Meld.t, _: t) => failwith("todo append");
 
+  let pad = (t: t, s: Space.t) => {
+    ...t,
+    backfill: Meld.pad(t.backfill, ~r=s),
+  };
+
   let rec mk_s = (mel: Meld.t): (Space.t, list(t)) =>
     switch (mk(mel)) {
     | None =>
@@ -74,6 +79,11 @@ module R = {
        );
   let unmk = ({backfill, retainer}: t, kid) =>
     Retainer.to_meld(~l=backfill, retainer, ~r=kid);
+
+  let pad = (s: Space.t, t: t) => {
+    ...t,
+    backfill: Meld.pad(~l=s, t.backfill),
+  };
 
   let rec mk_s = (mel: Meld.t): (list(t), Space.t) =>
     switch (mk(mel)) {

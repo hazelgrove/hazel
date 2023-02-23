@@ -29,8 +29,35 @@ include M;
 
 module Dn = {
   include M;
-  let of_meld = _ => failwith("todo");
-  let cat = (_, _) => failwith("todo");
+  let of_meld = mel => {
+    let rec go = (terrs, mel) =>
+      switch (Terrace.R.mk(mel)) {
+      | None =>
+        // todo: may need to handle singleton kid
+        let (l, r) = mel.space;
+        mk(~s=Space.cat(l, r), terrs);
+      | Some((terr, kid)) => go([terr, ...terrs], kid)
+      };
+    go([], mel);
+  };
+
+  let cons_space = (s: Space.t, dn: t) =>
+    switch (ListUtil.split_last_opt(dn.terrs)) {
+    | None => map_space(Space.cat(s), dn)
+    | Some((ts, t)) => {...dn, terrs: ts @ [Terrace.R.pad(s, t)]}
+    };
+  let cons = (terr: Terrace.R.t, dn: t) => {
+    ...dn,
+    terrs: [terr, ...dn.terrs],
+  };
+  let uncons = dn =>
+    ListUtil.split_last_opt(dn.terrs)
+    |> Option.map(((terrs, t)) => (t, {...dn, terrs}));
+
+  let cat = (l: t, r: t) => {
+    let r = cons_space(l.space, r);
+    mk(~s=r.space, r.terrs @ l.terrs);
+  };
 
   let snoc_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
   let rec snoc =
@@ -62,18 +89,11 @@ module Dn = {
       switch (dn.terrs) {
       | [] => None
       | [hd, ...tl] =>
+        // left-to-right: tl hd
         let (rest, s, lx) = Terrace.R.unsnoc_lexeme(~char, hd);
-        Some((mk(cat(tl, rest), ~s), lx));
+        Some((mk(tl @ rest, ~s), lx));
       }
     };
-
-  let cons = (terr: Terrace.R.t, dn: t) => {
-    ...dn,
-    terrs: [terr, ...dn.terrs],
-  };
-  let uncons = dn =>
-    ListUtil.split_last_opt(dn.terrs)
-    |> Option.map(((terrs, t)) => (t, {...dn, terrs}));
 
   let zip = (dn: t, kid: Meld.t) =>
     List.fold_left(
@@ -99,7 +119,30 @@ module Dn = {
 module Up = {
   include M;
 
-  let of_meld = _ => failwith("todo");
+  let of_meld = mel => {
+    let rec go = (mel, terrs) =>
+      switch (Terrace.L.mk(mel)) {
+      | None =>
+        // todo: may need to handle singleton kid
+        let (l, r) = mel.space;
+        mk(~s=Space.cat(l, r), terrs);
+      | Some((kid, terr)) => go(kid, [terr, ...terrs])
+      };
+    go(mel, []);
+  };
+
+  let snoc_space = (up: t, s: Space.t) =>
+    switch (ListUtil.split_last_opt(up.terrs)) {
+    | None => map_space(Fun.flip(Space.cat, s), up)
+    | Some((ts, t)) => {...up, terrs: ts @ [Terrace.L.pad(t, s)]}
+    };
+  let snoc = (up: t, terr: Terrace.L.t) => {
+    ...up,
+    terrs: up.terrs @ [terr],
+  };
+  let unsnoc = up =>
+    ListUtil.split_first_opt(up.terrs)
+    |> Option.map(((t, terrs)) => ({...up, terrs}, t));
 
   let cat = (_, _) => failwith("todo");
 
@@ -135,17 +178,9 @@ module Up = {
       | [] => None
       | [hd, ...tl] =>
         let (lx, s, rest) = Terrace.L.uncons_lexeme(~char, hd);
-        Some((lx, mk(~s, cat(rest, tl))));
+        Some((lx, mk(~s, rest @ tl)));
       }
     };
-
-  let snoc = (up: t, terr: Terrace.L.t) => {
-    ...up,
-    terrs: up.terrs @ [terr],
-  };
-  let unsnoc = up =>
-    ListUtil.split_first_opt(up.terrs)
-    |> Option.map(((t, terrs)) => ({...up, terrs}, t));
 
   let zip = (kid: Meld.t, up: t) =>
     List.fold_left(
