@@ -13,16 +13,20 @@ open Util.Web;
 //    },
 module Txt = {
   open Tylr;
-  let of_space = (s: Space.s) =>
-    s
-    |> List.map((s: Space.t) =>
-         switch (s.shape) {
-         | Space => text(Unicode.nbsp)
-         | Newline => br()
-         }
-       )
-    |> span;
 
+  let of_space = (s: Space.t) =>
+    Space.length(s) == 0
+      ? []
+      : [
+        s
+        |> Space.map(c =>
+             switch (c.shape) {
+             | Space => text(Unicode.nbsp)
+             | Newline => br()
+             }
+           )
+        |> span,
+      ];
   let of_tile = (t: Tile.t) => {
     // let s_cls =
     //   switch (t.mold.sort) {
@@ -35,36 +39,47 @@ module Txt = {
       [text(t.token)],
     );
   };
-
   // todo
   let of_grout = (g: Grout.t) =>
     span(
       ~attr=Attr.classes(["grout"]),
       [text(g.sugg == "" ? "•" : g.sugg)],
     );
+  let of_piece = (p: Piece.t) =>
+    switch (p.shape) {
+    | T(t) => of_tile(t)
+    | G(g) => of_grout(g)
+    };
 
-  let rec of_meld = (c: Meld.t) =>
-    c
-    |> Aba.join(of_kid, of_piece)
-    |> List.concat
-    // todo: consider setting id-based key
-    |> span
-  and of_kid = (k: option(Meld.kid)) =>
-    switch (k) {
-    | None => []
-    | Some(K(kid)) => [of_meld(kid)]
-    }
-  and of_piece = (p: Piece.t) => {
-    let (l, r) = p.space;
-    let of_p =
-      switch (p.shape) {
-      | T(t) => of_tile(t)
-      | G(g) => of_grout(g)
+  let rec of_meld = (mel: Meld.t) => {
+    let (l, r) = mel.space;
+    let (of_l, of_r) = (of_space(l), of_space(r));
+    let of_c =
+      switch (mel.chain) {
+      | None => []
+      | Some(c) => Chain.to_list(of_meld, of_piece, c)
       };
-    [of_space(l), of_p, of_space(r)];
+    span(List.concat([of_l, of_c, of_r]));
   };
+  let of_retainer = ret => ret |> Chain.to_list(of_piece, of_meld) |> span;
 
-  let of_segment = (seg: Segment.t) => Chain.to_list(of_space, of_meld, seg);
+  let of_terr_l = (terr: Terrace.L.t) =>
+    span([of_meld(terr.backfill), of_retainer(terr.retainer)]);
+  let of_terr_r = (terr: Terrace.R.t) =>
+    span([of_retainer(terr.retainer), of_meld(terr.backfill)]);
+
+  let of_slope_dn = (slope: Slope.Dn.t) =>
+    List.rev_map(of_terr_r, slope.terrs) @ of_space(slope.space);
+  let of_slope_up = (slope: Slope.Up.t) =>
+    of_space(slope.space) @ List.map(of_terr_l, slope.terrs);
+
+  let of_zigg = ({up, top, dn}: Ziggurat.t) =>
+    of_slope_up(up) @ [of_retainer(top), ...of_slope_dn(dn)];
+  let of_segment = (seg: Segment.t) =>
+    switch (seg) {
+    | S(s) => of_space(s)
+    | Z(z) => of_zigg(z)
+    };
 };
 //  ) =>
 
@@ -224,9 +239,7 @@ let view =
     @ [
       div(
         ~attr=Attr.class_("tylr"),
-        fst(Tylr.Zipper.zip(tylr))
-        |> Tylr.Segment.of_padded
-        |> Txt.of_segment,
+        [Txt.of_meld(Tylr.Zipper.zip(tylr))],
       ),
     ],
   );

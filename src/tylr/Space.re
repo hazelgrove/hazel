@@ -48,6 +48,8 @@ let empty = mk([]);
 let is_empty = (s: t) => s.chars == [];
 let length = (s: t) => List.length(s.chars);
 
+let map = (f: Char.t => _, s) => List.map(f, s.chars);
+
 let add_paths = (ps, s) => {...s, paths: ps @ s.paths};
 let clear_paths = s => {...s, paths: []};
 
