@@ -16,7 +16,14 @@ let is_empty =
   | S(s) when Space.is_empty(s) => true
   | _ => false;
 
-let of_meld = _ => failwith("todo Segment.of_meld");
+let of_meld = mel =>
+  switch (Retainer.of_meld(mel)) {
+  | None =>
+    let (l, r) = mel.space;
+    S(Space.cat(l, r));
+  | Some((l, top, r)) =>
+    Z(Ziggurat.mk(~up=Slope.Up.of_meld(l), top, ~dn=Slope.Dn.of_meld(r)))
+  };
 
 let push_space = s =>
   fun

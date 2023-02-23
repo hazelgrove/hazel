@@ -173,4 +173,4 @@ let trim = ((lps, lks): t('lp, 'lk)): option(('lp, t('lk, 'lp), 'lp)) =>
     let (lps, r) = ListUtil.split_last(lps);
     Some((l, mk(lks, lps), r));
   };
-let untrim = (_, _, _) => failwith("todo");
+let untrim = (l, (lks, lps), r) => mk([l, ...lps] @ [r], lks);

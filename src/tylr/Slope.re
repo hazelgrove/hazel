@@ -144,7 +144,10 @@ module Up = {
     ListUtil.split_first_opt(up.terrs)
     |> Option.map(((t, terrs)) => ({...up, terrs}, t));
 
-  let cat = (_, _) => failwith("todo");
+  let cat = (l: t, r: t) => {
+    let l = snoc_space(l, r.space);
+    mk(~s=l.space, l.terrs @ r.terrs);
+  };
 
   let cons_space = s => map_space(Space.cat(s));
 

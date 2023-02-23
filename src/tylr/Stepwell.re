@@ -479,7 +479,7 @@ let unzip_space = (s: Space.t, unzipped) => {
       let (l, s) = Space.split(m, s);
       (l, s, r);
     };
-  unzipped |> cons_slopes(Slope.(Dn.mk(~s=l, []), Up.mk(~s=r)));
+  unzipped |> cons_slopes(Slope.(Dn.mk(~s=l, []), Up.mk(~s=r, [])));
   // |> mk(~sel=Segment.s(sel));
 };
 

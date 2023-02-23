@@ -8,7 +8,7 @@ let of_meld = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
   Option.bind(Meld.distribute(mel).chain, Chain.trim);
 
 let to_meld = (~l=Meld.empty(), ~r=Meld.empty(), ret: t) =>
-  Chain.untrim(l, ret, r);
+  Meld.of_chain(Chain.untrim(l, ret, r)) |> Meld.aggregate;
 
 // let of_l = ({hd, tl}: Terrace.L.t, p: Piece.t) => Chain.untrim(hd, tl, p);
 // let of_r = (p: Piece.t, {tl, hd}: Terrace.R.t) => Chain.untrim(p, tl, hd);
