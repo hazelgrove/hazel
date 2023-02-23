@@ -1,4 +1,4 @@
-// open Util;
+open Util;
 open Slope;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -83,11 +83,7 @@ let cat = ((l_inner, r_inner), (l_outer, r_outer)) => (
 //   Segment.is_empty(sel) ? zip_piece(sib) : (sel, sib);
 // };
 
-// let bounds = ((pre, suf): t): (Segment.Bound.t as 'b, 'b) => {
-//   let l = Chain.unknil(pre) |> Option.map(((_, mel, _)) => mel);
-//   let r = Chain.unlink(suf) |> Option.map(((_, mel, _)) => mel);
-//   (l, r);
-// };
+let bounds = ((l, r): t) => ListUtil.(hd_opt(l.terrs), hd_opt(r.terrs));
 
 // let peek_space = ((l, r): t) => (Chain.lst(l), Chain.fst(r));
 

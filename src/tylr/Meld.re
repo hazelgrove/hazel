@@ -337,6 +337,8 @@ let prec = _ => failwith("todo prec");
 //   (Chain.mk(ks_l @ [None], ps_l), k, Chain.mk([None, ...ks_r], ps_r));
 // };
 
+let split_piece = (_, _) => failwith("todo Meld.split_piece");
+
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
   open OptUtil.Syntax;
   let* (kid, p_r, tl) = Result.to_option(unlink(mel));

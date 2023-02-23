@@ -22,6 +22,8 @@ let split_face = ({retainer, backfill}: t): (Piece.t, Meld.t) =>
     )
   };
 let face = terr => fst(split_face(terr));
+let sort = (terr: t) => Piece.sort(face(terr));
+let prec = (terr: t) => Piece.prec(face(terr));
 
 module L = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,6 +59,8 @@ module L = {
       (Lexeme.of_piece(face), s, ls);
     };
   };
+
+  let tip = (terr: t) => Piece.tip(L, face(terr));
 };
 
 module R = {
@@ -97,7 +101,6 @@ module R = {
   };
 
   let tip = (terr: t) => Piece.tip(R, face(terr));
-  let sort = (terr: t) => Piece.sort(face(terr));
   // todo: remove option from return type, added just to get things typechecking
   // todo: review whether match flag is needed here
   let mold = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>

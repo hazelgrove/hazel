@@ -11,6 +11,7 @@ module M = {
   let mk = (~s=Space.empty, terrs) => {space: s, terrs};
   let empty = mk([]);
   let of_terr = terr => mk([terr]);
+  let of_piece = p => of_terr(Terrace.of_piece(p));
   let of_s = s => mk(~s, []);
 
   let height = slope => List.length(slope.terrs);

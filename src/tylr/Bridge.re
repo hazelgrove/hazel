@@ -43,3 +43,4 @@ let zip = ((l, r): t, kid: Meld.t) => Option.get(Terrace.eq(l, ~kid, r));
 //     };
 //   (Meld.Padded.mk(~l=s_l, ~r=s_r, kid), (l, r));
 // };
+let unzip = (_, _) => failwith("todo Bridge.unzip");

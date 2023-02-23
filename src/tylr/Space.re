@@ -100,6 +100,14 @@ let unsnoc = (~char=false, s: t) =>
        }
      );
 
+let split = (n, s) => {
+  let (ps_l, ps_r) =
+    s.paths
+    |> List.partition_map(col => col <= n ? Left(col) : Right(col - n));
+  let (l, r) = ListUtil.split_n(n, s.chars);
+  (mk(~paths=ps_l, l), mk(~paths=ps_r, r));
+};
+
 // let split_newlines = (ss: s): Chain.t(s, t) =>
 //   List.fold_right(
 //     (s, split) =>

@@ -71,3 +71,30 @@ let with_space = (ps: t, side: Dir.t) =>
       },
     ps,
   );
+
+let hd_kid = (ps: t) =>
+  switch (ps) {
+  | [{kids: [hd, ..._], _}, ...ps]
+      when
+        ps
+        |> List.for_all(
+             fun
+             | Path.{kids: [hd', ..._], _} => hd' == hd
+             | _ => false,
+           ) =>
+    Some(hd)
+  | _ => None
+  };
+let hd_lex = (ps: t) =>
+  switch (ps) {
+  | [{kids: [], lex, _}, ...ps]
+      when
+        ps
+        |> List.for_all(
+             fun
+             | Path.{kids: [], lex: l, _} => l == lex
+             | _ => false,
+           ) =>
+    Some(lex)
+  | _ => None
+  };

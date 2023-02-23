@@ -23,6 +23,7 @@ type t = {
   lex: Lex.t,
   col: Col.t,
 };
+exception Invalid;
 
 let mk = (~kids=[], ~col=0, lex) => {kids, lex, col};
 // let empty = mk();

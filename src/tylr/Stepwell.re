@@ -45,7 +45,6 @@ let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
 };
 let rec cons_r = (~kid=Meld.empty(), mel: Terrace.R.t, rel: t): t => {
   open Slope; // left-to-right: mel kid
-
   let (dn, up) = get_slopes(rel);
   switch (Up.cons(mel, ~kid, up)) {
   | Ok(up) => put_slopes((dn, up), rel)
@@ -77,6 +76,32 @@ let cons = (~onto: Dir.t, terr, rel) =>
   };
 let cons_space = (~onto: Dir.t, s, rel) =>
   rel |> map_slopes(Slopes.cons_space(~onto, s));
+
+// todo: rename relative to cons_slopes
+let cons_slope = (~onto: Dir.t, slope: Slope.t, rel) =>
+  List.fold_left(
+    (rel, terr) => cons(~onto, terr, rel),
+    rel |> cons_space(~onto, slope.space),
+    slope.terrs,
+  );
+
+let cons_seg = (~onto: Dir.t, seg: Segment.t, rel) =>
+  switch (seg) {
+  | S(s) => cons_space(~onto, s, rel)
+  | Z({up, top, dn}) =>
+    switch (onto) {
+    | L =>
+      rel
+      |> cons_slope(~onto, up)
+      |> cons(~onto, Terrace.of_retainer(top))
+      |> cons_slopes(Slopes.mk(~l=dn, ()))
+    | R =>
+      rel
+      |> cons_slope(~onto, dn)
+      |> cons(~onto, Terrace.of_retainer(top))
+      |> cons_slopes(Slopes.mk(~r=up, ()))
+    }
+  };
 
 let rec unzip_slopes = ((l, r) as slopes, well) =>
   switch (Slope.Dn.uncons(l), Slope.Up.unsnoc(r)) {
@@ -222,18 +247,17 @@ let mold = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
   mold_(~match=false, ~kid?, t, rel);
 };
 
-// let bounds = (rel: t): (Segment.Bound.t as 'b, 'b) => {
-//   let bounds = Slopes.bounds(get_slopes(rel));
-//   switch (bounds, Chain.unlink(rel)) {
-//   | (_, None)
-//   | ((Some(_), Some(_)), _) => bounds
-//   | ((None, _) | (_, None), Some((_, (par_l, par_r), _))) =>
-//     let (l, r) = bounds;
-//     let l = Option.value(l, ~default=par_l);
-//     let r = Option.value(r, ~default=par_r);
-//     (Some(l), Some(r));
-//   };
-// };
+let bounds = (rel: t): (option(Terrace.R.t), option(Terrace.L.t)) => {
+  let bounds = Slopes.bounds(get_slopes(rel));
+  switch (bounds, Chain.unlink(rel)) {
+  | (_, None)
+  | ((Some(_), Some(_)), _) => bounds
+  | ((None, _) | (_, None), Some((_, (l, r), _))) =>
+    let l = Option.value(fst(bounds), ~default=l);
+    let r = Option.value(snd(bounds), ~default=r);
+    (Some(l), Some(r));
+  };
+};
 
 let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
   let (p, rest) = Terrace.split_face(terr);
@@ -247,7 +271,6 @@ let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
     switch (mold(t.token, rel)) {
     | Ok(m) when m == t.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
-      // todo: convert to prefix form
       cons(~onto=L, terr, rel)
     | m =>
       let t =
@@ -292,24 +315,36 @@ let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
   };
 
 let regrout = rel => {
-  let sib_of_g = g => Slopes.mk(~r=Segment.of_meld(Meld.of_grout(g)), ());
-  let sib_of_p = (side: Dir.t, mel) =>
-    switch (Option.get(Meld.tip(Dir.toggle(side), mel))) {
+  let sib_of_g = g =>
+    Slopes.mk(~r=Slope.Up.of_piece(Piece.of_grout(g)), ());
+  let sib_of_l = t =>
+    switch (Terrace.R.tip(t)) {
+    | Convex => Slopes.empty
+    | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
+    };
+  let sib_of_r = t =>
+    switch (Terrace.L.tip(t)) {
     | Convex => Slopes.empty
     | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
     };
   let sib =
     switch (bounds(rel)) {
     | (None, None) => sib_of_g(Grout.mk_convex(Sort.root_o))
-    | (None, Some(r)) => sib_of_p(R, r)
-    | (Some(l), None) => sib_of_p(L, l)
+    | (None, Some(r)) => sib_of_r(r)
+    | (Some(l), None) => sib_of_l(l)
     | (Some(l), Some(r)) =>
-      // todo: maybe handle within-piece case
-      switch (Meld.cmp(l, r)) {
-      | In((sort, prec)) => sib_of_g(Grout.mk_concave(sort, prec))
-      | Lt(_) => sib_of_p(R, r)
-      | Eq(expected) => sib_of_g(Grout.mk_convex(expected.sort))
-      | Gt(_) => sib_of_p(L, l)
+      switch (Terrace.cmp(l, r)) {
+      | {lt: None, eq: None, gt: None} =>
+        let sort = Sort.lca(Terrace.sort(l), Terrace.sort(r));
+        let prec = min(Terrace.prec(l), Terrace.prec(r));
+        sib_of_g(Grout.mk_concave(sort, prec));
+      | {lt: Some(_), _} => sib_of_r(r)
+      | {eq: Some(_), _} =>
+        Piece.(id(Terrace.face(l)) == id(Terrace.face(r)))
+          ? Slopes.empty
+          // todo: review sort
+          : sib_of_g(Grout.mk_convex(None))
+      | {gt: Some(_), _} => sib_of_l(l)
       }
     };
   cons_slopes(sib, rel);
@@ -317,16 +352,16 @@ let regrout = rel => {
 
 let rec remold_suffix = (rel: t): t => {
   let (pre, suf) = get_slopes(rel);
-  switch (Chain.unlink(suf)) {
-  | None => rel |> insert_complement |> regrout
-  | Some((s, mel, suf)) =>
+  switch (suf.terrs) {
+  | [] => rel |> insert_complement |> regrout
+  | [terr, ...terrs] =>
     rel
-    |> put_slopes((pre, suf))
-    |> insert_space(~complement=true, s)
+    |> put_slopes((pre, Slope.Up.mk(terrs)))
+    |> insert_space(~complement=true, suf.space)
     // note: insertion may flatten ancestors into siblings, in which
     // case additional elements may be added to suffix to be remolded
     // (safe bc rel is decreasing in height).
-    |> insert_meld(~complement=true, mel)
+    |> insert_terr(~complement=true, terr)
     |> remold_suffix
   };
 };
@@ -360,16 +395,23 @@ let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
   | (Some(G(l)), Some(G(r))) when l.id == r.id =>
     let prefix = l.fill ++ s;
     switch (fill(prefix, r)) {
-    | None => relex_insert(prefix, cons(~onto=R, Meld.of_grout(r), rel'))
-    | Some(p) => (Lexed.empty, cons(~onto=L, Meld.of_piece(p), rel'))
+    | None =>
+      relex_insert(
+        prefix,
+        cons(~onto=R, Terrace.of_piece(Piece.of_grout(r)), rel'),
+      )
+    | Some(p) => (Lexed.empty, cons(~onto=L, Terrace.of_piece(p), rel'))
     };
   | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
     let p = Option.get(fill(s, r));
     let rel =
       rel'
       |> cons_opt_lexeme(~onto=L, l)
-      |> cons(~onto=L, Meld.of_piece(p))
-      |> (Piece.is_grout(p) ? cons(~onto=R, Meld.of_grout(r)) : Fun.id);
+      |> cons(~onto=L, Terrace.of_piece(p))
+      |> (
+        Piece.is_grout(p)
+          ? cons(~onto=R, Terrace.of_piece(Piece.of_grout(r))) : Fun.id
+      );
     (Lexed.empty, rel);
   | _ =>
     // todo: recycle ids + avoid remolding if unaffected
@@ -398,24 +440,165 @@ let relex = (~insert="", rel: t): (Lexed.t, t) =>
   | _ => relex_insert(insert, rel)
   };
 
+let mark = (rel: t): t => {
+  switch (uncons_lexeme(~from=R, rel)) {
+  | None => cons_space(~onto=R, Space.mk(~paths=[0], []), rel)
+  | Some((lx, rel)) =>
+    switch (Lexeme.to_piece(lx)) {
+    | Error(s) =>
+      let marked = Space.add_paths([0], s);
+      cons_space(~onto=R, marked, rel);
+    | Ok(p) =>
+      let marked = Piece.add_paths([0], p);
+      cons_r(Terrace.of_piece(marked), rel);
+    }
+  };
+};
+
+let unzip_end = (~unzipped, side: Dir.t, mel: Meld.t) =>
+  unzipped
+  |> cons_slopes(
+       side == L
+         ? Slope.(Dn.empty, Up.of_meld(mel))
+         : Slope.(Dn.of_meld(mel), Up.empty),
+     );
+// |> mk;
+
+// todo: standardize a la unzip_piece
+let unzip_space = (s: Space.t, unzipped) => {
+  let (paths, s) = (s.paths, Space.clear_paths(s));
+  let (l, _sel, r) =
+    switch (paths) {
+    | [] => Space.(empty, empty, s)
+    | [n] =>
+      let (l, r) = Space.split(n, s);
+      (l, Space.empty, r);
+    | [m, n, ..._] =>
+      assert(m <= n);
+      let (s, r) = Space.split(n, s);
+      let (l, s) = Space.split(m, s);
+      (l, s, r);
+    };
+  unzipped |> cons_slopes(Slope.(Dn.mk(~s=l, []), Up.mk(~s=r)));
+  // |> mk(~sel=Segment.s(sel));
+};
+
+let unzip_piece = (p: Piece.t) => {
+  let (paths, p) = (p.paths, Piece.clear_paths(p));
+  let ret = (~l=?, ~sel=?, ~r=?, ()) => (l, sel, r);
+  let single_path = n =>
+    switch (Piece.unzip(n, p)) {
+    | L(L) => ret(~r=p, ())
+    | L(R) => ret(~l=p, ())
+    | R((l, r)) => ret(~l, ~r, ())
+    };
+  switch (paths) {
+  | [] => ret(~r=p, ())
+  | [n] => single_path(n)
+  // only handling up to two paths marking selection atm
+  | [m, n, ..._] =>
+    assert(m <= n);
+    switch (Piece.unzip(n, p)) {
+    | L(L) => ret(~r=p, ())
+    | L(R) => single_path(m)
+    | R((p, r)) =>
+      switch (Piece.unzip(m, p)) {
+      | L(L) => ret(~sel=p, ~r, ())
+      | L(R) => ret(~l=p, ~r, ())
+      | R((l, p)) => ret(~l, ~sel=p, ~r, ())
+      }
+    };
+  };
+};
+
+let unzip_lex = (lex: Path.Lex.t, mel: Meld.t, unzipped) =>
+  switch (lex) {
+  | Space(L) =>
+    let (l, r) = mel.space;
+    let mel = {...mel, space: (Space.empty, r)};
+    unzipped
+    |> cons_slopes(Slopes.mk(~r=Slope.Up.of_meld(mel), ()))
+    |> unzip_space(l);
+  | Space(R) =>
+    let (l, r) = mel.space;
+    let mel = {...mel, space: (l, Space.empty)};
+    unzipped
+    |> cons_slopes(Slopes.mk(~l=Slope.Dn.of_meld(mel), ()))
+    |> unzip_space(r);
+  | Piece(n) =>
+    let (mel_l, p, mel_r) = Meld.split_piece(n, mel);
+    // todo: restore for unzipping selections
+    let (p_l, _p_sel, p_r) = unzip_piece(p);
+    // let sel =
+    //   p_sel
+    //   |> Option.map(Segment.of_piece)
+    //   |> Option.value(~default=Segment.empty);
+    let l =
+      p_l
+      |> Option.map(p => Meld.knil(mel_l, p))
+      |> Option.value(~default=mel_l)
+      |> Slope.Dn.of_meld;
+    let r =
+      p_r
+      |> Option.map(p => Meld.link(p, mel_r))
+      |> Option.value(~default=mel_r)
+      |> Slope.Up.of_meld;
+    unzipped |> cons_slopes(Slopes.mk(~l, ~r, ()));
+  // |> mk(~sel);
+  };
+
+let rec unzip = (~unzipped=empty, mel: Meld.t): t => {
+  let (paths, mel) = (mel.paths, Meld.distribute_paths(mel));
+  switch (Paths.hd_kid(paths)) {
+  | Some(kid) =>
+    let mel = Meld.distribute_space(mel);
+    switch (Bridge.unzip(kid, mel)) {
+    | Some((kid, b)) =>
+      let unzipped = cons_bridge(b, unzipped);
+      unzip(~unzipped, kid);
+    | None =>
+      let (kid, slopes) =
+        if (kid == 0) {
+          let (kid, t) =
+            Terrace.L.mk(mel) |> OptUtil.get_or_raise(Path.Invalid);
+          (kid, Slope.(Dn.empty, Up.of_terr(t)));
+        } else {
+          let (t, kid) =
+            Terrace.R.mk(mel) |> OptUtil.get_or_raise(Path.Invalid);
+          (kid, Slope.(Dn.of_terr(t), Up.empty));
+        };
+      let unzipped = cons_slopes(slopes, unzipped);
+      unzip(~unzipped, kid);
+    };
+  | None =>
+    switch (Paths.hd_lex(paths)) {
+    | Some(lex) => unzip_lex(lex, mel, unzipped)
+    | None => failwith("todo: unzipping selections")
+    }
+  };
+};
+
 let insert = ((ls, offset): Lexed.t, rel: t): t => {
   let rel =
     switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
     | Some(s) =>
       rel
-      |> cons_space(~onto=L, s)
+      |> cons_space(~onto=L, Space.concat(s))
       // remold if deletion, otherwise
       // fast path for space-only insertion
       |> (ls == [] ? remold_suffix : Fun.id)
     | None =>
       let inserted = List.fold_left(Fun.flip(insert_lexeme), rel, ls);
       print_endline("inserted = " ++ show(inserted));
-      let ins_path = path(inserted);
-      print_endline("ins_path = " ++ Meld.Path.show(ins_path));
-      let remolded = remold_suffix(inserted);
+      // let ins_path = path(inserted);
+      // print_endline("ins_path = " ++ Meld.Path.show(ins_path));
+      let marked = mark(inserted);
+      print_endline("marked = " ++ show(marked));
+      let remolded = remold_suffix(marked);
       print_endline("remolded = " ++ show(remolded));
-      let (zipped, _) = zip(remolded);
-      unzip((zipped, ins_path));
+      let zipped = zip(remolded);
+      print_endline("zipped = " ++ Meld.show(zipped));
+      unzip(zipped);
     };
   FunUtil.(repeat(offset, force_opt(shift_char(~from=L)), rel));
 };

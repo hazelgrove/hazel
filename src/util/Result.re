@@ -5,6 +5,11 @@ let to_option =
   | Error(_) => None
   | Ok(x) => Some(x);
 
+let unwrap =
+  fun
+  | Error(a)
+  | Ok(a) => a;
+
 module Syntax = {
   let (let+) = (result, f) => map(~f, result);
   let ( let* ) = (result, f) => bind(~f, result);
