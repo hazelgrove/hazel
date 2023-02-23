@@ -1,4 +1,4 @@
-// open Util;
+open Util;
 open Slope;
 
 // left-to-right: up top dn
@@ -9,8 +9,24 @@ type t = {
   dn: Dn.t,
 };
 
-let of_dn = _ => failwith("todo of_dn");
-let of_up = _ => failwith("todo of_up");
+let mk = (~up=Up.empty, ~dn=Dn.empty, top) => {up, top, dn};
+// let empty = mk();
+// let is_empty: t => _ = Option.is_none;
+
+let of_up = up =>
+  Up.unsnoc(up)
+  |> Option.map(((up, t: Terrace.t)) => {
+       let dn = Dn.of_meld(t.backfill);
+       mk(~up, t.retainer, ~dn);
+     })
+  |> Result.of_option(~error=up.space);
+let of_dn = dn =>
+  Dn.uncons(dn)
+  |> Option.map(((t: Terrace.t, dn)) => {
+       let up = Up.of_meld(t.backfill);
+       mk(~up, t.retainer, ~dn);
+     })
+  |> Result.of_option(~error=dn.space);
 
 // let x = (1 + [a + b ? c / d : e * f] + 3) + 4 * 5 in x + 1
 
@@ -32,10 +48,6 @@ let of_up = _ => failwith("todo of_up");
 // stepwell:
 //   slopes: ([1, +], [+, 3])
 //   bridge: ( "(" , ")" )
-
-let mk = (~up=Up.empty, ~dn=Dn.empty, top) => {up, top, dn};
-// let empty = mk();
-// let is_empty: t => _ = Option.is_none;
 
 let map_top = (f, zigg) => {...zigg, top: f(zigg.top)};
 let put_top = top => map_top(_ => top);
@@ -63,11 +75,12 @@ let push = (terr: Terrace.R.t, zigg: t) =>
     | {gt: Some(terr_kid), _} => Ok(put_up(Up.of_meld(terr_kid), zigg))
     | {eq: Some(terr_kid_top), _} =>
       let (l, top, r) = Option.get(Retainer.of_meld(terr_kid_top));
-      zigg
-      |> put_up(Up.of_meld(l))
-      |> put_top(top)
-      |> map_dn(Dn.cat(Dn.of_meld(r)))
-      |> Result.ok;
+      Ok(
+        zigg
+        |> put_up(Up.of_meld(l))
+        |> put_top(top)
+        |> map_dn(Dn.cat(Dn.of_meld(r))),
+      );
     | {lt: Some(_), _} =>
       //                                  ----------zigg
       //                -----------------terr
@@ -89,11 +102,12 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
     | {lt: Some(kid_terr), _} => Ok(put_dn(Dn.of_meld(kid_terr), zigg))
     | {eq: Some(top_kid_terr), _} =>
       let (l, top, r) = Option.get(Retainer.of_meld(top_kid_terr));
-      zigg
-      |> map_up(Fun.flip(Up.cat, Up.of_meld(l)))
-      |> put_top(top)
-      |> put_dn(Dn.of_meld(r))
-      |> Result.ok;
+      Ok(
+        zigg
+        |> map_up(Fun.flip(Up.cat, Up.of_meld(l)))
+        |> put_top(top)
+        |> put_dn(Dn.of_meld(r)),
+      );
     | {gt: Some(_), _} =>
       //                ----------zigg
       //                           -----------------terr

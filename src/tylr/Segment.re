@@ -37,13 +37,19 @@ let hsup_space = (seg, s) =>
 
 let push = (t: Terrace.R.t, seg: t) =>
   switch (seg) {
-  | S(s) => Error(Z(Ziggurat.of_dn(Dn.mk([t], ~s))))
+  | S(s) =>
+    let up = Slope.Up.of_meld(t.backfill);
+    let dn = Slope.Dn.mk(~s, []);
+    Error(Z(Ziggurat.mk(~up, t.retainer, ~dn)));
   | Z(zigg) =>
     Ziggurat.push(t, zigg) |> Result.map(~f=z) |> Result.map_error(~f=z)
   };
 let hsup = (seg: t, t: Terrace.L.t) =>
   switch (seg) {
-  | S(s) => Error(Z(Ziggurat.of_up(Up.mk(~s, [t]))))
+  | S(s) =>
+    let up = Slope.Up.mk(~s, []);
+    let dn = Slope.Dn.of_meld(t.backfill);
+    Error(Z(Ziggurat.mk(~up, t.retainer, ~dn)));
   | Z(zigg) =>
     Ziggurat.hsup(zigg, t) |> Result.map(~f=z) |> Result.map_error(~f=z)
   };
@@ -85,10 +91,12 @@ let pull_lexeme = (~char=false, seg) =>
           let top = Retainer.of_piece(rest_p);
           Some((Lexeme.of_piece(c), Z({...zigg, top})));
         | _ =>
-          switch (Ziggurat.of_dn(zigg.dn)) {
-          | Some(zigg) => Some((Lexeme.of_piece(p), Z(zigg)))
-          | None => Some((Lexeme.of_piece(p), S(zigg.dn.space)))
-          }
+          let seg =
+            switch (Ziggurat.of_dn(zigg.dn)) {
+            | Ok(zigg) => Z(zigg)
+            | Error(s) => S(s)
+            };
+          Some((Lexeme.of_piece(p), seg));
         };
       }
     }
@@ -119,10 +127,12 @@ let llup_lexeme = (~char=false, seg) =>
           let top = Retainer.of_piece(rest_p);
           Some((Z({...zigg, top}), Lexeme.of_piece(c)));
         | _ =>
-          switch (Ziggurat.of_up(zigg.up)) {
-          | Some(zigg) => Some((Z(zigg), Lexeme.of_piece(p)))
-          | None => Some((S(zigg.up.space), Lexeme.of_piece(p)))
-          }
+          let seg =
+            switch (Ziggurat.of_up(zigg.up)) {
+            | Ok(zigg) => Z(zigg)
+            | Error(s) => S(s)
+            };
+          Some((seg, Lexeme.of_piece(p)));
         };
       }
     }
