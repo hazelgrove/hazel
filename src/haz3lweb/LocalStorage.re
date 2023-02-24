@@ -5,29 +5,29 @@ module Settings = {
   let save_settings_key: string = "SETTINGS";
 
   let serialize = settings =>
-    settings |> Model.sexp_of_settings |> Sexplib.Sexp.to_string;
+    settings |> ModelSettings.sexp_of_t |> Sexplib.Sexp.to_string;
 
   let deserialize = data =>
     try(
       data
       |> Sexplib.Sexp.of_string
-      |> Model.settings_of_sexp
-      |> Model.fix_instructor_mode
+      |> ModelSettings.t_of_sexp
+      |> ModelSettings.fix_instructor_mode
     ) {
     | _ =>
       print_endline("Could not deserialize settings.");
-      Model.settings_init;
+      ModelSettings.init;
     };
 
-  let save = (settings: Model.settings): unit =>
+  let save = (settings: ModelSettings.t): unit =>
     JsUtil.set_localstore(save_settings_key, serialize(settings));
 
   let init = () => {
-    JsUtil.set_localstore(save_settings_key, serialize(Model.settings_init));
-    Model.settings_init;
+    JsUtil.set_localstore(save_settings_key, serialize(ModelSettings.init));
+    ModelSettings.init;
   };
 
-  let load = (): Model.settings =>
+  let load = (): ModelSettings.t =>
     switch (JsUtil.get_localstore(save_settings_key)) {
     | None => init()
     | Some(data) => deserialize(data)
