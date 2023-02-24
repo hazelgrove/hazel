@@ -93,12 +93,12 @@ let cons_seg = (~onto: Dir.t, seg: Segment.t, rel) =>
     | L =>
       rel
       |> cons_slope(~onto, up)
-      |> cons(~onto, Terrace.of_retainer(top))
+      |> cons(~onto, Terrace.of_wald(top))
       |> cons_slopes(Slopes.mk(~l=dn, ()))
     | R =>
       rel
       |> cons_slope(~onto, dn)
-      |> cons(~onto, Terrace.of_retainer(top))
+      |> cons(~onto, Terrace.of_wald(top))
       |> cons_slopes(Slopes.mk(~r=up, ()))
     }
   };

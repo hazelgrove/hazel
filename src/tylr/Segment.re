@@ -17,7 +17,7 @@ let is_empty =
   | _ => false;
 
 let of_meld = mel =>
-  switch (Retainer.of_meld(mel)) {
+  switch (Wald.mk(mel)) {
   | None =>
     let (l, r) = mel.space;
     S(Space.cat(l, r));
@@ -38,9 +38,9 @@ let hsup_space = (seg, s) =>
 let push = (t: Terrace.R.t, seg: t) =>
   switch (seg) {
   | S(s) =>
-    let up = Slope.Up.of_meld(t.backfill);
+    let up = Slope.Up.of_meld(t.mel);
     let dn = Slope.Dn.mk(~s, []);
-    Error(Z(Ziggurat.mk(~up, t.retainer, ~dn)));
+    Error(Z(Ziggurat.mk(~up, t.wal, ~dn)));
   | Z(zigg) =>
     Ziggurat.push(t, zigg) |> Result.map(~f=z) |> Result.map_error(~f=z)
   };
@@ -48,8 +48,8 @@ let hsup = (seg: t, t: Terrace.L.t) =>
   switch (seg) {
   | S(s) =>
     let up = Slope.Up.mk(~s, []);
-    let dn = Slope.Dn.of_meld(t.backfill);
-    Error(Z(Ziggurat.mk(~up, t.retainer, ~dn)));
+    let dn = Slope.Dn.of_meld(t.mel);
+    Error(Z(Ziggurat.mk(~up, t.wal, ~dn)));
   | Z(zigg) =>
     Ziggurat.hsup(zigg, t) |> Result.map(~f=z) |> Result.map_error(~f=z)
   };
@@ -88,7 +88,7 @@ let pull_lexeme = (~char=false, seg) =>
         let p = Chain.fst(zigg.top);
         switch (Piece.unzip(1, p)) {
         | R((c, rest_p)) when char =>
-          let top = Retainer.of_piece(rest_p);
+          let top = Wald.of_piece(rest_p);
           Some((Lexeme.of_piece(c), Z({...zigg, top})));
         | _ =>
           let seg =
@@ -124,7 +124,7 @@ let llup_lexeme = (~char=false, seg) =>
         let p = Chain.lst(zigg.top);
         switch (Piece.unzip(Piece.length(p) - 1, p)) {
         | R((rest_p, c)) when char =>
-          let top = Retainer.of_piece(rest_p);
+          let top = Wald.of_piece(rest_p);
           Some((Z({...zigg, top}), Lexeme.of_piece(c)));
         | _ =>
           let seg =

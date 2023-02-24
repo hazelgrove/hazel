@@ -2,24 +2,21 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  retainer: Retainer.t,
-  backfill: Meld.t,
+  wal: Wald.t,
+  mel: Meld.t,
 };
 [@deriving (show({with_path: false}), sexp, yojson)]
 type terr = t;
 
-let of_retainer = retainer => {retainer, backfill: Meld.empty()};
-let of_piece = p => of_retainer(Retainer.of_piece(p));
+let of_wald = wal => {wal, mel: Meld.empty()};
+let of_piece = p => of_wald(Wald.of_piece(p));
 
-let map_retainer = (f, terr) => {...terr, retainer: f(terr.retainer)};
+let map_wal = (f, terr) => {...terr, wal: f(terr.wal)};
 
-let split_face = ({retainer, backfill}: t): (Piece.t, Meld.t) =>
-  switch (Chain.unlink(retainer)) {
-  | None => (Chain.fst(retainer), backfill)
-  | Some((face, kid, rest)) => (
-      face,
-      Retainer.to_meld(~l=kid, rest, ~r=backfill),
-    )
+let split_face = ({wal, mel}: t): (Piece.t, Meld.t) =>
+  switch (Chain.unlink(wal)) {
+  | None => (Chain.fst(wal), mel)
+  | Some((face, kid, rest)) => (face, Wald.unmk(~l=kid, rest, ~r=mel))
   };
 let face = terr => fst(split_face(terr));
 let sort = (terr: t) => Piece.sort(face(terr));
@@ -27,21 +24,14 @@ let prec = (terr: t) => Piece.prec(face(terr));
 
 module L = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = terr; // left-to-right: retainer backfill
+  type t = terr; // left-to-right: wal mel
 
   let mk = (mel: Meld.t): option((Meld.t, t)) =>
-    Retainer.of_meld(mel)
-    |> Option.map(((kid, retainer, backfill)) =>
-         (kid, {retainer, backfill})
-       );
-  let unmk = (kid, {retainer, backfill}: t) =>
-    Retainer.to_meld(~l=kid, retainer, ~r=backfill);
+    Wald.mk(mel) |> Option.map(((kid, wal, mel)) => (kid, {wal, mel}));
+  let unmk = (kid, {wal, mel}: t) => Wald.unmk(~l=kid, wal, ~r=mel);
   let append = (_: Meld.t, _: t) => failwith("todo append");
 
-  let pad = (t: t, s: Space.t) => {
-    ...t,
-    backfill: Meld.pad(t.backfill, ~r=s),
-  };
+  let pad = (t: t, s: Space.t) => {...t, mel: Meld.pad(t.mel, ~r=s)};
 
   let rec mk_s = (mel: Meld.t): (Space.t, list(t)) =>
     switch (mk(mel)) {
@@ -70,20 +60,13 @@ module L = {
 
 module R = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = terr; // left-to-right: backfill retainer
+  type t = terr; // left-to-right: mel wal
 
   let mk = (mel: Meld.t): option((t, Meld.t)) =>
-    Retainer.of_meld(mel)
-    |> Option.map(((backfill, retainer, kid)) =>
-         ({backfill, retainer}, kid)
-       );
-  let unmk = ({backfill, retainer}: t, kid) =>
-    Retainer.to_meld(~l=backfill, retainer, ~r=kid);
+    Wald.mk(mel) |> Option.map(((mel, wal, kid)) => ({mel, wal}, kid));
+  let unmk = ({mel, wal}: t, kid) => Wald.unmk(~l=mel, wal, ~r=kid);
 
-  let pad = (s: Space.t, t: t) => {
-    ...t,
-    backfill: Meld.pad(~l=s, t.backfill),
-  };
+  let pad = (s: Space.t, t: t) => {...t, mel: Meld.pad(~l=s, t.mel)};
 
   let rec mk_s = (mel: Meld.t): (list(t), Space.t) =>
     switch (mk(mel)) {
@@ -177,7 +160,7 @@ let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
     let* (l, kid) = R.mk(tl_l);
     eq(l, ~kid=Meld.pad(kid, ~r=s), r);
   | (Some(s), _, _, Some(R)) =>
-    let* (kid, r) = L.mk(r.backfill);
+    let* (kid, r) = L.mk(r.mel);
     eq(l, ~kid=Meld.pad(~l=s, kid), r);
   | _ =>
     let+ compl = Piece.eq(p_l, p_r);
@@ -190,7 +173,7 @@ let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
           | Concave(s, _) =>
             let kid = Meld.of_grout(Grout.mk_convex(s));
             let g = Piece.of_grout(Grout.mk(~sugg, mold));
-            map_retainer(Chain.link(g, kid), r);
+            map_wal(Chain.link(g, kid), r);
           },
         compl,
         r,

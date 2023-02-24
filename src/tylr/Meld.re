@@ -328,15 +328,6 @@ let sort = mel => {
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
-// let split_nth_kid = (n, mel: t) => {
-//   let (ks, ps) = mel;
-//   print_endline("split_nth_kid bef");
-//   let (ks_l, k, ks_r) = ListUtil.split_nth(n, ks);
-//   print_endline("split_nth_kid aft");
-//   let (ps_l, ps_r) = ListUtil.split_n(n, ps);
-//   (Chain.mk(ks_l @ [None], ps_l), k, Chain.mk([None, ...ks_r], ps_r));
-// };
-
 let split_piece = (_, _) => failwith("todo Meld.split_piece");
 
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {

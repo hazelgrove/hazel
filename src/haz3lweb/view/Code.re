@@ -61,12 +61,12 @@ module Txt = {
       };
     span(List.concat([of_l, of_c, of_r]));
   };
-  let of_retainer = ret => ret |> Chain.to_list(of_piece, of_meld) |> span;
+  let of_wald = ret => ret |> Chain.to_list(of_piece, of_meld) |> span;
 
   let of_terr_l = (terr: Terrace.L.t) =>
-    span([of_meld(terr.backfill), of_retainer(terr.retainer)]);
+    span([of_meld(terr.mel), of_wald(terr.wal)]);
   let of_terr_r = (terr: Terrace.R.t) =>
-    span([of_retainer(terr.retainer), of_meld(terr.backfill)]);
+    span([of_wald(terr.wal), of_meld(terr.mel)]);
 
   let of_slope_dn = (slope: Slope.Dn.t) =>
     List.rev_map(of_terr_r, slope.terrs) @ of_space(slope.space);
@@ -74,7 +74,7 @@ module Txt = {
     of_space(slope.space) @ List.map(of_terr_l, slope.terrs);
 
   let of_zigg = ({up, top, dn}: Ziggurat.t) =>
-    of_slope_up(up) @ [of_retainer(top), ...of_slope_dn(dn)];
+    of_slope_up(up) @ [of_wald(top), ...of_slope_dn(dn)];
   let of_segment = (seg: Segment.t) =>
     switch (seg) {
     | S(s) => of_space(s)

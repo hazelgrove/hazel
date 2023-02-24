@@ -34,13 +34,13 @@ let zip = ((l, r): t, kid: Meld.t) => Option.get(Terrace.eq(l, ~kid, r));
 
 let unzip = (n, mel: Meld.t) => {
   open OptUtil.Syntax;
-  let* (l, ret, r) = Retainer.of_meld(mel);
-  let+ (wall_l, kid, wall_r) =
-    switch (Chain.split_nth_link(n, ret)) {
+  let* (mel_l, wal, mel_r) = Wald.mk(mel);
+  let+ (wal_l, kid, wal_r) =
+    switch (Chain.split_nth_link(n, wal)) {
     | r => Some(r)
     | exception _ => None
     };
-  let l = Terrace.{backfill: l, retainer: wall_l};
-  let r = Terrace.{retainer: wall_r, backfill: r};
+  let l = Terrace.{mel: mel_l, wal: wal_l};
+  let r = Terrace.{wal: wal_r, mel: mel_r};
   (kid, (l, r));
 };

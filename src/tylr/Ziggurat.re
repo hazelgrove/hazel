@@ -5,7 +5,7 @@ open Slope;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   up: Up.t,
-  top: Retainer.t,
+  top: Wald.t,
   dn: Dn.t,
 };
 
@@ -16,15 +16,15 @@ let mk = (~up=Up.empty, ~dn=Dn.empty, top) => {up, top, dn};
 let of_up = up =>
   Up.unsnoc(up)
   |> Option.map(((up, t: Terrace.t)) => {
-       let dn = Dn.of_meld(t.backfill);
-       mk(~up, t.retainer, ~dn);
+       let dn = Dn.of_meld(t.mel);
+       mk(~up, t.wal, ~dn);
      })
   |> Result.of_option(~error=up.space);
 let of_dn = dn =>
   Dn.uncons(dn)
   |> Option.map(((t: Terrace.t, dn)) => {
-       let up = Up.of_meld(t.backfill);
-       mk(~up, t.retainer, ~dn);
+       let up = Up.of_meld(t.mel);
+       mk(~up, t.wal, ~dn);
      })
   |> Result.of_option(~error=dn.space);
 
@@ -58,23 +58,23 @@ let put_up = up => map_up(_ => up);
 let map_dn = (f, zigg) => {...zigg, dn: f(zigg.dn)};
 let put_dn = dn => map_dn(_ => dn);
 
-// let of_r = ({backfill, retainer}: Terrace.R.t): t =>
-//   switch (Terrace.L.mk(backfill)) {
+// let of_r = ({mel, wal}: Terrace.R.t): t =>
+//   switch (Terrace.L.mk(mel)) {
 //   | None =>
-//     // todo: review that passing terr.backfill here is fine
-//     mk(~up=Up.of_meld(backfill), retainer)
-//   | Some((kid, l)) => mk(~up=Up.of_meld(kid), Retainer.of_l(l, retainer))
+//     // todo: review that passing terr.mel here is fine
+//     mk(~up=Up.of_meld(mel), wal)
+//   | Some((kid, l)) => mk(~up=Up.of_meld(kid), Wald.of_l(l, wal))
 //   };
 
 let push = (terr: Terrace.R.t, zigg: t) =>
   switch (Up.cons(terr, zigg.up)) {
   | Ok(up) => Ok({...zigg, up})
   | Error(kid) =>
-    switch (Terrace.cmp(terr, ~kid, Terrace.of_retainer(zigg.top))) {
+    switch (Terrace.cmp(terr, ~kid, Terrace.of_wald(zigg.top))) {
     | {lt: None, eq: None, gt: None} => failwith("expected fit")
     | {gt: Some(terr_kid), _} => Ok(put_up(Up.of_meld(terr_kid), zigg))
     | {eq: Some(terr_kid_top), _} =>
-      let (l, top, r) = Option.get(Retainer.of_meld(terr_kid_top));
+      let (l, top, r) = Option.get(Wald.mk(terr_kid_top));
       Ok(
         zigg
         |> put_up(Up.of_meld(l))
@@ -84,24 +84,24 @@ let push = (terr: Terrace.R.t, zigg: t) =>
     | {lt: Some(_), _} =>
       //                                  ----------zigg
       //                -----------------terr
-      // left-to-right: backfill retainer kid top dn
+      // left-to-right: mel wal kid top dn
       //                --------new up
       //                         --------new top
       //                                  ----------new dn
-      let up = Up.of_meld(terr.backfill);
-      let dn = Dn.cons(Terrace.{backfill: kid, retainer: zigg.top}, zigg.dn);
-      Error(mk(~up, terr.retainer, ~dn));
+      let up = Up.of_meld(terr.mel);
+      let dn = Dn.cons(Terrace.{mel: kid, wal: zigg.top}, zigg.dn);
+      Error(mk(~up, terr.wal, ~dn));
     }
   };
 let hsup = (zigg: t, terr: Terrace.L.t) =>
   switch (Dn.snoc(zigg.dn, terr)) {
   | Ok(dn) => Ok({...zigg, dn})
   | Error(kid) =>
-    switch (Terrace.cmp(Terrace.of_retainer(zigg.top), ~kid, terr)) {
+    switch (Terrace.cmp(Terrace.of_wald(zigg.top), ~kid, terr)) {
     | {lt: None, eq: None, gt: None} => failwith("expected fit")
     | {lt: Some(kid_terr), _} => Ok(put_dn(Dn.of_meld(kid_terr), zigg))
     | {eq: Some(top_kid_terr), _} =>
-      let (l, top, r) = Option.get(Retainer.of_meld(top_kid_terr));
+      let (l, top, r) = Option.get(Wald.mk(top_kid_terr));
       Ok(
         zigg
         |> map_up(Fun.flip(Up.cat, Up.of_meld(l)))
@@ -111,13 +111,13 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
     | {gt: Some(_), _} =>
       //                ----------zigg
       //                           -----------------terr
-      // left-to-right: up top kid retainer backfill
+      // left-to-right: up top kid wal mel
       //                                    --------new dn
       //                           --------new top
       //                ----------new up
-      let up = Up.snoc(zigg.up, Terrace.{retainer: zigg.top, backfill: kid});
-      let dn = Dn.of_meld(terr.backfill);
-      Error(mk(~up, terr.retainer, ~dn));
+      let up = Up.snoc(zigg.up, Terrace.{wal: zigg.top, mel: kid});
+      let dn = Dn.of_meld(terr.mel);
+      Error(mk(~up, terr.wal, ~dn));
     }
   };
 
