@@ -113,8 +113,7 @@ let mk_StringLit = Doc.text;
 
 let mk_FloatLit = (f: float) =>
   switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
-  | (false, true, _) => Doc.text("Inf")
-  /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
+  | (false, true, _) => Doc.text("Inf") /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
   | (true, true, _) => Doc.text("NegInf")
   | (_, _, true) => Doc.text("NaN")
   | _ => Doc.text(string_of_float(f))
@@ -149,7 +148,8 @@ let mk_ListLit = l => mk_comma_seq("[", "]", l, l);
 
 let mk_Tuple = elts => mk_comma_seq("(", ")", elts, elts);
 
-let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
+let mk_Ap = (doc1, doc2) =>
+  Doc.(hcats([doc1, text("("), doc2, text(")")]));
 
 let mk_Prj = (targ, n) =>
   Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);
