@@ -15,6 +15,8 @@ let add = MetaVarMap.add;
 
 let union = MetaVarMap.disj_union;
 
+let find_opt = MetaVarMap.find_opt;
+
 let cmp = (a: val_ty, b: val_ty): bool => {
   a == b;
 };

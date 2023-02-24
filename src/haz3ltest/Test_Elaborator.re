@@ -138,10 +138,7 @@ let u6: Term.UExp.t = {
   ids: [0],
   term:
     Fun(
-      {
-        ids: [1],
-        term: Var("x") /*TypeAnn({ids: [2], term: Var("x")}, {ids: [3], term: Int})*/,
-      },
+      {ids: [1], term: Var("x")},
       {
         ids: [4],
         term:
@@ -178,6 +175,64 @@ let () =
           Builtins.ctx(Builtins.Pervasives.builtins),
           [VarEntry({name: "x", id: 1, typ: Unknown(Internal)})],
         ),
+      ),
+      Delta.empty,
+    ),
+  );
+
+let u7: Term.UExp.t = {
+  ids: [0],
+  term:
+    Ap(
+      {
+        ids: [1],
+        term:
+          Fun(
+            {ids: [2], term: Var("x")},
+            {
+              ids: [3],
+              term:
+                BinOp(
+                  Int(Plus),
+                  {ids: [4], term: Int(4)},
+                  {ids: [5], term: Var("x")},
+                ),
+            },
+          ),
+      },
+      {ids: [6], term: Var("y")},
+    ),
+};
+let m7: Statics.map = Statics.mk_map(u7);
+let d7a: DHExp.t = NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y"));
+let d7b: DHExp.t =
+  Ap(
+    Fun(
+      Var("x"),
+      Unknown(Internal),
+      BinIntOp(
+        Plus,
+        IntLit(4),
+        Cast(BoundVar("x"), Unknown(Internal), Int),
+      ),
+      None,
+    ),
+    d7a,
+  );
+
+let () =
+  register_exp_test(
+    "Function applied to free variable",
+    [],
+    m7,
+    u7,
+    d7b,
+    Delta.add(
+      6,
+      (
+        ExpressionHole,
+        Unknown(Internal),
+        Builtins.ctx(Builtins.Pervasives.builtins),
       ),
       Delta.empty,
     ),

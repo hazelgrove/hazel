@@ -15,6 +15,8 @@ let add: (MetaVar.t, (hole_sort, Typ.t, Ctx.t), t) => t;
 
 let union: (t, t) => t;
 
+let find_opt: (int, t) => option(val_ty);
+
 let cmp: (val_ty, val_ty) => bool;
 
 let equal: ((val_ty, val_ty) => bool, t, t) => bool;
