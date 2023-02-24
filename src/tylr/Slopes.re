@@ -115,6 +115,7 @@ let rec zip = ((dn, up): t, kid: Meld.t) => {
 };
 let zip_init = ((dn, up): t) =>
   switch (dn.terrs, up.terrs) {
+  // when caret is in the middle of a piece
   | ([l, ...terrs_l], [r, ...terrs_r])
       when
         Space.(is_empty(dn.space) && is_empty(up.space))
@@ -124,5 +125,5 @@ let zip_init = ((dn, up): t) =>
     let p = Option.get(Piece.zip(hd_l, hd_r));
     let kid = Meld.append(tl_l, p, tl_r);
     zip((Dn.mk(terrs_l), Up.mk(terrs_r)), kid);
-  | _ => zip((dn, up), Meld.empty(~paths=[Path.mk(Space(L))], ()))
+  | _ => zip((dn, up), Meld.empty())
   };
