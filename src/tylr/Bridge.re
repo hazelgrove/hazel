@@ -1,4 +1,4 @@
-// open Util;
+open Util;
 
 // constituent terraces are the bridge's "base"
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -32,15 +32,15 @@ let mold = (~kid=?, t, (l, _)) => Terrace.R.mold(l, ~kid?, t);
 
 let zip = ((l, r): t, kid: Meld.t) => Option.get(Terrace.eq(l, ~kid, r));
 
-// let unzip = (step, mel) => {
-//   let (l, kid, r) = Meld.split_nth_kid(step, mel);
-//   let (l, s_l) = Meld.uncons_space_r(l);
-//   let (s_r, r) = Meld.uncons_space_l(r);
-//   let kid =
-//     switch (kid) {
-//     | None => Meld.empty
-//     | Some(K(mel)) => mel
-//     };
-//   (Meld.Padded.mk(~l=s_l, ~r=s_r, kid), (l, r));
-// };
-let unzip = (_, _) => failwith("todo Bridge.unzip");
+let unzip = (n, mel: Meld.t) => {
+  open OptUtil.Syntax;
+  let* (l, ret, r) = Retainer.of_meld(mel);
+  let+ (wall_l, kid, wall_r) =
+    switch (Chain.split_nth_link(n, ret)) {
+    | r => Some(r)
+    | exception _ => None
+    };
+  let l = Terrace.{backfill: l, retainer: wall_l};
+  let r = Terrace.{retainer: wall_r, backfill: r};
+  (kid, (l, r));
+};
