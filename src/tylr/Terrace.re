@@ -81,6 +81,7 @@ module R = {
   let prepend = (_: t, _: Meld.t) => failwith("todo prepend");
 
   let unsnoc_lexeme = (~char=false, r: t): (list(t), Space.t, Lexeme.t) => {
+    print_endline("Terrace.unsnoc_lexeme");
     let (face, rest) = split_face(r);
     // left-to-right: rest face
     switch (Piece.unzip(Piece.length(face) - 1, face)) {

@@ -44,6 +44,6 @@ let shape = (t: t): Shape.t =>
 
 let split = (n, tok) => {
   let l = String.sub(tok, 0, n);
-  let r = String.sub(tok, n, String.length(tok));
+  let r = String.sub(tok, n, String.length(tok) - n);
   (l, r);
 };

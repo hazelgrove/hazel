@@ -124,6 +124,7 @@ let rec unzip_slopes = ((l, r) as slopes, well) =>
   };
 
 let assemble = (~sel=Segment.empty, rel: t): t => {
+  print_endline("Stepwell.assemble");
   let (pre, suf) = get_slopes(rel);
   // separate siblings that belong to the selection
   let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
@@ -389,10 +390,12 @@ module Lexed = {
 };
 
 let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
+  print_endline("Stepwell.relex_insert");
   assert(s != "");
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
   | (Some(G(l)), Some(G(r))) when l.id == r.id =>
+    print_endline("Stepwell.relex_insert / grout mid");
     let prefix = l.fill ++ s;
     switch (fill(prefix, r)) {
     | None =>
@@ -403,6 +406,7 @@ let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
     | Some(p) => (Lexed.empty, cons(~onto=L, Terrace.of_piece(p), rel'))
     };
   | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
+    print_endline("Stepwell.relex_insert / grout start");
     let p = Option.get(fill(s, r));
     let rel =
       rel'
@@ -414,14 +418,17 @@ let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
       );
     (Lexed.empty, rel);
   | _ =>
+    print_endline("Stepwell.relex_insert / not filling");
     // todo: recycle ids + avoid remolding if unaffected
     let tok_l = Option.(l |> map(Lexeme.token) |> value(~default=""));
     let tok_r = Option.(r |> map(Lexeme.token) |> value(~default=""));
     let lexed = (Lexer.lex(tok_l ++ s ++ tok_r), Token.length(tok_r));
+    print_endline("lexed = " ++ Lexeme.show_s(fst(lexed)));
     (lexed, rel');
   };
 };
-let relex = (~insert="", rel: t): (Lexed.t, t) =>
+let relex = (~insert="", rel: t): (Lexed.t, t) => {
+  print_endline("Stepwell.relex");
   switch (insert) {
   | "" =>
     let ((l, r), rel') = uncons_opt_lexemes(rel);
@@ -439,6 +446,7 @@ let relex = (~insert="", rel: t): (Lexed.t, t) =>
     };
   | _ => relex_insert(insert, rel)
   };
+};
 
 let mark = (rel: t): t => {
   switch (uncons_lexeme(~from=R, rel)) {
@@ -588,6 +596,7 @@ let insert = ((ls, offset): Lexed.t, rel: t): t => {
       // fast path for space-only insertion
       |> (ls == [] ? remold_suffix : Fun.id)
     | None =>
+      print_endline("Stepwell.insert / not space");
       let inserted = List.fold_left(Fun.flip(insert_lexeme), rel, ls);
       print_endline("inserted = " ++ show(inserted));
       // let ins_path = path(inserted);

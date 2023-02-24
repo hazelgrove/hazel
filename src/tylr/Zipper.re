@@ -84,6 +84,7 @@ let delete = (d: Dir.t, z: t): option(t) => {
 };
 
 let insert = (s: string, z: t): t => {
+  print_endline("Zipper.insert");
   let (lexed, rel) = z.rel |> Stepwell.assemble |> Stepwell.relex(~insert=s);
   mk(Stepwell.insert(lexed, rel));
 };
