@@ -28,5 +28,5 @@ module Ana = {
   let mk = (~strict=false, ~sort=None, ()) => {sort, strict};
 };
 
-let leq = (_, _) => failwith("todo Sort.leq");
-let geq = (_, _) => failwith("todo Sort.geq");
+let leq = (l, r) => lca(l, r) == l;
+let geq = (l, r) => lca(l, r) == r;

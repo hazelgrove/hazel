@@ -113,8 +113,9 @@ let mold_of_token = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
 
 let tokens_of_mold = Tokens.of_mold;
 
-let assoc = (s, p) =>
-  switch (s) {
-  | None => None
-  | Some(s) => snd(List.nth(List.assoc(s, Lang.t), p))
-  };
+let assoc = (s, p) => {
+  open OptUtil.Syntax;
+  let* s = s;
+  let* (_, a) = p < 0 ? None : List.nth_opt(List.assoc(s, Lang.t), p);
+  a;
+};
