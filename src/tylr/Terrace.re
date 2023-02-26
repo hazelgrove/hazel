@@ -150,17 +150,13 @@ let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
     Meld.is_empty(kid),
     Piece.zip(p_l, p_r),
     Piece.replaces(p_l, p_r),
-    // let x   //     in
-    Piece.passes(p_l, p_r),
   ) {
-  | (Some(s), Some(p), _, _) when Space.is_empty(s) =>
+  | (Some(s), Some(p), _) when Space.is_empty(s) =>
     return(Meld.append(tl_l, p, tl_r))
-  | (Some(s), _, Some(L), _) => return(L.append(Meld.pad(tl_l, ~r=s), r))
-  | (Some(s), _, Some(R), _) => return(R.prepend(l, Meld.pad(~l=s, tl_r)))
-  | (Some(s), _, _, Some(L)) =>
+  | (Some(s), _, Some(L)) =>
     let* (l, kid) = R.mk(tl_l);
     eq(l, ~kid=Meld.pad(kid, ~r=s), r);
-  | (Some(s), _, _, Some(R)) =>
+  | (Some(s), _, Some(R)) =>
     let* (kid, r) = L.mk(r.mel);
     eq(l, ~kid=Meld.pad(~l=s, kid), r);
   | _ =>

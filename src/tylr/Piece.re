@@ -27,16 +27,7 @@ let of_tile = (~paths=[], t) => mk(~paths, T(t));
 let add_paths = (ps, p) => {...p, paths: ps @ p.paths};
 let clear_paths = p => {...p, paths: []};
 
-// let pad = (~l=Space.empty, ~r=Space.empty, {shape, space: (l', r')}) => {
-//   shape,
-//   space: (l @ l', r' @ r),
-// };
-
 let is_porous = _ => failwith("todo is_porous");
-
-// let space_l = ({space: (l, _), _}) => l;
-// let space_r = ({space: (_, r), _}) => r;
-// let space = ({space: (l, r), _}) => l @ r;
 
 let id = p =>
   switch (p.shape) {
@@ -67,15 +58,6 @@ let zip = (l: t, r: t): option(t) => {
     };
   mk(~paths, shape);
 };
-
-// let pop_space_l = ({shape, space: (l, r)}: t) => (
-//   l,
-//   {shape, space: (Space.empty, r)},
-// );
-// let pop_space_r = ({shape, space: (l, r)}: t) => (
-//   {shape, space: (l, Space.empty)},
-//   r,
-// );
 
 let mold = p =>
   switch (p.shape) {
@@ -212,7 +194,6 @@ let gt_ = (l: t, r: t): list(Sort.Ana.t) => {
 let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
 
 let replaces = (_, _): option(Dir.t) => failwith("todo Piece.replaces");
-let passes = (_, _): option(Dir.t) => failwith("todo Piece.passes");
 
 let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
   switch (p.shape) {
