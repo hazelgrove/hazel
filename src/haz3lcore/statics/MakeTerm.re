@@ -214,31 +214,30 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     // single-tile case
     | ([(_id, t)], []) =>
-        switch (t) {
-        | (["triv"], []) => ret(Triv)
-        | (["true"], []) => ret(Bool(true))
-        | (["false"], []) => ret(Bool(false))
-        | ([t], []) when Form.is_float(t) =>
-          ret(Float(float_of_string(t)))
-        | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
-        | ([t], []) when Form.is_var(t) || Form.is_livelit(t) =>
-          ret(Var(t))
-        | ([t], []) when Form.is_string(t) => ret(String(t))
-        | ([t], []) when Form.is_tag(t) => ret(Tag(t))
-        | (["test", "end"], [Exp(test)]) => ret(Test(test))
-        | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-        | (["nil"], []) => ret(ListLit([]))
-        | (["[", "]"], [Exp(body)]) =>
-          switch (body) {
-          | {ids, term: Tuple(es)} => (ListLit(es), ids)
-          | term => ret(ListLit([term]))
-          }
-        | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
-            Match(scrut, rules),
-            ids,
-          )
-        | _ => ret(hole(tm))
-        };
+      switch (t) {
+      | (["triv"], []) => ret(Triv)
+      | (["true"], []) => ret(Bool(true))
+      | (["false"], []) => ret(Bool(false))
+      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_var(t) || Form.is_livelit(t) =>
+        ret(Var(t))
+      | ([t], []) when Form.is_string(t) => ret(String(t))
+      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
+      | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (["nil"], []) => ret(ListLit([]))
+      | (["[", "]"], [Exp(body)]) =>
+        switch (body) {
+        | {ids, term: Tuple(es)} => (ListLit(es), ids)
+        | term => ret(ListLit([term]))
+        }
+      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
+          Match(scrut, rules),
+          ids,
+        )
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Exp(r)) as tm =>
@@ -266,7 +265,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
             | Var(l) when Form.is_livelit(l) =>
               LivelitAp({livelit_name: l, params: arg, tile_id: id})
             | _ => Ap(l, arg)
-            };
+            }
           | _ => hole(tm)
           },
         )

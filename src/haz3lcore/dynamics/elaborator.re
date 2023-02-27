@@ -287,8 +287,7 @@ let rec dhexp_of_uexp =
         | Some(l) =>
           let id = Term.UExp.rep_id(uexp);
           switch (Id.Map.find_opt(id, livelit_state)) {
-          | Some(t) =>
-            l.elaborate(~state=t, ~params);
+          | Some(t) => l.elaborate(~state=t, ~params)
           | None => Some(l.default)
           };
         | None => None
