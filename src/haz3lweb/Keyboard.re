@@ -68,7 +68,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
-    | (Down, "#") => now(Comment_out)
+    | (Down, "#") when zipper.selection.content != [] => now(Comment_out)
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
       //TODO(andrew): using funky char to avoid weird regexp issues with using \n
