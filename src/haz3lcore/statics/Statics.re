@@ -307,10 +307,6 @@ and uexp_to_info_map =
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => {
     (
-      // print_endline("ids: " ++ [%derive.show: list(int)](ids));
-      // print_endline(
-      //   "foo: " ++ [%derive.show: list((int, t))](Id.Map.bindings(m)),
-      // );
       typ_after_fix(mode, self),
       free,
       add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
@@ -482,8 +478,6 @@ and uexp_to_info_map =
 
     let (_, param_ctx, param_map) = uexp_to_info_map(~ctx, ~mode, params);
 
-    // print_endline("param_ctx: " ++ Ctx.show(ctx));
-
     // TODO TypeChecking
     let (typ, c, _ma) =
       switch (Livelit.find_livelit(livelit_name)) {
@@ -491,22 +485,6 @@ and uexp_to_info_map =
       | None => atomic(Just(Unknown(TypeHole)))
       };
 
-    // print_endline("param_c " ++ Ctx.show_co(c));
-    // print_endline(
-    //   "map" ++ [%derive.show: list((int, t))](Id.Map.bindings(ma)),
-    // );
-    // print_endline(
-    //   "param_map"
-    //   ++ [%derive.show: list((int, t))](Id.Map.bindings(param_map)),
-    // );
-
-    // print_endline("union" ++ Ctx.show_co(Ctx.union([c, param_ctx])));
-    // print_endline(
-    //   "union_m"
-    //   ++ [%derive.show: list((int, t))](
-    //        Id.Map.bindings(union_m([param_map, ma])),
-    //      ),
-    // );
     add(~self=Just(typ), ~free=Ctx.union([c, param_ctx]), param_map);
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);

@@ -187,7 +187,6 @@ let rec dhexp_of_uexp =
         let+ d1 = dhexp_of_uexp(m, body, livelit_state);
         DHExp.Fun(dp, Statics.pat_typ(m, p), d1, None);
       | Tuple(es) =>
-        print_endline("fourth");
         let+ ds =
           List.fold_right(
             (e, ds_opt) => {
@@ -282,26 +281,13 @@ let rec dhexp_of_uexp =
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
-      | LivelitAp({livelit_name, params: livelit_params, tile_id}) =>
-        print_endline("lp: " ++ TermBase.UExp.show(livelit_params));
+      | LivelitAp({livelit_name, params: livelit_params, tile_id: _}) =>
         let* params = dhexp_of_uexp(m, livelit_params, livelit_state);
-        print_endline("Params: " ++ DHExp.show(params));
         switch (Livelit.find_livelit(livelit_name)) {
         | Some(l) =>
           let id = Term.UExp.rep_id(uexp);
-          print_endline("Livelit found:" ++ Livelit.show(l));
-          print_endline("Livelit state id:" ++ string_of_int(id));
-          print_endline("Tile id:" ++ string_of_int(tile_id));
-
-          print_endline(
-            "Livelit state: "
-            ++ [%derive.show: list((int, DHExp.t))](
-                 Ptmap.bindings(livelit_state),
-               ),
-          );
           switch (Id.Map.find_opt(id, livelit_state)) {
           | Some(t) =>
-            print_endline("Elaborating" ++ DHExp.show(t));
             l.elaborate(~state=t, ~params);
           | None => Some(l.default)
           };

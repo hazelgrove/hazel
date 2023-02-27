@@ -297,12 +297,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           : (Point.t, t) => {
     let livelit_padding: int =
       switch (seg) {
-      | [Tile({label: [l], _} as _a), Tile(b), ...rest]
+      | [Tile({label: [l], _} as _a), Tile(b), ..._]
           when String.starts_with(~prefix="^", l) =>
-        print_endline("Tile B:" ++ Tile.show(b));
-        print_endline(
-          "Rest: " ++ String.concat(",", List.map(Piece.show, rest)),
-        );
 
         switch (Livelit.find_livelit(l)) {
         | Some(ll) => ll.width

@@ -143,8 +143,6 @@ module Text = (M: {
         ~livelit_state,
       )
       : list(Node.t) => {
-    // print_endline("Piece:" ++ Piece.show(p));
-    // print_endline("Expected Sort:" ++ Sort.show(expected_sort));
     switch (p) {
     | Tile(t) =>
       of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelit_state)

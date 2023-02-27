@@ -214,7 +214,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     // single-tile case
     | ([(_id, t)], []) =>
-      let foo =
         switch (t) {
         | (["triv"], []) => ret(Triv)
         | (["true"], []) => ret(Bool(true))
@@ -240,7 +239,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           )
         | _ => ret(hole(tm))
         };
-      foo;
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Exp(r)) as tm =>
@@ -259,13 +257,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Post(Exp(l), tiles: tiles) as tm => {
-      // print_endline("Post exp: " ++ UExp.show(l));
       switch (tiles) {
       | ([(id, t)], []) =>
         ret(
           switch (t) {
           | (["(", ")"], [Exp(arg)]) =>
-            print_endline("Tile_id: " ++ string_of_int(id));
             switch (l.term) {
             | Var(l) when Form.is_livelit(l) =>
               LivelitAp({livelit_name: l, params: arg, tile_id: id})
@@ -448,9 +444,6 @@ and rul = (unsorted: unsorted): URul.t => {
 }
 
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
-  // print_endline("Go_s: " ++ Segment.show(seg));
-  // print_endline("Go_s skel: " ++ Skel.show(skel));
-
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {
     | Secondary(_)
