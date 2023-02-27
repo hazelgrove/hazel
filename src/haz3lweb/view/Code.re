@@ -12,10 +12,10 @@ let of_delim' =
         is_complete,
         label,
         i,
-        inject,
-        livelit_state: Id.Map.t(DHExp.t),
-        font_metrics: FontMetrics.t,
-        tile_id: Id.t,
+        _inject,
+        _livelit_state: Id.Map.t(DHExp.t),
+        _font_metrics: FontMetrics.t,
+        _tile_id: Id.t,
       ),
     ) => {
   let cls =
@@ -28,12 +28,7 @@ let of_delim' =
     | _ => "delim"
     };
 
-  let livelit_nodes: list(t) =
-    switch (label) {
-    | [name] =>
-      LivelitView.view(font_metrics, inject, name, livelit_state, tile_id)
-    | _ => []
-    };
+  let livelit_nodes = [];
   [
     span(
       ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
@@ -102,6 +97,19 @@ module Text = (M: {
             ~livelit_state: Id.Map.t(DHExp.t),
           )
           : list(Node.t) => {
+    print_endline("Of Segment: " ++ Segment.show(seg));
+    let livelit_nodes: list(Node.t) =
+      switch (seg) {
+      | [
+          Tile({label: [l], id: _tile_id, _} as _a),
+          Tile({id: paren_id, _}),
+          ..._rest,
+        ]
+          when String.starts_with(~prefix="^", l) =>
+        LivelitView.view(font_metrics, inject, l, livelit_state, paren_id)
+      | _ => []
+      };
+
     //note: no_sorts flag is used for backback
     let expected_sorts: list((int, Sort.t)) =
       no_sorts
@@ -123,7 +131,8 @@ module Text = (M: {
            ~font_metrics,
            ~livelit_state,
          )
-       );
+       )
+    |> List.append(_, livelit_nodes);
   }
   and of_piece =
       (
@@ -134,6 +143,8 @@ module Text = (M: {
         ~livelit_state,
       )
       : list(Node.t) => {
+    // print_endline("Piece:" ++ Piece.show(p));
+    // print_endline("Expected Sort:" ++ Sort.show(expected_sort));
     switch (p) {
     | Tile(t) =>
       of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelit_state)

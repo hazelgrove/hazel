@@ -295,6 +295,22 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             seg: Segment.t,
           )
           : (Point.t, t) => {
+    let livelit_padding: int =
+      switch (seg) {
+      | [Tile({label: [l], _} as _a), Tile(b), ...rest]
+          when String.starts_with(~prefix="^", l) =>
+        print_endline("Tile B:" ++ Tile.show(b));
+        print_endline(
+          "Rest: " ++ String.concat(",", List.map(Piece.show, rest)),
+        );
+
+        switch (Livelit.find_livelit(l)) {
+        | Some(ll) => ll.width
+        | None => 0
+        };
+      | _ => 0
+      };
+
     let first_touched_incomplete =
       switch (Segment.incomplete_tiles(seg)) {
       | [] => None
@@ -376,25 +392,12 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
-            let livelit_padding =
-              switch (t.label) {
-              | [possible_livelit_name] =>
-                switch (Livelit.find_livelit(possible_livelit_name)) {
-                | Some(ll) => ll.width
-                | None => 0
-                }
-              | _ => 0
-              };
-
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
               let last =
                 Point.{
                   ...origin,
-                  col:
-                    origin.col
-                    + String.length(token(shard))
-                    + livelit_padding,
+                  col: origin.col + String.length(token(shard)),
                 };
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
@@ -419,7 +422,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
         let (tl_last, map) = go_seq(~map, ~contained_indent, ~origin, tl);
         (tl_last, map);
       };
-    go_seq(~map, ~origin, seg);
+    let (pt, a) = go_seq(~map, ~origin, seg);
+    ({row: pt.row, col: pt.col + livelit_padding}, a);
   };
   snd(go_nested(~map=empty, seg));
 };

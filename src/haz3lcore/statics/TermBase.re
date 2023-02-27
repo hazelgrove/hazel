@@ -137,7 +137,11 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    | LivelitAp({livelit_name: string})
+    | LivelitAp({
+        livelit_name: string,
+        params: t,
+        tile_id: int,
+      })
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -247,7 +251,11 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    | LivelitAp({livelit_name: string})
+    | LivelitAp({
+        livelit_name: string,
+        params: t,
+        tile_id: int,
+      })
   and t = {
     // invariant: nonempty
     ids: list(Id.t),

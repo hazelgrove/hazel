@@ -138,8 +138,11 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
 let rec dhexp_of_uexp =
         (m: Statics.map, uexp: Term.UExp.t, livelit_state: Id.Map.t(DHExp.t))
         : option(DHExp.t) => {
+  let id' = Term.UExp.rep_id(uexp);
+  let opt' = Id.Map.find_opt(id', m);
+
   /* NOTE: Left out delta for now */
-  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  switch (opt') {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
@@ -184,6 +187,7 @@ let rec dhexp_of_uexp =
         let+ d1 = dhexp_of_uexp(m, body, livelit_state);
         DHExp.Fun(dp, Statics.pat_typ(m, p), d1, None);
       | Tuple(es) =>
+        print_endline("fourth");
         let+ ds =
           List.fold_right(
             (e, ds_opt) => {
@@ -278,15 +282,30 @@ let rec dhexp_of_uexp =
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
-      | LivelitAp({livelit_name}) =>
-        let id = Term.UExp.rep_id(uexp);
-        switch (Id.Map.find_opt(id, livelit_state)) {
-        | Some(t) => Some(t)
-        | None =>
-          switch (Livelit.find_livelit(livelit_name)) {
-          | Some(l) => Some(l.default)
-          | None => None
-          }
+      | LivelitAp({livelit_name, params: livelit_params, tile_id}) =>
+        print_endline("lp: " ++ TermBase.UExp.show(livelit_params));
+        let* params = dhexp_of_uexp(m, livelit_params, livelit_state);
+        print_endline("Params: " ++ DHExp.show(params));
+        switch (Livelit.find_livelit(livelit_name)) {
+        | Some(l) =>
+          let id = Term.UExp.rep_id(uexp);
+          print_endline("Livelit found:" ++ Livelit.show(l));
+          print_endline("Livelit state id:" ++ string_of_int(id));
+          print_endline("Tile id:" ++ string_of_int(tile_id));
+
+          print_endline(
+            "Livelit state: "
+            ++ [%derive.show: list((int, DHExp.t))](
+                 Ptmap.bindings(livelit_state),
+               ),
+          );
+          switch (Id.Map.find_opt(id, livelit_state)) {
+          | Some(t) =>
+            print_endline("Elaborating" ++ DHExp.show(t));
+            l.elaborate(~state=t, ~params);
+          | None => Some(l.default)
+          };
+        | None => None
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut, livelit_state);

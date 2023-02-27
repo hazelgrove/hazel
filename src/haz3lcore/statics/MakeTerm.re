@@ -214,31 +214,33 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     // single-tile case
     | ([(_id, t)], []) =>
-      switch (t) {
-      | (["triv"], []) => ret(Triv)
-      | (["true"], []) => ret(Bool(true))
-      | (["false"], []) => ret(Bool(false))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
-      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitAp({livelit_name: t}))
-      | ([t], []) when Form.is_string(t) => ret(String(t))
-      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
-      | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (["nil"], []) => ret(ListLit([]))
-      | (["[", "]"], [Exp(body)]) =>
-        switch (body) {
-        | {ids, term: Tuple(es)} => (ListLit(es), ids)
-        | term => ret(ListLit([term]))
-        }
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
-          Match(scrut, rules),
-          ids,
-        )
-      | _ => ret(hole(tm))
-      }
+      let foo =
+        switch (t) {
+        | (["triv"], []) => ret(Triv)
+        | (["true"], []) => ret(Bool(true))
+        | (["false"], []) => ret(Bool(false))
+        | ([t], []) when Form.is_float(t) =>
+          ret(Float(float_of_string(t)))
+        | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+        | ([t], []) when Form.is_var(t) || Form.is_livelit(t) =>
+          ret(Var(t))
+        | ([t], []) when Form.is_string(t) => ret(String(t))
+        | ([t], []) when Form.is_tag(t) => ret(Tag(t))
+        | (["test", "end"], [Exp(test)]) => ret(Test(test))
+        | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+        | (["nil"], []) => ret(ListLit([]))
+        | (["[", "]"], [Exp(body)]) =>
+          switch (body) {
+          | {ids, term: Tuple(es)} => (ListLit(es), ids)
+          | term => ret(ListLit([term]))
+          }
+        | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
+            Match(scrut, rules),
+            ids,
+          )
+        | _ => ret(hole(tm))
+        };
+      foo;
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Exp(r)) as tm =>
@@ -256,16 +258,24 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Exp(l), tiles) as tm =>
-    switch (tiles) {
-    | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
-        },
-      )
-    | _ => ret(hole(tm))
+  | Post(Exp(l), tiles: tiles) as tm => {
+      // print_endline("Post exp: " ++ UExp.show(l));
+      switch (tiles) {
+      | ([(id, t)], []) =>
+        ret(
+          switch (t) {
+          | (["(", ")"], [Exp(arg)]) =>
+            print_endline("Tile_id: " ++ string_of_int(id));
+            switch (l.term) {
+            | Var(l) when Form.is_livelit(l) =>
+              LivelitAp({livelit_name: l, params: arg, tile_id: id})
+            | _ => Ap(l, arg)
+            };
+          | _ => hole(tm)
+          },
+        )
+      | _ => ret(hole(tm))
+      };
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
@@ -438,6 +448,9 @@ and rul = (unsorted: unsorted): URul.t => {
 }
 
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+  // print_endline("Go_s: " ++ Segment.show(seg));
+  // print_endline("Go_s skel: " ++ Skel.show(skel));
+
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {
     | Secondary(_)
