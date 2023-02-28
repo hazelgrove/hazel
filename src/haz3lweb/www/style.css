@@ -575,8 +575,9 @@ body {
 
 .unsolved-empty-hole-path {
   fill: #f0d1d1;
-  stroke: #dba7a7;
-  stroke-width: 0.75px;
+  stroke: var(--err-color);
+  stroke-width: 1.2px;
+  stroke-dasharray: 1, 1;
   vector-effect: non-scaling-stroke;
 }
 
