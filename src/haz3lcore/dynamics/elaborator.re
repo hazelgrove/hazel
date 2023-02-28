@@ -379,3 +379,16 @@ let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
     let d = uexp_elab_wrap_builtins(d);
     Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci
   };
+
+//let uexp_elab_new = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
+//  switch (dhexp_of_uexp(m, uexp)) {
+//  | None => DoesNotElaborate
+//  | Some(d) =>
+//    let builtins =
+//      List.fold_left(
+//        (d', (ident, (elab, _))) => DHExp.Let(Var(ident), elab, d'),
+//        EmptyHole(0, 0),
+//        Builtins.forms(Builtins.Pervasives.builtins),
+//      );
+//    DoesNotElaborate; // Do I call the evaluator to get the new environment, or built one on my own?
+//  };
