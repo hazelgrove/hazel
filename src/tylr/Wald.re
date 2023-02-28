@@ -11,3 +11,5 @@ let mk = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
 
 let unmk = (~l=Meld.empty(), ~r=Meld.empty(), wal: t) =>
   Meld.of_chain(Chain.untrim(l, wal, r)) |> Meld.aggregate;
+
+let join = (_, _, _) => failwith("todo Wald.join");

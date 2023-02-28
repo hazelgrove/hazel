@@ -154,6 +154,8 @@ let is_empty = (mel: t) =>
     Some(Space.cat(l, r));
   };
 
+let is_porous = _ => failwith("todo Meld.is_porous");
+
 let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
   of_chain(Chain.mk([l, r], [p])) |> aggregate;
 let of_grout = (~l=empty(), ~r=empty(), g: Grout.t) =>

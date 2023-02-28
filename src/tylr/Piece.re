@@ -104,8 +104,6 @@ let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
   go(zipper(p));
 };
 
-let replaces = (_, _): option(Dir.t) => failwith("todo Piece.replaces");
-
 let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
   switch (p.shape) {
   | G(g) =>
@@ -116,62 +114,6 @@ let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
     |> Either.map_r(((l, r)) => (of_tile(l), of_tile(r)))
   };
 };
-
-// let eq = (l: t, r: t): option(Sort.Ana.t) => {
-//   switch (Mold.tip(R, mold(l))) {
-//   | Convex => None
-//   | Concave(sort, _) =>
-//     let (z_l, z_r) = (zipper(l), zipper(r));
-//     let (moved_l, moved_r) =
-//       Gram.Zipper.(move_to_tok(R, z_l), move_to_tok(L, z_r));
-//     let strict = is_strict(l) || is_strict(r);
-//     List.mem(z_l, moved_r) && List.mem(z_r, moved_l)
-//       ? Some(Sort.Ana.mk(~strict, ~sort, ())) : None;
-//   };
-// };
-let eq = (_, _) => failwith("todo: find and return complement");
-
-let eq_transitive = (l: t, r: t): bool => {
-  let rec go = (z_l, z_r) => {
-    let moved_r = Gram.Zipper.move_to_tok(L, z_r);
-    List.mem(z_l, moved_r) ? true : List.exists(go(z_l), moved_r);
-  };
-  go(zipper(l), zipper(r));
-};
-
-// separate from cmp bc these are only relevant
-// based on surrounding meld kids (see Meld.merge/degrout)
-type dg =
-  | Degrout
-  | Fill(Dir.t)
-  | Pass(Dir.t);
-
-type degrouted =
-  | Removed(Space.t, Space.t)
-  | Replaced(Space.t, t, Space.t)
-  | Passed;
-
-let degrout = (l: t, r: t): option(dg) =>
-  switch (l.shape, r.shape) {
-  | (T(_), T(_)) => None
-  | (G(_), _) when mold(l) == mold(r) => Some(Fill(L))
-  | (_, G(_)) when mold(l) == mold(r) => Some(Fill(R))
-  | (G(_), _) when eq_transitive(r, l) => Some(Pass(L))
-  | (_, G(_)) when eq_transitive(r, l) => Some(Pass(R))
-  | (G(g), _) when Grout.has_sugg(g) => None
-  | (_, G(g)) when Grout.has_sugg(g) => None
-  // todo: probably need strengthen this check for degrouting
-  | (G(_), G(_))
-      when Tip.fits(Mold.tip(L, mold(l)), Mold.tip(R, mold(r))) =>
-    Some(Degrout)
-  | (G(_), _)
-      when Tip.same_shape(Mold.tip(L, mold(l)), Mold.tip(L, mold(r))) =>
-    Some(Fill(L))
-  | (_, G(_))
-      when Tip.same_shape(Mold.tip(R, mold(l)), Mold.tip(R, mold(r))) =>
-    Some(Fill(R))
-  | _ => None
-  };
 
 let fst_set = _ => failwith("todo fst");
 

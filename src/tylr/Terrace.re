@@ -141,45 +141,56 @@ let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
   R.unmk(l, kid);
 };
 
+let eq_p =
+    (l: Piece.t, ~kid=Meld.empty(), r: Piece.t)
+    : option((Space.t, Wald.t, Space.t)) => {
+  let ret = (~l=Space.empty, ~r=Space.empty, wal) => Some((l, wal, r));
+  let zips = Piece.zip(l, r);
+  let eq_mold = Piece.(mold(l) == mold(r));
+  switch (l.shape, Meld.is_porous(kid), r.shape) {
+  | (_, Some(s), _) when Option.is_some(zips) && Space.is_empty(s) =>
+    ret(Wald.of_piece(Option.get(zips)))
+  | (G(_), Some(s), _) when eq_mold => ret(~l=s, Wald.of_piece(r))
+  | (_, Some(s), G(_)) when eq_mold => ret(Wald.of_piece(l), ~r=s)
+  | _ =>
+    Piece.(Mold.eq(mold(l), mold(r)))
+    |> Option.map(compl =>
+         Wald.of_piece(r)
+         |> List.fold_right(
+              ((sugg, mold), r) =>
+                switch (Mold.tip(R, mold)) {
+                | Convex => raise(Gram.Ill_typed)
+                | Concave(s, _) =>
+                  let kid = Meld.of_grout(Grout.mk_convex(s));
+                  let g = Piece.of_grout(Grout.mk(~sugg, mold));
+                  Chain.link(g, kid, r);
+                },
+              compl,
+            )
+       )
+    |> Option.map(Chain.link(l, kid))
+    |> Option.map(wal => Space.(empty, wal, empty))
+  };
+};
+
 let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
-  open OptUtil.Syntax;
   let ((p_l, tl_l), (p_r, tl_r)) = (split_face(l), split_face(r));
-  // left-to-right: tl_l p_l p_r tl_r
-  switch (
-    Piece.eq(p_l, p_r),
-    Piece.eq(p_r, p_l),
-    (p_l.shape, Meld.is_empty(kid), p_r.shape),
-  ) {
-  | (Some(_), Some(_), _) when Piece.(Id.eq(id(p_l), id(p_r))) =>
-    let p = Piece.zip(p_l, p_r);
-    return(Meld.append(tl_l, p, tl_r));
-  | (Some(_), Some(_), (G(_), Some(s), _)) =>
-    return(L.append(Meld.pad(tl_l, ~r=s), r))
-  | (Some(_), Some(_), (_, Some(s), G(_))) =>
-    return(R.prepend(l, Meld.pad(~l=s, tl_r)))
-  | (None, Some(_), (G(_), Some(s), _)) =>
-    let* (l, kid) = R.mk(tl_l);
-    eq(l, ~kid=Meld.pad(kid, ~r=s), r);
-  | (None, Some(_), (_, Some(s), G(_))) =>
-    let* (kid, r) = L.mk(r.mel);
-    eq(l, ~kid=Meld.pad(~l=s, kid), r);
-  | (Some(compl), _, _) =>
-    // todo: abstract into some join-complement fn
-    let r =
-      List.fold_right(
-        ((sugg, mold), r) =>
-          switch (Mold.tip(R, mold)) {
-          | Convex => raise(Gram.Ill_typed)
-          | Concave(s, _) =>
-            let kid = Meld.of_grout(Grout.mk_convex(s));
-            let g = Piece.of_grout(Grout.mk(~sugg, mold));
-            map_wal(Chain.link(g, kid), r);
-          },
-        compl,
-        r,
-      );
-    R.prepend(l, L.unmk(kid, r));
-  | _ => None
+  switch (eq_p(p_l, ~kid, p_r)) {
+  | Some(wal) => Some(Wald.join(tl_l, wal, tl_r))
+  | None =>
+    switch (
+      R.mk(tl_l),
+      p_l.shape,
+      Meld.is_porous(kid),
+      p_r.shape,
+      L.mk(tl_r),
+    ) {
+    | (Some((l, kid)), G(_), Some(s), _, _) =>
+      eq(l, ~kid=Meld.pad(kid, ~r=s), r)
+    | (_, _, Some(s), G(_), Some((kid, r))) =>
+      eq(l, ~kid=Meld.pad(~l=s, kid), r)
+    | _ => None
+    }
   };
 };
 
