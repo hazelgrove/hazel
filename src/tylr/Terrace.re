@@ -146,21 +146,24 @@ let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
   let ((p_l, tl_l), (p_r, tl_r)) = (split_face(l), split_face(r));
   // left-to-right: tl_l p_l p_r tl_r
   switch (
-    // todo: relax to porous
-    Meld.is_empty(kid),
-    Piece.zip(p_l, p_r),
-    Piece.replaces(p_l, p_r),
+    Piece.eq(p_l, p_r),
+    Piece.eq(p_r, p_l),
+    (p_l.shape, Meld.is_empty(kid), p_r.shape),
   ) {
-  | (Some(s), Some(p), _) when Space.is_empty(s) =>
-    return(Meld.append(tl_l, p, tl_r))
-  | (Some(s), _, Some(L)) =>
+  | (Some(_), Some(_), _) when Piece.(Id.eq(id(p_l), id(p_r))) =>
+    let p = Piece.zip(p_l, p_r);
+    return(Meld.append(tl_l, p, tl_r));
+  | (Some(_), Some(_), (G(_), Some(s), _)) =>
+    return(L.append(Meld.pad(tl_l, ~r=s), r))
+  | (Some(_), Some(_), (_, Some(s), G(_))) =>
+    return(R.prepend(l, Meld.pad(~l=s, tl_r)))
+  | (None, Some(_), (G(_), Some(s), _)) =>
     let* (l, kid) = R.mk(tl_l);
     eq(l, ~kid=Meld.pad(kid, ~r=s), r);
-  | (Some(s), _, Some(R)) =>
+  | (None, Some(_), (_, Some(s), G(_))) =>
     let* (kid, r) = L.mk(r.mel);
     eq(l, ~kid=Meld.pad(~l=s, kid), r);
-  | _ =>
-    let+ compl = Piece.eq(p_l, p_r);
+  | (Some(compl), _, _) =>
     // todo: abstract into some join-complement fn
     let r =
       List.fold_right(
@@ -176,6 +179,7 @@ let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
         r,
       );
     R.prepend(l, L.unmk(kid, r));
+  | _ => None
   };
 };
 

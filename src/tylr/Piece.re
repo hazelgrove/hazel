@@ -104,6 +104,19 @@ let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
   go(zipper(p));
 };
 
+let replaces = (_, _): option(Dir.t) => failwith("todo Piece.replaces");
+
+let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
+  switch (p.shape) {
+  | G(g) =>
+    Grout.unzip(path, g)
+    |> Either.map_r(((l, r)) => (of_grout(l), of_grout(r)))
+  | T(t) =>
+    Tile.unzip(path, t)
+    |> Either.map_r(((l, r)) => (of_tile(l), of_tile(r)))
+  };
+};
+
 // let eq = (l: t, r: t): option(Sort.Ana.t) => {
 //   switch (Mold.tip(R, mold(l))) {
 //   | Convex => None
@@ -192,16 +205,3 @@ let gt_ = (l: t, r: t): list(Sort.Ana.t) => {
   };
 };
 let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
-
-let replaces = (_, _): option(Dir.t) => failwith("todo Piece.replaces");
-
-let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
-  switch (p.shape) {
-  | G(g) =>
-    Grout.unzip(path, g)
-    |> Either.map_r(((l, r)) => (of_grout(l), of_grout(r)))
-  | T(t) =>
-    Tile.unzip(path, t)
-    |> Either.map_r(((l, r)) => (of_tile(l), of_tile(r)))
-  };
-};
