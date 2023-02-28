@@ -9,8 +9,8 @@ let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
   | Inference(_) => div([])
   | Internal(_) => div([])
-  | TypeHole(_) =>
-    div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
+  | TypeHole(_) => div([])
+  // div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch(_) =>
     div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")])
   | Anonymous => div([]);

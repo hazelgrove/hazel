@@ -39,6 +39,25 @@ let get_desired_solutions =
   new_map;
 };
 
+type solution =
+  | Solved(ITyp.t)
+  | Unsolved
+  | NotTypeHole;
+
+let get_solution_of_id2 =
+    (id: Id.t, global_inference_info: global_inference_info): solution =>
+  if (global_inference_info.enabled) {
+    let status =
+      Hashtbl.find_opt(global_inference_info.solution_statuses, id);
+    switch (status) {
+    | Some(Solved(ityp)) => Solved(ityp)
+    | Some(Unsolved(_)) => Unsolved
+    | None => NotTypeHole
+    };
+  } else {
+    NotTypeHole;
+  };
+
 let get_solution_of_id =
     (id: Id.t, global_inference_info: global_inference_info): option(ITyp.t) =>
   if (global_inference_info.enabled) {

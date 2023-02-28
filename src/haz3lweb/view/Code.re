@@ -39,14 +39,16 @@ let of_delim =
 
 let of_grout =
     (~global_inference_info: InferenceResult.global_inference_info, id: Id.t) => {
-  let solution_opt =
-    InferenceResult.get_solution_of_id(id, global_inference_info);
-  switch (solution_opt) {
-  | Some(ityp) => [
+  let solution: InferenceResult.solution =
+    InferenceResult.get_solution_of_id2(id, global_inference_info);
+  switch (solution) {
+  | Solved(Unknown(_))
+  | NotTypeHole => [Node.text(Unicode.nbsp)]
+  | Solved(ityp) => [
       [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> Node.text]
       |> span_c("solved-annotation"),
     ]
-  | None => [Node.text(Unicode.nbsp)]
+  | Unsolved => [["?" |> Node.text] |> span_c("unsolved-annotation")]
   };
 };
 

@@ -703,7 +703,11 @@ body {
 /* INFERENCE ANNOTATIONS */
 
 .solved-annotation {
-  color:rgb(178, 178, 178);
+  color: rgb(178, 178, 178);
+}
+
+.unsolved-annotation {
+  color: rgb(168, 66, 66);
 }
 
 .unsolved-cursor-inspect {

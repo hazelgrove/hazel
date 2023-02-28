@@ -397,7 +397,13 @@ let rec string_of_eq_class = (eq_class: t): string =>
   | [hd] => string_of_eq_typ(hd)
   | [hd, ...tl] =>
     let hd_str = string_of_eq_typ(hd);
-    String.concat("//", [hd_str, string_of_eq_class(tl)]);
+    String.concat(" // ", [hd_str, string_of_eq_class(tl)]);
+  }
+and string_of_eq_class_no_nesting = (eq_class: t): string =>
+  switch (eq_class) {
+  | [] => ""
+  | [hd] => string_of_eq_typ(hd)
+  | [_hd, ..._tl] => "?"
   }
 and string_of_eq_typ = (eq_typ: eq_typ) =>
   switch (eq_typ) {
@@ -405,7 +411,7 @@ and string_of_eq_typ = (eq_typ: eq_typ) =>
   | Compound(ctor, eq_class_lt, eq_class_rt) =>
     let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => ("", " -> (", ")")
+      | CArrow => ("(", " -> ", ")")
       | CProd => ("(", ", ", ")")
       | CSum => ("", " + (", ")")
       };
@@ -414,9 +420,9 @@ and string_of_eq_typ = (eq_typ: eq_typ) =>
       "",
       [
         ctor_start,
-        string_of_eq_class(eq_class_lt),
+        string_of_eq_class_no_nesting(eq_class_lt),
         ctor_string,
-        string_of_eq_class(eq_class_rt),
+        string_of_eq_class_no_nesting(eq_class_rt),
         ctor_end,
       ],
     );

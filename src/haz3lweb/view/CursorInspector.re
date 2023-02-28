@@ -217,9 +217,9 @@ let view_of_global_inference_info =
     )
   | Some((false, error_message)) =>
     div(
-      ~attr=clss(["infoc", "typ"]),
+      ~attr=clss([infoc, "typ"]),
       [
-        text("and has inferred type "),
+        text("and has conflicting constraints: "),
         span_c("unsolved-cursor-inspect", [text(error_message)]),
       ],
     )
