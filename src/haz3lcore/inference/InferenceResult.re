@@ -2,7 +2,7 @@ open Util.OptUtil.Syntax;
 
 type status =
   | Solved(ITyp.t)
-  | Unsolved(EqClass.t);
+  | Unsolved(PotentialTypeSet.t);
 
 type t = (ITyp.t, status);
 
@@ -95,8 +95,11 @@ let get_cursor_inspect_result =
     let* status =
       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
     switch (status) {
-    | Unsolved(eq_class) =>
-      Some((false, EqClass.string_of_eq_class(eq_class)))
+    | Unsolved(potential_typ_set) =>
+      Some((
+        false,
+        PotentialTypeSet.string_of_potential_typ_set(potential_typ_set),
+      ))
     | Solved(ityp) =>
       Some((true, ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string))
     };
@@ -110,20 +113,29 @@ let get_recommended_string =
   ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
 };
 
-let condense = (eq_class: MutableEqClass.t, key: ITyp.t): status => {
-  let (eq_class, err) = MutableEqClass.snapshot_class(eq_class, key);
-  let sorted_eq_class = EqClass.sort_eq_class(eq_class);
+let condense =
+    (potential_typ_set: MutablePotentialTypeSet.t, key: ITyp.t): status => {
+  let (potential_typ_set, err) =
+    MutablePotentialTypeSet.snapshot_class(potential_typ_set, key);
+  let sorted_potential_typ_set =
+    PotentialTypeSet.sort_potential_typ_set(potential_typ_set);
 
-  let filtered_eq_class =
-    EqClass.filter_unneeded_holes(EqClass.is_known, sorted_eq_class);
+  let filtered_potential_typ_set =
+    PotentialTypeSet.filter_unneeded_holes(
+      PotentialTypeSet.is_known,
+      sorted_potential_typ_set,
+    );
 
   switch (err) {
-  | Some(_) => Unsolved(filtered_eq_class)
+  | Some(_) => Unsolved(filtered_potential_typ_set)
   | None =>
-    let solved_opt = EqClass.filtered_eq_class_to_typ(filtered_eq_class);
+    let solved_opt =
+      PotentialTypeSet.filtered_potential_typ_set_to_typ(
+        filtered_potential_typ_set,
+      );
     switch (solved_opt) {
     | Some(typ) => Solved(typ)
-    | None => Unsolved(filtered_eq_class)
+    | None => Unsolved(filtered_potential_typ_set)
     };
   };
 };
