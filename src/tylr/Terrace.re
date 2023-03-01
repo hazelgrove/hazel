@@ -141,26 +141,13 @@ let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
   R.unmk(l, kid);
 };
 
-let rec eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
-  let ((p_l, tl_l), (p_r, tl_r)) = (split_face(l), split_face(r));
-  switch (Wald.connect(p_l, ~kid, p_r)) {
-  | Some(wal) => Some(Wald.join(tl_l, wal, tl_r))
-  | None =>
-    switch (
-      R.mk(tl_l),
-      p_l.shape,
-      Meld.is_porous(kid),
-      p_r.shape,
-      L.mk(tl_r),
-    ) {
-    | (Some((l, kid)), G(_), Some(s), _, _) =>
-      eq(l, ~kid=Meld.pad(kid, ~r=s), r)
-    | (_, _, Some(s), G(_), Some((kid, r))) =>
-      eq(l, ~kid=Meld.pad(~l=s, kid), r)
-    | _ => None
-    }
-  };
-};
+let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
+  Wald.eq(l.wal, ~kid, r.wal)
+  |> Option.map(((s_l, wal, s_r)) => {
+       let l = Meld.pad(l.mel, ~r=s_l);
+       let r = Meld.pad(~l=s_r, r.mel);
+       Wald.unmk(~l, wal, ~r);
+     });
 
 let in_ = (_, ~s as _: Space.t, _) => failwith("todo Terrace.in_");
 

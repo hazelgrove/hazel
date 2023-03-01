@@ -32,17 +32,58 @@ let of_range = (l: Piece.t, ~kid=Meld.empty(), r: Piece.t) =>
      )
   |> Option.map(Chain.link(l, kid));
 
-let eq =
-    (l: Piece.t, ~kid=Meld.empty(), r: Piece.t)
-    : option((Space.t, t, Space.t)) => {
-  let ret = (~l=Space.empty, ~r=Space.empty, wal) => Some((l, wal, r));
-  let zips = Piece.zip(l, r);
-  let eq_mold = Piece.(mold(l) == mold(r));
-  switch (l.shape, Meld.is_porous(kid), r.shape) {
-  | (_, Some(s), _) when Option.is_some(zips) && Space.is_empty(s) =>
-    ret(of_piece(Option.get(zips)))
-  | (G(_), Some(s), _) when eq_mold => ret(~l=s, of_piece(r))
-  | (_, Some(s), G(_)) when eq_mold => ret(of_piece(l), ~r=s)
-  | _ => Option.bind(of_range(l, ~kid, r), ret)
+module Padded = {
+  type wald = t;
+  type t = (Space.t, wald, Space.t);
+  let mk = (~l=Space.empty, ~r=Space.empty, wal) => (l, wal, r);
+  let link = (p, kid, (l, wal, r): t) =>
+    mk(Chain.link(p, Meld.pad(kid, ~r=l), wal), ~r);
+};
+
+let cat =
+    (f: (Piece.t, Piece.t) => option(Padded.t), l: t, r: t)
+    : option(Padded.t) =>
+  l
+  |> Chain.fold_right(
+       (p, kid) => Option.map(Padded.link(p, kid)),
+       p_l =>
+         switch (Chain.unlink(r)) {
+         | None => f(p_l, Chain.fst(r))
+         | Some((p_r, kid_r, tl_r)) =>
+           f(p_l, p_r)
+           |> Option.map(((l, wal, r)) =>
+                wal
+                |> Chain.fold_right(Chain.link, p =>
+                     Chain.link(p, Meld.pad(~l=r, kid_r), tl_r)
+                   )
+                |> Padded.mk(~l)
+              )
+         },
+     );
+
+let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
+  open OptUtil.Syntax;
+  let eq_p = (l, r) => {
+    let zips = Piece.zip(l, r);
+    let eq_mold = Piece.(mold(l) == mold(r));
+    switch (l.shape, Meld.is_porous(kid), r.shape) {
+    | (_, Some(s), _) when Option.is_some(zips) && Space.is_empty(s) =>
+      return(Padded.mk(of_piece(Option.get(zips))))
+    | (G(_), Some(s), _) when eq_mold =>
+      return(Padded.mk(~l=s, of_piece(r)))
+    | (_, Some(s), G(_)) when eq_mold =>
+      return(Padded.mk(of_piece(l), ~r=s))
+    | _ =>
+      let+ wal = of_range(l, ~kid, r);
+      Padded.mk(wal);
+    };
+  };
+  let/ () = cat(eq_p, l, r);
+  let* (tl_l, kid_l, p_l) = Chain.unknil(l);
+  let* (p_r, kid_r, tl_r) = Chain.unlink(r);
+  switch (p_l.shape, Meld.is_porous(kid), p_r.shape) {
+  | (G(_), Some(s), _) => eq(tl_l, ~kid=Meld.pad(kid_l, ~r=s), r)
+  | (_, Some(s), G(_)) => eq(l, ~kid=Meld.pad(~l=s, kid_r), tl_r)
+  | _ => None
   };
 };
