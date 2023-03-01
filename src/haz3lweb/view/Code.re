@@ -48,7 +48,7 @@ let of_grout =
       [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> Node.text]
       |> span_c("solved-annotation"),
     ]
-  | Unsolved => [["?" |> Node.text] |> span_c("unsolved-annotation")]
+  | Unsolved => [["!" |> Node.text] |> span_c("unsolved-annotation")]
   };
 };
 

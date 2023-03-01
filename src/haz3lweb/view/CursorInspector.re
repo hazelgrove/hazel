@@ -133,8 +133,43 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
   );
 };
 
+let view_of_global_inference_info =
+    (
+      ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
+      id: int,
+    ) => {
+  switch (
+    Haz3lcore.InferenceResult.get_cursor_inspect_result(
+      ~global_inference_info,
+      id,
+    )
+  ) {
+  | Some((true, solution)) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [text("has inferred type "), text(solution)],
+    )
+  | Some((false, error_message)) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [
+        text("has conflicting constraints: "),
+        span_c("unsolved-cursor-inspect", [text(error_message)]),
+      ],
+    )
+  | None => div([])
+  };
+};
+
 let view_of_info =
-    (~inject, ~show_lang_doc: bool, ci: Haz3lcore.Statics.t): Node.t => {
+    (
+      ~inject,
+      ~show_lang_doc: bool,
+      ~global_inference_info,
+      id: int,
+      ci: Haz3lcore.Statics.t,
+    )
+    : Node.t => {
   let is_err = Haz3lcore.Statics.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
@@ -169,14 +204,27 @@ let view_of_info =
       ],
     )
   | InfoTyp({self: Just(ty), _}) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-        text("is"),
-        Type.view(ty),
-      ],
-    )
+    switch (
+      Haz3lcore.InferenceResult.get_solution_of_id2(id, global_inference_info)
+    ) {
+    | NotTypeHole =>
+      div(
+        ~attr=clss([infoc, "typ"]),
+        [
+          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
+          text("is"),
+          Type.view(ty),
+        ],
+      )
+    | _ =>
+      div(
+        ~attr=clss([infoc, "typ"]),
+        [
+          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
+          view_of_global_inference_info(~global_inference_info, id),
+        ],
+      )
+    }
   | InfoTyp({self: _, _}) =>
     failwith("CursorInspector: Impossible type error")
   | InfoRul(_) =>
@@ -198,34 +246,6 @@ let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
     ~attr=Attr.many([clss(["extra"] @ (visible ? ["visible"] : []))]),
     [id_view(id), cls_view(ci)],
   );
-
-let view_of_global_inference_info =
-    (
-      ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
-      id: int,
-    ) => {
-  switch (
-    Haz3lcore.InferenceResult.get_cursor_inspect_result(
-      ~global_inference_info,
-      id,
-    )
-  ) {
-  | Some((true, solution)) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [text("and has inferred type "), text(solution)],
-    )
-  | Some((false, error_message)) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        text("and has conflicting constraints: "),
-        span_c("unsolved-cursor-inspect", [text(error_message)]),
-      ],
-    )
-  | None => div([])
-  };
-};
 
 let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   print_endline(Haz3lcore.Statics.show(ci));
@@ -261,8 +281,7 @@ let inspector_view =
       ]),
     [
       extra_view(settings.context_inspector, id, ci),
-      view_of_info(~inject, ~show_lang_doc, ci),
-      view_of_global_inference_info(~global_inference_info, id),
+      view_of_info(~inject, ~show_lang_doc, ~global_inference_info, id, ci),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );

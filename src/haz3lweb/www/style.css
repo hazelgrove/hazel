@@ -574,11 +574,17 @@ body {
 }
 
 .unsolved-empty-hole-path {
-  fill: #f0d1d1;
+  /* fill: #f0d1d1;
   stroke: var(--err-color);
   stroke-width: 1.2px;
   stroke-dasharray: 1, 1;
+  vector-effect: non-scaling-stroke; */
+  fill: #d001;
+  stroke-dasharray: 1, 1;
+  stroke: var(--err-color);
+  stroke-width: 1.2px;
   vector-effect: non-scaling-stroke;
+  /* mix-blend-mode: color;*/
 }
 
 .selection {
@@ -708,7 +714,7 @@ body {
 }
 
 .unsolved-annotation {
-  color: rgb(168, 66, 66);
+  color: rgb(229, 30, 30);
 }
 
 .unsolved-cursor-inspect {
