@@ -90,10 +90,10 @@ module Pervasives = {
     |> using("float_of_int", float_of_int)
     |> using("mod", modulo);
   // New code; the system does not allow unused variables
-  //  let builtins_as_environment =
-  //    List.fold_left(
-  //      (env, (name, impl)) => Environment.extend(env, (name, impl)),
-  //      Environment.empty,
-  //      builtins,
-  //    );
+  let builtins_as_environment =
+    List.fold_left(
+      (env, (name, impl)) => Environment.extend(env, (name, impl)),
+      Environment.empty,
+      builtins,
+    );
 };

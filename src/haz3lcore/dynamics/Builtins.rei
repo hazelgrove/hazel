@@ -31,4 +31,5 @@ module Pervasives: {
   let modulo: Var.t => Builtin.t;
 
   let builtins: t;
+  let builtins_as_environment: Environment.t;
 };
