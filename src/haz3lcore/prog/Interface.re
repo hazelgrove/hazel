@@ -14,7 +14,7 @@ exception PostprocessError(EvaluatorPost.error);
 let evaluate =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(Builtins.builtins_as_environment),
+    Evaluator.evaluate(Builtins.Pervasives.builtins_as_environment),
   );
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
@@ -91,7 +91,7 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
 let step =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    EvaluatorStep.step(Builtins.builtins_as_environment),
+    EvaluatorStep.step(Builtins.Pervasives.builtins_as_environment),
   );
 
 let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
@@ -127,7 +127,7 @@ let nop = (d: DHExp.t): ProgramResult.t => {
 let decompose =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    EvaluatorStep.decompose(Builtins.builtins_as_environment),
+    EvaluatorStep.decompose(Builtins.Pervasives.builtins_as_environment),
   );
 
 let decompose = (d: DHExp.t): list(EvaluatorStep.EvalObj.t) => {

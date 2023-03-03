@@ -92,8 +92,8 @@ module Pervasives = {
   // New code; the system does not allow unused variables
   let builtins_as_environment =
     List.fold_left(
-      (env, (name, impl)) => Environment.extend(env, (name, impl)),
+      (env, (ident, (elab, _))) => Environment.extend(env, (ident, elab)),
       Environment.empty,
-      builtins,
+      forms(builtins),
     );
 };
