@@ -305,11 +305,13 @@ and uexp_to_info_map =
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
-  let add = (~self, ~free, m) => (
-    typ_after_fix(mode, self),
-    free,
-    add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
-  );
+  let add = (~self, ~free, m) => {
+    (
+      typ_after_fix(mode, self),
+      free,
+      add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
+    );
+  };
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(msg) => (
@@ -459,11 +461,31 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
-  | LivelitAp({livelit_name}) =>
-    switch (Livelit.find_livelit(livelit_name)) {
-    | Some(ll) => atomic(Just(ll.expansion_type))
-    | None => atomic(Just(Unknown(TypeHole)))
-    }
+  | LivelitAp({livelit_name, params, tile_id: _}) =>
+    /*
+         let (ty_fn, free_fn, m_fn) =
+           uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+         let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+         let (_, free_arg, m_arg) =
+           uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+         add(
+           ~self=Just(ty_out),
+           ~free=Ctx.union([free_fn, free_arg]),
+           union_m([m_fn, m_arg]),
+         );
+
+     */
+
+    let (_, param_ctx, param_map) = uexp_to_info_map(~ctx, ~mode, params);
+
+    // TODO TypeChecking
+    let (typ, c, _ma) =
+      switch (Livelit.find_livelit(livelit_name)) {
+      | Some(ll) => atomic(Just(ll.expansion_type))
+      | None => atomic(Just(Unknown(TypeHole)))
+      };
+
+    add(~self=Just(typ), ~free=Ctx.union([c, param_ctx]), param_map);
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);

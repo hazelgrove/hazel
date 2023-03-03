@@ -220,9 +220,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["false"], []) => ret(Bool(false))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitAp({livelit_name: t}))
+      | ([t], []) when Form.is_var(t) || Form.is_livelit(t) =>
+        ret(Var(t))
       | ([t], []) when Form.is_string(t) => ret(String(t))
       | ([t], []) when Form.is_tag(t) => ret(Tag(t))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -256,16 +255,22 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Exp(l), tiles) as tm =>
-    switch (tiles) {
-    | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
-        },
-      )
-    | _ => ret(hole(tm))
+  | Post(Exp(l), tiles: tiles) as tm => {
+      switch (tiles) {
+      | ([(id, t)], []) =>
+        ret(
+          switch (t) {
+          | (["(", ")"], [Exp(arg)]) =>
+            switch (l.term) {
+            | Var(l) when Form.is_livelit(l) =>
+              LivelitAp({livelit_name: l, params: arg, tile_id: id})
+            | _ => Ap(l, arg)
+            }
+          | _ => hole(tm)
+          },
+        )
+      | _ => ret(hole(tm))
+      };
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {

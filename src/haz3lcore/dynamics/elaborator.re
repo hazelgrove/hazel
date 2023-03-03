@@ -138,8 +138,11 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
 let rec dhexp_of_uexp =
         (m: Statics.map, uexp: Term.UExp.t, livelit_state: Id.Map.t(DHExp.t))
         : option(DHExp.t) => {
+  let id' = Term.UExp.rep_id(uexp);
+  let opt' = Id.Map.find_opt(id', m);
+
   /* NOTE: Left out delta for now */
-  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  switch (opt') {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
@@ -278,15 +281,16 @@ let rec dhexp_of_uexp =
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
-      | LivelitAp({livelit_name}) =>
-        let id = Term.UExp.rep_id(uexp);
-        switch (Id.Map.find_opt(id, livelit_state)) {
-        | Some(t) => Some(t)
-        | None =>
-          switch (Livelit.find_livelit(livelit_name)) {
-          | Some(l) => Some(l.default)
-          | None => None
-          }
+      | LivelitAp({livelit_name, params: livelit_params, tile_id: _}) =>
+        let* params = dhexp_of_uexp(m, livelit_params, livelit_state);
+        switch (Livelit.find_livelit(livelit_name)) {
+        | Some(l) =>
+          let id = Term.UExp.rep_id(uexp);
+          switch (Id.Map.find_opt(id, livelit_state)) {
+          | Some(t) => l.elaborate(~state=t, ~params)
+          | None => Some(l.default)
+          };
+        | None => None
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut, livelit_state);
