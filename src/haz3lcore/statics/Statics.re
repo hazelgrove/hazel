@@ -70,12 +70,19 @@ let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (Ctx.co, Map.t) =>
   switch (any) {
   | Exp(e) =>
-    let (Info.{free, _}, m) = uexp_to_info_map(~ctx, ~ancestors, e, m);
+    let (Info.{free, _}, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~mode=Typ.Ana(Unknown(TrueSyn)),
+        ~ancestors,
+        e,
+        m,
+      );
     (free, m);
   | Pat(p) =>
     let m =
       upat_to_info_map(
-        ~mode=Typ.Ana(Unknown(SynSwitch)),
+        ~mode=Typ.Ana(Unknown(TrueSyn)),
         ~is_synswitch=false,
         ~pat_form=Info.Solo,
         ~ancestors,
@@ -109,7 +116,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~mode=Typ.Ana(Unknown(SynSwitch)),
+      ~mode: Typ.mode,
       ~ancestors,
       {ids, term} as uexp: UExp.t,
       m: Map.t,
@@ -136,7 +143,7 @@ and uexp_to_info_map =
     let (frees, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~free=Ctx.union(frees), m);
   | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(Unknown(EmptyExp)))
+  | EmptyHole => atomic(Just(Unknown(EmptyExpHole)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -187,7 +194,7 @@ and uexp_to_info_map =
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~free=e.free, m);
   | Seq(e1, e2) =>
-    let (e1, m) = go(~mode=Ana(Unknown(SynSwitch)), e1, m);
+    let (e1, m) = go(~mode=Ana(Unknown(TrueSyn)), e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~free=Ctx.union([e1.free, e2.free]), m);
   | Tag(tag) => atomic(Info.self_tag(ctx, tag))
@@ -213,7 +220,7 @@ and uexp_to_info_map =
       go_pat(
         ~is_synswitch=true,
         ~pat_form=Info.Solo,
-        ~mode=Ana(Unknown(SynSwitch)),
+        ~mode=Ana(Unknown(TrueSyn)),
         p,
         m,
       );
@@ -245,7 +252,7 @@ and uexp_to_info_map =
       m,
     );
   | Match(scrut, rules) =>
-    let (scrut, m) = go(~mode=Ana(Unknown(SynSwitch)), scrut, m);
+    let (scrut, m) = go(~mode=Ana(Unknown(TrueSyn)), scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
     let (ps, m) =
@@ -355,7 +362,7 @@ and upat_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~ctx, m);
   | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(Unknown(EmptyPat)))
+  | EmptyHole => atomic(Just(Unknown(EmptyPatHole)))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
@@ -377,7 +384,7 @@ and upat_to_info_map =
   | Wild => atomic(Just(Unknown(PatVar)))
   | Var(name) =>
     /* Note the self type assigned to pattern variables (unknown)
-       may be SynSwitch, but the type we add to the context is
+       may be TrueSyn, but the type we add to the context is
        always Unknown Intern... NOT NO MORREEEE!!! */
     let ctx_typ =
       Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(PatVar))));
@@ -452,7 +459,7 @@ and utyp_to_info_map =
     let t1_mode: Info.typ_expects =
       switch (expects) {
       | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_in, sum_ty))
-      | _ => TagExpected(Unique, Arrow(ty_in, Unknown(TagShit)))
+      | _ => TagExpected(Unique, Arrow(ty_in, Unknown(TypeHole)))
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
@@ -500,6 +507,7 @@ let mk_map =
   Core.Memo.general(~cache_size_bound=1000, e => {
     uexp_to_info_map(
       ~ctx=Builtins.ctx(Builtins.Pervasives.builtins),
+      ~mode=Typ.Ana(Unknown(TrueSyn)),
       ~ancestors=[],
       e,
       Id.Map.empty,

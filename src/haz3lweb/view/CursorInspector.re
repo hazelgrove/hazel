@@ -57,32 +57,61 @@ let term_tag = (~inject, ~settings: Model.settings, ~show_lang_doc, ci) =>
 let common_err_view = (err: Info.error_common) =>
   switch (err) {
   | BadToken(token) => [
-      text(Printf.sprintf("\"%s\" isn't a valid token", token)),
+      text("is"),
+      Type.view(Unknown(ErrorHole)),
+      text("given《》"),
+      text(Printf.sprintf("as \"%s\" isn't a valid token", token)),
     ]
-  | FreeTag => [text("Constructor is not defined")]
+  | FreeTag => [
+      text("is"),
+      Type.view(Unknown(ErrorHole)),
+      text("given《》"),
+      text("as constructor is not defined"),
+    ]
   | TypeInconsistent({ana, syn}) => [
+      text("is"),
+      Type.view(Unknown(ErrorHole)),
       text("expected"),
       Type.view(ana),
-      text("got"),
+      text("given"),
       Type.view(syn),
     ]
   };
 
 let common_ok_view = (ok: Info.ok_pat) => {
   switch (ok) {
-  | SynConsistent(ty_syn) => [text("has type"), Type.view(ty_syn)]
   | AnaConsistent({ana, syn, _}) when ana == syn => [
-      text("expected & got"),
+      text("is"),
       Type.view(ana),
     ]
-  | AnaConsistent({ana, syn, _}) => [
+  | AnaConsistent({ana, syn, join}) when ana == join => [
+      text("is"),
+      Type.view(ana),
+      text("given"),
+      Type.view(syn),
+    ]
+  | AnaConsistent({ana, syn, join}) when syn == join => [
+      text("is"),
+      Type.view(syn),
       text("expected"),
       Type.view(ana),
-      text("got"),
+    ]
+  | AnaConsistent({ana, syn, join}) => [
+      text("is"),
+      Type.view(join),
+      text("expected"),
+      Type.view(ana),
+      text("given"),
       Type.view(syn),
     ]
   | AnaInternalInconsistent({ana, nojoin}) =>
-    [text("expected"), Type.view(ana), text("got《")]
+    [
+      text("is"),
+      Type.view(Unknown(ErrorHole)),
+      text("expected"),
+      Type.view(ana),
+      text("given《"),
+    ]
     @ ListUtil.join(text(","), List.map(Type.view, nojoin))
     @ [text("》")]
   };
@@ -132,18 +161,22 @@ let typ_err_view = (ok: Info.error_typ) =>
 
 let exp_view: Info.status_exp => t =
   fun
-  | InHole(FreeVariable) => view_err([text("Variable is not bound")])
+  | InHole(FreeVariable) =>
+    view_err([
+      text("is"),
+      Type.view(Unknown(ErrorHole)),
+      text("given《》"),
+      text("as variable is not bound"),
+    ])
   | InHole(Common(error)) => view_err(common_err_view(error))
   | NotInHole(ok) => view_ok(common_ok_view(ok));
 
 let pat_view: Info.status_pat => t =
   fun
   | Warning(ok, SoloRefutable) =>
-    view_warn([text("Doesn't cover all cases but ")] @ common_ok_view(ok))
+    view_warn(common_ok_view(ok) @ [text("but doesn't cover all cases")])
   | Warning(ok, Shadowing(_id)) =>
-    view_warn(
-      [text("Shadowing previous binding but ")] @ common_ok_view(ok),
-    )
+    view_warn(common_ok_view(ok) @ [text("but shadows previous binding ")])
   | InHole(Common(error)) => view_err(common_err_view(error))
   | NotInHole(ok) => view_ok(common_ok_view(ok));
 

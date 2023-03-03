@@ -8,18 +8,45 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
+let rec prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
-  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")])
-  | EmptyExp => div(~attr=clss(["typ-mod", "empty-exp"]), [text("e🕳")])
-  | Err => div(~attr=clss(["typ-mod", "type-hole"]), [text("⚠")])
-  | EmptyPat => div(~attr=clss(["typ-mod", "empty-pat"]), [text("p🕳")])
+  | TrueSyn => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")])
+  | EmptyExpHole =>
+    div(~attr=clss(["typ-mod", "empty-exp"]), [text("e🕳")])
+  | ErrorHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("⚠")])
+  | EmptyPatHole =>
+    div(~attr=clss(["typ-mod", "empty-pat"]), [text("p🕳")])
   | PatVar => div(~attr=clss(["typ-mod", "pat-var"]), [text("𝑥")])
   | EmptyList => div(~attr=clss(["typ-mod", "empty-list"]), [text("[]")])
   | EmptyJoin => div(~attr=clss(["typ-mod", "empty-join"]), [text("∅")])
-  | TagShit => div(~attr=clss(["typ-mod", "tagshit"]), [text("💩")]);
+  | Join(p1, p2) =>
+    div(
+      ~attr=clss(["typ-mod", "join"]),
+      [
+        text("⦉"),
+        prov_view(p1),
+        text(","),
+        prov_view(p2),
+        text("⦊"),
+      ],
+    )
+  | MatchedArrow(prov) =>
+    div(
+      ~attr=clss(["typ-mod", "matched-arrow"]),
+      [text("▶→("), prov_view(prov), text(")")],
+    )
+  | MatchedProd(prov) =>
+    div(
+      ~attr=clss(["typ-mod", "matched-prod"]),
+      [text("▶×("), prov_view(prov), text(")")],
+    )
+  | MatchedList(prov) =>
+    div(
+      ~attr=clss(["typ-mod", "matched-list"]),
+      [text("▶["), prov_view(prov), text("]")],
+    );
 
 let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous

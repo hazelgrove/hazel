@@ -69,7 +69,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   //TODO(andrew): hack
   | Ana(Unknown(_)) => d
-  | Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch))) =>
+  | Ana(Arrow(Unknown(TrueSyn), Unknown(TrueSyn))) =>
     switch (self_ty) {
     | Unknown(prov) =>
       DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))

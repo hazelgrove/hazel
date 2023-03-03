@@ -6,31 +6,10 @@ open OptUtil.Syntax;
 /* How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
-   which strictly predominates over SynSwitch. */
+   which strictly predominates over TrueSyn. */
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
-  switch (p1, p2) {
-  | (TypeHole, _)
-  | (_, TypeHole) => TypeHole
-  | (EmptyExp, _) => EmptyExp
-  | (_, EmptyExp) => EmptyExp
-  | (EmptyPat, _) => EmptyPat
-  | (_, EmptyPat) => EmptyPat
-  | (EmptyList, _) => EmptyList
-  | (_, EmptyList) => EmptyList
-  | (TagShit, _) => TagShit
-  | (_, TagShit) => TagShit
-  | (PatVar, _) => PatVar
-  | (_, PatVar) => PatVar
-  | (Err, _) => Err
-  | (_, Err) => Err //TODO(andrew)
-  | (SynSwitch, _) => SynSwitch
-  | (_, SynSwitch) => SynSwitch
-  | (EmptyJoin, _) => EmptyJoin
-  | (_, EmptyJoin) => EmptyJoin
-  | (Internal, _) => Internal
-  //| (_, Internal) => Internal
-  };
+  Join(p1, p2);
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
@@ -40,14 +19,17 @@ let join_type_provenance =
 let matched_arrow: t => (t, t) =
   fun
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(prov) => (Unknown(prov), Unknown(prov))
-  | _ => (Unknown(Err), Unknown(Err));
+  | Unknown(prov) => (
+      Unknown(MatchedArrow(prov)),
+      Unknown(MatchedArrow(prov)),
+    )
+  | _ => (Unknown(ErrorHole), Unknown(ErrorHole));
 
 let matched_list: t => t =
   fun
   | List(ty) => ty
-  | Unknown(prov) => Unknown(prov)
-  | _ => Unknown(Err);
+  | Unknown(prov) => Unknown(MatchedList(prov))
+  | _ => Unknown(ErrorHole);
 
 let matched_arrow_mode: mode => (mode, mode) =
   fun
@@ -64,8 +46,9 @@ let matched_prod_modes = (mode: mode, length): list(mode) =>
   switch (mode) {
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-  | _ => List.init(length, _ => Ana(Unknown(Err)))
+  | Ana(Unknown(prod)) =>
+    List.init(length, _ => Ana(Unknown(MatchedProd(prod))))
+  | _ => List.init(length, _ => Ana(Unknown(ErrorHole)))
   };
 
 let matched_list_lit_modes = (mode: mode, length): list(mode) =>
@@ -323,17 +306,19 @@ let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
   };
 };
 
-let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
+let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode => {
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
+  let unk = Unknown(TrueSyn);
   switch (tag_name) {
   | Some(name) =>
     switch (tag_ana_typ(ctx, mode, name)) {
     | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
-    | Some(ty_ana) => Ana(Arrow(Unknown(TagShit), ty_ana))
-    | _ => Ana(Arrow(Unknown(TagShit), Unknown(TagShit)))
+    | Some(ty_ana) => Ana(Arrow(unk, ty_ana))
+    | _ => Ana(Arrow(unk, unk))
     }
-  | None => Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch)))
+  | None => Ana(Arrow(unk, unk))
   };
+};

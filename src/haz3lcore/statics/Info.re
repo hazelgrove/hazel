@@ -83,7 +83,6 @@ type error_pat =
    want to warn about this inconsistency in the cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_common =
-  | SynConsistent(Typ.t)
   | AnaConsistent({
       ana: Typ.t,
       syn: Typ.t,
@@ -256,7 +255,14 @@ let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
   | (BadToken(name), Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Ana(_)) => NotInHole(SynConsistent(Unknown(Err)))
+  | (IsMulti, Ana(ana)) =>
+    NotInHole(
+      AnaConsistent({
+        ana,
+        syn: Unknown(ErrorHole),
+        join: Unknown(ErrorHole),
+      }),
+    )
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
@@ -280,7 +286,6 @@ let rec status_common =
 
 let ty_ok_pat: ok_pat => Typ.t =
   fun
-  | SynConsistent(ty) => ty
   | AnaConsistent({ana, _}) => ana
   | AnaInternalInconsistent({ana, _}) => ana;
 
@@ -414,19 +419,18 @@ let status_cls = (ci: t): status_cls => {
    non-empty holes', i.e. assigned Unknown type. */
 let typ_ok: ok_pat => Typ.t =
   fun
-  | SynConsistent(syn) => syn
   | AnaConsistent({join, _}) => join
   | AnaInternalInconsistent({ana, _}) => ana;
 
 let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(Err)
+  | InHole(_) => Unknown(ErrorHole)
   | Warning(ok, _)
   | NotInHole(ok) => typ_ok(ok)
   };
 let ty_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(Err)
+  | InHole(_) => Unknown(ErrorHole)
   | NotInHole(ok) => typ_ok(ok)
   };
 
