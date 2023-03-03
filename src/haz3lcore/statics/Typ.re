@@ -12,11 +12,24 @@ let join_type_provenance =
   switch (p1, p2) {
   | (TypeHole, _)
   | (_, TypeHole) => TypeHole
-  | (Internal, Internal | SynSwitch)
-  | (SynSwitch, Internal) => Internal
-  | (SynSwitch, SynSwitch) => SynSwitch
+  | (EmptyExp, _) => EmptyExp
+  | (_, EmptyExp) => EmptyExp
+  | (EmptyPat, _) => EmptyPat
+  | (_, EmptyPat) => EmptyPat
+  | (EmptyList, _) => EmptyList
+  | (_, EmptyList) => EmptyList
+  | (TagShit, _) => TagShit
+  | (_, TagShit) => TagShit
+  | (PatVar, _) => PatVar
+  | (_, PatVar) => PatVar
   | (Err, _) => Err
   | (_, Err) => Err //TODO(andrew)
+  | (SynSwitch, _) => SynSwitch
+  | (_, SynSwitch) => SynSwitch
+  | (EmptyJoin, _) => EmptyJoin
+  | (_, EmptyJoin) => EmptyJoin
+  | (Internal, _) => Internal
+  //| (_, Internal) => Internal
   };
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
@@ -28,18 +41,16 @@ let matched_arrow: t => (t, t) =
   fun
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
-  | _ => (Unknown(Internal), Unknown(Internal));
+  | _ => (Unknown(Err), Unknown(Err));
 
 let matched_list: t => t =
   fun
   | List(ty) => ty
   | Unknown(prov) => Unknown(prov)
-  | _ => Unknown(Internal);
+  | _ => Unknown(Err);
 
 let matched_arrow_mode: mode => (mode, mode) =
   fun
-  //| SynFun
-  //| Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
@@ -47,8 +58,6 @@ let matched_arrow_mode: mode => (mode, mode) =
 
 let matched_list_mode: mode => mode =
   fun
-  //| SynFun
-  //| Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
 let matched_prod_modes = (mode: mode, length): list(mode) =>
@@ -56,7 +65,7 @@ let matched_prod_modes = (mode: mode, length): list(mode) =>
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
   | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-  | _ => List.init(length, _ => Ana(Unknown(Internal)))
+  | _ => List.init(length, _ => Ana(Unknown(Err)))
   };
 
 let matched_list_lit_modes = (mode: mode, length): list(mode) =>
@@ -236,7 +245,7 @@ and join_sum_entries =
 let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
     (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
-    Some(Unknown(Internal)),
+    Some(Unknown(EmptyJoin)),
     ts,
   );
 
@@ -323,8 +332,8 @@ let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
   | Some(name) =>
     switch (tag_ana_typ(ctx, mode, name)) {
     | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
-    | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
-    | _ => Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch)))
+    | Some(ty_ana) => Ana(Arrow(Unknown(TagShit), ty_ana))
+    | _ => Ana(Arrow(Unknown(TagShit), Unknown(TagShit)))
     }
   | None => Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch)))
   };

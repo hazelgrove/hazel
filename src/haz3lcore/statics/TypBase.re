@@ -8,8 +8,14 @@ module rec Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | Err
+    | EmptyJoin
+    | EmptyExp
+    | EmptyPat
+    | PatVar
+    | EmptyList
     | SynSwitch
     | TypeHole
+    | TagShit
     | Internal;
 
   /* TYP.T: Hazel types */
@@ -45,8 +51,14 @@ module rec Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | Err
+    | EmptyJoin
+    | EmptyExp
+    | EmptyPat
+    | PatVar
+    | EmptyList
     | SynSwitch
     | TypeHole
+    | TagShit
     | Internal;
 
   /* TYP.T: Hazel types */

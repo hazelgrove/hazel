@@ -13,7 +13,13 @@ let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   | Internal => div([])
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")])
-  | Err => div(~attr=clss(["typ-mod", "type-hole"]), [text("⚠")]);
+  | EmptyExp => div(~attr=clss(["typ-mod", "empty-exp"]), [text("e🕳")])
+  | Err => div(~attr=clss(["typ-mod", "type-hole"]), [text("⚠")])
+  | EmptyPat => div(~attr=clss(["typ-mod", "empty-pat"]), [text("p🕳")])
+  | PatVar => div(~attr=clss(["typ-mod", "pat-var"]), [text("𝑥")])
+  | EmptyList => div(~attr=clss(["typ-mod", "empty-list"]), [text("[]")])
+  | EmptyJoin => div(~attr=clss(["typ-mod", "empty-join"]), [text("∅")])
+  | TagShit => div(~attr=clss(["typ-mod", "tagshit"]), [text("💩")]);
 
 let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous

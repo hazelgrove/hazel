@@ -126,7 +126,7 @@ module UTyp = {
         //Ctx.is_alias(ctx, name) ? Var(name) : unk
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
-        | None => unk
+        | None => Unknown(Err)
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))

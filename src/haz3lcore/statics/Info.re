@@ -256,13 +256,7 @@ let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
   | (BadToken(name), Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Ana(_)) => NotInHole(SynConsistent(Unknown(Internal)))
-  /*| (Just(ty), Syn) => NotInHole(SynConsistent(ty))
-    | (Just(ty), SynFun) =>
-      switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
-      | Some(_) => NotInHole(SynConsistent(ty))
-      | None => InHole(InconsistentWithArrow(ty))
-      }*/
+  | (IsMulti, Ana(_)) => NotInHole(SynConsistent(Unknown(Err)))
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
@@ -391,6 +385,9 @@ let status_cls = (ci: t): status_cls => {
   | InfoExp({mode, self, ctx, _}) =>
     switch (status_exp(ctx, mode, self)) {
     | InHole(_) => Error
+    | NotInHole(AnaInternalInconsistent({ana: Unknown(prov), _}))
+        when prov != TypeHole =>
+      Warn
     | NotInHole(_) => Ok
     }
   | InfoPat({mode, self, ctx, _}) =>

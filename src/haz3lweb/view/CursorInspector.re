@@ -71,6 +71,10 @@ let common_err_view = (err: Info.error_common) =>
 let common_ok_view = (ok: Info.ok_pat) => {
   switch (ok) {
   | SynConsistent(ty_syn) => [text("has type"), Type.view(ty_syn)]
+  | AnaConsistent({ana, syn, _}) when ana == syn => [
+      text("expected & got"),
+      Type.view(ana),
+    ]
   | AnaConsistent({ana, syn, _}) => [
       text("expected"),
       Type.view(ana),
