@@ -61,8 +61,6 @@ type self_pat =
 type error_common =
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | FreeTag /* Sum constructor neiter bound nor in ana type */
-  | InconsistentWithArrow(Typ.t) /* Bad function position */
-  | SynInconsistentBranches(list(Typ.t)) /* Inconsistent match or listlit */
   | TypeInconsistent({
       ana: Typ.t,
       syn: Typ.t,
@@ -257,15 +255,14 @@ let source_tys = List.map((source: source) => source.ty);
 let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
-  | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Syn | SynFun | Ana(_)) =>
-    NotInHole(SynConsistent(Unknown(Internal)))
-  | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
-  | (Just(ty), SynFun) =>
-    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
-    | Some(_) => NotInHole(SynConsistent(ty))
-    | None => InHole(InconsistentWithArrow(ty))
-    }
+  | (BadToken(name), Ana(_)) => InHole(BadToken(name))
+  | (IsMulti, Ana(_)) => NotInHole(SynConsistent(Unknown(Internal)))
+  /*| (Just(ty), Syn) => NotInHole(SynConsistent(ty))
+    | (Just(ty), SynFun) =>
+      switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+      | Some(_) => NotInHole(SynConsistent(ty))
+      | None => InHole(InconsistentWithArrow(ty))
+      }*/
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
@@ -281,8 +278,8 @@ let rec status_common =
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
     }
-  | (NoJoin(tys), Syn | SynFun) =>
-    InHole(SynInconsistentBranches(source_tys(tys)))
+  /*| (NoJoin(tys), Syn | SynFun) =>
+    InHole(SynInconsistentBranches(source_tys(tys)))*/
   | (NoJoin(tys), Ana(ana)) =>
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
   };
@@ -426,13 +423,13 @@ let typ_ok: ok_pat => Typ.t =
 
 let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(Err)
   | Warning(ok, _)
   | NotInHole(ok) => typ_ok(ok)
   };
 let ty_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(Err)
   | NotInHole(ok) => typ_ok(ok)
   };
 

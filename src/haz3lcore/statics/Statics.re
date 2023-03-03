@@ -75,6 +75,7 @@ let rec any_to_info_map =
   | Pat(p) =>
     let m =
       upat_to_info_map(
+        ~mode=Typ.Ana(Unknown(SynSwitch)),
         ~is_synswitch=false,
         ~pat_form=Info.Solo,
         ~ancestors,
@@ -108,7 +109,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~mode=Typ.Syn,
+      ~mode=Typ.Ana(Unknown(SynSwitch)),
       ~ancestors,
       {ids, term} as uexp: UExp.t,
       m: Map.t,
@@ -117,7 +118,7 @@ and uexp_to_info_map =
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
-    | Ana(Unknown(SynSwitch)) => Typ.Syn
+    //| Ana(Unknown(SynSwitch)) => Typ.Syn
     | _ => mode
     };
   let add' = (~self, ~free, m) => {
@@ -192,7 +193,7 @@ and uexp_to_info_map =
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~free=e.free, m);
   | Seq(e1, e2) =>
-    let (e1, m) = go(~mode=Syn, e1, m);
+    let (e1, m) = go(~mode=Ana(Unknown(Internal)), e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~free=Ctx.union([e1.free, e2.free]), m);
   | Tag(tag) => atomic(Info.self_tag(ctx, tag))
@@ -213,13 +214,26 @@ and uexp_to_info_map =
       m,
     );
   | Let(p, def, body) =>
-    let (p_syn, _) =
-      go_pat(~is_synswitch=true, ~mode=Syn, ~pat_form=Solo, p, m);
+    //NOTE(andrew): switched source of CI for pat
+    let (p_syn, m) =
+      go_pat(
+        ~is_synswitch=true,
+        ~pat_form=Info.Solo,
+        ~mode=Ana(Unknown(SynSwitch)),
+        p,
+        m,
+      );
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) =
-      go_pat(~is_synswitch=false, ~mode=Ana(def.ty), ~pat_form=Solo, p, m);
+    let (p_ana, _m) =
+      go_pat(
+        ~is_synswitch=false,
+        ~pat_form=Info.Solo,
+        ~mode=Ana(def.ty),
+        p,
+        m,
+      );
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),
@@ -237,7 +251,7 @@ and uexp_to_info_map =
       m,
     );
   | Match(scrut, rules) =>
-    let (scrut, m) = go(~mode=Syn, scrut, m);
+    let (scrut, m) = go(~mode=Ana(Unknown(Internal)), scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
     let (ps, m) =
@@ -316,7 +330,7 @@ and upat_to_info_map =
       ~pat_form: Info.pat_form,
       ~ctx,
       ~ancestors: Info.ancestors,
-      ~mode: Typ.mode=Typ.Syn,
+      ~mode,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )

@@ -12,7 +12,8 @@ let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
-  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
+  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")])
+  | Err => div(~attr=clss(["typ-mod", "type-hole"]), [text("⚠")]);
 
 let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous

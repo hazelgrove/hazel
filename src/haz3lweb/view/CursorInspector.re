@@ -59,19 +59,11 @@ let common_err_view = (err: Info.error_common) =>
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid token", token)),
     ]
-  | InconsistentWithArrow(typ) => [
-      Type.view(typ),
-      text("is not consistent with arrow type"),
-    ]
   | FreeTag => [text("Constructor is not defined")]
-  | SynInconsistentBranches(tys) => [
-      text("Expecting branches to have consistent types but got:"),
-      ...ListUtil.join(text(","), List.map(Type.view, tys)),
-    ]
   | TypeInconsistent({ana, syn}) => [
-      text("Expecting"),
+      text("expected"),
       Type.view(ana),
-      text("but got"),
+      text("got"),
       Type.view(syn),
     ]
   };
@@ -79,27 +71,16 @@ let common_err_view = (err: Info.error_common) =>
 let common_ok_view = (ok: Info.ok_pat) => {
   switch (ok) {
   | SynConsistent(ty_syn) => [text("has type"), Type.view(ty_syn)]
-  | AnaConsistent({ana, syn, _}) when ana == syn => [
-      text("has expected & actual type"),
-      Type.view(ana),
-    ]
-  | AnaConsistent({ana, syn: Unknown(_), _}) => [
-      text("satisfies expected type"),
-      Type.view(ana),
-    ]
   | AnaConsistent({ana, syn, _}) => [
-      text("has type"),
-      Type.view(syn),
-      text("which is consistent with"),
+      text("expected"),
       Type.view(ana),
+      text("got"),
+      Type.view(syn),
     ]
   | AnaInternalInconsistent({ana, nojoin}) =>
-    [
-      text("is consistent with"),
-      Type.view(ana),
-      text("but is internally inconsistent:"),
-    ]
+    [text("expected"), Type.view(ana), text("got《")]
     @ ListUtil.join(text(","), List.map(Type.view, nojoin))
+    @ [text("》")]
   };
 };
 

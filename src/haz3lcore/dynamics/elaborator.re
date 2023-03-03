@@ -67,14 +67,23 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
 
 let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
-  | Syn => d
-  | SynFun =>
+  //TODO(andrew): hack
+  | Ana(Unknown(_)) => d
+  | Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch))) =>
     switch (self_ty) {
     | Unknown(prov) =>
       DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
+  /*| Syn => d
+    | SynFun =>
+      switch (self_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+      | Arrow(_) => d
+      | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
+      }*/
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -270,9 +279,9 @@ let rec dhexp_of_uexp =
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(SynInconsistentBranches(_))) =>
-          DHExp.InconsistentBranches(id, 0, d)
-        | _ => ConsistentCase(d)
+        /*| InHole(Common(SynInconsistentBranches(_))) =>
+          DHExp.InconsistentBranches(id, 0, d)*/
+        | _ => DHExp.ConsistentCase(d)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -288,9 +297,9 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(SynInconsistentBranches(_))) =>
-          DHExp.InconsistentBranches(id, 0, d)
-        | _ => ConsistentCase(d)
+        /*| InHole(Common(SynInconsistentBranches(_))) =>
+          DHExp.InconsistentBranches(id, 0, d)*/
+        | _ => DHExp.ConsistentCase(d)
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };

@@ -10,11 +10,13 @@ open OptUtil.Syntax;
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
   switch (p1, p2) {
-  | (TypeHole, TypeHole | Internal | SynSwitch)
-  | (Internal | SynSwitch, TypeHole) => TypeHole
+  | (TypeHole, _)
+  | (_, TypeHole) => TypeHole
   | (Internal, Internal | SynSwitch)
   | (SynSwitch, Internal) => Internal
   | (SynSwitch, SynSwitch) => SynSwitch
+  | (Err, _) => Err
+  | (_, Err) => Err //TODO(andrew)
   };
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
@@ -34,18 +36,10 @@ let matched_list: t => t =
   | Unknown(prov) => Unknown(prov)
   | _ => Unknown(Internal);
 
-let matched_prod = (ty: t, length: int): list(t) =>
-  switch (ty) {
-  | Prod(tys) when List.length(tys) == length => tys
-  | Unknown(prod) => List.init(length, _ => Unknown(prod))
-  /* If the type is something else, we're in a hole, so switch to syn */
-  | _ => List.init(length, _ => Unknown(SynSwitch))
-  };
-
 let matched_arrow_mode: mode => (mode, mode) =
   fun
-  | SynFun
-  | Syn => (Syn, Syn)
+  //| SynFun
+  //| Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
@@ -53,28 +47,17 @@ let matched_arrow_mode: mode => (mode, mode) =
 
 let matched_list_mode: mode => mode =
   fun
-  | SynFun
-  | Syn => Syn
+  //| SynFun
+  //| Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
-let mode_switch = (mode: mode): t =>
-  switch (mode) {
-  | Syn
-  | SynFun => Unknown(SynSwitch)
-  | Ana(ty) => ty
-  };
 let matched_prod_modes = (mode: mode, length): list(mode) =>
-  List.map(ty => Ana(ty), matched_prod(mode_switch(mode), length));
-/*  switch (mode) {
-    | Ana(ana_ty) => List.map(ty => Ana(ty), matched_prod(ana_ty, length))
-    | Syn
-    | SynFun => List.init(length, _ => Syn)
-    //TODO(andrew): cleanup
-    /*| Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-        List.map(ty => Ana(ty), ana_tys)
-      | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-      | _ => List.init(length, _ => Syn)*/
-    };*/
+  switch (mode) {
+  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
+    List.map(ty => Ana(ty), ana_tys)
+  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
+  | _ => List.init(length, _ => Ana(Unknown(Internal)))
+  };
 
 let matched_list_lit_modes = (mode: mode, length): list(mode) =>
   List.init(length, _ => matched_list_mode(mode));
@@ -284,10 +267,10 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Prod(ts) => Prod(List.map(normalize(ctx), ts))
   | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
   | Rec(x, ty) =>
-    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
+    /* NOTE: Fake id below is a hack, but shouldn't matter
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
-    Rec(x, normalize(Ctx.add_abstract(ctx, x, -1), ty))
+    Rec(x, normalize(Ctx.add_abstract(ctx, x, Id.invalid), ty))
   };
 };
 
@@ -327,7 +310,7 @@ let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
     | None => ty_ana
     | Some(ty_in) => Arrow(ty_in, ty_ana)
     };
-  | _ => None
+  //| _ => None
   };
 };
 
@@ -341,13 +324,7 @@ let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
     switch (tag_ana_typ(ctx, mode, name)) {
     | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
     | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
-    | _ => SynFun
+    | _ => Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch)))
     }
-  | None => SynFun
-  };
-
-let is_singleton_sum = (ctx: Ctx.t, ty: t): bool =>
-  switch (get_sum_tags(ctx, ty)) {
-  | Some(tags) => VarMap.length(tags) == 1
-  | _ => false
+  | None => Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch)))
   };

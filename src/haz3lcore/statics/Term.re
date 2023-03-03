@@ -111,21 +111,22 @@ module UTyp = {
 
   /* Converts a syntactic type into a semantic type */
   let rec to_typ: (Ctx.t, t) => Typ.t =
-    (ctx, utyp) =>
+    (ctx, utyp) => {
+      let unk = Typ.Unknown(TypeHole);
       switch (utyp.term) {
       | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(TypeHole)
+      | MultiHole(_)
+      | EmptyHole => unk
       | Bool => Bool
       | Int => Int
       | Float => Float
       | String => String
       | Var(name) =>
         //Var(name)
-        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
+        //Ctx.is_alias(ctx, name) ? Var(name) : unk
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
-        | None => Unknown(TypeHole)
+        | None => unk
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
@@ -134,8 +135,9 @@ module UTyp = {
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
       | Tag(_)
-      | Ap(_) => Unknown(Internal)
-      }
+      | Ap(_) => unk
+      };
+    }
   and to_variant = ctx =>
     fun
     | {term: Var(tag), _} => [(tag, None)]
@@ -424,7 +426,7 @@ module UPat = {
     | _ => None
     };
 
-  let /*rec*/ locally_refutable = (ctx: Ctx.t, p: t, ty: Typ.t) => {
+  let /*rec*/ locally_refutable = (_ctx: Ctx.t, p: t, _ty: Typ.t) => {
     //TODO(andrew): cleanup, document
     switch (p.term) {
     /* Considers incomplete patterns same as holes */
@@ -438,7 +440,7 @@ module UPat = {
     | Tuple(_ps) => false // _LOCALLY_ refutable
     /*List.exists2(locally_refutable(ctx),ps,Typ.matched_prod(ty, List.length(ps)))*/
     | Tag(_)
-    | Ap(_) => !Typ.is_singleton_sum(ctx, ty)
+    | Ap(_) //=> !Typ.is_singleton_sum(ctx, ty)
     | Triv => false
     | Wild
     | Var(_) => false
