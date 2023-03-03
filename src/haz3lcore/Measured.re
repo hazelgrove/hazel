@@ -285,6 +285,7 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
+// TODO There's still issues detecting spaces in the segment
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -416,16 +417,13 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
             };
-            let foo: Aba.t(int, Base.segment) = Aba.mk(t.shards, t.children);
+            let current: ref(int) = ref(0); // Reimplement this adjusting the last node without mutation
 
             let (last, map) =
-              foo
+              Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
                    shard => add_shard(origin, shard, map),
                    ((origin, map), child, shard) => {
-                     if (addendum > 0) {
-                       print_endline("Child: " ++ Base.show_segment(child));
-                     };
                      let (child_last, child_map) =
                        go_nested(
                          ~map,
@@ -433,11 +431,18 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                          ~origin,
                          child,
                        );
+
+                     // Who knows if this is right
                      let child_livelit_adjustment = {
-                       // TODO I believe this should just be added on the last child
                        ...child_last,
-                       col: child_last.col + addendum,
+                       col:
+                         child_last.col
+                         + (
+                           current^ == List.length(t.children) - 1
+                             ? addendum : 0
+                         ),
                      };
+                     current := current^ + 1;
                      add_shard(child_livelit_adjustment, shard, child_map);
                    },
                  );
