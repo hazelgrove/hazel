@@ -97,9 +97,8 @@ module Text = (M: {
             ~livelit_state: Id.Map.t(DHExp.t),
           )
           : list(Node.t) => {
-    print_endline("Of Segment: " ++ Segment.show(seg));
     let livelit_nodes: list(Node.t) =
-      switch (seg) {
+      switch (List.filter(p => !Piece.is_secondary(p), seg)) {
       | [
           Tile({label: [l], id: _tile_id, _} as _a),
           Tile({id: paren_id, _}),

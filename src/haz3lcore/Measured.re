@@ -183,6 +183,7 @@ let find_w = (w: Secondary.t, map): measurement =>
 let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
+  // Here
   let shards = Id.Map.find(t.id, map.tiles);
   let first = List.assoc(Tile.l_shard(t), shards);
   let last = List.assoc(Tile.r_shard(t), shards);
@@ -190,14 +191,15 @@ let find_t = (t: Tile.t, map): measurement => {
 };
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
 //   List.assoc(l @ r, Id.Map.find(a.id, map.tiles));
-let find_p = (p: Piece.t, map): measurement =>
+let find_p = (p: Piece.t, map): measurement => {
+  // print_endline("p: " ++ Piece.show(p));
   p
   |> Piece.get(
        w => find_w(w, map),
        g => find_g(g, map),
        t => find_t(t, map),
      );
-
+};
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
@@ -295,17 +297,6 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             seg: Segment.t,
           )
           : (Point.t, t) => {
-    let livelit_padding: int =
-      switch (seg) {
-      | [Tile({label: [l], _} as _a), Tile(_), ..._]
-          when String.starts_with(~prefix="^", l) =>
-        switch (Livelit.find_livelit(l)) {
-        | Some(ll) => ll.width
-        | None => 0
-        }
-      | _ => 0
-      };
-
     let first_touched_incomplete =
       switch (Segment.incomplete_tiles(seg)) {
       | [] => None
@@ -331,8 +322,19 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               ~contained_indent: rel_indent=0,
               ~origin: Point.t,
               seg: Segment.t,
+              extra_livelit_padding: int,
             )
-            : (Point.t, t) =>
+            : (Point.t, t) => {
+      let livelit_padding: int =
+        switch (seg) {
+        | [Tile({label: [l], _} as _a), Tile(_), ..._]
+            when String.starts_with(~prefix="^", l) =>
+          switch (Livelit.find_livelit(l)) {
+          | Some(ll) => ll.width
+          | None => 0
+          }
+        | _ => 0
+        };
       switch (seg) {
       | [] =>
         let map =
@@ -365,8 +367,10 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                   contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
                 };
               };
+
             let last =
               Point.{row: origin.row + 1, col: container_indent + indent};
+
             let map =
               map
               |> add_w(w, {origin, last})
@@ -380,14 +384,29 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
             let last = {...origin, col: origin.col + wspace_length};
+            // print_endline("Secondary: " ++ Point.show(last));
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
             let last = {...origin, col: origin.col + 1};
             let map = map |> add_g(g, {origin, last});
+            // print_endline("Grout: " ++ Point.show(last));
             (contained_indent, last, map);
           | Tile(t) =>
+            if (livelit_padding > 0) {
+              print_endline("tile:" ++ Tile.show(t));
+            };
             let token = List.nth(t.label);
+
+            let addendum =
+              switch (tl) {
+              | [] =>
+                if (extra_livelit_padding > 0) {
+                  print_endline("Here:" ++ Tile.show(t));
+                };
+                extra_livelit_padding;
+              | _ => 0
+              };
             let add_shard = (origin, shard, map) => {
               let last =
                 Point.{
@@ -397,11 +416,16 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
             };
+            let foo: Aba.t(int, Base.segment) = Aba.mk(t.shards, t.children);
+
             let (last, map) =
-              Aba.mk(t.shards, t.children)
+              foo
               |> Aba.fold_left(
                    shard => add_shard(origin, shard, map),
                    ((origin, map), child, shard) => {
+                     if (addendum > 0) {
+                       print_endline("Child: " ++ Base.show_segment(child));
+                     };
                      let (child_last, child_map) =
                        go_nested(
                          ~map,
@@ -409,16 +433,24 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                          ~origin,
                          child,
                        );
-                     add_shard(child_last, shard, child_map);
+                     let child_livelit_adjustment = {
+                       // TODO I believe this should just be added on the last child
+                       ...child_last,
+                       col: child_last.col + addendum,
+                     };
+                     add_shard(child_livelit_adjustment, shard, child_map);
                    },
                  );
             (contained_indent, last, map);
           };
-        let (tl_last, map) = go_seq(~map, ~contained_indent, ~origin, tl);
+        let (tl_last, map) =
+          go_seq(~map, ~contained_indent, ~origin, tl, livelit_padding);
         (tl_last, map);
       };
-    let (pt, a) = go_seq(~map, ~origin, seg);
-    ({row: pt.row, col: pt.col + livelit_padding}, a);
+    };
+
+    let (pt, a) = go_seq(~map, ~origin, seg, 0);
+    ({row: pt.row, col: pt.col}, a);
   };
   snd(go_nested(~map=empty, seg));
 };
