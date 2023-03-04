@@ -261,6 +261,13 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 
+let ana_common: error_common => Typ.t =
+  fun
+  | FreeToken({ana, _})
+  | FreeTag({ana, _})
+  | TypeInconsistent({ana, _})
+  | TypeDiscordant({ana, _}) => ana;
+
 let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common => {
   let Ana(ana) = mode;

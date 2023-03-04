@@ -61,40 +61,42 @@ module I = {
 };
 
 let common_err_view: Info.error_common => list(t) =
-  fun
-  | FreeToken({ana, _}) =>
-    I.[t("is"), v(unk_err)]
-    @ I.[t("; wanted"), v(ana), t("given《》since bad word")]
-  | FreeTag({ana, _}) =>
-    I.[t("is"), v(unk_err)]
-    @ I.[t("; wanted"), v(ana), t("given《》since undefined")]
-  | TypeInconsistent({ana, syn}) =>
-    I.[t("is"), v(unk_err), t("; wanted"), v(ana)]
-    @ I.[t("but given conflicting"), v(syn)]
-  | TypeDiscordant({ana, nojoin}) =>
-    I.[t("is"), v(unk_err), t("; wanted"), v(ana)]
-    @ I.[t("but given incompatible《"), ...I.intersperse(",", nojoin)]
-    @ I.[t("》")];
+  e => {
+    let is_wanted =
+      I.[t("is"), v(unk_err), t("; wanted"), v(Info.ana_common(e))];
+    switch (e) {
+    | FreeToken({name, _}) =>
+      is_wanted @ I.[t(pp("but got《》as \'%s\' is invalid", name))]
+    | FreeTag({name, _}) =>
+      is_wanted @ I.[t(pp("but got《》as \'%s\' is undefined", name))]
+    | TypeInconsistent({syn, _}) =>
+      is_wanted @ I.[t("but got conflicting《"), v(syn), t("》")]
+    | TypeDiscordant({nojoin, _}) =>
+      is_wanted
+      @ I.[t("but got incompatible《"), ...I.intersperse(",", nojoin)]
+      @ I.[t("》")]
+    };
+  };
 
 let common_ok_view: Info.ok_pat => list(t) =
   fun
   | Consistent({ana, syn, join}) =>
     switch () {
     | () when ana == syn => I.[t("is"), v(join)]
-    | () when ana == join => I.[t("is"), v(join), t("; given"), v(syn)]
+    | () when ana == join => I.[t("is"), v(join), t("; got"), v(syn)]
     | () when syn == join => I.[t("is"), v(join), t("; wanted"), v(ana)]
     | () =>
-      I.[t("is"), v(join), t("; wanted"), v(ana), t("given"), v(syn)]
+      I.[t("is"), v(join), t("; wanted"), v(ana), t("got"), v(syn)]
     };
 
 let exp_view: Info.status_exp => t =
   fun
-  | InHole(FreeVariable({ana, _})) =>
+  | InHole(FreeVariable({ana, name})) =>
     view_err(
-      I.[t("is"), v(unk_err)]
-      @ I.[t("; wanted"), v(ana), t("given《》since undefined")],
+      I.[t("is"), v(unk_err), t("; wanted"), v(ana)]
+      @ I.[t(pp("got《》as \'%s\' is unbound", name))],
     )
-  | InHole(Common(error)) => view_err(common_err_view(error))
+  | InHole(Common(err)) => view_err(common_err_view(err))
   | NotInHole(ok) => view_ok(common_ok_view(ok));
 
 let pat_view: Info.status_pat => t =
@@ -120,9 +122,9 @@ let typ_ok_view = (ok: Info.ok_typ) =>
 let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
   | FreeTypeVar(name) =>
-    I.[t("Type variable"), v(Var(name)), t("is not bound")]
-  | FreeTypeToken(token) =>
-    I.[t(pp("\"%s\" isn't a valid type token", token))]
+    I.[t("Type variable"), v(Var(name)), t("is unbound")]
+  | FreeTypeToken(name) =>
+    I.[t(pp("\"%s\" isn't a valid type token", name))]
   | WantTagFoundAp => [text("Expected a constructor, found application")]
   | WantTagFoundType(ty) =>
     I.[t("Expected a constructor, found type "), v(ty)]
