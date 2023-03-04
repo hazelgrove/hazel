@@ -127,10 +127,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
          });
     /* We need to call [evaluate] on [d] again since [env] does not store
      * final expressions. */
-    /* This is unreachable since every bound variable should be replaced
-     * in parent structure */
-    // transition(env, d);
-    Step(Closure(env, d)) |> return;
+    Step(d) |> return;
 
   | Sequence(d1, d2) =>
     let* r1 = transition(env, d1);
@@ -190,10 +187,9 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
         switch (matches(dp, d2)) {
         | DoesNotMatch
         | IndetMatch => Indet(Ap(d1, d2)) |> return
-        // opt.pause_subexpression ? Pause(Ap(d1, d2')) : Indet(d)
         | Matches(env') =>
-          // evaluate a closure: extend the closure environment with the
-          // new bindings introduced by the function application.
+          /* evaluate a closure: extend the closure environment with the
+           * new bindings introduced by the function application. */
           let* env = evaluate_extend_env(env', closure_env);
           transition(env, d3);
         }
@@ -834,8 +830,7 @@ module EvalObj = {
         ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(obj.ctx)),
       );
       raise(EvaluatorError.Exception(StepDoesNotMatch));
-    | (NonEmptyHole, _) =>
-      raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
+    | (NonEmptyHole, NonEmptyHole(_, _, _, c))
     | (Closure, Closure(_, c))
     | (Let, Let(_, c, _))
     | (Ap1, Ap1(c, _))
@@ -897,21 +892,11 @@ let rec decompose =
       dcs |> List.map(fst) |> List.fold_left(f, true |> return);
     };
     if (is_final) {
-      print_endline("is final");
       [EvalObj.mk(env, Mark, d)] |> return;
     } else {
-      print_endline("not final");
       List.fold_left(
         (rc, (d, f)) => {
-          print_endline(
-            "recursively decomposing "
-            ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-          );
           let* c = decompose(env, d);
-          print_endline(
-            "recursively decomposed "
-            ++ Sexplib.Sexp.to_string_hum(sexp_of_list(EvalObj.sexp_of_t, c)),
-          );
           let* rc = rc;
           rc @ wrap(f, c) |> return;
         },
@@ -1025,35 +1010,6 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   };
 };
 
-let compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
-  print_endline(
-    "composing: ctx: " ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
-  );
-  print_endline(
-    "composing: d: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  );
-  let d = compose(ctx, d);
-  print_endline(
-    "composed: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  );
-  d;
-};
-
-let transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
-  print_endline(
-    "transitioning: env: "
-    ++ Sexplib.Sexp.to_string_hum(ClosureEnvironment.sexp_of_t(env)),
-  );
-  print_endline(
-    "transitioning: d: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  );
-  let+ r = transition(env, d);
-  print_endline(
-    "transitioned: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)),
-  );
-  r;
-};
-
 let step = (env: ClosureEnvironment.t, obj: EvalObj.t): m(t) => {
   let* env = ClosureEnvironment.union(obj.env, env) |> with_eig;
   let* r = transition(env, obj.exp);
@@ -1073,18 +1029,9 @@ let step = (env: Environment.t, obj: EvalObj.t) => {
 };
 
 let decompose = (env: Environment.t, d: DHExp.t) => {
-  print_endline(
-    "decomposing: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  );
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
   let (es, ld) = decompose(env, d, es);
-  print_endline(
-    "decomposed: "
-    ++ Sexplib.Sexp.to_string_hum(
-         Sexplib.Std.sexp_of_list(EvalObj.sexp_of_t, ld),
-       ),
-  );
   (es, ld);
 };
