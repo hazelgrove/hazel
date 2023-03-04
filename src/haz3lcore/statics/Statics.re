@@ -141,8 +141,8 @@ and uexp_to_info_map =
   switch (term) {
   | MultiHole(tms) =>
     let (frees, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~free=Ctx.union(frees), m);
-  | Invalid(token) => atomic(BadToken(token))
+    add(~self=Null(IsMulti), ~free=Ctx.union(frees), m);
+  | Invalid(token) => atomic(Null(FreeToken(token)))
   | EmptyHole => atomic(Just(Unknown(EmptyExpHole)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
@@ -166,7 +166,7 @@ and uexp_to_info_map =
     add(~self=Just(List(e1.ty)), ~free=Ctx.union([e1.free, e2.free]), m);
   | Var(name) =>
     add'(
-      ~self=Info.self_var(ctx, name),
+      ~self=Info.self_var(ctx, mode, name),
       ~free=[(name, [{id: UExp.rep_id(uexp), mode}])],
       m,
     )
@@ -360,8 +360,8 @@ and upat_to_info_map =
   switch (term) {
   | MultiHole(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~ctx, m);
-  | Invalid(token) => atomic(BadToken(token))
+    add(~self=Null(IsMulti), ~ctx, m);
+  | Invalid(token) => atomic(Null(FreeToken(token)))
   | EmptyHole => atomic(Just(Unknown(EmptyPatHole)))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))

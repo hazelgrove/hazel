@@ -30,24 +30,34 @@ type pat_form =
   | Solo
   | Branch;
 
-/* The common (synthetic) type information derivable from pattern
-   or expression terms in isolation, using the typing context but
-   not the syntactic context i.e. typing mode */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type self_common =
-  | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(source)) /* Inconsistent types for e.g match, listlits */
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
+type null_common =
+  | FreeToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsTag({
       name: Token.t,
       syn_ty: option(Typ.t),
     }); /* Tags have special ana logic */
 
+/* The common (synthetic) type information derivable from pattern
+   or expression terms in isolation, using the typing context but
+   not the syntactic context i.e. typing mode */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type self_common =
+  | Null(null_common)
+  | Just(Typ.t) /* Just a regular type */
+  | Many(list(source)); /* Inconsistent types for e.g match, listlits */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type bad_name = {
+  ana: Typ.t,
+  name: Token.t,
+};
+
 /* The self for expressions could also be a free variable */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self_exp =
-  | FreeVar
+  | FreeVar(bad_name)
   | Common(self_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,17 +69,21 @@ type self_pat =
 /* Common errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
-  | FreeTag /* Sum constructor neiter bound nor in ana type */
+  | FreeToken(bad_name) /* Invalid expression token, treated as hole */
+  | FreeTag(bad_name) /* Sum constructor neiter bound nor in ana type */
   | TypeInconsistent({
       ana: Typ.t,
       syn: Typ.t,
+    })
+  | TypeDiscordant({
+      ana: Typ.t,
+      nojoin: list(Typ.t),
     });
 
 /* Expression term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
-  | FreeVariable
+  | FreeVariable(bad_name)
   | Common(error_common);
 
 /* Pattern term errors */
@@ -83,14 +97,10 @@ type error_pat =
    want to warn about this inconsistency in the cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_common =
-  | AnaConsistent({
+  | Consistent({
       ana: Typ.t,
       syn: Typ.t,
       join: Typ.t,
-    })
-  | AnaInternalInconsistent({
-      ana: Typ.t,
-      nojoin: list(Typ.t),
     });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -140,7 +150,7 @@ type typ_expects =
    possible be reimplemeted via a seperate sort */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
-  | BadToken(Token.t) /* Invalid token, treated as type hole */
+  | FreeTypeToken(Token.t) /* Invalid token, treated as type hole */
   | FreeTypeVar(Token.t) /* Free type variable */
   | DuplicateTag(Token.t) /* Duplicate tag in same sum */
   | WantTypeFoundAp
@@ -252,23 +262,20 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let source_tys = List.map((source: source) => source.ty);
 
 let rec status_common =
-        (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
-  switch (self, mode) {
-  | (BadToken(name), Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Ana(ana)) =>
+        (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common => {
+  let Ana(ana) = mode;
+  switch (self) {
+  | Null(FreeToken(name)) => InHole(FreeToken({ana, name}))
+  | Null(IsMulti) =>
     NotInHole(
-      AnaConsistent({
-        ana,
-        syn: Unknown(ErrorHole),
-        join: Unknown(ErrorHole),
-      }),
+      Consistent({ana, syn: Unknown(ErrorHole), join: Unknown(ErrorHole)}),
     )
-  | (Just(syn), Ana(ana)) =>
+  | Just(syn) =>
     switch (Typ.join(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
-    | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
+    | Some(join) => NotInHole(Consistent({ana, syn, join}))
     }
-  | (IsTag({name, syn_ty}), _) =>
+  | Null(IsTag({name, syn_ty})) =>
     /* If a tag is being analyzed against (an arrow type returning)
        a sum type having that tag as a variant, its self type is
        considered to be determined by the sum type; otherwise,
@@ -276,18 +283,17 @@ let rec status_common =
     switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
     | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
-    | _ => InHole(FreeTag)
+    | _ => InHole(FreeTag({ana, name}))
     }
-  /*| (NoJoin(tys), Syn | SynFun) =>
+  /*| (Many(tys), Syn | SynFun) =>
     InHole(SynInconsistentBranches(source_tys(tys)))*/
-  | (NoJoin(tys), Ana(ana)) =>
-    NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
+  | Many(tys) => InHole(TypeDiscordant({ana, nojoin: source_tys(tys)}))
   };
+};
 
 let ty_ok_pat: ok_pat => Typ.t =
   fun
-  | AnaConsistent({ana, _}) => ana
-  | AnaInternalInconsistent({ana, _}) => ana;
+  | Consistent({ana, _}) => ana;
 
 let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
   switch (self, mode) {
@@ -322,7 +328,7 @@ let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
    makeup of the expression / pattern itself. */
 let status_exp = (ctx: Ctx.t, mode: Typ.mode, self: self_exp): status_exp =>
   switch (self, mode) {
-  | (FreeVar, _) => InHole(FreeVariable)
+  | (FreeVar(bad_name), _) => InHole(FreeVariable(bad_name))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
@@ -341,7 +347,7 @@ let status_typ =
     (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
     : status_typ =>
   switch (term.term) {
-  | Invalid(token) => InHole(BadToken(token))
+  | Invalid(token) => InHole(FreeTypeToken(token))
   | EmptyHole => NotInHole(Type(ty))
   | Var(name)
   | Tag(name) =>
@@ -389,10 +395,14 @@ let status_cls = (ci: t): status_cls => {
   switch (ci) {
   | InfoExp({mode, self, ctx, _}) =>
     switch (status_exp(ctx, mode, self)) {
+    | InHole(
+        Common(
+          TypeDiscordant({ana: Unknown(prov) | List(Unknown(prov)), _}),
+        ),
+      ) =>
+      //TODO(andrew): more general approach needed, see above too
+      Typ.prov_has_typehole(prov) ? Ok : Warn
     | InHole(_) => Error
-    | NotInHole(AnaInternalInconsistent({ana: Unknown(prov), _}))
-        when prov != TypeHole =>
-      Warn
     | NotInHole(_) => Ok
     }
   | InfoPat({mode, self, ctx, _}) =>
@@ -419,8 +429,7 @@ let status_cls = (ci: t): status_cls => {
    non-empty holes', i.e. assigned Unknown type. */
 let typ_ok: ok_pat => Typ.t =
   fun
-  | AnaConsistent({join, _}) => join
-  | AnaInternalInconsistent({ana, _}) => ana;
+  | Consistent({join, _}) => join;
 
 let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
@@ -472,24 +481,28 @@ let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
 
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
-let self_var = (ctx: Ctx.t, name: Token.t): self_exp =>
+let self_var = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): self_exp => {
+  let Ana(ana) = mode;
   switch (Ctx.lookup_var(ctx, name)) {
-  | None => FreeVar
+  | None => FreeVar({ana, name})
   | Some(var) => Common(Just(var.typ))
   };
+};
 
 /* The self of a tag depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
 let self_tag = (ctx: Ctx.t, name: Token.t): self_common =>
-  IsTag({
-    name,
-    syn_ty:
-      switch (Ctx.lookup_tag(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
-      },
-  });
+  Null(
+    IsTag({
+      name,
+      syn_ty:
+        switch (Ctx.lookup_tag(ctx, name)) {
+        | None => None
+        | Some({typ, _}) => Some(typ)
+        },
+    }),
+  );
 
 /* The self assigned to things like cases and list literals
    which can have internal type inconsistencies. */
@@ -497,7 +510,7 @@ let join =
     (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t)
     : self_common =>
   switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => {id, ty}, ids, tys))
+  | None => Many(List.map2((id, ty) => {id, ty}, ids, tys))
   | Some(ty) => Just(wrap(ty))
   };
 
@@ -508,15 +521,15 @@ let typ_of_self_common: (Ctx.t, self_common) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ) => Some(typ)
-    | IsTag({syn_ty, _}) => syn_ty
-    | BadToken(_)
-    | IsMulti
-    | NoJoin(_) => None;
+    | Null(IsTag({syn_ty, _})) => syn_ty
+    | Null(FreeToken(_))
+    | Null(IsMulti)
+    | Many(_) => None;
 
 let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
   ctx =>
     fun
-    | FreeVar => None
+    | FreeVar(_) => None
     | Common(self) => typ_of_self_common(ctx, self);
 
 /* If the info represents some kind of name binding which

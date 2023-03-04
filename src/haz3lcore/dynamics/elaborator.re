@@ -218,12 +218,12 @@ let rec dhexp_of_uexp =
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Tag(name) =>
         switch (err_status) {
-        | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
+        | InHole(Common(FreeTag(_))) => Some(FreeVar(id, 0, name))
         | _ => Some(Tag(name))
         }
       | Let(p, def, body) =>
@@ -342,7 +342,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       wrap(ListLit(Typ.matched_list(ty), ds));
     | Tag(name) =>
       switch (err_status) {
-      | InHole(Common(FreeTag)) => Some(BadTag(u, 0, name))
+      | InHole(Common(FreeTag(_))) => Some(BadTag(u, 0, name))
       | _ => wrap(Tag(name))
       }
     | Cons(hd, tl) =>

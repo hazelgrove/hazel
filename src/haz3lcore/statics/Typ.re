@@ -322,3 +322,12 @@ let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode => {
   | None => Ana(Arrow(unk, unk))
   };
 };
+
+let rec prov_has_typehole: type_provenance => bool =
+  fun
+  | TypeHole => true
+  | Join(p1, p2) => prov_has_typehole(p1) || prov_has_typehole(p2)
+  | MatchedArrow(p)
+  | MatchedList(p)
+  | MatchedProd(p) => prov_has_typehole(p)
+  | _ => false;

@@ -54,131 +54,82 @@ let term_tag = (~inject, ~settings: Model.settings, ~show_lang_doc, ci) =>
     ],
   );
 
-let common_err_view = (err: Info.error_common) =>
-  switch (err) {
-  | BadToken(token) => [
-      text("is"),
-      Type.view(Unknown(ErrorHole)),
-      text("given《》"),
-      text(Printf.sprintf("as \"%s\" isn't a valid token", token)),
-    ]
-  | FreeTag => [
-      text("is"),
-      Type.view(Unknown(ErrorHole)),
-      text("given《》"),
-      text("as constructor is not defined"),
-    ]
-  | TypeInconsistent({ana, syn}) => [
-      text("is"),
-      Type.view(Unknown(ErrorHole)),
-      text("expected"),
-      Type.view(ana),
-      text("given"),
-      Type.view(syn),
-    ]
-  };
-
-let common_ok_view = (ok: Info.ok_pat) => {
-  switch (ok) {
-  | AnaConsistent({ana, syn, _}) when ana == syn => [
-      text("is"),
-      Type.view(ana),
-    ]
-  | AnaConsistent({ana, syn, join}) when ana == join => [
-      text("is"),
-      Type.view(ana),
-      text("given"),
-      Type.view(syn),
-    ]
-  | AnaConsistent({ana, syn, join}) when syn == join => [
-      text("is"),
-      Type.view(syn),
-      text("expected"),
-      Type.view(ana),
-    ]
-  | AnaConsistent({ana, syn, join}) => [
-      text("is"),
-      Type.view(join),
-      text("expected"),
-      Type.view(ana),
-      text("given"),
-      Type.view(syn),
-    ]
-  | AnaInternalInconsistent({ana, nojoin}) =>
-    [
-      text("is"),
-      Type.view(Unknown(ErrorHole)),
-      text("expected"),
-      Type.view(ana),
-      text("given《"),
-    ]
-    @ ListUtil.join(text(","), List.map(Type.view, nojoin))
-    @ [text("》")]
-  };
+module I = {
+  let unk_err = Typ.Unknown(ErrorHole);
+  let (t, v, pp) = (text, Type.view, Printf.sprintf);
+  let intersperse = (str, tys) => ListUtil.join(t(str), List.map(v, tys));
 };
 
-let typ_ok_view = (ok: Info.ok_typ) =>
-  switch (ok) {
-  | Variant(name, sum_ty) => [
-      Type.view(Var(name)),
-      text("is a sum type constuctor of type"),
-      Type.view(sum_ty),
-    ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
-      Type.view(sum_ty),
-    ]
-  | Type(ty) => [Type.view(ty), text("is a type")]
-  | TypeAlias(name, ty_lookup) => [
-      Type.view(Var(name)),
-      text("is a type alias for"),
-      Type.view(ty_lookup),
-    ]
-  };
+let common_err_view: Info.error_common => list(t) =
+  fun
+  | FreeToken({ana, _}) =>
+    I.[t("is"), v(unk_err)]
+    @ I.[t("; wanted"), v(ana), t("given《》since bad word")]
+  | FreeTag({ana, _}) =>
+    I.[t("is"), v(unk_err)]
+    @ I.[t("; wanted"), v(ana), t("given《》since undefined")]
+  | TypeInconsistent({ana, syn}) =>
+    I.[t("is"), v(unk_err), t("; wanted"), v(ana)]
+    @ I.[t("but given conflicting"), v(syn)]
+  | TypeDiscordant({ana, nojoin}) =>
+    I.[t("is"), v(unk_err), t("; wanted"), v(ana)]
+    @ I.[t("but given incompatible《"), ...I.intersperse(",", nojoin)]
+    @ I.[t("》")];
 
-let typ_err_view = (ok: Info.error_typ) =>
-  switch (ok) {
-  | FreeTypeVar(name) => [
-      text("Type variable"),
-      Type.view(Var(name)),
-      text("is not bound"),
-    ]
-  | BadToken(token) => [
-      text(Printf.sprintf("\"%s\" isn't a valid type token", token)),
-    ]
-  | WantTagFoundAp => [text("Expected a constructor, found application")]
-  | WantTagFoundType(ty) => [
-      text("Expected a constructor, found type "),
-      Type.view(ty),
-    ]
-  | WantTypeFoundAp => [text("Constructor application must be in sum")]
-  | DuplicateTag(name) => [
-      text("Constructor"),
-      Type.view(Var(name)),
-      text("already used in this sum"),
-    ]
-  };
+let common_ok_view: Info.ok_pat => list(t) =
+  fun
+  | Consistent({ana, syn, join}) =>
+    switch () {
+    | () when ana == syn => I.[t("is"), v(join)]
+    | () when ana == join => I.[t("is"), v(join), t("; given"), v(syn)]
+    | () when syn == join => I.[t("is"), v(join), t("; wanted"), v(ana)]
+    | () =>
+      I.[t("is"), v(join), t("; wanted"), v(ana), t("given"), v(syn)]
+    };
 
 let exp_view: Info.status_exp => t =
   fun
-  | InHole(FreeVariable) =>
-    view_err([
-      text("is"),
-      Type.view(Unknown(ErrorHole)),
-      text("given《》"),
-      text("as variable is not bound"),
-    ])
+  | InHole(FreeVariable({ana, _})) =>
+    view_err(
+      I.[t("is"), v(unk_err)]
+      @ I.[t("; wanted"), v(ana), t("given《》since undefined")],
+    )
   | InHole(Common(error)) => view_err(common_err_view(error))
   | NotInHole(ok) => view_ok(common_ok_view(ok));
 
 let pat_view: Info.status_pat => t =
   fun
   | Warning(ok, SoloRefutable) =>
-    view_warn(common_ok_view(ok) @ [text("but doesn't cover all cases")])
+    view_warn(common_ok_view(ok) @ I.[t("; note doesn't cover all cases")])
   | Warning(ok, Shadowing(_id)) =>
-    view_warn(common_ok_view(ok) @ [text("but shadows previous binding ")])
+    view_warn(common_ok_view(ok) @ I.[t("; note name already used")])
   | InHole(Common(error)) => view_err(common_err_view(error))
   | NotInHole(ok) => view_ok(common_ok_view(ok));
+
+let typ_ok_view = (ok: Info.ok_typ) =>
+  switch (ok) {
+  | Variant(name, sum_ty) =>
+    I.[v(Var(name)), text("is a sum type constuctor of type"), v(sum_ty)]
+  | VariantIncomplete(sum_ty) =>
+    I.[t("An incomplete sum type constuctor of type"), v(sum_ty)]
+  | Type(ty) => I.[v(ty), t("is a type")]
+  | TypeAlias(name, ty_lookup) =>
+    I.[v(Var(name)), t("is a type alias for"), v(ty_lookup)]
+  };
+
+let typ_err_view = (ok: Info.error_typ) =>
+  switch (ok) {
+  | FreeTypeVar(name) =>
+    I.[t("Type variable"), v(Var(name)), t("is not bound")]
+  | FreeTypeToken(token) =>
+    I.[t(pp("\"%s\" isn't a valid type token", token))]
+  | WantTagFoundAp => [text("Expected a constructor, found application")]
+  | WantTagFoundType(ty) =>
+    I.[t("Expected a constructor, found type "), v(ty)]
+  | WantTypeFoundAp => [text("Constructor application must be in sum")]
+  | DuplicateTag(name) =>
+    I.[t("Constructor"), v(Var(name)), t("already used in this sum")]
+  };
 
 let typ_view: Info.status_typ => t =
   fun
