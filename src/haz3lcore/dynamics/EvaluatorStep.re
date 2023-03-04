@@ -122,7 +122,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
       x
       |> ClosureEnvironment.lookup(env)
       |> OptUtil.get(() => {
-           print_endline("FreeInvalidVar");
+           print_endline("FreeInvalidVar: " ++ x);
            raise(EvaluatorError.Exception(FreeInvalidVar(x)));
          });
     /* We need to call [evaluate] on [d] again since [env] does not store
@@ -191,7 +191,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
           /* evaluate a closure: extend the closure environment with the
            * new bindings introduced by the function application. */
           let* env = evaluate_extend_env(env', closure_env);
-          transition(env, d3);
+          Step(Closure(env, d3)) |> return;
         }
       };
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -202,7 +202,8 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
       | BoxedValue(d2')
       | Indet(d2') =>
         /* ap cast rule */
-        transition(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+        Step(Closure(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2')))
+        |> return
       };
     | BoxedValue(d1') =>
       print_endline("InvalidBoxedFun");
