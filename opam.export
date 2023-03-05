@@ -3,7 +3,7 @@ compiler: ["ocaml-base-compiler.4.14.0"]
 roots: [
   "async_js.v0.15.1"
   "camomile.1.0.2"
-  "incr_dom.v0.15.0"
+  "incr_dom.v0.15.1"
   "lwt.5.6.1"
   "lwt-dllist.1.0.1"
   "merlin.4.5-414"
@@ -16,7 +16,7 @@ roots: [
   "sexplib.v0.15.1"
   "tezt.2.0.0"
   "unionFind.20220122"
-  "virtual_dom.v0.15.0"
+  "virtual_dom.v0.15.1"
 ]
 installed: [
   "abstract_algebra.v0.15.0"
@@ -61,7 +61,7 @@ installed: [
   "fmt.0.9.0"
   "gen_js_api.1.1.1"
   "hex.1.5.0"
-  "incr_dom.v0.15.0"
+  "incr_dom.v0.15.1"
   "incr_map.v0.15.0"
   "incr_select.v0.15.0"
   "incremental.v0.15.0"
@@ -165,128 +165,7 @@ installed: [
   "uri-sexp.4.2.0"
   "uutf.1.0.3"
   "variantslib.v0.15.0"
-  "virtual_dom.v0.15.0"
+  "virtual_dom.v0.15.1"
   "xdg.3.3.1"
   "yojson.1.7.0"
 ]
-pinned: [
-  "async_js.v0.15.1"
-  "incr_dom.v0.15.0"
-  "sexplib.v0.15.1"
-  "virtual_dom.v0.15.0"
-]
-package "incr_dom" {
-  opam-version: "2.0"
-  version: "v0.15.0"
-  synopsis: "A library for building dynamic webapps, using Js_of_ocaml"
-  description: """\
-The library is designed roughly on a model/view/controller model.
-Your application is built out of:
-
-- A functional model type that tracks the state of your application.
-
-- An incremental /view/ function for computing an HTML-like
-  representation of how your application should render on the browser.
-  The is based on the [[https://github.com/Matt-Esch/virtual-dom][virtual-dom]] javascript library.
-
-- An action type that is used to schedule events that update the
-  model.
-
-Combined with the ability to use Async, and in particular to send out
-network requests using websockets, this should allow the easy
-construction of rich web applications in a fairly comprehensible
-style.
-
-If you want a more concrete sense of how this works, look in the
-examples directory."""
-  maintainer: "Jane Street developers"
-  authors: "Jane Street Group, LLC"
-  license: "MIT"
-  homepage: "https://github.com/janestreet/incr_dom"
-  doc:
-    "https://ocaml.janestreet.com/ocaml-core/latest/doc/incr_dom/index.html"
-  bug-reports: "https://github.com/janestreet/incr_dom/issues"
-  depends: [
-    "ocaml" {>= "4.08.0"}
-    "async_js"
-    "async_kernel"
-    "core"
-    "incr_map"
-    "incr_select"
-    "incremental"
-    "ppx_jane"
-    "virtual_dom"
-    "dune" {>= "2.0.0"}
-    "js_of_ocaml" {>= "4.0"}
-    "js_of_ocaml-ppx" {>= "4.0"}
-  ]
-  build: ["dune" "build" "-p" name "-j" jobs]
-  dev-repo: "git+https://github.com/janestreet/incr_dom.git"
-  url {
-    src: "git+https://github.com/janestreet/incr_dom.git"
-  }
-}
-package "sexplib" {
-  opam-version: "2.0"
-  version: "v0.15.1"
-  synopsis: "Library for serializing OCaml values to and from S-expressions"
-  description: """\
-Part of Jane Street's Core library
-The Core suite of libraries is an industrial strength alternative to
-OCaml's standard library that was developed by Jane Street, the
-largest industrial user of OCaml."""
-  maintainer: "Jane Street developers"
-  authors: "Jane Street Group, LLC"
-  license: "MIT"
-  homepage: "https://github.com/janestreet/sexplib"
-  doc:
-    "https://ocaml.janestreet.com/ocaml-core/latest/doc/sexplib/index.html"
-  bug-reports: "https://github.com/janestreet/sexplib/issues"
-  depends: [
-    "ocaml" {>= "4.08.0"}
-    "parsexp"
-    "sexplib0"
-    "dune" {>= "2.0.0"}
-    "num"
-  ]
-  build: ["dune" "build" "-p" name "-j" jobs]
-  dev-repo: "git+https://github.com/janestreet/sexplib.git"
-  url {
-    src: "git+https://github.com/janestreet/sexplib.git"
-  }
-}
-package "virtual_dom" {
-  opam-version: "2.0"
-  version: "v0.15.0"
-  synopsis: "OCaml bindings for the virtual-dom library"
-  description: """\
-The library itself may be found at
-https://github.com/Matt-Esch/virtual-dom."""
-  maintainer: "Jane Street developers"
-  authors: "Jane Street Group, LLC"
-  license: "MIT"
-  homepage: "https://github.com/janestreet/virtual_dom"
-  doc:
-    "https://ocaml.janestreet.com/ocaml-core/latest/doc/virtual_dom/index.html"
-  bug-reports: "https://github.com/janestreet/virtual_dom/issues"
-  depends: [
-    "ocaml" {>= "4.08.0"}
-    "base"
-    "core"
-    "core_kernel"
-    "ppx_jane"
-    "base64" {>= "3.4.0"}
-    "dune" {>= "2.0.0"}
-    "gen_js_api" {>= "1.0.8"}
-    "js_of_ocaml" {>= "4.0"}
-    "js_of_ocaml-ppx" {>= "4.0"}
-    "lambdasoup" {>= "0.6.3"}
-    "tyxml" {>= "4.3.0"}
-    "uri" {>= "3.0.0"}
-  ]
-  build: ["dune" "build" "-p" name "-j" jobs]
-  dev-repo: "git+https://github.com/janestreet/virtual_dom.git"
-  url {
-    src: "git+https://github.com/dedbox/virtual_dom.git"
-  }
-}
