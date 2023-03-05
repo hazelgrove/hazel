@@ -8,6 +8,7 @@ module EvalCtx = {
   type cls =
     | Mark
     | Closure
+    | Sequence
     | Let
     | Ap1
     | Ap2
@@ -32,6 +33,7 @@ module EvalCtx = {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
+    | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
     | Ap2(DHExp.t, t)
@@ -127,13 +129,13 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
          });
     /* We need to call [evaluate] on [d] again since [env] does not store
      * final expressions. */
-    Step(d) |> return;
+    Step(Closure(env, d)) |> return;
 
   | Sequence(d1, d2) =>
     let* r1 = transition(env, d1);
     switch (r1) {
-    | Step(_d1)
-    | BoxedValue(_d1) => transition(env, d2)
+    | Step(d1') => Step(Sequence(d1', d2)) |> return
+    | BoxedValue(_d1)
     /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
      * if evaluated d1 is indet. */
     | Indet(_d1) =>
@@ -142,7 +144,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
       /* | BoxedValue(d2) */
       /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
       /* }; */
-      transition(env, d2)
+      Step(Closure(env, d2)) |> return
     };
 
   | Let(dp, d1, d2) =>
@@ -833,6 +835,7 @@ module EvalObj = {
       raise(EvaluatorError.Exception(StepDoesNotMatch));
     | (NonEmptyHole, NonEmptyHole(_, _, _, c))
     | (Closure, Closure(_, c))
+    | (Sequence, Sequence(c, _))
     | (Let, Let(_, c, _))
     | (Ap1, Ap1(c, _))
     | (Ap2, Ap2(_, c))
@@ -921,7 +924,6 @@ let rec decompose =
         let* ld1 = decompose(env, d1);
         wrap(c => Closure(env, c), ld1) |> return;
       };
-    | Sequence(_)
     | ApBuiltin(_)
     | TestLit(_)
     | StringLit(_)
@@ -970,6 +972,7 @@ let rec decompose =
           walk(ld @ [hd], tl, rc);
         };
       go(walk([], ds, []));
+    | Sequence(d1, d2) => go([(d1, c => Sequence(c, d2))])
     | Let(dp, d1, d2) => go([(d1, c => Let(dp, c, d2))])
     | Inj(ty, side, d1) => go([(d1, c => Inj(ty, side, c))])
     | InvalidOperation(d1, err) =>
@@ -986,6 +989,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   switch (ctx) {
   | Mark => d
   | Closure(env, ctx) => Closure(env, compose(ctx, d))
+  | Sequence(ctx, d2) => Sequence(compose(ctx, d), d2)
   | Ap1(ctx1, d1) => Ap(compose(ctx1, d), d1)
   | Ap2(d1, ctx1) => Ap(d1, compose(ctx1, d))
   | BinBoolOp1(op, ctx1, d1) => BinBoolOp(op, compose(ctx1, d), d1)

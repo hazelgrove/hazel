@@ -246,7 +246,7 @@ let rec mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, d') =>
-        go'(d', [])
+        go'(d', unwrap(objs, NonEmptyHole))
         |> mk_cast
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | ExpandingKeyword(u, i, k) =>
@@ -267,7 +267,7 @@ let rec mk =
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
-        let (doc1, doc2) = (go'(d1, []), go'(d2, []));
+        let (doc1, doc2) = (go'(d1, unwrap(objs, Sequence)), go'(d2, []));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
         let ol = d_list |> List.map(go'(_, [])) |> List.map(mk_cast);
