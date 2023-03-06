@@ -68,70 +68,71 @@ let zipper_type_string = (zipper: Zipper.t, info_map: Statics.map) => {
   alert_content;
 };
 
-let action_move_string = (editor: Editor.t) => {
+let action_move_string = (editor: Editor.t, action: Action.t) => {
   // when the last action is moving up or down, we will read the full line, otherwise the character the cursor at
   let is_line_needed =
-    switch (editor.history) {
-    | ([], _) => true
-    | ([(a, _), ..._], _) =>
-      switch (a) {
-      | Move(Extreme(Up))
-      | Move(Extreme(Down))
-      | Move(Local(Up))
-      | Move(Local(Down)) => true
-      | _ => false
-      }
+    switch (action) {
+    | Move(Extreme(Up))
+    | Move(Extreme(Down))
+    | Move(Local(Up))
+    | Move(Local(Down)) => true
+    | _ => false
     };
 
   let program = Printer.to_string_editor(editor);
   let rows = String.split_on_char('\n', program);
   switch (Editor.caret_point(editor)) {
-  | {row, _} =>
+  | {row, col} =>
     switch (List.nth_opt(rows, row)) {
-    | Some(str) => is_line_needed ? str : ""
+    | Some(str) =>
+      is_line_needed
+        ? str
+        : (
+          switch (String.sub(str, min(col, String.length(str) - 1), 1)) {
+          | s => s
+          | exception (Invalid_argument(_)) => ""
+          }
+        )
     | None => ""
     }
   };
 };
 
-let textarea_string = (editor: Editor.t) => {
-  Printer.to_string_editor(editor);
+let action_select_string = (editor: Editor.t) => {
+  let content = editor.state.zipper.selection.content;
+  "select " ++ Printer.of_segment(content);
 };
 
-let rec sum_first_n = (lst: list(int), n: int) => {
-  switch (lst, n) {
-  | (_, 0) => 0
-  | ([], _) => 0
-  | ([x, ...xs], n) => x + sum_first_n(xs, n - 1)
+let action_pickup_string = (editor: Editor.t) => {
+  let backpack = editor.state.zipper.backpack;
+  switch (backpack) {
+  | [] => ""
+  | [first, ..._] => "pick up " ++ Printer.of_segment(first.content)
   };
 };
 
-let textarea_cursor_pos = (editor: Editor.t) => {
-  let program = Printer.to_string_editor(editor);
-  let rows = String.split_on_char('\n', program);
-  let caret_point = Editor.caret_point(editor);
-  switch (caret_point) {
-  | {row, col} =>
-    let lengths = List.map(String.length, rows);
-    let num = sum_first_n(lengths, row) + col;
-    num;
+let action_rotate_backpack_string = (editor: Editor.t) => {
+  let backpack = editor.state.zipper.backpack;
+  switch (backpack) {
+  | [] => ""
+  | [first, ..._] => "rotate to " ++ Printer.of_segment(first.content)
   };
 };
 
-let action_string = (action: Action.t, ) => {
-  switch(action) {
-  | Move(move) => 
-  | Jump(jump_target)
-  | Select(select)
-  | Unselect
-  | Destruct(direction)
-  | Insert(string)
-  | RotateBackpack
-  | MoveToBackpackTarget(planar)
-  | Pick_up
-  | Put_down => "";
-  }
-}
+let action_string = (action: Action.t, editor: Editor.t) => {
+  switch (action) {
+  | Move(_) => action_move_string(editor, action)
+  | Select(_) => action_select_string(editor)
+  | Unselect => "unselected"
+  | Pick_up => action_pickup_string(editor)
+  | MoveToBackpackTarget(_) => "" // TODO
+  | Put_down => "put down"
+  | RotateBackpack => action_rotate_backpack_string(editor)
+  | Destruct(_)
+  | Insert(_)
+  | Jump(_) => ""
+  };
+};
 
 let view =
     //~inject,
@@ -146,14 +147,15 @@ let view =
   let info_map = Statics.mk_map(term);
 
   let zipper_type = zipper_type_string(zipper, info_map);
-  let line_str =
-    position_line_string(model.editors |> Editors.get_editor)
-    ++ position_line_string_combine(model.editors |> Editors.get_editor);
-  let cursor_char = ""; //cursor_char_string(model.editors |> Editors.get_editor);
+  let editor = Editors.get_editor(model.editors);
+  let action_str =
+    switch (editor.history) {
+    | (_, []) => ""
+    | (_, [(action, _), ..._]) => action_string(action, editor)
+    };
 
   let type_string: string = "The expression has type " ++ zipper_type;
-  let alert =
-    Node.span([Node.code([Node.text(line_str)]), Node.text(type_string)]);
+  let alert = Node.span([Node.text(action_str), Node.text(type_string)]);
   let alert_div =
     Node.div(
       ~attr=
@@ -165,5 +167,5 @@ let view =
         ]),
       [alert],
     );
-  Node.div([JsUtil.clipboard_shim(~text=cursor_char, ()), alert_div]);
+  Node.div([JsUtil.clipboard_shim(~text="", ()), alert_div]);
 };
