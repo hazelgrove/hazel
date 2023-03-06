@@ -92,9 +92,16 @@ let zipper = (p: t): Gram.Zipper.a(_) => {
   (Tok(LangUtil.shape_of_token(t)), mold(p).frames);
 };
 
-let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
+// todo: fix hack, reorg gram zipper
+let zipper_const = ((a, frames): Gram.Zipper.a(_)) =>
+  switch (a) {
+  | Tok(Const(t)) => Some((t, frames))
+  | _ => None
+  };
+let complement_beyond = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
   let rec go = z =>
     switch (Gram.Zipper.move_to_tok(~skip_nullable=true, side, z)) {
+    // | [z, ..._] when Option.map(zipper, upto) == Some(z) => []
     // default to first alternative
     | [(Tok(Const(t)), frames) as z, ..._] =>
       let m = {...mold(p), frames};
@@ -102,6 +109,27 @@ let complement = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
     | _ => []
     };
   go(zipper(p));
+};
+let complement_between = (l: t, r: t): option(list((Token.t, Mold.t))) => {
+  let mk_mold = frames => {...mold(l), frames};
+  let rec go = (l, r) => {
+    let moved = Gram.Zipper.move_to_tok(~skip_nullable=true, R, l);
+    if (List.mem(r, moved)) {
+      zipper_const(l)
+      |> Option.map(((t, frames)) => [(t, mk_mold(frames))]);
+    } else {
+      moved
+      |> List.map(l => (l, go(l, r)))
+      |> List.filter(((_, found_r)) => Option.is_some(found_r))
+      |> List.filter_map(((l, found_r)) =>
+           zipper_const(l)
+           |> Option.map(((t, frames)) => ((t, mk_mold(frames)), found_r))
+         )
+      |> ListUtil.hd_opt
+      |> Option.map(((l, compl)) => [l, ...Option.get(compl)]);
+    };
+  };
+  go(zipper(l), zipper(r)) |> Option.map(List.tl);
 };
 
 let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {

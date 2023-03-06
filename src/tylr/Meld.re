@@ -8,15 +8,6 @@ type t = {
   space: (Space.t, Space.t),
 };
 
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type t = {
-//   chain: Chain.t(kid, Piece.t),
-//   paths: Paths.t,
-//   space: (Space.t, Space.t),
-// }
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// and kid = option(t);
-
 // for use in submodules below
 [@deriving (show({with_path: false}), sexp, yojson)]
 type meld = t;
@@ -200,11 +191,11 @@ let knil = (~kid=empty(), mel, p: Piece.t) => {
   aggregate(linked);
 };
 
-let complement = (~side: Dir.t, mel: t) =>
-  switch (end_piece(~side, mel)) {
-  | None => []
-  | Some(p) => Piece.complement(~side, p)
-  };
+// let complement = (~side: Dir.t, mel: t) =>
+//   switch (end_piece(~side, mel)) {
+//   | None => []
+//   | Some(p) => Piece.complement(~side, p)
+//   };
 
 type unlinked = Result.t((t, Piece.t, t), option(t));
 let unlink = (mel: t): unlinked =>
