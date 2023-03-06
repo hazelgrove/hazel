@@ -22,6 +22,7 @@ module EvalCtx = {
     | ListLit(int)
     | Cons1
     | Cons2
+    | Prj
     | Inj
     | NonEmptyHole
     | Cast
@@ -55,6 +56,7 @@ module EvalCtx = {
       )
     | Cons1(t, DHExp.t)
     | Cons2(DHExp.t, t)
+    | Prj(t, int)
     | Inj(Typ.t, InjSide.t, t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | Cast(t, Typ.t, Typ.t)
@@ -173,7 +175,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
 
   | FixF(f, _, d') =>
     let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
-    transition(env', d');
+    Step(Closure(env', d')) |> return;
 
   | Fun(_) => Step(Closure(env, d)) |> return
 
@@ -414,6 +416,13 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
     } else {
       let* r = transition(env, targ);
       switch (r) {
+      | Step(Tuple(ds) as rv) =>
+        if (n >= List.length(ds)) {
+          Step(InvalidOperation(rv, InvalidOperationError.InvalidProjection))
+          |> return;
+        } else {
+          Step(List.nth(ds, n)) |> return;
+        }
       | BoxedValue(Tuple(ds) as rv) =>
         if (n >= List.length(ds)) {
           return(
@@ -424,6 +433,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
         } else {
           return(BoxedValue(List.nth(ds, n)));
         }
+      | Indet(Closure(_, Tuple(ds)) as rv)
       | Indet(Tuple(ds) as rv) =>
         if (n >= List.length(ds)) {
           return(
@@ -434,6 +444,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
         } else {
           return(Indet(List.nth(ds, n)));
         }
+      | Step(Cast(targ', Prod(tys), Prod(tys')) as rv)
       | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)
       | Indet(Cast(targ', Prod(tys), Prod(tys')) as rv) =>
         if (n >= List.length(tys)) {
@@ -445,8 +456,9 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
         } else {
           let ty = List.nth(tys, n);
           let ty' = List.nth(tys', n);
-          transition(env, Cast(Prj(targ', n), ty, ty'));
+          Step(Closure(env, Cast(Prj(targ', n), ty, ty'))) |> return;
         }
+      | Step(d) => Step(Prj(d, n)) |> return
       | _ => return(Indet(d))
       };
     }
@@ -856,6 +868,7 @@ module EvalObj = {
     | (BinFloatOp2, BinFloatOp2(_, _, c))
     | (Cons1, Cons1(c, _))
     | (Cons2, Cons2(_, c))
+    | (Prj, Prj(c, _))
     | (Inj, Inj(_, _, c)) => Some({...obj, ctx: c})
     | (Tuple(n), Tuple(c, (ld, _))) =>
       if (List.length(ld) == n) {
@@ -943,7 +956,6 @@ let rec decompose =
     | TestLit(_)
     | StringLit(_)
     | BinStringOp(_)
-    | Prj(_)
     | Tag(_)
     | FreeVar(_)
     | InvalidText(_)
@@ -998,6 +1010,7 @@ let rec decompose =
       go(walk([], ds, []));
     | Sequence(d1, d2) => go([(d1, c => Sequence(c, d2))])
     | Let(dp, d1, d2) => go([(d1, c => Let(dp, c, d2))])
+    | Prj(d, n) => go([(d, c => Prj(c, n))])
     | Inj(ty, side, d1) => go([(d1, c => Inj(ty, side, c))])
     | InvalidOperation(d1, err) =>
       go([(d1, c => InvalidOperation(c, err))])
@@ -1028,6 +1041,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   | ListLit(m, i, e, t, ctx, (ld, rd)) =>
     ListLit(m, i, e, t, ld @ [compose(ctx, d), ...rd])
   | Let(dp, ctx1, d1) => Let(dp, compose(ctx1, d), d1)
+  | Prj(ctx, n) => Prj(compose(ctx, d), n)
   | Inj(ty, side, ctx1) => Inj(ty, side, compose(ctx1, d))
   | Cast(ctx1, ty1, ty2) => Cast(compose(ctx1, d), ty1, ty2)
   | FailedCast(ctx1, ty1, ty2) => FailedCast(compose(ctx1, d), ty1, ty2)
