@@ -270,10 +270,16 @@ let rec mk =
         let (doc1, doc2) = (go'(d1, unwrap(objs, Sequence)), go'(d2, []));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
-        let ol = d_list |> List.map(go'(_, [])) |> List.map(mk_cast);
+        let ol =
+          d_list
+          |> List.mapi((i, d) => go'(d, unwrap(objs, ListLit(i))))
+          |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol);
       | ListLit(u, i, InconsistentBranches(_, _), _, d_list) =>
-        let ol = d_list |> List.map(go'(_, [])) |> List.map(mk_cast);
+        let ol =
+          d_list
+          |> List.mapi((i, d) => go'(d, unwrap(objs, ListLit(i))))
+          |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol)
         |> annot(DHAnnot.InconsistentBranches((u, i)));
       | Inj(_, inj_side, d) =>

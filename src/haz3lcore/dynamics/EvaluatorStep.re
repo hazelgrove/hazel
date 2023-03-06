@@ -19,6 +19,7 @@ module EvalCtx = {
     | BinFloatOp1
     | BinFloatOp2
     | Tuple(int)
+    | ListLit(int)
     | Cons1
     | Cons2
     | Inj
@@ -44,6 +45,14 @@ module EvalCtx = {
     | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
     | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
     | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+    | ListLit(
+        MetaVar.t,
+        MetaVarInst.t,
+        ListErrStatus.t,
+        Typ.t,
+        t,
+        (list(DHExp.t), list(DHExp.t)),
+      )
     | Cons1(t, DHExp.t)
     | Cons2(DHExp.t, t)
     | Inj(Typ.t, InjSide.t, t)
@@ -854,6 +863,12 @@ module EvalObj = {
       } else {
         None;
       }
+    | (ListLit(n), ListLit(_, _, _, _, c, (ld, _))) =>
+      if (List.length(ld) == n) {
+        Some({...obj, ctx: c});
+      } else {
+        None;
+      }
     | (InconsistentBranches, InconsistentBranches(_, _, Case(scrut, _, _))) =>
       Some({...obj, ctx: scrut})
     | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) =>
@@ -936,7 +951,6 @@ let rec decompose =
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
-    | ListLit(_, _, _, _, _)
     | EmptyHole(_)
     | FixF(_, _, _)
     | BoundVar(_)
@@ -972,6 +986,16 @@ let rec decompose =
           walk(ld @ [hd], tl, rc);
         };
       go(walk([], ds, []));
+    | ListLit(m, i, e, t, ds) =>
+      let rec walk = (ld, rd, rc) =>
+        switch (rd) {
+        | [] => rc
+        | [hd, ...tl] =>
+          let rc =
+            rc @ [(hd, (c => EvalCtx.ListLit(m, i, e, t, c, (ld, tl))))];
+          walk(ld @ [hd], tl, rc);
+        };
+      go(walk([], ds, []));
     | Sequence(d1, d2) => go([(d1, c => Sequence(c, d2))])
     | Let(dp, d1, d2) => go([(d1, c => Let(dp, c, d2))])
     | Inj(ty, side, d1) => go([(d1, c => Inj(ty, side, c))])
@@ -1001,6 +1025,8 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   | Cons1(ctx1, d1) => Cons(compose(ctx1, d), d1)
   | Cons2(d1, ctx1) => Cons(d1, compose(ctx1, d))
   | Tuple(ctx, (ld, rd)) => Tuple(ld @ [compose(ctx, d), ...rd])
+  | ListLit(m, i, e, t, ctx, (ld, rd)) =>
+    ListLit(m, i, e, t, ld @ [compose(ctx, d), ...rd])
   | Let(dp, ctx1, d1) => Let(dp, compose(ctx1, d), d1)
   | Inj(ty, side, ctx1) => Inj(ty, side, compose(ctx1, d))
   | Cast(ctx1, ty1, ty2) => Cast(compose(ctx1, d), ty1, ty2)
