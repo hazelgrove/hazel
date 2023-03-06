@@ -359,7 +359,8 @@ let rec mk =
           ds
           |> List.mapi((i, d) => mk_cast(go'(d, unwrap(objs, Tuple(i))))),
         )
-      | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d, objs)), n)
+      | Prj(d, n) =>
+        DHDoc_common.mk_Prj(mk_cast(go'(d, unwrap(objs, Prj))), n)
       | ConsistentCase(Case(dscrut, drs, _)) =>
         let objs = unwrap(objs, ConsistentCase);
         go_case(dscrut, objs, drs);
