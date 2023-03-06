@@ -68,33 +68,7 @@ let zipper_type_string = (zipper: Zipper.t, info_map: Statics.map) => {
   alert_content;
 };
 
-let position_line_string = (editor: Editor.t) => {
-  // when the last action is moving up or down, we will read the full line, otherwise the character the cursor at
-  let is_line_needed =
-    switch (editor.history) {
-    | ([], _) => true
-    | ([(a, _), ..._], _) =>
-      switch (a) {
-      | Move(Extreme(Up))
-      | Move(Extreme(Down))
-      | Move(Local(Up))
-      | Move(Local(Down)) => true
-      | _ => false
-      }
-    };
-
-  let program = Printer.to_string_editor(editor);
-  let rows = String.split_on_char('\n', program);
-  switch (Editor.caret_point(editor)) {
-  | {row, _} =>
-    switch (List.nth_opt(rows, row)) {
-    | Some(str) => is_line_needed ? str : ""
-    | None => ""
-    }
-  };
-};
-
-let position_line_string = (editor: Editor.t) => {
+let action_move_string = (editor: Editor.t) => {
   // when the last action is moving up or down, we will read the full line, otherwise the character the cursor at
   let is_line_needed =
     switch (editor.history) {
@@ -144,6 +118,21 @@ let textarea_cursor_pos = (editor: Editor.t) => {
   };
 };
 
+let action_string = (action: Action.t, ) => {
+  switch(action) {
+  | Move(move) => 
+  | Jump(jump_target)
+  | Select(select)
+  | Unselect
+  | Destruct(direction)
+  | Insert(string)
+  | RotateBackpack
+  | MoveToBackpackTarget(planar)
+  | Pick_up
+  | Put_down => "";
+  }
+}
+
 let view =
     //~inject,
     //~settings,
@@ -157,8 +146,10 @@ let view =
   let info_map = Statics.mk_map(term);
 
   let zipper_type = zipper_type_string(zipper, info_map);
-  let line_str = position_line_string(model.editors |> Editors.get_editor);
-  let cursor_char = cursor_char_string(model.editors |> Editors.get_editor);
+  let line_str =
+    position_line_string(model.editors |> Editors.get_editor)
+    ++ position_line_string_combine(model.editors |> Editors.get_editor);
+  let cursor_char = ""; //cursor_char_string(model.editors |> Editors.get_editor);
 
   let type_string: string = "The expression has type " ++ zipper_type;
   let alert =
