@@ -42,23 +42,6 @@ let length = (p: t) => {
   };
 };
 
-let zip = (l: t, r: t): option(t) => {
-  open OptUtil.Syntax;
-  let paths = l.paths @ List.map(Path.shift(length(l)), r.paths);
-  let+ shape =
-    switch (l.shape, r.shape) {
-    | (G(_), T(_))
-    | (T(_), G(_)) => None
-    | (G(g_l), G(g_r)) =>
-      let+ g = Grout.zip(g_l, g_r);
-      Shape.G(g);
-    | (T(t_l), T(t_r)) =>
-      let+ t = Tile.zip(t_l, t_r);
-      Shape.T(t);
-    };
-  mk(~paths, shape);
-};
-
 let mold = p =>
   switch (p.shape) {
   | T(t) => t.mold
@@ -175,3 +158,27 @@ let gt_ = (l: t, r: t): list(Sort.Ana.t) => {
   };
 };
 let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
+
+let zips = (l: t, r: t): option(t) => {
+  open OptUtil.Syntax;
+  let paths = l.paths @ List.map(Path.shift(length(l)), r.paths);
+  let+ shape =
+    switch (l.shape, r.shape) {
+    | (G(_), T(_))
+    | (T(_), G(_)) => None
+    | (G(g_l), G(g_r)) =>
+      let+ g = Grout.zip(g_l, g_r);
+      Shape.G(g);
+    | (T(t_l), T(t_r)) =>
+      let+ t = Tile.zip(t_l, t_r);
+      Shape.T(t);
+    };
+  mk(~paths, shape);
+};
+
+let replaces = (l: t, r: t): option(Dir.t) =>
+  switch (l.shape, r.shape) {
+  | (G(_), _) when mold(l) == mold(r) => Some(L)
+  | (_, G(_)) when mold(l) == mold(r) => Some(R)
+  | _ => None
+  };

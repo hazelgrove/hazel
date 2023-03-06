@@ -13,17 +13,6 @@ let unmk = (~l=Meld.empty(), ~r=Meld.empty(), wal: t) =>
   Meld.of_chain(Chain.untrim(l, wal, r)) |> Meld.aggregate;
 
 let join = (_, _, _) => failwith("todo Wald.join");
-// switch (cmpl) {
-// | [] => (wal, kid)
-// | [hd, ...tl] =>
-//   let kid = failwith("fix sort consistency using hd right tip");
-//   let g = Piece.of_grout(Grout.mk(~sugg=fst(hd), snd(hd)));
-//   List.fold_left(
-//     (wal, (sugg, mold)) => knil(wal, Piece.of_grout(Grout.mk(~sugg, mold))),
-//     knil(wal, ~kid, g),
-//     tl,
-//   );
-// };
 
 // precond: p eq wal
 let link = (p, ~kid=Meld.empty(), wal) =>
@@ -52,69 +41,10 @@ let of_complement = (cmpl: list((Token.t, Mold.t))): option(t) =>
     None,
   );
 
-// let of_range = (l: Piece.t, ~kid=Meld.empty(), r: Piece.t) =>
-//   Piece.complement_between(l, r)
-//   |> Option.map(compl =>
-//        of_piece(r)
-//        |> List.fold_right(
-//             ((sugg, mold)) => link(Piece.of_grout(Grout.mk(~sugg, mold))),
-//             compl,
-//           )
-//      )
-//   |> Option.map(Chain.link(l, kid));
-
 let face = (side: Dir.t): (t => _) =>
   switch (side) {
   | L => Chain.fst
   | R => Chain.lst
-  };
-
-let complement_between = (l: t, ~kid=Meld.empty(), r: t): option(t) =>
-  Piece.complement_between(face(R, l), face(L, r))
-  |> Option.map(compl =>
-       List.fold_right(
-         ((sugg, mold), r) =>
-           link(Piece.of_grout(Grout.mk(~sugg, mold)), r),
-         compl,
-         r,
-       )
-     )
-  |> Option.map(Chain.append(l, kid));
-
-let apply_complement_m = (l: t, kid, cmpl, r: t): option(t) =>
-  r
-  |> List.fold_right(
-       ((sugg, mold), r) =>
-         link(Piece.of_grout(Grout.mk(~sugg, mold)), r),
-       compl,
-     )
-  |> Chain.append(l, kid);
-
-let apply_complement_l = (cmpl, kid, wal: t): (Meld.t, t) =>
-  switch (cmpl) {
-  | None => (kid, wal)
-  | Some((tl, hd)) =>
-    let kid = failwith("fix sort consistency using hd right tip");
-    let g = Piece.of_grout(Grout.mk(~sugg=fst(hd), snd(hd)));
-    link(g, ~kid, wal)
-    |> List.fold_right(
-         ((sugg, mold)) => link(Piece.of_grout(Grout.mk(~sugg, mold))),
-         tl,
-       );
-  };
-let apply_complement_r =
-    (wal: t, kid: Meld.t, cmpl: list((Token.t, Mold.t))): (t, Meld.t) =>
-  switch (cmpl) {
-  | [] => (wal, kid)
-  | [hd, ...tl] =>
-    let kid = failwith("fix sort consistency using hd right tip");
-    let g = Piece.of_grout(Grout.mk(~sugg=fst(hd), snd(hd)));
-    List.fold_left(
-      (wal, (sugg, mold)) =>
-        knil(wal, Piece.of_grout(Grout.mk(~sugg, mold))),
-      knil(wal, ~kid, g),
-      tl,
-    );
   };
 
 module Padded = {
@@ -174,24 +104,30 @@ let gt = (l: t, ~kid=Meld.empty(), r: t): option((t, Meld.t)) => {
      );
 };
 
+let fuses = (~kid) =>
+  cat((l, r) => {
+    open OptUtil.Syntax;
+    let* s = Meld.is_porous(kid);
+    switch (Piece.replaces(l, r)) {
+    | Some(L) => return(Padded.mk(~l=s, of_piece(r)))
+    | Some(R) => return(Padded.mk(of_piece(l), ~r=s))
+    | None =>
+      let+ p = Piece.zips(l, r);
+      assert(Space.is_empty(s));
+      Padded.mk(of_piece(p));
+    };
+  });
+let matches = (~kid) =>
+  cat((l, r) => {
+    open OptUtil.Syntax;
+    let+ cmpl = Piece.eq(l, r);
+    let wal = of_complement(cmpl);
+    Padded.mk(link(l, ~kid, knil(wal, r)));
+  });
 let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
   open OptUtil.Syntax;
-  let eq_p = (l, r) => {
-    let zips = Piece.zip(l, r);
-    let eq_mold = Piece.(mold(l) == mold(r));
-    switch (l.shape, Meld.is_porous(kid), r.shape) {
-    | (_, Some(s), _) when Option.is_some(zips) && Space.is_empty(s) =>
-      return(Padded.mk(of_piece(Option.get(zips))))
-    | (G(_), Some(s), _) when eq_mold =>
-      return(Padded.mk(~l=s, of_piece(r)))
-    | (_, Some(s), G(_)) when eq_mold =>
-      return(Padded.mk(of_piece(l), ~r=s))
-    | _ =>
-      let+ wal = of_range(l, ~kid, r);
-      Padded.mk(wal);
-    };
-  };
-  let/ () = cat(eq_p, l, r);
+  let/ () = fuses(l, ~kid, r);
+  let/ () = matches(l, ~kid, r);
   let* (tl_l, kid_l, p_l) = Chain.unknil(l);
   let* (p_r, kid_r, tl_r) = Chain.unlink(r);
   switch (p_l.shape, Meld.is_porous(kid), p_r.shape) {
