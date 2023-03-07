@@ -81,39 +81,6 @@ let zipper_const = ((a, frames): Gram.Zipper.a(_)) =>
   | Tok(Const(t)) => Some((t, frames))
   | _ => None
   };
-let complement_beyond = (~side: Dir.t, p: t): list((Token.t, Mold.t)) => {
-  let rec go = z =>
-    switch (Gram.Zipper.move_to_tok(~skip_nullable=true, side, z)) {
-    // | [z, ..._] when Option.map(zipper, upto) == Some(z) => []
-    // default to first alternative
-    | [(Tok(Const(t)), frames) as z, ..._] =>
-      let m = {...mold(p), frames};
-      [(t, m), ...go(z)];
-    | _ => []
-    };
-  go(zipper(p));
-};
-let complement_between = (l: t, r: t): option(list((Token.t, Mold.t))) => {
-  let mk_mold = frames => {...mold(l), frames};
-  let rec go = (l, r) => {
-    let moved = Gram.Zipper.move_to_tok(~skip_nullable=true, R, l);
-    if (List.mem(r, moved)) {
-      zipper_const(l)
-      |> Option.map(((t, frames)) => [(t, mk_mold(frames))]);
-    } else {
-      moved
-      |> List.map(l => (l, go(l, r)))
-      |> List.filter(((_, found_r)) => Option.is_some(found_r))
-      |> List.filter_map(((l, found_r)) =>
-           zipper_const(l)
-           |> Option.map(((t, frames)) => ((t, mk_mold(frames)), found_r))
-         )
-      |> ListUtil.hd_opt
-      |> Option.map(((l, compl)) => [l, ...Option.get(compl)]);
-    };
-  };
-  go(zipper(l), zipper(r)) |> Option.map(List.tl);
-};
 
 let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
   switch (p.shape) {
@@ -127,37 +94,6 @@ let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
 };
 
 let fst_set = _ => failwith("todo fst");
-
-let lt_ = (l: t, r: t): list(Sort.Ana.t) => {
-  open ListUtil.Syntax;
-  let (l, r) = (mold(l), mold(r));
-  let* (s, p) = Mold.concave_tips(R, l);
-  let* tip = Sort.leq(s, r.sort) ? Mold.tips(L, r) : [];
-  switch (tip) {
-  | Concave(t, q)
-      when Sort.geq(l.sort, t) && !Prec.lt(~a=LangUtil.assoc(l.sort), p, q) =>
-    []
-  | _ =>
-    // todo: strict based on piece shape
-    [Sort.Ana.mk(~sort=s, ())]
-  };
-};
-// todo: avoid arbitrary preemptive choice
-let lt = (l, r) => ListUtil.hd_opt(lt_(l, r));
-
-let gt_ = (l: t, r: t): list(Sort.Ana.t) => {
-  open ListUtil.Syntax;
-  let (l, r) = (mold(l), mold(r));
-  let* (s, p) = Mold.concave_tips(L, r);
-  let* tip = Sort.geq(l.sort, s) ? Mold.tips(R, l) : [];
-  switch (tip) {
-  | Concave(t, q)
-      when Sort.geq(r.sort, t) && !Prec.lt(~a=LangUtil.assoc(r.sort), p, q) =>
-    []
-  | _ => [Sort.Ana.mk(~sort=s, ())]
-  };
-};
-let gt = (l, r) => ListUtil.hd_opt(gt_(l, r));
 
 let zips = (l: t, r: t): option(t) => {
   open OptUtil.Syntax;
@@ -181,4 +117,83 @@ let replaces = (l: t, r: t): option(Dir.t) =>
   | (G(_), _) when mold(l) == mold(r) => Some(L)
   | (_, G(_)) when mold(l) == mold(r) => Some(R)
   | _ => None
+  };
+
+let matches = (l: t, r: t): option(Complement.t) => {
+  let mk_mold = frames => {...mold(l), frames};
+  let rec go = (l, r) => {
+    let moved = Gram.Zipper.move_to_tok(~skip_nullable=true, R, l);
+    if (List.mem(r, moved)) {
+      zipper_const(l)
+      |> Option.map(((t, frames)) => [(t, mk_mold(frames))]);
+    } else {
+      moved
+      |> List.map(l => (l, go(l, r)))
+      |> List.filter(((_, found_r)) => Option.is_some(found_r))
+      |> List.filter_map(((l, found_r)) =>
+           zipper_const(l)
+           |> Option.map(((t, frames)) => ((t, mk_mold(frames)), found_r))
+         )
+      |> ListUtil.hd_opt
+      |> Option.map(((l, compl)) => [l, ...Option.get(compl)]);
+    };
+  };
+  go(zipper(l), zipper(r)) |> Option.map(List.tl);
+};
+
+let complement_beyond = (~side: Dir.t, p: t): Complement.t => {
+  let rec go = z =>
+    switch (Gram.Zipper.move_to_tok(~skip_nullable=true, side, z)) {
+    // | [z, ..._] when Option.map(zipper, upto) == Some(z) => []
+    // default to first alternative
+    | [(Tok(Const(t)), frames) as z, ..._] =>
+      let m = {...mold(p), frames};
+      [(t, m), ...go(z)];
+    | _ => []
+    };
+  go(zipper(p));
+};
+
+let lt = (l: t, r: t): option(Complement.t) =>
+  switch (
+    Mold.concave_tips(R, mold(l))
+    |> List.filter(((s, _)) => List.mem(sort(r), LangUtil.fst_set(s)))
+  ) {
+  | [] => None
+  // todo: fix preemptive choice
+  | [(_, p), ..._] =>
+    switch (
+      Mold.concave_tips(L, mold(r))
+      |> List.filter(((s, q)) =>
+           List.mem(sort(l), LangUtil.lst_set(s))
+           && Prec.gt(~a=LangUtil.assoc(sort(l)), p, q)
+         )
+    ) {
+    // todo: address weird feeling about single lost
+    // precedence battle determining overall outcome
+    | [_, ..._] => None
+    | [] => Some(complement_beyond(~side=L, r))
+    }
+  };
+
+let gt = (l: t, r: t): option(Complement.t) =>
+  switch (
+    Mold.concave_tips(L, mold(l))
+    |> List.filter(((s, _)) => List.mem(sort(l), LangUtil.lst_set(s)))
+  ) {
+  | [] => None
+  // todo: fix preemptive choice
+  | [(_, p), ..._] =>
+    switch (
+      Mold.concave_tips(R, mold(l))
+      |> List.filter(((s, q)) =>
+           List.mem(sort(r), LangUtil.fst_set(s))
+           && Prec.lt(~a=LangUtil.assoc(sort(r)), q, p)
+         )
+    ) {
+    // todo: address weird feeling about single lost
+    // precedence battle determining overall outcome
+    | [_, ..._] => None
+    | [] => Some(complement_beyond(~side=R, l))
+    }
   };

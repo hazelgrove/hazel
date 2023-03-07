@@ -28,7 +28,7 @@ let link = (p, ~kid=Meld.empty(), wal) =>
 let append = (l: t, ~kid=Meld.empty(), r: t) =>
   l |> Chain.fold_right((p, kid) => link(p, ~kid), p => link(p, ~kid, r));
 
-let of_complement = (cmpl: list((Token.t, Mold.t))): option(t) =>
+let of_complement = (cmpl: Complement.t): option(t) =>
   List.fold_right(
     ((sugg, mold), wal) => {
       let g = Piece.of_grout(Grout.mk(~sugg, mold));
@@ -76,6 +76,41 @@ let cat =
          },
      );
 
+let fuses = (~kid) =>
+  cat((l, r) => {
+    open OptUtil.Syntax;
+    let* s = Meld.is_porous(kid);
+    switch (Piece.replaces(l, r)) {
+    | Some(L) => return(Padded.mk(~l=s, of_piece(r)))
+    | Some(R) => return(Padded.mk(of_piece(l), ~r=s))
+    | None =>
+      let+ p = Piece.zips(l, r);
+      assert(Space.is_empty(s));
+      Padded.mk(of_piece(p));
+    };
+  });
+
+let matches = (~kid) =>
+  cat((l, r) => {
+    open OptUtil.Syntax;
+    let+ cmpl = Piece.matches(l, r);
+    let wal = of_complement(cmpl);
+    Padded.mk(link(l, ~kid, knil(wal, r)));
+  });
+
+let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
+  open OptUtil.Syntax;
+  let/ () = fuses(l, ~kid, r);
+  let/ () = matches(l, ~kid, r);
+  let* (tl_l, kid_l, p_l) = Chain.unknil(l);
+  let* (p_r, kid_r, tl_r) = Chain.unlink(r);
+  switch (p_l.shape, Meld.is_porous(kid), p_r.shape) {
+  | (G(_), Some(s), _) => eq(tl_l, ~kid=Meld.pad(kid_l, ~r=s), r)
+  | (_, Some(s), G(_)) => eq(l, ~kid=Meld.pad(~l=s, kid_r), tl_r)
+  | _ => None
+  };
+};
+
 let lt = (l: t, ~kid=Meld.empty(), r: t): option((Meld.t, t)) => {
   let (p_l, p_r) = (face(R, l), face(L, r));
   let patch = Meld.patch(Piece.tip(R, p_l));
@@ -102,37 +137,4 @@ let gt = (l: t, ~kid=Meld.empty(), r: t): option((t, Meld.t)) => {
          (append(l, ~kid, wal), end_kid);
        }
      );
-};
-
-let fuses = (~kid) =>
-  cat((l, r) => {
-    open OptUtil.Syntax;
-    let* s = Meld.is_porous(kid);
-    switch (Piece.replaces(l, r)) {
-    | Some(L) => return(Padded.mk(~l=s, of_piece(r)))
-    | Some(R) => return(Padded.mk(of_piece(l), ~r=s))
-    | None =>
-      let+ p = Piece.zips(l, r);
-      assert(Space.is_empty(s));
-      Padded.mk(of_piece(p));
-    };
-  });
-let matches = (~kid) =>
-  cat((l, r) => {
-    open OptUtil.Syntax;
-    let+ cmpl = Piece.eq(l, r);
-    let wal = of_complement(cmpl);
-    Padded.mk(link(l, ~kid, knil(wal, r)));
-  });
-let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
-  open OptUtil.Syntax;
-  let/ () = fuses(l, ~kid, r);
-  let/ () = matches(l, ~kid, r);
-  let* (tl_l, kid_l, p_l) = Chain.unknil(l);
-  let* (p_r, kid_r, tl_r) = Chain.unlink(r);
-  switch (p_l.shape, Meld.is_porous(kid), p_r.shape) {
-  | (G(_), Some(s), _) => eq(tl_l, ~kid=Meld.pad(kid_l, ~r=s), r)
-  | (_, Some(s), G(_)) => eq(l, ~kid=Meld.pad(~l=s, kid_r), tl_r)
-  | _ => None
-  };
 };
