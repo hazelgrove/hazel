@@ -30,7 +30,7 @@ let feedback_view = (message, up_active, up_action, down_active, down_action) =>
 };
 
 let explanation_feedback_view =
-    (~inject, id, explanation: ExplainThisForm.explanation) => {
+    (~inject, group_id, form_id, explanation: ExplainThisForm.explanation) => {
   let (up_active, down_active) =
     switch (explanation.feedback) {
     | ThumbsUp => (true, false)
@@ -43,20 +43,21 @@ let explanation_feedback_view =
     _ =>
       inject(
         Update.UpdateExplainThisMessages(
-          ToggleExplanationFeedback(id, ThumbsUp),
+          ToggleExplanationFeedback(group_id, form_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
         Update.UpdateExplainThisMessages(
-          ToggleExplanationFeedback(id, ThumbsDown),
+          ToggleExplanationFeedback(group_id, form_id, ThumbsDown),
         ),
       ),
   );
 };
 
-let example_feedback_view = (~inject, id, example: ExplainThisForm.example) => {
+let example_feedback_view =
+    (~inject, group_id, form_id, example: ExplainThisForm.example) => {
   let (up_active, down_active) =
     switch (example.feedback) {
     | ThumbsUp => (true, false)
@@ -69,14 +70,19 @@ let example_feedback_view = (~inject, id, example: ExplainThisForm.example) => {
     _ =>
       inject(
         Update.UpdateExplainThisMessages(
-          ToggleExampleFeedback(id, example.sub_id, ThumbsUp),
+          ToggleExampleFeedback(group_id, form_id, example.sub_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
         Update.UpdateExplainThisMessages(
-          ToggleExampleFeedback(id, example.sub_id, ThumbsDown),
+          ToggleExampleFeedback(
+            group_id,
+            form_id,
+            example.sub_id,
+            ThumbsDown,
+          ),
         ),
       ),
   );
@@ -189,14 +195,21 @@ let mk_translation =
 };
 
 let mk_explanation =
-    (~inject, id, explanation, text: string, show_highlight: bool)
+    (
+      ~inject,
+      group_id,
+      form_id,
+      explanation,
+      text: string,
+      show_highlight: bool,
+    )
     : (Node.t, ColorSteps.t) => {
   let (msg, color_map) =
     mk_translation(~inject=Some(inject), text, show_highlight);
   (
     div([
       div(~attr=clss(["explanation-contents"]), msg),
-      explanation_feedback_view(~inject, id, explanation),
+      explanation_feedback_view(~inject, group_id, form_id, explanation),
     ]),
     color_map,
   );
@@ -212,7 +225,7 @@ let deco =
       ~map,
       ~inject,
       ~font_metrics,
-      ~options,
+      ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group_id,
       ~form_id,
     ) => {
@@ -269,47 +282,32 @@ let deco =
                     clss(["specificity-options-menu", "expandable"]),
                     specificity_style,
                   ]),
-                List.mapi(
-                  (index, (id, segment)) => {
+                List.map(
+                  ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                     let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(~unselected=segment, ~map, ~settings);
-                    let classes = get_clss(segment);
-                    id == form_id
-                      ? Node.div(
-                          ~attr=
-                            Attr.many([
-                              clss(["selected"] @ classes),
-                              Attr.on_click(_ =>
-                                inject(
-                                  Update.UpdateExplainThisMessages(
-                                    ExplainThisMessages.UpdateGroupSelection(
-                                      group_id,
-                                      index,
-                                    ),
-                                  ),
-                                )
+                    let classes =
+                      id == form_id
+                        ? ["selected"] @ get_clss(segment)
+                        : get_clss(segment);
+                    Node.div(
+                      ~attr=
+                        Attr.many([
+                          clss(classes),
+                          Attr.on_click(_ =>
+                            inject(
+                              Update.UpdateExplainThisMessages(
+                                ExplainThisMessages.UpdateGroupSelection(
+                                  group_id,
+                                  id,
+                                ),
                               ),
-                            ]),
-                          [code_view],
-                        )
-                      : Node.div(
-                          ~attr=
-                            Attr.many([
-                              clss(classes),
-                              Attr.on_click(_ =>
-                                inject(
-                                  Update.UpdateExplainThisMessages(
-                                    ExplainThisMessages.UpdateGroupSelection(
-                                      group_id,
-                                      index,
-                                    ),
-                                  ),
-                                )
-                              ),
-                            ]),
-                          [code_view],
-                        );
+                            )
+                          ),
+                        ]),
+                      [code_view],
+                    );
                   },
                   options,
                 ),
@@ -373,7 +371,7 @@ let syntactic_form_view =
       ~unselected,
       ~settings,
       ~id,
-      ~options,
+      ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group_id,
       ~form_id,
     ) => {
@@ -404,7 +402,8 @@ let example_view =
       ~inject,
       ~font_metrics,
       ~settings,
-      ~id,
+      ~group_id,
+      ~form_id,
       ~examples: list(ExplainThisForm.example),
     ) => {
   div(
@@ -445,7 +444,7 @@ let example_view =
                   ~attr=clss(["explanation"]),
                   [text("Explanation: "), text(message)],
                 ),
-                example_feedback_view(~inject, id, example),
+                example_feedback_view(~inject, group_id, form_id, example),
               ],
             );
           },
@@ -507,7 +506,11 @@ let get_doc =
   let get_specificity_level = group_id =>
     fst(ExplainThisMessages.get_form_and_options(group_id, docs)).id;
   let get_message =
-      (~colorings=[], ~format: option(string => string)=None, group_id)
+      (
+        ~colorings=[],
+        ~format: option(string => string)=None,
+        group_id: ExplainThisForm.group_id,
+      )
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
     let (doc, options) =
       ExplainThisMessages.get_form_and_options(group_id, docs);
@@ -523,6 +526,7 @@ let get_doc =
       let (explanation, color_map) =
         mk_explanation(
           ~inject,
+          group_id,
           doc.id,
           doc.explanation,
           explanation_msg,
@@ -554,7 +558,8 @@ let get_doc =
           ~inject,
           ~font_metrics,
           ~settings,
-          ~id=doc.id,
+          ~group_id,
+          ~form_id=doc.id,
           ~examples=doc.examples,
         );
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
@@ -572,25 +577,25 @@ let get_doc =
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
       | TermBase.UExp.Invalid(_) => default
-      | EmptyHole => get_message(HoleExp.empty_hole_exp_group)
-      | MultiHole(_children) => get_message(HoleExp.multi_hole_exp_group)
-      | Triv => get_message(TerminalExp.triv_exp_group)
-      | Bool(_bool_lit) => get_message(TerminalExp.bool_exp_group)
-      | Int(_int_lit) => get_message(TerminalExp.int_exp_group)
-      | Float(_float_lit) => get_message(TerminalExp.float_exp_group)
-      | String(_str_lit) => get_message(TerminalExp.string_exp_group)
-      | ListLit(terms) =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(terms),
-                ),
-            ),
-          ListExp.list_exp_group,
-        )
+      | EmptyHole => get_message(HoleExp.empty_hole_exp_group.id)
+
+      | MultiHole(_children) => get_message(HoleExp.multi_hole_exp_group.id)
+      | Triv => get_message(TerminalExp.triv_exp_group.id)
+      | Bool(_bool_lit) => get_message(TerminalExp.bool_exp_group.id)
+      | Int(_int_lit) => get_message(TerminalExp.int_exp_group.id)
+      | Float(_float_lit) => get_message(TerminalExp.float_exp_group.id)
+      | String(_str_lit) => get_message(TerminalExp.string_exp_group.id)
+      | ListLit(_terms) => /*get_message(
+                                ~format=
+                                  Some(
+                                    msg =>
+                                      Printf.sprintf(
+                                        Scanf.format_from_string(msg, "%i"),
+                                        List.length(terms),
+                                      ),
+                                  ),
+                                ListExp.list_exp_group.id,
+                              )*/ default
       | Fun(pat, body) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
@@ -616,7 +621,9 @@ let get_doc =
         switch (pat.term) {
         | EmptyHole =>
           if (FunctionExp.function_empty_hole_exp.id
-              == get_specificity_level(FunctionExp.function_empty_hole_group)) {
+              == get_specificity_level(
+                   FunctionExp.function_empty_hole_group.id,
+                 )) {
             get_message(
               ~colorings=
                 FunctionExp.function_empty_hole_exp_coloring_ids(
@@ -633,14 +640,16 @@ let get_doc =
                       pat_id,
                     ),
                 ),
-              FunctionExp.function_empty_hole_group,
+              FunctionExp.function_empty_hole_group.id,
             );
           } else {
-            basic(FunctionExp.function_empty_hole_group);
+            basic(FunctionExp.function_empty_hole_group.id);
           }
         | MultiHole(_) =>
           if (FunctionExp.function_multi_hole_exp.id
-              == get_specificity_level(FunctionExp.function_multi_hole_group)) {
+              == get_specificity_level(
+                   FunctionExp.function_multi_hole_group.id,
+                 )) {
             get_message(
               ~colorings=
                 FunctionExp.function_multi_hole_exp_coloring_ids(
@@ -657,14 +666,14 @@ let get_doc =
                       pat_id,
                     ),
                 ),
-              FunctionExp.function_multi_hole_group,
+              FunctionExp.function_multi_hole_group.id,
             );
           } else {
-            basic(FunctionExp.function_multi_hole_group);
+            basic(FunctionExp.function_multi_hole_group.id);
           }
         | Wild =>
           if (FunctionExp.function_wild_exp.id
-              == get_specificity_level(FunctionExp.function_wild_group)) {
+              == get_specificity_level(FunctionExp.function_wild_group.id)) {
             get_message(
               ~colorings=FunctionExp.function_wild_exp_coloring_ids(~body_id),
               ~format=
@@ -675,14 +684,14 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_wild_group,
+              FunctionExp.function_wild_group.id,
             );
           } else {
-            basic(FunctionExp.function_wild_group);
+            basic(FunctionExp.function_wild_group.id);
           }
         | Int(i) =>
           if (FunctionExp.function_intlit_exp.id
-              == get_specificity_level(FunctionExp.function_int_group)) {
+              == get_specificity_level(FunctionExp.function_int_group.id)) {
             get_message(
               ~colorings=
                 FunctionExp.function_intlit_exp_coloring_ids(
@@ -700,14 +709,14 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_int_group,
+              FunctionExp.function_int_group.id,
             );
           } else {
-            basic(FunctionExp.function_int_group);
+            basic(FunctionExp.function_int_group.id);
           }
         | Float(f) =>
           if (FunctionExp.function_floatlit_exp.id
-              == get_specificity_level(FunctionExp.function_float_group)) {
+              == get_specificity_level(FunctionExp.function_float_group.id)) {
             get_message(
               ~colorings=
                 FunctionExp.function_floatlit_exp_coloring_ids(
@@ -725,14 +734,14 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_float_group,
+              FunctionExp.function_float_group.id,
             );
           } else {
-            basic(FunctionExp.function_float_group);
+            basic(FunctionExp.function_float_group.id);
           }
         | Bool(b) =>
           if (FunctionExp.function_boollit_exp.id
-              == get_specificity_level(FunctionExp.function_bool_group)) {
+              == get_specificity_level(FunctionExp.function_bool_group.id)) {
             get_message(
               ~colorings=
                 FunctionExp.function_boollit_exp_coloring_ids(
@@ -750,13 +759,13 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_bool_group,
+              FunctionExp.function_bool_group.id,
             );
           } else {
-            basic(FunctionExp.function_bool_group);
+            basic(FunctionExp.function_bool_group.id);
           }
-        | String(s) =>
-          if (FunctionExp.function_strlit_exp.id
+        | String(_s) => default
+        /*if (FunctionExp.function_strlit_exp.id
               == get_specificity_level(FunctionExp.function_str_group)) {
             get_message(
               ~colorings=
@@ -779,13 +788,15 @@ let get_doc =
             );
           } else {
             basic(FunctionExp.function_str_group);
-          }
-        | Triv =>
-          if (FunctionExp.function_triv_exp.id
+          }*/
+        | Triv => default
+        /*if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.function_triv_group)) {
             get_message(
               ~colorings=
                 FunctionExp.function_triv_exp_coloring_ids(~pat_id, ~body_id),
+              // HANNAH TODO - think could move this format thing like into the colorings
+              // functions
               ~format=
                 Some(
                   msg =>
@@ -800,60 +811,59 @@ let get_doc =
             );
           } else {
             basic(FunctionExp.function_triv_group);
-          }
-        | ListLit(elements) =>
-          if (List.length(elements) == 0) {
-            if (FunctionExp.function_listnil_exp.id
-                == get_specificity_level(FunctionExp.function_listnil_group)) {
-              get_message(
-                ~colorings=
-                  FunctionExp.function_listnil_exp_coloring_ids(
-                    ~pat_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i"),
-                        pat_id,
-                        pat_id,
-                        body_id,
-                      ),
-                  ),
-                FunctionExp.function_listnil_group,
-              );
-            } else {
-              basic(FunctionExp.function_listnil_group);
-            };
-          } else if (FunctionExp.function_listlit_exp.id
-                     == get_specificity_level(
-                          FunctionExp.function_listlit_group,
-                        )) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_listlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      pat_id,
-                      List.length(elements),
-                      pat_id,
-                      body_id,
-                    ),
-                ),
-              FunctionExp.function_listlit_group,
-            );
-          } else {
-            basic(FunctionExp.function_listlit_group);
-          }
-        | Cons(hd, tl) =>
-          if (FunctionExp.function_cons_exp.id
+          }*/
+        | ListLit(_elements) => /*if (List.length(elements) == 0) {
+                                     if (FunctionExp.function_listnil_exp.id
+                                         == get_specificity_level(FunctionExp.function_listnil_group)) {
+                                       get_message(
+                                         ~colorings=
+                                           FunctionExp.function_listnil_exp_coloring_ids(
+                                             ~pat_id,
+                                             ~body_id,
+                                           ),
+                                         ~format=
+                                           Some(
+                                             msg =>
+                                               Printf.sprintf(
+                                                 Scanf.format_from_string(msg, "%i%i%i"),
+                                                 pat_id,
+                                                 pat_id,
+                                                 body_id,
+                                               ),
+                                           ),
+                                         FunctionExp.function_listnil_group,
+                                       );
+                                     } else {
+                                       basic(FunctionExp.function_listnil_group);
+                                     };
+                                   } else if (FunctionExp.function_listlit_exp.id
+                                              == get_specificity_level(
+                                                   FunctionExp.function_listlit_group,
+                                                 )) {
+                                     get_message(
+                                       ~colorings=
+                                         FunctionExp.function_listlit_exp_coloring_ids(
+                                           ~pat_id,
+                                           ~body_id,
+                                         ),
+                                       ~format=
+                                         Some(
+                                           msg =>
+                                             Printf.sprintf(
+                                               Scanf.format_from_string(msg, "%i%i%i%i"),
+                                               pat_id,
+                                               List.length(elements),
+                                               pat_id,
+                                               body_id,
+                                             ),
+                                         ),
+                                       FunctionExp.function_listlit_group,
+                                     );
+                                   } else {
+                                     basic(FunctionExp.function_listlit_group);
+                                   }*/ default
+        | Cons(_hd, _tl) => default
+        /*if (FunctionExp.function_cons_exp.id
               == get_specificity_level(FunctionExp.function_cons_group)) {
             let hd_id = List.nth(hd.ids, 0);
             let tl_id = List.nth(tl.ids, 0);
@@ -878,9 +888,9 @@ let get_doc =
             );
           } else {
             basic(FunctionExp.function_cons_group);
-          }
-        | Var(var) =>
-          if (FunctionExp.function_var_exp.id
+          }*/
+        | Var(_var) => default
+        /*if (FunctionExp.function_var_exp.id
               == get_specificity_level(FunctionExp.function_var_group)) {
             get_message(
               ~colorings=
@@ -899,769 +909,762 @@ let get_doc =
             );
           } else {
             basic(FunctionExp.function_var_group);
-          }
-        | Tuple(elements) =>
-          let pat_id = List.nth(pat.ids, 0);
-          let body_id = List.nth(body.ids, 0);
-          let basic_tuple = group_id => {
-            get_message(
-              ~colorings=
-                FunctionExp.function_tuple_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      pat_id,
-                      List.length(elements),
-                      pat_id,
-                      body_id,
-                    ),
-                ),
-              group_id,
-            );
-          };
+          }*/
+        | Tuple(_elements) => /*let pat_id = List.nth(pat.ids, 0);
+                                 let body_id = List.nth(body.ids, 0);
+                                 let basic_tuple = group_id => {
+                                   get_message(
+                                     ~colorings=
+                                       FunctionExp.function_tuple_exp_coloring_ids(
+                                         ~pat_id,
+                                         ~body_id,
+                                       ),
+                                     ~format=
+                                       Some(
+                                         msg =>
+                                           Printf.sprintf(
+                                             Scanf.format_from_string(msg, "%i%i%i%i"),
+                                             pat_id,
+                                             List.length(elements),
+                                             pat_id,
+                                             body_id,
+                                           ),
+                                       ),
+                                     group_id,
+                                   );
+                                 };
 
-          switch (List.length(elements)) {
-          | 2 =>
-            let doc_id =
-              get_specificity_level(FunctionExp.function_tuple_2_group);
-            if (FunctionExp.function_tuple2_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              get_message(
-                ~colorings=
-                  FunctionExp.function_tuple2_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i"),
-                        pat1_id,
-                        pat2_id,
-                        body_id,
-                      ),
-                  ),
-                FunctionExp.function_tuple_2_group,
-              );
-            } else if (FunctionExp.function_tuple_exp.id == doc_id) {
-              basic_tuple(FunctionExp.function_tuple_2_group);
-            } else {
-              basic(FunctionExp.function_tuple_2_group);
-            };
-          | 3 =>
-            let doc_id =
-              get_specificity_level(FunctionExp.function_tuple_3_group);
-            if (FunctionExp.function_tuple3_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
-              get_message(
-                ~colorings=
-                  FunctionExp.function_tuple3_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~pat3_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i%i"),
-                        pat1_id,
-                        pat2_id,
-                        pat3_id,
-                        body_id,
-                      ),
-                  ),
-                FunctionExp.function_tuple_3_group,
-              );
-            } else if (FunctionExp.function_tuple_exp.id == doc_id) {
-              basic_tuple(FunctionExp.function_tuple_3_group);
-            } else {
-              basic(FunctionExp.function_tuple_3_group);
-            };
-          | _ =>
-            if (FunctionExp.function_tuple_exp.id
-                == get_specificity_level(FunctionExp.function_tuple_group)) {
-              basic_tuple(FunctionExp.function_tuple_group);
-            } else {
-              basic(FunctionExp.function_tuple_group);
-            }
-          };
-        | Ap(con, arg) =>
-          if (FunctionExp.function_ap_exp.id
-              == get_specificity_level(FunctionExp.function_ap_group)) {
-            let con_id = List.nth(con.ids, 0);
-            let arg_id = List.nth(arg.ids, 0);
-            get_message(
-              ~colorings=
-                FunctionExp.function_ap_exp_coloring_ids(
-                  ~con_id,
-                  ~arg_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      con_id,
-                      arg_id,
-                      body_id,
-                    ),
-                ),
-              FunctionExp.function_ap_group,
-            );
-          } else {
-            basic(FunctionExp.function_ap_group);
-          }
-        | Tag(v) =>
-          if (FunctionExp.function_tag_exp.id
-              == get_specificity_level(FunctionExp.function_tag_group)) {
-            let pat_id = List.nth(pat.ids, 0);
-            let body_id = List.nth(body.ids, 0);
-            get_message(
-              ~colorings=
-                FunctionExp.function_tag_exp_coloring_ids(~pat_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%s%i%i"),
-                      pat_id,
-                      v,
-                      pat_id,
-                      body_id,
-                    ),
-                ),
-              FunctionExp.function_tag_group,
-            );
-          } else {
-            basic(FunctionExp.function_tag_group);
-          }
+                                 switch (List.length(elements)) {
+                                 | 2 =>
+                                   let doc_id =
+                                     get_specificity_level(FunctionExp.function_tuple_2_group);
+                                   if (FunctionExp.function_tuple2_exp.id == doc_id) {
+                                     let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                     let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                     get_message(
+                                       ~colorings=
+                                         FunctionExp.function_tuple2_exp_coloring_ids(
+                                           ~pat1_id,
+                                           ~pat2_id,
+                                           ~body_id,
+                                         ),
+                                       ~format=
+                                         Some(
+                                           msg =>
+                                             Printf.sprintf(
+                                               Scanf.format_from_string(msg, "%i%i%i"),
+                                               pat1_id,
+                                               pat2_id,
+                                               body_id,
+                                             ),
+                                         ),
+                                       FunctionExp.function_tuple_2_group,
+                                     );
+                                   } else if (FunctionExp.function_tuple_exp.id == doc_id) {
+                                     basic_tuple(FunctionExp.function_tuple_2_group);
+                                   } else {
+                                     basic(FunctionExp.function_tuple_2_group);
+                                   };
+                                 | 3 =>
+                                   let doc_id =
+                                     get_specificity_level(FunctionExp.function_tuple_3_group);
+                                   if (FunctionExp.function_tuple3_exp.id == doc_id) {
+                                     let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                     let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                     let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+                                     get_message(
+                                       ~colorings=
+                                         FunctionExp.function_tuple3_exp_coloring_ids(
+                                           ~pat1_id,
+                                           ~pat2_id,
+                                           ~pat3_id,
+                                           ~body_id,
+                                         ),
+                                       ~format=
+                                         Some(
+                                           msg =>
+                                             Printf.sprintf(
+                                               Scanf.format_from_string(msg, "%i%i%i%i"),
+                                               pat1_id,
+                                               pat2_id,
+                                               pat3_id,
+                                               body_id,
+                                             ),
+                                         ),
+                                       FunctionExp.function_tuple_3_group,
+                                     );
+                                   } else if (FunctionExp.function_tuple_exp.id == doc_id) {
+                                     basic_tuple(FunctionExp.function_tuple_3_group);
+                                   } else {
+                                     basic(FunctionExp.function_tuple_3_group);
+                                   };
+                                 | _ =>
+                                   if (FunctionExp.function_tuple_exp.id
+                                       == get_specificity_level(FunctionExp.function_tuple_group)) {
+                                     basic_tuple(FunctionExp.function_tuple_group);
+                                   } else {
+                                     basic(FunctionExp.function_tuple_group);
+                                   }
+                                 };*/ default
+        | Ap(_con, _arg) => /*if (FunctionExp.function_ap_exp.id
+                                   == get_specificity_level(FunctionExp.function_ap_group)) {
+                                 let con_id = List.nth(con.ids, 0);
+                                 let arg_id = List.nth(arg.ids, 0);
+                                 get_message(
+                                   ~colorings=
+                                     FunctionExp.function_ap_exp_coloring_ids(
+                                       ~con_id,
+                                       ~arg_id,
+                                       ~body_id,
+                                     ),
+                                   ~format=
+                                     Some(
+                                       msg =>
+                                         Printf.sprintf(
+                                           Scanf.format_from_string(msg, "%i%i%i"),
+                                           con_id,
+                                           arg_id,
+                                           body_id,
+                                         ),
+                                     ),
+                                   FunctionExp.function_ap_group,
+                                 );
+                               } else {
+                                 basic(FunctionExp.function_ap_group);
+                               }*/ default
+        | Tag(_v) => /*if (FunctionExp.function_tag_exp.id
+                           == get_specificity_level(FunctionExp.function_tag_group)) {
+                         let pat_id = List.nth(pat.ids, 0);
+                         let body_id = List.nth(body.ids, 0);
+                         get_message(
+                           ~colorings=
+                             FunctionExp.function_tag_exp_coloring_ids(~pat_id, ~body_id),
+                           ~format=
+                             Some(
+                               msg =>
+                                 Printf.sprintf(
+                                   Scanf.format_from_string(msg, "%i%s%i%i"),
+                                   pat_id,
+                                   v,
+                                   pat_id,
+                                   body_id,
+                                 ),
+                             ),
+                           FunctionExp.function_tag_group,
+                         );
+                       } else {
+                         basic(FunctionExp.function_tag_group);
+                       }*/ default
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
-      | Tuple(terms) =>
-        let basic = group_id =>
-          get_message(
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i"),
-                    List.length(terms),
-                  ),
-              ),
-            group_id,
-          );
-        switch (List.length(terms)) {
-        | 2 =>
-          if (TupleExp.tuple_exp_size2.id
-              == get_specificity_level(TupleExp.tuple_exp_2_group)) {
-            let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
-            let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
-            get_message(
-              ~colorings=
-                TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i"),
-                      exp1_id,
-                      exp2_id,
-                    ),
-                ),
-              TupleExp.tuple_exp_2_group,
-            );
-          } else {
-            basic(TupleExp.tuple_exp_2_group);
-          }
-        | 3 =>
-          if (TupleExp.tuple_exp_size3.id
-              == get_specificity_level(TupleExp.tuple_exp_3_group)) {
-            let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
-            let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
-            let exp3_id = List.nth(List.nth(terms, 2).ids, 0);
-            get_message(
-              ~colorings=
-                TupleExp.tuple_exp_size3_coloring_ids(
-                  ~exp1_id,
-                  ~exp2_id,
-                  ~exp3_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      exp1_id,
-                      exp2_id,
-                      exp3_id,
-                    ),
-                ),
-              TupleExp.tuple_exp_3_group,
-            );
-          } else {
-            basic(TupleExp.tuple_exp_3_group);
-          }
-        | _ => basic(TupleExp.tuple_exp_group)
-        };
-      | Var(_var) => get_message(TerminalExp.var_exp_group)
-      | Let(pat, def, body) =>
-        let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(pat.ids, 0);
-        let def_id = List.nth(def.ids, 0);
-        let body_id = List.nth(body.ids, 0);
-        let basic = group_id => {
-          get_message(
-            ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    def_id,
-                    pat_id,
-                  ),
-              ),
-            group_id,
-          );
-        };
-        switch (pat.term) {
-        | EmptyHole =>
-          if (LetExp.let_empty_hole_exp.id
-              == get_specificity_level(LetExp.let_empty_hole_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      def_id,
-                      pat_id,
-                    ),
-                ),
-              LetExp.let_empty_hole_exp_group,
-            );
-          } else {
-            basic(LetExp.let_empty_hole_exp_group);
-          }
-        | MultiHole(_) =>
-          if (LetExp.let_multi_hole_exp.id
-              == get_specificity_level(LetExp.let_multi_hole_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      def_id,
-                      pat_id,
-                    ),
-                ),
-              LetExp.let_multi_hole_exp_group,
-            );
-          } else {
-            basic(LetExp.let_multi_hole_exp_group);
-          }
-        | Wild =>
-          if (LetExp.let_wild_exp.id
-              == get_specificity_level(LetExp.let_wild_exp_group)) {
-            get_message(
-              ~colorings=LetExp.let_wild_exp_coloring_ids(~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_wild_exp_group,
-            );
-          } else {
-            basic(LetExp.let_wild_exp_group);
-          }
-        | Int(i) =>
-          if (LetExp.let_int_exp.id
-              == get_specificity_level(LetExp.let_int_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i%i"),
-                      def_id,
-                      pat_id,
-                      i,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_int_exp_group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
-            basic(
-              LetExp.let_int_exp_group,
-            );
-          }
-        | Float(f) =>
-          if (LetExp.let_float_exp.id
-              == get_specificity_level(LetExp.let_float_exp_group)) {
-            // TODO Make sure everywhere printing the float literal print it prettier
-            get_message(
-              ~colorings=
-                LetExp.let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%f%i%i"),
-                      def_id,
-                      pat_id,
-                      f,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_float_exp_group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.let_float_exp_group,
-            );
-          }
-        | Bool(b) =>
-          if (LetExp.let_bool_exp.id
-              == get_specificity_level(LetExp.let_bool_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%b%i%i"),
-                      def_id,
-                      pat_id,
-                      b,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_bool_exp_group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.let_bool_exp_group,
-            );
-          }
-        | String(s) =>
-          if (LetExp.let_str_exp.id
-              == get_specificity_level(LetExp.let_str_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%s%i%i"),
-                      def_id,
-                      pat_id,
-                      s,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_str_exp_group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.let_str_exp_group,
-            );
-          }
-        | Triv =>
-          if (LetExp.let_triv_exp.id
-              == get_specificity_level(LetExp.let_triv_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      def_id,
-                      pat_id,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_triv_exp_group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
-            basic(
-              LetExp.let_triv_exp_group,
-            );
-          }
-        | ListLit(elements) =>
-          if (List.length(elements) == 0) {
-            if (LetExp.let_listnil_exp.id
-                == get_specificity_level(LetExp.let_listnil_exp_group)) {
-              get_message(
-                ~colorings=
-                  LetExp.let_listnil_exp_coloring_ids(
-                    ~pat_id,
-                    ~def_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i%i"),
-                        def_id,
-                        pat_id,
-                        def_id,
-                        body_id,
-                      ),
-                  ),
-                LetExp.let_listnil_exp_group,
-              );
-            } else {
-              basic(LetExp.let_listnil_exp_group);
-            };
-          } else if (LetExp.let_listlit_exp.id
-                     == get_specificity_level(LetExp.let_listlit_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_listlit_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      pat_id,
-                      List.length(elements),
-                    ),
-                ),
-              LetExp.let_listlit_exp_group,
-            );
-          } else {
-            basic(LetExp.let_listlit_exp_group);
-          }
-        | Cons(hd, tl) =>
-          if (LetExp.let_cons_exp.id
-              == get_specificity_level(LetExp.let_cons_exp_group)) {
-            let hd_id = List.nth(hd.ids, 0);
-            let tl_id = List.nth(tl.ids, 0);
-            get_message(
-              ~colorings=
-                LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      hd_id,
-                      tl_id,
-                    ),
-                ),
-              LetExp.let_cons_exp_group,
-            );
-          } else {
-            basic(LetExp.let_cons_exp_group);
-          }
-        | Var(var) =>
-          if (LetExp.let_var_exp.id
-              == get_specificity_level(LetExp.let_var_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%s%i"),
-                      def_id,
-                      pat_id,
-                      var,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_var_exp_group,
-            );
-          } else {
-            basic(LetExp.let_var_exp_group);
-          }
-        | Tuple(elements) =>
-          let basic_tuple = group_id => {
-            get_message(
-              ~colorings=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      pat_id,
-                      List.length(elements),
-                    ),
-                ),
-              group_id,
-            );
-          };
+      | Tuple(_terms) => /*let basic = group_id =>
+                              get_message(
+                                ~format=
+                                  Some(
+                                    msg =>
+                                      Printf.sprintf(
+                                        Scanf.format_from_string(msg, "%i"),
+                                        List.length(terms),
+                                      ),
+                                  ),
+                                group_id,
+                              );
+                            switch (List.length(terms)) {
+                            | 2 =>
+                              if (TupleExp.tuple_exp_size2.id
+                                  == get_specificity_level(TupleExp.tuple_exp_2_group)) {
+                                let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
+                                let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
+                                get_message(
+                                  ~colorings=
+                                    TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
+                                  ~format=
+                                    Some(
+                                      msg =>
+                                        Printf.sprintf(
+                                          Scanf.format_from_string(msg, "%i%i"),
+                                          exp1_id,
+                                          exp2_id,
+                                        ),
+                                    ),
+                                  TupleExp.tuple_exp_2_group,
+                                );
+                              } else {
+                                basic(TupleExp.tuple_exp_2_group);
+                              }
+                            | 3 =>
+                              if (TupleExp.tuple_exp_size3.id
+                                  == get_specificity_level(TupleExp.tuple_exp_3_group)) {
+                                let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
+                                let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
+                                let exp3_id = List.nth(List.nth(terms, 2).ids, 0);
+                                get_message(
+                                  ~colorings=
+                                    TupleExp.tuple_exp_size3_coloring_ids(
+                                      ~exp1_id,
+                                      ~exp2_id,
+                                      ~exp3_id,
+                                    ),
+                                  ~format=
+                                    Some(
+                                      msg =>
+                                        Printf.sprintf(
+                                          Scanf.format_from_string(msg, "%i%i%i"),
+                                          exp1_id,
+                                          exp2_id,
+                                          exp3_id,
+                                        ),
+                                    ),
+                                  TupleExp.tuple_exp_3_group,
+                                );
+                              } else {
+                                basic(TupleExp.tuple_exp_3_group);
+                              }
+                            | _ => basic(TupleExp.tuple_exp_group)
+                            };*/ default
+      | Var(_var) => default //get_message(TerminalExp.var_exp_group)
+      | Let(_pat, _def, _body) => /*
+                                    let pat = bypass_parens_and_annot_pat(pat);
+                                    let pat_id = List.nth(pat.ids, 0);
+                                    let def_id = List.nth(def.ids, 0);
+                                    let body_id = List.nth(body.ids, 0);
+                                    let basic = group_id => {
+                                      get_message(
+                                        ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
+                                        ~format=
+                                          Some(
+                                            msg =>
+                                              Printf.sprintf(
+                                                Scanf.format_from_string(msg, "%i%i"),
+                                                def_id,
+                                                pat_id,
+                                              ),
+                                          ),
+                                        group_id,
+                                      );
+                                    };
+                                    switch (pat.term) {
+                                    | EmptyHole =>
+                                      if (LetExp.let_empty_hole_exp.id
+                                          == get_specificity_level(LetExp.let_empty_hole_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  pat_id,
+                                                  def_id,
+                                                  pat_id,
+                                                ),
+                                            ),
+                                          LetExp.let_empty_hole_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_empty_hole_exp_group);
+                                      }
+                                    | MultiHole(_) =>
+                                      if (LetExp.let_multi_hole_exp.id
+                                          == get_specificity_level(LetExp.let_multi_hole_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  pat_id,
+                                                  def_id,
+                                                  pat_id,
+                                                ),
+                                            ),
+                                          LetExp.let_multi_hole_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_multi_hole_exp_group);
+                                      }
+                                    | Wild =>
+                                      if (LetExp.let_wild_exp.id
+                                          == get_specificity_level(LetExp.let_wild_exp_group)) {
+                                        get_message(
+                                          ~colorings=LetExp.let_wild_exp_coloring_ids(~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  def_id,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_wild_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_wild_exp_group);
+                                      }
+                                    | Int(i) =>
+                                      if (LetExp.let_int_exp.id
+                                          == get_specificity_level(LetExp.let_int_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  i,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_int_exp_group,
+                                        );
+                                      } else {
+                                        /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
+                                        basic(
+                                          LetExp.let_int_exp_group,
+                                        );
+                                      }
+                                    | Float(f) =>
+                                      if (LetExp.let_float_exp.id
+                                          == get_specificity_level(LetExp.let_float_exp_group)) {
+                                        // TODO Make sure everywhere printing the float literal print it prettier
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%f%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  f,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_float_exp_group,
+                                        );
+                                      } else {
+                                        /* TODO The coloring for the syntactic form is sometimes wrong here... */
+                                        basic(
+                                          LetExp.let_float_exp_group,
+                                        );
+                                      }
+                                    | Bool(b) =>
+                                      if (LetExp.let_bool_exp.id
+                                          == get_specificity_level(LetExp.let_bool_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%b%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  b,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_bool_exp_group,
+                                        );
+                                      } else {
+                                        /* TODO The coloring for the syntactic form is sometimes wrong here... */
+                                        basic(
+                                          LetExp.let_bool_exp_group,
+                                        );
+                                      }
+                                    | String(s) =>
+                                      if (LetExp.let_str_exp.id
+                                          == get_specificity_level(LetExp.let_str_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%s%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  s,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_str_exp_group,
+                                        );
+                                      } else {
+                                        /* TODO The coloring for the syntactic form is sometimes wrong here... */
+                                        basic(
+                                          LetExp.let_str_exp_group,
+                                        );
+                                      }
+                                    | Triv =>
+                                      if (LetExp.let_triv_exp.id
+                                          == get_specificity_level(LetExp.let_triv_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_triv_exp_group,
+                                        );
+                                      } else {
+                                        /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
+                                        basic(
+                                          LetExp.let_triv_exp_group,
+                                        );
+                                      }
+                                    | ListLit(elements) =>
+                                      if (List.length(elements) == 0) {
+                                        if (LetExp.let_listnil_exp.id
+                                            == get_specificity_level(LetExp.let_listnil_exp_group)) {
+                                          get_message(
+                                            ~colorings=
+                                              LetExp.let_listnil_exp_coloring_ids(
+                                                ~pat_id,
+                                                ~def_id,
+                                                ~body_id,
+                                              ),
+                                            ~format=
+                                              Some(
+                                                msg =>
+                                                  Printf.sprintf(
+                                                    Scanf.format_from_string(msg, "%i%i%i%i"),
+                                                    def_id,
+                                                    pat_id,
+                                                    def_id,
+                                                    body_id,
+                                                  ),
+                                              ),
+                                            LetExp.let_listnil_exp_group,
+                                          );
+                                        } else {
+                                          basic(LetExp.let_listnil_exp_group);
+                                        };
+                                      } else if (LetExp.let_listlit_exp.id
+                                                 == get_specificity_level(LetExp.let_listlit_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_listlit_exp_coloring_ids(~pat_id, ~def_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  List.length(elements),
+                                                ),
+                                            ),
+                                          LetExp.let_listlit_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_listlit_exp_group);
+                                      }
+                                    | Cons(hd, tl) =>
+                                      if (LetExp.let_cons_exp.id
+                                          == get_specificity_level(LetExp.let_cons_exp_group)) {
+                                        let hd_id = List.nth(hd.ids, 0);
+                                        let tl_id = List.nth(tl.ids, 0);
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  def_id,
+                                                  hd_id,
+                                                  tl_id,
+                                                ),
+                                            ),
+                                          LetExp.let_cons_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_cons_exp_group);
+                                      }
+                                    | Var(var) =>
+                                      if (LetExp.let_var_exp.id
+                                          == get_specificity_level(LetExp.let_var_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%s%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  var,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_var_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_var_exp_group);
+                                      }
+                                    | Tuple(elements) =>
+                                      let basic_tuple = group_id => {
+                                        get_message(
+                                          ~colorings=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  List.length(elements),
+                                                ),
+                                            ),
+                                          group_id,
+                                        );
+                                      };
 
-          switch (List.length(elements)) {
-          | 2 =>
-            let doc_id = get_specificity_level(LetExp.let_tuple2_exp_group);
-            if (LetExp.let_tuple2_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              get_message(
-                ~colorings=
-                  LetExp.let_tuple2_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~def_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i"),
-                        def_id,
-                        pat1_id,
-                        pat2_id,
-                      ),
-                  ),
-                LetExp.let_tuple2_exp_group,
-              );
-            } else if (LetExp.let_tuple_exp.id == doc_id) {
-              basic_tuple(LetExp.let_tuple2_exp_group);
-            } else {
-              basic(LetExp.let_tuple2_exp_group);
-            };
-          | 3 =>
-            let doc_id = get_specificity_level(LetExp.let_tuple3_exp_group);
-            // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
-            if (LetExp.let_tuple3_exp.id == doc_id) {
-              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
-              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
-              get_message(
-                ~colorings=
-                  LetExp.let_tuple3_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~pat3_id,
-                    ~def_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i%i"),
-                        def_id,
-                        pat1_id,
-                        pat2_id,
-                        pat3_id,
-                      ),
-                  ),
-                LetExp.let_tuple3_exp_group,
-              );
-            } else if (LetExp.let_tuple_exp.id == doc_id) {
-              basic_tuple(LetExp.let_tuple3_exp_group);
-            } else {
-              basic(LetExp.let_tuple3_exp_group);
-            };
-          | _ =>
-            if (LetExp.let_tuple_exp.id
-                == get_specificity_level(LetExp.let_tuple_base_exp_group)) {
-              basic_tuple(LetExp.let_tuple_base_exp_group);
-            } else {
-              basic(LetExp.let_tuple_base_exp_group);
-            }
-          };
-        | Ap(con, arg) =>
-          if (LetExp.let_ap_exp.id
-              == get_specificity_level(LetExp.let_ap_exp_group)) {
-            let con_id = List.nth(con.ids, 0);
-            let arg_id = List.nth(arg.ids, 0);
-            get_message(
-              ~colorings=
-                LetExp.let_ap_exp_coloring_ids(~con_id, ~arg_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      con_id,
-                      arg_id,
-                    ),
-                ),
-              LetExp.let_ap_exp_group,
-            );
-          } else {
-            basic(LetExp.let_ap_exp_group);
-          }
-        | Tag(v) =>
-          if (LetExp.let_tag_exp.id
-              == get_specificity_level(LetExp.let_tag_exp_group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_tag_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%s%i%i"),
-                      def_id,
-                      pat_id,
-                      v,
-                      def_id,
-                      body_id,
-                    ),
-                ),
-              LetExp.let_tag_exp_group,
-            );
-          } else {
-            basic(LetExp.let_tag_exp_group);
-          }
-        | Invalid(_) => default // Shouldn't get hit
-        | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit?
-        };
-      | Ap(x, arg) =>
-        let x_id = List.nth(x.ids, 0);
-        let arg_id = List.nth(arg.ids, 0);
-        let basic = (group, format, coloring_ids) => {
-          get_message(
-            ~colorings=coloring_ids(~x_id, ~arg_id),
-            ~format=Some(format),
-            group,
-          );
-        };
-        switch (x.term) {
-        | Tag(v) =>
-          basic(
-            AppExp.conapp_exp_group,
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%i%i"),
-                v,
-                x_id,
-                arg_id,
-              ),
-            AppExp.conapp_exp_coloring_ids,
-          )
-        | _ =>
-          basic(
-            AppExp.funapp_exp_group,
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%i%i"),
-                x_id,
-                arg_id,
-              ),
-            AppExp.funapp_exp_coloring_ids,
-          )
-        };
-      | If(cond, then_, else_) =>
-        let cond_id = List.nth(cond.ids, 0);
-        let then_id = List.nth(then_.ids, 0);
-        let else_id = List.nth(else_.ids, 0);
-        get_message(
-          ~colorings=IfExp.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i%i"),
-                  cond_id,
-                  then_id,
-                  else_id,
-                ),
-            ),
-          IfExp.if_exp_group,
-        );
-      | Seq(left, right) =>
-        let exp1_id = List.nth(left.ids, 0);
-        let exp2_id = List.nth(right.ids, 0);
-        get_message(
-          ~colorings=SeqExp.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  exp1_id,
-                  exp2_id,
-                ),
-            ),
-          SeqExp.seq_exp_group,
-        );
-      | Test(body) =>
-        let body_id = List.nth(body.ids, 0);
-        get_message(
-          ~colorings=TestExp.test_exp_coloring_ids(~body_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(Scanf.format_from_string(msg, "%i"), body_id),
-            ),
-          TestExp.test_group,
-        );
+                                      switch (List.length(elements)) {
+                                      | 2 =>
+                                        let doc_id = get_specificity_level(LetExp.let_tuple2_exp_group);
+                                        if (LetExp.let_tuple2_exp.id == doc_id) {
+                                          let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                          let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                          get_message(
+                                            ~colorings=
+                                              LetExp.let_tuple2_exp_coloring_ids(
+                                                ~pat1_id,
+                                                ~pat2_id,
+                                                ~def_id,
+                                              ),
+                                            ~format=
+                                              Some(
+                                                msg =>
+                                                  Printf.sprintf(
+                                                    Scanf.format_from_string(msg, "%i%i%i"),
+                                                    def_id,
+                                                    pat1_id,
+                                                    pat2_id,
+                                                  ),
+                                              ),
+                                            LetExp.let_tuple2_exp_group,
+                                          );
+                                        } else if (LetExp.let_tuple_exp.id == doc_id) {
+                                          basic_tuple(LetExp.let_tuple2_exp_group);
+                                        } else {
+                                          basic(LetExp.let_tuple2_exp_group);
+                                        };
+                                      | 3 =>
+                                        let doc_id = get_specificity_level(LetExp.let_tuple3_exp_group);
+                                        // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
+                                        if (LetExp.let_tuple3_exp.id == doc_id) {
+                                          let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                          let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                          let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+                                          get_message(
+                                            ~colorings=
+                                              LetExp.let_tuple3_exp_coloring_ids(
+                                                ~pat1_id,
+                                                ~pat2_id,
+                                                ~pat3_id,
+                                                ~def_id,
+                                              ),
+                                            ~format=
+                                              Some(
+                                                msg =>
+                                                  Printf.sprintf(
+                                                    Scanf.format_from_string(msg, "%i%i%i%i"),
+                                                    def_id,
+                                                    pat1_id,
+                                                    pat2_id,
+                                                    pat3_id,
+                                                  ),
+                                              ),
+                                            LetExp.let_tuple3_exp_group,
+                                          );
+                                        } else if (LetExp.let_tuple_exp.id == doc_id) {
+                                          basic_tuple(LetExp.let_tuple3_exp_group);
+                                        } else {
+                                          basic(LetExp.let_tuple3_exp_group);
+                                        };
+                                      | _ =>
+                                        if (LetExp.let_tuple_exp.id
+                                            == get_specificity_level(LetExp.let_tuple_base_exp_group)) {
+                                          basic_tuple(LetExp.let_tuple_base_exp_group);
+                                        } else {
+                                          basic(LetExp.let_tuple_base_exp_group);
+                                        }
+                                      };
+                                    | Ap(con, arg) =>
+                                      if (LetExp.let_ap_exp.id
+                                          == get_specificity_level(LetExp.let_ap_exp_group)) {
+                                        let con_id = List.nth(con.ids, 0);
+                                        let arg_id = List.nth(arg.ids, 0);
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_ap_exp_coloring_ids(~con_id, ~arg_id, ~def_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%i"),
+                                                  def_id,
+                                                  con_id,
+                                                  arg_id,
+                                                ),
+                                            ),
+                                          LetExp.let_ap_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_ap_exp_group);
+                                      }
+                                    | Tag(v) =>
+                                      if (LetExp.let_tag_exp.id
+                                          == get_specificity_level(LetExp.let_tag_exp_group)) {
+                                        get_message(
+                                          ~colorings=
+                                            LetExp.let_tag_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i%s%i%i"),
+                                                  def_id,
+                                                  pat_id,
+                                                  v,
+                                                  def_id,
+                                                  body_id,
+                                                ),
+                                            ),
+                                          LetExp.let_tag_exp_group,
+                                        );
+                                      } else {
+                                        basic(LetExp.let_tag_exp_group);
+                                      }
+                                    | Invalid(_) => default // Shouldn't get hit
+                                    | Parens(_) => default // Shouldn't get hit?
+                                    | TypeAnn(_) => default // Shouldn't get hit?
+                                    };*/ default
+      | Ap(_x, _arg) => /*let x_id = List.nth(x.ids, 0);
+                           let arg_id = List.nth(arg.ids, 0);
+                           let basic = (group, format, coloring_ids) => {
+                             get_message(
+                               ~colorings=coloring_ids(~x_id, ~arg_id),
+                               ~format=Some(format),
+                               group,
+                             );
+                           };
+                           switch (x.term) {
+                           | Tag(v) =>
+                             basic(
+                               AppExp.conapp_exp_group,
+                               msg =>
+                                 Printf.sprintf(
+                                   Scanf.format_from_string(msg, "%s%i%i"),
+                                   v,
+                                   x_id,
+                                   arg_id,
+                                 ),
+                               AppExp.conapp_exp_coloring_ids,
+                             )
+                           | _ =>
+                             basic(
+                               AppExp.funapp_exp_group,
+                               msg =>
+                                 Printf.sprintf(
+                                   Scanf.format_from_string(msg, "%i%i"),
+                                   x_id,
+                                   arg_id,
+                                 ),
+                               AppExp.funapp_exp_coloring_ids,
+                             )
+                           };*/ default
+      | If(_cond, _then_, _else_) => /*
+                                       let cond_id = List.nth(cond.ids, 0);
+                                       let then_id = List.nth(then_.ids, 0);
+                                       let else_id = List.nth(else_.ids, 0);
+                                       get_message(
+                                         ~colorings=IfExp.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
+                                         ~format=
+                                           Some(
+                                             msg =>
+                                               Printf.sprintf(
+                                                 Scanf.format_from_string(msg, "%i%i%i"),
+                                                 cond_id,
+                                                 then_id,
+                                                 else_id,
+                                               ),
+                                           ),
+                                         IfExp.if_exp_group,
+                                       );*/ default
+      | Seq(_left, _right) => /*
+                                let exp1_id = List.nth(left.ids, 0);
+                                let exp2_id = List.nth(right.ids, 0);
+                                get_message(
+                                  ~colorings=SeqExp.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
+                                  ~format=
+                                    Some(
+                                      msg =>
+                                        Printf.sprintf(
+                                          Scanf.format_from_string(msg, "%i%i"),
+                                          exp1_id,
+                                          exp2_id,
+                                        ),
+                                    ),
+                                  SeqExp.seq_exp_group,
+                                ); */ default
+      | Test(_body) => /*let body_id = List.nth(body.ids, 0);
+                          get_message(
+                            ~colorings=TestExp.test_exp_coloring_ids(~body_id),
+                            ~format=
+                              Some(
+                                msg =>
+                                  Printf.sprintf(Scanf.format_from_string(msg, "%i"), body_id),
+                              ),
+                            TestExp.test_group,
+                          );*/ default
       | Parens(term) => get_message_exp(term.term) // No Special message?
-      | Cons(hd, tl) =>
-        let hd_id = List.nth(hd.ids, 0);
-        let tl_id = List.nth(tl.ids, 0);
-        get_message(
-          ~colorings=ListExp.cons_exp_coloring_ids(~hd_id, ~tl_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  hd_id,
-                  tl_id,
-                ),
-            ),
-          ListExp.cons_exp_group,
-        );
-      | UnOp(op, exp) =>
-        switch (op) {
+      | Cons(_hd, _tl) => /*let hd_id = List.nth(hd.ids, 0);
+                             let tl_id = List.nth(tl.ids, 0);
+                             get_message(
+                               ~colorings=ListExp.cons_exp_coloring_ids(~hd_id, ~tl_id),
+                               ~format=
+                                 Some(
+                                   msg =>
+                                     Printf.sprintf(
+                                       Scanf.format_from_string(msg, "%i%i"),
+                                       hd_id,
+                                       tl_id,
+                                     ),
+                                 ),
+                               ListExp.cons_exp_group,
+                             );*/ default
+      | UnOp(_op, _exp) => default
+      /*switch (op) {
         | Int(Minus) =>
           let exp_id = List.nth(exp.ids, 0);
           get_message(
@@ -1676,452 +1679,447 @@ let get_doc =
               ),
             OpExp.int_unary_minus_group,
           );
-        }
-      | BinOp(op, left, right) =>
-        open OpExp;
-        let (group, coloring_ids) =
-          switch (op) {
-          | Int(Plus) => (int_plus_group, int_plus_exp_coloring_ids)
-          | Int(Minus) => (int_minus_group, int_minus_exp_coloring_ids)
-          | Int(Times) => (int_times_group, int_times_exp_coloring_ids)
-          | Int(Power) => (int_power_group, int_power_exp_coloring_ids)
-          | Int(Divide) => (int_divide_group, int_divide_exp_coloring_ids)
-          | Int(LessThan) => (int_lt_group, int_lt_exp_coloring_ids)
-          | Int(LessThanOrEqual) => (int_lte_group, int_lte_exp_coloring_ids)
-          | Int(GreaterThan) => (int_gt_group, int_gt_exp_coloring_ids)
-          | Int(GreaterThanOrEqual) => (
-              int_gte_group,
-              int_gte_exp_coloring_ids,
-            )
-          | Int(Equals) => (int_eq_group, int_eq_exp_coloring_ids)
-          | Float(Plus) => (float_plus_group, float_plus_exp_coloring_ids)
-          | Float(Minus) => (float_minus_group, float_minus_exp_coloring_ids)
-          | Float(Times) => (float_times_group, float_times_exp_coloring_ids)
-          | Float(Power) => (float_power_group, float_power_exp_coloring_ids)
-          | Float(Divide) => (
-              float_divide_group,
-              float_divide_exp_coloring_ids,
-            )
-          | Float(LessThan) => (float_lt_group, float_lt_exp_coloring_ids)
-          | Float(LessThanOrEqual) => (
-              float_lte_group,
-              float_lte_exp_coloring_ids,
-            )
-          | Float(GreaterThan) => (float_gt_group, float_gt_exp_coloring_ids)
-          | Float(GreaterThanOrEqual) => (
-              float_gte_group,
-              float_gte_exp_coloring_ids,
-            )
-          | Float(Equals) => (float_eq_group, float_eq_exp_coloring_ids)
-          | Bool(And) => (bool_and_group, bool_and_exp_coloring_ids)
-          | Bool(Or) => (bool_or_group, bool_or_exp_coloring_ids)
-          | String(Equals) => (str_eq_group, str_eq_exp_coloring_ids)
-          };
-        let left_id = List.nth(left.ids, 0);
-        let right_id = List.nth(right.ids, 0);
-        get_message(
-          ~colorings=coloring_ids(~left_id, ~right_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  left_id,
-                  right_id,
-                ),
-            ),
-          group,
-        );
-      | Match(scrut, _rules) =>
-        let scrut_id = List.nth(scrut.ids, 0);
-        get_message(
-          ~colorings=CaseExp.case_exp_coloring_ids(~scrut_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  scrut_id,
-                ),
-            ),
-          CaseExp.case_exp_group,
-        );
-      | Tag(v) =>
-        get_message(
-          ~format=
-            Some(
-              msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-            ),
-          TerminalExp.tag_exp_group,
-        )
+        }*/
+      | BinOp(_op, _left, _right) => /*open OpExp;
+                                        let (group, coloring_ids) =
+                                          switch (op) {
+                                          | Int(Plus) => (int_plus_group, int_plus_exp_coloring_ids)
+                                          | Int(Minus) => (int_minus_group, int_minus_exp_coloring_ids)
+                                          | Int(Times) => (int_times_group, int_times_exp_coloring_ids)
+                                          | Int(Power) => (int_power_group, int_power_exp_coloring_ids)
+                                          | Int(Divide) => (int_divide_group, int_divide_exp_coloring_ids)
+                                          | Int(LessThan) => (int_lt_group, int_lt_exp_coloring_ids)
+                                          | Int(LessThanOrEqual) => (int_lte_group, int_lte_exp_coloring_ids)
+                                          | Int(GreaterThan) => (int_gt_group, int_gt_exp_coloring_ids)
+                                          | Int(GreaterThanOrEqual) => (
+                                              int_gte_group,
+                                              int_gte_exp_coloring_ids,
+                                            )
+                                          | Int(Equals) => (int_eq_group, int_eq_exp_coloring_ids)
+                                          | Float(Plus) => (float_plus_group, float_plus_exp_coloring_ids)
+                                          | Float(Minus) => (float_minus_group, float_minus_exp_coloring_ids)
+                                          | Float(Times) => (float_times_group, float_times_exp_coloring_ids)
+                                          | Float(Power) => (float_power_group, float_power_exp_coloring_ids)
+                                          | Float(Divide) => (
+                                              float_divide_group,
+                                              float_divide_exp_coloring_ids,
+                                            )
+                                          | Float(LessThan) => (float_lt_group, float_lt_exp_coloring_ids)
+                                          | Float(LessThanOrEqual) => (
+                                              float_lte_group,
+                                              float_lte_exp_coloring_ids,
+                                            )
+                                          | Float(GreaterThan) => (float_gt_group, float_gt_exp_coloring_ids)
+                                          | Float(GreaterThanOrEqual) => (
+                                              float_gte_group,
+                                              float_gte_exp_coloring_ids,
+                                            )
+                                          | Float(Equals) => (float_eq_group, float_eq_exp_coloring_ids)
+                                          | Bool(And) => (bool_and_group, bool_and_exp_coloring_ids)
+                                          | Bool(Or) => (bool_or_group, bool_or_exp_coloring_ids)
+                                          | String(Equals) => (str_eq_group, str_eq_exp_coloring_ids)
+                                          };
+                                        let left_id = List.nth(left.ids, 0);
+                                        let right_id = List.nth(right.ids, 0);
+                                        get_message(
+                                          ~colorings=coloring_ids(~left_id, ~right_id),
+                                          ~format=
+                                            Some(
+                                              msg =>
+                                                Printf.sprintf(
+                                                  Scanf.format_from_string(msg, "%i%i"),
+                                                  left_id,
+                                                  right_id,
+                                                ),
+                                            ),
+                                          group,
+                                        );*/ default
+      | Match(_scrut, _rules) => /* let scrut_id = List.nth(scrut.ids, 0);
+                                     get_message(
+                                       ~colorings=CaseExp.case_exp_coloring_ids(~scrut_id),
+                                       ~format=
+                                         Some(
+                                           msg =>
+                                             Printf.sprintf(
+                                               Scanf.format_from_string(msg, "%i"),
+                                               scrut_id,
+                                             ),
+                                         ),
+                                       CaseExp.case_exp_group,
+                                     );*/ default
+      | Tag(_v) => /*get_message(
+                       ~format=
+                         Some(
+                           msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
+                         ),
+                       TerminalExp.tag_exp_group,
+                     )*/ default
       };
     get_message_exp(term.term);
-  | Some(InfoPat({term, _})) =>
-    switch (bypass_parens_pat(term).term) {
-    | EmptyHole => get_message(HolePat.empty_hole_pat_group)
-    | MultiHole(_) => get_message(HolePat.multi_hole_pat_group)
-    | Wild => get_message(TerminalPat.wild_pat_group)
-    | Int(i) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%i%i"), i, i),
-          ),
-        TerminalPat.intlit_pat_group,
-      )
-    | Float(f) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%f%f"), f, f),
-          ),
-        TerminalPat.floatlit_pat_group,
-      )
-    | Bool(b) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%b%b"), b, b),
-          ),
-        TerminalPat.boollit_pat_group,
-      )
-    | String(s) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%s%s"), s, s),
-          ),
-        TerminalPat.strlit_pat_group,
-      )
-    | Triv => get_message(TerminalPat.triv_pat_group)
-    | ListLit(elements) =>
-      if (List.length(elements) == 0) {
-        get_message(ListPat.listnil_pat_group);
-      } else {
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(elements),
-                ),
-            ),
-          ListPat.listlit_pat_group,
-        );
-      }
-    | Cons(hd, tl) =>
-      let hd_id = List.nth(hd.ids, 0);
-      let tl_id = List.nth(tl.ids, 0);
-      let basic = doc =>
-        get_message(
-          ~colorings=ListPat.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  hd_id,
-                  tl_id,
-                ),
-            ),
-          doc,
-        );
-      switch (tl.term) {
-      | TermBase.UPat.Cons(hd2, tl2) =>
-        if (ListPat.cons2_pat.id
-            == get_specificity_level(ListPat.cons2_pat_group)) {
-          let hd2_id = List.nth(hd2.ids, 0);
-          let tl2_id = List.nth(tl2.ids, 0);
-          get_message(
-            ~colorings=
-              ListPat.cons2_pat_coloring_ids(
-                ~fst_id=hd_id,
-                ~snd_id=hd2_id,
-                ~tl_id=tl2_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    hd_id,
-                    hd2_id,
-                    tl2_id,
-                  ),
-              ),
-            ListPat.cons2_pat_group,
-          );
-        } else {
-          basic(ListPat.cons2_pat_group);
-        }
-      | _ => basic(ListPat.cons_pat_group)
-      };
-    | Var(v) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-          ),
-        TerminalPat.var_pat_group,
-      )
-    | Tuple(elements) =>
-      let basic = group =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(elements),
-                ),
-            ),
-          group,
-        );
-      switch (List.length(elements)) {
-      | 2 =>
-        if (TuplePat.tuple_pat_size2.id
-            == get_specificity_level(TuplePat.tuple_pat_2_group)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-          get_message(
-            ~colorings=
-              TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    elem1_id,
-                    elem2_id,
-                  ),
-              ),
-            TuplePat.tuple_pat_2_group,
-          );
-        } else {
-          basic(TuplePat.tuple_pat_2_group);
-        }
-      | 3 =>
-        if (TuplePat.tuple_pat_size3.id
-            == get_specificity_level(TuplePat.tuple_pat_3_group)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
-          get_message(
-            ~colorings=
-              TuplePat.tuple_pat_size3_coloring_ids(
-                ~elem1_id,
-                ~elem2_id,
-                ~elem3_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    elem1_id,
-                    elem2_id,
-                    elem3_id,
-                  ),
-              ),
-            TuplePat.tuple_pat_3_group,
-          );
-        } else {
-          basic(TuplePat.tuple_pat_3_group);
-        }
-      | _ => basic(TuplePat.tuple_pat_group)
-      };
-    | Ap(con, arg) =>
-      let con_id = List.nth(con.ids, 0);
-      let arg_id = List.nth(arg.ids, 0);
-      get_message(
-        ~colorings=AppPat.ap_pat_coloring_ids(~con_id, ~arg_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%i%i"),
-                con_id,
-                arg_id,
-              ),
-          ),
-        AppPat.ap_pat_group,
-      );
-    | Tag(con) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), con),
-          ),
-        TerminalPat.tag_pat_group,
-      )
-    | TypeAnn(pat, typ) =>
-      let pat_id = List.nth(pat.ids, 0);
-      let typ_id = List.nth(typ.ids, 0);
-      get_message(
-        ~colorings=TypAnnPat.typann_pat_coloring_ids(~pat_id, ~typ_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%i%i"),
-                pat_id,
-                typ_id,
-              ),
-          ),
-        TypAnnPat.typann_pat_group,
-      );
-    | Invalid(_) // Shouldn't be hit
-    | Parens(_) =>
-      // Shouldn't be hit?
-      default
-    }
-  | Some(InfoTyp({term, _})) =>
-    switch (bypass_parens_typ(term).term) {
-    | EmptyHole => get_message(HoleTyp.empty_hole_typ_group)
-    | MultiHole(_) => get_message(HoleTyp.multi_hole_typ_group)
-    | Int => get_message(TerminalTyp.int_typ_group)
-    | Float => get_message(TerminalTyp.float_typ_group)
-    | Bool => get_message(TerminalTyp.bool_typ_group)
-    | String => get_message(TerminalTyp.str_typ_group)
-    | List(elem) =>
-      let elem_id = List.nth(elem.ids, 0);
-      get_message(
-        ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%i"), elem_id),
-          ),
-        ListTyp.list_typ_group,
-      );
-    | Arrow(arg, result) =>
-      let arg_id = List.nth(arg.ids, 0);
-      let result_id = List.nth(result.ids, 0);
-      let basic = doc =>
-        get_message(
-          ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  arg_id,
-                  result_id,
-                ),
-            ),
-          doc,
-        );
-      switch (result.term) {
-      | TermBase.UTyp.Arrow(arg2, result2) =>
-        if (ArrowTyp.arrow3_typ.id
-            == get_specificity_level(ArrowTyp.arrow3_typ_group)) {
-          let arg2_id = List.nth(arg2.ids, 0);
-          let result2_id = List.nth(result2.ids, 0);
-          get_message(
-            ~colorings=
-              ArrowTyp.arrow3_typ_coloring_ids(
-                ~arg1_id=arg_id,
-                ~arg2_id,
-                ~result_id=result2_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    arg_id,
-                    arg2_id,
-                    result2_id,
-                  ),
-              ),
-            ArrowTyp.arrow3_typ_group,
-          );
-        } else {
-          basic(ArrowTyp.arrow3_typ_group);
-        }
-      | _ => basic(ArrowTyp.arrow_typ_group)
-      };
-    | Tuple(elements) =>
-      let basic = group =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(elements),
-                ),
-            ),
-          group,
-        );
-      switch (List.length(elements)) {
-      | 2 =>
-        if (TupleTyp.tuple2_typ.id
-            == get_specificity_level(TupleTyp.tuple2_typ_group)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-          get_message(
-            ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    elem1_id,
-                    elem2_id,
-                  ),
-              ),
-            TupleTyp.tuple2_typ_group,
-          );
-        } else {
-          basic(TupleTyp.tuple2_typ_group);
-        }
-      | 3 =>
-        if (TupleTyp.tuple3_typ.id
-            == get_specificity_level(TupleTyp.tuple3_typ_group)) {
-          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
-          get_message(
-            ~colorings=
-              TupleTyp.tuple3_typ_coloring_ids(
-                ~elem1_id,
-                ~elem2_id,
-                ~elem3_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    elem1_id,
-                    elem2_id,
-                    elem3_id,
-                  ),
-              ),
-            TupleTyp.tuple3_typ_group,
-          );
-        } else {
-          basic(TupleTyp.tuple3_typ_group);
-        }
-      | _ => basic(TupleTyp.tuple_typ_group)
-      };
-    | Var(v) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-          ),
-        TerminalTyp.var_typ_group,
-      )
-    | Invalid(_) // Shouldn't be hit
-    | Parens(_) => default // Shouldn't be hit?
-    }
+  | Some(InfoPat(/*{term, _}*/ _)) => /*switch (bypass_parens_pat(term).term) {
+                                         | EmptyHole => get_message(HolePat.empty_hole_pat_group)
+                                         | MultiHole(_) => get_message(HolePat.multi_hole_pat_group)
+                                         | Wild => get_message(TerminalPat.wild_pat_group)
+                                         | Int(i) =>
+                                           get_message(
+                                             ~format=
+                                               Some(
+                                                 msg =>
+                                                   Printf.sprintf(Scanf.format_from_string(msg, "%i%i"), i, i),
+                                               ),
+                                             TerminalPat.intlit_pat_group,
+                                           )
+                                         | Float(f) =>
+                                           get_message(
+                                             ~format=
+                                               Some(
+                                                 msg =>
+                                                   Printf.sprintf(Scanf.format_from_string(msg, "%f%f"), f, f),
+                                               ),
+                                             TerminalPat.floatlit_pat_group,
+                                           )
+                                         | Bool(b) =>
+                                           get_message(
+                                             ~format=
+                                               Some(
+                                                 msg =>
+                                                   Printf.sprintf(Scanf.format_from_string(msg, "%b%b"), b, b),
+                                               ),
+                                             TerminalPat.boollit_pat_group,
+                                           )
+                                         | String(s) =>
+                                           get_message(
+                                             ~format=
+                                               Some(
+                                                 msg =>
+                                                   Printf.sprintf(Scanf.format_from_string(msg, "%s%s"), s, s),
+                                               ),
+                                             TerminalPat.strlit_pat_group,
+                                           )
+                                         | Triv => get_message(TerminalPat.triv_pat_group)
+                                         | ListLit(elements) =>
+                                           if (List.length(elements) == 0) {
+                                             get_message(ListPat.listnil_pat_group);
+                                           } else {
+                                             get_message(
+                                               ~format=
+                                                 Some(
+                                                   msg =>
+                                                     Printf.sprintf(
+                                                       Scanf.format_from_string(msg, "%i"),
+                                                       List.length(elements),
+                                                     ),
+                                                 ),
+                                               ListPat.listlit_pat_group,
+                                             );
+                                           }
+                                         | Cons(hd, tl) =>
+                                           let hd_id = List.nth(hd.ids, 0);
+                                           let tl_id = List.nth(tl.ids, 0);
+                                           let basic = doc =>
+                                             get_message(
+                                               ~colorings=ListPat.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
+                                               ~format=
+                                                 Some(
+                                                   msg =>
+                                                     Printf.sprintf(
+                                                       Scanf.format_from_string(msg, "%i%i"),
+                                                       hd_id,
+                                                       tl_id,
+                                                     ),
+                                                 ),
+                                               doc,
+                                             );
+                                           switch (tl.term) {
+                                           | TermBase.UPat.Cons(hd2, tl2) =>
+                                             if (ListPat.cons2_pat.id
+                                                 == get_specificity_level(ListPat.cons2_pat_group)) {
+                                               let hd2_id = List.nth(hd2.ids, 0);
+                                               let tl2_id = List.nth(tl2.ids, 0);
+                                               get_message(
+                                                 ~colorings=
+                                                   ListPat.cons2_pat_coloring_ids(
+                                                     ~fst_id=hd_id,
+                                                     ~snd_id=hd2_id,
+                                                     ~tl_id=tl2_id,
+                                                   ),
+                                                 ~format=
+                                                   Some(
+                                                     msg =>
+                                                       Printf.sprintf(
+                                                         Scanf.format_from_string(msg, "%i%i%i"),
+                                                         hd_id,
+                                                         hd2_id,
+                                                         tl2_id,
+                                                       ),
+                                                   ),
+                                                 ListPat.cons2_pat_group,
+                                               );
+                                             } else {
+                                               basic(ListPat.cons2_pat_group);
+                                             }
+                                           | _ => basic(ListPat.cons_pat_group)
+                                           };
+                                         | Var(v) =>
+                                           get_message(
+                                             ~format=
+                                               Some(
+                                                 msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
+                                               ),
+                                             TerminalPat.var_pat_group,
+                                           )
+                                         | Tuple(elements) =>
+                                           let basic = group =>
+                                             get_message(
+                                               ~format=
+                                                 Some(
+                                                   msg =>
+                                                     Printf.sprintf(
+                                                       Scanf.format_from_string(msg, "%i"),
+                                                       List.length(elements),
+                                                     ),
+                                                 ),
+                                               group,
+                                             );
+                                           switch (List.length(elements)) {
+                                           | 2 =>
+                                             if (TuplePat.tuple_pat_size2.id
+                                                 == get_specificity_level(TuplePat.tuple_pat_2_group)) {
+                                               let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                               let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                               get_message(
+                                                 ~colorings=
+                                                   TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
+                                                 ~format=
+                                                   Some(
+                                                     msg =>
+                                                       Printf.sprintf(
+                                                         Scanf.format_from_string(msg, "%i%i"),
+                                                         elem1_id,
+                                                         elem2_id,
+                                                       ),
+                                                   ),
+                                                 TuplePat.tuple_pat_2_group,
+                                               );
+                                             } else {
+                                               basic(TuplePat.tuple_pat_2_group);
+                                             }
+                                           | 3 =>
+                                             if (TuplePat.tuple_pat_size3.id
+                                                 == get_specificity_level(TuplePat.tuple_pat_3_group)) {
+                                               let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                               let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                               let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+                                               get_message(
+                                                 ~colorings=
+                                                   TuplePat.tuple_pat_size3_coloring_ids(
+                                                     ~elem1_id,
+                                                     ~elem2_id,
+                                                     ~elem3_id,
+                                                   ),
+                                                 ~format=
+                                                   Some(
+                                                     msg =>
+                                                       Printf.sprintf(
+                                                         Scanf.format_from_string(msg, "%i%i%i"),
+                                                         elem1_id,
+                                                         elem2_id,
+                                                         elem3_id,
+                                                       ),
+                                                   ),
+                                                 TuplePat.tuple_pat_3_group,
+                                               );
+                                             } else {
+                                               basic(TuplePat.tuple_pat_3_group);
+                                             }
+                                           | _ => basic(TuplePat.tuple_pat_group)
+                                           };
+                                         | Ap(con, arg) =>
+                                           let con_id = List.nth(con.ids, 0);
+                                           let arg_id = List.nth(arg.ids, 0);
+                                           get_message(
+                                             ~colorings=AppPat.ap_pat_coloring_ids(~con_id, ~arg_id),
+                                             ~format=
+                                               Some(
+                                                 msg =>
+                                                   Printf.sprintf(
+                                                     Scanf.format_from_string(msg, "%i%i"),
+                                                     con_id,
+                                                     arg_id,
+                                                   ),
+                                               ),
+                                             AppPat.ap_pat_group,
+                                           );
+                                         | Tag(con) =>
+                                           get_message(
+                                             ~format=
+                                               Some(
+                                                 msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), con),
+                                               ),
+                                             TerminalPat.tag_pat_group,
+                                           )
+                                         | TypeAnn(pat, typ) =>
+                                           let pat_id = List.nth(pat.ids, 0);
+                                           let typ_id = List.nth(typ.ids, 0);
+                                           get_message(
+                                             ~colorings=TypAnnPat.typann_pat_coloring_ids(~pat_id, ~typ_id),
+                                             ~format=
+                                               Some(
+                                                 msg =>
+                                                   Printf.sprintf(
+                                                     Scanf.format_from_string(msg, "%i%i"),
+                                                     pat_id,
+                                                     typ_id,
+                                                   ),
+                                               ),
+                                             TypAnnPat.typann_pat_group,
+                                           );
+                                         | Invalid(_) // Shouldn't be hit
+                                         | Parens(_) =>
+                                           // Shouldn't be hit?
+                                           default
+                                         }*/ default
+  | Some(InfoTyp(/*{_term, _}*/ _)) => /*switch (bypass_parens_typ(term).term) {
+                                          | EmptyHole => get_message(HoleTyp.empty_hole_typ_group)
+                                          | MultiHole(_) => get_message(HoleTyp.multi_hole_typ_group)
+                                          | Int => get_message(TerminalTyp.int_typ_group)
+                                          | Float => get_message(TerminalTyp.float_typ_group)
+                                          | Bool => get_message(TerminalTyp.bool_typ_group)
+                                          | String => get_message(TerminalTyp.str_typ_group)
+                                          | List(elem) =>
+                                            let elem_id = List.nth(elem.ids, 0);
+                                            get_message(
+                                              ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
+                                              ~format=
+                                                Some(
+                                                  msg =>
+                                                    Printf.sprintf(Scanf.format_from_string(msg, "%i"), elem_id),
+                                                ),
+                                              ListTyp.list_typ_group,
+                                            );
+                                          | Arrow(arg, result) =>
+                                            let arg_id = List.nth(arg.ids, 0);
+                                            let result_id = List.nth(result.ids, 0);
+                                            let basic = doc =>
+                                              get_message(
+                                                ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
+                                                ~format=
+                                                  Some(
+                                                    msg =>
+                                                      Printf.sprintf(
+                                                        Scanf.format_from_string(msg, "%i%i"),
+                                                        arg_id,
+                                                        result_id,
+                                                      ),
+                                                  ),
+                                                doc,
+                                              );
+                                            switch (result.term) {
+                                            | TermBase.UTyp.Arrow(arg2, result2) =>
+                                              if (ArrowTyp.arrow3_typ.id
+                                                  == get_specificity_level(ArrowTyp.arrow3_typ_group)) {
+                                                let arg2_id = List.nth(arg2.ids, 0);
+                                                let result2_id = List.nth(result2.ids, 0);
+                                                get_message(
+                                                  ~colorings=
+                                                    ArrowTyp.arrow3_typ_coloring_ids(
+                                                      ~arg1_id=arg_id,
+                                                      ~arg2_id,
+                                                      ~result_id=result2_id,
+                                                    ),
+                                                  ~format=
+                                                    Some(
+                                                      msg =>
+                                                        Printf.sprintf(
+                                                          Scanf.format_from_string(msg, "%i%i%i"),
+                                                          arg_id,
+                                                          arg2_id,
+                                                          result2_id,
+                                                        ),
+                                                    ),
+                                                  ArrowTyp.arrow3_typ_group,
+                                                );
+                                              } else {
+                                                basic(ArrowTyp.arrow3_typ_group);
+                                              }
+                                            | _ => basic(ArrowTyp.arrow_typ_group)
+                                            };
+                                          | Tuple(elements) =>
+                                            let basic = group =>
+                                              get_message(
+                                                ~format=
+                                                  Some(
+                                                    msg =>
+                                                      Printf.sprintf(
+                                                        Scanf.format_from_string(msg, "%i"),
+                                                        List.length(elements),
+                                                      ),
+                                                  ),
+                                                group,
+                                              );
+                                            switch (List.length(elements)) {
+                                            | 2 =>
+                                              if (TupleTyp.tuple2_typ.id
+                                                  == get_specificity_level(TupleTyp.tuple2_typ_group)) {
+                                                let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                                let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                                get_message(
+                                                  ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
+                                                  ~format=
+                                                    Some(
+                                                      msg =>
+                                                        Printf.sprintf(
+                                                          Scanf.format_from_string(msg, "%i%i"),
+                                                          elem1_id,
+                                                          elem2_id,
+                                                        ),
+                                                    ),
+                                                  TupleTyp.tuple2_typ_group,
+                                                );
+                                              } else {
+                                                basic(TupleTyp.tuple2_typ_group);
+                                              }
+                                            | 3 =>
+                                              if (TupleTyp.tuple3_typ.id
+                                                  == get_specificity_level(TupleTyp.tuple3_typ_group)) {
+                                                let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+                                                let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+                                                let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+                                                get_message(
+                                                  ~colorings=
+                                                    TupleTyp.tuple3_typ_coloring_ids(
+                                                      ~elem1_id,
+                                                      ~elem2_id,
+                                                      ~elem3_id,
+                                                    ),
+                                                  ~format=
+                                                    Some(
+                                                      msg =>
+                                                        Printf.sprintf(
+                                                          Scanf.format_from_string(msg, "%i%i%i"),
+                                                          elem1_id,
+                                                          elem2_id,
+                                                          elem3_id,
+                                                        ),
+                                                    ),
+                                                  TupleTyp.tuple3_typ_group,
+                                                );
+                                              } else {
+                                                basic(TupleTyp.tuple3_typ_group);
+                                              }
+                                            | _ => basic(TupleTyp.tuple_typ_group)
+                                            };
+                                          | Var(v) =>
+                                            get_message(
+                                              ~format=
+                                                Some(
+                                                  msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
+                                                ),
+                                              TerminalTyp.var_typ_group,
+                                            )
+                                          | Invalid(_) // Shouldn't be hit
+                                          | Parens(_) => default // Shouldn't be hit?
+                                          }*/ default
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default

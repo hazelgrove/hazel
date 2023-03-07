@@ -42,52 +42,52 @@ module Settings = {
 };
 
 // ExplainThisMessages serialization
-module ExplainThisMessages = {
-  let save_ExplainThisMessages_key: string = "ExplainThisMessages";
+/*module ExplainThisMessages = {
+    let save_ExplainThisMessages_key: string = "ExplainThisMessages";
 
-  let serialize = explainThisMessages =>
-    ExplainThisMessages.serialize(explainThisMessages);
+    let serialize = explainThisMessages =>
+      ExplainThisMessages.serialize(explainThisMessages);
 
-  let deserialize = data =>
-    try(ExplainThisMessages.deserialize(data)) {
-    | _ =>
-      print_endline("Could not deserialize ExplainThisMessages.");
+    let deserialize = data =>
+      try(ExplainThisMessages.deserialize(data)) {
+      | _ =>
+        print_endline("Could not deserialize ExplainThisMessages.");
+        ExplainThisMessages.init;
+      };
+
+    let save = (explainThisMessages: ExplainThisMessages.t): unit =>
+      JsUtil.set_localstore(
+        save_ExplainThisMessages_key,
+        serialize(explainThisMessages),
+      );
+
+    let init = () => {
+      JsUtil.set_localstore(
+        save_ExplainThisMessages_key,
+        serialize(ExplainThisMessages.init),
+      );
       ExplainThisMessages.init;
     };
 
-  let save = (explainThisMessages: ExplainThisMessages.t): unit =>
-    JsUtil.set_localstore(
-      save_ExplainThisMessages_key,
-      serialize(explainThisMessages),
-    );
+    let load = (): ExplainThisMessages.t =>
+      switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
+      | None => init()
+      | Some(data) => deserialize(data)
+      };
 
-  let init = () => {
-    JsUtil.set_localstore(
-      save_ExplainThisMessages_key,
-      serialize(ExplainThisMessages.init),
-    );
-    ExplainThisMessages.init;
-  };
+    let rec export = () =>
+      switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
+      | None =>
+        let _ = init();
+        export();
+      | Some(data) => data
+      };
 
-  let load = (): ExplainThisMessages.t =>
-    switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
-    | None => init()
-    | Some(data) => deserialize(data)
+    let import = data => {
+      let explainThisMessages = deserialize(data);
+      save(explainThisMessages);
     };
-
-  let rec export = () =>
-    switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
-    | None =>
-      let _ = init();
-      export();
-    | Some(data) => data
-    };
-
-  let import = data => {
-    let explainThisMessages = deserialize(data);
-    save(explainThisMessages);
-  };
-};
+  };*/
 
 // Scratch mode serialization
 module Scratch = {
