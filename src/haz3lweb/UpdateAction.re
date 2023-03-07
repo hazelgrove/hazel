@@ -42,7 +42,8 @@ type t =
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t);
+  | DebugAction(DebugAction.t)
+  | ReplayAction(ReplayAction.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -51,6 +52,7 @@ module Failure = {
     | CantRedo
     | CantPaste
     | CantReset
+    | CantReplay
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)

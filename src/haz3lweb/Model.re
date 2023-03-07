@@ -14,6 +14,7 @@ type t = {
   double_tap: option(timestamp),
   mousedown: bool,
   langDocMessages: LangDocMessages.t,
+  replay: option(Replay.t),
 };
 
 let cutoff = (===);
@@ -29,6 +30,7 @@ let mk = editors => {
   double_tap: None,
   mousedown: false,
   langDocMessages: LangDocMessages.init,
+  replay: None,
 };
 
 let blank = mk(Editors.Scratch(0, []));

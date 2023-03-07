@@ -1886,3 +1886,43 @@ svg.expandable path {
   top: -1em;
   left: -1em;
 }
+
+.replay-control {
+  z-index: 25;
+  position: fixed;
+  right: 1em;
+  /* top: 3.8em; */
+  /* bottom: 1.8em; */
+  width: 25vw;
+  height: 100vh;
+  overflow: auto;
+  padding: 0.2em;
+  padding-bottom: 1.5em;
+  white-space: nowrap;
+  color: var(--light-text-color);
+  background-color: #f7ebc5;
+  /*#fbebaa;*/
+}
+
+.replay-control .top-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25em;
+}
+
+.replay-control .top-bar .close {
+  cursor: pointer;
+}
+
+.replay-control .current-update {
+  font-weight: bold;
+}
+
+.replay-control .other-update {
+  font-weight: normal;
+}
+
+.replay-control .help-text {
+  padding: 0.5em;
+  font-style: italic;
+}

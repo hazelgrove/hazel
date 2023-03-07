@@ -14,6 +14,7 @@ let view =
       ~editor: Editor.t,
       ~settings: ModelSettings.t,
       ~langDocMessages: LangDocMessages.t,
+      ~replay: option(Replay.t),
       ~result: ModelResult.simple,
     ) => {
   let zipper = editor.state.zipper;
@@ -63,7 +64,12 @@ let view =
       ]
       : [];
   let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
-  let right_panel =
+  let replay_controls =
+    switch (replay) {
+    | None => []
+    | Some(replay) => [ReplayControls.view(~inject, replay)]
+    };
+  let lang_doc_messages =
     langDocMessages.show && settings.statics
       ? [
         LangDoc.view(
@@ -76,6 +82,7 @@ let view =
         ),
       ]
       : [];
+  let right_panel = lang_doc_messages @ replay_controls;
 
   div(
     ~attr=clss(["editor", "single"]),
