@@ -108,38 +108,13 @@ module R = {
   let complement = (terr: t) => Piece.complement(~side=R, face(terr));
 };
 
-// todo: consider requiring kid already be completed
-let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
-  open OptUtil.Syntax;
-  let (p_l, p_r) = (face(l), face(r));
-  let+ _ = Piece.lt(p_l, p_r);
-  let kid =
-    switch (Piece.tip(L, p_r)) {
-    | Convex =>
-      assert(Option.is_some(Meld.is_empty(kid)));
-      kid;
-    | Concave(s, _) =>
-      // todo review strict flag
-      Meld.complete(~expected=Sort.Ana.mk(~sort=s, ()), kid)
-    };
-  L.unmk(kid, r);
-};
+let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
+  Wald.lt(l.wal, ~kid, r.wal)
+  |> Option.map(((kid, wal)) => Wald.unmk(kid, wal, r.mel));
 
-let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) => {
-  open OptUtil.Syntax;
-  let (p_l, p_r) = (face(l), face(r));
-  let+ _ = Piece.gt(p_l, p_r);
-  let kid =
-    switch (Piece.tip(R, p_l)) {
-    | Convex =>
-      assert(Option.is_some(Meld.is_empty(kid)));
-      kid;
-    | Concave(s, _) =>
-      // todo review strict flag
-      Meld.complete(~expected=Sort.Ana.mk(~sort=s, ()), kid)
-    };
-  R.unmk(l, kid);
-};
+let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
+  Wald.gt(l.wal, ~kid, r.wal)
+  |> Option.map(((wal, kid)) => Wald.unmk(l.mel, wal, kid));
 
 let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
   Wald.eq(l.wal, ~kid, r.wal)
