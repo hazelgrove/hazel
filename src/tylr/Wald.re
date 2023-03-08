@@ -1,7 +1,6 @@
 open Util;
 
-// a WALleD meld
-// the wario to the meld's mario
+// "walled" (by pieces) meld, wario to meld's mario
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Chain.t(Piece.t, Meld.t);
 
@@ -21,9 +20,12 @@ let link = (p, ~kid=Meld.empty(), wal) =>
   switch (Mold.tip(R, Piece.mold(p))) {
   | Convex => raise(Invalid_argument("Wald.link"))
   | Concave(s, _) =>
-    let kid = Meld.is_empty(kid) ? Meld.of_grout(Grout.mk_convex(s)) : kid;
+    let kid =
+      Option.is_some(Meld.is_empty(kid))
+        ? Meld.of_grout(Grout.mk_convex(s)) : kid;
     Chain.link(p, kid, wal);
   };
+let knil = (_, ~kid as _=Meld.empty(), _) => failwith("todo");
 
 let append = (l: t, ~kid=Meld.empty(), r: t) =>
   l |> Chain.fold_right((p, kid) => link(p, ~kid), p => link(p, ~kid, r));
@@ -33,8 +35,8 @@ let of_complement = (cmpl: Complement.t): option(t) =>
     ((sugg, mold), wal) => {
       let g = Piece.of_grout(Grout.mk(~sugg, mold));
       switch (wal) {
-      | None => of_piece(g)
-      | Some(wal) => link(g, wal)
+      | None => Some(of_piece(g))
+      | Some(wal) => Some(link(g, wal))
       };
     },
     cmpl,

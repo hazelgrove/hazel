@@ -51,8 +51,8 @@ let cat = ((l_inner, r_inner), (l_outer, r_outer)) => (
 // let zip_piece = (sib: t): (Segment.t, t) => {
 //   let ((l, r), sib') = uncons_opt_lexemes(sib);
 //   switch (Option.bind(l, Lexeme.to_piece), Option.bind(r, Lexeme.to_piece)) {
-//   | (Some(p_l), Some(p_r)) when Option.is_some(Piece.zip(p_l, p_r)) =>
-//     let p = Option.get(Piece.zip(p_l, p_r));
+//   | (Some(p_l), Some(p_r)) when Option.is_some(Piece.zips(p_l, p_r)) =>
+//     let p = Option.get(Piece.zips(p_l, p_r));
 //     (Segment.of_meld(Meld.of_piece(p)), sib');
 //   | _ => (Segment.empty, sib)
 //   };
@@ -119,10 +119,10 @@ let zip_init = ((dn, up): t) =>
   | ([l, ...terrs_l], [r, ...terrs_r])
       when
         Space.(is_empty(dn.space) && is_empty(up.space))
-        && Option.is_some(Piece.zip(Terrace.face(l), Terrace.face(r))) =>
+        && Option.is_some(Piece.zips(Terrace.face(l), Terrace.face(r))) =>
     let (hd_l, tl_l) = Terrace.split_face(l);
     let (hd_r, tl_r) = Terrace.split_face(r);
-    let p = Option.get(Piece.zip(hd_l, hd_r));
+    let p = Option.get(Piece.zips(hd_l, hd_r));
     let kid = Meld.append(tl_l, p, tl_r);
     zip((Dn.mk(terrs_l), Up.mk(terrs_r)), kid);
   | _ => zip((dn, up), Meld.empty())

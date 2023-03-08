@@ -105,16 +105,17 @@ module R = {
       |> Result.of_option(~error=Some(sort(terr)))
     };
 
-  let complement = (terr: t) => Piece.complement(~side=R, face(terr));
+  let complement = (terr: t) =>
+    Piece.complement_beyond(~side=R, face(terr));
 };
 
 let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
   Wald.lt(l.wal, ~kid, r.wal)
-  |> Option.map(((kid, wal)) => Wald.unmk(kid, wal, r.mel));
+  |> Option.map(((kid, wal)) => Wald.unmk(~l=kid, wal, ~r=r.mel));
 
 let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
   Wald.gt(l.wal, ~kid, r.wal)
-  |> Option.map(((wal, kid)) => Wald.unmk(l.mel, wal, kid));
+  |> Option.map(((wal, kid)) => Wald.unmk(~l=l.mel, wal, ~r=kid));
 
 let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
   Wald.eq(l.wal, ~kid, r.wal)

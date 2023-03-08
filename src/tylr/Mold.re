@@ -54,14 +54,17 @@ let tip = (d: Dir.t, m: t): Tip.t =>
 let must_match = (d: Dir.t, m: t): bool =>
   Gram.Frame.must_match(d, m.frames);
 
-let concave_tips = (side, m) =>
+let concavable = (side, m) =>
   m
   |> tips(side)
   |> List.filter_map(
        fun
        | Tip.Concave(s, p) => Some((s, p))
        | Convex => None,
-     );
+     )
+  // assuming there will only be one such concave tip, if any,
+  // given well-molded assumption
+  |> ListUtil.hd_opt;
 
 // todo: need to review this and completion
 let expected = (~side as _: Dir.t, _) => failwith("todo Mold.expected");

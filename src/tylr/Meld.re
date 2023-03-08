@@ -191,12 +191,6 @@ let knil = (~kid=empty(), mel, p: Piece.t) => {
   aggregate(linked);
 };
 
-// let complement = (~side: Dir.t, mel: t) =>
-//   switch (end_piece(~side, mel)) {
-//   | None => []
-//   | Some(p) => Piece.complement(~side, p)
-//   };
-
 type unlinked = Result.t((t, Piece.t, t), option(t));
 let unlink = (mel: t): unlinked =>
   switch (distribute(mel).chain) {
@@ -222,62 +216,12 @@ let unknil = mel =>
     |> Result.of_option(~error=Some(Chain.lst(c)))
   };
 
-let complete_empty = (~space, ~paths, ~expected: Sort.Ana.t) =>
-  of_grout(Grout.mk_convex(expected.sort))
-  |> put_space(space)
-  |> put_paths(paths)
-  |> aggregate;
-
-let rec complete = (~side: option(Dir.t)=?, ~expected: Sort.Ana.t, mel: t): t =>
-  switch (side) {
-  | None => complete_l(~expected, complete_r(~expected, mel))
-  | Some(L) => complete_l(~expected, mel)
-  | Some(R) => complete_r(~expected, mel)
-  }
-and complete_l = (~expected: Sort.Ana.t, mel: t): t => {
-  let mel = distribute(mel);
-  switch (mel.chain) {
-  | None => complete_empty(~space=mel.space, ~paths=mel.paths, ~expected)
-  | Some(c) =>
-    switch (end_piece(~side=L, mel)) {
-    | None => complete_l(~expected, Chain.fst(c))
-    | Some(p) =>
-      c
-      |> List.fold_right(
-           ((sugg, mold), c) => {
-             let g = Piece.of_grout(Grout.mk(~sugg, mold));
-             let expected = Mold.expected(~side=R, mold);
-             Chain.link(empty(), g, Chain.map_fst(complete(~expected), c));
-           },
-           Piece.complement(~side=L, p),
-         )
-      |> of_chain
-      |> aggregate
-    }
-  };
-}
-and complete_r = (~expected: Sort.Ana.t, mel: t): t => {
-  let mel = distribute(mel);
-  switch (mel.chain) {
-  | None => complete_empty(~space=mel.space, ~paths=mel.paths, ~expected)
-  | Some(c) =>
-    switch (end_piece(~side=R, mel)) {
-    | None => complete_r(~expected, Chain.lst(c))
-    | Some(p) =>
-      Piece.complement(~side=R, p)
-      |> List.fold_left(
-           (c, (sugg, mold)) => {
-             let g = Piece.of_grout(Grout.mk(~sugg, mold));
-             let expected = Mold.expected(~side=R, mold);
-             Chain.knil(Chain.map_lst(complete(~expected), c), g, empty());
-           },
-           c,
-         )
-      |> of_chain
-      |> aggregate
-    }
-  };
-};
+// let complete_empty = (~space, ~paths, ~expected: Sort.Ana.t) =>
+//   of_grout(Grout.mk_convex(expected.sort))
+//   |> put_space(space)
+//   |> put_paths(paths)
+//   |> aggregate;
+let patch = (_, _, _) => failwith("todo Meld.patch");
 
 let append = (_, _, _) => failwith("todo append");
 
@@ -326,14 +270,14 @@ let split_piece = (_, _) => failwith("todo Meld.split_piece");
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
   open OptUtil.Syntax;
   let* (kid, p_r, tl) = Result.to_option(unlink(mel));
-  let+ p = Piece.zip(p_l, p_r);
+  let+ p = Piece.zips(p_l, p_r);
   assert(Option.is_some(is_empty(kid)));
   link(p, tl);
 };
 let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
   open OptUtil.Syntax;
   let* (tl, p_l, kid) = Result.to_option(unknil(mel));
-  let+ p = Piece.zip(p_l, p_r);
+  let+ p = Piece.zips(p_l, p_r);
   assert(Option.is_some(is_empty(kid)));
   knil(tl, p);
 };

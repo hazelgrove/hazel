@@ -12,3 +12,5 @@ let max_op = max - 1;
 
 let lt = (~a, l, r) =>
   compare(l, r) < 0 || compare(l, r) == 0 && a(l) == Some(Dir.L);
+let gt = (~a, l, r) =>
+  compare(l, r) > 0 || compare(l, r) == 0 && a(l) == Some(Dir.R);

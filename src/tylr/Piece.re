@@ -154,46 +154,36 @@ let complement_beyond = (~side: Dir.t, p: t): Complement.t => {
   go(zipper(p));
 };
 
-let lt = (l: t, r: t): option(Complement.t) =>
+let lt = (l: t, r: t): option(Complement.t) => {
+  open OptUtil.Syntax;
+  let* (s_l, p_l) = Mold.concavable(R, mold(l));
+  let cmpl = complement_beyond(~side=L, r);
   switch (
-    Mold.concave_tips(R, mold(l))
-    |> List.filter(((s, _)) => List.mem(sort(r), LangUtil.fst_set(s)))
+    ListUtil.hd_opt(cmpl)
+    |> Option.map(snd)
+    |> Option.value(~default=mold(r))
+    |> Mold.concavable(L)
   ) {
-  | [] => None
-  // todo: fix preemptive choice
-  | [(_, p), ..._] =>
-    switch (
-      Mold.concave_tips(L, mold(r))
-      |> List.filter(((s, q)) =>
-           List.mem(sort(l), LangUtil.lst_set(s))
-           && Prec.gt(~a=LangUtil.assoc(sort(l)), p, q)
-         )
-    ) {
-    // todo: address weird feeling about single lost
-    // precedence battle determining overall outcome
-    | [_, ..._] => None
-    | [] => Some(complement_beyond(~side=L, r))
-    }
+  | Some((s_r, p_r))
+      when Sort.eq(s_l, s_r) && !Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r) =>
+    None
+  | _ => Some(cmpl)
   };
+};
 
-let gt = (l: t, r: t): option(Complement.t) =>
+let gt = (l: t, r: t): option(Complement.t) => {
+  open OptUtil.Syntax;
+  let* (s_r, p_r) = Mold.concavable(L, mold(r));
+  let cmpl = complement_beyond(~side=R, l);
   switch (
-    Mold.concave_tips(L, mold(l))
-    |> List.filter(((s, _)) => List.mem(sort(l), LangUtil.lst_set(s)))
+    ListUtil.last_opt(cmpl)
+    |> Option.map(snd)
+    |> Option.value(~default=mold(l))
+    |> Mold.concavable(R)
   ) {
-  | [] => None
-  // todo: fix preemptive choice
-  | [(_, p), ..._] =>
-    switch (
-      Mold.concave_tips(R, mold(l))
-      |> List.filter(((s, q)) =>
-           List.mem(sort(r), LangUtil.fst_set(s))
-           && Prec.lt(~a=LangUtil.assoc(sort(r)), q, p)
-         )
-    ) {
-    // todo: address weird feeling about single lost
-    // precedence battle determining overall outcome
-    | [_, ..._] => None
-    | [] => Some(complement_beyond(~side=R, l))
-    }
+  | Some((s_l, p_l))
+      when Sort.eq(s_l, s_r) && !Prec.gt(~a=LangUtil.assoc(s_l), p_l, p_r) =>
+    None
+  | _ => Some(cmpl)
   };
+};

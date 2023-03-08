@@ -8,6 +8,8 @@ type sort = t;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type o = option(sort);
 
+let eq = (l: o, r: o) => l == r;
+
 let lca = (l: o, r: o): o =>
   switch (compare_o(l, r)) {
   | c when c < 0 => l
