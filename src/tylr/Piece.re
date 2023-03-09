@@ -154,16 +154,21 @@ let complement_beyond = (~side: Dir.t, p: t): Complement.t => {
   go(zipper(p));
 };
 
+let fst_mold = (cmpl: Complement.t, p: t) =>
+  ListUtil.hd_opt(cmpl)
+  |> Option.map(snd)
+  |> Option.value(~default=mold(p));
+let lst_mold = (p: t, cmpl: Complement.t) =>
+  ListUtil.last_opt(cmpl)
+  |> Option.map(snd)
+  |> Option.value(~default=mold(p));
+
 let lt = (l: t, r: t): option(Complement.t) => {
   open OptUtil.Syntax;
   let* (s_l, p_l) = Mold.concavable(R, mold(l));
+  let* () = OptUtil.of_bool(LangUtil.takes(s_l, sort(r)));
   let cmpl = complement_beyond(~side=L, r);
-  switch (
-    ListUtil.hd_opt(cmpl)
-    |> Option.map(snd)
-    |> Option.value(~default=mold(r))
-    |> Mold.concavable(L)
-  ) {
+  switch (Mold.concavable(L, fst_mold(cmpl, r))) {
   | Some((s_r, p_r))
       when Sort.eq(s_l, s_r) && !Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r) =>
     None
@@ -174,13 +179,9 @@ let lt = (l: t, r: t): option(Complement.t) => {
 let gt = (l: t, r: t): option(Complement.t) => {
   open OptUtil.Syntax;
   let* (s_r, p_r) = Mold.concavable(L, mold(r));
+  let* () = OptUtil.of_bool(LangUtil.takes(s_r, sort(l)));
   let cmpl = complement_beyond(~side=R, l);
-  switch (
-    ListUtil.last_opt(cmpl)
-    |> Option.map(snd)
-    |> Option.value(~default=mold(l))
-    |> Mold.concavable(R)
-  ) {
+  switch (Mold.concavable(R, lst_mold(l, cmpl))) {
   | Some((s_l, p_l))
       when Sort.eq(s_l, s_r) && !Prec.gt(~a=LangUtil.assoc(s_l), p_l, p_r) =>
     None

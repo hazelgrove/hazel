@@ -119,3 +119,5 @@ let assoc = (s, p) => {
   let* (_, a) = p < 0 ? None : List.nth_opt(List.assoc(s, Lang.t), p);
   a;
 };
+
+let takes = (_, _) => failwith("todo LangUtil.takes");
