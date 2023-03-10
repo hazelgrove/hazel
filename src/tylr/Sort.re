@@ -2,9 +2,15 @@ open Sexplib.Std;
 
 include Lang.Sort;
 
+module Map =
+  Map.Make({
+    type nonrec t = t;
+    let compare = compare;
+  });
+
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type sort = t;
-// None represents "unsorted" sort used for unrecognized tokens
+// None represents "unsorted" sort used for unrnecognized tokens
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type o = option(sort);
 

@@ -12,4 +12,5 @@ module Sort: {
   let of_string: string => t;
 };
 
-let t: list((Sort.t, list((Gram.t(Sort.t), Assoc.t))));
+type t = list((Sort.t, list((Gram.t(Sort.t), Assoc.t))));
+let t: t;

@@ -120,4 +120,65 @@ let assoc = (s, p) => {
   a;
 };
 
+module Edge = {
+  type t = {
+    l: bool,
+    r: bool,
+  };
+
+  let mk = (~l=false, ~r=false, ()) => {l, r};
+
+  let merge = (l, r) => {l: l.l || r.l, r: l.r || r.r};
+};
+
+module Edges = {
+  type t = Sort.Map.t(Sort.Map.t(Edge.t));
+
+  let of_gram = (g: Gram.t(Sort.t)): Sort.Map.t(Edge.t) => {
+    let set_l = s =>
+      Sort.Map.update(
+        s,
+        fun
+        | None => Some(Edge.mk(~l=true, ()))
+        | Some(Edge.{l: _, r}) => Some({l: true, r}),
+      );
+    let set_r = s =>
+      Sort.Map.update(
+        s,
+        fun
+        | None => Some(Edge.mk(~r=true, ()))
+        | Some(Edge.{l, r: _}) => Some({l, r: true}),
+      );
+    Gram.kids(g)
+    |> List.to_seq
+    |> Seq.map(s => (s, Edge.mk()))
+    |> Sort.Map.of_seq
+    |> List.fold_right(
+         fun
+         | None
+         | Some(Gram.Atom.Tok(_)) => Fun.id
+         | Some(Kid(s)) => set_l(s),
+         Gram.exterior(L, g),
+       )
+    |> List.fold_right(
+         fun
+         | None
+         | Some(Gram.Atom.Tok(_)) => Fun.id
+         | Some(Kid(s)) => set_r(s),
+         Gram.exterior(R, g),
+       );
+  };
+
+  let of_sort = (gs: list(Gram.t(Sort.t))): Sort.Map.t(Edge.t) =>
+    gs
+    |> List.map(of_gram)
+    |> List.fold_left(Sort.Map.union(_ => Edge.merge), Sort.Map.empty);
+
+  let mk = (lang: Lang.t): t =>
+    lang
+    |> List.to_seq
+    |> Seq.map(((s, gs)) => (s, of_sort(List.map(fst, gs))))
+    |> Sort.Map.of_seq;
+};
+
 let takes = (_, _) => failwith("todo LangUtil.takes");
