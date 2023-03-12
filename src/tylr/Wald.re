@@ -15,17 +15,15 @@ let join = (_, _, _) => failwith("todo Wald.join");
 
 // precond: p eq wal
 let link = (p, ~kid=Meld.empty(), wal) =>
-  // todo: remove tip check once grout-sort-as-upper-bound
-  // is fully implemented
-  switch (Mold.tip(R, Piece.mold(p))) {
-  | Convex => raise(Invalid_argument("Wald.link"))
-  | Concave(s, _) =>
-    let kid =
-      Option.is_some(Meld.is_empty(kid))
-        ? Meld.of_grout(Grout.mk_operand(s)) : kid;
-    Chain.link(p, kid, wal);
+  switch (Mold.concavable(R, Piece.mold(p))) {
+  | None => raise(Invalid_argument("Wald.link"))
+  | Some((s, _)) => Chain.link(p, Meld.patch(s, kid), wal)
   };
-let knil = (_, ~kid as _=Meld.empty(), _) => failwith("todo");
+let knil = (wal, ~kid=Meld.empty(), p) =>
+  switch (Mold.concavable(L, Piece.mold(p))) {
+  | None => raise(Invalid_argument("Wald.knil"))
+  | Some((s, _)) => Chain.knil(wal, Meld.patch(s, kid), p)
+  };
 
 let append = (l: t, ~kid=Meld.empty(), r: t) =>
   l |> Chain.fold_right((p, kid) => link(p, ~kid), p => link(p, ~kid, r));
@@ -96,8 +94,12 @@ let matches = (~kid) =>
   cat((l, r) => {
     open OptUtil.Syntax;
     let+ cmpl = Piece.matches(l, r);
-    let wal = of_complement(cmpl);
-    Padded.mk(link(l, ~kid, knil(wal, r)));
+    let cmpl_r =
+      switch (of_complement(cmpl)) {
+      | Some(wal) => knil(wal, r)
+      | None => of_piece(r)
+      };
+    Padded.mk(link(l, ~kid, cmpl_r));
   });
 
 let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
