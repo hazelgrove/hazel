@@ -145,8 +145,6 @@ let is_empty = (mel: t) =>
     Some(Space.cat(l, r));
   };
 
-let is_porous = _ => failwith("todo Meld.is_porous");
-
 let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
   of_chain(Chain.mk([l, r], [p])) |> aggregate;
 let of_grout = (~l=empty(), ~r=empty(), g: Grout.t) =>
@@ -163,6 +161,14 @@ let length = mel => List.length(root(mel));
 let sort = mel => root(mel) |> ListUtil.hd_opt |> Option.map(Piece.sort);
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
+
+let rec is_porous = mel =>
+  List.for_all(Piece.is_grout, root(mel))
+    ? kids(mel)
+      |> List.map(is_porous)
+      |> OptUtil.sequence
+      |> Option.map(Space.concat)
+    : None;
 
 // note: does not distribute paths
 let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
