@@ -321,16 +321,16 @@ let regrout = rel => {
   let sib_of_l = t =>
     switch (Terrace.R.tip(t)) {
     | Convex => Slopes.empty
-    | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
+    | Concave(sort, _) => sib_of_g(Grout.mk_operand(sort))
     };
   let sib_of_r = t =>
     switch (Terrace.L.tip(t)) {
     | Convex => Slopes.empty
-    | Concave(sort, _) => sib_of_g(Grout.mk_convex(sort))
+    | Concave(sort, _) => sib_of_g(Grout.mk_operand(sort))
     };
   let sib =
     switch (bounds(rel)) {
-    | (None, None) => sib_of_g(Grout.mk_convex(Sort.root_o))
+    | (None, None) => sib_of_g(Grout.mk_operand(Sort.root_o))
     | (None, Some(r)) => sib_of_r(r)
     | (Some(l), None) => sib_of_l(l)
     | (Some(l), Some(r)) =>
@@ -338,13 +338,13 @@ let regrout = rel => {
       | {lt: None, eq: None, gt: None} =>
         let sort = Sort.lca(Terrace.sort(l), Terrace.sort(r));
         let prec = min(Terrace.prec(l), Terrace.prec(r));
-        sib_of_g(Grout.mk_concave(sort, prec));
+        sib_of_g(Grout.mk_infix(sort, prec));
       | {lt: Some(_), _} => sib_of_r(r)
       | {eq: Some(_), _} =>
         Piece.(id(Terrace.face(l)) == id(Terrace.face(r)))
           ? Slopes.empty
           // todo: review sort
-          : sib_of_g(Grout.mk_convex(None))
+          : sib_of_g(Grout.mk_operand(None))
       | {gt: Some(_), _} => sib_of_l(l)
       }
     };

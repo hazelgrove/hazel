@@ -160,6 +160,10 @@ let kids = mel =>
   mel.chain |> Option.map(Chain.loops) |> Option.value(~default=[]);
 let length = mel => List.length(root(mel));
 
+let sort = mel => root(mel) |> ListUtil.hd_opt |> Option.map(Piece.sort);
+// precond: root(c) != []
+let prec = _ => failwith("todo prec");
+
 // note: does not distribute paths
 let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
   switch (side) {
@@ -216,12 +220,19 @@ let unknil = mel =>
     |> Result.of_option(~error=Some(Chain.lst(c)))
   };
 
-// let complete_empty = (~space, ~paths, ~expected: Sort.Ana.t) =>
-//   of_grout(Grout.mk_convex(expected.sort))
-//   |> put_space(space)
-//   |> put_paths(paths)
-//   |> aggregate;
-let patch = (_, _, _) => failwith("todo Meld.patch");
+let patch = (s: Sort.o, mel: t) =>
+  switch (sort(mel)) {
+  | None => of_grout(Grout.mk_operand(None))
+  | Some(s') when Sort.eq(s, s') => mel
+  | Some(s') =>
+    let e: LangUtil.Edge.t =
+      LangUtil.takes(s, s')
+      |> OptUtil.get_or_fail("probably this means grammar isn't LR");
+    e.l
+      // todo: confirm use of prec max here is ok
+      ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
+      : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
+  };
 
 let append = (_, _, _) => failwith("todo append");
 
@@ -254,16 +265,6 @@ let tip = (side: Dir.t, mel: t): option(Tip.t) => {
     |> Option.map(((_, p, kid)) => tip(kid, p))
   };
 };
-
-// precond: root(c) != []
-let sort = mel => {
-  let (_, p, _) =
-    Result.to_option(unlink(mel))
-    |> OptUtil.get_or_raise(Invalid_argument("Meld.sort"));
-  Piece.sort(p);
-};
-// precond: root(c) != []
-let prec = _ => failwith("todo prec");
 
 let split_piece = (_, _) => failwith("todo Meld.split_piece");
 

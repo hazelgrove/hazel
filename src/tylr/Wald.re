@@ -22,7 +22,7 @@ let link = (p, ~kid=Meld.empty(), wal) =>
   | Concave(s, _) =>
     let kid =
       Option.is_some(Meld.is_empty(kid))
-        ? Meld.of_grout(Grout.mk_convex(s)) : kid;
+        ? Meld.of_grout(Grout.mk_operand(s)) : kid;
     Chain.link(p, kid, wal);
   };
 let knil = (_, ~kid as _=Meld.empty(), _) => failwith("todo");
@@ -115,13 +115,12 @@ let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
 
 let lt = (l: t, ~kid=Meld.empty(), r: t): option((Meld.t, t)) => {
   let (p_l, p_r) = (face(R, l), face(L, r));
-  let patch = Meld.patch(Piece.tip(R, p_l));
   Piece.lt(p_l, p_r)
-  |> Option.map(cmpl =>
+  |> Option.map((((s, _), cmpl)) =>
        switch (of_complement(cmpl)) {
-       | None => (patch(kid, Piece.tip(L, p_r)), r)
+       | None => (Meld.patch(s, kid), r)
        | Some(wal) =>
-         let end_kid = patch(Meld.empty(), Piece.tip(L, face(L, wal)));
+         let end_kid = Meld.patch(s, Meld.empty());
          (end_kid, append(wal, ~kid, r));
        }
      );
@@ -129,13 +128,12 @@ let lt = (l: t, ~kid=Meld.empty(), r: t): option((Meld.t, t)) => {
 
 let gt = (l: t, ~kid=Meld.empty(), r: t): option((t, Meld.t)) => {
   let (p_l, p_r) = (face(R, l), face(L, r));
-  let patch = (l, kid) => Meld.patch(l, kid, Piece.tip(L, p_r));
   Piece.gt(p_l, p_r)
-  |> Option.map(cmpl =>
+  |> Option.map(((cmpl, (s, _))) =>
        switch (of_complement(cmpl)) {
-       | None => (l, patch(Piece.tip(R, p_l), kid))
+       | None => (l, Meld.patch(s, kid))
        | Some(wal) =>
-         let end_kid = patch(Piece.tip(R, face(R, wal)), Meld.empty());
+         let end_kid = Meld.patch(s, Meld.empty());
          (append(l, ~kid, wal), end_kid);
        }
      );

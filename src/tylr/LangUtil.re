@@ -238,7 +238,7 @@ module Paths = {
 
 let takes = (r, s) =>
   switch (r, s) {
-  | (_, None) => true
-  | (None, _) => false
-  | (Some(r), Some(s)) => Option.is_some(Paths.from_to(r, s))
+  | (_, None) => Some(Edge.{l: true, r: true})
+  | (None, _) => None
+  | (Some(r), Some(s)) => Paths.from_to(r, s)
   };

@@ -7,15 +7,18 @@ type t = {
   sugg: Token.t,
   fill: Token.t,
 };
-
 let mk = (~id=?, ~sugg="", ~fill="", mold) => {
   let id = id |> OptUtil.get(() => Id.Gen.next());
   {id, mold, sugg, fill};
 };
 
-let mk_convex = (~id=?, sort: Sort.o) => mk(~id?, Mold.mk(sort, Prec.max));
-
-let mk_concave = (~id=?, sort, prec) => mk(~id?, Mold.mk_infix(sort, prec));
+// todo: remove sort parameter and always make min sort
+let mk_operand = (~id=?, sort: Sort.o) => mk(~id?, Mold.mk(sort, Prec.max));
+let mk_prefix = (~id=?, ~r=?, sort, prec) =>
+  mk(~id?, Mold.mk_prefix(sort, prec, ~r?));
+let mk_postfix = (~id=?, ~l=?, sort, prec) =>
+  mk(~id?, Mold.mk_postfix(~l?, sort, prec));
+let mk_infix = (~id=?, sort, prec) => mk(~id?, Mold.mk_infix(sort, prec));
 
 // todo: incorporate unique filling
 let length = _ => 1;

@@ -21,6 +21,14 @@ let prec_ = m => m.prec;
 let mk = (~frames=Gram.Frame.empty, sort, prec) => {sort, prec, frames};
 
 let mk_operand = sort => mk(sort, Prec.max);
+let mk_prefix = (~r=?, sort, prec) => {
+  let r = Option.value(r, ~default=sort);
+  mk(~frames=[Seq_([], [Atom(Kid(r))])], sort, prec);
+};
+let mk_postfix = (~l=?, sort, prec) => {
+  let l = Option.value(l, ~default=sort);
+  mk(~frames=[Seq_([Atom(Kid(l))], [])], sort, prec);
+};
 let mk_infix = (~l: option(Sort.o)=?, ~r: option(Sort.o)=?, sort, prec) => {
   let l = Option.value(l, ~default=sort);
   let r = Option.value(r, ~default=sort);
