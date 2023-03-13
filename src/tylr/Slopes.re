@@ -122,9 +122,9 @@ let zip_init = ((dn, up): t) =>
   | ([l, ...terrs_l], [r, ...terrs_r])
       when
         Space.(is_empty(dn.space) && is_empty(up.space))
-        && Option.is_some(Piece.zips(Terrace.face(l), Terrace.face(r))) =>
-    let (hd_l, tl_l) = Terrace.split_face(l);
-    let (hd_r, tl_r) = Terrace.split_face(r);
+        && Option.is_some(Piece.zips(Terrace.R.face(l), Terrace.L.face(r))) =>
+    let (tl_l, hd_l) = Terrace.R.split_face(l);
+    let (hd_r, tl_r) = Terrace.L.split_face(r);
     let p = Option.get(Piece.zips(hd_l, hd_r));
     let kid = Meld.append(tl_l, p, tl_r);
     zip((Dn.mk(terrs_l), Up.mk(terrs_r)), kid);

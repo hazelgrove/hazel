@@ -13,14 +13,8 @@ let of_piece = p => of_wald(Wald.of_piece(p));
 
 let map_wal = (f, terr) => {...terr, wal: f(terr.wal)};
 
-let split_face = ({wal, mel}: t): (Piece.t, Meld.t) =>
-  switch (Chain.unlink(wal)) {
-  | None => (Chain.fst(wal), mel)
-  | Some((face, kid, rest)) => (face, Wald.unmk(~l=kid, rest, ~r=mel))
-  };
-let face = terr => fst(split_face(terr));
-let sort = (terr: t) => Piece.sort(face(terr));
-let prec = (terr: t) => Piece.prec(face(terr));
+let sort = (t: t) => Wald.sort(t.wal);
+let prec = (t: t) => Wald.prec(t.wal);
 
 module L = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -32,6 +26,13 @@ module L = {
   let append = (_: Meld.t, _: t) => failwith("todo append");
 
   let pad = (t: t, s: Space.t) => {...t, mel: Meld.pad(t.mel, ~r=s)};
+
+  let split_face = ({wal, mel}: t): (Piece.t, Meld.t) =>
+    switch (Chain.unlink(wal)) {
+    | None => (Chain.fst(wal), mel)
+    | Some((face, kid, rest)) => (face, Wald.unmk(~l=kid, rest, ~r=mel))
+    };
+  let face = terr => fst(split_face(terr));
 
   let rec mk_s = (mel: Meld.t): (Space.t, list(t)) =>
     switch (mk(mel)) {
@@ -68,6 +69,13 @@ module R = {
 
   let pad = (s: Space.t, t: t) => {...t, mel: Meld.pad(~l=s, t.mel)};
 
+  let split_face = ({mel, wal}: t): (Meld.t, Piece.t) =>
+    switch (Chain.unknil(wal)) {
+    | None => (mel, Chain.lst(wal))
+    | Some((rest, kid, face)) => (Wald.unmk(~r=mel, rest, ~l=kid), face)
+    };
+  let face = terr => snd(split_face(terr));
+
   let rec mk_s = (mel: Meld.t): (list(t), Space.t) =>
     switch (mk(mel)) {
     | None =>
@@ -82,8 +90,7 @@ module R = {
 
   let unsnoc_lexeme = (~char=false, r: t): (list(t), Space.t, Lexeme.t) => {
     print_endline("Terrace.unsnoc_lexeme");
-    let (face, rest) = split_face(r);
-    // left-to-right: rest face
+    let (rest, face) = split_face(r);
     switch (Piece.unzip(Piece.length(face) - 1, face)) {
     | R((rest_face, c)) when char =>
       let (r, _empty) = Option.get(mk(Meld.knil(rest, rest_face)));

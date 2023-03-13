@@ -13,6 +13,9 @@ let unmk = (~l=Meld.empty(), ~r=Meld.empty(), wal: t) =>
 
 let join = (_, _, _) => failwith("todo Wald.join");
 
+let sort = wal => Piece.sort(Chain.fst(wal));
+let prec = wal => Piece.prec(Chain.fst(wal));
+
 // precond: p eq wal
 let link = (p, ~kid=Meld.empty(), wal) =>
   switch (Mold.concavable(R, Piece.mold(p))) {

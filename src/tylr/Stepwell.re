@@ -259,7 +259,7 @@ let bounds = (rel: t): (option(Terrace.R.t), option(Terrace.L.t)) => {
 };
 
 let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
-  let (p, rest) = Terrace.split_face(terr);
+  let (p, rest) = Terrace.L.split_face(terr);
   switch (p.shape) {
   | G(g) =>
     // todo: may need to remold?
@@ -340,7 +340,7 @@ let regrout = rel => {
       | Some(Lt(_)) => sib_of_r(r)
       | Some(Gt(_)) => sib_of_l(l)
       | Some(Eq(_)) =>
-        Piece.(id(Terrace.face(l)) == id(Terrace.face(r)))
+        Piece.(id(Terrace.R.face(l)) == id(Terrace.L.face(r)))
           ? Slopes.empty
           // todo: review sort
           : sib_of_g(Grout.mk_operand(None))
