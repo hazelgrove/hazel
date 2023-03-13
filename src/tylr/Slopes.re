@@ -106,10 +106,13 @@ let rec zip = ((dn, up): t, kid: Meld.t) => {
   | (_, []) => Dn.zip(dn, kid)
   | ([l, ...tl_l], [r, ...tl_r]) =>
     switch (Terrace.cmp(l, ~kid, r)) {
-    | {lt: None, eq: None, gt: None} => raise(Meld.Invalid_prec)
-    | {lt: Some(kid_r), _} => zip((dn, Up.mk(tl_r)), kid_r)
-    | {gt: Some(l_kid), _} => zip((Dn.mk(tl_l), up), l_kid)
-    | {eq: Some(l_kid_r), _} => zip((Dn.mk(tl_l), Up.mk(tl_r)), l_kid_r)
+    | None =>
+      print_endline("l = " ++ Terrace.show(l));
+      print_endline("r = " ++ Terrace.show(r));
+      raise(Meld.Invalid_prec);
+    | Some(Lt(kid_r)) => zip((dn, Up.mk(tl_r)), kid_r)
+    | Some(Gt(l_kid)) => zip((Dn.mk(tl_l), up), l_kid)
+    | Some(Eq(l_kid_r)) => zip((Dn.mk(tl_l), Up.mk(tl_r)), l_kid_r)
     }
   };
 };

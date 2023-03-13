@@ -71,9 +71,9 @@ let push = (terr: Terrace.R.t, zigg: t) =>
   | Ok(up) => Ok({...zigg, up})
   | Error(kid) =>
     switch (Terrace.cmp(terr, ~kid, Terrace.of_wald(zigg.top))) {
-    | {lt: None, eq: None, gt: None} => failwith("expected fit")
-    | {gt: Some(terr_kid), _} => Ok(put_up(Up.of_meld(terr_kid), zigg))
-    | {eq: Some(terr_kid_top), _} =>
+    | None => failwith("expected fit")
+    | Some(Gt(terr_kid)) => Ok(put_up(Up.of_meld(terr_kid), zigg))
+    | Some(Eq(terr_kid_top)) =>
       let (l, top, r) = Option.get(Wald.mk(terr_kid_top));
       Ok(
         zigg
@@ -81,7 +81,7 @@ let push = (terr: Terrace.R.t, zigg: t) =>
         |> put_top(top)
         |> map_dn(Dn.cat(Dn.of_meld(r))),
       );
-    | {lt: Some(_), _} =>
+    | Some(Lt(_)) =>
       //                                  ----------zigg
       //                -----------------terr
       // left-to-right: mel wal kid top dn
@@ -98,9 +98,9 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
   | Ok(dn) => Ok({...zigg, dn})
   | Error(kid) =>
     switch (Terrace.cmp(Terrace.of_wald(zigg.top), ~kid, terr)) {
-    | {lt: None, eq: None, gt: None} => failwith("expected fit")
-    | {lt: Some(kid_terr), _} => Ok(put_dn(Dn.of_meld(kid_terr), zigg))
-    | {eq: Some(top_kid_terr), _} =>
+    | None => failwith("expected fit")
+    | Some(Lt(kid_terr)) => Ok(put_dn(Dn.of_meld(kid_terr), zigg))
+    | Some(Eq(top_kid_terr)) =>
       let (l, top, r) = Option.get(Wald.mk(top_kid_terr));
       Ok(
         zigg
@@ -108,7 +108,7 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
         |> put_top(top)
         |> put_dn(Dn.of_meld(r)),
       );
-    | {gt: Some(_), _} =>
+    | Some(Gt(_)) =>
       //                ----------zigg
       //                           -----------------terr
       // left-to-right: up top kid wal mel
@@ -120,15 +120,6 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
       Error(mk(~up, terr.wal, ~dn));
     }
   };
-
-// let onto_up = (zigg: t, up: Up.t): Up.t =>
-//   Slope.dn_onto_up(zigg.dn, up)
-//   |> Up.cons(Terrace.r_of_t(zigg.top))
-//   |> Up.cat(zigg.up);
-// let onto_dn = (dn: Dn.t, zigg: t): Dn.t =>
-//   Dn.snoc_up(dn, zigg.up)
-//   |> Fun.flip(Dn.snoc(Terrace.l_of_t(zigg.top)))
-//   |> Fun.flip(Dn.cat(zigg.dn));
 
 let cons_space = s => map_up(Up.cons_space(s));
 let snoc_space = Fun.flip(s => map_dn(Fun.flip(Dn.snoc_space, s)));

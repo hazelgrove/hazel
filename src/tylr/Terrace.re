@@ -127,13 +127,18 @@ let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
 
 let in_ = (_, ~s as _: Space.t, _) => failwith("todo Terrace.in_");
 
-type cmp = {
-  lt: option(Meld.t),
-  eq: option(Meld.t),
-  gt: option(Meld.t),
-};
-let cmp = (l: R.t, ~kid=Meld.empty(), r: L.t) => {
-  lt: lt(l, ~kid, r),
-  eq: eq(l, ~kid, r),
-  gt: gt(l, ~kid, r),
-};
+type cmp =
+  | Lt(Meld.t)
+  | Eq(Meld.t)
+  | Gt(Meld.t);
+
+let cmp = (l: R.t, ~kid=Meld.empty(), r: L.t) =>
+  switch (eq(l, ~kid, r)) {
+  | Some(eq) => Some(Eq(eq))
+  | None =>
+    switch (lt(l, ~kid, r), gt(l, ~kid, r)) {
+    | (Some(lt), _) => Some(Lt(lt))
+    | (_, Some(gt)) => Some(Gt(gt))
+    | (None, None) => None
+    }
+  };

@@ -29,14 +29,13 @@ let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
       put_slopes((dn, up), rel);
     | Some((_slopes, (l, r), rel)) =>
       switch (Terrace.cmp(l, ~kid, mel)) {
-      | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
-      | {lt: Some(kid_mel), _} =>
-        put_slopes((Dn.of_meld(kid_mel), up), rel)
-      | {eq: Some(l_kid_mel), _} =>
+      | None => raise(Bridge.Convex_inner_tips)
+      | Some(Lt(kid_mel)) => put_slopes((Dn.of_meld(kid_mel), up), rel)
+      | Some(Eq(l_kid_mel)) =>
         let dn = Dn.of_meld(l_kid_mel);
         let up = Up.cat(up, Up.of_terr(r));
         cons_slopes((dn, up), rel);
-      | {gt: Some(l_kid), _} =>
+      | Some(Gt(l_kid)) =>
         let up = Up.cat(up, Up.of_terr(r));
         rel |> cons_slopes(Slopes.mk(~r=up, ())) |> cons_l(~kid=l_kid, mel);
       }
@@ -55,14 +54,13 @@ let rec cons_r = (~kid=Meld.empty(), mel: Terrace.R.t, rel: t): t => {
       put_slopes((dn, up), rel);
     | Some((_slopes, (l, r), rel)) =>
       switch (Terrace.cmp(mel, ~kid, r)) {
-      | {lt: None, eq: None, gt: None} => raise(Bridge.Convex_inner_tips)
-      | {gt: Some(mel_kid), _} =>
-        put_slopes((dn, Up.of_meld(mel_kid)), rel)
-      | {eq: Some(mel_kid_r), _} =>
+      | None => raise(Bridge.Convex_inner_tips)
+      | Some(Gt(mel_kid)) => put_slopes((dn, Up.of_meld(mel_kid)), rel)
+      | Some(Eq(mel_kid_r)) =>
         let dn = Dn.cat(Dn.of_terr(l), dn);
         let up = Up.of_meld(mel_kid_r);
         cons_slopes((dn, up), rel);
-      | {lt: Some(kid_r), _} =>
+      | Some(Lt(kid_r)) =>
         let dn = Dn.cat(Dn.of_terr(l), dn);
         rel |> cons_slopes(Slopes.mk(~l=dn, ())) |> cons_r(mel, ~kid=kid_r);
       }
@@ -109,14 +107,14 @@ let rec unzip_slopes = ((l, r) as slopes, well) =>
   | (_, None) => cons_slopes(slopes, well)
   | (Some((hd_l, tl_l)), Some((tl_r, hd_r))) =>
     switch (Terrace.cmp(hd_l, hd_r)) {
-    | {lt: None, eq: None, gt: None} => failwith("expected cmp")
-    | {eq: Some(_), _} =>
+    | None => failwith("expected cmp")
+    | Some(Eq(_)) =>
       well |> cons_bridge((hd_l, hd_r)) |> unzip_slopes((tl_l, tl_r))
-    | {lt: Some(_), _} =>
+    | Some(Lt(_)) =>
       well
       |> cons_slopes(Slopes.mk(~l=Slope.of_terr(hd_l), ()))
       |> unzip_slopes((tl_l, r))
-    | {gt: Some(_), _} =>
+    | Some(Gt(_)) =>
       well
       |> cons_slopes(Slopes.mk(~r=Slope.of_terr(hd_r), ()))
       |> unzip_slopes((l, tl_r))
@@ -335,17 +333,17 @@ let regrout = rel => {
     | (Some(l), None) => sib_of_l(l)
     | (Some(l), Some(r)) =>
       switch (Terrace.cmp(l, r)) {
-      | {lt: None, eq: None, gt: None} =>
+      | None =>
         let sort = Sort.lca(Terrace.sort(l), Terrace.sort(r));
         let prec = min(Terrace.prec(l), Terrace.prec(r));
         sib_of_g(Grout.mk_infix(sort, prec));
-      | {lt: Some(_), _} => sib_of_r(r)
-      | {eq: Some(_), _} =>
+      | Some(Lt(_)) => sib_of_r(r)
+      | Some(Gt(_)) => sib_of_l(l)
+      | Some(Eq(_)) =>
         Piece.(id(Terrace.face(l)) == id(Terrace.face(r)))
           ? Slopes.empty
           // todo: review sort
           : sib_of_g(Grout.mk_operand(None))
-      | {gt: Some(_), _} => sib_of_l(l)
       }
     };
   cons_slopes(sib, rel);

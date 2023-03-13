@@ -68,12 +68,10 @@ module Dn = {
     | [hd, ...tl] =>
       // left-to-right: tl hd kid terr
       switch (Terrace.cmp(hd, ~kid, terr)) {
-      | {lt: Some(kid_terr), _} =>
-        Ok(cat(of_meld(kid_terr), mk(dn.terrs)))
-      | {eq: Some(hd_kid_terr), _} =>
-        Ok(cat(of_meld(hd_kid_terr), mk(tl)))
-      | {gt: Some(hd_kid), _} => snoc(mk(tl), ~kid=hd_kid, terr)
-      | {lt: None, eq: None, gt: None} =>
+      | Some(Lt(kid_terr)) => Ok(cat(of_meld(kid_terr), mk(dn.terrs)))
+      | Some(Eq(hd_kid_terr)) => Ok(cat(of_meld(hd_kid_terr), mk(tl)))
+      | Some(Gt(hd_kid)) => snoc(mk(tl), ~kid=hd_kid, terr)
+      | None =>
         let s =
           Meld.is_empty(kid)
           |> OptUtil.get_or_raise(Invalid_argument("Slope.Dn.cons_terr"));
@@ -159,12 +157,10 @@ module Up = {
     | [hd, ...tl] =>
       // left-to-right: terr kid hd tl
       switch (Terrace.cmp(terr, ~kid, hd)) {
-      | {lt: Some(kid_hd), _} => cons(terr, ~kid=kid_hd, mk(tl))
-      | {eq: Some(terr_kid_hd), _} =>
-        Ok(cat(of_meld(terr_kid_hd), mk(tl)))
-      | {gt: Some(terr_kid), _} =>
-        Ok(cat(of_meld(terr_kid), mk(up.terrs)))
-      | {lt: None, eq: None, gt: None} =>
+      | Some(Lt(kid_hd)) => cons(terr, ~kid=kid_hd, mk(tl))
+      | Some(Eq(terr_kid_hd)) => Ok(cat(of_meld(terr_kid_hd), mk(tl)))
+      | Some(Gt(terr_kid)) => Ok(cat(of_meld(terr_kid), mk(up.terrs)))
+      | None =>
         let s =
           Meld.is_empty(kid)
           |> OptUtil.get_or_raise(Invalid_argument("Slope.Up.cons_terr"));

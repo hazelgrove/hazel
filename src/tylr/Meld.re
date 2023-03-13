@@ -4,7 +4,9 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   chain: option(Chain.t(t, Piece.t)),
+  [@opaque]
   paths: Paths.t,
+  [@opaque]
   space: (Space.t, Space.t),
 };
 
