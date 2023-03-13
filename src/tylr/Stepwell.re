@@ -425,11 +425,21 @@ let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
   | _ =>
     print_endline("Stepwell.relex_insert / not filling");
     // todo: recycle ids + avoid remolding if unaffected
-    let tok_l = Option.(l |> map(Lexeme.token) |> value(~default=""));
-    let tok_r = Option.(r |> map(Lexeme.token) |> value(~default=""));
+    let (tok_l, rel) =
+      switch (l) {
+      | None => ("", rel')
+      | Some(T(t)) => (t.token, rel')
+      | Some(l) => ("", cons_lexeme(~onto=L, l, rel'))
+      };
+    let (tok_r, rel) =
+      switch (r) {
+      | None => ("", rel)
+      | Some(T(t)) => (t.token, rel)
+      | Some(r) => ("", cons_lexeme(~onto=R, r, rel))
+      };
     let lexed = (Lexer.lex(tok_l ++ s ++ tok_r), Token.length(tok_r));
     print_endline("lexed = " ++ Lexeme.show_s(fst(lexed)));
-    (lexed, rel');
+    (lexed, rel);
   };
 };
 let relex = (~insert="", rel: t): (Lexed.t, t) => {
