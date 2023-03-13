@@ -18,6 +18,8 @@ module EvalCtx = {
     | BinIntOp2
     | BinFloatOp1
     | BinFloatOp2
+    | BinStringOp1
+    | BinStringOp2
     | Tuple(int)
     | ListLit(int)
     | Cons1
@@ -45,6 +47,8 @@ module EvalCtx = {
     | BinIntOp2(DHExp.BinIntOp.t, DHExp.t, t)
     | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
     | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
+    | BinStringOp1(DHExp.BinStringOp.t, t, DHExp.t)
+    | BinStringOp2(DHExp.BinStringOp.t, DHExp.t, t)
     | Tuple(t, (list(DHExp.t), list(DHExp.t)))
     | ListLit(
         MetaVar.t,
@@ -866,6 +870,8 @@ module EvalObj = {
     | (BinIntOp2, BinIntOp2(_, _, c))
     | (BinFloatOp1, BinFloatOp1(_, c, _))
     | (BinFloatOp2, BinFloatOp2(_, _, c))
+    | (BinStringOp1, BinStringOp1(_, c, _))
+    | (BinStringOp2, BinStringOp2(_, _, c))
     | (Cons1, Cons1(c, _))
     | (Cons2, Cons2(_, c))
     | (Prj, Prj(c, _))
@@ -896,6 +902,8 @@ module EvalObj = {
     | (BinIntOp2, BinIntOp1(_))
     | (BinFloatOp1, BinFloatOp2(_))
     | (BinFloatOp2, BinFloatOp1(_))
+    | (BinStringOp1, BinStringOp2(_))
+    | (BinStringOp2, BinStringOp1(_))
     | (Cons1, Cons2(_))
     | (Cons2, Cons1(_)) => None
     | (tag, ctx) =>
@@ -955,7 +963,6 @@ let rec decompose =
     | ApBuiltin(_)
     | TestLit(_)
     | StringLit(_)
-    | BinStringOp(_)
     | Tag(_)
     | FreeVar(_)
     | InvalidText(_)
@@ -984,6 +991,11 @@ let rec decompose =
       go([
         (d1, c => BinFloatOp1(op, c, d2)),
         (d2, c => BinFloatOp2(op, d1, c)),
+      ])
+    | BinStringOp(op, d1, d2) =>
+      go([
+        (d1, c => BinStringOp1(op, c, d2)),
+        (d2, c => BinStringOp2(op, d1, c)),
       ])
     | Cons(d1, d2) =>
       go([(d1, c => Cons1(c, d2)), (d2, c => Cons2(d1, c))])
@@ -1035,6 +1047,8 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   | BinIntOp2(op, d1, ctx1) => BinIntOp(op, d1, compose(ctx1, d))
   | BinFloatOp1(op, ctx1, d1) => BinFloatOp(op, compose(ctx1, d), d1)
   | BinFloatOp2(op, d1, ctx1) => BinFloatOp(op, d1, compose(ctx1, d))
+  | BinStringOp1(op, ctx1, d1) => BinStringOp(op, compose(ctx1, d), d1)
+  | BinStringOp2(op, d1, ctx1) => BinStringOp(op, d1, compose(ctx1, d))
   | Cons1(ctx1, d1) => Cons(compose(ctx1, d), d1)
   | Cons2(d1, ctx1) => Cons(d1, compose(ctx1, d))
   | Tuple(ctx, (ld, rd)) => Tuple(ld @ [compose(ctx, d), ...rd])
