@@ -333,8 +333,8 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_string_op(op),
-            (d1, []),
-            (d2, []),
+            (d1, unwrap(objs, BinStringOp1)),
+            (d2, unwrap(objs, BinStringOp2)),
           );
         hseps([mk_cast(doc1), mk_bin_string_op(op), mk_cast(doc2)]);
       | Cons(d1, d2) =>
