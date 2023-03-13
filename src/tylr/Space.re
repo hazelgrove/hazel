@@ -102,6 +102,14 @@ let unsnoc = (~char=false, s: t) =>
        }
      );
 
+// awkward fold bc empty space may contain path info
+// todo: make better
+let rec fold_left = (init, f_cons, f_nil, s) =>
+  switch (uncons(s)) {
+  | Some((hd, tl)) => fold_left(f_cons(init, hd), f_cons, f_nil, tl)
+  | None => f_nil(init, s)
+  };
+
 let split = (n, s) => {
   let (ps_l, ps_r) =
     s.paths

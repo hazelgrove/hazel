@@ -261,10 +261,10 @@ let bounds = (rel: t): (option(Terrace.R.t), option(Terrace.L.t)) => {
 let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
   let (p, rest) = Terrace.L.split_face(terr);
   switch (p.shape) {
-  | G(g) =>
+  | G(_) =>
     // todo: may need to remold?
     rel
-    |> cons(~onto=L, Terrace.of_piece(Piece.of_grout(g)))
+    |> cons(~onto=L, Terrace.of_piece(p))
     |> insert_up(~complement, Slope.Up.of_meld(rest))
   | T(t) =>
     switch (mold(t.token, rel)) {
@@ -278,7 +278,7 @@ let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
         | Ok(mold) => {...t, mold}
         };
       rel
-      |> cons(~onto=L, Terrace.of_piece(Piece.of_tile(t)))
+      |> cons(~onto=L, Terrace.of_piece(Piece.of_tile(~paths=p.paths, t)))
       |> insert_up(~complement, Slope.Up.of_meld(rest));
     }
   };
@@ -292,13 +292,19 @@ and insert_complement = (rel: t) => {
   |> List.fold_left(Fun.flip(insert_terr(~complement=false)), rel);
 }
 and insert_space = (~complement, s: Space.t, rel: t) =>
-  s.chars
-  |> List.fold_left(
-       (rel, s: Space.Char.t) =>
-         rel
-         |> (s.shape == Newline && complement ? insert_complement : Fun.id)
-         |> cons_space(~onto=L, Space.mk([s])),
+  s
+  |> Space.fold_left(
        rel,
+       (rel, s: Space.t) =>
+         rel
+         |> (
+           switch (s.chars) {
+           | [{shape: Newline, _}, ..._] when complement => insert_complement
+           | _ => Fun.id
+           }
+         )
+         |> cons_space(~onto=L, s),
+       Fun.flip(cons_space(~onto=L)),
      )
 and insert_up = (~complement, up: Slope.Up.t, rel: t): t =>
   up
