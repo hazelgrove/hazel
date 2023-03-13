@@ -32,7 +32,61 @@ let rec type_string = (ty: Haz3lcore.Typ.t): string =>
   | Sum(t1, t2) => type_string(t1) ++ "+" ++ type_string(t2)
   };
 
-let zipper_type_string = (zipper: Zipper.t, info_map: Statics.map) => {
+let extra_info_string =
+    (
+      id: int,
+      ci: Haz3lcore.Statics.t,
+    )
+    : string =>
+  {
+    string_of_int(id + 1) ++ ": " ++ CursorInspector.cls_str(ci)
+  };
+
+let error_string = (err: Haz3lcore.Statics.error) =>
+  switch (err) {
+  | Multi =>
+    "Multi Hole"
+  | Free(Variable) =>
+    "Variable is not bound"
+  | NoFun(typ) =>
+    "Not a function: " ++ type_string(typ)
+  | Free(TypeVariable) =>
+    "Type Variable is not bound"
+  | Free(Tag) =>
+    "Constructor is not defined"
+  | SynInconsistentBranches(tys) =>
+    "Expecting branches to have consistent types but got:" ++ String.concat(",", List.map(type_string, tys))
+  | TypeInconsistent(ty_syn, ty_ana) =>
+    "Expecting" ++ type_string(ty_ana) ++ "but found" ++ type_string(ty_syn)
+  };
+
+let happy_string = (suc: Haz3lcore.Statics.happy) => {
+  switch (suc) {
+  | SynConsistent(ty_syn) =>
+    "has type" ++ type_string(ty_syn)
+  | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
+    "has expected type" ++ type_string(ty_ana)
+  | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
+      switch (ty_syn) {
+      // A hack for EECS 490 A1
+      | Haz3lcore.Typ.Unknown(_) =>
+          "has expected type" ++ type_string(ty_ana)
+      | _ => "has type" ++ type_string(ty_syn) ++ "which is consistent with" ++ type_string(ty_ana)
+      }
+  | AnaInternalInconsistent(ty_ana, _)
+  | AnaExternalInconsistent(ty_ana, _) =>
+    "consistent external" ++ type_string(ty_ana)
+  };
+};
+
+let status_string = (err: Haz3lcore.Statics.error_status) => {
+  switch (err) {
+  | InHole(error) => error_string(error)
+  | NotInHole(happy) => happy_string(happy)
+  };
+};
+
+let cursor_inspector_string = (zipper: Zipper.t, info_map: Statics.map) => {
   let backpack = zipper.backpack;
   let alert_content =
     if (List.length(backpack) > 0) {
@@ -45,24 +99,23 @@ let zipper_type_string = (zipper: Zipper.t, info_map: Statics.map) => {
         switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
         | Some(ci) =>
           switch (ci) {
-          | Invalid(_)
-          | InfoPat(_)
-          | InfoTyp(_)
-          | InfoRul(_) => ""
+          | Invalid(msg) => "Error. " ++ Haz3lcore.TermBase.show_parse_flag(msg)
+          | InfoRul(_) => "Rule"
+          | InfoPat({mode, self, _})
           | InfoExp({mode, self, _}) =>
             let error_status = Haz3lcore.Statics.error_status(mode, self);
-            switch (error_status) {
-            | InHole(_) => ""
-            | NotInHole(happy) =>
-              switch (happy) {
-              | SynConsistent(typ) => type_string(typ)
-              | _ => ""
-              }
-            };
+            status_string(error_status)
+          | InfoTyp({self: Free(free_error), _}) =>
+            error_string(Free(free_error))
+          | InfoTyp({self: Just(ty), _}) =>
+            "typ is " ++ type_string(ty)
+          | InfoTyp({self: _, _}) =>
+            // TODO:error
+            "CursorInspector: Impossible type error"
           }
-        | None => ""
+        | None => "No information"
         }
-      | None => ""
+      | None => "No Indicated Index"
       };
     };
   alert_content;
@@ -146,7 +199,7 @@ let view =
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
 
-  let zipper_type = zipper_type_string(zipper, info_map);
+  let zipper_type = cursor_inspector_string(zipper, info_map);
   let editor = Editors.get_editor(model.editors);
   let action_str =
     switch (editor.history) {
