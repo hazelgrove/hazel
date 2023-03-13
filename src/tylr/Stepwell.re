@@ -314,6 +314,7 @@ let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
   };
 
 let regrout = rel => {
+  print_endline("Stepwell.regrout");
   let sib_of_g = g =>
     Slopes.mk(~r=Slope.Up.of_piece(Piece.of_grout(g)), ());
   let sib_of_l = t =>
