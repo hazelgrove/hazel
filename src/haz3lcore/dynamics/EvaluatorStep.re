@@ -278,11 +278,11 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
   | BinIntOp(op, d1, d2) =>
     let* r1 = transition(env, d1);
     switch (r1) {
-    | Step(d1') => Step(Closure(env, BinIntOp(op, d1', d2))) |> return
+    | Step(d1') => Step(BinIntOp(op, d1', d2)) |> return
     | BoxedValue(IntLit(n1) as d1') =>
       let* r2 = transition(env, d2);
       switch (r2) {
-      | Step(d2') => Step(Closure(env, BinIntOp(op, d1, d2'))) |> return
+      | Step(d2') => Step(BinIntOp(op, d1, d2')) |> return
       | BoxedValue(IntLit(n2)) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
