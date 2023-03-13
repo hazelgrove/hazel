@@ -274,7 +274,14 @@ let tip = (side: Dir.t, mel: t): option(Tip.t) => {
   };
 };
 
-let split_piece = (_, _) => failwith("todo Meld.split_piece");
+let split_piece = (n, mel) =>
+  try({
+    let c = Option.get(distribute(mel).chain);
+    let (l, p, r) = Chain.split_nth_link(n, c);
+    (aggregate(of_chain(l)), p, aggregate(of_chain(r)));
+  }) {
+  | Invalid_argument(_) => raise(Invalid_argument("Meld.split_piece"))
+  };
 
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
   open OptUtil.Syntax;
