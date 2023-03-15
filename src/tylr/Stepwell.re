@@ -596,7 +596,10 @@ let rec unzip = (~unzipped=empty, mel: Meld.t): t => {
   | None =>
     switch (Paths.hd_lex(paths)) {
     | Some(lex) => unzip_lex(lex, mel, unzipped)
-    | None => failwith("todo: unzipping selections")
+    | None =>
+      // failwith("todo: unzipping selections")
+      print_endline("zero or multiple paths found");
+      unzip_end(~unzipped, L, mel);
     }
   };
 };
