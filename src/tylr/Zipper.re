@@ -80,12 +80,15 @@ let delete = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
   let (lexed, rel) = z.rel |> Stepwell.assemble |> Stepwell.relex;
+  // selection dropped
   mk(Stepwell.insert(lexed, rel));
 };
 
 let insert = (s: string, z: t): t => {
   print_endline("Zipper.insert");
-  let (lexed, rel) = z.rel |> Stepwell.assemble |> Stepwell.relex(~insert=s);
+  let rel = Selection.is_empty(z.sel) ? z.rel : Stepwell.assemble(z.rel);
+  let (lexed, rel) = Stepwell.relex(~insert=s, rel);
+  // selection (if any) dropped
   mk(Stepwell.insert(lexed, rel));
 };
 
