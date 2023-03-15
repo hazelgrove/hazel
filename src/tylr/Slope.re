@@ -68,15 +68,15 @@ module Dn = {
     | [hd, ...tl] =>
       // left-to-right: tl hd kid terr
       switch (Terrace.cmp(hd, ~kid, terr)) {
-      | Some(Lt(kid_terr)) => Ok(cat(of_meld(kid_terr), mk(dn.terrs)))
-      | Some(Eq(hd_kid_terr)) => Ok(cat(of_meld(hd_kid_terr), mk(tl)))
+      | Some(Lt(kid_terr)) => Ok(cat(mk(dn.terrs), of_meld(kid_terr)))
+      | Some(Eq(hd_kid_terr)) => Ok(cat(mk(tl), of_meld(hd_kid_terr)))
       | Some(Gt(hd_kid)) => snoc(mk(tl), ~kid=hd_kid, terr)
       | None =>
         let s =
           Meld.is_empty(kid)
           |> OptUtil.get_or_raise(Invalid_argument("Slope.Dn.cons_terr"));
         let hd_terr = Terrace.in_(hd, ~s, terr);
-        Ok(cat(of_meld(hd_terr), mk(tl)));
+        Ok(cat(mk(tl), of_meld(hd_terr)));
       }
     };
   };
