@@ -163,7 +163,7 @@ let lst_mold = (p: t, cmpl: Complement.t) =>
   |> Option.map(snd)
   |> Option.value(~default=mold(p));
 
-let lt = (l: t, r: t): option(((Sort.o, Prec.t), Complement.t)) => {
+let lt = (l: t, r: t): option(Complement.t) => {
   open OptUtil.Syntax;
   let* (s_l, p_l) = Mold.concavable(R, mold(l));
   let* _ = LangUtil.takes(s_l, sort(r));
@@ -172,11 +172,11 @@ let lt = (l: t, r: t): option(((Sort.o, Prec.t), Complement.t)) => {
   | Some((s_r, p_r))
       when Sort.eq(s_l, s_r) && !Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r) =>
     None
-  | _ => Some(((s_l, p_l), cmpl))
+  | _ => Some(cmpl)
   };
 };
 
-let gt = (l: t, r: t): option((Complement.t, (Sort.o, Prec.t))) => {
+let gt = (l: t, r: t): option(Complement.t) => {
   open OptUtil.Syntax;
   let* (s_r, p_r) = Mold.concavable(L, mold(r));
   let* _ = LangUtil.takes(s_r, sort(l));
@@ -185,6 +185,6 @@ let gt = (l: t, r: t): option((Complement.t, (Sort.o, Prec.t))) => {
   | Some((s_l, p_l))
       when Sort.eq(s_l, s_r) && !Prec.gt(~a=LangUtil.assoc(s_l), p_l, p_r) =>
     None
-  | _ => Some((cmpl, (s_r, p_r)))
+  | _ => Some(cmpl)
   };
 };

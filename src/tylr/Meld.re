@@ -146,6 +146,7 @@ let is_empty = (mel: t) =>
     let (l, r) = distribute(mel).space;
     Some(Space.cat(l, r));
   };
+let is_empty_ = mel => Option.is_some(is_empty(mel));
 
 let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
   of_chain(Chain.mk([l, r], [p])) |> aggregate;
@@ -228,7 +229,7 @@ let unknil = mel =>
     |> Result.of_option(~error=Some(Chain.lst(c)))
   };
 
-let patch = (s: Sort.o, mel: t) =>
+let patch_sort = (s: Sort.o, mel: t) =>
   switch (sort(mel)) {
   | None => of_grout(Grout.mk_operand(None))
   | Some(s') when Sort.eq(s, s') => mel
@@ -240,6 +241,29 @@ let patch = (s: Sort.o, mel: t) =>
       // todo: confirm use of prec max here is ok
       ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
       : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
+  };
+
+let patch = (~l=?, ~r=?, mel: t): t =>
+  switch (l, r) {
+  | (None, None) => mel
+  | (Some(l), _) =>
+    let m = Piece.mold(l);
+    if (Mold.convexable(R, m) && is_empty_(mel)) {
+      mel;
+    } else {
+      let (s, _) =
+        Mold.concavable(R, m) |> OptUtil.get_or_raise(Invalid_prec);
+      patch_sort(s, mel);
+    };
+  | (_, Some(r)) =>
+    let m = Piece.mold(r);
+    if (Mold.convexable(L, m) && is_empty_(mel)) {
+      mel;
+    } else {
+      let (s, _) =
+        Mold.concavable(L, m) |> OptUtil.get_or_raise(Invalid_prec);
+      patch_sort(s, mel);
+    };
   };
 
 let append = (_, _, _) => failwith("todo append");

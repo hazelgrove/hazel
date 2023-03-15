@@ -62,6 +62,8 @@ let tip = (d: Dir.t, m: t): Tip.t =>
 let must_match = (d: Dir.t, m: t): bool =>
   Gram.Frame.must_match(d, m.frames);
 
+let convexable = (side, m) => List.mem(Tip.Convex, tips(side, m));
+
 let concavable = (side, m) =>
   m
   |> tips(side)

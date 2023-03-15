@@ -18,15 +18,9 @@ let prec = wal => Piece.prec(Chain.fst(wal));
 
 // precond: p eq wal
 let link = (p, ~kid=Meld.empty(), wal) =>
-  switch (Mold.concavable(R, Piece.mold(p))) {
-  | None => raise(Invalid_argument("Wald.link"))
-  | Some((s, _)) => Chain.link(p, Meld.patch(s, kid), wal)
-  };
+  Chain.link(p, Meld.patch(~l=p, kid), wal);
 let knil = (wal, ~kid=Meld.empty(), p) =>
-  switch (Mold.concavable(L, Piece.mold(p))) {
-  | None => raise(Invalid_argument("Wald.knil"))
-  | Some((s, _)) => Chain.knil(wal, Meld.patch(s, kid), p)
-  };
+  Chain.knil(wal, Meld.patch(kid, ~r=p), p);
 
 let append = (l: t, ~kid=Meld.empty(), r: t) =>
   l |> Chain.fold_right((p, kid) => link(p, ~kid), p => link(p, ~kid, r));
@@ -119,27 +113,23 @@ let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
 };
 
 let lt = (l: t, ~kid=Meld.empty(), r: t): option((Meld.t, t)) => {
-  let (p_l, p_r) = (face(R, l), face(L, r));
-  Piece.lt(p_l, p_r)
-  |> Option.map((((s, _), cmpl)) =>
-       switch (of_complement(cmpl)) {
-       | None => (Meld.patch(s, kid), r)
-       | Some(wal) =>
-         let end_kid = Meld.patch(s, Meld.empty());
-         (end_kid, append(wal, ~kid, r));
-       }
-     );
+  open OptUtil.Syntax;
+  let+ cmpl = Piece.lt(face(R, l), face(L, r));
+  let (kid, cmpl_r) =
+    switch (of_complement(cmpl)) {
+    | None => (kid, r)
+    | Some(wal) => (Meld.empty(), append(wal, ~kid, r))
+    };
+  (Meld.patch(kid, ~r=face(L, cmpl_r)), cmpl_r);
 };
 
 let gt = (l: t, ~kid=Meld.empty(), r: t): option((t, Meld.t)) => {
-  let (p_l, p_r) = (face(R, l), face(L, r));
-  Piece.gt(p_l, p_r)
-  |> Option.map(((cmpl, (s, _))) =>
-       switch (of_complement(cmpl)) {
-       | None => (l, Meld.patch(s, kid))
-       | Some(wal) =>
-         let end_kid = Meld.patch(s, Meld.empty());
-         (append(l, ~kid, wal), end_kid);
-       }
-     );
+  open OptUtil.Syntax;
+  let+ cmpl = Piece.gt(face(R, l), face(L, r));
+  let (l_cmpl, kid) =
+    switch (of_complement(cmpl)) {
+    | None => (l, kid)
+    | Some(wal) => (append(l, ~kid, wal), Meld.empty())
+    };
+  (l_cmpl, Meld.patch(~l=face(R, l_cmpl), kid));
 };
