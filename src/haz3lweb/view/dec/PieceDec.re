@@ -81,15 +81,22 @@ let simple_shard =
       ~has_caret,
       ~shapes,
       ~sort,
-      ~measurement as {origin, last}: Measured.measurement,
+      ~measurement: Measured.measurement,
     )
     : t => {
-  let path = simple_shard_path(shapes, last.col - origin.col);
+  let path =
+    simple_shard_path(shapes, measurement.last.col - measurement.origin.col);
   let path_cls =
     ["tile-path", "raised", Sort.to_string(sort)]
     @ (has_caret ? ["indicated-caret"] : ["indicated"]);
   let base_cls = ["tile-indicated"];
-  DecUtil.code_svg(~font_metrics, ~origin, ~base_cls, ~path_cls, path);
+  DecUtil.code_svg_sized(
+    ~font_metrics,
+    ~measurement,
+    ~base_cls,
+    ~path_cls,
+    path,
+  );
 };
 
 let simple_shards =
@@ -116,9 +123,9 @@ let simple_shard_child =
   let nib_shapes = Mold.nib_shapes(mold);
   let path = simple_shard_path(nib_shapes, last.col - origin.col);
   let clss = ["indicated-child", Sort.to_string(mold.out)];
-  DecUtil.code_svg(
+  DecUtil.code_svg_sized(
     ~font_metrics,
-    ~origin,
+    ~measurement={origin, last},
     ~path_cls=clss,
     ~base_cls=["child-backing"],
     path,
@@ -150,9 +157,9 @@ let chunky_shard =
   let path =
     chunky_shard_path({origin, last}, (nib_l, nib_r), indent_col, max_col);
   let clss = ["tile-path", "selected", "raised"];
-  DecUtil.code_svg(
+  DecUtil.code_svg_sized(
     ~font_metrics,
-    ~origin,
+    ~measurement={origin, last},
     ~base_cls=["tile-selected"],
     ~path_cls=clss,
     path,
