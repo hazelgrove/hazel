@@ -12,7 +12,7 @@ let view =
       ~show_backpack_targets,
       ~mousedown,
       ~editor: Editor.t,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~langDocMessages: LangDocMessages.t,
       ~result: ModelResult.simple,
     ) => {

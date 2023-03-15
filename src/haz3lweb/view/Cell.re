@@ -104,15 +104,28 @@ let code_cell_view =
               @ (selected ? ["selected"] : ["deselected"]),
             ),
             Attr.on_mousedown(evt =>
-              JsUtil.is_double_click(evt)
-                ? inject(Update.PerformAction(Select(Term(Current))))
-                : mousedown_handler(
-                    ~inject,
-                    ~font_metrics,
-                    ~target_id=code_id,
-                    ~additional_updates=mousedown_updates,
-                    evt,
-                  )
+              switch (JsUtil.ctrl_held(evt), JsUtil.is_double_click(evt)) {
+              | (true, _) =>
+                let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
+
+                let events = [
+                  inject(PerformAction(Move(Goal(goal)))),
+                  inject(
+                    Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
+                  ),
+                ];
+                Virtual_dom.Vdom.Effect.Many(events);
+              | (false, false) =>
+                mousedown_handler(
+                  ~inject,
+                  ~font_metrics,
+                  ~target_id=code_id,
+                  ~additional_updates=mousedown_updates,
+                  evt,
+                )
+              | (false, true) =>
+                inject(Update.PerformAction(Select(Term(Current))))
+              }
             ),
           ]),
         Option.to_list(caption) @ code,
@@ -257,7 +270,7 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -321,7 +334,7 @@ let editor_with_result_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
