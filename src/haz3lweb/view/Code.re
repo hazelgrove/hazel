@@ -35,14 +35,14 @@ let of_grout = [Node.text(Unicode.nbsp)];
 let of_secondary =
   Core.Memo.general(
     ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
-    if (String.equal(Secondary.get_string(content), Secondary.linebreak)) {
-      let str = secondary_icons ? Secondary.linebreak : "";
+    if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+      let str = secondary_icons ? Form.linebreak : "";
       [
         span_c("linebreak", [text(str)]),
         Node.br(),
         Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
       ];
-    } else if (String.equal(Secondary.get_string(content), Secondary.space)) {
+    } else if (String.equal(Secondary.get_string(content), Form.space)) {
       let str = secondary_icons ? "·" : Unicode.nbsp;
       [span_c("secondary", [text(str)])];
     } else if (Secondary.content_is_comment(content)) {
@@ -54,7 +54,7 @@ let of_secondary =
 
 module Text = (M: {
                  let map: Measured.t;
-                 let settings: Model.settings;
+                 let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
@@ -116,7 +116,7 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
+let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
   module Text =
     Text({
       let map = map;
@@ -134,7 +134,7 @@ let view =
       ~segment,
       ~unselected,
       ~measured,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
     )
     : Node.t => {
   module Text =
