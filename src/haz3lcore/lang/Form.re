@@ -79,23 +79,18 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let is_triv = str => str == "triv";
 let is_bool = str => str == "true" || str == "false";
-let is_listnil = str => str == "nil";
-let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
+let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
-let is_typ_var = is_capitalized_name;
 let is_concrete_typ = str =>
-  str == "String"
-  || str == "Int"
-  || str == "Float"
-  || str == "Bool"
-  || str == "Unit";
+  str == "String" || str == "Int" || str == "Float" || str == "Bool";
+let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
+
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
@@ -106,7 +101,39 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
-let is_string_delim = str => str == string_delim;
+let is_string_delim = (==)(string_delim);
+
+/* List literals */
+let list_start = "[";
+let list_end = "]";
+let listlit_lbl = [list_start, list_end];
+let empty_list = list_start ++ list_end;
+let is_empty_list = (==)(empty_list);
+
+/* Tuples */
+let tuple_start = "(";
+let tuple_end = ")";
+let tuple_lbl = [tuple_start, tuple_end];
+let empty_tuple = tuple_start ++ tuple_end;
+let is_empty_tuple = (==)(empty_tuple);
+
+/* These functions determine which forms can switch back and forth between
+   mono and duotile forms, like list literals and tuples switching to/from
+   the empty list and empty tuple. Technically this should be derivable from
+   the language data; leaving that for a future refactor. */
+let duosplits = (t: Token.t): Label.t =>
+  switch () {
+  | _ when is_empty_list(t) => listlit_lbl
+  | _ when is_empty_tuple(t) => tuple_lbl
+  | _ => []
+  };
+
+let duomerges = (lbl: Label.t): option(Label.t) =>
+  switch () {
+  | _ when lbl == listlit_lbl => Some([empty_list])
+  | _ when lbl == tuple_lbl => Some([empty_tuple])
+  | _ => None
+  };
 
 /* Whitelist: A regexp determining any other chars, not occuring in specific forms,
    which we want to let through. right now, this means that we'll be able to use
@@ -137,12 +164,15 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
-  ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
+  (
+    "empty_tuple",
+    (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
+  ),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
-  ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
