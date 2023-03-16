@@ -180,3 +180,9 @@ installed: [
   "yojson.2.0.2"
   "zed.3.2.1"
 ]
+pinned: [
+  "async_js.v0.15.1"
+  "incr_dom.v0.15.1"
+  "sexplib.v0.15.1"
+  "virtual_dom.v0.15.1"
+]
