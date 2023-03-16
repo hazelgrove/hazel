@@ -1,5 +1,5 @@
 let slide : ScratchSlide.persistent_state =
-  ( 3570,
+  ( 3588,
     {
       zipper =
         "((selection((focus \
@@ -664,9 +664,8 @@ let slide : ScratchSlide.persistent_state =
          Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
          2348)(content(Whitespace\" \")))))((Secondary((id \
-         2351)(content(Whitespace\" \"))))(Tile((id \
-         2354)(label(nil))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
-         Exp))((shape Convex)(sort \
+         2351)(content(Whitespace\" \"))))(Tile((id 2354)(label([]))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          2357)(content(Whitespace\" \")))))))))(Secondary((id \
          2359)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
@@ -702,7 +701,7 @@ let slide : ScratchSlide.persistent_state =
          2404)(label(::))(mold((out Exp)(in_())(nibs(((shape(Concave 6))(sort \
          Exp))((shape(Concave 6))(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
-         2407)(label(nil))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         2407)(label([]))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          2410)(content(Whitespace\" \")))))))))(Secondary((id \
@@ -783,7 +782,7 @@ let slide : ScratchSlide.persistent_state =
          2516)(label(| =>))(mold((out Rul)(in_(Pat))(nibs(((shape(Concave \
          19))(sort Exp))((shape(Concave 19))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id 2518)(content(Whitespace\" \
-         \"))))(Tile((id 2521)(label(nil))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 2521)(label([]))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          2522)(content(Whitespace\" \")))))))))(Secondary((id \
@@ -870,7 +869,7 @@ let slide : ScratchSlide.persistent_state =
          2647)(label(| =>))(mold((out Rul)(in_(Pat))(nibs(((shape(Concave \
          19))(sort Exp))((shape(Concave 19))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id 2649)(content(Whitespace\" \
-         \"))))(Tile((id 2652)(label(nil))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 2652)(label([]))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          2653)(content(Whitespace\" \")))))))))(Secondary((id \
@@ -888,7 +887,7 @@ let slide : ScratchSlide.persistent_state =
          2670)(label(::))(mold((out Pat)(in_())(nibs(((shape(Concave 6))(sort \
          Pat))((shape(Concave 6))(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         2673)(label(nil))(mold((out Pat)(in_())(nibs(((shape Convex)(sort \
+         2673)(label([]))(mold((out Pat)(in_())(nibs(((shape Convex)(sort \
          Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          2674)(content(Whitespace\" \")))))))))(Secondary((id \
@@ -911,7 +910,7 @@ let slide : ScratchSlide.persistent_state =
          2694)(label(::))(mold((out Pat)(in_())(nibs(((shape(Concave 6))(sort \
          Pat))((shape(Concave 6))(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
-         2697)(label(nil))(mold((out Pat)(in_())(nibs(((shape Convex)(sort \
+         2697)(label([]))(mold((out Pat)(in_())(nibs(((shape Convex)(sort \
          Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          2698)(content(Whitespace\" \")))))))))(Secondary((id \
@@ -1042,22 +1041,22 @@ let slide : ScratchSlide.persistent_state =
          else double_recursively(n - 1) + 2   \n\
          in\n\n\
          # Lists #\n\
-         let empty_list : [Int] = nil in\n\
-         let non_empty_list : [Int] = 1::2::3::nil in\n\
+         let empty_list : [Int] = [] in\n\
+         let non_empty_list : [Int] = 1::2::3::[] in\n\
          let list_literals : [Int] = [1, 2, 3] in\n\
          let length : [Int] -> Int =\n\
          fun xs ->\n\
          case xs\n\
-         | nil => 0\n\
+         | [] => 0\n\
          | hd::tl => 1 + length(tl)   \n\
          end   \n\
          in\n\
          let has_at_least_two_elements : [Int] -> Bool =\n\
          fun xs ->\n\
          case xs\n\
-         | nil => false\n\
-         | hd::nil => false\n\
-         | a::b::nil => true   \n\
+         | [] => false\n\
+         | hd::[] => false\n\
+         | a::b::[] => true   \n\
          end   \n\
          in\n\n\
          # Strings #\n\
