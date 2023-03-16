@@ -89,6 +89,11 @@ let update_siblings: (Siblings.t => Siblings.t, t) => t =
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
+let delete_parent = (z: t): t => {
+  ...z,
+  relatives: Relatives.delete_parent(z.relatives),
+};
+
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 

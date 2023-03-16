@@ -39,17 +39,45 @@ let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
   | _ => Some(s)
   };
 
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
+let get_duo_shard = ({label, shards, _}: Tile.t) =>
+  if (List.length(label) == 2 && List.length(shards) == 1) {
+    List.nth_opt(label, List.hd(shards));
+  } else {
+    None;
+  };
+
+let neighbor_can_duomerge =
+    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
+  /* Checks if a neighbor, preferentially the left neighbor, is
+     a shard of a duotile which can be merged to form a monotile.
+     It returns the resulting (mono)label, and the direction of
+     the relevant neighbor. */
+  switch (Siblings.neighbors(s)) {
+  | (Some(Tile(tile)), _) =>
+    let* start = get_duo_shard(tile);
+    let+ mono_lbl = Form.duomerges([start, t]);
+    (mono_lbl, Direction.Left);
+  | (_, Some(Tile(tile))) =>
+    let* last = get_duo_shard(tile);
+    let+ mono_lbl = Form.duomerges([t, last]);
+    (mono_lbl, Direction.Right);
+  | _ => None
+  };
+
+let make_new_tile = (t: Token.t, caret: Direction.t, z: t, id_gen): state =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  switch (put_down(Left, z)) {
-  | Some(z') when Molds.is_instant(t) && Backpack.will_barf(t, z.backpack) =>
-    IdGen.return(z')
-  | _ =>
-    let (lbl, backpack) = Molds.instant_expansion(t);
-    construct(~caret, ~backpack, lbl, z);
-  };
+  Backpack.will_barf(t, z.backpack)
+    ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
+      | Some((lbl, d)) =>
+        Zipper.replace(~caret=d, ~backpack=d, lbl, (z, id_gen)) |> Option.get
+      | None => (put_down(caret, z) |> Option.get, id_gen)
+      }
+    : {
+      let (lbl, backpack) = Molds.instant_expansion(t);
+      construct(~caret, ~backpack, lbl, z, id_gen);
+    };
 
 let expand_neighbors_and_make_new_tile =
     (char: Token.t, state: state): option(state) => {
@@ -104,14 +132,36 @@ let insert_outer = (char: string, (z, _) as state: state): option(state) =>
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
+let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
+  z
+  |> Option.map(z =>
+       Zipper.construct(~caret=Left, ~backpack=Left, lbl, z, id_gen)
+     )
+  |> OptUtil.and_then(((z, id_gen)) =>
+       Zipper.put_down(Left, z)  //TODO(andrew): direction?
+       |> OptUtil.and_then(Zipper.move(Left))
+       |> Option.map(z => (z, id_gen))
+     );
+
+let insert_monos =
+    (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
+  z
+  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))
+  |> Option.map(((z, id_gen)) => Zipper.construct_mono(Left, l, z, id_gen));
+
 let split =
     ((z, id_gen): state, char: string, idx: int, t: Token.t): option(state) => {
   let (l, r) = Token.split_nth(idx, t);
   z
   |> Zipper.set_caret(Outer)
   |> Zipper.select(Right)
-  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))  //overwrite right
-  |> Option.map(((z, id_gen)) => Zipper.construct_mono(Left, l, z, id_gen))
+  |> (
+    /* overwrite selection */
+    switch (Form.duomerges([l, r])) {
+    | Some(_) => insert_duo(id_gen, [l, r])
+    | None => insert_monos(id_gen, l, r)
+    }
+  )
   |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
 };
 

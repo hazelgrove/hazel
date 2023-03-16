@@ -186,22 +186,21 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["triv"], []) => ret(Triv)
-      | (["true"], []) => ret(Bool(true))
-      | (["false"], []) => ret(Bool(false))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+      | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
+      | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_string(t) => ret(String(t))
+      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+      | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_tag(t) => ret(Tag(t))
-      | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (["nil"], []) => ret(ListLit([]))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
+      | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
           Match(scrut, rules),
           ids,
@@ -293,26 +292,27 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
-      switch (tile) {
-      | (["triv"], []) => ret(Triv)
-      | (["true"], []) => ret(Bool(true))
-      | (["false"], []) => ret(Bool(false))
-      | (["(", ")"], [Pat(body)]) => ret(Parens(body))
-      | (["[", "]"], [Pat(body)]) =>
-        switch (body) {
-        | {ids, term: Tuple(ps)} => (ListLit(ps), ids)
-        | term => ret(ListLit([term]))
-        }
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
-      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
-      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_wild(t) => ret(Wild)
-      | ([t], []) when Form.is_listnil(t) => ret(ListLit([]))
-      | ([t], []) when Form.is_string(t) => ret(String(t))
-      | ([t], []) when t != " " => ret(Invalid(t))
-      | _ => ret(hole(tm))
-      }
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_empty_tuple(t) => Triv
+        | ([t], []) when Form.is_empty_list(t) => ListLit([])
+        | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
+        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
+        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
+        | ([t], []) when Form.is_string(t) => String(t)
+        | ([t], []) when Form.is_var(t) => Var(t)
+        | ([t], []) when Form.is_wild(t) => Wild
+        | ([t], []) when Form.is_tag(t) => Tag(t)
+        | ([t], []) when t != " " => Invalid(t)
+        | (["(", ")"], [Pat(body)]) => Parens(body)
+        | (["[", "]"], [Pat(body)]) =>
+          switch (body) {
+          | {term: Tuple(ps), _} => ListLit(ps)
+          | term => ListLit([term])
+          }
+        | _ => hole(tm)
+        },
+      )
     | _ => ret(hole(tm))
     }
   | Post(Pat(l), tiles) as tm =>
@@ -355,18 +355,20 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
-      switch (tile) {
-      | (["Unit"], []) => ret(Tuple([]))
-      | (["Bool"], []) => ret(Bool)
-      | (["Int"], []) => ret(Int)
-      | (["Float"], []) => ret(Float)
-      | (["String"], []) => ret(String)
-      | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
-      | (["(", ")"], [Typ(body)]) => ret(Parens(body))
-      | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | ([t], []) when t != " " => ret(Invalid(t))
-      | _ => ret(hole(tm))
-      }
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
+        | (["Bool"], []) => Bool
+        | (["Int"], []) => Int
+        | (["Float"], []) => Float
+        | (["String"], []) => String
+        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (["[", "]"], [Typ(body)]) => List(body)
+        | ([t], []) when t != " " => Invalid(t)
+        | _ => hole(tm)
+        },
+      )
     | _ => ret(hole(tm))
     }
   | Post(Typ(t), tiles) as tm =>
