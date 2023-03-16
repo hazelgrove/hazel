@@ -54,6 +54,16 @@ let parent =
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
 
+let delete_parent = ({siblings, ancestors}: t): t => {
+  switch (ancestors) {
+  | [] => {siblings, ancestors}
+  | [(_, p_sibs), ...ancestors] => {
+      siblings: Siblings.concat([siblings, p_sibs]),
+      ancestors,
+    }
+  };
+};
+
 let disassemble = ({siblings, ancestors}: t): Siblings.t =>
   Siblings.concat([siblings, Ancestors.disassemble(ancestors)]);
 
