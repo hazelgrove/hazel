@@ -169,3 +169,9 @@ installed: [
   "xdg.3.3.1"
   "yojson.1.7.0"
 ]
+pinned: [
+  "async_js.v0.15.1"
+  "incr_dom.v0.15.1"
+  "sexplib.v0.15.1"
+  "virtual_dom.v0.15.1"
+]
