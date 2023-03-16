@@ -133,7 +133,36 @@ For a smoother dev experience, use `make watch` to automatically watch
 for file changes. This will require installing `fswatch` (see INSTALL.md).
 You can also run `make watch-release` to continuously build the release
 build (takes longer per build).
-   
+
+#### Clean Build
+
+To obtain an clean build, you may need to:
+
+- Clone the repository (if you have not), and
+  enter the project root of your cloned Hazel project.
+
+  ```sh
+  git clone git@github.com:hazelgrove/hazel.git
+  cd hazel
+  ```
+
+- Setup a local OCaml environment specific to the project, and compile.
+  If you have setup a local OCaml environment (there is a directory
+  called `_opam`), you may want to first remove it.
+
+  ```sh
+  # opam switch remove ./
+  opam switch create ./ 4.14.0
+  eval $(opam env)
+  make deps
+  make
+  ```
+
+This sets up a standalone OCaml environment in the cloned project,
+independent of the one you sent in your home directory. This allow you to
+alternate dependencies, or test dependencies changes, without affect
+existing OCaml projects.
+
 ### Debugging
 
 #### Printing
