@@ -39,7 +39,7 @@ let lang_doc_toggle = (~inject, ~show_lang_doc) => {
   );
 };
 
-let term_tag = (~inject, ~settings: Model.settings, ~show_lang_doc, ci) =>
+let term_tag = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) =>
   div(
     ~attr=
       clss(["term-tag", sort_cls(ci), status_cls(Info.status_cls(ci))]),
@@ -172,7 +172,9 @@ let tpat_view: Info.status_tpat => t =
   | NotInHole(Empty) => view_ok([text("Enter a new type alias")])
   | NotInHole(Var(name)) =>
     view_ok([Type.alias_view(name), text("is a new type alias")])
-  | InHole(NotAVar) => view_err([text("Not a valid type name")]);
+  | InHole(NotAVar) => view_err([text("Not a valid type name")])
+  | InHole(ShadowsBaseType(name)) =>
+    view_err([text("Can't shadow base type"), Type.view(Var(name))]);
 
 let view_of_info_sort: Statics.Info.t => Node.t =
   fun
@@ -216,7 +218,7 @@ let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
 let view =
     (
       ~inject,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,

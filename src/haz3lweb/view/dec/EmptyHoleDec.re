@@ -24,8 +24,7 @@ let path = (tip_l, tip_r, offset, s: float) => {
   );
 };
 
-let view =
-    (~font_metrics, {measurement: {origin, _}, mold}: Profile.t): Node.t => {
+let view = (~font_metrics, {measurement, mold}: Profile.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
   let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
@@ -34,9 +33,9 @@ let view =
     {sort, shape: tip_l},
     {sort, shape: tip_r},
   );
-  DecUtil.code_svg(
+  DecUtil.code_svg_sized(
     ~font_metrics,
-    ~origin,
+    ~measurement,
     ~base_cls=["empty-hole"],
     ~path_cls=["empty-hole-path", c_cls],
     path(tip_l, tip_r, 0., 0.28),
