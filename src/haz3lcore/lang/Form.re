@@ -90,18 +90,27 @@ let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
+let is_livelit = t =>
+  switch (Livelit.find_livelit(t)) {
+  | Some(_) => true
+  | _ => false
+  };
+let is_unknown_livelit = str => {
+  regexp("^[\\^]([a-z][A-Za-z0-9_]*)?$", str) && !is_livelit(str);
+};
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
+  is_bad_int(str)
+  || is_bad_float(str)
+  || is_partial_concrete_typ(str)
+  || is_unknown_livelit(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
-
-let is_livelit = t => regexp("^[\\^]\\([a-z][A-Za-z0-9_]*\\)?$", t);
 
 let string_delim = "\"";
 let is_string_delim = (==)(string_delim);
@@ -286,10 +295,10 @@ let is_delim = t => List.mem(t, delims);
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 
 let is_valid_char = t =>
-  is_valid_token(t)
-  || is_string_delim(t)
-  || is_comment_delim(t)
-  || is_whitelisted_char(t);
+    is_valid_token(t)
+    || is_string_delim(t)
+    || is_comment_delim(t)
+    || is_whitelisted_char(t);
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
