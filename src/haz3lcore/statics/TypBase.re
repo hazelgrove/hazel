@@ -48,26 +48,34 @@ type mode =
   | Syn
   | Ana(t);
 
-let rec incr = (ty: t, i: int): t => {
+let rec incr = (~depth=0, ty: t, i: int): t => {
+  let recurse = incr(~depth);
   switch (ty) {
-  | Var({item: Some(j), name}) => Var({item: Some(i + j), name})
+  | Var({item: Some(k), name}) =>
+    Var({
+      item:
+        /* The variable is free and should not be incremented if k < depth */
+        Some(k < depth ? k : i + k),
+      name,
+    })
   | Var(_) => ty
-  | List(ty) => List(incr(ty, i))
-  | Arrow(ty1, ty2) => Arrow(incr(ty1, i), incr(ty2, i))
+  | List(ty) => List(recurse(ty, i))
+  | Arrow(ty1, ty2) => Arrow(recurse(ty1, i), recurse(ty2, i))
   | Sum(map) =>
     Sum(
       VarMap.map(
         ((_, ty)) =>
           switch (ty) {
-          | Some(ty) => Some(incr(ty, i))
+          | Some(ty) => Some(recurse(ty, i))
           | None => None
           },
         map,
       ),
     )
-  | Prod(tys) => Prod(List.map(ty => incr(ty, i), tys))
-  | Rec({item, name}) => Rec({item: incr(item, i), name})
-  | Forall({item, name}) => Forall({item: incr(item, i), name})
+  | Prod(tys) => Prod(List.map(ty => recurse(ty, i), tys))
+  | Rec({item, name}) => Rec({item: recurse(item, i), name})
+  | Forall({item, name}) =>
+    Forall({item: incr(~depth=depth + 1, item, i), name})
   | Int => Int
   | Float => Float
   | Bool => Bool
