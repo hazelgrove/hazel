@@ -235,7 +235,7 @@ let deco =
     | (Some(expandable), _) => [
         Deco.term_decoration(
           ~id=expandable,
-          ((origin, path)) => {
+          ((origin, _, path)) => {
             let specificity_pos =
               Printf.sprintf(
                 "position: absolute; top: %fpx;",

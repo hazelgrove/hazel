@@ -94,16 +94,6 @@ let code_cell_view =
     | None => []
     | Some(node) => [node]
     };
-  let on_mousedown = evt =>
-    JsUtil.is_double_click(evt)
-      ? inject(Update.PerformAction(Select(Term(Current))))
-      : mousedown_handler(
-          ~inject,
-          ~font_metrics,
-          ~target_id=code_id,
-          ~additional_updates=mousedown_updates,
-          evt,
-        );
   Node.div(
     ~attr=Attr.class_("cell-container"),
     [
@@ -114,7 +104,30 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(on_mousedown),
+            Attr.on_mousedown(evt =>
+              switch (JsUtil.ctrl_held(evt), JsUtil.is_double_click(evt)) {
+              | (true, _) =>
+                let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
+
+                let events = [
+                  inject(PerformAction(Move(Goal(goal)))),
+                  inject(
+                    Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
+                  ),
+                ];
+                Virtual_dom.Vdom.Effect.Many(events);
+              | (false, false) =>
+                mousedown_handler(
+                  ~inject,
+                  ~font_metrics,
+                  ~target_id=code_id,
+                  ~additional_updates=mousedown_updates,
+                  evt,
+                )
+              | (false, true) =>
+                inject(Update.PerformAction(Select(Term(Current))))
+              }
+            ),
           ]),
         Option.to_list(caption) @ code,
       ),
