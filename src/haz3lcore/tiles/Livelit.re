@@ -28,3 +28,16 @@ let find_livelit = (livelit_name: string): option(t) =>
   | "^checkbox" => Some(checkbox)
   | _ => None
   };
+
+let elaborate_livelit =
+    (livelit_name: string, uexp_id: int, livelit_state: Id.Map.t(DHExp.t))
+    : option(DHExp.t) => {
+  switch (Id.Map.find_opt(uexp_id, livelit_state)) {
+  | Some(t) => Some(t)
+  | None =>
+    switch (find_livelit(livelit_name)) {
+    | Some(l) => Some(l.default)
+    | None => None
+    }
+  };
+};

@@ -279,15 +279,11 @@ let rec dhexp_of_uexp =
         | _ => ConsistentCase(d)
         };
       | LivelitAp({livelit_name}) =>
-        let id = Term.UExp.rep_id(uexp);
-        switch (Id.Map.find_opt(id, livelit_state)) {
-        | Some(t) => Some(t)
-        | None =>
-          switch (Livelit.find_livelit(livelit_name)) {
-          | Some(l) => Some(l.default)
-          | None => None
-          }
-        };
+        Livelit.elaborate_livelit(
+          livelit_name,
+          Term.UExp.rep_id(uexp),
+          livelit_state,
+        )
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut, livelit_state);
         let+ d_rules =

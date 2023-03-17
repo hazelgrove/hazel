@@ -295,10 +295,10 @@ let is_delim = t => List.mem(t, delims);
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 
 let is_valid_char = t =>
-    is_valid_token(t)
-    || is_string_delim(t)
-    || is_comment_delim(t)
-    || is_whitelisted_char(t);
+  is_valid_token(t)
+  || is_string_delim(t)
+  || is_comment_delim(t)
+  || is_whitelisted_char(t);
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
