@@ -116,7 +116,7 @@ let zipper_of_string =
     ((Zipper.t, IdGen.state), string) => (Zipper.t, IdGen.state) =
     ((z, id_gen), c) => {
       switch (
-        Perform.go_z(Insert(c == "\n" ? Secondary.linebreak : c), z, id_gen)
+        Perform.go_z(Insert(c == "\n" ? Form.linebreak : c), z, id_gen)
       ) {
       | Error(err) =>
         print_endline(
