@@ -296,6 +296,7 @@ body,
 /* TOP BAR */
 
 #top-bar {
+  z-index: var(--top-bar-z);
   box-sizing: border-box;
   width: 100%;
   min-width: fit-content;
@@ -493,8 +494,7 @@ body,
 
 .cell-container {
   width: fit-content;
-  min-width: 70vw;
-  max-width: 70vw;
+  min-width: 24em;
 }
 
 .cell-container .cell-item:first-child {
