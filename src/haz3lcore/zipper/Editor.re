@@ -7,7 +7,7 @@ module Meta = {
     measured: Measured.t,
     term_ranges: TermRanges.t,
     col_target: int,
-    livelit_state: Id.Map.t(DHExp.t),
+    livelit_state: Livelit.state,
   };
 
   let init = (z: Zipper.t) => {

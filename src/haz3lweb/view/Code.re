@@ -13,7 +13,7 @@ let of_delim' =
         label,
         i,
         inject,
-        livelit_state: Id.Map.t(DHExp.t),
+        livelit_state: Livelit.state,
         font_metrics: FontMetrics.t,
         tile_id: Id.t,
       ),
@@ -49,7 +49,7 @@ let of_delim =
       t: Piece.tile,
       i: int,
       ~inject,
-      ~livelit_state: Id.Map.t(DHExp.t),
+      ~livelit_state: Livelit.state,
       ~font_metrics: FontMetrics.t,
     )
     : list(Node.t) =>
@@ -99,7 +99,7 @@ module Text = (M: {
             seg: Segment.t,
             ~inject,
             ~font_metrics: FontMetrics.t,
-            ~livelit_state: Id.Map.t(DHExp.t),
+            ~livelit_state: Livelit.state,
           )
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
@@ -226,7 +226,7 @@ let view =
       ~measured,
       ~settings: ModelSettings.t,
       ~inject,
-      ~livelit_state: Id.Map.t(DHExp.t),
+      ~livelit_state: Livelit.state,
     )
     : Node.t => {
   module Text =

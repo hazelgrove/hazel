@@ -136,7 +136,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.map, uexp: Term.UExp.t, livelit_state: Id.Map.t(DHExp.t))
+        (m: Statics.map, uexp: Term.UExp.t, livelit_state: Livelit.state)
         : option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
@@ -384,7 +384,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   );
 
 let uexp_elab =
-    (m: Statics.map, uexp: Term.UExp.t, livelit_state: Id.Map.t(DHExp.t))
+    (m: Statics.map, uexp: Term.UExp.t, livelit_state: Livelit.state)
     : ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp, livelit_state)) {
   | None => DoesNotElaborate

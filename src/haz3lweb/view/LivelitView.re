@@ -21,7 +21,7 @@ let view =
       font_metrics: FontMetrics.t,
       inject,
       name,
-      livelit_state: Id.Map.t(DHExp.t),
+      livelit_state: Livelit.state,
       tile_id,
     ) => {
   switch (name) {

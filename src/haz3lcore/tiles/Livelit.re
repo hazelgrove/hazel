@@ -8,6 +8,7 @@ type t = {
   expansion_type: Typ.t,
 };
 
+type state = Id.Map.t(DHExp.t);
 let slider: t = {
   name: "^slider",
   width: 10,
@@ -30,7 +31,7 @@ let find_livelit = (livelit_name: string): option(t) =>
   };
 
 let elaborate_livelit =
-    (livelit_name: string, uexp_id: int, livelit_state: Id.Map.t(DHExp.t))
+    (livelit_name: string, uexp_id: int, livelit_state: state)
     : option(DHExp.t) => {
   switch (Id.Map.find_opt(uexp_id, livelit_state)) {
   | Some(t) => Some(t)
