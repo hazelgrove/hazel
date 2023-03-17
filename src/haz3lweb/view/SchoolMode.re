@@ -5,7 +5,7 @@ open Node;
 type t = {
   exercise: SchoolExercise.state,
   results: option(ModelResults.t),
-  settings: Model.settings,
+  settings: ModelSettings.t,
   langDocMessages: LangDocMessages.t,
   stitched_dynamics: SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
@@ -40,7 +40,7 @@ type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
 
-let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
+let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
   List.filter_map(
     vis =>
       switch (vis) {
@@ -341,46 +341,53 @@ let view =
       ]
       : [];
 
-  div(
-    ~attr=Attr.classes(["editor", "column"]),
-    [title_view, prompt_view]
-    @ render_cells(
-        settings,
-        [
-          prelude_view,
-          correct_impl_view,
-          correct_impl_ctx_view,
-          your_tests_view,
-        ]
-        @ wrong_impl_views
-        @ [
-          mutation_testing_view,
-          your_impl_view,
-          impl_validation_view,
-          hidden_tests_view,
-          impl_grading_view,
-        ],
-      )
-    // TODO lang doc visibility tied to ci visibility (is this desired?)
-    @ ci_view
-    @ (
-      langDocMessages.show && settings.statics
-        ? [
-          LangDoc.view(
-            ~inject,
-            ~font_metrics,
-            ~settings,
-            ~doc=langDocMessages,
-            Indicated.index(focal_zipper),
-            focal_info_map,
+  [
+    div(
+      ~attr=Attr.id("main"),
+      [
+        div(
+          ~attr=Attr.classes(["editor", "column"]),
+          [title_view, prompt_view]
+          @ render_cells(
+              settings,
+              [
+                prelude_view,
+                correct_impl_view,
+                correct_impl_ctx_view,
+                your_tests_view,
+              ]
+              @ wrong_impl_views
+              @ [
+                mutation_testing_view,
+                your_impl_view,
+                impl_validation_view,
+                hidden_tests_view,
+                impl_grading_view,
+              ],
+            )
+          @ (
+            langDocMessages.show && settings.statics
+              ? [
+                LangDoc.view(
+                  ~inject,
+                  ~font_metrics,
+                  ~settings,
+                  ~doc=langDocMessages,
+                  Indicated.index(focal_zipper),
+                  focal_info_map,
+                ),
+              ]
+              : []
           ),
-        ]
-        : []
+        ),
+      ],
     ),
-  );
+    div(~attr=Attr.class_("bottom-bar"), ci_view),
+  ]; // TODO lang doc visibility tied to ci visibility (is this desired?)
 };
 
-let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Model.settings) => {
+let toolbar_buttons =
+    (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
   let (_idx, _specs, exercise): Editors.school =
     switch (editors) {
     | School(idx, specs, exercise) => (idx, specs, exercise)

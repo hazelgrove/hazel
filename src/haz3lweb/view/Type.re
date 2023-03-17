@@ -76,7 +76,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Arrow"]),
       [view_ty(t1), text(" -> "), view_ty(t2)],
     )
-  | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("Unit")])
+  | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("()")])
   | Prod([_]) =>
     div(~attr=clss(["typ-view", "Prod"]), [text("Singleton Product")])
   | Prod([t0, ...ts]) =>
