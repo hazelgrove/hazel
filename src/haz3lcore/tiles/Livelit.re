@@ -9,6 +9,7 @@ type t = {
 };
 
 type state = Id.Map.t(DHExp.t);
+let empty_state: state = Id.Map.empty;
 let slider: t = {
   name: "^slider",
   width: 10,

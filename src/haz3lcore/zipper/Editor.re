@@ -17,7 +17,7 @@ module Meta = {
       measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
-      livelit_state: Id.Map.empty,
+      livelit_state: Livelit.empty_state,
     };
   };
 
