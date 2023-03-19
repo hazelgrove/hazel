@@ -55,14 +55,14 @@ let of_grout =
 let of_secondary =
   Core.Memo.general(
     ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
-    if (String.equal(Secondary.get_string(content), Secondary.linebreak)) {
-      let str = secondary_icons ? Secondary.linebreak : "";
+    if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+      let str = secondary_icons ? Form.linebreak : "";
       [
         span_c("linebreak", [text(str)]),
         Node.br(),
         Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
       ];
-    } else if (String.equal(Secondary.get_string(content), Secondary.space)) {
+    } else if (String.equal(Secondary.get_string(content), Form.space)) {
       let str = secondary_icons ? "·" : Unicode.nbsp;
       [span_c("secondary", [text(str)])];
     } else if (Secondary.content_is_comment(content)) {

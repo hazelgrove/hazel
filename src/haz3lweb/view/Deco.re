@@ -228,7 +228,11 @@ module Deco =
   };
 
   let term_decoration =
-      (~id: Id.t, deco: ((Measured.Point.t, SvgUtil.Path.t)) => Node.t) => {
+      (
+        ~id: Id.t,
+        deco:
+          ((Measured.Point.t, Measured.Point.t, SvgUtil.Path.t)) => Node.t,
+      ) => {
     let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
     let l = Measured.find_p(p_l, M.map).origin;
     let r = Measured.find_p(p_r, M.map).last;
@@ -251,12 +255,17 @@ module Deco =
       @ l_edge
       @ [Z]
       |> translate({dx: Float.of_int(- l.col), dy: Float.of_int(- l.row)});
-    (l, path) |> deco;
+    (l, r, path) |> deco;
   };
 
   let term_highlight = (~clss: list(string), id: Id.t) => {
-    term_decoration(~id, ((origin, path)) =>
-      DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
+    term_decoration(~id, ((origin, last, path)) =>
+      DecUtil.code_svg_sized(
+        ~font_metrics,
+        ~measurement={origin, last},
+        ~base_cls=clss,
+        path,
+      )
     );
   };
 

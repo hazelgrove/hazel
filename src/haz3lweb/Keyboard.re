@@ -88,7 +88,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         |> List.filter(s => s != "?")
         |> List.map(str => now_save(Insert(str)))
         |> List.flatten;
-      | None => now_save(Insert(Secondary.linebreak))
+      | None => now_save(Insert(Form.linebreak))
       };
     | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things

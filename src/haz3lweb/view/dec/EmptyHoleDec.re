@@ -29,7 +29,7 @@ let view =
       ~global_inference_info: InferenceResult.global_inference_info,
       ~font_metrics,
       id,
-      {measurement: {origin, _}, mold}: Profile.t,
+      {measurement, mold}: Profile.t,
     )
     : Node.t => {
   let sort = mold.out;
@@ -46,16 +46,16 @@ let view =
     unsolved_path_class ? "unsolved-empty-hole-path" : "empty-hole-path";
   svg_enabled
     ? unsolved_path_class
-        ? DecUtil.code_svg(
+        ? DecUtil.code_svg_sized(
             ~font_metrics,
-            ~origin,
+            ~measurement,
             ~base_cls=["empty-hole"],
             ~path_cls=[svg_path_class, c_cls],
             path(tip_l, tip_r, 0., 0.58),
           )
-        : DecUtil.code_svg(
+        : DecUtil.code_svg_sized(
             ~font_metrics,
-            ~origin,
+            ~measurement,
             ~base_cls=["empty-hole"],
             ~path_cls=[svg_path_class, c_cls],
             path(tip_l, tip_r, 0., 0.28),

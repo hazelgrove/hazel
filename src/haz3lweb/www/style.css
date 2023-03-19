@@ -237,8 +237,6 @@ svg {
 /* PAGE */
 
 #page {
-  overflow-x: auto;
-  overflow-y: auto;
   height: 100vh;
   width: 100vw;
   position: fixed;
@@ -246,6 +244,8 @@ svg {
   left: 0%;
   background-color: var(--light-page-color);
   color: var(--light-text-color);
+  display: flex;
+  flex-direction: column;
 }
 
 #font-specimen {
@@ -283,8 +283,6 @@ body {
 /* TOP BAR */
 
 #top-bar {
-  z-index: var(--top-bar-z);
-  position: fixed;
   box-sizing: border-box;
   width: 100%;
   min-width: fit-content;
@@ -444,7 +442,7 @@ body {
 .editor {
   display: flex;
   justify-content: space-between;
-  padding-bottom: 3em;
+  padding-bottom: 1em;
 }
 
 .editor.column {
@@ -458,8 +456,7 @@ body {
 }
 
 .editor.single {
-  position: relative;
-  top: 5em;
+  padding-top: 2em;
   padding-left: 2em;
 }
 
@@ -1228,10 +1225,8 @@ svg.tile-selected {
 
 .bottom-bar {
   z-index: var(--result-z);
-  position: fixed;
   /*max-height: 3.2em;
   overflow-y: auto;*/
-  bottom: 0;
   left: 0;
   width: 100%;
   display: flex;
@@ -1240,7 +1235,6 @@ svg.tile-selected {
   background-color: var(--top_bar_icon_fill);
   color: #fdf6e3;
   justify-content: space-between;
-  /* padding-left: 0.2em;*/
 }
 
 .bottom-bar .cursor-inspector .gamma {
@@ -1913,4 +1907,9 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
+}
+
+#main {
+  overflow: auto;
+  flex: 1;
 }
