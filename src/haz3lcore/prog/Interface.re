@@ -1,6 +1,6 @@
 exception DoesNotElaborate;
-let elaborate = (~livelit_state=Id.Map.empty, map, term): DHExp.t =>
-  switch (Elaborator.uexp_elab(map, term, livelit_state)) {
+let elaborate = (~livelits=Livelit.empty_state, map, term): DHExp.t =>
+  switch (Elaborator.uexp_elab(map, term, livelits)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate EXCEPTION");
     //HACK(andrew): supress exceptions for release

@@ -294,7 +294,7 @@ let editor_view =
       ~measured,
       ~settings,
       ~inject,
-      ~livelit_state=editor.state.meta.livelit_state,
+      ~livelits=editor.state.meta.livelits,
     );
   let deco_view =
     deco(
@@ -331,11 +331,7 @@ let get_elab = (editor: Editor.t): DHExp.t => {
   let seg = Editor.get_seg(editor);
   let (term, _) = MakeTerm.go(seg);
   let info_map = Statics.mk_map(term);
-  Interface.elaborate(
-    info_map,
-    term,
-    ~livelit_state=editor.state.meta.livelit_state,
-  );
+  Interface.elaborate(info_map, term, ~livelits=editor.state.meta.livelits);
 };
 
 let editor_with_result_view =

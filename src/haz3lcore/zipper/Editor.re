@@ -7,7 +7,7 @@ module Meta = {
     measured: Measured.t,
     term_ranges: TermRanges.t,
     col_target: int,
-    livelit_state: Livelit.state,
+    livelits: Livelit.state,
   };
 
   let init = (z: Zipper.t) => {
@@ -17,7 +17,7 @@ module Meta = {
       measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
-      livelit_state: Livelit.empty_state,
+      livelits: Livelit.empty_state,
     };
   };
 
@@ -44,7 +44,7 @@ module Meta = {
 
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target, livelit_state, _} = meta;
+    let {touched, measured, col_target, livelits, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
     let measured = Measured.of_segment(~touched, ~old=measured, unselected);
@@ -55,7 +55,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
-    {touched, measured, term_ranges, col_target, livelit_state};
+    {touched, measured, term_ranges, col_target, livelits};
   };
 };
 
@@ -175,12 +175,12 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
   };
 };
 
-let update_livelit_state = (f: Livelit.state => Livelit.state, ed: t): t => {
+let update_livelits = (f: Livelit.state => Livelit.state, ed: t): t => {
   let new_state: State.t = {
     ...ed.state,
     meta: {
       ...ed.state.meta,
-      livelit_state: f(ed.state.meta.livelit_state),
+      livelits: f(ed.state.meta.livelits),
     },
   };
   {...ed, state: new_state};

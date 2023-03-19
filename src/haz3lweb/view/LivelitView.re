@@ -21,7 +21,7 @@ let view =
       font_metrics: FontMetrics.t,
       inject,
       name,
-      livelit_state: Livelit.state,
+      livelits: Livelit.state,
       tile_id,
     ) => {
   switch (name) {
@@ -34,7 +34,7 @@ let view =
             Attr.create(
               "value",
               string_of_int(
-                switch (Id.Map.find_opt(tile_id, livelit_state)) {
+                switch (Id.Map.find_opt(tile_id, livelits)) {
                 | Some(IntLit(i)) => i
                 | _ => 50
                 },
@@ -60,7 +60,7 @@ let view =
     ]
   | "^checkbox" =>
     let checkbox_state: bool =
-      switch (Id.Map.find_opt(tile_id, livelit_state)) {
+      switch (Id.Map.find_opt(tile_id, livelits)) {
       | Some(BoolLit(b)) => b
       | _ => false
       };

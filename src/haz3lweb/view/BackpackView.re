@@ -38,7 +38,7 @@ let backpack_sel_view =
       content,
       ~inject=_ => Ui_effect.Ignore,
       ~font_metrics,
-      ~livelit_state=Livelit.empty_state,
+      ~livelits=Livelit.empty_state,
     )  // TODO Livelit state
     @ [text(Unicode.zwsp)],
   );

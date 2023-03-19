@@ -136,7 +136,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.map, uexp: Term.UExp.t, livelit_state: Livelit.state)
+        (m: Statics.map, uexp: Term.UExp.t, livelits: Livelit.state)
         : option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
@@ -173,22 +173,20 @@ let rec dhexp_of_uexp =
       | String(s) => Some(StringLit(s))
       | ListLit(es) =>
         let+ ds =
-          es
-          |> List.map(dhexp_of_uexp(m, _, livelit_state))
-          |> OptUtil.sequence;
+          es |> List.map(dhexp_of_uexp(m, _, livelits)) |> OptUtil.sequence;
         let ty = Statics.exp_typ(m, uexp) |> Typ.matched_list;
         //TODO: why is there an err status on below?
         DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
-        let+ d1 = dhexp_of_uexp(m, body, livelit_state);
+        let+ d1 = dhexp_of_uexp(m, body, livelits);
         DHExp.Fun(dp, Statics.pat_typ(m, p), d1, None);
       | Tuple(es) =>
         let+ ds =
           List.fold_right(
             (e, ds_opt) => {
               let* ds = ds_opt;
-              let+ d = dhexp_of_uexp(m, e, livelit_state);
+              let+ d = dhexp_of_uexp(m, e, livelits);
               [d, ...ds];
             },
             es,
@@ -197,24 +195,24 @@ let rec dhexp_of_uexp =
         DHExp.Tuple(ds);
       | Tag(name) => Some(Tag(name))
       | Cons(e1, e2) =>
-        let* dc1 = dhexp_of_uexp(m, e1, livelit_state);
-        let+ dc2 = dhexp_of_uexp(m, e2, livelit_state);
+        let* dc1 = dhexp_of_uexp(m, e1, livelits);
+        let+ dc2 = dhexp_of_uexp(m, e2, livelits);
         DHExp.Cons(dc1, dc2);
       | UnOp(Int(Minus), e) =>
-        let+ dc = dhexp_of_uexp(m, e, livelit_state);
+        let+ dc = dhexp_of_uexp(m, e, livelits);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
       | BinOp(op, e1, e2) =>
         let (_, cons) = exp_binop_of(op);
-        let* dc1 = dhexp_of_uexp(m, e1, livelit_state);
-        let+ dc2 = dhexp_of_uexp(m, e2, livelit_state);
+        let* dc1 = dhexp_of_uexp(m, e1, livelits);
+        let+ dc2 = dhexp_of_uexp(m, e2, livelits);
         cons(dc1, dc2);
-      | Parens(e) => dhexp_of_uexp(m, e, livelit_state)
+      | Parens(e) => dhexp_of_uexp(m, e, livelits)
       | Seq(e1, e2) =>
-        let* d1 = dhexp_of_uexp(m, e1, livelit_state);
-        let+ d2 = dhexp_of_uexp(m, e2, livelit_state);
+        let* d1 = dhexp_of_uexp(m, e1, livelits);
+        let+ d2 = dhexp_of_uexp(m, e2, livelits);
         DHExp.Sequence(d1, d2);
       | Test(test) =>
-        let+ dtest = dhexp_of_uexp(m, test, livelit_state);
+        let+ dtest = dhexp_of_uexp(m, test, livelits);
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
@@ -229,8 +227,8 @@ let rec dhexp_of_uexp =
             | d => d
         );
         let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def, livelit_state);
-        let+ dbody = dhexp_of_uexp(m, body, livelit_state);
+        let* ddef = dhexp_of_uexp(m, def, livelits);
+        let+ dbody = dhexp_of_uexp(m, body, livelits);
         let ty = Statics.pat_self_typ(m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
@@ -263,13 +261,13 @@ let rec dhexp_of_uexp =
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
       | Ap(fn, arg) =>
-        let* c_fn = dhexp_of_uexp(m, fn, livelit_state);
-        let+ c_arg = dhexp_of_uexp(m, arg, livelit_state);
+        let* c_fn = dhexp_of_uexp(m, fn, livelits);
+        let+ c_arg = dhexp_of_uexp(m, arg, livelits);
         DHExp.Ap(c_fn, c_arg);
       | If(scrut, e1, e2) =>
-        let* d_scrut = dhexp_of_uexp(m, scrut, livelit_state);
-        let* d1 = dhexp_of_uexp(m, e1, livelit_state);
-        let+ d2 = dhexp_of_uexp(m, e2, livelit_state);
+        let* d_scrut = dhexp_of_uexp(m, scrut, livelits);
+        let* d1 = dhexp_of_uexp(m, e1, livelits);
+        let+ d2 = dhexp_of_uexp(m, e2, livelits);
         let d_rules =
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
@@ -282,15 +280,15 @@ let rec dhexp_of_uexp =
         Livelit.elaborate_livelit(
           livelit_name,
           Term.UExp.rep_id(uexp),
-          livelit_state,
+          livelits,
         )
       | Match(scrut, rules) =>
-        let* d_scrut = dhexp_of_uexp(m, scrut, livelit_state);
+        let* d_scrut = dhexp_of_uexp(m, scrut, livelits);
         let+ d_rules =
           List.map(
             ((p, e)) => {
               let* d_p = dhpat_of_upat(m, p);
-              let+ d_e = dhexp_of_uexp(m, e, livelit_state);
+              let+ d_e = dhexp_of_uexp(m, e, livelits);
               DHExp.Rule(d_p, d_e);
             },
             rules,
@@ -384,9 +382,9 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   );
 
 let uexp_elab =
-    (m: Statics.map, uexp: Term.UExp.t, livelit_state: Livelit.state)
+    (m: Statics.map, uexp: Term.UExp.t, livelits: Livelit.state)
     : ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp, livelit_state)) {
+  switch (dhexp_of_uexp(m, uexp, livelits)) {
   | None => DoesNotElaborate
   | Some(d) =>
     let d = uexp_elab_wrap_builtins(d);

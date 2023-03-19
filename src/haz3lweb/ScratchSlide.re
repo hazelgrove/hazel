@@ -23,7 +23,7 @@ let spliced_elabs = ((_, editor)) => {
       Interface.elaborate(
         info_map,
         term,
-        ~livelit_state=editor.state.meta.livelit_state,
+        ~livelits=editor.state.meta.livelits,
       ),
     ),
   ];

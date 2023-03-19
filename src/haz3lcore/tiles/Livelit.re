@@ -32,9 +32,8 @@ let find_livelit = (livelit_name: string): option(t) =>
   };
 
 let elaborate_livelit =
-    (livelit_name: string, uexp_id: int, livelit_state: state)
-    : option(DHExp.t) => {
-  switch (Id.Map.find_opt(uexp_id, livelit_state)) {
+    (livelit_name: string, uexp_id: int, livelits: state): option(DHExp.t) => {
+  switch (Id.Map.find_opt(uexp_id, livelits)) {
   | Some(t) => Some(t)
   | None =>
     switch (find_livelit(livelit_name)) {

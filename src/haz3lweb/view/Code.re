@@ -13,7 +13,7 @@ let of_delim' =
         label,
         i,
         inject,
-        livelit_state: Livelit.state,
+        livelits: Livelit.state,
         font_metrics: FontMetrics.t,
         tile_id: Id.t,
       ),
@@ -31,7 +31,7 @@ let of_delim' =
   let livelit_nodes: list(t) =
     switch (label) {
     | [name] =>
-      LivelitView.view(font_metrics, inject, name, livelit_state, tile_id)
+      LivelitView.view(font_metrics, inject, name, livelits, tile_id)
     | _ => []
     };
   [
@@ -49,7 +49,7 @@ let of_delim =
       t: Piece.tile,
       i: int,
       ~inject,
-      ~livelit_state: Livelit.state,
+      ~livelits: Livelit.state,
       ~font_metrics: FontMetrics.t,
     )
     : list(Node.t) =>
@@ -60,7 +60,7 @@ let of_delim =
     t.label,
     i,
     inject,
-    livelit_state,
+    livelits,
     font_metrics,
     Tile.id(t),
   ));
@@ -99,7 +99,7 @@ module Text = (M: {
             seg: Segment.t,
             ~inject,
             ~font_metrics: FontMetrics.t,
-            ~livelit_state: Livelit.state,
+            ~livelits: Livelit.state,
           )
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
@@ -116,40 +116,21 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(
-           sort_of_p_idx(i),
-           p,
-           ~inject,
-           ~font_metrics,
-           ~livelit_state,
-         )
+         of_piece(sort_of_p_idx(i), p, ~inject, ~font_metrics, ~livelits)
        );
   }
   and of_piece =
-      (
-        expected_sort: Sort.t,
-        p: Piece.t,
-        ~inject,
-        ~font_metrics,
-        ~livelit_state,
-      )
+      (expected_sort: Sort.t, p: Piece.t, ~inject, ~font_metrics, ~livelits)
       : list(Node.t) => {
     switch (p) {
-    | Tile(t) =>
-      of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelit_state)
+    | Tile(t) => of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelits)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
   and of_tile =
-      (
-        expected_sort: Sort.t,
-        t: Tile.t,
-        ~inject,
-        ~font_metrics,
-        ~livelit_state,
-      )
+      (expected_sort: Sort.t, t: Tile.t, ~inject, ~font_metrics, ~livelits)
       : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
@@ -167,10 +148,10 @@ module Text = (M: {
            t,
            ~inject,
            ~font_metrics,
-           ~livelit_state,
+           ~livelits,
          ),
          ((seg, sort)) =>
-         of_segment(~sort, seg, ~inject, ~font_metrics, ~livelit_state)
+         of_segment(~sort, seg, ~inject, ~font_metrics, ~livelits)
        )
     |> List.concat;
   };
@@ -211,7 +192,7 @@ let simple_view =
           unselected,
           ~inject,
           ~font_metrics,
-          ~livelit_state=Id.Map.empty,
+          ~livelits=Id.Map.empty,
         ),
       ),
     ],
@@ -226,7 +207,7 @@ let view =
       ~measured,
       ~settings: ModelSettings.t,
       ~inject,
-      ~livelit_state: Livelit.state,
+      ~livelits: Livelit.state,
     )
     : Node.t => {
   module Text =
@@ -236,7 +217,7 @@ let view =
     });
   let unselected: list(t) =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected, ~inject, ~font_metrics, ~livelit_state)
+      Text.of_segment(unselected, ~inject, ~font_metrics, ~livelits)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
