@@ -427,27 +427,17 @@ let apply =
       DebugAction.perform(a);
       Ok(model);
     | LivelitStateChange(livelit_id, livelit_state) =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
       let editor =
-        Editors.put_editor_and_id(
-          id,
-          {
-            ...ed,
-            state: {
-              ...ed.state,
-              meta: {
-                ...ed.state.meta,
-                livelit_state:
-                  Id.Map.add(
-                    livelit_id,
-                    livelit_state,
-                    ed.state.meta.livelit_state,
-                  ),
-              },
-            },
+        Editors.update_editor(
+          ed => {
+            Editor.update_livelit_state(
+              Id.Map.add(livelit_id, livelit_state),
+              ed,
+            )
           },
           model.editors,
         );
+
       Ok({...model, editors: editor});
     };
   reevaluate_post_update(update)

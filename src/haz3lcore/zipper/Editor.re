@@ -174,3 +174,14 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
     };
   };
 };
+
+let update_livelit_state = (f: Livelit.state => Livelit.state, ed: t): t => {
+  let new_state: State.t = {
+    ...ed.state,
+    meta: {
+      ...ed.state.meta,
+      livelit_state: f(ed.state.meta.livelit_state),
+    },
+  };
+  {...ed, state: new_state};
+};
