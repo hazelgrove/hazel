@@ -154,22 +154,22 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
   | Nul => Nul() //TODO
-  | Any =>
-    let tm = unsorted(skel, seg);
-    let ids = ids(tm);
-    switch (ListUtil.hd_opt(ids)) {
-    | None => return_dark_hole(Exp)
-    | Some(id) =>
-      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => return_dark_hole(~ids, Exp)
-      | Some(t) =>
-        if (t.mold.out == Any) {
-          return_dark_hole(~ids, Exp);
-        } else {
-          go_s(t.mold.out, skel, seg);
-        }
-      }
-    };
+  | Any => Exp(exp(unsorted(skel, seg)))
+  /* let tm = unsorted(skel, seg);
+     let ids = ids(tm);
+     switch (ListUtil.hd_opt(ids)) {
+     | None => return_dark_hole(Exp)
+     | Some(id) =>
+       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
+       | None => return_dark_hole(~ids, Exp)
+       | Some(t) =>
+         if (t.mold.out == Any) {
+           return_dark_hole(~ids, Exp);
+         } else {
+           go_s(t.mold.out, skel, seg);
+         }
+       }
+     };*/
   }
 
 and exp = unsorted => {
@@ -177,9 +177,28 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(e => Exp(e), ids, {ids, term});
 }
+and blee = (tm): UExp.term =>
+  switch (UExp.hole(kids_of_unsorted(tm))) {
+  | MultiHole([Exp(_)]) as x =>
+    print_endline("SINGLETON");
+    x;
+  | MultiHole([Exp(hd), Exp({term: Ap(a, b), ids})]) =>
+    UExp.Ap(hd, {ids, term: Tuple([a, b])})
+  | MultiHole([Exp(hd), Exp(tl0)]) => UExp.Ap(hd, tl0)
+  | MultiHole([Exp(hd), ...tl]) =>
+    let tl =
+      List.filter_map(
+        fun
+        | Exp(x) => Some(x)
+        | _ => None,
+        tl,
+      );
+    UExp.Ap(hd, UExp.{ids: [(-1)], term: Tuple(tl)});
+  | x => x
+  }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
-  let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
+  let _hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -206,9 +225,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           ids,
         )
       | ([t], []) when t != " " => ret(Invalid(t))
-      | _ => ret(hole(tm))
+      | _ => ret(blee(tm))
       }
-    | _ => ret(hole(tm))
+    | _ => ret(blee(tm))
     }
   | Pre(tiles, Exp(r)) as tm =>
     switch (tiles) {
@@ -222,10 +241,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
-        | _ => hole(tm)
+        | _ => blee(tm)
         },
       )
-    | _ => ret(hole(tm))
+    | _ => ret(blee(tm))
     }
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
@@ -233,10 +252,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
+        | _ => blee(tm)
         },
       )
-    | _ => ret(hole(tm))
+    | _ => ret(blee(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
@@ -271,13 +290,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | _ => hole(tm)
+          | _ => blee(tm)
           },
         )
-      | _ => ret(hole(tm))
+      | _ => ret(blee(tm))
       }
     }
-  | tm => ret(hole(tm));
+  | tm => ret(blee(tm));
 }
 
 and pat = unsorted => {
