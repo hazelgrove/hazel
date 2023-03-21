@@ -1,6 +1,6 @@
 open Util;
 
-// "walled" (by pieces) meld, wario to meld's mario
+// "walled" meld, wario to meld's mario
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Chain.t(Piece.t, Meld.t);
 

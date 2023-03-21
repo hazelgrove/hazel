@@ -97,7 +97,6 @@ let fst_set = _ => failwith("todo fst");
 
 let zips = (l: t, r: t): option(t) => {
   open OptUtil.Syntax;
-  let paths = l.paths @ List.map(Path.shift(length(l)), r.paths);
   let+ shape =
     switch (l.shape, r.shape) {
     | (G(_), T(_))
@@ -109,6 +108,7 @@ let zips = (l: t, r: t): option(t) => {
       let+ t = Tile.zip(t_l, t_r);
       Shape.T(t);
     };
+  let paths = l.paths @ List.map(Path.shift(length(l)), r.paths);
   mk(~paths, shape);
 };
 
