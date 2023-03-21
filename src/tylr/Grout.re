@@ -24,6 +24,7 @@ let mk_infix = (~id=?, sort, prec) => mk(~id?, Mold.mk_infix(sort, prec));
 let length = _ => 1;
 
 let has_sugg = g => g.sugg != "";
+let is_hole = g => !has_sugg(g);
 
 // let suggestion = g =>
 //   switch (LangUtil.tokens_of_mold(g.mold)) {

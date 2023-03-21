@@ -229,9 +229,20 @@ let unknil = mel =>
     |> Result.of_option(~error=Some(Chain.lst(c)))
   };
 
-let patch_sort = (s: Sort.o, mel: t) =>
+let is_hole = (mel: t): option((t, Grout.t, t)) => {
+  open OptUtil.Syntax;
+  let* c = distribute(mel).chain;
+  switch (c) {
+  // todo: don't drop paths
+  | ([l, r], [{shape: G(g), paths: _}]) when Grout.is_hole(g) =>
+    Some((l, g, r))
+  | _ => None
+  };
+};
+
+let patch_sort = (~id=?, s: Sort.o, mel: t) =>
   switch (sort(mel)) {
-  | None => of_grout(Grout.mk_operand(None))
+  | None => of_grout(Grout.mk_operand(~id?, None))
   | Some(s') when Sort.eq(s, s') => mel
   | Some(s') =>
     let e: LangUtil.Edge.t =
@@ -239,8 +250,26 @@ let patch_sort = (s: Sort.o, mel: t) =>
       |> OptUtil.get_or_fail("probably this means grammar isn't LR");
     e.l
       // todo: confirm use of prec max here is ok
-      ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
-      : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
+      ? of_grout(~l=mel, Grout.mk_postfix(~id?, ~l=s', s, Prec.max))
+      : of_grout(Grout.mk_prefix(~id?, s, Prec.max, ~r=s'), ~r=mel);
+  };
+let patch_sort = (s: Sort.o, mel: t) =>
+  switch (is_hole(mel)) {
+  | None => patch_sort(s, mel)
+  | Some((l, g, r)) =>
+    switch (is_empty(l), is_empty(r)) {
+    | (None, None) =>
+      let mold =
+        s == g.mold.sort
+          ? g.mold
+          // check that max prec is fine
+          : {...g.mold, sort: s, prec: Prec.max};
+      let g = {...g, mold};
+      of_grout(~l, g, ~r);
+    | (Some(l), None) => patch_sort(~id=g.id, s, r) |> pad(~l)
+    | (None, Some(r)) => patch_sort(~id=g.id, s, l) |> pad(~r)
+    | (Some(l), Some(r)) => patch_sort(~id=g.id, s, empty()) |> pad(~l, ~r)
+    }
   };
 
 let patch = (~l=?, ~r=?, mel: t): t =>
