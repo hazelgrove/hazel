@@ -5,65 +5,40 @@ open Util;
 open Util.Web;
 
 let of_delim' =
-    (
-      (
-        sort,
-        is_consistent,
-        is_complete,
-        label,
-        i,
-        inject,
-        livelits: Livelit.state,
-        font_metrics: FontMetrics.t,
-        tile_id: Id.t,
-      ),
-    ) => {
-  let cls =
-    switch (label) {
-    | [_] when !is_consistent => "mono-inconsistent"
-    | [s] when Form.is_string(s) => "mono-string-lit"
-    | [_] => "mono"
-    | _ when !is_consistent => "delim-inconsistent"
-    | _ when !is_complete => "delim-incomplete"
-    | _ => "delim"
-    };
+  Core.Memo.general(
+    ~cache_size_bound=100000,
+    ((sort, is_consistent, is_complete, label, i)) => {
+      let cls =
+        switch (label) {
+        | [_] when !is_consistent => "mono-inconsistent"
+        | [s] when Form.is_string(s) => "mono-string-lit"
+        | [_] => "mono"
+        | _ when !is_consistent => "delim-inconsistent"
+        | _ when !is_complete => "delim-incomplete"
+        | _ => "delim"
+        };
 
-  let livelit_nodes: list(t) =
-    switch (label) {
-    | [name] =>
-      LivelitView.view(font_metrics, inject, name, livelits, tile_id)
-    | _ => []
-    };
-  [
-    span(
-      ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-      List.append([Node.text(List.nth(label, i))], livelit_nodes),
-    ),
-  ];
-};
+      [
+        span(
+          ~attr=
+            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+          [Node.text(List.nth(label, i))],
+        ),
+      ];
+    },
+  );
 
 let of_delim =
     (
       sort: Sort.t,
       is_consistent,
       t: Piece.tile,
+      livelit_nodes: list(t),
       i: int,
-      ~inject,
-      ~livelits: Livelit.state,
-      ~font_metrics: FontMetrics.t,
     )
     : list(Node.t) =>
-  of_delim'((
-    sort,
-    is_consistent,
-    Tile.is_complete(t),
-    t.label,
-    i,
-    inject,
-    livelits,
-    font_metrics,
-    Tile.id(t),
-  ));
+  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i))
+  @ livelit_nodes;
 
 let of_grout = [Node.text(Unicode.nbsp)];
 
@@ -132,6 +107,13 @@ module Text = (M: {
   and of_tile =
       (expected_sort: Sort.t, t: Tile.t, ~inject, ~font_metrics, ~livelits)
       : list(Node.t) => {
+    let livelit_nodes: list(t) =
+      switch (t.label) {
+      | [name] =>
+        LivelitView.view(font_metrics, inject, name, livelits, t.id)
+      | _ => []
+      };
+
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -142,14 +124,7 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(
-           t.mold.out,
-           is_consistent,
-           t,
-           ~inject,
-           ~font_metrics,
-           ~livelits,
-         ),
+         of_delim(t.mold.out, is_consistent, t, livelit_nodes),
          ((seg, sort)) =>
          of_segment(~sort, seg, ~inject, ~font_metrics, ~livelits)
        )
