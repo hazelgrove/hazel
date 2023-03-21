@@ -68,14 +68,8 @@ module Dn = {
     | [hd, ...tl] =>
       // left-to-right: tl hd kid terr
       switch (Terrace.cmp(hd, ~kid, terr)) {
-      | Some(Lt(kid_terr)) =>
-        print_endline("Dn.snoc/lt kid_terr = " ++ Meld.show(kid_terr));
-        Ok(cat(mk(dn.terrs), of_meld(kid_terr)));
+      | Some(Lt(kid_terr)) => Ok(cat(mk(dn.terrs), of_meld(kid_terr)))
       | Some(Eq(hd_kid_terr)) =>
-        print_endline("Dn.snoc/eq hd_kid_terr = " ++ Meld.show(hd_kid_terr));
-        print_endline(
-          "Dn.snoc/eq of_meld(hd_kid_terr) = " ++ show(of_meld(hd_kid_terr)),
-        );
         // todo: tighten this check to sort and left tip change
         // todo: avoid decomposing left kid if unneeded
         if (Meld.end_piece(~side=L, hd_kid_terr) != Some(Chain.fst(hd.wal))) {
@@ -85,10 +79,8 @@ module Dn = {
           snoc(dn, hkt);
         } else {
           Ok(cat(mk(tl), of_meld(hd_kid_terr)));
-        };
-      | Some(Gt(hd_kid)) =>
-        print_endline("Dn.snoc/gt hd_kid = " ++ Meld.show(hd_kid));
-        snoc(mk(tl), ~kid=hd_kid, terr);
+        }
+      | Some(Gt(hd_kid)) => snoc(mk(tl), ~kid=hd_kid, terr)
       | None =>
         let s =
           Meld.is_empty(kid)
