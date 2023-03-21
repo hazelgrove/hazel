@@ -68,9 +68,27 @@ module Dn = {
     | [hd, ...tl] =>
       // left-to-right: tl hd kid terr
       switch (Terrace.cmp(hd, ~kid, terr)) {
-      | Some(Lt(kid_terr)) => Ok(cat(mk(dn.terrs), of_meld(kid_terr)))
-      | Some(Eq(hd_kid_terr)) => Ok(cat(mk(tl), of_meld(hd_kid_terr)))
-      | Some(Gt(hd_kid)) => snoc(mk(tl), ~kid=hd_kid, terr)
+      | Some(Lt(kid_terr)) =>
+        print_endline("Dn.snoc/lt kid_terr = " ++ Meld.show(kid_terr));
+        Ok(cat(mk(dn.terrs), of_meld(kid_terr)));
+      | Some(Eq(hd_kid_terr)) =>
+        print_endline("Dn.snoc/eq hd_kid_terr = " ++ Meld.show(hd_kid_terr));
+        print_endline(
+          "Dn.snoc/eq of_meld(hd_kid_terr) = " ++ show(of_meld(hd_kid_terr)),
+        );
+        // todo: tighten this check to sort and left tip change
+        // todo: avoid decomposing left kid if unneeded
+        if (Meld.end_piece(~side=L, hd_kid_terr) != Some(Chain.fst(hd.wal))) {
+          let (l, hkt) =
+            Terrace.L.mk(hd_kid_terr) |> OptUtil.get_or_fail("expected root");
+          let dn = cat(mk(tl), of_meld(l));
+          snoc(dn, hkt);
+        } else {
+          Ok(cat(mk(tl), of_meld(hd_kid_terr)));
+        };
+      | Some(Gt(hd_kid)) =>
+        print_endline("Dn.snoc/gt hd_kid = " ++ Meld.show(hd_kid));
+        snoc(mk(tl), ~kid=hd_kid, terr);
       | None =>
         let s =
           Meld.is_empty(kid)
@@ -158,7 +176,15 @@ module Up = {
       // left-to-right: terr kid hd tl
       switch (Terrace.cmp(terr, ~kid, hd)) {
       | Some(Lt(kid_hd)) => cons(terr, ~kid=kid_hd, mk(tl))
-      | Some(Eq(terr_kid_hd)) => Ok(cat(of_meld(terr_kid_hd), mk(tl)))
+      | Some(Eq(terr_kid_hd)) =>
+        if (Meld.end_piece(~side=R, terr_kid_hd) != Some(Chain.lst(hd.wal))) {
+          let (tkh, r) =
+            Terrace.R.mk(terr_kid_hd) |> OptUtil.get_or_fail("expected root");
+          let up = cat(of_meld(r), mk(tl));
+          cons(tkh, up);
+        } else {
+          Ok(cat(of_meld(terr_kid_hd), mk(tl)));
+        }
       | Some(Gt(terr_kid)) => Ok(cat(of_meld(terr_kid), mk(up.terrs)))
       | None =>
         let s =
