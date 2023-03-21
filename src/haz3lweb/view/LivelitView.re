@@ -7,13 +7,15 @@ let stop_mousedown_propagation =
     Virtual_dom.Vdom.Effect.Ignore;
   });
 
-let livelit_style = (font_metrics: FontMetrics.t, livelit_width: int) =>
+let livelit_style = (font_metrics: FontMetrics.t, livelit_width: float) =>
   Attr.create(
     "style",
     Printf.sprintf(
-      "width: %fpx; height: %fpx; margin: 0; vertical-align: bottom",
-      float_of_int(livelit_width) *. font_metrics.col_width,
+      "width: %fpx; height: %fpx; margin-top: 0; margin-bottom: 0; margin-left: %fpx; margin-right: %fpx; vertical-align: bottom; display: inline-block",
+      livelit_width *. font_metrics.col_width,
       font_metrics.row_height,
+      livelit_width *. 0.5,
+      livelit_width *. 0.5,
     ),
   );
 let view =
@@ -23,14 +25,14 @@ let view =
       name,
       livelits: Livelit.state,
       tile_id,
-    ) => {
+    ) =>
   switch (name) {
   | "^slider" => [
       Node.input(
         ~attr=
           Attr.many([
             Attr.create("type", "range"),
-            livelit_style(font_metrics, 10),
+            livelit_style(font_metrics, float_of_int(10)),
             Attr.create(
               "value",
               string_of_int(
@@ -71,7 +73,7 @@ let view =
           Attr.many(
             [
               Attr.create("type", "checkbox"),
-              livelit_style(font_metrics, 1),
+              livelit_style(font_metrics, float_of_int(1)),
               Attr.on_change((_evt, _str) => {
                 inject(
                   UpdateAction.LivelitStateChange(
@@ -89,4 +91,3 @@ let view =
     ];
   | _ => []
   };
-};

@@ -287,7 +287,7 @@ let livelit_padding = (t: Base.tile): abs_indent =>
   switch (t.label) {
   | [possible_livelit_name] =>
     switch (Livelit.find_livelit(possible_livelit_name)) {
-    | Some(ll) => ll.width
+    | Some(ll) => ll.width + 1 // Add one for margin
     | None => 0
     }
   | _ => 0
