@@ -144,7 +144,7 @@ type status_typ =
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsBaseType(Token.t)
+  | ShadowsType(Token.t)
   | NotAVar;
 
 /* Type pattern ok statuses for cursor inspector */
@@ -328,10 +328,12 @@ let status_typ =
     }
   };
 
-let status_tpat = (utpat: UTPat.t): status_tpat =>
+let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name) when Form.is_base_typ(name) => InHole(ShadowsBaseType(name))
+  | Var(name)
+      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
+    InHole(ShadowsType(name))
   | Var(name) => NotInHole(Var(name))
   | Invalid(_)
   | MultiHole(_) => InHole(NotAVar)
@@ -355,8 +357,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTPat({term, _}) =>
-    switch (status_tpat(term)) {
+  | InfoTPat({term, ctx, _}) =>
+    switch (status_tpat(ctx, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -415,7 +417,7 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
 /* Add derivable attributes for type patterns */
 let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
   let cls = UTPat.cls_of_term(utpat.term);
-  let status = status_tpat(utpat);
+  let status = status_tpat(ctx, utpat);
   {cls, ancestors, status, ctx, term: utpat};
 };
 
