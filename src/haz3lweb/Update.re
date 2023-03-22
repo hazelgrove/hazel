@@ -169,6 +169,7 @@ let reevaluate_post_update =
   | ToggleMode
   | Cut
   | Paste(_)
+  | InsertWeather
   | Undo
   | Redo => true;
 
@@ -336,6 +337,46 @@ let apply =
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
+    | InsertWeather =>
+      open Js_of_ocaml;
+      let blag = (xhr, _) =>
+        if (xhr##.readyState == XmlHttpRequest.DONE) {
+          Firebug.console##log(xhr##.responseText);
+          let response_str =
+            Js.Opt.case(
+              xhr##.responseText,
+              () => "NORESPONSE",
+              x => Js.to_string(x),
+            );
+          let json = Yojson.Safe.from_string(response_str);
+          let blah_str =
+            switch (json) {
+            | `Assoc([
+                ("location", _),
+                (
+                  "current",
+                  `Assoc([
+                    ("last_updated_epoch", _),
+                    ("last_updated", _),
+                    ("temp_c", _),
+                    ("temp_f", _),
+                    ("is_day", _),
+                    (
+                      "condition",
+                      `Assoc([("text", `String(condition)), ..._]),
+                    ),
+                    ..._,
+                  ]),
+                ),
+              ]) => condition
+            | _ => "NOPE"
+            };
+          //print_endline("string to paste:");
+          //print_endline(blah_str);
+          schedule_action(Paste("\"" ++ blah_str ++ "\""));
+        };
+      JsUtil.makeAPIRequest(blag);
+      Ok(model);
     | Paste(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (

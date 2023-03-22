@@ -36,6 +36,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Paste(_)
   | Undo
   | Redo
+  | InsertWeather
   | MoveToNextHole(_)
   | UpdateLangDocMessages(_) => true;
 
