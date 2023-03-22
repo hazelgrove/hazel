@@ -88,6 +88,20 @@ let download_slide_state = state => {
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
+let download_roc = state => {
+  let zipper = ScratchSlide.editor_of_state(state).state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let rocterm = Translation.translate_to_roc(term);
+  let contents = MakeRoc.generate_code(rocterm);
+  JsUtil.download_string_file(
+    ~filename="exported_ast.ml",
+    ~content_type="text/plain",
+    ~contents,
+  );
+  ();
+};
+
 let download_slide_init_state = state => {
   let slide_init_state = ScratchSlide.export_init(state);
   let contents =
@@ -108,6 +122,15 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
         Virtual_dom.Vdom.Effect.Ignore;
       },
       ~tooltip="Export Scratchpad",
+    );
+  let export_roc_button =
+    Widgets.button(
+      Icons.export,
+      _ => {
+        download_roc(state);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      ~tooltip="Export Roc code",
     );
   let import_button =
     Widgets.file_select_button(
@@ -152,7 +175,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       },
       ~tooltip="Reset Scratchpad",
     );
-  [export_button, import_button]
+  [export_button, import_button, export_roc_button]
   @ Option.to_list(export_init_button)
   @ [reset_button];
 };
