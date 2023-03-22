@@ -240,8 +240,10 @@ let rec mk =
         DHDoc_common.mk_ListLit(ol)
         |> annot(DHAnnot.InconsistentBranches((u, i)));
       | Ap(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
+        let (doc1, doc2) = (
+          go'(~parenthesize=precedence(d1) > DHDoc_common.precedence_Ap, d1),
+          go'(~parenthesize=false, d2),
+        );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | ApBuiltin(ident, args) =>
         switch (args) {
