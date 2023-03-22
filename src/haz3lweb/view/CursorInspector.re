@@ -158,6 +158,7 @@ let exp_view: Info.status_exp => t =
 
 let pat_view: Info.status_pat => t =
   fun
+  | InHole(ExpectedTag) => div_err([text("Expected a constructor")])
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));
 

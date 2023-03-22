@@ -61,6 +61,7 @@ type error_exp =
 /* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
+  | ExpectedTag
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -260,12 +261,20 @@ let rec status_common =
   };
 
 let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
-  switch (self, mode) {
-  | (Common(self_pat), _) =>
+  switch (mode, self) {
+  | (Syn | Ana(_), Common(self_pat))
+  | (SynFun, Common(IsTag(_) as self_pat)) =>
+    /* Little bit of a hack. Anything other than a bound tag will, in
+       function position, have SynFun mode (see Typ.ap_mode). Since we
+       are prohibiting non-tags in tag applications in patterns for now,
+       we catch them here, diverting to an ExpectedTag error. But we
+       avoid capturing the second case above, as these will ultimately
+       get a (more precise) unbound tag  via status_common */
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
+  | (SynFun, _) => InHole(ExpectedTag)
   };
 
 /* Determines whether an expression or pattern is in an error hole,
