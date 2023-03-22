@@ -36,6 +36,7 @@ type t =
   | Cut
   | Copy
   | Paste(string)
+  | InsertWeather
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
