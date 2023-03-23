@@ -73,15 +73,12 @@ module Txt = {
   let of_slope_up = (slope: Slope.Up.t) =>
     of_space(slope.space) @ List.map(of_terr_l, slope.terrs);
 
-  let of_zigg = ({up, top, dn}: Ziggurat.t) =>
-    of_slope_up(up) @ [of_wald(top), ...of_slope_dn(dn)];
-  let of_segment = (seg: Segment.t) =>
-    switch (seg) {
-    | S(s) => of_space(s)
-    | Z(z) => of_zigg(z)
-    };
+  let of_zigg = ({up, top, dn}: Ziggurat.t) => {
+    let of_top =
+      top |> Option.map(wal => [of_wald(wal)]) |> Option.value(~default=[]);
+    of_slope_up(up) @ of_top @ of_slope_dn(dn);
+  };
 };
-//  ) =>
 
 let of_delim' =
   Core.Memo.general(

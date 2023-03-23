@@ -36,7 +36,7 @@ let fix_instructor_mode = settings =>
   };
 
 type t = {
-  tylr: Tylr.Segment.t,
+  tylr: Tylr.Meld.t,
   editors: Editors.t,
   results: ModelResults.t,
   settings,
@@ -54,10 +54,7 @@ let s = sort => Some(Tylr.Sort.of_string(sort));
 
 let mk = editors => {
   // tylr: Tylr.Segment.empty,
-  tylr:
-    Tylr.(
-      Segment.of_meld(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp")))))
-    ),
+  tylr: Tylr.(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp"))))),
   editors,
   results: ModelResults.empty,
   settings: settings_init,

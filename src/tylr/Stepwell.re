@@ -83,23 +83,25 @@ let cons_slope = (~onto: Dir.t, slope: Slope.t, rel) =>
     slope.terrs,
   );
 
-let cons_seg = (~onto: Dir.t, seg: Segment.t, rel) =>
-  switch (seg) {
-  | S(s) => cons_space(~onto, s, rel)
-  | Z({up, top, dn}) =>
-    switch (onto) {
-    | L =>
-      rel
-      |> cons_slope(~onto, up)
-      |> cons(~onto, Terrace.of_wald(top))
-      |> cons_slopes(Slopes.mk(~l=dn, ()))
-    | R =>
-      rel
-      |> cons_slope(~onto, dn)
-      |> cons(~onto, Terrace.of_wald(top))
-      |> cons_slopes(Slopes.mk(~r=up, ()))
-    }
+let cons_zigg = (~onto: Dir.t, {up, top, dn}: Ziggurat.t, rel) => {
+  let cons_top =
+    switch (top) {
+    | None => Fun.id
+    | Some(top) => cons(~onto, Terrace.of_wald(top))
+    };
+  switch (onto) {
+  | L =>
+    rel
+    |> cons_slope(~onto, up)
+    |> cons_top
+    |> cons_slopes(Slopes.mk(~l=dn, ()))
+  | R =>
+    rel
+    |> cons_slope(~onto, dn)
+    |> cons_top
+    |> cons_slopes(Slopes.mk(~r=up, ()))
   };
+};
 
 let rec unzip_slopes = ((l, r) as slopes, well) =>
   switch (Slope.Dn.uncons(l), Slope.Up.unsnoc(r)) {
@@ -121,12 +123,12 @@ let rec unzip_slopes = ((l, r) as slopes, well) =>
     }
   };
 
-let assemble = (~sel=Segment.empty, rel: t): t => {
+let assemble = (~sel=Ziggurat.empty, rel: t): t => {
   print_endline("Stepwell.assemble");
   let (pre, suf) = get_slopes(rel);
   // separate siblings that belong to the selection
-  let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
-  let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
+  let (pre_lt_sel, pre_geq_sel) = Ziggurat.split_lt(pre, sel);
+  let (sel_leq_suf, sel_gt_suf) = Ziggurat.split_gt(sel, suf);
   rel
   |> put_slopes(Slopes.empty)
   |> unzip_slopes((pre_lt_sel, sel_gt_suf))

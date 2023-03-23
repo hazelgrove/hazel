@@ -215,7 +215,7 @@ let main_ui_view =
       ),
       div(
         ~attr=Attr.classes(["tylr-scratch"]),
-        Code.Txt.of_segment(model.tylr),
+        [Code.Txt.of_meld(model.tylr)],
       ),
     ];
   | School(_, _, exercise) =>
