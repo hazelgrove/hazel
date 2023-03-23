@@ -71,7 +71,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
-      let retrieve_string = (): option(string) => {
+      let suggestion_opt = {
         open Util.OptUtil.Syntax;
         let* (p, _) = Zipper.representative_piece(zipper);
         InferenceResult.get_recommended_string(
@@ -79,15 +79,15 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
           Piece.id(p),
         );
       };
-      switch (retrieve_string()) {
-      | Some(typ_string) =>
+      switch (suggestion_opt) {
+      | Some(typ_filling) =>
+        // question marks (holes) can't be inserted manually, so filter them out
         let explode = s =>
           List.init(String.length(s), i => String.make(1, s.[i]));
-        typ_string
-        |> explode
-        |> List.filter(s => s != "?")
-        |> List.map(str => now_save(Insert(str)))
-        |> List.flatten;
+        let join = List.fold_left((s, acc) => s ++ acc, "");
+        let no_q_marks =
+          typ_filling |> explode |> List.filter(s => s != "?") |> join;
+        [UpdateAction.Paste(no_q_marks)];
       | None => now_save(Insert(Form.linebreak))
       };
     | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
