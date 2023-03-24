@@ -578,6 +578,48 @@ let trim_secondary: (Direction.t, t) => t =
     trim_f(trim_l, d, ps);
   };
 
+let trim_grout: (Direction.t, t) => t =
+  (d, ps) => {
+    /* Trims leading/trailing grout */
+    let rec trim_l: list(Base.piece) => list(Base.piece) =
+      xs =>
+        switch (xs) {
+        | [] => []
+        | [Grout(_), ...xs] => trim_l(xs)
+        | [_, ..._] => xs
+        };
+    trim_f(trim_l, d, ps);
+  };
+
+let push_grout: (Direction.t, t) => t =
+  (d, ps) => {
+    /* Trims leading/trailing grout */
+    let rec trim_l: list(Base.piece) => list(Base.piece) =
+      xs =>
+        switch (xs) {
+        | [] => []
+        | [Grout(_) as g, Secondary(_) as s, ...xs] => [s, g, ...trim_l(xs)]
+        //| [Grout(_), ...xs] => trim_l(xs)
+        | [_, ..._] => xs
+        };
+    trim_f(trim_l, d, ps);
+  };
+let secondaryze_grout: (Direction.t, t) => t =
+  (d, ps) => {
+    /* Trims leading/trailing grout */
+    let rec trim_l: list(Base.piece) => list(Base.piece) =
+      xs =>
+        switch (xs) {
+        | [] => []
+        | [Grout(_), ...xs] => [
+            Secondary({id: (-1), content: Whitespace(" ")}),
+            ...trim_l(xs),
+          ]
+        | [_, ..._] => xs
+        };
+    trim_f(trim_l, d, ps);
+  };
+
 let trim_secondary_and_grout: (Direction.t, t) => t =
   (d, ps) => {
     /* Trims leading/trailing secondary, continuing

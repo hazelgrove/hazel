@@ -117,10 +117,9 @@ type appendability =
 let sibling_appendability: (string, Siblings.t) => appendability =
   (char, siblings) =>
     switch (neighbor_monotiles(siblings)) {
-    | (Some(t), _) when Form.is_valid_token(t ++ char) =>
+    | (Some(t), _) when Molds.allow_append_right(t, char) =>
       AppendLeft(t ++ char)
-    | (_, Some(t))
-        when Form.is_valid_token(char ++ t) && !Form.is_comment_delim(char) =>
+    | (_, Some(t)) when Molds.allow_append_left(char, t) =>
       AppendRight(char ++ t)
     | _ => MakeNew
     };
@@ -214,7 +213,7 @@ let go =
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
     /* If inserting wouldn't produce a valid token, split */
-    Form.is_valid_token(new_t)
+    Molds.allow_insertion(char, t, new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> (z => Zipper.replace_mono(Right, new_t, (z, id_gen)))

@@ -78,7 +78,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") => now_save(Insert(Form.linebreak))
-    | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
+    | _ when /*Form.is_valid_char(key) &&*/ String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things
          like F5 which are now valid tokens and also weird
          unicode shit which is multichar i guess */
