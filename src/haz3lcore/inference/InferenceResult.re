@@ -90,7 +90,7 @@ let svg_display_settings =
 
 let get_cursor_inspect_result =
     (~global_inference_info: global_inference_info, id: Id.t)
-    : option((bool, string)) =>
+    : option((bool, list(string))) =>
   if (global_inference_info.enabled) {
     let* status =
       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
@@ -98,10 +98,10 @@ let get_cursor_inspect_result =
     | Unsolved(potential_typ_set) =>
       Some((
         false,
-        PotentialTypeSet.string_of_potential_typ_set(potential_typ_set),
+        PotentialTypeSet.strings_of_potential_typ_set(potential_typ_set),
       ))
     | Solved(ityp) =>
-      Some((true, ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string))
+      Some((true, [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string]))
     };
   } else {
     None;

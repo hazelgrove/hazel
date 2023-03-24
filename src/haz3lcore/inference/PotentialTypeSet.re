@@ -523,3 +523,6 @@ and string_of_potential_typ = (potential_typ: potential_typ) =>
       [start_text, string_of_potential_typ_set(potential_typ_set), end_text],
     );
   };
+
+let strings_of_potential_typ_set = (potential_typ_set: t): list(string) =>
+  List.map(string_of_potential_typ, potential_typ_set);

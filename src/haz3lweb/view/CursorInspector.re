@@ -135,6 +135,7 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
 
 let view_of_global_inference_info =
     (
+      ~inject,
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
       id: int,
     ) => {
@@ -147,15 +148,23 @@ let view_of_global_inference_info =
   | Some((true, solution)) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [text("has inferred type "), text(solution)],
+      [text("has inferred type "), text(List.nth(solution, 0))],
     )
-  | Some((false, error_message)) =>
+  | Some((false, conflicting_typs)) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [
-        text("has conflicting constraints: "),
-        span_c("unsolved-cursor-inspect", [text(error_message)]),
-      ],
+      List.map(
+        typ =>
+          div(
+            ~attr=clss(["typ-view-conflict"]),
+            [
+              Widgets.button(text(typ), _mouse_event =>
+                inject(Update.Paste(typ))
+              ),
+            ],
+          ),
+        conflicting_typs,
+      ),
     )
   | None => div([])
   };
@@ -221,7 +230,7 @@ let view_of_info =
         ~attr=clss([infoc, "typ"]),
         [
           term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-          view_of_global_inference_info(~global_inference_info, id),
+          view_of_global_inference_info(~inject, ~global_inference_info, id),
         ],
       )
     }
