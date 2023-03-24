@@ -58,8 +58,8 @@ let di: expansion = (Delayed, Instant);
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
-let mk_nul_infix = (t: Token.t, prec) =>
-  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
+//let mk_nul_infix = (t: Token.t, prec) =>
+//  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
 
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^[0-9_]*$");
@@ -81,7 +81,13 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_bool = str => str == "true" || str == "false";
 let is_reserved = str => is_bool(str);
-let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
+let is_var = str =>
+  !is_reserved(str)
+  && regexp(
+       {|(^[a-z][A-Za-z0-9_]*$)|(^[A-Z][A-Za-z0-9_]*\.[a-z][A-Za-z0-9_]*$)|},
+       str,
+     );
+let is_bad_var = regexp({|(^\.$)|(^[A-Za-z_]*\.$)|(^\.[A-Za-z_]*$)|});
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
 let is_base_typ = str =>
@@ -93,7 +99,11 @@ let is_wild = regexp("^_$");
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_base_typ(str);
+  regexp({|^![a-z]*$|}, str)
+  || is_bad_int(str)
+  || is_bad_float(str)
+  || is_partial_base_typ(str)
+  || is_bad_var(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
@@ -158,7 +168,8 @@ let is_secondary = t =>
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
-  ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
+  ("export", ((==)("!export"), [mk_op(Exp, [])])),
+  //("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
@@ -190,11 +201,11 @@ let forms: list((string, t)) = [
   ("power", mk_infix("**", Exp, P.power)),
   ("fpower", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
-  ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
+  //("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
-  ("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
-  ("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
+  //("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
+  //("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
   //("not_equals", mk_infix("!=", Exp, 5)),
@@ -210,12 +221,12 @@ let forms: list((string, t)) = [
   //("fnot_equals", mk_infix("!=.", Exp, 5)),
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
-  ("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
-  ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
+  //("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
+  //("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
-  ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
+  //("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
@@ -288,12 +299,13 @@ let is_atomic = t => atomic_molds(t) != [];
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
+let is_valid_nonpoly_token = t => is_valid_token(t) && t != "=";
 
-let is_valid_char = t =>
+/*let is_valid_char = t =>
   is_valid_token(t)
   || is_string_delim(t)
   || is_comment_delim(t)
-  || is_whitelisted_char(t);
+  || is_whitelisted_char(t);*/
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));

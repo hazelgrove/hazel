@@ -128,7 +128,7 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     |> Zipper.set_caret(Inner(List.length(lbl), 0))
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
     |> Option.some
-  | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
+  | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
     merge((l, r), (z_trimmed, id_gen))
   | _ => Some((z, id_gen))
   };
