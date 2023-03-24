@@ -497,9 +497,9 @@ and string_of_potential_typ = (potential_typ: potential_typ) =>
   | Binary(ctor, potential_typ_set_lt, potential_typ_set_rt) =>
     let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => ("(", " -> ", ")")
+      | CArrow => ("", " -> ", "")
       | CProd => ("(", ", ", ")")
-      | CSum => ("", " + (", ")")
+      | CSum => ("", " + ", "")
       };
 
     String.concat(
@@ -520,7 +520,11 @@ and string_of_potential_typ = (potential_typ: potential_typ) =>
 
     String.concat(
       "",
-      [start_text, string_of_potential_typ_set(potential_typ_set), end_text],
+      [
+        start_text,
+        string_of_potential_typ_set_no_nesting(potential_typ_set),
+        end_text,
+      ],
     );
   };
 

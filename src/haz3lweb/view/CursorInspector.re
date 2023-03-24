@@ -133,6 +133,26 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
   );
 };
 
+module State = {
+  type t = {
+    considering_suggestion: ref(bool),
+    last_inspector: ref(Node.t),
+  };
+
+  let init = () => {
+    considering_suggestion: ref(false),
+    last_inspector: ref(div([])),
+  };
+
+  let curr_state = init();
+
+  let get_considering_suggestion = () => curr_state.considering_suggestion^;
+  let set_considering_suggestion = v => curr_state.considering_suggestion := v;
+
+  let get_last_inspector = () => curr_state.last_inspector^;
+  let set_last_inspector = v => curr_state.last_inspector := v;
+};
+
 let view_of_global_inference_info =
     (
       ~inject,
@@ -158,8 +178,23 @@ let view_of_global_inference_info =
           div(
             ~attr=clss(["typ-view-conflict"]),
             [
-              Widgets.button(text(typ), _mouse_event =>
-                inject(Update.Paste(typ))
+              Widgets.hoverable_button(
+                text(typ),
+                _mouse_event => {
+                  State.set_considering_suggestion(false);
+                  inject(Update.Mouseup);
+                },
+                _mouse_event => {
+                  State.set_considering_suggestion(true);
+                  inject(Update.Paste(typ));
+                },
+                _mouse_event =>
+                  if (State.get_considering_suggestion()) {
+                    State.set_considering_suggestion(false);
+                    inject(Update.Undo);
+                  } else {
+                    inject(Update.Mouseup);
+                  },
               ),
             ],
           ),
@@ -305,37 +340,42 @@ let view =
       global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
     ) => {
   let backpack = zipper.backpack;
-  if (List.length(backpack) > 0) {
-    div([]);
-  } else {
-    let index = Haz3lcore.Indicated.index(zipper);
+  let curr_view =
+    if (State.get_considering_suggestion()) {
+      State.get_last_inspector();
+    } else if (List.length(backpack) > 0) {
+      div([]);
+    } else {
+      let index = Haz3lcore.Indicated.index(zipper);
 
-    switch (index) {
-    | Some(index) =>
-      switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
-      | Some(ci) =>
-        inspector_view(
-          ~inject,
-          ~global_inference_info,
-          ~settings,
-          ~show_lang_doc,
-          index,
-          ci,
-        )
+      switch (index) {
+      | Some(index) =>
+        switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
+        | Some(ci) =>
+          inspector_view(
+            ~inject,
+            ~global_inference_info,
+            ~settings,
+            ~show_lang_doc,
+            index,
+            ci,
+          )
+        | None =>
+          div(
+            ~attr=clss(["cursor-inspector"]),
+            [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
+          )
+        }
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),
-          [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
+          [
+            div(~attr=clss(["icon"]), [Icons.magnify]),
+            text("No Indicated Index"),
+          ],
         )
-      }
-    | None =>
-      div(
-        ~attr=clss(["cursor-inspector"]),
-        [
-          div(~attr=clss(["icon"]), [Icons.magnify]),
-          text("No Indicated Index"),
-        ],
-      )
+      };
     };
-  };
+  State.set_last_inspector(curr_view);
+  curr_view;
 };
