@@ -497,7 +497,7 @@ and string_of_potential_typ = (potential_typ: potential_typ) =>
   | Binary(ctor, potential_typ_set_lt, potential_typ_set_rt) =>
     let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => ("", " -> ", "")
+      | CArrow => ("(", " -> ", ")")
       | CProd => ("(", ", ", ")")
       | CSum => ("", " + ", "")
       };

@@ -1091,6 +1091,10 @@ svg.tile-selected {
   box-shadow: inset 1px 1px 9px -3px rgb(4 4 4 / 8%), 1px 2px 6px -2px rgb(0 0 0 / 1%);
 }
 
+.typ-view-conflict:hover {
+  background-color: #ffffff;
+}
+
 .typ-view.atom {
   color: var(--typ-text-color);
   display: flex;
