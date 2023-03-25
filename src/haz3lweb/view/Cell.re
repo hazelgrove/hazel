@@ -319,10 +319,10 @@ let editor_view =
   );
 };
 
-let get_elab = (editor: Editor.t): DHExp.t => {
+let get_elab = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
   let seg = Editor.get_seg(editor);
   let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
   Interface.elaborate(info_map, term);
 };
 
@@ -341,10 +341,11 @@ let editor_with_result_view =
       ~code_id: string,
       ~info_map: Statics.Map.t,
       ~result: ModelResult.simple,
+      ~ctx_init: Ctx.t,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let elab = get_elab(editor);
+  let elab = get_elab(~ctx_init, editor);
   let eval_result_footer =
     eval_result_footer_view(~font_metrics, ~elab, result);
   editor_view(

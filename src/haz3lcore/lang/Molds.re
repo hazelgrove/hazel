@@ -25,9 +25,9 @@ let get = (label: Label.t): list(Mold.t) =>
     Form.atomic_molds(t) @ molds
   | ([t], None) when Form.atomic_molds(t) != [] => Form.atomic_molds(t)
   | (_, Some(molds)) => molds
-  | (lbl, None) =>
-    Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
-    [Mold.mk_op(Any, [])];
+  | (_lbl, None) =>
+    //Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
+    [Mold.mk_op(Any, [])]
   };
 
 let delayed_expansions: expansions =
@@ -99,13 +99,13 @@ let allow_merge = (l: Token.t, r: Token.t): bool =>
 
 let allow_append_right = (t: Token.t, char: string): bool =>
   Form.is_valid_token(t ++ char)
-  || !Form.is_valid_token(t)
+  || (!Form.is_valid_token(t) || !Form.is_valid_token(char))
   && append_safe(char);
 
 let allow_append_left = (char: string, t: Token.t): bool =>
   Form.is_valid_token(char ++ t)
-  || !Form.is_valid_token(t)
-  && append_safe(char);
+  || /*!Form.is_valid_token(t)
+       &&*/ append_safe(char);
 
 let allow_insertion = (char: string, t: Token.t, new_t: Token.t): bool =>
   Form.is_valid_token(new_t) || !Form.is_valid_token(t) && append_safe(char);

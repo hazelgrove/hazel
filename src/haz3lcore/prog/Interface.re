@@ -12,9 +12,8 @@ let elaborate = (map, term): DHExp.t =>
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
 let evaluate =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    Evaluator.evaluate(Environment.empty),
+  Core.Memo.general(~cache_size_bound=1000, (env, dhexp) =>
+    Evaluator.evaluate(env, dhexp)
   );
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
@@ -55,8 +54,8 @@ let evaluate =
 //   ((d, hii), EvaluatorState.put_tests(tests, es));
 // };
 
-let evaluate = (d: DHExp.t): ProgramResult.t => {
-  let result = evaluate(d);
+let evaluate = (~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
+  let result = evaluate(env, d);
 
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
@@ -68,7 +67,7 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
     (r, es, HoleInstanceInfo.empty)
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
-    print_endline("Interface.evaluate EXCEPTION:");
+    print_endline("Interface.eval EXCEPTION:");
     print_endline(
       Sexplib.Sexp.to_string_hum(EvaluatorError.sexp_of_t(_reason)),
     );
@@ -88,18 +87,27 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
   };
 };
 
-let get_result = (map, term): ProgramResult.t =>
+let eval_to_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
-let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (get_result(map, term)) {
+//let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+let eval_segment_to_result = (s: Segment.t) => {
+  let term = s |> MakeTerm.go |> fst;
+  eval_to_result(Statics.mk_map(term), term);
+};
+let eval_segment_to_result =
+  Core.Memo.general(~cache_size_bound=1000, eval_segment_to_result);
+
+let eval_to_dhexp = (map, term): option(DHExp.t) =>
+  switch (eval_to_result(map, term)) {
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
 include TestResults;
 
-let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (get_result(map, term)) {
+let _eval_to_test_results =
+    (~descriptions=[], map, term): option(test_results) => {
+  switch (eval_to_result(map, term)) {
   | (_, state, _) =>
     Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
   };

@@ -12,10 +12,10 @@ include M;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
-let init = (ds: list((Key.t, DHExp.t))): t =>
+let init = (ds: list((Key.t, DHExp.t, Environment.t))): t =>
   ds
-  |> List.map(((key, d)) =>
-       (key, ModelResult.init(Interface.evaluate(d)))
+  |> List.map(((key, d, env)) =>
+       (key, ModelResult.init(Interface.evaluate(~env, d)))
      )
   |> List.to_seq
   |> of_seq;
