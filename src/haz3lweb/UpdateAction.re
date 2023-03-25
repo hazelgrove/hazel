@@ -37,6 +37,7 @@ type t =
   | Copy
   | Paste(string)
   | InsertWeather
+  | AIComplete
   | Execute(string)
   | AddKey(LocalStorage.Generic.t, string)
   | Undo
