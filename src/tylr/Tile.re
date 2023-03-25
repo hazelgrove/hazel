@@ -3,34 +3,30 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  id: Id.t,
-  mold: Mold.t,
-  token: Token.t,
+  proto: Proto.t,
+  undone: int,
 };
 
-let mk = (~id=?, mold, token: Token.t) => {
-  let id = id |> OptUtil.get(() => Id.Gen.next());
-  {id, mold, token};
-};
+let mk = (~undone=0, proto) => {proto, undone};
 
-let length = t => Token.length(t.token);
+let get_proto = (f, t) => f(t.proto);
+let length = get_proto(Proto.length);
+
+let uncons_char = ({proto, undone}: t) =>
+  Proto.uncons_char(proto)
+  |> Option.map(((l, r)) =>
+       undone < Proto.length(proto)
+         ? (mk(l), mk(~undone, r))
+         : (mk(~undone=1, l), mk(~undone=undone - 1, r))
+     );
+let unsnoc_char = ({proto, undone}: t) =>
+  Proto.unsnoc_char(proto)
+  |> Option.map(((l, r)) =>
+       undone > 0
+         ? (mk(~undone=undone - 1, l), mk(~undone=1, r)) : (mk(l), mk(r))
+     );
 
 let split_cursor = (_: t) => failwith("todo split_cursor");
-
-let uncons_char = (t: t): option((t, t)) => {
-  open OptUtil.Syntax;
-  let* (hd, tl) = StringUtil.uncons(t.token);
-  tl == "" ? None : Some(({...t, token: hd}, {...t, token: tl}));
-};
-
-let unsnoc_char = (t: t): option((t, t)) => {
-  open OptUtil.Syntax;
-  let* (tl, hd) = StringUtil.unsnoc(t.token);
-  tl == "" ? None : Some(({...t, token: tl}, {...t, token: hd}));
-};
-
-let zip = (l: t, r: t): option(t) =>
-  Id.eq(l.id, r.id) ? Some({...l, token: l.token ++ r.token}) : None;
 
 let unzip = (n: int, t: t): Either.t(Dir.t, (t, t)) =>
   switch (Token.split(n, t.token)) {

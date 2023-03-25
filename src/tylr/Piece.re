@@ -16,24 +16,24 @@ module Path = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  id: Id.t,
   shape: Shape.t,
   paths: list(Path.t),
 };
 
-let mk = (~paths=[], shape) => {paths, shape};
-let of_grout = (~paths=[], g) => mk(~paths, G(g));
-let of_tile = (~paths=[], t) => mk(~paths, T(t));
+let mk = (~id=?, ~paths=[], shape) => {
+  let id = id |> OptUtil.get(() => Id.Gen.next());
+  {id, paths, shape};
+};
+let of_grout = (~id=?, ~paths=[], g) => mk(~id?, ~paths, G(g));
+let of_tile = (~id=?, ~paths=[], t) => mk(~id?, ~paths, T(t));
 
 let add_paths = (ps, p) => {...p, paths: ps @ p.paths};
 let clear_paths = p => {...p, paths: []};
 
 let is_porous = _ => failwith("todo is_porous");
 
-let id = p =>
-  switch (p.shape) {
-  | G(g) => g.id
-  | T(t) => t.id
-  };
+let id = p => p.id;
 
 let length = (p: t) => {
   switch (p.shape) {
@@ -44,7 +44,7 @@ let length = (p: t) => {
 
 let mold = p =>
   switch (p.shape) {
-  | T(t) => t.mold
+  | T(t) => t.proto.mold
   | G(g) => g.mold
   };
 let sort = p => Mold.sort_(mold(p));

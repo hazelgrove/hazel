@@ -165,13 +165,13 @@ let sort = mel => root(mel) |> ListUtil.hd_opt |> Option.map(Piece.sort);
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
-let rec is_porous = mel =>
-  List.for_all(Piece.is_grout, root(mel))
-    ? kids(mel)
-      |> List.map(is_porous)
-      |> OptUtil.sequence
-      |> Option.map(Space.concat)
-    : None;
+// let rec is_porous = mel =>
+//   List.for_all(Piece.is_grout, root(mel))
+//     ? kids(mel)
+//       |> List.map(is_porous)
+//       |> OptUtil.sequence
+//       |> Option.map(Space.concat)
+//     : None;
 
 // note: does not distribute paths
 let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
