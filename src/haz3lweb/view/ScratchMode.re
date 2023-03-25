@@ -163,7 +163,13 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       _ => inject(InsertWeather),
       ~tooltip="API Test",
     );
+  let execute_button =
+    Widgets.button(
+      Icons.eye,
+      _ => inject(Execute("lol")),
+      ~tooltip="API Test",
+    );
   [export_button, import_button]
   @ Option.to_list(export_init_button)
-  @ [reset_button, api_button];
+  @ [reset_button, api_button, execute_button];
 };

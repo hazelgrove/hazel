@@ -156,6 +156,7 @@ let reevaluate_post_update =
   | InitImportScratchpad(_)
   | FailedInput(_)
   | UpdateLangDocMessages(_)
+  | AddKey(_)
   | DebugAction(_) => false
   // may not be necessary on all of these
   // TODO review and prune
@@ -170,6 +171,7 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | InsertWeather
+  | Execute(_)
   | Undo
   | Redo => true;
 
@@ -219,9 +221,11 @@ let perform_action =
   };
 };
 
-let apply =
-    (model: Model.t, update: t, state: State.t, ~schedule_action)
-    : Result.t(Model.t) => {
+let rec apply =
+        (model: Model.t, update: t, state: State.t, ~schedule_action)
+        : Result.t(Model.t) => {
+  print_endline(update |> yojson_of_t |> Yojson.Safe.to_string);
+  print_endline(update |> sexp_of_t |> Sexplib.Sexp.to_string);
   let m: Result.t(Model.t) =
     switch (update) {
     | Set(s_action) => Ok(update_settings(s_action, model))
@@ -337,45 +341,40 @@ let apply =
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
-    | InsertWeather =>
-      open Js_of_ocaml;
-      let blag = (xhr, _) =>
-        if (xhr##.readyState == XmlHttpRequest.DONE) {
-          Firebug.console##log(xhr##.responseText);
-          let response_str =
-            Js.Opt.case(
-              xhr##.responseText,
-              () => "NORESPONSE",
-              x => Js.to_string(x),
-            );
-          let json = Yojson.Safe.from_string(response_str);
-          let blah_str =
-            switch (json) {
-            | `Assoc([
-                ("location", _),
-                (
-                  "current",
-                  `Assoc([
-                    ("last_updated_epoch", _),
-                    ("last_updated", _),
-                    ("temp_c", _),
-                    ("temp_f", _),
-                    ("is_day", _),
-                    (
-                      "condition",
-                      `Assoc([("text", `String(condition)), ..._]),
-                    ),
-                    ..._,
-                  ]),
-                ),
-              ]) => condition
-            | _ => "NOPE"
-            };
-          //print_endline("string to paste:");
-          //print_endline(blah_str);
-          schedule_action(Paste("\"" ++ blah_str ++ "\""));
+    | Execute(fake_str) =>
+      print_endline("fake: " ++ fake_str);
+      let editor = model.editors |> Editors.get_editor;
+      let str = Printer.to_string_selection(editor);
+      //let zipper = editor.state.zipper;
+      /*let index = Indicated.index(editor.state.zipper);
+        let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+        let map = editor.state.zipper |> get_term |> Statics.mk_map;
+        switch (index) {
+        | Some(index) =>
+          switch (Haz3lcore.Id.Map.find_opt(index, map)) {
+          | Some(InfoExp({term,_})) => print_endline(Info.show(ci))
+          | _ => print_endline("DEBUG: No CI found for index")
+          }
+        | _ => print_endline("DEBUG: No indicated index")
+        };*/
+      print_endline("EXECUTE: " ++ str);
+      let update: UpdateAction.t =
+        try(str |> Sexplib.Sexp.of_string |> t_of_sexp) {
+        | _ =>
+          print_endline("execute parse failes, saving instead lol");
+          Save; //TODO
         };
-      JsUtil.makeAPIRequest(blag);
+      apply(model, update, state, ~schedule_action);
+    | AddKey(key, str) =>
+      LocalStorage.Generic.save(key, str);
+      Ok(model);
+    | InsertWeather =>
+      API.requestWeather((xhr, _) =>
+        switch (API.processWeather(xhr)) {
+        | Some(str) => schedule_action(Paste(str))
+        | None => ()
+        }
+      );
       Ok(model);
     | Paste(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
