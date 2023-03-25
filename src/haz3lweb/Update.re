@@ -370,18 +370,18 @@ let rec apply =
       LocalStorage.Generic.save(key, str);
       Ok(model);
     | InsertWeather =>
-      API.requestWeather((req, _) =>
-        switch (API.processWeather(req)) {
-        | Some(str) => schedule_action(Paste(str))
+      WeatherAPI.request((req, _) =>
+        switch (WeatherAPI.handle(req)) {
+        | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
         | None => ()
         }
       );
       Ok(model);
     | AIComplete =>
-      API.requestChatGPT((req, _) =>
-        switch (API.processChatGPT(req)) {
-        | Some(str) => schedule_action(Paste(str))
-        | None => ()
+      OpenAI.request_chatGPT((req, _) =>
+        switch (OpenAI.handle_chatGPT(req)) {
+        | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
+        | None => print_endline("handleChatGPT: response parse failed")
         }
       );
       Ok(model);
