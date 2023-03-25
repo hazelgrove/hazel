@@ -171,6 +171,7 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | InsertWeather
+  | AIComplete
   | Execute(_)
   | Undo
   | Redo => true;
@@ -369,8 +370,16 @@ let rec apply =
       LocalStorage.Generic.save(key, str);
       Ok(model);
     | InsertWeather =>
-      API.requestWeather((xhr, _) =>
-        switch (API.processWeather(xhr)) {
+      API.requestWeather((req, _) =>
+        switch (API.processWeather(req)) {
+        | Some(str) => schedule_action(Paste(str))
+        | None => ()
+        }
+      );
+      Ok(model);
+    | AIComplete =>
+      API.requestChatGPT((req, _) =>
+        switch (API.processChatGPT(req)) {
         | Some(str) => schedule_action(Paste(str))
         | None => ()
         }

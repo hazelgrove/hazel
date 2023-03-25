@@ -157,11 +157,17 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       },
       ~tooltip="Reset Scratchpad",
     );
-  let api_button =
+  let weather_button =
     Widgets.button(
       Icons.cloud,
       _ => inject(InsertWeather),
-      ~tooltip="API Test",
+      ~tooltip="WeatherAPI",
+    );
+  let ai_button =
+    Widgets.button(
+      Icons.circle_question,
+      _ => inject(AIComplete),
+      ~tooltip="AI Complete",
     );
   let execute_button =
     Widgets.button(
@@ -171,5 +177,5 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
     );
   [export_button, import_button]
   @ Option.to_list(export_init_button)
-  @ [reset_button, api_button, execute_button];
+  @ [reset_button, weather_button, ai_button, execute_button];
 };
