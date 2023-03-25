@@ -114,6 +114,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
+    | "e" => [Execute("")]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
@@ -128,6 +129,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
+    | "e" => [Execute("")]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))

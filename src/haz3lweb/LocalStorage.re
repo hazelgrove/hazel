@@ -1,5 +1,25 @@
 open Sexplib.Std;
 
+// A generic key-value store for saving/loading data to/from local storage
+module Generic = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | OpenAI;
+
+  let prefix: string = "KEY_STORE_";
+
+  let full_key = (key: t): string => {
+    let key = key |> sexp_of_t |> Sexplib.Sexp.to_string;
+    prefix ++ key;
+  };
+
+  let save = (key: t, value: string): unit =>
+    JsUtil.set_localstore(full_key(key), value);
+
+  let load = (key: t): option(string) =>
+    JsUtil.get_localstore(full_key(key));
+};
+
 // Settings serialization
 module Settings = {
   let save_settings_key: string = "SETTINGS";

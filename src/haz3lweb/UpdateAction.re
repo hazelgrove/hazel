@@ -37,6 +37,8 @@ type t =
   | Copy
   | Paste(string)
   | InsertWeather
+  | Execute(string)
+  | AddKey(LocalStorage.Generic.t, string)
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
