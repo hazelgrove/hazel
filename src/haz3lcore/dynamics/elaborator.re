@@ -204,6 +204,7 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
         DHExp.Sequence(d1, d2);
+      | Tag("!export") => Some(DHExp.Ap(TestLit(10000137), Tuple([])))
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);

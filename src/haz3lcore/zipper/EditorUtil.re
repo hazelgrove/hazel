@@ -42,17 +42,6 @@ let editors_of_strings = (~read_only=false, xs: list(string)) => {
   (id, i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
-let info_map = (editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) =
-    Util.TimeUtil.measure_time("EditorUtil.info_map => MakeTerm.go", true, () =>
-      MakeTerm.go(unselected)
-    );
-  let info_map = Statics.mk_map(term);
-  info_map;
-};
-
 let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
   | EmptyHole

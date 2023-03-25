@@ -669,7 +669,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
+  let spliced_elabs:
+    state => list((ModelResults.key, DHExp.t, Environment.t)) =
     state => {
       let {
         test_validation,
@@ -687,22 +688,27 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (
           test_validation_key,
           Interface.elaborate(test_validation.info_map, test_validation.term),
+          Environment.empty,
         ),
         (
           user_impl_key,
           Interface.elaborate(user_impl.info_map, user_impl.term),
+          Environment.empty,
         ),
         (
           user_tests_key,
           Interface.elaborate(user_tests.info_map, user_tests.term),
+          Environment.empty,
         ),
         (
           instructor_key,
           Interface.elaborate(instructor.info_map, instructor.term),
+          Environment.empty,
         ),
         (
           hidden_tests_key,
           Interface.elaborate(hidden_tests.info_map, hidden_tests.term),
+          Environment.empty,
         ),
       ]
       @ (
@@ -711,6 +717,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
              (
                hidden_bugs_key(n),
                Interface.elaborate(hidden_bug.info_map, hidden_bug.term),
+               Environment.empty,
              )
            )
       );

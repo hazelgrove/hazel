@@ -187,6 +187,12 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~free=Ctx.union([e1.free, e2.free]), m);
+  | Tag("!export") =>
+    let self: Info.self_exp =
+      Common(IsTag({name: "!export", syn_ty: Some(Prod([]))}));
+    let info =
+      Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~free=[]);
+    (info, add_info(ids @ [10000137], InfoExp(info), m));
   | Tag(tag) => atomic(Info.self_tag(ctx, tag))
   | Ap(fn, arg) =>
     let fn_mode = Typ.ap_mode(ctx, mode, UExp.tag_name(fn));
@@ -468,4 +474,9 @@ let mk_map =
       Id.Map.empty,
     )
     |> snd
+  });
+
+let mk_map_ctx =
+  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
   });

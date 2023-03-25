@@ -45,7 +45,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F5" =>
       let term = zipper |> get_term;
       let map = term |> Statics.mk_map;
-      Interface.get_result(map, term) |> ProgramResult.show |> print;
+      Interface.eval_to_result(map, term) |> ProgramResult.show |> print;
     | "F6" =>
       let index = Indicated.index(zipper);
       let map = zipper |> get_term |> Statics.mk_map;

@@ -15,11 +15,12 @@ let view =
       ~settings: ModelSettings.t,
       ~langDocMessages: LangDocMessages.t,
       ~result: ModelResult.simple,
+      ~ctx_init: Ctx.t,
     ) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
@@ -48,6 +49,7 @@ let view =
       ~color_highlighting,
       ~info_map,
       ~result,
+      ~ctx_init: Ctx.t,
       editor,
     );
   let ci_view =

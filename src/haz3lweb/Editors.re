@@ -63,12 +63,39 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
+let stdlib_id = 10000137;
+let stdlib_slide = 1;
+let get_ctx_init = (slides, idx) => {
+  let stdlib_seg = List.nth(slides, stdlib_slide) |> snd |> Editor.get_seg;
+  let (term, _) = MakeTerm.go(stdlib_seg);
+  let info_map = Statics.mk_map(term);
+  switch (Id.Map.find_opt(stdlib_id, info_map)) {
+  | _ when idx == stdlib_slide => Ctx.empty
+  | None => Ctx.empty
+  | Some(info) => Info.ctx_of(info)
+  };
+};
+let get_spliced_elabs =
+    (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
   switch (editors) {
   | DebugLoad => []
-  | Scratch(n, slides) =>
-    let slide = List.nth(slides, n);
-    ScratchSlide.spliced_elabs(slide);
+  | Scratch(idx, slides) =>
+    let tests =
+      List.nth(slides, stdlib_slide)
+      |> snd
+      |> Editor.get_seg
+      |> Interface.eval_segment_to_result
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_tests
+      |> TestMap.lookup(stdlib_id);
+    let env =
+      switch (tests) {
+      | Some([(_, _, env), ..._]) => env
+      | _ => Environment.empty
+      };
+    let slide = List.nth(slides, idx);
+    ScratchSlide.spliced_elabs(~ctx_init=get_ctx_init(slides, idx), slide)
+    |> List.map(((key, dhexp)) => (key, dhexp, env));
   | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };
 };

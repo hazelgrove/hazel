@@ -186,6 +186,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
+      | (["!export"], []) => ret(Tag("!export"))
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))

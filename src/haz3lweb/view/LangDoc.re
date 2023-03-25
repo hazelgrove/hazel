@@ -412,7 +412,7 @@ let example_view =
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Statics.mk_map(uhexp);
             let result_view =
-              switch (Interface.evaluation_result(info_map, uhexp)) {
+              switch (Interface.eval_to_dhexp(info_map, uhexp)) {
               | None => []
               | Some(dhexp) => [
                   DHCode.view_tylr(
