@@ -39,7 +39,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | InsertWeather
-  | AIComplete
+  | ChatComplete
   | MoveToNextHole(_)
   | UpdateLangDocMessages(_) => true;
 
