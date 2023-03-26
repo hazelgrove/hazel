@@ -63,20 +63,22 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
-    | Record
+    // | Record
+    | Tuple
     | Var
     | Assign
     | Ap
     | If
     | Seq
-    | Test
+    | Expect
     | Parens
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -84,22 +86,19 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
-    | Record(list(t))
+    // | Record(list(t))
+    | Tuple(list(t))
     | Var(Token.t)
-    | Assign(t, t)
+    | Assign(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(t)
+    | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-  and t = {
-    // invariant: nonempty
-    ids: list(Id.t),
-    term,
-  };
+    | TypeAnn(Token.t, UTyp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
@@ -146,20 +145,22 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
-    | Record
+    // | Record
+    | Tuple
     | Var
     | Assign
     | Ap
     | If
     | Seq
-    | Test
+    | Expect
     | Parens
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -167,26 +168,23 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
-    | Record(list(t))
+    // | Record(list(t))
+    | Tuple(list(t))
     | Var(Token.t)
-    | Assign(t, t)
+    | Assign(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(t)
+    | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-  and t = {
-    // invariant: nonempty
-    ids: list(Id.t),
-    term,
-  };
+    | TypeAnn(Token.t, UTyp.t);
 }
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Wild
     | Int(int)
     | Float(float)
@@ -195,17 +193,12 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Var(Token.t)
-    | Record(list(t))
-    | Parens(t)
-    | Ap(t, t)
-    | TypeAnn(t, UTyp.t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+    // | Record(list(t))
+    | Tuple(list(t))
+    | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Wild
     | Int(int)
     | Float(float)
@@ -214,18 +207,13 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Var(Token.t)
-    | Record(list(t))
-    | Parens(t)
-    | Ap(t, t)
-    | TypeAnn(t, UTyp.t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+    // | Record(list(t))
+    | Tuple(list(t))
+    | Parens(t);
 }
 and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Int
     | Float
     | Bool
@@ -233,15 +221,12 @@ and UTyp: {
     | List(t)
     | Var(string)
     | Arrow(t, t)
+    // | Record(list(t))
     | Tuple(list(t))
-    | Parens(t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+    | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Int
     | Float
     | Bool
@@ -249,10 +234,7 @@ and UTyp: {
     | List(t)
     | Var(string)
     | Arrow(t, t)
+    // | Record(list(t))
     | Tuple(list(t))
-    | Parens(t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+    | Parens(t);
 };
