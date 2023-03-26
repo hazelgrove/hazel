@@ -57,7 +57,7 @@ let body = (~model=GPT3_5Turbo, messages: list((role, string))): Json.t => {
 let body_simple = (~model=GPT3_5Turbo, prompt) =>
   body(~model, [(User, prompt)]);
 
-let request_chatGPT = (handler): unit =>
+let request_chat = (prompt, handler): unit =>
   switch (LocalStorage.Generic.load(OpenAI)) {
   | None => print_endline("NO OPENAI API KEY FOUND")
   | Some(api_key) =>
@@ -68,15 +68,12 @@ let request_chatGPT = (handler): unit =>
         ("Content-Type", "application/json"),
         ("Authorization", "Bearer " ++ api_key),
       ],
-      ~body=
-        body_simple(
-          "Hello! Please respond with ONLY a random integer between 8000 and 9001.",
-        ),
+      ~body=body_simple(prompt),
       handler,
     )
   };
 
-let handle_chatGPT = (request: request): option(string) =>
+let handle_chat = (request: request): option(string) =>
   switch (receive(request)) {
   | Some(json) =>
     let* choices = Json.dot("choices", json);

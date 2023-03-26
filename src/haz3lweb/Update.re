@@ -171,7 +171,7 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | InsertWeather
-  | AIComplete
+  | ChatComplete
   | Execute(_)
   | Undo
   | Redo => true;
@@ -225,8 +225,8 @@ let perform_action =
 let rec apply =
         (model: Model.t, update: t, state: State.t, ~schedule_action)
         : Result.t(Model.t) => {
-  print_endline(update |> yojson_of_t |> Yojson.Safe.to_string);
-  print_endline(update |> sexp_of_t |> Sexplib.Sexp.to_string);
+  //print_endline(update |> yojson_of_t |> Yojson.Safe.to_string);
+  //print_endline(update |> sexp_of_t |> Sexplib.Sexp.to_string);
   let m: Result.t(Model.t) =
     switch (update) {
     | Set(s_action) => Ok(update_settings(s_action, model))
@@ -333,6 +333,23 @@ let rec apply =
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
+    | PerformAction(Insert("?") as a) =>
+      let editor = model.editors |> Editors.get_editor;
+      let _ =
+        switch (
+          editor.state.zipper.caret,
+          editor.state.zipper.relatives.siblings |> snd,
+        ) {
+        | (Inner(_, c), [Tile({label: [s], _}), ..._])
+            when
+              Str.string_match(Str.regexp("^\".*\\?\\?\"$"), s, 0)
+              && c == String.length(s)
+              - 2 =>
+          schedule_action(PerformAction(Select(Term(Current))));
+          schedule_action(ChatComplete);
+        | _ => ()
+        };
+      perform_action(model, a, state, ~schedule_action);
     | PerformAction(a) => perform_action(model, a, state, ~schedule_action)
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Cut =>
@@ -370,20 +387,24 @@ let rec apply =
       LocalStorage.Generic.save(key, str);
       Ok(model);
     | InsertWeather =>
-      WeatherAPI.request((req, _) =>
+      WeatherAPI.request(req =>
         switch (WeatherAPI.handle(req)) {
         | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
-        | None => ()
+        | None => print_endline("WeatherAPI: response parse failed")
         }
       );
       Ok(model);
-    | AIComplete =>
-      OpenAI.request_chatGPT((req, _) =>
-        switch (OpenAI.handle_chatGPT(req)) {
-        | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
-        | None => print_endline("handleChatGPT: response parse failed")
-        }
-      );
+    | ChatComplete =>
+      switch (Assistant.prompt(model)) {
+      | None => print_endline("Assistant: no prompt generated")
+      | Some(prompt) =>
+        OpenAI.request_chat(prompt, req =>
+          switch (OpenAI.handle_chat(req)) {
+          | Some(response) => schedule_action(Assistant.react(response))
+          | None => print_endline("Assistant: response parse failed")
+          }
+        )
+      };
       Ok(model);
     | Paste(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);

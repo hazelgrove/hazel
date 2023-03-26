@@ -178,6 +178,8 @@
     11.2px 22.3px 28.1px -1.8px hsl(var(--shadow-color) / 0.34),
     17px 33.9px 42.7px -2.1px hsl(var(--shadow-color) / 0.34),
     25px 50px 62.9px -2.5px hsl(var(--shadow-color) / 0.34);
+
+    --link-gradient: linear-gradient(-90deg, #ee7752 0%, #e73c7e 10%, #23a6d5 30%, #23d5ab 50%, #23a6d5 70%, #e73c7e 90%, #ee7752 100%);
 }
 
 /* BASE ELEMENTS */
@@ -1881,4 +1883,42 @@ svg.expandable path {
 #main {
   overflow: auto;
   flex: 1;
+}
+
+/* Assistant */
+
+@keyframes gradient {
+	0% {
+		background-position: 0% 0%;
+	}
+	100% {
+		background-position: 400% 0%;
+	}
+}
+
+
+.code .mono-string-lit-query {
+  background: var(--link-gradient);
+  background-size: 800% 800%;
+  animation: gradient 12s linear infinite alternate;
+  color: rgb(255, 255, 255);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
+}
+
+@keyframes backgroundColorPalette {
+  0% {
+    background: #ee6055;
+  }
+  25% {
+    background: #60d394;
+  }
+  50% {
+    background: #aaf683;
+  }
+  75% {
+    background: #ffd97d;
+  }
+  100% {
+    background: #f785ff;
+  }
 }

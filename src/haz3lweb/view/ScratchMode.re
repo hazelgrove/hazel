@@ -166,7 +166,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let ai_button =
     Widgets.button(
       Icons.circle_question,
-      _ => inject(AIComplete),
+      _ => inject(ChatComplete),
       ~tooltip="AI Complete",
     );
   let execute_button =

@@ -45,21 +45,23 @@ module Json = {
 
 let request =
     (
+      ~debug=false,
       ~with_credentials=false,
       ~method: method,
       ~url: string,
       ~headers: list((string, string))=[],
       ~body: Json.t=`Null,
-      handler: (request, unit) => unit,
+      handler: request => unit,
     )
     : unit => {
+  debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
   let request = XmlHttpRequest.create();
-  request##.onreadystatechange := Js.wrap_callback(handler(request));
-  request##.withCredentials := Js.bool(with_credentials);
+  request##.onreadystatechange := Js.wrap_callback(_ => handler(request));
+  request##.withCredentials := with_credentials |> Js.bool;
   request##_open(
-    Js.string(string_of_method(method)),
-    Js.string(url),
-    Js.bool(true),
+    method |> string_of_method |> Js.string,
+    url |> Js.string,
+    true |> Js.bool,
   );
   for (i in 0 to List.length(headers) - 1) {
     let (key, value) = List.nth(headers, i);
