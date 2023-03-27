@@ -140,6 +140,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
     | _ => []
     }
+  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Down, alt: Down} =>
+    switch (key) {
+    | _ => []
+    }
   | _ => []
   };
 };

@@ -156,7 +156,8 @@ let reevaluate_post_update =
   | InitImportScratchpad(_)
   | FailedInput(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | Play(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | ResetCurrentEditor
@@ -415,6 +416,9 @@ let apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | Play(_) =>
+      // TODO
+      Ok(model)
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

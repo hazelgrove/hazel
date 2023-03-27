@@ -33,7 +33,7 @@ let rec type_string = (ty: Haz3lcore.Typ.t): string =>
   | Sum(t1, t2) => type_string(t1) ++ "+" ++ type_string(t2)
   };
 
-let kind_view = (ty: Haz3lcore.Kind.t): string =>
+let kind_string = (ty: Haz3lcore.Kind.t): string =>
   switch (ty) {
   | Type => "Singleton"
   };
@@ -123,7 +123,7 @@ let context_entry_string = (entry: Haz3lcore.Ctx.entry): string =>
   switch (entry) {
   | VarEntry({name, typ, _}) => name ++ ":" ++ type_string(typ)
   | TVarEntry({name, kind, _}) =>
-    String.concat(" ", ["type", name, "::", kind_view(kind)])
+    String.concat(" ", ["type", name, "::", kind_string(kind)])
   };
 
 let ctx_inspector_string = (ci: Haz3lcore.Statics.t) => {
@@ -204,28 +204,7 @@ let action_string = (action: Action.t, editor: Editor.t) => {
   };
 };
 
-let view =
-    //~inject,
-    //~settings,
-    //~show_lang_doc: bool,
-    //zipper: Haz3lcore.Zipper.t,
-    //info_map: Haz3lcore.Statics.map,
-    (model: Model.t) => {
-  let zipper = Editors.get_zipper(model.editors);
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
-
-  let zipper_type = cursor_inspector_string(zipper, info_map);
-  let editor = Editors.get_editor(model.editors);
-  let action_str =
-    switch (editor.history) {
-    | (_, []) => ""
-    | (_, [(action, _), ..._]) => action_string(action, editor)
-    };
-
-  let type_string: string = "The expression has type " ++ zipper_type;
-  let alert = Node.span([Node.text(action_str), Node.text(type_string)]);
+let accessibility_view = (info: string) => {
   let alert_div =
     Node.div(
       ~attr=
@@ -235,7 +214,24 @@ let view =
           Attr.create("area-hidden", "true"),
           //Attr.create("role", "alert"),
         ]),
-      [alert],
+      [Node.text(info)],
     );
   Node.div([JsUtil.clipboard_shim(~text="", ()), alert_div]);
+};
+
+let view =
+    //~inject,
+    //~settings,
+    //~show_lang_doc: bool,
+    //zipper: Haz3lcore.Zipper.t,
+    //info_map: Haz3lcore.Statics.map,
+    (model: Model.t) => {
+  let editor = Editors.get_editor(model.editors);
+  let action_str =
+    switch (editor.history) {
+    | (_, []) => ""
+    | (_, [(action, _), ..._]) => action_string(action, editor)
+    };
+
+  accessibility_view(action_str);
 };
