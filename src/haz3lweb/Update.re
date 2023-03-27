@@ -416,9 +416,7 @@ let apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
-    | Play(_) =>
-      // TODO
-      Ok(model)
+    | Play(accessibility_info) => Ok({...model, accessibility_info})
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

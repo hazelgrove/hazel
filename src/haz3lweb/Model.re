@@ -13,6 +13,7 @@ type t = {
   show_backpack_targets: bool,
   double_tap: option(timestamp),
   mousedown: bool,
+  accessibility_info: AccessibilityInfo.t,
   langDocMessages: LangDocMessages.t,
 };
 
@@ -28,6 +29,7 @@ let mk = editors => {
   show_backpack_targets: false,
   double_tap: None,
   mousedown: false,
+  accessibility_info: AccessibilityInfo.Action,
   langDocMessages: LangDocMessages.init,
 };
 

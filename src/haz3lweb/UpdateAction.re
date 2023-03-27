@@ -14,12 +14,6 @@ type settings_action =
   | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type accessibility_info =
-  | Action
-  | Context
-  | Cursor;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
   | UpdateDoubleTap(option(float))
@@ -49,7 +43,7 @@ type t =
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | Play(accessibility_info);
+  | Play(AccessibilityInfo.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

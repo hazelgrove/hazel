@@ -226,12 +226,22 @@ let view =
     //zipper: Haz3lcore.Zipper.t,
     //info_map: Haz3lcore.Statics.map,
     (model: Model.t) => {
+  let zipper = Editors.get_zipper(model.editors);
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let info_map = Statics.mk_map(term);
   let editor = Editors.get_editor(model.editors);
-  let action_str =
-    switch (editor.history) {
-    | (_, []) => ""
-    | (_, [(action, _), ..._]) => action_string(action, editor)
+
+  let info_str =
+    switch (model.accessibility_info) {
+    | Action =>
+      switch (editor.history) {
+      | (_, []) => ""
+      | (_, [(action, _), ..._]) => action_string(action, editor)
+      }
+    | Context => "No Static Data"
+    | Cursor => cursor_inspector_string(zipper, info_map)
     };
 
-  accessibility_view(action_str);
+  accessibility_view(info_str);
 };

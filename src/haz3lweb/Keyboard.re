@@ -142,6 +142,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Down, alt: Down} =>
     switch (key) {
+    | "C" => [Play(AccessibilityInfo.Cursor)]
+    | "A" => [Play(AccessibilityInfo.Action)]
     | _ => []
     }
   | _ => []
