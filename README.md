@@ -17,7 +17,7 @@ branch is updated infrequently and is currently almost two years behind!
 
 ### Short version
 
-If you already have `ocaml` version 4.14.0 and least version 2.0 of `opam`
+If you already have `ocaml` version 5.0.0 and least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
