@@ -5,7 +5,7 @@
 The most recent version that we use is Ocaml 4.12.1. We have not updated past that for the following
 reasons (which should be re-confirmed periodically):
 
-- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) does not support 4.13 or higher version.
+- Ocaml 5.0.0 is the latest version
 
 ## How to update Hazel to use a new version of ocaml
 
