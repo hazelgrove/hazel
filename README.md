@@ -152,7 +152,7 @@ To obtain an clean build, you may need to:
 
   ```sh
   # opam switch remove ./
-  opam switch create ./ 4.14.0
+  opam switch create ./ 5.0.0
   eval $(opam env)
   make deps
   make
