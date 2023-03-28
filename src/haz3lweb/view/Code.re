@@ -11,6 +11,7 @@ let of_delim' =
       let cls =
         switch (label) {
         | [_] when !is_consistent => "mono-inconsistent"
+        | [s] when Str.string_match(Str.regexp("^\\?\\?\\?$"), s, 0) => "mono-string-lit-query"
         | [s] when Str.string_match(Str.regexp("^\".*\\?\\?\\?\"$"), s, 0) => "mono-string-lit-query"
         | [s] when Form.is_string(s) => "mono-string-lit"
         | [_] => "mono"
