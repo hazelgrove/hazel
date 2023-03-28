@@ -171,7 +171,7 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | InsertWeather
-  | ChatComplete
+  | Complete(_)
   | Execute(_)
   | Undo
   | Redo => true;
@@ -339,14 +339,19 @@ let rec apply =
         switch (
           editor.state.zipper.caret,
           editor.state.zipper.relatives.siblings |> snd,
+          editor.state.zipper.relatives.siblings |> fst |> List.rev,
         ) {
-        | (Inner(_, c), [Tile({label: [s], _}), ..._])
+        | (Inner(_, c), [Tile({label: [s], _}), ..._], _)
             when
               Str.string_match(Str.regexp("^\".*\\?\\?\"$"), s, 0)
               && c == String.length(s)
               - 2 =>
           schedule_action(PerformAction(Select(Term(Current))));
-          schedule_action(ChatComplete);
+          schedule_action(Complete(Chat));
+        | (Outer, _, [Tile({label: [s], _}), ..._])
+            when Str.string_match(Str.regexp("^\\?\\?$"), s, 0) =>
+          schedule_action(PerformAction(Select(Term(Current))));
+          schedule_action(Complete(Code));
         | _ => ()
         };
       perform_action(model, a, state, ~schedule_action);
@@ -394,13 +399,27 @@ let rec apply =
         }
       );
       Ok(model);
-    | ChatComplete =>
-      switch (Assistant.prompt(model)) {
+    | Complete(Chat) =>
+      switch (Assistant.prompt_chat(model)) {
       | None => print_endline("Assistant: no prompt generated")
       | Some(prompt) =>
         OpenAI.request_chat(prompt, req =>
           switch (OpenAI.handle_chat(req)) {
-          | Some(response) => schedule_action(Assistant.react(response))
+          | Some(response) =>
+            schedule_action(Assistant.react_chat(response))
+          | None => print_endline("Assistant: response parse failed")
+          }
+        )
+      };
+      Ok(model);
+    | Complete(Code) =>
+      switch (Assistant.prompt_code(model)) {
+      | None => print_endline("Assistant: no prompt generated")
+      | Some(prompt) =>
+        OpenAI.request_chat(prompt, req =>
+          switch (OpenAI.handle_chat(req)) {
+          | Some(response) =>
+            schedule_action(Assistant.react_code(response))
           | None => print_endline("Assistant: response parse failed")
           }
         )

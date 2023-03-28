@@ -145,7 +145,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (sys, key) {
-    | (_, "Tab") => [PerformAction(Select(Term(Current))), ChatComplete]
+    | (_, "Tab") => [
+        PerformAction(Select(Term(Current))),
+        Complete(Chat),
+      ]
     | (_, "ArrowLeft") when restricted =>
       now(MoveToBackpackTarget(Left(ByToken)))
     | (_, "ArrowRight") when restricted =>

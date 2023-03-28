@@ -14,6 +14,11 @@ type settings_action =
   | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type completion =
+  | Chat
+  | Code;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
   | UpdateDoubleTap(option(float))
@@ -37,7 +42,7 @@ type t =
   | Copy
   | Paste(string)
   | InsertWeather
-  | ChatComplete
+  | Complete(completion)
   | Execute(string)
   | AddKey(LocalStorage.Generic.t, string)
   | Undo
