@@ -32,10 +32,7 @@ type t = {
 
 let init: int => t =
   id => {
-    selection: {
-      focus: Left,
-      content: [],
-    },
+    selection: Selection.mk([]),
     backpack: [],
     relatives: {
       siblings: ([], [Grout({id, shape: Convex})]),
@@ -100,7 +97,7 @@ let zip = (z: t): Segment.t =>
 let sibs_with_sel =
     (
       {
-        selection: {content, focus},
+        selection: {content, focus, _},
         relatives: {siblings: (l_sibs, r_sibs), _},
         _,
       }: t,

@@ -13,8 +13,8 @@ let get_ci = (model: Model.t): option(Info.t) => {
 };
 
 let sanitize_prompt = (prompt: string): string => {
-  //HACK: replacement of ??? below
-  let prompt = Str.global_replace(Str.regexp("\\?\\?\\?"), "", prompt);
+  //HACK: replacement of ?? below
+  let prompt = Str.global_replace(Str.regexp("\\?\\?"), "", prompt);
   let prompt =
     if (Str.string_match(Str.regexp("^\".*\"$"), prompt, 0)) {
       String.sub(prompt, 1, String.length(prompt) - 2);
@@ -52,21 +52,22 @@ let react_chat = (response: string): UpdateAction.t => {
 type samples = list((string, string));
 
 let samples = [
-  ("let a:Float = ???(5)", "float_of_int"),
-  ("let f = ??? in f(5)", "fun x:Int -> ???"),
-  ("case Foo(5) | Foo(x) => ??? | Bar => 6", "x"),
+  ("let a:Float = ??(5)", "float_of_int"),
+  ("let f = ?? in f(5)", "fun x:Int -> ??"),
+  ("case Foo(5) | Foo(x) => ?? | Bar => 6", "x"),
 ];
 
 let collate_samples: samples => list(string) =
   List.map(((prompt, completion)) => {
-    "prompt: " ++ prompt ++ "\ncompletion: " ++ completion ++ ""
+    "sample prompt: " ++ prompt ++ "\nsample completion: " ++ completion ++ ""
   });
 
 let code_instructions = [
   "You are an intelligent code completion agent",
-  "You will be given a program sketch and are tasked with coming up with a valid replacement for the hole labelled `???`",
-  "Your suggestion doesn't have to be complete; it's okay to leave holes (???) in your completion if there isn't enough information to fill them in",
-  "Respond only with a replacement the symbol `???`",
+  "You will be given a program sketch and are tasked with coming up with a valid replacement for the hole labelled ?? in the actual prompt",
+  "Your suggestion doesn't have to be complete; it's okay to leave holes (??) in your completion if there isn't enough information to fill them in",
+  "Respond only with a replacement for the symbol ?? in the actual prompt",
+  "Respond only with a single replacement expression; you do not need to provide replacements for the samples",
   "Do not include the provided program sketch in your response",
   "Include only code in your response",
   "Do not include a period at the end of your response",
@@ -74,9 +75,11 @@ let code_instructions = [
 
 /*
  ideas: take into account clipboard, past code positions, selections
+
+ TODO: make holes rendered as some actual text; otherwise it tries to fill them...
  */
 
- /**
+/**
    REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
 
    plan for response wrapper:
@@ -103,21 +106,24 @@ let prompt_code = (model: Model.t): option(string) => {
     };
 
   let prefix =
-    code_instructions
-    @ ["Sample completions:"]
+    ["First, Consider these examples of a prompt and its completion:"]
     @ collate_samples(samples)
+    @ code_instructions
     @ [
       "According to the type checker, the hole must be filled by an expression of "
       ++ type_expectation,
     ]
-    @ ["prompt: "];
-  let body = Printer.to_string_editor(editor);
+    @ ["actual prompt: "];
+  let body = Printer.to_string_editor(~holes=Some("HOLE"), editor);
   //let body = sanitize_prompt(body);
   switch (String.trim(body)) {
   | "" => None
   | _ =>
     let prompt =
-      String.concat("\n ", prefix) ++ "\n " ++ body ++ "completion:\n";
+      String.concat("\n ", prefix)
+      ++ "\n "
+      ++ body
+      ++ "\nactual completion:\n";
     print_endline("ABOUT TO SUBMIT PROMPT:\n " ++ prompt);
     Some(prompt);
   };
@@ -125,5 +131,8 @@ let prompt_code = (model: Model.t): option(string) => {
 
 let react_code = (response: string): UpdateAction.t => {
   //let response = sanitize_response(response);
-  Paste("~" ++ response ++ "~");
+  PasteIntoSelection(
+    response,
+    // "~" ++ response ++ "~",
+  );
 };

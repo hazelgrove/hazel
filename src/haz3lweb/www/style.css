@@ -696,6 +696,10 @@ svg.tile-selected {
   fill: var(--selection-color);
 }
 
+.tile-path.selected-ephemeral {
+  fill: #e8dbbe;;
+}
+
 /* TODO(andrew): hack important */
 .tile-path.raised.selected {
   filter: url(#raised-drop-shadow-Nul) !important;
@@ -1905,7 +1909,7 @@ svg.expandable path {
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
 }
 .code .ghost-delim {
-  color:#d9cab4;
+  color:white; /* var(--light-page-color); */
 }
 
 @keyframes backgroundColorPalette {

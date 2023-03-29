@@ -36,6 +36,8 @@ let is_action_logged: UpdateAction.t => bool =
   | Cut
   | Copy
   | Paste(_)
+  | PasteIntoSelection(_)
+  | AcceptSuggestion
   | Undo
   | Redo
   | InsertWeather

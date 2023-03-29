@@ -139,8 +139,10 @@ let reevaluate_post_update =
     | Mode(_) => true
     }
   | PerformAction(
-      Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_) |
-      Jump(_),
+      Move(_) | Select(_) | Unselect(_) | RotateBackpack |
+      MoveToBackpackTarget(_) |
+      Jump(_) |
+      SetSelectionFocus(_),
     )
   | MoveToNextHole(_) //
   | UpdateDoubleTap(_)
@@ -170,6 +172,8 @@ let reevaluate_post_update =
   | ToggleMode
   | Cut
   | Paste(_)
+  | PasteIntoSelection(_)
+  | AcceptSuggestion
   | InsertWeather
   | Complete(_)
   | Execute(_)
@@ -343,19 +347,35 @@ let rec apply =
         ) {
         | (Inner(_, c), [Tile({label: [s], _}), ..._], _)
             when
-              Str.string_match(Str.regexp("^\".*\\?\\?\"$"), s, 0)
+              Str.string_match(Str.regexp("^\".*\\?\"$"), s, 0)
               && c == String.length(s)
               - 2 =>
           schedule_action(PerformAction(Select(Term(Current))));
           schedule_action(Complete(Chat));
         | (Outer, _, [Tile({label: [s], _}), ..._])
-            when Str.string_match(Str.regexp("^\\?\\?$"), s, 0) =>
+            when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
           schedule_action(PerformAction(Select(Term(Current))));
           schedule_action(Complete(Code));
         | _ => ()
         };
       perform_action(model, a, state, ~schedule_action);
-    | PerformAction(a) => perform_action(model, a, state, ~schedule_action)
+    | PerformAction(a) =>
+      let (id, ed) = model.editors |> Editors.get_editor_and_id;
+      if (ed.state.zipper.selection.ephemeral) {
+        switch (Perform.go_z(Destruct(Left), ed.state.zipper, id)) {
+        | Error(err) => Error(FailedToPerform(err))
+        | Ok((z, id)) =>
+          let ed = Editor.new_state(Destruct(Left), z, ed);
+          //TODO(andrew): fix double action
+          let model = {
+            ...model,
+            editors: Editors.put_editor_and_id(id, ed, model.editors),
+          };
+          perform_action(model, a, state, ~schedule_action);
+        };
+      } else {
+        perform_action(model, a, state, ~schedule_action);
+      };
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
@@ -420,11 +440,54 @@ let rec apply =
           switch (OpenAI.handle_chat(req)) {
           | Some(response) =>
             schedule_action(Assistant.react_code(response))
+          //schedule_action(PerformAction(SetSelectionFocus(Left)));
+          /*schedule_action(PerformAction(Select(Term(Current))));
+            schedule_action(PerformAction(SetSelectionFocus(Left)));
+            schedule_action(PerformAction(Unselect));*/
+          //let z = Zipper.directional_unselect(z.selection.focus, z);
           | None => print_endline("Assistant: response parse failed")
           }
         )
       };
       Ok(model);
+    | AcceptSuggestion =>
+      /*let (is, ed) = Editors.get_editor_and_id(model.editors);
+        let sel = ed.state.zipper.selection;
+        let ed = {...ed, state: {...ed.state, zipper: {selection}}};
+        let eds = Editors.put_editor_and_id(id, ed, eds)
+        ed.state.zipper.selection;*/
+      //Note: Selection.clear (Which is called by unselect) modified to set ephmeral to false
+      perform_action(model, Unselect(Some(Right)), state, ~schedule_action)
+    | PasteIntoSelection(str) =>
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      switch (Printer.zipper_of_string(id, str)) {
+      | None => Error(CantPaste)
+      | Some((z, id)) =>
+        /* NOTE(andrew): These two perform calls are a hack to
+           deal with the fact that pasting something like "let a = b in"
+           won't trigger the barfing of the "in"; to trigger this, we
+           insert a space, and then we immediately delete it. */
+        switch (Perform.go_z(Insert(" "), z, id)) {
+        | Error(_) => Error(CantPaste)
+        | Ok((z, id)) =>
+          switch (Perform.go_z(Destruct(Left), z, id)) {
+          | Error(_) => Error(CantPaste)
+          | Ok((z, id)) =>
+            let z = {
+              ...ed.state.zipper,
+              selection: {
+                content: Zipper.unselect_and_zip(z),
+                focus: Left,
+                ephemeral: true,
+              },
+            };
+            let ed = Editor.new_state(Pick_up, z, ed);
+            //TODO: add correct action to history (Pick_up is wrong)
+            let editors = Editors.put_editor_and_id(id, ed, model.editors);
+            Ok({...model, editors});
+          }
+        }
+      };
     | Paste(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (

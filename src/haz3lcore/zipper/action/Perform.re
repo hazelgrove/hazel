@@ -4,7 +4,8 @@ open Zipper;
 let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
-  | Unselect
+  | Unselect(_)
+  | SetSelectionFocus(_) //TODO(andrew): remove
   | Jump(_)
   | Select(_) => false
   | Destruct(_)
@@ -59,7 +60,19 @@ let go_z =
     )
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move);
-  | Unselect =>
+  | SetSelectionFocus(d) =>
+    let z = {
+      ...z,
+      selection: {
+        ...z.selection,
+        focus: d,
+      },
+    };
+    Ok((z, id_gen));
+  | Unselect(Some(d)) =>
+    let z = Zipper.directional_unselect(d, z);
+    Ok((z, id_gen));
+  | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
   | Select(Term(Current)) =>

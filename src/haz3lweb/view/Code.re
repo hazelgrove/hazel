@@ -7,13 +7,13 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=100000,
-    ((in_ghost, sort, is_consistent, is_complete, label, i)) => {
+    ((is_selected, in_ghost, sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
-        | _ when in_ghost => "ghost-delim"
+        | _ when in_ghost || is_selected => "ghost-delim"
         | [_] when !is_consistent => "mono-inconsistent"
-        | [s] when Str.string_match(Str.regexp("^\\?\\?\\?$"), s, 0) => "mono-string-lit-query"
-        | [s] when Str.string_match(Str.regexp("^\".*\\?\\?\\?\"$"), s, 0) => "mono-string-lit-query"
+        | [s] when Str.string_match(Str.regexp("^\\?\\?$"), s, 0) => "mono-string-lit-query"
+        | [s] when Str.string_match(Str.regexp("^\".*\\?\\?\"$"), s, 0) => "mono-string-lit-query"
         | [s] when Form.is_string(s) => "mono-string-lit"
         | [_] => "mono"
         | _ when !is_consistent => "delim-inconsistent"
@@ -33,9 +33,17 @@ let of_delim' =
     },
   );
 let of_delim =
-    (~in_ghost, sort: Sort.t, is_consistent, t: Piece.tile, i: int)
+    (
+      ~is_selected,
+      ~in_ghost,
+      sort: Sort.t,
+      is_consistent,
+      t: Piece.tile,
+      i: int,
+    )
     : list(Node.t) =>
   of_delim'((
+    is_selected(t),
     in_ghost,
     sort,
     is_consistent,
@@ -72,7 +80,13 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (~in_ghost=false, ~no_sorts=false, ~sort=Sort.root, seg: Segment.t)
+          (
+            ~is_selected=_ => false,
+            ~in_ghost=false,
+            ~no_sorts=false,
+            ~sort=Sort.root,
+            seg: Segment.t,
+          )
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
     let expected_sorts =
@@ -87,18 +101,22 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~in_ghost, sort_of_p_idx(i), p)
+         of_piece(~is_selected, ~in_ghost, sort_of_p_idx(i), p)
        );
   }
-  and of_piece = (~in_ghost, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (~is_selected, ~in_ghost, expected_sort: Sort.t, p: Piece.t)
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(~in_ghost, expected_sort, t)
+    | Tile(t) => of_tile(~is_selected, ~in_ghost, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_tile = (~in_ghost, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (~is_selected, ~in_ghost, expected_sort: Sort.t, t: Tile.t)
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -110,6 +128,7 @@ module Text = (M: {
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(
+           ~is_selected,
            ~in_ghost=
              in_ghost
              || (
@@ -124,6 +143,7 @@ module Text = (M: {
          ),
          ((seg, sort)) =>
          of_segment(
+           ~is_selected,
            ~in_ghost=
              in_ghost
              || (
@@ -166,12 +186,18 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(unselected))],
+    [
+      span_c(
+        "code-text",
+        Text.of_segment(~is_selected=_ => false, unselected),
+      ),
+    ],
   );
 };
 
 let view =
     (
+      ~selection: Segment.t,
       ~font_metrics,
       ~segment,
       ~unselected,
@@ -184,9 +210,18 @@ let view =
       let map = measured;
       let settings = settings;
     });
+  //TODO(andrew): document or improve
+  let sel_map = Measured.of_segment(selection);
+  let is_selected = t =>
+    try({
+      let _ = Measured.find_t(t, sel_map);
+      true;
+    }) {
+    | _ => false
+    };
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected)
+      Text.of_segment(~is_selected, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

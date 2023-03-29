@@ -41,6 +41,8 @@ type t =
   | Cut
   | Copy
   | Paste(string)
+  | PasteIntoSelection(string)
+  | AcceptSuggestion
   | InsertWeather
   | Complete(completion)
   | Execute(string)

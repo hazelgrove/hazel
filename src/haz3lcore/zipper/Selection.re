@@ -1,13 +1,19 @@
 open Util;
+open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   focus: Direction.t,
   content: Segment.t,
+  ephemeral: bool,
 };
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = content => {focus: Left, content};
+let mk = (~ephemeral=false, ~focus=Direction.Left, content) => {
+  focus,
+  content,
+  ephemeral,
+};
 
 let empty = mk(Segment.empty);
 
@@ -22,9 +28,13 @@ let toggle_focus = selection => {
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let clear = (selection: t) => {...selection, content: Segment.empty};
+let clear = (selection: t) => {
+  ...selection,
+  ephemeral: false,
+  content: Segment.empty,
+};
 
-let push = (p: Piece.t, {focus, content}: t): t => {
+let push = (p: Piece.t, {focus, content, ephemeral}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -32,7 +42,7 @@ let push = (p: Piece.t, {focus, content}: t): t => {
       | Right => Segment.snoc(content, p)
       },
     );
-  {focus, content};
+  {focus, content, ephemeral};
 };
 
 let pop = (sel: t): option((Piece.t, t)) =>
