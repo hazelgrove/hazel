@@ -17,12 +17,10 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
   | Tag(tag) => "#" ++ tag
   | Fun(pat, body) =>
     "\\ " ++ get_code_pat(pat) ++ " -> " ++ generate_code(body)
-  // | Record(t) => get_record_term(t)
-  | Tuple(l) => l |> List.map(generate_code) |> String.concat(", ")
+  | Record(t) => get_record_term(t)
+  // | Tuple(l) => l |> List.map(generate_code) |> String.concat(", ")
   | Var(token) => token
   | Assign(p, def) => get_code_pat(p) ++ " = " ++ generate_code(def)
-  | AssignIndentation(p, def) =>
-    get_code_pat(p) ++ "=\n  " ++ generate_code(def)
   | Ap(fn, arg) => generate_code(fn) ++ " (" ++ generate_code(arg) ++ ")"
   | If(cond, true_branch, false_branch) =>
     "if "
@@ -33,8 +31,6 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
     ++ generate_code(false_branch)
   | Seq(expr1, expr2) =>
     generate_code(expr1) ++ "\n" ++ generate_code(expr2)
-  | SeqIndentation(expr1, expr2) =>
-    generate_code(expr1) ++ "  \n" ++ generate_code(expr2)
   | Expect(expr) => "expect " ++ generate_code(expr)
   | Parens(expr) => "(" ++ generate_code(expr) ++ ")"
   | UnOp(op, operand) => get_code_un(op) ++ generate_code(operand)
@@ -61,8 +57,8 @@ and get_code_pat = (t: TermRoc.UPat.t): string =>
   | ListLit(lst) => "[" ++ list_to_string_pat(lst) ++ "]"
   | Tag(_) => ""
   | Var(token) => token
-  // | Record(pat) => get_record_pat(pat)
-  | Tuple(l) => l |> List.map(get_code_pat) |> String.concat(", ")
+  | Record(pat) => get_record_pat(pat)
+  // | Tuple(l) => l |> List.map(get_code_pat) |> String.concat(", ")
   | Parens(expr) => "(" ++ get_code_pat(expr) ++ ")"
   }
 
@@ -75,8 +71,8 @@ and get_code_typ = (t: TermRoc.UTyp.t): string =>
   | List(t) => "List" ++ get_code_typ(t)
   | Var(s) => s
   | Arrow(t1, t2) => get_code_typ(t1) ++ "->" ++ get_code_typ(t2)
-  // | Record(l) => get_record_typ(l)
-  | Tuple(l) => l |> List.map(get_code_typ) |> String.concat(", ")
+  | Record(l) => get_record_typ(l)
+  // | Tuple(l) => l |> List.map(get_code_typ) |> String.concat(", ")
   | Parens(expr) => "(" ++ get_code_typ(expr) ++ ")"
   }
 and list_to_string = (lst: list(TermRoc.UExp.t)) => {
@@ -93,33 +89,33 @@ and list_to_string_pat = (lst: list(TermRoc.UPat.t)) => {
   | [x, ...xs] => get_code_pat(x) ++ ", " ++ list_to_string_pat(xs)
   };
 }
-// and get_record_term = (terms: list(TermRoc.UExp.t)): string => {
-//   let termi =
-//     List.mapi(
-//       (i, t) => {"t" ++ string_of_int(i) ++ ": " ++ generate_code(t)},
-//       terms,
-//     );
-//   let r = String.concat(", ", termi);
-//   "{ " ++ r ++ " }";
-// }
-// and get_record_pat = (pats: list(TermRoc.UPat.t)): string => {
-//   let pati =
-//     List.mapi(
-//       (i, p) => {"t" ++ string_of_int(i) ++ ": " ++ get_code_pat(p)},
-//       pats,
-//     );
-//   let r = String.concat(", ", pati);
-//   "{ " ++ r ++ " }";
-// }
-// and get_record_typ = (typs: list(TermRoc.UTyp.t)): string => {
-//   let typi =
-//     List.mapi(
-//       (i, typ) => {"t" ++ string_of_int(i) ++ ": " ++ get_code_typ(typ)},
-//       typs,
-//     );
-//   let r = String.concat(", ", typi);
-//   "{ " ++ r ++ " }";
-// }
+and get_record_term = (terms: list(TermRoc.UExp.t)): string => {
+  let termi =
+    List.mapi(
+      (i, t) => {"t" ++ string_of_int(i) ++ ": " ++ generate_code(t)},
+      terms,
+    );
+  let r = String.concat(", ", termi);
+  "{ " ++ r ++ " }";
+}
+and get_record_pat = (pats: list(TermRoc.UPat.t)): string => {
+  let pati =
+    List.mapi(
+      (i, p) => {"t" ++ string_of_int(i) ++ ": " ++ get_code_pat(p)},
+      pats,
+    );
+  let r = String.concat(", ", pati);
+  "{ " ++ r ++ " }";
+}
+and get_record_typ = (typs: list(TermRoc.UTyp.t)): string => {
+  let typi =
+    List.mapi(
+      (i, typ) => {"t" ++ string_of_int(i) ++ ": " ++ get_code_typ(typ)},
+      typs,
+    );
+  let r = String.concat(", ", typi);
+  "{ " ++ r ++ " }";
+}
 
 and get_match_body =
     (branches: list((TermRoc.UPat.t, TermRoc.UExp.t))): string => {

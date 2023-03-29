@@ -63,15 +63,13 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
-    // | Record
-    | Tuple
+    | Record
+    // | Tuple
     | Var
     | Assign
-    | AssignIndentation
     | Ap
     | If
     | Seq
-    | SeqIndentation
     | Expect
     | Parens
     | UnOp(op_un)
@@ -88,15 +86,13 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
-    // | Record(list(t))
-    | Tuple(list(t))
+    | Record(list(t))
+    // | Tuple(list(t))
     | Var(Token.t)
     | Assign(UPat.t, t)
-    | AssignIndentation(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | SeqIndentation(t, t)
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
@@ -149,15 +145,13 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
-    // | Record
-    | Tuple
+    | Record
+    // | Tuple
     | Var
     | Assign
-    | AssignIndentation
     | Ap
     | If
     | Seq
-    | SeqIndentation
     | Expect
     | Parens
     | UnOp(op_un)
@@ -174,15 +168,13 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
-    // | Record(list(t))
-    | Tuple(list(t))
+    | Record(list(t))
+    // | Tuple(list(t))
     | Var(Token.t)
     | Assign(UPat.t, t)
-    | AssignIndentation(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | SeqIndentation(t, t)
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
@@ -202,8 +194,8 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Var(Token.t)
-    // | Record(list(t))
-    | Tuple(list(t))
+    | Record(list(t))
+    // | Tuple(list(t))
     | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -217,8 +209,8 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Var(Token.t)
-    // | Record(list(t))
-    | Tuple(list(t))
+    | Record(list(t))
+    // | Tuple(list(t))
     | Parens(t);
 }
 and UTyp: {
@@ -231,8 +223,8 @@ and UTyp: {
     | List(t)
     | Var(string)
     | Arrow(t, t)
-    // | Record(list(t))
-    | Tuple(list(t))
+    | Record(list(t))
+    // | Tuple(list(t))
     | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -244,7 +236,7 @@ and UTyp: {
     | List(t)
     | Var(string)
     | Arrow(t, t)
-    // | Record(list(t))
-    | Tuple(list(t))
+    | Record(list(t))
+    // | Tuple(list(t))
     | Parens(t);
 };
