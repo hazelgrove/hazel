@@ -21,8 +21,9 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
   | Tuple(l) => l |> List.map(generate_code) |> String.concat(", ")
   | Var(token) => token
   | Assign(p, def) => get_code_pat(p) ++ " = " ++ generate_code(def)
-  | Ap(fn, arg) =>
-    "(" ++ generate_code(fn) ++ " " ++ generate_code(arg) ++ ")"
+  | AssignIndentation(p, def) =>
+    get_code_pat(p) ++ "=\n  " ++ generate_code(def)
+  | Ap(fn, arg) => generate_code(fn) ++ " (" ++ generate_code(arg) ++ ")"
   | If(cond, true_branch, false_branch) =>
     "if "
     ++ generate_code(cond)
@@ -32,6 +33,8 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
     ++ generate_code(false_branch)
   | Seq(expr1, expr2) =>
     generate_code(expr1) ++ "\n" ++ generate_code(expr2)
+  | SeqIndentation(expr1, expr2) =>
+    generate_code(expr1) ++ "  \n" ++ generate_code(expr2)
   | Expect(expr) => "expect " ++ generate_code(expr)
   | Parens(expr) => "(" ++ generate_code(expr) ++ ")"
   | UnOp(op, operand) => get_code_un(op) ++ generate_code(operand)
@@ -49,6 +52,7 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
 and get_code_pat = (t: TermRoc.UPat.t): string =>
   switch (t) {
   | Wild => "_"
+  | Rest => ".."
   | Bool(true) => "true"
   | Bool(false) => "false"
   | Int(n) => string_of_int(n)
