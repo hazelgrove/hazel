@@ -1904,6 +1904,9 @@ svg.expandable path {
   color: rgb(255, 255, 255);
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
 }
+.code .ghost-delim {
+  color:#d9cab4;
+}
 
 @keyframes backgroundColorPalette {
   0% {

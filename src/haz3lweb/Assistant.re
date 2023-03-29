@@ -1,5 +1,17 @@
 open Haz3lcore;
 
+//TODO(andrew): calculate this in a more principled way
+let get_ci = (model: Model.t): option(Info.t) => {
+  let editor = model.editors |> Editors.get_editor;
+  let index = Indicated.index(editor.state.zipper);
+  let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+  let map = editor.state.zipper |> get_term |> Statics.mk_map;
+  switch (index) {
+  | Some(index) => Haz3lcore.Id.Map.find_opt(index, map)
+  | _ => None
+  };
+};
+
 let sanitize_prompt = (prompt: string): string => {
   //HACK: replacement of ??? below
   let prompt = Str.global_replace(Str.regexp("\\?\\?\\?"), "", prompt);
@@ -54,28 +66,60 @@ let code_instructions = [
   "You are an intelligent code completion agent",
   "You will be given a program sketch and are tasked with coming up with a valid replacement for the hole labelled `???`",
   "Your suggestion doesn't have to be complete; it's okay to leave holes (???) in your completion if there isn't enough information to fill them in",
-  /*"prompt: let a:Float = ???(5); completion: float_of_int",
-    "prompt: let f = ??? in f(5); completion: fun x:Int -> ???",
-    "prompt: case Foo(5) | Foo(x) => ??? | Bar => 6; completion: x",*/
   "Respond only with a replacement the symbol `???`",
   "Do not include the provided program sketch in your response",
   "Include only code in your response",
   "Do not include a period at the end of your response",
 ];
 
+/*
+ ideas: take into account clipboard, past code positions, selections
+ */
+
+ /**
+   REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
+
+   plan for response wrapper:
+   current caret ends up after response
+   want to move it before response
+   hopefully can select whole term (is it indicated atm? not super robust...)
+   and then manually change selection focus i guess.
+   at this point we want TAB to accept the completion,
+   which means getting rid of the wrapper,
+   and any(?) other action to get rid of the completion
+   so logic is like... check that indicated term is wrapper
+   i guess this should be done at top-level of update? feels hacky...
+   if indicate term is wrapper, check if command is whatever TAB does (new Commplete action?)
+    if so, remove wrapper, and splice in innards, i guess thru zipper surgery?
+    otherwise, just remove wrapper+contents
+  */
+
 let prompt_code = (model: Model.t): option(string) => {
   let editor = model.editors |> Editors.get_editor;
-  let prefixes =
+  let type_expectation =
+    switch (get_ci(model)) {
+    | Some(InfoExp({mode: Ana(ty), _})) => "type = " ++ Typ.show(ty)
+    | _ => "any type"
+    };
+
+  let prefix =
     code_instructions
     @ ["Sample completions:"]
     @ collate_samples(samples)
+    @ [
+      "According to the type checker, the hole must be filled by an expression of "
+      ++ type_expectation,
+    ]
     @ ["prompt: "];
   let body = Printer.to_string_editor(editor);
-  let body = sanitize_prompt(body);
+  //let body = sanitize_prompt(body);
   switch (String.trim(body)) {
   | "" => None
   | _ =>
-    Some(String.concat("\n ", prefixes) ++ "\n " ++ body ++ "completion:\n")
+    let prompt =
+      String.concat("\n ", prefix) ++ "\n " ++ body ++ "completion:\n";
+    print_endline("ABOUT TO SUBMIT PROMPT:\n " ++ prompt);
+    Some(prompt);
   };
 };
 
