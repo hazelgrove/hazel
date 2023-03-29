@@ -8,7 +8,7 @@ let backpack_sel_view =
       y_off: float,
       scale: float,
       opacity: float,
-      {focus: _, content}: Selection.t,
+      {focus: _, content, _}: Selection.t,
     ) => {
   module Text =
     Code.Text({

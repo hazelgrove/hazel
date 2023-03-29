@@ -28,7 +28,8 @@ type t =
   | Move(move)
   | Jump(jump_target)
   | Select(select)
-  | Unselect
+  | Unselect(option(Direction.t))
+  | SetSelectionFocus(Direction.t)
   | Destruct(Direction.t)
   | Insert(string)
   | RotateBackpack

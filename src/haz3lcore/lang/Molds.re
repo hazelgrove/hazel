@@ -107,10 +107,7 @@ let allow_append_right = (t: Token.t, char: string): bool =>
 
 let allow_append_left = (char: string, t: Token.t): bool =>
   Form.is_valid_token(char ++ t)
-  || (
-    !Form.is_valid_token(t ++ char)
-    && !(Form.is_valid_token(t) && Form.is_valid_token(char))
-  )
+  || (!Form.is_valid_token(t) && !Form.is_valid_token(char))
   && append_safe(char);
 
 let allow_insertion = (char: string, t: Token.t, new_t: Token.t): bool =>
