@@ -67,9 +67,11 @@ and UExp: {
     | Tuple
     | Var
     | Assign
+    | AssignIndentation
     | Ap
     | If
     | Seq
+    | SeqIndentation
     | Expect
     | Parens
     | UnOp(op_un)
@@ -90,9 +92,11 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Assign(UPat.t, t)
+    | AssignIndentation(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
+    | SeqIndentation(t, t)
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
@@ -149,9 +153,11 @@ and UExp: {
     | Tuple
     | Var
     | Assign
+    | AssignIndentation
     | Ap
     | If
     | Seq
+    | SeqIndentation
     | Expect
     | Parens
     | UnOp(op_un)
@@ -172,9 +178,11 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Assign(UPat.t, t)
+    | AssignIndentation(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
+    | SeqIndentation(t, t)
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
@@ -186,6 +194,7 @@ and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Wild
+    | Rest
     | Int(int)
     | Float(float)
     | Bool(bool)
@@ -200,6 +209,7 @@ and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Wild
+    | Rest
     | Int(int)
     | Float(float)
     | Bool(bool)

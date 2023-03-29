@@ -14,19 +14,20 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
   // | Tuple(l) => Record(List.map(get_roc_term, l))
   | Tuple(l) => Tuple(List.map(get_roc_term, l))
   | Var(token) => Var(get_camel_case(token))
-  | Let(pat, def, body) =>
-    switch (get_typ_ann(pat)) {
-    | Some(p) =>
-      Seq(
-        p,
-        Seq(
-          Assign(get_pat_var(pat), get_roc_term(def)),
-          get_roc_term(body),
-        ),
-      )
-    | None =>
-      Seq(Assign(get_pat_var(pat), get_roc_term(def)), get_roc_term(body))
-    }
+  // | Let(pat, def, body) =>
+  //   switch (get_typ_ann(pat)) {
+  //   | Some(p) =>
+  //     Seq(
+  //       p,
+  //       Seq(
+  //         Assign(get_pat_var(pat), get_roc_term(def)),
+  //         get_roc_term(body),
+  //       ),
+  //     )
+  //   | None =>
+  //     Seq(Assign(get_pat_var(pat), get_roc_term(def)), get_roc_term(body))
+  //   }
+  | Let(pat, def, body) => get_let_term(pat, def, body)
   | Ap(fn, v) => Ap(get_roc_term(fn), get_roc_term(v))
   | If(cond, if_true, if_false) =>
     If(get_roc_term(cond), get_roc_term(if_true), get_roc_term(if_false))
@@ -60,6 +61,35 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
     )
   | _ => String("Invalid")
   }
+
+and get_let_term =
+    (pat: TermBase.UPat.t, def: TermBase.UExp.t, body: TermBase.UExp.t)
+    : TermRoc.UExp.t =>
+  switch (get_typ_ann(pat), def.term) {
+  | (Some(p), Let(_)) =>
+    Seq(
+      p,
+      Seq(
+        AssignIndentation(get_pat_var(pat), get_roc_term(def)),
+        get_roc_term(body),
+      ),
+    )
+  | (Some(p), _) =>
+    Seq(
+      p,
+      Seq(
+        Assign(get_pat_var(pat), get_roc_term(def)),
+        get_roc_term(body),
+      ),
+    )
+  | (None, Let(_)) =>
+    Seq(
+      AssignIndentation(get_pat_var(pat), get_roc_term(def)),
+      get_roc_term(body),
+    )
+  | (None, _) =>
+    Seq(Assign(get_pat_var(pat), get_roc_term(def)), get_roc_term(body))
+  }
 and get_roc_pat_term = (t: TermBase.UPat.t): TermRoc.UPat.t =>
   switch (t.term) {
   // | Invalid(parse_flag) => String("Triv") //
@@ -73,12 +103,7 @@ and get_roc_pat_term = (t: TermBase.UPat.t): TermRoc.UPat.t =>
   | Triv => String("Triv") //
   | ListLit(l) => ListLit(List.map(get_roc_pat_term, l))
   // | Tag(s) => Tag(s) //
-  | Cons(hd, tl) =>
-    switch (get_roc_pat_term(tl)) {
-    | ListLit([]) => ListLit([get_roc_pat_term(hd)])
-    | ListLit(l) => ListLit(List.append([get_roc_pat_term(hd)], l))
-    | _ => Bool(false)
-    }
+  | Cons(hd, tl) => get_list(hd, tl)
   | Var(t) => Var(get_camel_case(t))
   // | Tuple(l) => Record(List.map(get_roc_pat_term, l))
   | Tuple(l) => Tuple(List.map(get_roc_pat_term, l))
@@ -92,6 +117,16 @@ and get_roc_pat_term = (t: TermBase.UPat.t): TermRoc.UPat.t =>
   | TypeAnn(v, _) => get_roc_pat_term(v)
   | _ => String("Invalid")
   }
+
+and get_list = (hd, tl: TermBase.UPat.t): TermRoc.UPat.t => {
+  switch (get_roc_pat_term(tl)) {
+  | ListLit([]) => ListLit([get_roc_pat_term(hd)])
+  | ListLit(l) => ListLit(List.append([get_roc_pat_term(hd)], l))
+  | Var(_) => ListLit(List.append([get_roc_pat_term(hd)], [Rest]))
+  | Wild => ListLit(List.append([get_roc_pat_term(hd)], [Rest]))
+  | _ => Bool(false)
+  };
+}
 
 and get_roc_type = (t: TermBase.UTyp.t): TermRoc.UTyp.t =>
   switch (t.term) {
