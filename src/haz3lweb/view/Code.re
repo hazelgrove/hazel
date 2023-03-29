@@ -7,9 +7,10 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=100000,
-    ((sort, is_consistent, is_complete, label, i)) => {
+    ((in_ghost, sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
+        | _ when in_ghost => "ghost-delim"
         | [_] when !is_consistent => "mono-inconsistent"
         | [s] when Str.string_match(Str.regexp("^\\?\\?\\?$"), s, 0) => "mono-string-lit-query"
         | [s] when Str.string_match(Str.regexp("^\".*\\?\\?\\?\"$"), s, 0) => "mono-string-lit-query"
@@ -23,14 +24,25 @@ let of_delim' =
         span(
           ~attr=
             Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-          [Node.text(List.nth(label, i))],
+          [
+            //TODO(andrew): HACK
+            Node.text(List.nth(label == ["~", "~"] ? ["", ""] : label, i)),
+          ],
         ),
       ];
     },
   );
 let of_delim =
-    (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
-  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
+    (~in_ghost, sort: Sort.t, is_consistent, t: Piece.tile, i: int)
+    : list(Node.t) =>
+  of_delim'((
+    in_ghost,
+    sort,
+    is_consistent,
+    Tile.is_complete(t),
+    t.label,
+    i,
+  ));
 
 let of_grout = [Node.text(Unicode.nbsp)];
 
@@ -60,7 +72,8 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (~no_sorts=false, ~sort=Sort.root, seg: Segment.t): list(Node.t) => {
+          (~in_ghost=false, ~no_sorts=false, ~sort=Sort.root, seg: Segment.t)
+          : list(Node.t) => {
     //note: no_sorts flag is used for backback
     let expected_sorts =
       no_sorts
@@ -73,17 +86,19 @@ module Text = (M: {
       };
     seg
     |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
+    |> List.concat_map(((i, p)) =>
+         of_piece(~in_ghost, sort_of_p_idx(i), p)
+       );
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece = (~in_ghost, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t)
+    | Tile(t) => of_tile(~in_ghost, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile = (~in_ghost, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -93,8 +108,33 @@ module Text = (M: {
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, seg)
+    |> Aba.join(
+         of_delim(
+           ~in_ghost=
+             in_ghost
+             || (
+               switch (t.label) {
+               | ["~", "~"] => true
+               | _ => false
+               }
+             ),
+           t.mold.out,
+           is_consistent,
+           t,
+         ),
+         ((seg, sort)) =>
+         of_segment(
+           ~in_ghost=
+             in_ghost
+             || (
+               switch (t.label) {
+               | ["~", "~"] => true
+               | _ => false
+               }
+             ),
+           ~sort,
+           seg,
+         )
        )
     |> List.concat;
   };
