@@ -63,14 +63,13 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-let stdlib_id = 10000137;
-let stdlib_slide = 1;
 let get_ctx_init = (slides, idx) => {
-  let stdlib_seg = List.nth(slides, stdlib_slide) |> snd |> Editor.get_seg;
+  let stdlib_seg =
+    List.nth(slides, Hyper.export_slide) |> snd |> Editor.get_seg;
   let (term, _) = MakeTerm.go(stdlib_seg);
   let info_map = Statics.mk_map(term);
-  switch (Id.Map.find_opt(stdlib_id, info_map)) {
-  | _ when idx == stdlib_slide => Ctx.empty
+  switch (Id.Map.find_opt(Hyper.export_id, info_map)) {
+  | _ when idx == Hyper.export_slide => Ctx.empty
   | None => Ctx.empty
   | Some(info) => Info.ctx_of(info)
   };
@@ -81,13 +80,13 @@ let get_spliced_elabs =
   | DebugLoad => []
   | Scratch(idx, slides) =>
     let tests =
-      List.nth(slides, stdlib_slide)
+      List.nth(slides, Hyper.export_slide)
       |> snd
       |> Editor.get_seg
       |> Interface.eval_segment_to_result
       |> ProgramResult.get_state
       |> EvaluatorState.get_tests
-      |> TestMap.lookup(stdlib_id);
+      |> TestMap.lookup(Hyper.export_id);
     let env =
       switch (tests) {
       | Some([(_, _, env), ..._]) => env

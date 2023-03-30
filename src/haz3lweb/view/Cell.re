@@ -206,7 +206,7 @@ let deco =
 };
 
 let eval_result_footer_view =
-    (~font_metrics, ~elab, simple: ModelResult.simple) => {
+    (~mvu_states, ~inject, ~font_metrics, ~elab, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => [
@@ -241,6 +241,20 @@ let eval_result_footer_view =
           elab,
         ),
       ]
+    | Some({
+        eval_result:
+          Ap(
+            Tag("Render"),
+            Tuple([StringLit(name), init_model, view, update]),
+          ),
+        _,
+      }) =>
+      let model =
+        switch (VarMap.lookup(mvu_states, name)) {
+        | Some(d) => d
+        | _ => init_model
+        };
+      MVU.go(name, inject, model, view, update);
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
@@ -335,6 +349,7 @@ let get_elab = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
 
 let editor_with_result_view =
     (
+      ~mvu_states,
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,
@@ -354,7 +369,13 @@ let editor_with_result_view =
   let test_results = ModelResult.unwrap_test_results(result);
   let elab = get_elab(~ctx_init, editor);
   let eval_result_footer =
-    eval_result_footer_view(~font_metrics, ~elab, result);
+    eval_result_footer_view(
+      ~mvu_states,
+      ~inject,
+      ~font_metrics,
+      ~elab,
+      result,
+    );
   editor_view(
     ~inject,
     ~font_metrics,

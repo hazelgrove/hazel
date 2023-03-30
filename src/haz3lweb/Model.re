@@ -7,6 +7,7 @@ type timestamp = float;
 type t = {
   editors: Editors.t,
   results: ModelResults.t,
+  mvu_states: VarMap.t_(DHExp.t),
   settings: ModelSettings.t,
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
@@ -21,6 +22,7 @@ let cutoff = (===);
 let mk = editors => {
   editors,
   results: ModelResults.empty,
+  mvu_states: VarMap.empty,
   settings: ModelSettings.init,
   // TODO: move below to 'io_state'?
   font_metrics: FontMetrics.init,

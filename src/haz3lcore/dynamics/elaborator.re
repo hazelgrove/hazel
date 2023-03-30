@@ -204,7 +204,6 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
         DHExp.Sequence(d1, d2);
-      | Tag("!export") => Some(DHExp.Ap(TestLit(10000137), Tuple([])))
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);
@@ -215,6 +214,8 @@ let rec dhexp_of_uexp =
         }
       | Tag(name) =>
         switch (err_status) {
+        | _ when Hyper.is_export(name) =>
+          Some(DHExp.Ap(TestLit(Hyper.export_id), Tuple([])))
         | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
         | _ => Some(Tag(name))
         }

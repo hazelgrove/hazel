@@ -46,6 +46,7 @@ type t =
   | InsertWeather
   | Complete(completion)
   | Execute(string)
+  | SetModel(string, DHExp.t)
   | AddKey(LocalStorage.Generic.t, string)
   | Undo
   | Redo
