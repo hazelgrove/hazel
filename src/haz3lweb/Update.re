@@ -429,9 +429,7 @@ let apply =
     | LivelitStateChange(livelit_id, livelits) =>
       let editor =
         Editors.update_editor(
-          ed => {
-            Editor.update_livelits(Id.Map.add(livelit_id, livelits), ed)
-          },
+          Editor.update_livelits(Id.Map.add(livelit_id, livelits)),
           model.editors,
         );
 
