@@ -1,5 +1,5 @@
 let rec generate_code = (t: TermRoc.UExp.t): string =>
-  switch (t) {
+  switch (t.term) {
   | Bool(true) => "Bool.true"
   | Bool(false) => "Bool.false"
   | Int(n) => string_of_int(n)
@@ -30,7 +30,10 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
     ++ " else "
     ++ generate_code(false_branch)
   | Seq(expr1, expr2) =>
-    generate_code(expr1) ++ "\n" ++ generate_code(expr2)
+    generate_code(expr1)
+    ++ "\n"
+    ++ String.make(t.indent, ' ')
+    ++ generate_code(expr2)
   | Expect(expr) => "expect " ++ generate_code(expr)
   | Parens(expr) => "(" ++ generate_code(expr) ++ ")"
   | UnOp(op, operand) => get_code_un(op) ++ generate_code(operand)
@@ -41,12 +44,12 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
     ++ " "
     ++ generate_code(rhs)
   | Match(t, l) =>
-    "when " ++ generate_code(t) ++ " is \n" ++ get_match_body(l)
+    "when " ++ generate_code(t) ++ " is\n" ++ get_match_body(l, t.indent)
   | TypeAnn(v, typ) => v ++ ":" ++ get_code_typ(typ)
   }
 
 and get_code_pat = (t: TermRoc.UPat.t): string =>
-  switch (t) {
+  switch (t.term) {
   | Wild => "_"
   | Rest => ".."
   | Bool(true) => "true"
@@ -65,12 +68,14 @@ and get_code_pat = (t: TermRoc.UPat.t): string =>
 and get_code_typ = (t: TermRoc.UTyp.t): string =>
   switch (t) {
   | Int => "Int *"
+  | IntV(s) => "Int " ++ s
   | Float => "Frac *"
+  | FloatV(s) => "Frac " ++ s
   | Bool => "Bool"
   | String => "Str"
   | List(t) => "List" ++ get_code_typ(t)
   | Var(s) => s
-  | Arrow(t1, t2) => get_code_typ(t1) ++ "->" ++ get_code_typ(t2)
+  | Arrow(t1, t2) => get_code_typ(t1) ++ " -> " ++ get_code_typ(t2)
   | Record(l) => get_record_typ(l)
   // | Tuple(l) => l |> List.map(get_code_typ) |> String.concat(", ")
   | Parens(expr) => "(" ++ get_code_typ(expr) ++ ")"
@@ -118,7 +123,7 @@ and get_record_typ = (typs: list(TermRoc.UTyp.t)): string => {
 }
 
 and get_match_body =
-    (branches: list((TermRoc.UPat.t, TermRoc.UExp.t))): string => {
+    (branches: list((TermRoc.UPat.t, TermRoc.UExp.t)), i: int): string => {
   let branchi =
     List.map(
       ((p, t)) =>
@@ -128,7 +133,7 @@ and get_match_body =
         },
       branches,
     );
-  String.concat("\n", branchi);
+  String.concat(String.make(i, ' ') ++ "\n", branchi);
 }
 
 and get_code_un = (op: TermRoc.UExp.op_un): string =>

@@ -92,7 +92,7 @@ let download_roc = state => {
   let zipper = ScratchSlide.editor_of_state(state).state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let rocterm = Translation.get_roc_term(term);
+  let rocterm = Translation.get_roc_term(term, 0);
   // let contents =
   //   "app \"hello\"
   //   packages { pf: \"https://github.com/roc-lang/basic-cli/releases/download/0.2.0/8tCohJeXMBUnjo_zdMq0jSaqdYoCWJkWazBd4wa8cQU.tar.br\" }
