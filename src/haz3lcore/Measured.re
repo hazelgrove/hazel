@@ -388,13 +388,13 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
+              let foo = livelit_padding(t);
               let last =
                 Point.{
                   ...origin,
                   col:
                     origin.col
-                    + String.length(token(shard))
-                    + livelit_padding(t),
+                    + (foo > 0 ? foo : String.length(token(shard))),
                 };
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);

@@ -19,19 +19,7 @@ let of_delim' =
         };
 
       switch (label) {
-      | [s] when Form.is_livelit(s) => [
-          span(
-            ~attr=
-              Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-            [
-              Node.text(String.sub(s, 0, String.length(s) - 1)),
-              span(
-                ~attr=Attr.create("style", "color: #d9d2be;"),
-                [Node.text("^")],
-              ),
-            ],
-          ),
-        ]
+      | [s] when Form.is_livelit(s) => []
       | _ => [
           span(
             ~attr=
