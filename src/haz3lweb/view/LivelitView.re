@@ -14,8 +14,8 @@ let livelit_style = (font_metrics: FontMetrics.t, livelit_width: float) =>
       "width: %fpx; height: %fpx; margin-top: 0; margin-bottom: 0; margin-left: %fpx; margin-right: %fpx; vertical-align: bottom; display: inline-block",
       livelit_width *. font_metrics.col_width,
       font_metrics.row_height,
-      livelit_width *. 0.5,
-      livelit_width *. 0.5,
+      font_metrics.col_width *. 0.5,
+      font_metrics.col_width *. 0.5,
     ),
   );
 let view =
