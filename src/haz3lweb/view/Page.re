@@ -186,6 +186,7 @@ let main_ui_view =
         mousedown,
         results,
         langDocMessages,
+        mvu_states,
         _,
       } as model: Model.t,
     ) => {
@@ -205,6 +206,7 @@ let main_ui_view =
 
     [top_bar_view]
     @ ScratchMode.view(
+        ~model,
         ~inject,
         ~font_metrics,
         ~mousedown,
@@ -234,6 +236,7 @@ let main_ui_view =
 
     [top_bar_view]
     @ SchoolMode.view(
+        ~mvu_states,
         ~inject,
         ~font_metrics,
         ~mousedown,

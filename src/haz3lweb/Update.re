@@ -177,6 +177,7 @@ let reevaluate_post_update =
   | InsertWeather
   | Complete(_)
   | Execute(_)
+  | SetModel(_)
   | Undo
   | Redo => true;
 
@@ -384,6 +385,11 @@ let rec apply =
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
+    | SetModel(name, dh) =>
+      Ok({
+        ...model,
+        mvu_states: VarMap.extend(model.mvu_states, (name, dh)),
+      })
     | Execute(fake_str) =>
       print_endline("fake: " ++ fake_str);
       let editor = model.editors |> Editors.get_editor;

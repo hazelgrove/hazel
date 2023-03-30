@@ -168,7 +168,7 @@ let is_secondary = t =>
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
-  ("export", ((==)("!export"), [mk_op(Exp, [])])),
+  ("export", (Hyper.is_export, [mk_op(Exp, [])])),
   //("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("explicit_hole", ((==)("??"), [mk_op(Exp, [])])),

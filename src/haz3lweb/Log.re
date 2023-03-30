@@ -21,6 +21,7 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportScratchpad(_)
   | UpdateResult(_)
   | AddKey(_)
+  | SetModel(_)
   | DebugAction(_) => false
   | Execute(_)
   | ResetCurrentEditor
