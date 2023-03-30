@@ -74,7 +74,7 @@ let view =
             [
               Attr.create("type", "checkbox"),
               livelit_style(font_metrics, float_of_int(1)),
-              Attr.on_change((_evt, _str) => {
+              Attr.on_input((_evt, _str) => {
                 inject(
                   UpdateAction.LivelitStateChange(
                     tile_id,
