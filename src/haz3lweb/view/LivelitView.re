@@ -27,7 +27,7 @@ let view =
       tile_id,
     ) =>
   switch (name) {
-  | "^slider" => [
+  | "slider^" => [
       Node.input(
         ~attr=
           Attr.many([
@@ -60,7 +60,7 @@ let view =
         (),
       ),
     ]
-  | "^checkbox" =>
+  | "checkbox^" =>
     let checkbox_state: bool =
       switch (Id.Map.find_opt(tile_id, livelits)) {
       | Some(BoolLit(b)) => b

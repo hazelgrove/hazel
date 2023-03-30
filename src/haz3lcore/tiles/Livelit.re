@@ -11,14 +11,14 @@ type t = {
 type state = Id.Map.t(DHExp.t);
 let empty_state: state = Id.Map.empty;
 let slider: t = {
-  name: "^slider",
+  name: "slider^",
   width: 10,
   default: IntLit(50),
   expansion_type: Int,
 };
 
 let checkbox: t = {
-  name: "^checkbox",
+  name: "checkbox^",
   width: 1,
   default: BoolLit(false),
   expansion_type: Bool,
@@ -26,8 +26,8 @@ let checkbox: t = {
 
 let find_livelit = (livelit_name: string): option(t) =>
   switch (livelit_name) {
-  | "^slider" => Some(slider)
-  | "^checkbox" => Some(checkbox)
+  | "slider^" => Some(slider)
+  | "checkbox^" => Some(checkbox)
   | _ => None
   };
 
