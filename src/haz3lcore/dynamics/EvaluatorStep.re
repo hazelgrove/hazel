@@ -181,7 +181,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
     let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
     Step(Closure(env', d')) |> return;
 
-  | Fun(_) => Step(Closure(env, d)) |> return
+  | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
   | Ap(d1, d2) =>
     let* r1 = transition(env, d1);
@@ -539,7 +539,10 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
       let* env = ClosureEnvironment.union(env', env) |> with_eig;
       let* r = transition(env, d');
       switch (r) {
-      | Step(d) => Step(Closure(env, d)) |> return
+      | Step(d) =>
+        /* All stepped result is properly wrapped in closure, so there
+         * is not need to add more wrap over it. */
+        Step(d) |> return
       | BoxedValue(d) =>
         /* If [d'] evaluates to [BoxedValue], then either [d] no longer
          * contains any [BoundVar], or [d] has already contains a
