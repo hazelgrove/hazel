@@ -13,8 +13,7 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
     };
   | String(s) => s
   | ListLit(lst) => "[" ++ list_to_string(lst) ++ "]"
-  // what is the meaning of Tag
-  | Tag(tag) => "#" ++ tag
+  // | Tag(tag) =>
   | Fun(pat, body) =>
     "\\ " ++ get_code_pat(pat) ++ " -> " ++ generate_code(body)
   | Record(t) => get_record_term(t)
@@ -45,7 +44,7 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
     ++ generate_code(rhs)
   | Match(t, l) =>
     "when " ++ generate_code(t) ++ " is\n" ++ get_match_body(l, t.indent)
-  | TypeAnn(v, typ) => v ++ ":" ++ get_code_typ(typ)
+  | TypeAnn(v, typ) => v ++ " : " ++ get_code_typ(typ)
   }
 
 and get_code_pat = (t: TermRoc.UPat.t): string =>
@@ -58,7 +57,7 @@ and get_code_pat = (t: TermRoc.UPat.t): string =>
   | Float(f) => string_of_float(f)
   | String(s) => s
   | ListLit(lst) => "[" ++ list_to_string_pat(lst) ++ "]"
-  | Tag(_) => ""
+  // | Tag(_) =>
   | Var(token) => token
   | Record(pat) => get_record_pat(pat)
   // | Tuple(l) => l |> List.map(get_code_pat) |> String.concat(", ")
@@ -101,7 +100,7 @@ and get_record_term = (terms: list(TermRoc.UExp.t)): string => {
       terms,
     );
   let r = String.concat(", ", termi);
-  "{ " ++ r ++ " }";
+  "{" ++ r ++ "}";
 }
 and get_record_pat = (pats: list(TermRoc.UPat.t)): string => {
   let pati =
@@ -110,7 +109,7 @@ and get_record_pat = (pats: list(TermRoc.UPat.t)): string => {
       pats,
     );
   let r = String.concat(", ", pati);
-  "{ " ++ r ++ " }";
+  "{" ++ r ++ "}";
 }
 and get_record_typ = (typs: list(TermRoc.UTyp.t)): string => {
   let typi =
@@ -119,7 +118,7 @@ and get_record_typ = (typs: list(TermRoc.UTyp.t)): string => {
       typs,
     );
   let r = String.concat(", ", typi);
-  "{ " ++ r ++ " }";
+  "{" ++ r ++ "}";
 }
 
 and get_match_body =
