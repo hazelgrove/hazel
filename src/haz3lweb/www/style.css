@@ -697,7 +697,7 @@ svg.tile-selected {
 }
 
 .tile-path.selected-ephemeral {
-  fill: #e8dbbe;;
+  fill: #fbf3de;
 }
 
 /* TODO(andrew): hack important */
@@ -1909,7 +1909,14 @@ svg.expandable path {
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
 }
 .code .ghost-delim {
-  color:white; /* var(--light-page-color); */
+  color:#d7cdb2; /* var(--light-page-color); */
+}
+.mvu-render .DHCode {
+  /*TODO(andrew):unhardcode*/
+  display: inline-flex;
+  background-color: #fffcf3;
+  color: #586e75;
+  border-radius: 0.2em;
 }
 
 @keyframes backgroundColorPalette {
