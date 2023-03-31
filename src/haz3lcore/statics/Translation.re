@@ -3,8 +3,8 @@ let rec get_roc_term = (t: TermBase.UExp.t, i: int): TermRoc.UExp.t =>
   // | Invalid(parse_flag)
   // | EmptyHole
   // | MultiHole(list(Any.t))
-  // | Triv
   // | Tag(s) => Tag(s)
+  | Triv => {term: Record([]), indent: i}
   | Bool(b) => {term: Bool(b), indent: i}
   | Int(n) => {term: Int(n), indent: i}
   | Float(f) => {term: Float(f), indent: i}
@@ -58,7 +58,6 @@ let rec get_roc_term = (t: TermBase.UExp.t, i: int): TermRoc.UExp.t =>
         indent: i,
       }
     };
-  // | Let(pat, def, body) => get_let_term(pat, def, body)
   | Ap(fn, v) => {
       term: Ap(get_roc_term(fn, i), get_roc_term(v, i)),
       indent: i,
@@ -77,12 +76,12 @@ let rec get_roc_term = (t: TermBase.UExp.t, i: int): TermRoc.UExp.t =>
       indent: i,
     }
   | Test(t) => {term: Expect(get_roc_term(t, i)), indent: i}
-  // | Parens(t) => Parens(get_roc_term(t))
   | Parens(t) =>
     switch (t.term) {
     | Tuple(_) => get_roc_term(t, i)
     | _ => {term: Parens(get_roc_term(t, i)), indent: i}
     }
+  // | Parens(t) => Parens(get_roc_term(t))
   | Cons(hd, tl) =>
     switch (get_roc_term(tl, i).term) {
     | ListLit([]) => {term: ListLit([get_roc_term(hd, i)]), indent: i}
@@ -109,37 +108,9 @@ let rec get_roc_term = (t: TermBase.UExp.t, i: int): TermRoc.UExp.t =>
       term: Match(get_roc_term(t, i), get_roc_list_match(l, i)),
       indent: i,
     }
-  | _ => {term: String("Invalid"), indent: i}
+  | _ => {term: String("Not implemented"), indent: i}
   }
 
-// and get_let_term =
-//     (pat: TermBase.UPat.t, def: TermBase.UExp.t, body: TermBase.UExp.t)
-//     : TermRoc.UExp.t =>
-//   switch (get_typ_ann(pat), def.term) {
-//   | (Some(p), Let(_)) =>
-//     Seq(
-//       p,
-//       Seq(
-//         AssignIndentation(get_pat_var(pat), get_roc_term(def)),
-//         get_roc_term(body),
-//       ),
-//     )
-//   | (Some(p), _) =>
-//     Seq(
-//       p,
-//       Seq(
-//         Assign(get_pat_var(pat), get_roc_term(def)),
-//         get_roc_term(body),
-//       ),
-//     )
-//   | (None, Let(_)) =>
-//     Seq(
-//       AssignIndentation(get_pat_var(pat), get_roc_term(def)),
-//       get_roc_term(body),
-//     )
-//   | (None, _) =>
-//     Seq(Assign(get_pat_var(pat), get_roc_term(def)), get_roc_term(body))
-//   }
 and get_roc_list = (list: list(TermBase.UExp.t), i: int) =>
   switch (list) {
   | [] => []
@@ -165,9 +136,9 @@ and get_roc_pat_term = (t: TermBase.UPat.t, i: int): TermRoc.UPat.t =>
   // | Invalid(parse_flag) => String("Triv") //
   // | EmptyHole => String("Triv") //
   // | MultiHole(list(Any.t)) => String("Triv") //
-  // | Triv => String("Triv") //
   // | Tag(s) => Tag(s) //
   // | Ap(fn, v) => Ap(get_roc_pat_term(fn), get_roc_pat_term(v))
+  | Triv => {term: Record([]), indent: i}
   | Wild => {term: Wild, indent: i}
   | Int(n) => {term: Int(n), indent: i}
   | Float(f) => {term: Float(f), indent: i}
@@ -184,14 +155,14 @@ and get_roc_pat_term = (t: TermBase.UPat.t, i: int): TermRoc.UPat.t =>
       indent: i,
     }
   // | Tuple(l) => Tuple(List.map(get_roc_pat_term, l))
-  // | Parens(t) => Parens(get_roc_pat_term(t))
   | Parens(t) =>
     switch (t.term) {
     | Tuple(_) => get_roc_pat_term(t, i)
     | _ => {term: Parens(get_roc_pat_term(t, i)), indent: i}
     }
+  // | Parens(t) => Parens(get_roc_pat_term(t))
   | TypeAnn(v, _) => get_roc_pat_term(v, i)
-  | _ => {term: String("Invalid"), indent: i}
+  | _ => {term: String("Not implemented"), indent: i}
   }
 
 and get_cons_list =
@@ -252,7 +223,7 @@ and get_roc_type = (t: TermBase.UTyp.t, b_i: bool, b_f: bool): TermRoc.UTyp.t =>
   | Tuple(l) => Record(get_roc_list_type(l, b_i, b_f))
   // | Tuple(l) => Tuple(List.map(get_roc_type, l))
   | Parens(t) => Parens(get_roc_type(t, b_i, b_f))
-  | _ => Bool
+  | _ => Var("Not_implemented")
   }
 and get_roc_list_type = (list: list(TermBase.UTyp.t), b_i: bool, b_f: bool) =>
   switch (list) {
