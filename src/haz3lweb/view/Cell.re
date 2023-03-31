@@ -254,7 +254,7 @@ let eval_result_footer_view =
         | Some(d) => d
         | _ => init_model
         };
-      MVU.go(name, inject, model, view, update);
+      MVU.go(MVU.mk(~name, ~inject, ~model, ~view, ~update));
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
