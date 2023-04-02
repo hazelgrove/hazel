@@ -3,6 +3,29 @@ module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
 
+let rec to_string = (~holes=_ => "?", t: t): string => {
+  let s = to_string(~holes);
+  switch (t) {
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
+  | String => "String"
+  | Unknown(prov) => holes(prov)
+  | Arrow(t1, t2) => "(" ++ s(t1) ++ " -> " ++ s(t2) ++ ")"
+  | Prod(tys) => "(" ++ String.concat(", ", List.map(s, tys)) ++ ")"
+  | Sum(sm) =>
+    let entry = ((tag, ty)) =>
+      switch (ty) {
+      | None => tag
+      | Some(t) => tag ++ "(" ++ s(t) ++ ")"
+      };
+    "(" ++ String.concat(" + ", List.map(entry, sm)) ++ ")";
+  | Rec(x, ty) => "rec " ++ x ++ ".{" ++ s(ty) ++ "}"
+  | List(ty) => "[" ++ s(ty) ++ "]"
+  | Var(x) => x
+  };
+};
+
 /* How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal

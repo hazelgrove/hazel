@@ -19,7 +19,7 @@ let view =
       ~ctx_init: Ctx.t,
     ) => {
   let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
+  let unselected = Zipper.unselect_and_zip(~ignore_selection=true, zipper);
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
 

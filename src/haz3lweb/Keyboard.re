@@ -36,6 +36,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
+    //TODO(andrew): selectively (~ignore_selection=true)
     let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
@@ -57,6 +58,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
+    | "F7" => [BasicComplete]
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

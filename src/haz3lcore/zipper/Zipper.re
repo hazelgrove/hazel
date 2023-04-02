@@ -135,7 +135,11 @@ let remold = (z: t): t => {
 let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
   z |> remold |> regrout(d);
 
-let unselect = (z: t): t => {
+let unselect = (~ignore_selection=false, z: t): t => {
+  //TODO(andrew): document selection clearing
+  let z =
+    z.selection.ephemeral && ignore_selection
+      ? {...z, selection: Selection.clear(z.selection)} : z;
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
@@ -143,7 +147,8 @@ let unselect = (z: t): t => {
   let selection = Selection.clear(z.selection);
   {...z, selection, relatives};
 };
-let unselect_and_zip = (z: t): Segment.t => z |> unselect |> zip;
+let unselect_and_zip = (~ignore_selection=false, z: t): Segment.t =>
+  z |> unselect(~ignore_selection) |> zip;
 
 let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
   let old = z.selection;

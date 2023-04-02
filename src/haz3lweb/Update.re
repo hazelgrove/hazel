@@ -176,6 +176,7 @@ let reevaluate_post_update =
   | AcceptSuggestion
   | InsertWeather
   | Complete(_)
+  | BasicComplete
   | Execute(_)
   | SetModel(_)
   | Undo
@@ -456,6 +457,65 @@ let rec apply =
         )
       };
       Ok(model);
+    | BasicComplete =>
+      let (id, ed) = model.editors |> Editors.get_editor_and_id;
+      let z = ed.state.zipper;
+      let _ctx = {
+        let index = Indicated.index(z);
+        let get_term = z =>
+          z
+          |> Zipper.unselect_and_zip(~ignore_selection=true)
+          |> MakeTerm.go
+          |> fst;
+        let map = z |> get_term |> Statics.mk_map;
+        switch (index) {
+        | Some(index) =>
+          switch (Haz3lcore.Id.Map.find_opt(index, map)) {
+          | Some(ci) => Info.ctx_of(ci)
+          | _ => []
+          }
+        | _ => []
+        };
+      };
+      //DONE: when flattening zipper for semantics, disregard emphemeral selection
+      //DONE: inspect shapes on both sides, use those instead, sorts too
+      //TODO: on accept, trigger merge somehow
+      //TODO: only activate when caret pos = Outer
+      /*
+       init version: exp/pat only, convex mono only, ctx only (no forms)
+       check if last of l_sib is convex mono
+       get ci, check if exp/pat. get ctx.
+       filter ctx by expected ty
+       get ctx names. search names by prefix regexp, get hd.
+       on accept:
+       check syntactic shit (convex mono to right, right-chev mono only in sel, form a valid token if combined)
+       if so, blank selection (redundant?) and paste text content of chev
+
+        */
+      let guy: Tile.t = {
+        id,
+        label: ["lol"],
+        shards: [0],
+        children: [],
+        mold: {
+          out: Any,
+          in_: [],
+          nibs: Siblings.fit_of(z.relatives.siblings),
+        },
+      };
+      let id = id + 1;
+      let z = {
+        ...z,
+        selection: {
+          ...z.selection,
+          ephemeral: true,
+          content: [Tile(guy)],
+        },
+      };
+      let ed = Editor.new_state(Pick_up, z, ed);
+      //TODO: add correct action to history (Pick_up is wrong)
+      let editors = Editors.put_editor_and_id(id, ed, model.editors);
+      Ok({...model, editors});
     | AcceptSuggestion =>
       /*let (is, ed) = Editors.get_editor_and_id(model.editors);
         let sel = ed.state.zipper.selection;

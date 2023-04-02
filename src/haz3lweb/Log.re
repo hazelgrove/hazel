@@ -22,6 +22,7 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | AddKey(_)
   | SetModel(_)
+  | BasicComplete
   | DebugAction(_) => false
   | Execute(_)
   | ResetCurrentEditor

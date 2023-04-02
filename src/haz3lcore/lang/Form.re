@@ -256,8 +256,11 @@ let forms: list((string, t)) = [
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
+  //("ap_exp_triv", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
+  //("ap_pat_triv", mk(ii, ["()"], mk_post(P.ap, Pat, []))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
+  //("ap_typ_triv", mk(ii, ["()"], mk_post(P.ap, Typ, []))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
     "type_alias",

@@ -234,6 +234,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        //| (["()"], []) => Ap(l, {ids: [_id], term: Triv})
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
         | _ => hole(tm)
         },

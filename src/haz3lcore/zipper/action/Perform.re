@@ -44,7 +44,7 @@ let go_z =
     let idx = Indicated.index(z);
     let (term, _) =
       Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.go", true, () =>
-        MakeTerm.go(Zipper.unselect_and_zip(z))
+        MakeTerm.go(Zipper.unselect_and_zip(~ignore_selection=true, z))
       );
     let statics = Statics.mk_map(term);
 
