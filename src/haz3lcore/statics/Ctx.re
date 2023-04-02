@@ -108,3 +108,23 @@ let filter_duplicates = (ctx: t): t =>
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
+
+let filtered_entries = (ty: Typ.t, ctx: t): list(string) =>
+  /* get names of all var and tag entries consistent with ty */
+  List.filter_map(
+    fun
+    | VarEntry({typ, name, _})
+    | TagEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
+      Some(name)
+    | _ => None,
+    ctx,
+  );
+
+let get_alias_names = (ctx: t): list(string) =>
+  /* get names of all type aliases */
+  List.filter_map(
+    fun
+    | TVarEntry({kind: Singleton(_), name, _}) => Some(name)
+    | _ => None,
+    ctx,
+  );
