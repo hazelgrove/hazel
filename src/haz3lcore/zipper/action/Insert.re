@@ -97,7 +97,38 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let insert_outer = (char: string, (z, _) as state: state): option(state) =>
+let expand_keyword = ((z, _) as state: state): option(state) =>
+  /* NOTE(andrew): We may want to allow editing of shards when only 1 of set
+     is down (removing the rest of the set from backpack on edit) as something
+     like this is necessary for backspace to act as undo after kw-expansion */
+  switch (neighbor_monotiles(z.relatives.siblings)) {
+  | (Some(kw), _) =>
+    let (new_label, direction) = Molds.delayed_completion(kw, Left);
+    Zipper.replace(direction, new_label, state);
+  | _ => Some(state)
+  };
+
+let barf_or_construct =
+    (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
+  let barfed =
+    Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
+  switch (barfed) {
+  | Some(z) => IdGen.return(z)
+  /*| _ when Form.is_list_delim(t) =>
+    //HACK(andrew): make insertion of "[" skip expansion
+    Zipper.construct(Left, [Form.empty_list], z)*/
+  | None =>
+    let (lbl, direction) = Molds.instant_completion(t, direction_pref);
+    Zipper.construct(direction, lbl, z);
+  };
+};
+
+let expand_and_barf_or_construct = (char: string, state: state) =>
+  state
+  |> expand_keyword
+  |> Option.map(((z, id_gen)) => barf_or_construct(char, Left, z, id_gen));
+
+let insert_outer = (char: string, (z, id_gen): state): option(state) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
   | MakeNew => expand_neighbors_and_make_new_tile(char, state)
   | AppendLeft(t) => replace_tile(t, Left, state)
@@ -107,24 +138,42 @@ let insert_outer = (char: string, (z, _) as state: state): option(state) =>
 let split =
     ((z, id_gen): state, char: string, idx: int, t: Token.t): option(state) => {
   let (l, r) = Token.split_nth(idx, t);
-  z
-  |> Zipper.set_caret(Outer)
-  |> Zipper.select(Right)
-  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))  //overwrite right
-  |> Option.map(((z, id_gen)) => Zipper.construct_mono(Left, l, z, id_gen))
-  |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
+  if (l == Form.list_delim_start && r == Form.list_delim_end) {
+    /* HACK: If we're splitting an empty list, we need to expand it,
+       and also make sure we end up in the right place. */
+    let lbl = Form.empty_list_lbl;
+    z
+    |> Zipper.set_caret(Outer)
+    |> Zipper.select(Right)
+    |> Option.map(z => Zipper.construct(Left, lbl, z, id_gen))
+    |> OptUtil.and_then(((z, id_gen)) =>
+         Zipper.put_down(z)
+         |> OptUtil.and_then(Zipper.move(Left))
+         |> Option.map(z => (z, id_gen))
+       )
+    |> OptUtil.and_then(expand_and_barf_or_construct(char));
+  } else {
+    z
+    |> Zipper.set_caret(Outer)
+    |> Zipper.select(Right)
+    |> Option.map(z => Zipper.construct(Left, [l], z, id_gen))  // overwrite
+    |> Option.map(((z, id_gen)) =>
+         Zipper.construct(Right, [r], z, id_gen)
+       )
+    |> OptUtil.and_then(expand_and_barf_or_construct(char));
+  };
 };
 
 let opt_regrold = d =>
   Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen));
 
-let move_into_if_stringlit_or_comment = (char, z) =>
+let move_into_if_stringlit_or_listlit = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
      in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
      and ideally this logic would be located there as well, but both regrouting and
      subsequent caret position logic at this function's callsites dicate that this
      be done after. Not too happy about this tbh. */
-  Form.is_string_delim(char) || Form.is_comment_delim(char)
+  Form.is_string_delim(char) || Form.is_list_delim(char)
     ? switch (move(Left, z)) {
       | None => z
       | Some(z) => z |> set_caret(Inner(0, 0))
@@ -185,13 +234,13 @@ let go =
     |> Option.map(((z, id_gen)) => (Zipper.set_caret(caret, z), id_gen))
     |> opt_regrold(Left)
     |> Option.map(((z, id_gen)) =>
-         (move_into_if_stringlit_or_comment(char, z), id_gen)
+         (move_into_if_stringlit_or_listlit(char, z), id_gen)
        );
   | (Outer, (_, None)) =>
     insert_outer(char, (z, id_gen))
     |> opt_regrold(Left)
     |> Option.map(((z, id_gen)) =>
-         (move_into_if_stringlit_or_comment(char, z), id_gen)
+         (move_into_if_stringlit_or_listlit(char, z), id_gen)
        )
   };
 };
