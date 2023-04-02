@@ -79,7 +79,8 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let is_bool = str => str == "true" || str == "false";
+let bools = ["true", "false"];
+let is_bool = str => List.mem(str, bools);
 let is_reserved = str => is_bool(str);
 let is_var = str =>
   !is_reserved(str)
@@ -90,8 +91,8 @@ let is_var = str =>
 let is_bad_var = regexp({|(^\.$)|(^[A-Za-z_]*\.$)|(^\.[A-Za-z_]*$)|});
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
-let is_base_typ = str =>
-  str == "String" || str == "Int" || str == "Float" || str == "Bool";
+let base_typs = ["String", "Int", "Float", "Bool"];
+let is_base_typ = str => List.mem(str, base_typs);
 let is_typ_var = t => is_capitalized_name(t) /*&& !is_base_typ(t)*/;
 let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
