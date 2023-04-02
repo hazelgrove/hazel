@@ -126,7 +126,7 @@ let non_leading_delims: list(Token.t) =
   );
 
 let leading_delims = (sort: Sort.t): list(string) => {
-  // TODO(andrew): cleanup
+  // TODO(andrew): cleanup. seperate infix delims from leading
   Form.delims
   |> List.filter_map(token => {
        let (lbl, _) = delayed_expansion(token);
@@ -139,7 +139,10 @@ let leading_delims = (sort: Sort.t): list(string) => {
        | molds =>
          Some(
            List.filter_map(
-             (m: Mold.t) => m.out == sort ? Some(token) : None,
+             (m: Mold.t) =>
+               //TODO(andrew): below is hack see BasicComplete.complete_criteria
+               m.out == sort
+                 ? Some(List.length(lbl) > 1 ? token ++ " " : token) : None,
              molds,
            ),
          )

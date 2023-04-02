@@ -77,8 +77,10 @@ let complete_criteria = (z: Zipper.t) =>
     )
       when
         Form.is_valid_token(tok_to_left ++ completion)
-        || String.sub(completion, String.length(completion) - 1, 1) == "(" =>
+        || String.sub(completion, String.length(completion) - 1, 1) == "("
+        || String.sub(completion, String.length(completion) - 1, 1) == " " =>
     //TODO(andrew): second clause is hack see Ctx.re filtered_entries
+    //TODO(andrew): third clause is also hack see Molds.re leading_delims
     Some(completion)
   | _ => None
   };
