@@ -121,4 +121,29 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   | d => d
   };
 
+//TODO(andrew): cleanup, doc
+let fit_of = ((l, r): t): Nibs.t => {
+  let (l, r) = (
+    Segment.trim_secondary(Right, l),
+    Segment.trim_secondary(Left, r),
+  );
+  let l =
+    switch (ListUtil.last_opt(l)) {
+    | None
+    | Some(Secondary(_)) => Nib.{shape: Convex, sort: Any}
+    | Some(Tile({mold: {nibs: (_, r_nib), _}, _})) => Nib.flip(r_nib)
+    | Some(Grout({shape: Convex, _})) => Nib.{shape: Concave(0), sort: Any}
+    | Some(Grout({shape: Concave, _})) => Nib.{shape: Convex, sort: Any}
+    };
+  let r =
+    switch (ListUtil.hd_opt(r)) {
+    | None
+    | Some(Secondary(_)) => Nib.{shape: Convex, sort: Any}
+    | Some(Tile({mold: {nibs: (l_nib, _), _}, _})) => Nib.flip(l_nib)
+    | Some(Grout({shape: Convex, _})) => Nib.{shape: Concave(0), sort: Any}
+    | Some(Grout({shape: Concave, _})) => Nib.{shape: Convex, sort: Any}
+    };
+  (l, r);
+};
+
 let sorted_children = TupleUtil.map2(Segment.sorted_children);

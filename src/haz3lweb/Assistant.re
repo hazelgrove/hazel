@@ -4,7 +4,8 @@ open Haz3lcore;
 let get_ci = (model: Model.t): option(Info.t) => {
   let editor = model.editors |> Editors.get_editor;
   let index = Indicated.index(editor.state.zipper);
-  let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+  let get_term = z =>
+    z |> Zipper.unselect_and_zip(~ignore_selection=true) |> MakeTerm.go |> fst;
   let map = editor.state.zipper |> get_term |> Statics.mk_map;
   switch (index) {
   | Some(index) => Haz3lcore.Id.Map.find_opt(index, map)
@@ -49,90 +50,115 @@ let react_chat = (response: string): UpdateAction.t => {
   Paste(quote(response));
 };
 
-type samples = list((string, string));
+let typing_mode = (model: Model.t): option(Typ.mode) =>
+  switch (get_ci(model)) {
+  | Some(InfoExp({mode, _})) => Some(mode)
+  | Some(InfoPat({mode, _})) => Some(mode)
+  | _ => None
+  };
+
+let type_expectation = (mode: option(Typ.mode)): string => {
+  let prefix = "Hole ?? can be filled by an expression with ";
+  switch (mode) {
+  | Some(Ana(ty)) => prefix ++ "a type consistent with " ++ Typ.to_string(ty)
+  | Some(SynFun) =>
+    prefix
+    ++ "a type consistent with "
+    ++ Typ.to_string(Arrow(Unknown(Internal), Unknown(Internal)))
+  | Some(Syn) => prefix ++ "any type"
+  | _ => "Not applicable"
+  };
+};
+
+type samples = list((string, string, string));
 
 let samples = [
-  ("let a:Float = ??(5)", "float_of_int"),
-  ("let f = ?? in f(5)", "fun x:Int -> ??"),
-  ("case Foo(5) | Foo(x) => ?? | Bar => 6", "x"),
+  ("let a:Float = ??(5)", type_expectation(Some(SynFun)), "float_of_int"),
+  ("let f = ?? in f(5)", type_expectation(Some(Syn)), "fun x:Int -> ??"),
+  (
+    "let g = fun x:Int, y: Bool -> if y then x else 6 in g(5, ??)",
+    type_expectation(Some(Ana(Bool))),
+    "true",
+  ),
+  (
+    "case Foo(5) | Foo(x) => ?? | Bar => 6",
+    type_expectation(Some(Ana(Int))),
+    "x",
+  ),
 ];
 
+let mk_prompt =
+    (prompt: string, expected_ty: string, completion: string): string =>
+  Printf.sprintf(
+    {|sample prompt: %s\nexpected type: %ssample completion: %s\n|},
+    prompt,
+    expected_ty,
+    completion,
+  );
+
 let collate_samples: samples => list(string) =
-  List.map(((prompt, completion)) => {
-    "sample prompt: " ++ prompt ++ "\nsample completion: " ++ completion ++ ""
-  });
+  List.mapi((idx, (prompt, expected_ty, completion)) =>
+    Printf.sprintf(
+      {|sample_%d:
+{ prompt: %s,
+  expected type: %s,
+  completion: %s,
+}|},
+      idx,
+      prompt,
+      expected_ty,
+      completion,
+    )
+  );
 
 let code_instructions = [
-  "You are an intelligent code completion agent",
-  "You will be given a program sketch and are tasked with coming up with a valid replacement for the hole labelled ?? in the actual prompt",
-  "Your suggestion doesn't have to be complete; it's okay to leave holes (??) in your completion if there isn't enough information to fill them in",
+  {|You are an ancient and thoughtful spirit of code completion|},
+  "When you encounter an incomplete program sketch as a prompt, you come up with a reasonable replacement for the hole labelled ?? in the actual prompt",
+  "Your replacement suggestion doesn't have to be complete; it's okay to leave holes (denoted ??) in your completion if there isn't enough information to fill them in",
   "Respond only with a replacement for the symbol ?? in the actual prompt",
   "Respond only with a single replacement expression; you do not need to provide replacements for the samples",
   "Do not include the provided program sketch in your response",
   "Include only code in your response",
+  "Use C-style function application syntax, with parenthesis around comma-separated arguments",
   "Do not include a period at the end of your response",
 ];
 
 /*
- ideas: take into account clipboard, past code positions, selections
+ IDEA: take into account clipboard, past code positions, selections
 
  TODO: make holes rendered as some actual text; otherwise it tries to fill them...
+
+ REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
-
-/**
-   REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
-
-   plan for response wrapper:
-   current caret ends up after response
-   want to move it before response
-   hopefully can select whole term (is it indicated atm? not super robust...)
-   and then manually change selection focus i guess.
-   at this point we want TAB to accept the completion,
-   which means getting rid of the wrapper,
-   and any(?) other action to get rid of the completion
-   so logic is like... check that indicated term is wrapper
-   i guess this should be done at top-level of update? feels hacky...
-   if indicate term is wrapper, check if command is whatever TAB does (new Commplete action?)
-    if so, remove wrapper, and splice in innards, i guess thru zipper surgery?
-    otherwise, just remove wrapper+contents
-  */
 
 let prompt_code = (model: Model.t): option(string) => {
   let editor = model.editors |> Editors.get_editor;
-  let type_expectation =
-    switch (get_ci(model)) {
-    | Some(InfoExp({mode: Ana(ty), _})) => "type = " ++ Typ.show(ty)
-    | _ => "any type"
-    };
-
   let prefix =
-    ["First, Consider these examples of a prompt and its completion:"]
+    ["Consider these examples:"]
     @ collate_samples(samples)
     @ code_instructions
-    @ [
-      "According to the type checker, the hole must be filled by an expression of "
-      ++ type_expectation,
-    ]
-    @ ["actual prompt: "];
+    @ [model |> typing_mode |> type_expectation];
   let body = Printer.to_string_editor(~holes=Some("HOLE"), editor);
-  //let body = sanitize_prompt(body);
   switch (String.trim(body)) {
   | "" => None
   | _ =>
-    let prompt =
-      String.concat("\n ", prefix)
-      ++ "\n "
-      ++ body
-      ++ "\nactual completion:\n";
+    let prompt_proper =
+      Printf.sprintf(
+        {|
+Finally, the details of the actual program sketch to be completed:
+actual_prompt: %s,
+actual_expected_type: %s,
+actual_completion:
+      |},
+        body,
+        model |> typing_mode |> type_expectation,
+      );
+    let prompt = String.concat("\n ", prefix) ++ prompt_proper;
     print_endline("ABOUT TO SUBMIT PROMPT:\n " ++ prompt);
     Some(prompt);
   };
 };
 
 let react_code = (response: string): UpdateAction.t => {
-  //let response = sanitize_response(response);
-  PasteIntoSelection(
-    response,
-    // "~" ++ response ++ "~",
-  );
+  PasteIntoSelection(response);
 };

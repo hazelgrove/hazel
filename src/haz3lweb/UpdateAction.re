@@ -42,6 +42,7 @@ type t =
   | Copy
   | Paste(string)
   | PasteIntoSelection(string)
+  | BasicComplete
   | AcceptSuggestion
   | InsertWeather
   | Complete(completion)

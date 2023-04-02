@@ -61,7 +61,10 @@ module Main = {
   let gen_grading_report = exercise => {
     let zipper_pp = zipper => {
       Printer.pretty_print(
-        ~measured=Measured.of_segment(Zipper.unselect_and_zip(zipper)),
+        ~measured=
+          Measured.of_segment(
+            Zipper.unselect_and_zip(~ignore_selection=true, zipper),
+          ),
         zipper,
       );
     };
