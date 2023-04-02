@@ -112,3 +112,53 @@ let allow_append_left = (char: string, t: Token.t): bool =>
 
 let allow_insertion = (char: string, t: Token.t, new_t: Token.t): bool =>
   Form.is_valid_token(new_t) || !Form.is_valid_token(t) && append_safe(char);
+
+let non_leading_delims: list(Token.t) =
+  List.fold_left(
+    (acc, (_, {label, _}: Form.t)) => {
+      switch (label) {
+      | [_, ...tl] => acc @ tl
+      | _ => acc
+      }
+    },
+    [],
+    Form.forms,
+  );
+
+let leading_delims = (sort: Sort.t): list(string) => {
+  // TODO(andrew): cleanup
+  Form.delims
+  |> List.filter_map(token => {
+       let (lbl, _) = delayed_expansion(token);
+       switch (get(lbl)) {
+       | [a] when List.mem(token, non_leading_delims) && a.out != Any =>
+         // Case for delims lile "->" which are both infix and non-leading kws
+         Some(lbl)
+       | _ when List.mem(token, non_leading_delims) => None
+       | [a] when a.out == Any => None
+       | molds =>
+         Some(
+           List.filter_map(
+             (m: Mold.t) => m.out == sort ? Some(token) : None,
+             molds,
+           ),
+         )
+       };
+     })
+  |> List.flatten;
+};
+
+let lead_delims_exp = leading_delims(Exp);
+let lead_delims_pat = leading_delims(Pat);
+let lead_delims_typ = leading_delims(Typ);
+
+let leading_delims = (sort: Sort.t): list(string) =>
+  switch (sort) {
+  | Exp => lead_delims_exp
+  | Pat => lead_delims_pat
+  | Typ => lead_delims_typ
+  | TPat
+  | Nul
+  | Any
+  | Rul => []
+  };

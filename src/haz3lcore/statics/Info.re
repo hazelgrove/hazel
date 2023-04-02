@@ -218,6 +218,13 @@ let ctx_of: t => Ctx.t =
   | InfoTyp({ctx, _}) => ctx
   | InfoTPat({ctx, _}) => ctx;
 
+let sort_of: t => Sort.t =
+  fun
+  | InfoExp(_) => Exp
+  | InfoPat(_) => Pat
+  | InfoTyp(_) => Typ
+  | InfoTPat(_) => TPat;
+
 let exp_free: exp => Ctx.co = ({free, _}) => free;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;

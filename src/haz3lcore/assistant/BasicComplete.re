@@ -1,23 +1,7 @@
 open Util;
 open OptUtil.Syntax;
-//DONE: when flattening zipper for semantics, disregard emphemeral selection
-//DONE: inspect shapes on both sides, use those instead, sorts too
-//TODO: on accept, trigger merge somehow
-//TODO: only activate when caret pos = Outer
-/*
- init version: exp/pat only, convex mono only, ctx only (no forms)
- check if last of l_sib is convex mono
- get ci, check if exp/pat. get ctx.
- filter ctx by expected ty
- get ctx names. search names by prefix regexp, get hd.
- on accept:
- check syntactic shit (convex mono to right, right-chev mono only in sel, form a valid token if combined)
- if so, blank selection (redundant?) and paste text content of chev
-
-  */
 
 //TODO(andrew): PERF DANGER!!
-
 let z_to_ci = (z: Zipper.t) => {
   let map =
     z
@@ -29,17 +13,49 @@ let z_to_ci = (z: Zipper.t) => {
   Id.Map.find_opt(index, map);
 };
 
-let candidates = (ci: Info.t): list(string) =>
+let ctx_candidates = (ci: Info.t): list(string) =>
+  //TODO: also suggest things with arrow type whose return type meets expectation
   switch (ci) {
-  | InfoExp({ctx, mode: Ana(ty), _}) => ctx |> Ctx.filtered_entries(ty)
+  | InfoExp({ctx, mode: Ana(ty), _}) =>
+    ctx |> Ctx.filtered_entries(~return_ty=true, ty)
   | InfoExp({ctx, mode: Syn | SynFun, _}) =>
     ctx |> Ctx.filtered_entries(Unknown(Internal))
-  | InfoPat({ctx, mode: Ana(ty), _}) => ctx |> Ctx.filtered_entries(ty)
+  | InfoPat({ctx, mode: Ana(ty), _}) =>
+    ctx |> Ctx.filtered_tag_entries(~return_ty=true, ty)
   | InfoPat({ctx, mode: Syn | SynFun, _}) =>
-    ctx |> Ctx.filtered_entries(Unknown(Internal))
-  | InfoTyp({ctx, _}) => Ctx.get_alias_names(ctx)
+    ctx |> Ctx.filtered_tag_entries(Unknown(Internal))
+  | InfoTyp({ctx, _}) => Ctx.get_alias_names(ctx) @ Form.base_typs
   | _ => []
   };
+
+let backpack_candidate = (sort: Sort.t, z: Zipper.t) =>
+  switch (z.backpack) {
+  | [] => []
+  | [{content, _}, ..._] =>
+    switch (content) {
+    | [Tile({label, shards: [idx], mold, _})] when sort == mold.out => [
+        List.nth(label, idx),
+      ]
+    | _ => []
+    }
+  };
+
+let const_candidates = (ci: Info.t): list(string) =>
+  switch (ci) {
+  | InfoExp({mode: Ana(Bool | Unknown(_)) | Syn | SynFun, _}) => Form.bools
+  | InfoPat({mode: Ana(Bool | Unknown(_)) | Syn | SynFun, _}) => Form.bools
+  | InfoTyp(_) => Form.base_typs
+  | _ => []
+  };
+
+let candidates = (z: Zipper.t): option(list(string)) => {
+  let+ ci = z_to_ci(z);
+  let sort = Info.sort_of(ci);
+  backpack_candidate(sort, z)
+  @ ctx_candidates(ci)
+  @ const_candidates(ci)
+  @ Molds.leading_delims(sort);
+};
 
 /* Criteria: selection is ephemeral and a single monotile with the caret on the left,
    and the left sibling ends in a monotile, such that appending the two would result
@@ -59,7 +75,10 @@ let complete_criteria = (z: Zipper.t) =>
       [Tile({label: [tok_to_left], _}), ..._],
       _,
     )
-      when Form.is_valid_token(tok_to_left ++ completion) =>
+      when
+        Form.is_valid_token(tok_to_left ++ completion)
+        || String.sub(completion, String.length(completion) - 1, 1) == "(" =>
+    //TODO(andrew): second clause is hack see Ctx.re filtered_entries
     Some(completion)
   | _ => None
   };
@@ -103,8 +122,7 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
 let mk_pseudoselection =
     (z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
-  let* ci = z_to_ci(z);
-  let candidates = candidates(ci);
+  let* candidates = candidates(z);
   //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
   // a filtered candidate is a prefix match with at least one more char
   let filtered_candidates =
