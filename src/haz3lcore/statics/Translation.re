@@ -197,41 +197,27 @@ and get_cons_list =
   };
 }
 
-and get_roc_type = (t: TermBase.UTyp.t, b_i: bool, b_f: bool): TermRoc.UTyp.t =>
+and get_roc_type = (t: TermBase.UTyp.t): TermRoc.UTyp.t =>
   switch (t.term) {
   // | Invalid(parse_flag)
   // | EmptyHole
   // | MultiHole(list(Any.t))
-  | Int =>
-    if (b_i) {
-      IntV("a");
-    } else {
-      Int;
-    }
-  | Float =>
-    if (b_f) {
-      FloatV("a");
-    } else {
-      Float;
-    }
+  | Int => Int
+  | Float => Float
   | Bool => Bool
   | String => String
-  | List(t) => List(get_roc_type(t, b_i, b_f))
+  | List(t) => List(get_roc_type(t))
   | Var(s) => Var(get_camel_case(s))
-  | Arrow(t1, t2) =>
-    Arrow(get_roc_type(t1, b_i, b_f), get_roc_type(t2, b_i, b_f))
-  | Tuple(l) => Record(get_roc_list_type(l, b_i, b_f))
+  | Arrow(t1, t2) => Arrow(get_roc_type(t1), get_roc_type(t2))
+  | Tuple(l) => Record(get_roc_list_type(l))
   // | Tuple(l) => Tuple(List.map(get_roc_type, l))
-  | Parens(t) => Parens(get_roc_type(t, b_i, b_f))
+  | Parens(t) => Parens(get_roc_type(t))
   | _ => Var("Not_implemented")
   }
-and get_roc_list_type = (list: list(TermBase.UTyp.t), b_i: bool, b_f: bool) =>
+and get_roc_list_type = (list: list(TermBase.UTyp.t)) =>
   switch (list) {
   | [] => []
-  | [x, ...xs] => [
-      get_roc_type(x, b_i, b_f),
-      ...get_roc_list_type(xs, b_i, b_f),
-    ]
+  | [x, ...xs] => [get_roc_type(x), ...get_roc_list_type(xs)]
   }
 and get_roc_op_un = (op_un_hazel: TermBase.UExp.op_un): TermRoc.UExp.op_un =>
   switch (op_un_hazel) {
@@ -327,30 +313,7 @@ and get_typ_ann = (pat: TermBase.UPat.t, i: int) =>
   switch (pat.term) {
   | Parens(pat) => get_typ_ann(pat, i)
   | TypeAnn(v, typ) =>
-    switch (typ.term) {
-    | Arrow(_) =>
-      if (is_all_int(typ)) {
-        Some({
-          term: TypeAnn(get_var(v), get_roc_type(typ, true, false)),
-          indent: i,
-        });
-      } else if (is_all_float(typ)) {
-        Some({
-          term: TypeAnn(get_var(v), get_roc_type(typ, false, true)),
-          indent: i,
-        });
-      } else {
-        Some({
-          term: TypeAnn(get_var(v), get_roc_type(typ, false, false)),
-          indent: i,
-        });
-      }
-    | _ =>
-      Some({
-        term: TypeAnn(get_var(v), get_roc_type(typ, false, false)),
-        indent: i,
-      })
-    }
+    Some({term: TypeAnn(get_var(v), get_roc_type(typ)), indent: i})
   | Var(_)
   | Invalid(_)
   | EmptyHole
@@ -366,38 +329,6 @@ and get_typ_ann = (pat: TermBase.UPat.t, i: int) =>
   | Cons(_)
   | Tuple(_)
   | Ap(_) => None
-  }
-
-and is_all_int = (t: TermBase.UTyp.t) =>
-  switch (t.term) {
-  | Int => true
-  | List(t) => is_all_int(t)
-  | Arrow(t1, t2) => is_all_int(t1) && is_all_int(t2)
-  | Tuple(l) => List.for_all(is_all_int, l)
-  | Parens(t) => is_all_int(t)
-  | Var(_)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Float
-  | Bool
-  | String => false
-  }
-
-and is_all_float = (t: TermBase.UTyp.t) =>
-  switch (t.term) {
-  | Float => true
-  | List(t) => is_all_float(t)
-  | Arrow(t1, t2) => is_all_float(t1) && is_all_float(t2)
-  | Tuple(l) => List.for_all(is_all_float, l)
-  | Parens(t) => is_all_float(t)
-  | Var(_)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Int
-  | Bool
-  | String => false
   }
 
 and get_camel_case = (name: string) => {

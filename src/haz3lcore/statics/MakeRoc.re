@@ -66,10 +66,8 @@ and get_code_pat = (t: TermRoc.UPat.t): string =>
 
 and get_code_typ = (t: TermRoc.UTyp.t): string =>
   switch (t) {
-  | Int => "Int *"
-  | IntV(s) => "Int " ++ s
-  | Float => "Frac *"
-  | FloatV(s) => "Frac " ++ s
+  | Int => "I32"
+  | Float => "F32"
   | Bool => "Bool"
   | String => "Str"
   | List(t) => "List" ++ get_code_typ(t)

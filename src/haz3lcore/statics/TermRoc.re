@@ -1,23 +1,6 @@
 open Sexplib.Std;
 
-module rec Any: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Exp(UExp.t)
-    | Pat(UPat.t)
-    | Typ(UTyp.t)
-    | Nul(unit)
-    | Any(unit);
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Exp(UExp.t)
-    | Pat(UPat.t)
-    | Typ(UTyp.t)
-    | Nul(unit)
-    | Any(unit);
-}
-and UExp: {
+module rec UExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
@@ -233,9 +216,7 @@ and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Int
-    | IntV(string)
     | Float
-    | FloatV(string)
     | Bool
     | String
     | List(t)
@@ -248,9 +229,7 @@ and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Int
-    | IntV(string)
     | Float
-    | FloatV(string)
     | Bool
     | String
     | List(t)

@@ -95,14 +95,22 @@ let download_roc = state => {
   let zipper = ScratchSlide.editor_of_state(state).state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let rocterm = Translation.get_roc_term(term, 0);
+  let rocterm =
+    Util.TimeUtil.measure_time("get term 1", true, () =>
+      Translation.get_roc_term(term, 0)
+    );
+  let contents =
+    Util.TimeUtil.measure_time("get term 2", true, () =>
+      MakeRoc.generate_code(rocterm)
+    );
+  // let rocterm = Translation.get_roc_term(term, 0);
+  // let contents = MakeRoc.generate_code(rocterm);
   // let contents =
   //   "app \"hello\"
   //   packages { pf: \"https://github.com/roc-lang/basic-cli/releases/download/0.2.0/8tCohJeXMBUnjo_zdMq0jSaqdYoCWJkWazBd4wa8cQU.tar.br\" }
   //   imports [pf.Stdout]
   //   provides [main] to pf \n\n"
   //   ++ MakeRoc.generate_code(rocterm);
-  let contents = MakeRoc.generate_code(rocterm);
   JsUtil.download_string_file(
     ~filename="exported_ast.txt",
     ~content_type="text/plain",
