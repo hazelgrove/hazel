@@ -112,6 +112,7 @@ let parent_duomerges = (z: Zipper.t) => {
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
+  //let (z, id_gen) = Zipper.regrout(Right, z, id_gen);
   let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
   switch (
     parent_duomerges(z),
@@ -123,11 +124,12 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
+    let z = z |> Zipper.delete_parent;
     z
-    |> Zipper.delete_parent
-    |> Zipper.set_caret(Inner(List.length(lbl), 0))
+    |> Zipper.set_caret(Inner(0, 0))
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
-    |> Option.some
+    /* below regrout important for parens/ap positioning */
+    |> (((z, id_gen)) => Zipper.regrout(Right, z, id_gen) |> Option.some);
   | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
     merge((l, r), (z_trimmed, id_gen))
   | _ => Some((z, id_gen))

@@ -23,8 +23,8 @@ let view =
     //TODO(andrew): document below
     let zipper = Move.semantics_push(zipper);
     let seg = Zipper.unselect_and_zip(~ignore_selection=true, zipper);
-    print_endline("ZIPPPPO:");
-    print_endline(Printer.of_segment(~holes=None, seg));
+    //print_endline("ZIPPPPO:");
+    //print_endline(Printer.of_segment(~holes=None, seg));
     seg;
   };
   let (term, _) = MakeTerm.go(unselected);

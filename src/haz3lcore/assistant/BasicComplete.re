@@ -127,7 +127,9 @@ let mk_pseudoselection =
   // a filtered candidate is a prefix match with at least one more char
   //TODO(andrew): need to escape tok_to_left, e.g. dots....
   let filtered_candidates =
-    candidates |> List.filter(Form.regexp("^" ++ tok_to_left ++ "."));
+    candidates
+    |> List.filter(String.starts_with(~prefix=tok_to_left))
+    |> List.filter((!=)(tok_to_left));
   //print_endline("FILT:\n" ++ (filtered_candidates |> String.concat("\n")));
   let* top_candidate = filtered_candidates |> Util.ListUtil.hd_opt;
   let* candidate_suffix = suffix_of(top_candidate, tok_to_left);
