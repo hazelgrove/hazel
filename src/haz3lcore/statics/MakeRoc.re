@@ -1,5 +1,5 @@
-let rec generate_code = (t: TermRoc.UExp.t): string =>
-  switch (t.term) {
+let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
+  switch (t) {
   | Bool(true) => "Bool.true"
   | Bool(false) => "Bool.false"
   | Int(n) => string_of_int(n)
@@ -12,43 +12,58 @@ let rec generate_code = (t: TermRoc.UExp.t): string =>
       f_str;
     };
   | String(s) => s
-  | ListLit(lst) => "[" ++ list_to_string(lst) ++ "]"
+  | ListLit(lst) => "[" ++ list_to_string(lst, i) ++ "]"
   // | Tag(tag) =>
   | Fun(pat, body) =>
-    "\\ " ++ get_code_pat(pat) ++ " -> " ++ generate_code(body)
-  | Record(t) => get_record_term(t)
+    "\\ "
+    ++ get_code_pat(pat, i)
+    ++ " -> "
+    ++ "\n"
+    ++ String.make(i + 1, ' ')
+    ++ generate_code(body, i + 1)
+  | Record(t) => get_record_term(t, i)
   // | Tuple(l) => l |> List.map(generate_code) |> String.concat(", ")
   | Var(token) => token
-  | Assign(p, def) => get_code_pat(p) ++ " = " ++ generate_code(def)
-  | Ap(fn, arg) => generate_code(fn) ++ " (" ++ generate_code(arg) ++ ")"
+  | Assign(p, def) => get_code_pat(p, i) ++ " = " ++ generate_code(def, i)
+  | Ap(fn, arg) =>
+    generate_code(fn, i) ++ " (" ++ generate_code(arg, i) ++ ")"
   | If(cond, true_branch, false_branch) =>
     "if "
-    ++ generate_code(cond)
+    ++ generate_code(cond, i)
     ++ " then "
-    ++ generate_code(true_branch)
+    ++ generate_code(true_branch, i)
     ++ " else "
-    ++ generate_code(false_branch)
-  | Seq(expr1, expr2) =>
-    generate_code(expr1)
+    ++ generate_code(false_branch, i)
+  | SeqIndent(expr1, expr2) =>
+    generate_code(expr1, i + 1)
     ++ "\n"
-    ++ String.make(t.indent, ' ')
-    ++ generate_code(expr2)
-  | Expect(expr) => "expect " ++ generate_code(expr)
-  | Parens(expr) => "(" ++ generate_code(expr) ++ ")"
-  | UnOp(op, operand) => get_code_un(op) ++ generate_code(operand)
+    ++ String.make(i, ' ')
+    ++ generate_code(expr2, i)
+  | Seq(expr1, expr2) =>
+    generate_code(expr1, i)
+    ++ "\n"
+    ++ String.make(i, ' ')
+    ++ generate_code(expr2, i)
+  | Expect(expr) => "expect " ++ generate_code(expr, i)
+  | Parens(expr) => "(" ++ generate_code(expr, i) ++ ")"
+  | UnOp(op, operand) => get_code_un(op) ++ generate_code(operand, i)
   | BinOp(op, lhs, rhs) =>
-    generate_code(lhs)
+    generate_code(lhs, i)
     ++ " "
     ++ get_code_bin(op)
     ++ " "
-    ++ generate_code(rhs)
+    ++ generate_code(rhs, i)
   | Match(t, l) =>
-    "when " ++ generate_code(t) ++ " is\n" ++ get_match_body(l, t.indent)
+    "when "
+    ++ generate_code(t, i)
+    ++ " is\n"
+    ++ String.make(i, ' ')
+    ++ get_match_body(l, i)
   | TypeAnn(v, typ) => v ++ " : " ++ get_code_typ(typ)
   }
 
-and get_code_pat = (t: TermRoc.UPat.t): string =>
-  switch (t.term) {
+and get_code_pat = (t: TermRoc.UPat.t, i: int): string =>
+  switch (t) {
   | Wild => "_"
   | Rest => ".."
   | Bool(true) => "true"
@@ -56,18 +71,18 @@ and get_code_pat = (t: TermRoc.UPat.t): string =>
   | Int(n) => string_of_int(n)
   | Float(f) => string_of_float(f)
   | String(s) => s
-  | ListLit(lst) => "[" ++ list_to_string_pat(lst) ++ "]"
+  | ListLit(lst) => "[" ++ list_to_string_pat(lst, i) ++ "]"
   // | Tag(_) =>
   | Var(token) => token
-  | Record(pat) => get_record_pat(pat)
+  | Record(pat) => get_record_pat(pat, i)
   // | Tuple(l) => l |> List.map(get_code_pat) |> String.concat(", ")
-  | Parens(expr) => "(" ++ get_code_pat(expr) ++ ")"
+  | Parens(expr) => "(" ++ get_code_pat(expr, i) ++ ")"
   }
 
 and get_code_typ = (t: TermRoc.UTyp.t): string =>
   switch (t) {
-  | Int => "I32"
-  | Float => "F32"
+  | Int => "I64"
+  | Float => "F64"
   | Bool => "Bool"
   | String => "Str"
   | List(t) => "List" ++ get_code_typ(t)
@@ -77,33 +92,37 @@ and get_code_typ = (t: TermRoc.UTyp.t): string =>
   // | Tuple(l) => l |> List.map(get_code_typ) |> String.concat(", ")
   | Parens(expr) => "(" ++ get_code_typ(expr) ++ ")"
   }
-and list_to_string = (lst: list(TermRoc.UExp.t)) => {
+and list_to_string = (lst: list(TermRoc.UExp.t), i: int) => {
   switch (lst) {
   | [] => ""
-  | [x] => generate_code(x)
-  | [x, ...xs] => generate_code(x) ++ ", " ++ list_to_string(xs)
+  | [x] => generate_code(x, i)
+  | [x, ...xs] => generate_code(x, i) ++ ", " ++ list_to_string(xs, i)
   };
 }
-and list_to_string_pat = (lst: list(TermRoc.UPat.t)) => {
+and list_to_string_pat = (lst: list(TermRoc.UPat.t), i: int) => {
   switch (lst) {
   | [] => ""
-  | [x] => get_code_pat(x)
-  | [x, ...xs] => get_code_pat(x) ++ ", " ++ list_to_string_pat(xs)
+  | [x] => get_code_pat(x, i)
+  | [x, ...xs] => get_code_pat(x, i) ++ ", " ++ list_to_string_pat(xs, i)
   };
 }
-and get_record_term = (terms: list(TermRoc.UExp.t)): string => {
+and get_record_term = (terms: list(TermRoc.UExp.t), indent: int): string => {
   let termi =
     List.mapi(
-      (i, t) => {"t" ++ string_of_int(i) ++ ": " ++ generate_code(t)},
+      (i, t) => {
+        "t" ++ string_of_int(i) ++ ": " ++ generate_code(t, indent)
+      },
       terms,
     );
   let r = String.concat(", ", termi);
   "{" ++ r ++ "}";
 }
-and get_record_pat = (pats: list(TermRoc.UPat.t)): string => {
+and get_record_pat = (pats: list(TermRoc.UPat.t), indent: int): string => {
   let pati =
     List.mapi(
-      (i, p) => {"t" ++ string_of_int(i) ++ ": " ++ get_code_pat(p)},
+      (i, p) => {
+        "t" ++ string_of_int(i) ++ ": " ++ get_code_pat(p, indent)
+      },
       pats,
     );
   let r = String.concat(", ", pati);
@@ -126,7 +145,7 @@ and get_match_body =
       ((p, t)) =>
         switch (p, t) {
         | (pat, output) =>
-          "  " ++ get_code_pat(pat) ++ " -> " ++ generate_code(output)
+          "  " ++ get_code_pat(pat, i) ++ " -> " ++ generate_code(output, i)
         },
       branches,
     );

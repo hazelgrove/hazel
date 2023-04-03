@@ -53,6 +53,7 @@ module rec UExp: {
     | Ap
     | If
     | Seq
+    | SeqIndent
     | Expect
     | Parens
     | UnOp(op_un)
@@ -61,7 +62,7 @@ module rec UExp: {
     | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -76,16 +77,13 @@ module rec UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
+    | SeqIndent(t, t)
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    | TypeAnn(Token.t, UTyp.t)
-  and t = {
-    indent: int,
-    term,
-  };
+    | TypeAnn(Token.t, UTyp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
@@ -139,6 +137,7 @@ module rec UExp: {
     | Ap
     | If
     | Seq
+    | SeqIndent
     | Expect
     | Parens
     | UnOp(op_un)
@@ -147,7 +146,7 @@ module rec UExp: {
     | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -162,20 +161,17 @@ module rec UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
+    | SeqIndent(t, t)
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    | TypeAnn(Token.t, UTyp.t)
-  and t = {
-    indent: int,
-    term,
-  };
+    | TypeAnn(Token.t, UTyp.t);
 }
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Wild
     | Rest
     | Int(int)
@@ -187,14 +183,10 @@ and UPat: {
     | Var(Token.t)
     | Record(list(t))
     // | Tuple(list(t))
-    | Parens(t)
-  and t = {
-    indent: int,
-    term,
-  };
+    | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type t =
     | Wild
     | Rest
     | Int(int)
@@ -206,11 +198,7 @@ and UPat: {
     | Var(Token.t)
     | Record(list(t))
     // | Tuple(list(t))
-    | Parens(t)
-  and t = {
-    indent: int,
-    term,
-  };
+    | Parens(t);
 }
 and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]

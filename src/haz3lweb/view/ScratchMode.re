@@ -97,11 +97,11 @@ let download_roc = state => {
   let (term, _) = MakeTerm.go(unselected);
   let rocterm =
     Util.TimeUtil.measure_time("get term 1", true, () =>
-      Translation.get_roc_term(term, 0)
+      Translation.get_roc_term(term)
     );
   let contents =
     Util.TimeUtil.measure_time("get term 2", true, () =>
-      MakeRoc.generate_code(rocterm)
+      MakeRoc.generate_code(rocterm, 0)
     );
   // let rocterm = Translation.get_roc_term(term, 0);
   // let contents = MakeRoc.generate_code(rocterm);
