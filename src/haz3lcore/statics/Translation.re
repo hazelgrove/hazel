@@ -10,15 +10,8 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
   | Float(f) => Float(f)
   | String(s) => String(s)
   | ListLit(l) => ListLit(List.map(get_roc_term, l))
-  | Fun(p, t) =>
-    // let ind =
-    //   switch (t.term) {
-    //   | Let(_) => i + 1
-    //   | _ => i
-    //   };
-    Fun(get_roc_pat_term(p), get_roc_term(t))
+  | Fun(p, t) => Fun(get_roc_pat_term(p), get_roc_term(t))
   | Tuple(l) => Record(List.map(get_roc_term, l))
-  // | Tuple(l) => Tuple(List.map(get_roc_term, l))
   | Var(token) => Var(get_camel_case(token))
   | Let(pat, def, body) =>
     let indent_flag =
@@ -29,21 +22,19 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
     switch (get_typ_ann(pat)) {
     | Some(p) =>
       if (indent_flag) {
-        Seq(
+        Seq([
           p,
           SeqIndent(
             Assign(get_pat_var(pat), get_roc_term(def)),
             get_roc_term(body),
           ),
-        );
+        ]);
       } else {
-        Seq(
+        Seq([
           p,
-          Seq(
-            Assign(get_pat_var(pat), get_roc_term(def)),
-            get_roc_term(body),
-          ),
-        );
+          Assign(get_pat_var(pat), get_roc_term(def)),
+          get_roc_term(body),
+        ]);
       }
     | None =>
       if (indent_flag) {
@@ -52,23 +43,21 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
           get_roc_term(body),
         );
       } else {
-        Seq(
+        Seq([
           Assign(get_pat_var(pat), get_roc_term(def)),
           get_roc_term(body),
-        );
+        ]);
       }
     };
   | Ap(fn, v) => Ap(get_roc_term(fn), get_roc_term(v))
   | If(cond, if_true, if_false) =>
     If(get_roc_term(cond), get_roc_term(if_true), get_roc_term(if_false))
-  // | Seq(t1, t2) => Seq(get_roc_term(t1, i), get_roc_term(t2, i))
   | Test(t) => Expect(get_roc_term(t))
   | Parens(t) =>
     switch (t.term) {
     | Tuple(_) => get_roc_term(t)
     | _ => Parens(get_roc_term(t))
     }
-  // | Parens(t) => Parens(get_roc_term(t))
   | Cons(hd, tl) =>
     switch (get_roc_term(tl)) {
     | ListLit([]) => ListLit([get_roc_term(hd)])
@@ -150,7 +139,7 @@ and get_roc_list_match =
         [
           (
             get_roc_pat_term(p),
-            SeqMatchIndent(SeqList(seqlist^), get_roc_term(t)),
+            SeqMatchIndent(Seq(seqlist^), get_roc_term(t)),
           ),
           ...get_roc_list_match(xs, scrut),
         ];
@@ -187,13 +176,11 @@ and get_roc_pat_term = (t: TermBase.UPat.t): TermRoc.UPat.t =>
   | Cons(hd, tl) => get_cons_list(hd, tl)
   | Var(t) => Var(get_camel_case(t))
   | Tuple(l) => Record(List.map(get_roc_pat_term, l))
-  // | Tuple(l) => Tuple(List.map(get_roc_pat_term, l))
   | Parens(t) =>
     switch (t.term) {
     | Tuple(_) => get_roc_pat_term(t)
     | _ => Parens(get_roc_pat_term(t))
     }
-  // | Parens(t) => Parens(get_roc_pat_term(t))
   | TypeAnn(v, _) => get_roc_pat_term(v)
   | _ => String("Not implemented")
   }
@@ -221,7 +208,6 @@ and get_roc_type = (t: TermBase.UTyp.t): TermRoc.UTyp.t =>
   | Var(s) => Var(get_camel_case(s))
   | Arrow(t1, t2) => Arrow(get_roc_type(t1), get_roc_type(t2))
   | Tuple(l) => Record(get_roc_list_type(l))
-  // | Tuple(l) => Tuple(List.map(get_roc_type, l))
   | Parens(t) => Parens(get_roc_type(t))
   | _ => Var("Not_implemented")
   }
@@ -301,7 +287,6 @@ and get_pat_var = (pat: TermBase.UPat.t) =>
     | _ => Parens(get_pat_var(p))
     }
   | Var(p) => Var(get_camel_case(p))
-  // | Tuple(l) => Tuple(List.map(get_pat_var, l))
   | Tuple(l) => Record(List.map(get_pat_var, l))
   | ListLit(_) => String("Need to be implemented")
   | Cons(_) => String("Need to be implemented")

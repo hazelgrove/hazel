@@ -13,7 +13,6 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     };
   | String(s) => s
   | ListLit(lst) => "[" ++ list_to_string(lst, i) ++ "]"
-  // | Tag(tag) =>
   | Fun(pat, body) =>
     "\\ "
     ++ get_code_pat(pat, i)
@@ -22,7 +21,6 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ String.make(i + 1, ' ')
     ++ generate_code(body, i + 1)
   | Record(t) => get_record_term(t, i)
-  // | Tuple(l) => l |> List.map(generate_code) |> String.concat(", ")
   | Var(token) => token
   | Assign(p, def) => get_code_pat(p, i) ++ " = " ++ generate_code(def, i)
   | Ap(fn, arg) =>
@@ -34,6 +32,7 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ generate_code(true_branch, i)
     ++ " else "
     ++ generate_code(false_branch, i)
+  | Seq(l) => seqlist_to_string(l, i)
   | SeqIndent(expr1, expr2) =>
     generate_code(expr1, i + 1)
     ++ "\n"
@@ -44,12 +43,6 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ "\n"
     ++ String.make(i + 1, ' ')
     ++ generate_code(expr2, i + 1)
-  | Seq(expr1, expr2) =>
-    generate_code(expr1, i)
-    ++ "\n"
-    ++ String.make(i, ' ')
-    ++ generate_code(expr2, i)
-  | SeqList(l) => seqlist_to_string(l, i)
   | SeqNoBreak(l) => seqnobreak_to_string(l, i)
   | Expect(expr) => "expect " ++ generate_code(expr, i)
   | Parens(expr) => "(" ++ generate_code(expr, i) ++ ")"
@@ -75,10 +68,8 @@ and get_code_pat = (t: TermRoc.UPat.t, i: int): string =>
   | Float(f) => string_of_float(f)
   | String(s) => s
   | ListLit(lst) => "[" ++ list_to_string_pat(lst, i) ++ "]"
-  // | Tag(_) =>
   | Var(token) => token
   | Record(pat) => get_record_pat(pat, i)
-  // | Tuple(l) => l |> List.map(get_code_pat) |> String.concat(", ")
   | Parens(expr) => "(" ++ get_code_pat(expr, i) ++ ")"
   }
 
@@ -92,7 +83,6 @@ and get_code_typ = (t: TermRoc.UTyp.t): string =>
   | Var(s) => s
   | Arrow(t1, t2) => get_code_typ(t1) ++ " -> " ++ get_code_typ(t2)
   | Record(l) => get_record_typ(l)
-  // | Tuple(l) => l |> List.map(get_code_typ) |> String.concat(", ")
   | Parens(expr) => "(" ++ get_code_typ(expr) ++ ")"
   }
 and list_to_string = (lst: list(TermRoc.UExp.t), i: int) => {

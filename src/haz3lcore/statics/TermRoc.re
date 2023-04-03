@@ -44,16 +44,13 @@ module rec UExp: {
     | Float
     | String
     | ListLit
-    // | Tag
     | Fun
     | Record
-    // | Tuple
     | Var
     | Assign
     | Ap
     | If
     | Seq
-    | SeqList
     | SeqIndent
     | SeqMatchIndent
     | SeqNoBreak
@@ -71,16 +68,13 @@ module rec UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    // | Tag(string)
     | Fun(UPat.t, t)
     | Record(list(t))
-    // | Tuple(list(t))
     | Var(Token.t)
     | Assign(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
-    | Seq(t, t)
-    | SeqList(list(t))
+    | Seq(list(t))
     | SeqIndent(t, t)
     | SeqMatchIndent(t, t)
     | SeqNoBreak(list(t))
@@ -134,16 +128,13 @@ module rec UExp: {
     | Float
     | String
     | ListLit
-    // | Tag
     | Fun
     | Record
-    // | Tuple
     | Var
     | Assign
     | Ap
     | If
     | Seq
-    | SeqList
     | SeqIndent
     | SeqMatchIndent
     | SeqNoBreak
@@ -161,16 +152,13 @@ module rec UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    // | Tag(string)
     | Fun(UPat.t, t)
     | Record(list(t))
-    // | Tuple(list(t))
     | Var(Token.t)
     | Assign(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
-    | Seq(t, t)
-    | SeqList(list(t))
+    | Seq(list(t))
     | SeqIndent(t, t)
     | SeqMatchIndent(t, t)
     | SeqNoBreak(list(t))
@@ -191,10 +179,8 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | ListLit(list(t))
-    // | Tag(string)
     | Var(Token.t)
     | Record(list(t))
-    // | Tuple(list(t))
     | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -206,10 +192,8 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | ListLit(list(t))
-    // | Tag(string)
     | Var(Token.t)
     | Record(list(t))
-    // | Tuple(list(t))
     | Parens(t);
 }
 and UTyp: {
@@ -223,7 +207,6 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Record(list(t))
-    // | Tuple(list(t))
     | Parens(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -236,6 +219,5 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Record(list(t))
-    // | Tuple(list(t))
     | Parens(t);
 };
