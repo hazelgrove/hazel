@@ -5,6 +5,7 @@ open OptUtil.Syntax;
 let z_to_ci = (~ctx: Ctx.t, z: Zipper.t) => {
   let map =
     z
+    |> Move.semantics_push
     |> Zipper.unselect_and_zip(~ignore_selection=true)
     |> MakeTerm.go
     |> fst

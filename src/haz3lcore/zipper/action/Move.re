@@ -279,3 +279,56 @@ module Make = (M: Editor.Meta.S) => {
       )
     };
 };
+
+//TODO(andrew): document
+//TODO(andrew): generalize to actually get everything down
+let semantics_push = (zipper: Zipper.t) => {
+  let can_put_down = z =>
+    switch (Zipper.pop_backpack(z)) {
+    | Some(_) => z.caret == Outer
+    | None => false
+    };
+  let rec move_until_cant_put_down = (z_last, z: Zipper.t) =>
+    if (can_put_down(z)) {
+      switch (Zipper.move(Right, z)) {
+      | None => z
+      | Some(z_new) => move_until_cant_put_down(z, z_new)
+      };
+    } else {
+      z_last;
+    };
+  let rec move_until_can_put_down = (z: Zipper.t) =>
+    if (!can_put_down(z)) {
+      switch (Zipper.move(Right, z)) {
+      | None => z
+      | Some(z_new) => move_until_can_put_down(z_new)
+      };
+    } else {
+      z;
+    };
+  let rec go: Zipper.t => Zipper.t =
+    z =>
+      if (can_put_down(z)) {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (Zipper.put_down(Right, z_can)) {
+        | None =>
+          //print_endline("cse shouldldny????");
+          z_can
+        | Some(z) =>
+          let (z, _id) = Zipper.regrout(Right, z, 1000000);
+          go(z);
+        };
+      } else {
+        let z_can = move_until_can_put_down(z);
+        let z_can = move_until_cant_put_down(z_can, z_can);
+        switch (Zipper.put_down(Right, z_can)) {
+        | None =>
+          // print_endline("cse shouldldny????2");
+          z_can
+        | Some(z) =>
+          let (z, _id) = Zipper.regrout(Right, z, 1000000);
+          go(z);
+        };
+      };
+  go(zipper);
+};
