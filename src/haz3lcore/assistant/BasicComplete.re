@@ -46,8 +46,7 @@ let const_candidates = (ci: Info.t): list(string) =>
   | _ => []
   };
 
-let candidates = (~ctx: Ctx.t, z: Zipper.t): option(list(string)) => {
-  let+ ci = z_to_ci(~ctx, z);
+let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
   let sort = Info.sort_of(ci);
   backpack_candidate(sort, z)
   @ Molds.leading_delims(sort)
@@ -92,11 +91,12 @@ let left_of_mono = (z: Zipper.t) =>
   | _ => None
   };
 
-let mk_pseudotile = (id_gen: Id.t, z: Zipper.t, t: Token.t): (Id.t, Tile.t) => {
+let mk_pseudotile =
+    (~sort: Sort.t, id_gen: Id.t, z: Zipper.t, t: Token.t): (Id.t, Tile.t) => {
   let (id, id_gen) = IdGen.fresh(id_gen);
-  let nibs = Siblings.fit_of(z.relatives.siblings);
-  let mold: Mold.t = {out: Any, in_: [], nibs};
-  //TODO(andrew): better sort than Any
+  //NOTE: precedence is max so it will be tight to thing it's completing
+  let nibs = Siblings.fit_of(~p=Precedence.max, z.relatives.siblings);
+  let mold: Mold.t = {out: sort, in_: [], nibs};
   (id_gen, {id, label: [t], shards: [0], children: [], mold});
 };
 
@@ -122,7 +122,8 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
 let mk_pseudoselection =
     (~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
-  let* candidates = candidates(~ctx, z);
+  let* ci = z_to_ci(~ctx, z);
+  let candidates = candidates(ci, z);
   //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
   // a filtered candidate is a prefix match with at least one more char
   //TODO(andrew): need to escape tok_to_left, e.g. dots....
@@ -134,7 +135,8 @@ let mk_pseudoselection =
   let* top_candidate = filtered_candidates |> Util.ListUtil.hd_opt;
   let* candidate_suffix = suffix_of(top_candidate, tok_to_left);
   //print_endline("CANDIDATE: " ++ candidate_suffix);
-  let (id, tile) = mk_pseudotile(id_gen, z, candidate_suffix);
+  let (id, tile) =
+    mk_pseudotile(~sort=Info.sort_of(ci), id_gen, z, candidate_suffix);
   let z = add_ephemeral_selection(z, tile);
   Some((z, id));
 };
