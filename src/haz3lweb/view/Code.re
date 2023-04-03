@@ -134,16 +134,16 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    if (!is_consistent) {
-      print_endline(
-        "inconsistent sort: "
-        ++ Sort.to_string(t.mold.out)
-        ++ " vs "
-        ++ Sort.to_string(expected_sort)
-        ++ " for tile:"
-        ++ Tile.show(t),
-      );
-    };
+    /*if (!is_consistent) {
+        print_endline(
+          "inconsistent sort: "
+          ++ Sort.to_string(t.mold.out)
+          ++ " vs "
+          ++ Sort.to_string(expected_sort)
+          ++ " for tile:"
+          ++ Tile.show(t),
+        );
+      };*/
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(

@@ -467,17 +467,21 @@ let rec apply =
       let z = ed.state.zipper;
       switch (BasicComplete.complete_criteria(z)) {
       | None =>
+        print_endline("accept suggestion: basic complete");
         //Note: Selection.clear (Which is called by unselect) modified to set ephmeral to false
         perform_action(
           model,
           Unselect(Some(Right)),
           state,
           ~schedule_action,
-        )
+        );
       | Some(new_tok) =>
-        apply(model, Paste(new_tok), state, ~schedule_action)
+        print_endline("accept suggestion: smart complete");
+        apply(model, Paste(new_tok), state, ~schedule_action);
       };
     | PasteIntoSelection(str) =>
+      //let str = "666";
+      print_endline("paste into selection: " ++ str);
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Printer.zipper_of_string(id, str)) {
       | None => Error(CantPaste)
@@ -501,6 +505,8 @@ let rec apply =
               },
             };
             let ed = Editor.new_state(Pick_up, z, ed);
+            print_endline("paste into selection SUECCES:");
+            print_endline(Zipper.show(z));
             //TODO: add correct action to history (Pick_up is wrong)
             let editors = Editors.put_editor_and_id(id, ed, model.editors);
             Ok({...model, editors});
