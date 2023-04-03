@@ -39,11 +39,18 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ "\n"
     ++ String.make(i, ' ')
     ++ generate_code(expr2, i)
+  | SeqMatchIndent(expr1, expr2) =>
+    generate_code(expr1, i + 1)
+    ++ "\n"
+    ++ String.make(i + 1, ' ')
+    ++ generate_code(expr2, i + 1)
   | Seq(expr1, expr2) =>
     generate_code(expr1, i)
     ++ "\n"
     ++ String.make(i, ' ')
     ++ generate_code(expr2, i)
+  | SeqList(l) => seqlist_to_string(l, i)
+  | SeqNoBreak(l) => seqnobreak_to_string(l, i)
   | Expect(expr) => "expect " ++ generate_code(expr, i)
   | Parens(expr) => "(" ++ generate_code(expr, i) ++ ")"
   | UnOp(op, operand) => get_code_un(op) ++ generate_code(operand, i)
@@ -54,11 +61,7 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ " "
     ++ generate_code(rhs, i)
   | Match(t, l) =>
-    "when "
-    ++ generate_code(t, i)
-    ++ " is\n"
-    ++ String.make(i, ' ')
-    ++ get_match_body(l, i)
+    "when " ++ generate_code(t, i) ++ " is\n" ++ get_match_body(l, i + 1)
   | TypeAnn(v, typ) => v ++ " : " ++ get_code_typ(typ)
   }
 
@@ -85,7 +88,7 @@ and get_code_typ = (t: TermRoc.UTyp.t): string =>
   | Float => "F64"
   | Bool => "Bool"
   | String => "Str"
-  | List(t) => "List" ++ get_code_typ(t)
+  | List(t) => "List " ++ get_code_typ(t)
   | Var(s) => s
   | Arrow(t1, t2) => get_code_typ(t1) ++ " -> " ++ get_code_typ(t2)
   | Record(l) => get_record_typ(l)
@@ -104,6 +107,25 @@ and list_to_string_pat = (lst: list(TermRoc.UPat.t), i: int) => {
   | [] => ""
   | [x] => get_code_pat(x, i)
   | [x, ...xs] => get_code_pat(x, i) ++ ", " ++ list_to_string_pat(xs, i)
+  };
+}
+and seqlist_to_string = (lst: list(TermRoc.UExp.t), i: int) => {
+  switch (lst) {
+  | [] => ""
+  | [x] => generate_code(x, i)
+  | [x, ...xs] =>
+    generate_code(x, i)
+    ++ "\n"
+    ++ String.make(i, ' ')
+    ++ seqlist_to_string(xs, i)
+  };
+}
+
+and seqnobreak_to_string = (lst: list(TermRoc.UExp.t), i: int) => {
+  switch (lst) {
+  | [] => ""
+  | [x] => generate_code(x, i)
+  | [x, ...xs] => generate_code(x, i) ++ " " ++ seqnobreak_to_string(xs, i)
   };
 }
 and get_record_term = (terms: list(TermRoc.UExp.t), indent: int): string => {
@@ -145,11 +167,14 @@ and get_match_body =
       ((p, t)) =>
         switch (p, t) {
         | (pat, output) =>
-          "  " ++ get_code_pat(pat, i) ++ " -> " ++ generate_code(output, i)
+          String.make(i, ' ')
+          ++ get_code_pat(pat, i)
+          ++ " -> "
+          ++ generate_code(output, i)
         },
       branches,
     );
-  String.concat(String.make(i, ' ') ++ "\n", branchi);
+  String.concat("\n", branchi);
 }
 
 and get_code_un = (op: TermRoc.UExp.op_un): string =>

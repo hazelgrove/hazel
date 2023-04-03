@@ -78,7 +78,9 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
   | UnOp(op_un, v) => UnOp(get_roc_op_un(op_un), get_roc_term(v))
   | BinOp(op_bin, v1, v2) =>
     BinOp(get_roc_op_bin(op_bin), get_roc_term(v1), get_roc_term(v2))
-  | Match(t, l) => Match(get_roc_term(t), get_roc_list_match(l))
+  | Match(t, l) =>
+    let scrut = get_roc_term(t);
+    Match(scrut, get_roc_list_match(l, scrut));
   | _ => String("Not implemented")
   }
 
@@ -87,14 +89,86 @@ and get_roc_list = (list: list(TermBase.UExp.t)) =>
   | [] => []
   | [x, ...xs] => [get_roc_term(x), ...get_roc_list(xs)]
   }
-and get_roc_list_match = (list: list((TermBase.UPat.t, TermBase.UExp.t))) =>
+and get_roc_list_match =
+    (list: list((TermBase.UPat.t, TermBase.UExp.t)), scrut: TermRoc.UExp.t) =>
   switch (list) {
   | [] => []
-  | [(p, t), ...xs] => [
-      (get_roc_pat_term(p), get_roc_term(t)),
-      ...get_roc_list_match(xs),
-    ]
+  // | [(p, t), ...xs] => [
+  //     (get_roc_pat_term(p), get_roc_term(t)),
+  //     ...get_roc_list_match(xs),
+  //   ]
+  | [(p, t), ...xs] =>
+    switch (p.term) {
+    | Cons(_, tl) =>
+      switch (get_cons_tl(tl, 1)) {
+      | (false, _, _) => [
+          (get_roc_pat_term(p), get_roc_term(t)),
+          ...get_roc_list_match(xs, scrut),
+        ]
+      | (true, var, count) =>
+        let seqlist: ref(list(TermRoc.UExp.t)) = ref([]);
+        seqlist :=
+          List.append(
+            seqlist^,
+            [
+              Assign(
+                Var(var ++ "0"),
+                SeqNoBreak([Var("List.dropAt"), scrut, Var("0")]),
+              ),
+            ],
+          );
+        for (i in 1 to count - 2) {
+          seqlist :=
+            List.append(
+              seqlist^,
+              [
+                Assign(
+                  Var(var ++ string_of_int(i)),
+                  SeqNoBreak([
+                    Var("List.dropAt"),
+                    Var(var ++ string_of_int(i - 1)),
+                    Var(string_of_int(i)),
+                  ]),
+                ),
+              ],
+            );
+        };
+        seqlist :=
+          List.append(
+            seqlist^,
+            [
+              Assign(
+                Var(var),
+                SeqNoBreak([
+                  Var("List.dropAt"),
+                  Var(var ++ string_of_int(count - 2)),
+                  Var(string_of_int(count - 1)),
+                ]),
+              ),
+            ],
+          );
+        [
+          (
+            get_roc_pat_term(p),
+            SeqMatchIndent(SeqList(seqlist^), get_roc_term(t)),
+          ),
+          ...get_roc_list_match(xs, scrut),
+        ];
+      }
+    | _ => [
+        (get_roc_pat_term(p), get_roc_term(t)),
+        ...get_roc_list_match(xs, scrut),
+      ]
+    }
   }
+
+and get_cons_tl = (tl: TermBase.UPat.t, c: int): (bool, string, int) => {
+  switch (tl.term) {
+  | Cons(_, tl) => get_cons_tl(tl, c + 1)
+  | Var(t) => (true, t, c)
+  | _ => (false, "", 0)
+  };
+}
 
 and get_roc_pat_term = (t: TermBase.UPat.t): TermRoc.UPat.t =>
   switch (t.term) {

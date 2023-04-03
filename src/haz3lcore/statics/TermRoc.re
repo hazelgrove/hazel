@@ -53,7 +53,10 @@ module rec UExp: {
     | Ap
     | If
     | Seq
+    | SeqList
     | SeqIndent
+    | SeqMatchIndent
+    | SeqNoBreak
     | Expect
     | Parens
     | UnOp(op_un)
@@ -77,7 +80,10 @@ module rec UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
+    | SeqList(list(t))
     | SeqIndent(t, t)
+    | SeqMatchIndent(t, t)
+    | SeqNoBreak(list(t))
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
@@ -137,7 +143,10 @@ module rec UExp: {
     | Ap
     | If
     | Seq
+    | SeqList
     | SeqIndent
+    | SeqMatchIndent
+    | SeqNoBreak
     | Expect
     | Parens
     | UnOp(op_un)
@@ -161,7 +170,10 @@ module rec UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
+    | SeqList(list(t))
     | SeqIndent(t, t)
+    | SeqMatchIndent(t, t)
+    | SeqNoBreak(list(t))
     | Expect(t)
     | Parens(t)
     | UnOp(op_un, t)
