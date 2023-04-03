@@ -19,7 +19,59 @@ let view =
       ~ctx_init: Ctx.t,
     ) => {
   let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(~ignore_selection=true, zipper);
+  let unselected = {
+    //TODO(andrew): rm or justify
+    let can_put_down = z =>
+      switch (Zipper.pop_backpack(z)) {
+      // caret thing is hack; i don't know why pop_backpack
+      // gives us what we want here
+      | Some(_) => z.caret == Outer
+      | None => false
+      };
+    let rec move_until_cant_put_down = (z_last, z: Zipper.t) =>
+      if (can_put_down(z)) {
+        switch (Zipper.move(Right, z)) {
+        | None => z_last
+        | Some(z_new) => move_until_cant_put_down(z, z_new)
+        };
+      } else {
+        z_last;
+      };
+
+    let rec _go: Zipper.t => Zipper.t =
+      z => {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (Zipper.put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) => _go(z)
+        };
+      };
+    /*
+     if (can_put_down(z)) {
+       print_endline("CAN PUT DOWN");
+       switch (Zipper.move(Right, z)) {
+       | None =>
+         let z = Zipper.put_down(Right, z) |> Option.get;
+         let (z, _id) = Zipper.regrout(Right, z, 1000000);
+         z;
+       | Some(z) => can_put_down(z) ? go(z) : z
+       };
+     } else {
+       switch (Zipper.move(Right, z)) {
+       | None =>
+         print_endline("BASE");
+         z;
+       | Some(z) =>
+         print_endline("MOVE");
+         go(z);
+       };
+     };*/
+    //let zipper = go(zipper);
+    let seg = Zipper.unselect_and_zip(~ignore_selection=true, zipper);
+    //print_endline("ZIPPPPO:");
+    //print_endline(Printer.of_segment(~holes=None, seg));
+    seg;
+  };
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
 

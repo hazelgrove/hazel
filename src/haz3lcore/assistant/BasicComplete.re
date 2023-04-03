@@ -2,31 +2,28 @@ open Util;
 open OptUtil.Syntax;
 
 //TODO(andrew): PERF DANGER!!
-let z_to_ci = (z: Zipper.t) => {
+let z_to_ci = (~ctx: Ctx.t, z: Zipper.t) => {
   let map =
     z
     |> Zipper.unselect_and_zip(~ignore_selection=true)
     |> MakeTerm.go
     |> fst
-    |> Statics.mk_map;
+    |> Statics.mk_map_ctx(ctx);
   let* index = Indicated.index(z);
   Id.Map.find_opt(index, map);
 };
 
-let ctx_candidates = (ci: Info.t): list(string) =>
-  //TODO: also suggest things with arrow type whose return type meets expectation
+let ctx_candidates = (ci: Info.t): list(string) => {
+  let ctx = Info.ctx_of(ci);
   switch (ci) {
-  | InfoExp({ctx, mode: Ana(ty), _}) =>
-    ctx |> Ctx.filtered_entries(~return_ty=true, ty)
-  | InfoExp({ctx, mode: Syn | SynFun, _}) =>
-    ctx |> Ctx.filtered_entries(Unknown(Internal))
-  | InfoPat({ctx, mode: Ana(ty), _}) =>
-    ctx |> Ctx.filtered_tag_entries(~return_ty=true, ty)
-  | InfoPat({ctx, mode: Syn | SynFun, _}) =>
-    ctx |> Ctx.filtered_tag_entries(Unknown(Internal))
-  | InfoTyp({ctx, _}) => Ctx.get_alias_names(ctx) @ Form.base_typs
+  | InfoExp({mode, _}) =>
+    ctx |> Ctx.filtered_entries(~return_ty=true, Typ.of_mode(mode))
+  | InfoPat({mode, _}) =>
+    ctx |> Ctx.filtered_tag_entries(~return_ty=true, Typ.of_mode(mode))
+  | InfoTyp(_) => Ctx.get_alias_names(ctx) @ Form.base_typs
   | _ => []
   };
+};
 
 let backpack_candidate = (sort: Sort.t, z: Zipper.t) =>
   switch (z.backpack) {
@@ -48,13 +45,13 @@ let const_candidates = (ci: Info.t): list(string) =>
   | _ => []
   };
 
-let candidates = (z: Zipper.t): option(list(string)) => {
-  let+ ci = z_to_ci(z);
+let candidates = (~ctx: Ctx.t, z: Zipper.t): option(list(string)) => {
+  let+ ci = z_to_ci(~ctx, z);
   let sort = Info.sort_of(ci);
   backpack_candidate(sort, z)
-  @ ctx_candidates(ci)
+  @ Molds.leading_delims(sort)
   @ const_candidates(ci)
-  @ Molds.leading_delims(sort);
+  @ ctx_candidates(ci);
 };
 
 /* Criteria: selection is ephemeral and a single monotile with the caret on the left,
@@ -122,11 +119,12 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
 };
 
 let mk_pseudoselection =
-    (z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
+    (~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
-  let* candidates = candidates(z);
+  let* candidates = candidates(~ctx, z);
   //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
   // a filtered candidate is a prefix match with at least one more char
+  //TODO(andrew): need to escape tok_to_left, e.g. dots....
   let filtered_candidates =
     candidates |> List.filter(Form.regexp("^" ++ tok_to_left ++ "."));
   //print_endline("FILT:\n" ++ (filtered_candidates |> String.concat("\n")));
