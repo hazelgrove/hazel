@@ -85,27 +85,6 @@ let unbox =
   | BoxedValue(d)
   | Indet(d) => d;
 
-let fast_equal = (r1, r2) =>
-  switch (r1, r2) {
-  | (Step(d1), Step(d2))
-  | (BoxedValue(d1), BoxedValue(d2))
-  | (Indet(d1), Indet(d2)) => DHExp.fast_equal(d1, d2)
-  | _ => false
-  };
-
-let t_of_evaluator_result = (r: EvaluatorResult.t): t =>
-  switch (r) {
-  | BoxedValue(d) => BoxedValue(d)
-  | Indet(d) => Indet(d)
-  };
-
-let evaluator_result_of_t = (r: t): EvaluatorResult.t =>
-  switch (r) {
-  | Step(d)
-  | BoxedValue(d) => BoxedValue(d)
-  | Indet(d) => Indet(d)
-  };
-
 /**
   Alias for EvaluatorMonad.
  */
@@ -132,7 +111,7 @@ let evaluate_ap_builtin = Evaluator.evaluate_ap_builtin;
 let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
   /* TODO: Investigate */
   /* Increment number of evaluation steps (calls to `evaluate`). */
-  /* let* () = take_step; */
+  let* () = take_step;
   switch (d) {
   | BoundVar(x) =>
     let d =
@@ -144,7 +123,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
          });
     /* We need to call [evaluate] on [d] again since [env] does not store
      * final expressions. */
-    Step(Closure(env, d)) |> return;
+    Step(d) |> return;
 
   | Sequence(d1, d2) =>
     let* r1 = transition(env, d1);
@@ -159,7 +138,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
       /* | BoxedValue(d2) */
       /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
       /* }; */
-      Step(Closure(env, d2)) |> return
+      Step(d2) |> return
     };
 
   | Let(dp, d1, d2) =>
@@ -297,17 +276,23 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
             ),
           )
           |> return
+        | (Power, _, _) when n2 < 0 =>
+          Step(
+            InvalidOperation(
+              BinIntOp(op, IntLit(n1), IntLit(n2)),
+              NegativeExponent,
+            ),
+          )
+          |> return
         | _ => Step(eval_bin_int_op(op, n1, n2)) |> return
         }
       | BoxedValue(d2') =>
         print_endline("InvalidBoxedIntLit1");
-        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
       | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
       };
     | BoxedValue(d1') =>
       print_endline("InvalidBoxedIntLit2");
-      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
     | Indet(d1') =>
       let* r2 = transition(env, d2);
@@ -412,7 +397,6 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
     };
 
   | Prj(targ, n) =>
-    // TODO:
     if (n < 0) {
       return(
         Indet(InvalidOperation(d, InvalidOperationError.InvalidProjection)),
@@ -542,7 +526,7 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
       | Step(d) =>
         /* All stepped result is properly wrapped in closure, so there
          * is not need to add more wrap over it. */
-        Step(d) |> return
+        Step(Closure(env, d)) |> return
       | BoxedValue(d) =>
         /* If [d'] evaluates to [BoxedValue], then either [d] no longer
          * contains any [BoundVar], or [d] has already contains a
@@ -600,9 +584,6 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
             Indet(FailedCast(d1', ty, ty')) |> return;
           }
         | _ =>
-          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
-          print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty)));
-          print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty')));
           print_endline("CastBVHoleGround");
           raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
         }
@@ -679,6 +660,10 @@ let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
   };
 }
 
+/**
+  [evaluate_case env inconsistent_info scrut rules current_rule_index]
+  evaluates a case expression.
+ */
 and evaluate_case =
     (
       env: ClosureEnvironment.t,
@@ -1073,8 +1058,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
 };
 
 let step = (env: ClosureEnvironment.t, obj: EvalObj.t): m(t) => {
-  let* env = ClosureEnvironment.union(obj.env, env) |> with_eig;
-  let* r = transition(env, obj.exp);
+  let* r = transition(env, Closure(obj.env, obj.exp));
   let d = compose(obj.ctx, unbox(r));
   switch (r) {
   | Step(_) => Step(d) |> return
