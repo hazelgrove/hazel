@@ -136,11 +136,13 @@ let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
   |> Option.map(z =>
        Zipper.construct(~caret=Left, ~backpack=Left, lbl, z, id_gen)
      )
-  |> OptUtil.and_then(((z, id_gen)) =>
+  |> OptUtil.and_then(((z, id_gen)) => {
+       //NOTE: regrout to put e.g. ap(1|) back together
+       let (z, id_gen) = remold_regrout(Left, z, id_gen);
        Zipper.put_down(Left, z)  //TODO(andrew): direction?
        |> OptUtil.and_then(Zipper.move(Left))
-       |> Option.map(z => (z, id_gen))
-     );
+       |> Option.map(z => (z, id_gen));
+     });
 
 let insert_monos =
     (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
