@@ -54,34 +54,6 @@ let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
   @ ctx_candidates(ci);
 };
 
-/* Criteria: selection is ephemeral and a single monotile with the caret on the left,
-   and the left sibling ends in a monotile, such that appending the two would result
-   in a valid token */
-let complete_criteria = (z: Zipper.t) =>
-  switch (
-    z.selection.focus,
-    z.selection.ephemeral,
-    z.selection.content,
-    z.relatives.siblings |> fst |> List.rev,
-    z.relatives.siblings |> snd,
-  ) {
-  | (
-      Left,
-      true,
-      [Tile({label: [completion], _})],
-      [Tile({label: [tok_to_left], _}), ..._],
-      _,
-    )
-      when
-        Form.is_valid_token(tok_to_left ++ completion)
-        || String.sub(completion, String.length(completion) - 1, 1) == "("
-        || String.sub(completion, String.length(completion) - 1, 1) == " " =>
-    //TODO(andrew): second clause is hack see Ctx.re filtered_entries
-    //TODO(andrew): third clause is also hack see Molds.re leading_delims
-    Some(completion)
-  | _ => None
-  };
-
 let left_of_mono = (z: Zipper.t) =>
   switch (
     z.relatives.siblings |> fst |> List.rev,

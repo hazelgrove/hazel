@@ -465,7 +465,7 @@ let rec apply =
     | AcceptSuggestion =>
       let ed = model.editors |> Editors.get_editor;
       let z = ed.state.zipper;
-      switch (BasicComplete.complete_criteria(z)) {
+      switch (Zipper.complete_criteria(z)) {
       | None =>
         print_endline("accept suggestion: basic complete");
         //Note: Selection.clear (Which is called by unselect) modified to set ephmeral to false
