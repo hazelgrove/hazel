@@ -280,8 +280,17 @@ module Make = (M: Editor.Meta.S) => {
     };
 };
 
+let is_linebreak_to_right_of_caret =
+    ({relatives: {siblings: (_, r), _}, _}: Zipper.t): bool => {
+  switch (r) {
+  | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
+  | _ => false
+  };
+};
+
 //TODO(andrew): document
 //TODO(andrew): generalize to actually get everything down
+//TODO(andrew): for going back and adding lets... maybe incorporate newlines
 let semantics_push = (zipper: Zipper.t) => {
   let can_put_down = z =>
     switch (Zipper.pop_backpack(z)) {
@@ -289,7 +298,7 @@ let semantics_push = (zipper: Zipper.t) => {
     | None => false
     };
   let rec move_until_cant_put_down = (z_last, z: Zipper.t) =>
-    if (can_put_down(z)) {
+    if (can_put_down(z /*&& !is_linebreak_to_right_of_caret(z)*/)) {
       switch (Zipper.move(Right, z)) {
       | None => z
       | Some(z_new) => move_until_cant_put_down(z, z_new)

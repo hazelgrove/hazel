@@ -4,6 +4,14 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
+type settings = {
+  is_selected: Piece.tile => bool,
+  in_ghost: bool,
+  no_sorts: bool,
+  is_consistent: bool,
+  is_complete: bool,
+};
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=100000,
@@ -12,6 +20,7 @@ let of_delim' =
         switch (label) {
         | _ when in_ghost || is_selected => "ghost-delim"
         | [_] when !is_consistent => "mono-inconsistent"
+        //TODO(andrew): use Form.regexp (regexp syntax might change!)
         | [s] when Str.string_match(Str.regexp("^\\?\\?$"), s, 0) => "mono-string-lit-query"
         | [s] when Str.string_match(Str.regexp("^\".*\\?\\?\"$"), s, 0) => "mono-string-lit-query"
         | [s] when Form.is_string(s) => "mono-string-lit"
@@ -125,6 +134,16 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
+    if (!is_consistent) {
+      print_endline(
+        "inconsistent sort: "
+        ++ Sort.to_string(t.mold.out)
+        ++ " vs "
+        ++ Sort.to_string(expected_sort)
+        ++ " for tile:"
+        ++ Tile.show(t),
+      );
+    };
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(

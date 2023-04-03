@@ -26,9 +26,9 @@ module Shape = {
     | Convex => concave()
     | Concave(_) => Convex;
 
-  let flip =
+  let flip = (~p: Precedence.t) =>
     fun
-    | Convex => concave()
+    | Convex => concave(~p, ())
     | Concave(_) => Convex;
 
   let absolute = (d: Util.Direction.t, s: t): Util.Direction.t =>
@@ -55,7 +55,10 @@ let fits = (l: t, r: t): bool =>
 
 let fitting = (nib: t): t => {...nib, shape: Shape.fitting(nib.shape)};
 
-let flip = (nib: t) => {...nib, shape: Shape.flip(nib.shape)};
+let flip = (~p=Precedence.min, nib: t) => {
+  ...nib,
+  shape: Shape.flip(~p, nib.shape),
+};
 
 // let toggle = (nib: t) => {
 //   ...nib,
