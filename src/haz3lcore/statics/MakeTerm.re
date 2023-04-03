@@ -232,13 +232,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        //| (["()"], []) => Ap(l, {ids: [_id], term: Triv})
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
-        },
-      )
+      switch (t) {
+      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>

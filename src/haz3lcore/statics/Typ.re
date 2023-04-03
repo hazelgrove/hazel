@@ -3,6 +3,13 @@ module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
 
+let of_mode = (mode: mode): t =>
+  switch (mode) {
+  | Syn => Unknown(SynSwitch)
+  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch))
+  | Ana(ty) => ty
+  };
+
 let rec to_string = (~holes=_ => "?", t: t): string => {
   let s = to_string(~holes);
   switch (t) {

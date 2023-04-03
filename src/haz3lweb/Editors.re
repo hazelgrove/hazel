@@ -63,7 +63,7 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-let get_ctx_init = (slides, idx) => {
+let get_ctx_init_slides = (slides, idx) => {
   let stdlib_seg =
     List.nth(slides, Hyper.export_slide) |> snd |> Editor.get_seg;
   let (term, _) = MakeTerm.go(stdlib_seg);
@@ -74,6 +74,14 @@ let get_ctx_init = (slides, idx) => {
   | Some(info) => Info.ctx_of(info)
   };
 };
+
+let get_ctx_init = (editors: t): Ctx.t =>
+  switch (editors) {
+  | DebugLoad => Ctx.empty
+  | Scratch(idx, slides) => get_ctx_init_slides(slides, idx)
+  | School(_, _, _) => Ctx.empty
+  };
+
 let get_spliced_elabs =
     (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
   switch (editors) {
@@ -93,7 +101,10 @@ let get_spliced_elabs =
       | _ => Environment.empty
       };
     let slide = List.nth(slides, idx);
-    ScratchSlide.spliced_elabs(~ctx_init=get_ctx_init(slides, idx), slide)
+    ScratchSlide.spliced_elabs(
+      ~ctx_init=get_ctx_init_slides(slides, idx),
+      slide,
+    )
     |> List.map(((key, dhexp)) => (key, dhexp, env));
   | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };

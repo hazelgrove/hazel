@@ -453,7 +453,8 @@ let rec apply =
     | BasicComplete =>
       let (id, ed) = model.editors |> Editors.get_editor_and_id;
       let z = ed.state.zipper;
-      switch (BasicComplete.mk_pseudoselection(z, id)) {
+      let ctx = Editors.get_ctx_init(model.editors);
+      switch (BasicComplete.mk_pseudoselection(~ctx, z, id)) {
       | None => Ok(model)
       | Some((z, id)) =>
         let ed = Editor.new_state(Pick_up, z, ed);
