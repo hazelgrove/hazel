@@ -67,7 +67,7 @@ let mk_pseudotile =
     (~sort: Sort.t, id_gen: Id.t, z: Zipper.t, t: Token.t): (Id.t, Tile.t) => {
   let (id, id_gen) = IdGen.fresh(id_gen);
   //NOTE: precedence is max so it will be tight to thing it's completing
-  let nibs = Siblings.fit_of(~p=Precedence.max, z.relatives.siblings);
+  let nibs = Siblings.fit_of(~p=Precedence.max, ~sort, z.relatives.siblings);
   let mold: Mold.t = {out: sort, in_: [], nibs};
   (id_gen, {id, label: [t], shards: [0], children: [], mold});
 };

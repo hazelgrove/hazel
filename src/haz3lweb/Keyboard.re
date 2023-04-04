@@ -41,7 +41,13 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
-    | "F3" => zipper |> get_term |> TermBase.UExp.show |> print
+    | "F3" =>
+      zipper
+      |> Zipper.unselect_and_zip(~ignore_selection=true)
+      |> MakeTerm.go
+      |> fst
+      |> TermBase.UExp.show
+      |> print
     | "F4" => zipper |> get_term |> Statics.mk_map |> Statics.Map.show |> print
     | "F5" =>
       let term = zipper |> get_term;

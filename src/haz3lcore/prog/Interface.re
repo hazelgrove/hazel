@@ -90,7 +90,6 @@ let evaluate = (~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
 let eval_to_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
-//let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
 let eval_segment_to_result = (s: Segment.t) => {
   let term = s |> MakeTerm.go |> fst;
   eval_to_result(Statics.mk_map(term), term);
