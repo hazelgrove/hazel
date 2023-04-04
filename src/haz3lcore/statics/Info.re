@@ -504,11 +504,16 @@ let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({term: {term: Var(name) | Tag(name), _}, ctx, _})
-  | InfoPat({term: {term: Tag(name), _}, ctx, _})
+  | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
+    let+ entry = Ctx.lookup_var(ctx, name);
+    entry.id;
+  | InfoExp({term: {term: Tag(name), _}, ctx, _})
+  | InfoPat({term: {term: Tag(name), _}, ctx, _}) =>
+    let+ entry = Ctx.lookup_tag(ctx, name);
+    entry.id;
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup(ctx, name);
-    Ctx.get_id(entry);
+    let+ entry = Ctx.lookup_tvar(ctx, name);
+    entry.id;
   | _ => None
   };
 };

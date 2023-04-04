@@ -94,7 +94,8 @@ let append_safe = char =>
   && !(Form.is_string_delim(char) || Form.is_comment_delim(char));
 
 let allow_merge = (l: Token.t, r: Token.t): bool =>
-  !(Form.is_valid_token(l) && Form.is_valid_token(r));
+  Form.is_valid_token(l ++ r)
+  || !(Form.is_valid_token(l) && Form.is_valid_token(r));
 // alternatively, require l++r is valid (simpler, more restrictiive)
 
 let allow_append_right = (t: Token.t, char: string): bool =>

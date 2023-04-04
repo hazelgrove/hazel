@@ -10,16 +10,20 @@ let get_id: entry => int =
   | TVarEntry({id, _}) => id;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
-  switch (lookup(ctx, name)) {
-  | Some(VarEntry(v)) => Some(v)
-  | _ => None
-  };
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(v)
+    | _ => None,
+    ctx,
+  );
 
 let lookup_tag = (ctx: t, name: string): option(var_entry) =>
-  switch (lookup(ctx, name)) {
-  | Some(TagEntry(t)) => Some(t)
-  | _ => None
-  };
+  List.find_map(
+    fun
+    | TagEntry(t) when t.name == name => Some(t)
+    | _ => None,
+    ctx,
+  );
 
 let is_alias = (ctx: t, name: Token.t): bool =>
   switch (lookup_alias(ctx, name)) {
