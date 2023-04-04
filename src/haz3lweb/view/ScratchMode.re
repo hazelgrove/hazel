@@ -19,14 +19,14 @@ let view =
       ~ctx_init: Ctx.t,
     ) => {
   let zipper = editor.state.zipper;
-  let unselected = {
-    //TODO(andrew): document below
-    let zipper = Move.semantics_push(zipper);
-    let seg = Zipper.unselect_and_zip(~ignore_selection=true, zipper);
-    //print_endline("ZIPPPPO:");
-    //print_endline(Printer.of_segment(~holes=None, seg));
-    seg;
-  };
+  let unselected =
+    Zipper.smart_seg(
+      ~dump_backpack=true,
+      ~ignore_selection=true,
+      editor.state.zipper,
+    );
+  //print_endline("DUMPED BACKPACK Z:");
+  //print_endline(Printer.of_segment(~holes=None, unselected));
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
 
