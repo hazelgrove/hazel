@@ -108,7 +108,6 @@ and Ctx: {
   type co = VarMap.t_(list(co_entry));
 
   let extend: (entry, t) => t;
-  let lookup: (t, Token.t) => option(entry);
   let add_abstract: (t, Token.t, Id.t) => t;
   let lookup_tvar: (t, Token.t) => option(tvar_entry);
   let lookup_alias: (t, Token.t) => option(Typ.t);
@@ -147,30 +146,22 @@ and Ctx: {
 
   let extend = List.cons;
 
-  let lookup = (ctx, name) =>
-    List.find_map(
-      fun
-      | Ctx.VarEntry(v) when v.name == name => Some(VarEntry(v))
-      | TagEntry(v) when v.name == name => Some(TagEntry(v))
-      | TVarEntry(v) when v.name == name => Some(TVarEntry(v))
-      | _ => None,
-      ctx,
-    );
-
   let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
     extend(TVarEntry({name, id, kind: Abstract}), ctx);
 
   let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
-    switch (lookup(ctx, name)) {
-    | Some(TVarEntry(t)) => Some(t)
-    | _ => None
-    };
+    List.find_map(
+      fun
+      | TVarEntry(v) when v.name == name => Some(v)
+      | _ => None,
+      ctx,
+    );
 
-  let lookup_alias = (ctx: t, t: Token.t): option(Typ.t) =>
-    switch (lookup_tvar(ctx, t)) {
+  let lookup_alias = (ctx: t, name: Token.t): option(Typ.t) =>
+    switch (lookup_tvar(ctx, name)) {
     | Some({kind: Singleton(ty), _}) => Some(ty)
     | Some({kind: Abstract, _})
-    | _ => None
+    | None => None
     };
 }
 and Kind: {
