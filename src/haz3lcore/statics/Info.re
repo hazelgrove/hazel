@@ -262,6 +262,9 @@ let source_tys = List.map((source: source) => source.ty);
 let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
+  | (BadToken("??"), _) =>
+    //TODO(andrew): this is a hack
+    NotInHole(SynConsistent(Unknown(Internal)))
   | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
   | (IsMulti, Syn | SynFun | Ana(_)) => InHole(MultiError)
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))

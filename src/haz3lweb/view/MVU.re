@@ -86,9 +86,12 @@ let rec render_div =
 let go = (context: t) => {
   print_endline("eval_result blee");
   let result = eval(Ap(context.view, context.model));
+
   let node =
     switch (render_div(context, result)) {
-    | Some(node) => node
+    | Some(node) =>
+      //print_endline("context.view: " ++ DHExp.show(context.view));
+      node
     | None => Node.text("ERROR: render_div returned None")
     };
   //print_endline("RESULT:");

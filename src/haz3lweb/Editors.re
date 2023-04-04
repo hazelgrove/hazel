@@ -64,8 +64,13 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
 let get_ctx_init_slides = (slides, idx) => {
+  let stdlib_ed: Editor.t = List.nth(slides, Hyper.export_slide) |> snd;
   let stdlib_seg =
-    List.nth(slides, Hyper.export_slide) |> snd |> Editor.get_seg;
+    Zipper.smart_seg(
+      ~ignore_selection=true,
+      ~dump_backpack=false,
+      stdlib_ed.state.zipper,
+    );
   let (term, _) = MakeTerm.go(stdlib_seg);
   let info_map = Statics.mk_map(term);
   switch (Id.Map.find_opt(Hyper.export_id, info_map)) {
@@ -87,10 +92,14 @@ let get_spliced_elabs =
   switch (editors) {
   | DebugLoad => []
   | Scratch(idx, slides) =>
+    //TODO(andrew): document this
+    let ed = List.nth(slides, Hyper.export_slide) |> snd;
     let tests =
-      List.nth(slides, Hyper.export_slide)
-      |> snd
-      |> Editor.get_seg
+      Zipper.smart_seg(
+        ~ignore_selection=true,
+        ~dump_backpack=false,
+        ed.state.zipper,
+      )
       |> Interface.eval_segment_to_result
       |> ProgramResult.get_state
       |> EvaluatorState.get_tests

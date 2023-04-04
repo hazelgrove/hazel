@@ -414,3 +414,83 @@ let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
   ...z,
   selection: Selection.mk_buffer(mode, content),
 };
+
+let is_linebreak_to_right_of_caret =
+    ({relatives: {siblings: (_, r), _}, _}: t): bool => {
+  switch (r) {
+  | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
+  | _ => false
+  };
+};
+//TODO(andrew): document
+//TODO(andrew): generalize to actually get everything down
+//TODO(andrew): for going back and adding lets... maybe incorporate newlines
+/*
+ IDEA: maybe case on situation where there's nothing to the righ of the caret
+ except whitespace/grout until the next newline. in that case use existing
+ logic, but if there is something, try to drop as soon as possible?
+ idea is youre targetting the restructuring case where you just
+ picked something up
+  */
+let try_to_dump_backpack = (zipper: t) => {
+  /*NOTE(andrew): setting caret to outer
+    was necessary to 'get it past' string literals, i.e.
+    offer live feeback when typing inside a string;
+    not sure if this is a hack or not, it may be
+    compensating with the put_down logic not working
+    right with string lits or something. to test,
+    try to look at live evaluation while typing inside a
+    strring lit with stuff left to drop in backpack
+    with below set: Outer disabled.
+    */
+  let zipper = {...zipper, caret: Outer};
+  let can_put_down = z =>
+    switch (pop_backpack(z)) {
+    | Some(_) => z.caret == Outer
+    | None => false
+    };
+  let rec move_until_cant_put_down = (z_last, z: t) =>
+    if (can_put_down(z /*&& !is_linebreak_to_right_of_caret(z)*/)) {
+      switch (move(Right, z)) {
+      | None => z
+      | Some(z_new) => move_until_cant_put_down(z, z_new)
+      };
+    } else {
+      z_last;
+    };
+  let rec move_until_can_put_down = (z: t) =>
+    if (!can_put_down(z)) {
+      switch (move(Right, z)) {
+      | None => z
+      | Some(z_new) => move_until_can_put_down(z_new)
+      };
+    } else {
+      z;
+    };
+  let rec go: t => t =
+    z =>
+      if (can_put_down(z)) {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let (z, _id) = regrout(Right, z, 1000000);
+          go(z);
+        };
+      } else {
+        let z_can = move_until_can_put_down(z);
+        let z_can = move_until_cant_put_down(z_can, z_can);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let (z, _id) = regrout(Right, z, 1000000);
+          go(z);
+        };
+      };
+  go(zipper);
+};
+
+let smart_seg = (~dump_backpack: bool, ~ignore_selection: bool, z: t) => {
+  let z = dump_backpack ? try_to_dump_backpack(z) : z;
+  unselect_and_zip(~ignore_selection, z);
+};
