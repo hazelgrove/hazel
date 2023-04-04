@@ -159,9 +159,29 @@ let infix_delims = (sort: Sort.t): list(string) =>
   | Typ => infix_delims_typ
   | _ => []
   };
-print_endline("infix_delims_exp: " ++ String.concat(", ", infix_delims_exp));
-print_endline("infix_delims_pat: " ++ String.concat(", ", infix_delims_pat));
-print_endline("infix_delims_typ: " ++ String.concat(", ", infix_delims_typ));
+
+let const_mono_delims = (sort: Sort.t): list(Token.t) =>
+  Form.const_mono_delims  //TODO(andrew): refactor to incorporate with Form.delims?
+  |> List.map(token => {
+       List.filter_map(
+         (m: Mold.t) =>
+           m.out == sort && List.mem(token, Form.const_mono_delims)
+             ? Some(token) : None,
+         get([token]),
+       )
+     })
+  |> List.flatten
+  |> List.sort_uniq(compare);
+let const_mono_delims_exp = const_mono_delims(Exp);
+let const_mono_delims_pat = const_mono_delims(Pat);
+let const_mono_delims_typ = const_mono_delims(Typ);
+let const_mono_delims = (sort: Sort.t): list(string) =>
+  switch (sort) {
+  | Exp => const_mono_delims_exp
+  | Pat => const_mono_delims_pat
+  | Typ => const_mono_delims_typ
+  | _ => []
+  };
 
 //TODO(andrew): cleanup
 /*

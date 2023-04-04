@@ -95,7 +95,8 @@ let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = str => List.mem(str, base_typs);
 let is_typ_var = t => is_capitalized_name(t) /*&& !is_base_typ(t)*/;
 let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
-let is_wild = regexp("^_$");
+let wild = "_";
+let is_wild = (==)("_");
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
@@ -111,6 +112,7 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
+let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
 
 /* List literals */
@@ -168,6 +170,10 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
+
+//TODO(andrew): refactor atomic_forms to seperate these out
+let const_mono_delims =
+  base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
 
 /* B. Operands:
    Order in this list determines relative remolding
