@@ -4,9 +4,10 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
+//TODO(andrew): consolidate settings, something like:
+// actually maybe base it on a token classifier fn
 type settings = {
-  is_selected: Piece.tile => bool,
-  in_ghost: bool,
+  is_in_buffer: Piece.tile => bool,
   no_sorts: bool,
   is_consistent: bool,
   is_complete: bool,
@@ -15,45 +16,31 @@ type settings = {
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=100000,
-    ((is_selected, in_ghost, sort, is_consistent, is_complete, label, i)) => {
+    ((is_in_buffer, sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
-        | _ when in_ghost || is_selected => "ghost-delim"
-        | [_] when !is_consistent => "mono-inconsistent"
-        //TODO(andrew): use Form.regexp (regexp syntax might change!)
-        | [s] when Str.string_match(Str.regexp("^\\?\\?$"), s, 0) => "mono-string-lit-query"
-        | [s] when Str.string_match(Str.regexp("^\".*\\?\\?\"$"), s, 0) => "mono-string-lit-query"
+        | _ when is_in_buffer => "in-buffer"
+        | _ when !is_consistent => "sort-inconsistent"
+        | _ when !is_complete => "incomplete"
+        | [s] when Form.is_prompt(s) => "active-prompt"
         | [s] when Form.is_string(s) => "mono-string-lit"
-        | [_] => "mono"
-        | _ when !is_consistent => "delim-inconsistent"
-        | _ when !is_complete => "delim-incomplete"
-        | _ => "delim"
+        | _ => "default"
         };
+      let plurality = List.length(label) == 1 ? "mono" : "poly";
       [
         span(
           ~attr=
-            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-          [
-            //TODO(andrew): HACK
-            Node.text(List.nth(label == ["~", "~"] ? ["", ""] : label, i)),
-          ],
+            Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
+          [Node.text(List.nth(label, i))],
         ),
       ];
     },
   );
 let of_delim =
-    (
-      ~is_selected,
-      ~in_ghost,
-      sort: Sort.t,
-      is_consistent,
-      t: Piece.tile,
-      i: int,
-    )
+    (~is_in_buffer, sort: Sort.t, is_consistent, t: Piece.tile, i: int)
     : list(Node.t) =>
   of_delim'((
-    is_selected(t),
-    in_ghost,
+    is_in_buffer(t),
     sort,
     is_consistent,
     Tile.is_complete(t),
@@ -89,13 +76,7 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (
-            ~is_selected=_ => false,
-            ~in_ghost=false,
-            ~no_sorts=false,
-            ~sort=Sort.root,
-            seg: Segment.t,
-          )
+          (~is_in_buffer=_ => false, ~no_sorts=false, ~sort, seg: Segment.t)
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
     let expected_sorts =
@@ -110,22 +91,20 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~is_selected, ~in_ghost, sort_of_p_idx(i), p)
+         of_piece(~is_in_buffer, sort_of_p_idx(i), p)
        );
   }
   and of_piece =
-      (~is_selected, ~in_ghost, expected_sort: Sort.t, p: Piece.t)
-      : list(Node.t) => {
+      (~is_in_buffer, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(~is_selected, ~in_ghost, expected_sort, t)
+    | Tile(t) => of_tile(~is_in_buffer, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
   and of_tile =
-      (~is_selected, ~in_ghost, expected_sort: Sort.t, t: Tile.t)
-      : list(Node.t) => {
+      (~is_in_buffer, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -146,34 +125,9 @@ module Text = (M: {
       };*/
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(
-           ~is_selected,
-           ~in_ghost=
-             in_ghost
-             || (
-               switch (t.label) {
-               | ["~", "~"] => true
-               | _ => false
-               }
-             ),
-           t.mold.out,
-           is_consistent,
-           t,
-         ),
+         of_delim(~is_in_buffer, t.mold.out, is_consistent, t),
          ((seg, sort)) =>
-         of_segment(
-           ~is_selected,
-           ~in_ghost=
-             in_ghost
-             || (
-               switch (t.label) {
-               | ["~", "~"] => true
-               | _ => false
-               }
-             ),
-           ~sort,
-           seg,
-         )
+         of_segment(~is_in_buffer, ~sort, seg)
        )
     |> List.concat;
   };
@@ -208,7 +162,7 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     [
       span_c(
         "code-text",
-        Text.of_segment(~is_selected=_ => false, unselected),
+        Text.of_segment(~sort=Sort.Any, ~is_in_buffer=_ => false, unselected),
       ),
     ],
   );
@@ -216,7 +170,8 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
 
 let view =
     (
-      ~selection: Segment.t,
+      ~is_in_buffer: Tile.t => bool,
+      ~sort,
       ~font_metrics,
       ~segment,
       ~unselected,
@@ -229,18 +184,9 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  //TODO(andrew): document or improve
-  let sel_map = Measured.of_segment(selection);
-  let is_selected = t =>
-    try({
-      let _ = Measured.find_t(t, sel_map);
-      true;
-    }) {
-    | _ => false
-    };
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~is_selected, unselected)
+      Text.of_segment(~sort, ~is_in_buffer, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

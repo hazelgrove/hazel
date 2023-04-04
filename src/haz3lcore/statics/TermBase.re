@@ -344,7 +344,7 @@ and UExp: {
     | Float(f) => string_of_float(f)
     | ListLit(es) => es |> List.map(s) |> String.concat(", ")
     | Fun(p, e) =>
-      Printf.sprintf("fun %s \n-> %s", UPat.to_string(p), s(e))
+      Printf.sprintf("fun %s ->\n %s", UPat.to_string(p), s(e))
     | Tuple(es) => es |> List.map(s) |> String.concat(", ")
     | Let(p, e1, e2) =>
       Printf.sprintf(
@@ -375,7 +375,7 @@ and UExp: {
       let rule_to_string =
         List.map(((p, e)) => "| " ++ UPat.to_string(p) ++ " => " ++ s(e));
       Printf.sprintf(
-        "case %s\n %s end",
+        "case %s\n %s\nend",
         s(e),
         rules |> rule_to_string |> String.concat("\n"),
       );

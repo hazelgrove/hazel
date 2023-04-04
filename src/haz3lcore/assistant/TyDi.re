@@ -72,15 +72,6 @@ let mk_pseudotile =
   (id_gen, {id, label: [t], shards: [0], children: [], mold});
 };
 
-let add_ephemeral_selection = (z: Zipper.t, tile): Zipper.t => {
-  ...z,
-  selection: {
-    ...z.selection,
-    ephemeral: true,
-    content: [Tile(tile)],
-  },
-};
-
 let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
   let candidate_suffix =
     String.sub(
@@ -91,7 +82,7 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
-let mk_pseudoselection =
+let set_buffer =
     (~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
   let* ci = z_to_ci(~ctx, z);
@@ -109,6 +100,6 @@ let mk_pseudoselection =
   //print_endline("CANDIDATE: " ++ candidate_suffix);
   let (id, tile) =
     mk_pseudotile(~sort=Info.sort_of(ci), id_gen, z, candidate_suffix);
-  let z = add_ephemeral_selection(z, tile);
+  let z = Zipper.set_buffer(z, ~content=[Tile(tile)], ~mode=Amorphous);
   Some((z, id));
 };

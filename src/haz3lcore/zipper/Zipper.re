@@ -140,20 +140,20 @@ let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
 // in basiccomplete versus smartcomplete cases
 //because former is shape-amorphous but latter isnt,
 // leading to nonconcex segments in latter case
-/* Criteria: selection is ephemeral and a single monotile with the caret on the left,
+/* Criteria: selection is buffer and a single monotile with the caret on the left,
    and the left sibling ends in a monotile, such that appending the two would result
    in a valid token */
 let complete_criteria = (z: t) =>
   switch (
     z.selection.focus,
-    z.selection.ephemeral,
+    z.selection.mode,
     z.selection.content,
     z.relatives.siblings |> fst |> List.rev,
     z.relatives.siblings |> snd,
   ) {
   | (
       Left,
-      true,
+      Buffer(_), //TODO(andrew): can improve now that records buffer mode
       [Tile({label: [completion], _})],
       [Tile({label: [tok_to_left], _}), ..._],
       _,
@@ -171,13 +171,15 @@ let complete_criteria = (z: t) =>
 let unselect = (~ignore_selection=false, z: t): t => {
   //TODO(andrew): document selection clearing
   let z =
-    z.selection.ephemeral && ignore_selection && complete_criteria(z) != None
-      ? {...z, selection: Selection.clear(z.selection)} : z;
+    z.selection.mode != Normal
+    && ignore_selection
+    && complete_criteria(z) != None
+      ? {...z, selection: Selection.empty} : z;
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
     |> Relatives.reassemble;
-  let selection = Selection.clear(z.selection);
+  let selection = Selection.empty;
   {...z, selection, relatives};
 };
 let unselect_and_zip = (~ignore_selection=false, z: t): Segment.t =>
@@ -406,4 +408,9 @@ let serialize = (z: t): string => {
 
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
+};
+
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
+  ...z,
+  selection: Selection.mk_buffer(mode, content),
 };

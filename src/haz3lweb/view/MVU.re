@@ -56,7 +56,7 @@ let render_attr =
       let maybe_model = eval(Ap(update, Tuple([model, maybe_action])));
       //print_endline("maybe_model:");
       //print_endline(DHExp.show(maybe_model));
-      inject(SetModel(name, DHExp.strip_casts(maybe_model)));
+      inject(MVUSet(name, DHExp.strip_casts(maybe_model)));
     })
     |> Option.some
   | _ =>

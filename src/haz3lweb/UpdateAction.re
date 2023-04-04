@@ -14,13 +14,22 @@ type settings_action =
   | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type completion =
-  | Chat
-  | Code;
+type agent =
+  | TyDi
+  | Weather
+  | Oracle
+  | Filler;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agent_action =
+  | Prompt(agent)
+  | SetBuffer(string)
+  | AcceptSuggestion;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
+  | Execute(string)
   | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
@@ -30,6 +39,8 @@ type t =
   | FinishImportScratchpad(option(string))
   | ResetSlide
   | Save
+  | StoreKey(LocalStorage.Generic.t, string)
+  | MVUSet(string, DHExp.t)
   | ToggleMode
   | SwitchSlide(int)
   | SwitchEditor(int)
@@ -41,14 +52,7 @@ type t =
   | Cut
   | Copy
   | Paste(string)
-  | PasteIntoSelection(string)
-  | BasicComplete
-  | AcceptSuggestion
-  | InsertWeather
-  | Complete(completion)
-  | Execute(string)
-  | SetModel(string, DHExp.t)
-  | AddKey(LocalStorage.Generic.t, string)
+  | Agent(agent_action)
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
@@ -64,6 +68,7 @@ module Failure = {
     | CantRedo
     | CantPaste
     | CantReset
+    | CantSuggest
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)

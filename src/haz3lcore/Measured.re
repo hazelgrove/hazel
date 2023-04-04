@@ -381,13 +381,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
-            //TODO(andrew): HACK
-            let label =
-              switch (t.label) {
-              | ["~", "~"] => ["", ""]
-              | _ => t.label
-              };
-            let token = List.nth(label);
+            let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
               let last =
                 Point.{

@@ -195,7 +195,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_tag(t) => ret(Tag(t))
-      | (["~", "~"], [Exp(body)]) => ret(Parens(body)) //TODO(andrew):...
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {

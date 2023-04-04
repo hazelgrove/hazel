@@ -54,8 +54,7 @@ let body = (~model=GPT3_5Turbo, messages: list((role, string))): Json.t => {
   ]);
 };
 
-let body_simple = (~model=GPT3_5Turbo, prompt) =>
-  body(~model, [(User, prompt)]);
+let body_simple = (~model=GPT4, prompt) => body(~model, [(User, prompt)]);
 
 let request_chat = (prompt, handler): unit =>
   switch (LocalStorage.Generic.load(OpenAI)) {

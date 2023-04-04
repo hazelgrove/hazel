@@ -140,7 +140,7 @@ let leading_delims = (sort: Sort.t): list(string) => {
          Some(
            List.filter_map(
              (m: Mold.t) =>
-               //TODO(andrew): below is hack see BasicComplete.complete_criteria
+               //TODO(andrew): below is hack see TyDi.complete_criteria
                m.out == sort
                  ? Some(List.length(lbl) > 1 ? token ++ " " : token) : None,
              molds,

@@ -158,7 +158,7 @@ let reevaluate_post_update =
   | InitImportScratchpad(_)
   | FailedInput(_)
   | UpdateLangDocMessages(_)
-  | AddKey(_)
+  | StoreKey(_)
   | DebugAction(_) => false
   // may not be necessary on all of these
   // TODO review and prune
@@ -172,13 +172,9 @@ let reevaluate_post_update =
   | ToggleMode
   | Cut
   | Paste(_)
-  | PasteIntoSelection(_)
-  | AcceptSuggestion
-  | InsertWeather
-  | Complete(_)
-  | BasicComplete
+  | Agent(_)
   | Execute(_)
-  | SetModel(_)
+  | MVUSet(_)
   | Undo
   | Redo => true;
 
@@ -217,9 +213,7 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action =
-    (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
-    : Result.t(Model.t) => {
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
   switch (Haz3lcore.Perform.go(a, ed_init, id)) {
   | Error(err) => Error(FailedToPerform(err))
@@ -341,57 +335,26 @@ let rec apply =
       Ok({...model, logo_font_metrics})
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
-      let _ =
-        switch (
-          editor.state.zipper.caret,
-          editor.state.zipper.relatives.siblings |> snd,
-          editor.state.zipper.relatives.siblings |> fst |> List.rev,
-        ) {
-        | (Inner(_, c), [Tile({label: [s], _}), ..._], _)
-            when
-              Str.string_match(Str.regexp("^\".*\\?\"$"), s, 0)
-              && c == String.length(s)
-              - 2 =>
-          schedule_action(PerformAction(Select(Term(Current))));
-          schedule_action(Complete(Chat));
-        | (Outer, _, [Tile({label: [s], _}), ..._])
-            when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
-          schedule_action(PerformAction(Select(Term(Current))));
-          schedule_action(Complete(Code));
-        | _ => ()
-        };
-      perform_action(model, a, state, ~schedule_action);
+      AgentUpdate.schedule_prompt(editor.state.zipper, ~schedule_action);
+      perform_action(model, a);
     | PerformAction(a) =>
+      //NOTE: effectful
       switch (a) {
       | Insert(_)
-      | Destruct(_) => schedule_action(BasicComplete)
+      | Destruct(_) => schedule_action(Agent(Prompt(TyDi)))
       | _ => ()
       };
-      let (id, ed) = model.editors |> Editors.get_editor_and_id;
-      if (ed.state.zipper.selection.ephemeral) {
-        switch (Perform.go_z(Destruct(Left), ed.state.zipper, id)) {
-        | Error(err) => Error(FailedToPerform(err))
-        | Ok((z, id)) =>
-          let ed = Editor.new_state(Destruct(Left), z, ed);
-          //TODO(andrew): fix double action
-          let model = {
-            ...model,
-            editors: Editors.put_editor_and_id(id, ed, model.editors),
-          };
-          perform_action(model, a, state, ~schedule_action);
-        };
-      } else {
-        perform_action(model, a, state, ~schedule_action);
-      };
+      let model = AgentUpdate.reset_buffer(model);
+      perform_action(model, a);
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left), state, ~schedule_action)
+      perform_action(model, Destruct(Left))
     | Copy =>
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
-    | SetModel(name, dh) =>
+    | MVUSet(name, dh) =>
       Ok({
         ...model,
         mvu_states: VarMap.extend(model.mvu_states, (name, dh)),
@@ -408,134 +371,108 @@ let rec apply =
           Save; //TODO
         };
       apply(model, update, state, ~schedule_action);
-    | AddKey(key, str) =>
+    | StoreKey(key, str) =>
       LocalStorage.Generic.save(key, str);
       Ok(model);
-    | InsertWeather =>
-      WeatherAPI.request(req =>
-        switch (WeatherAPI.handle(req)) {
-        | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
-        | None => print_endline("WeatherAPI: response parse failed")
-        }
-      );
-      Ok(model);
-    | Complete(Chat) =>
-      switch (Assistant.prompt_chat(model)) {
-      | None => print_endline("Assistant: no prompt generated")
-      | Some(prompt) =>
-        OpenAI.request_chat(prompt, req =>
-          switch (OpenAI.handle_chat(req)) {
-          | Some(response) =>
-            schedule_action(Assistant.react_chat(response))
-          | None => print_endline("Assistant: response parse failed")
+    | Agent(action) =>
+      AgentUpdate.apply(model, action, ~schedule_action, ~state, ~main=apply)
+    /*
+     | Agent(AcceptSuggestion) =>
+       let ed = model.editors |> Editors.get_editor;
+       let z = ed.state.zipper;
+       switch (Zipper.complete_criteria(z)) {
+       | None =>
+         print_endline("accept suggestion: basic complete");
+         perform_action(
+           model,
+           Unselect(Some(Right)),
+         );
+       | Some(new_tok) =>
+         print_endline("accept suggestion: smart complete");
+         apply(model, Paste(new_tok), state, ~schedule_action);
+       };
+      | Agent(InsertWeather) =>
+        WeatherAPI.request(req =>
+          switch (WeatherAPI.handle(req)) {
+          | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
+          | None => print_endline("WeatherAPI: response parse failed")
           }
-        )
-      };
-      Ok(model);
-    | Complete(Code) =>
-      switch (Assistant.prompt_code(model)) {
-      | None => print_endline("Assistant: no prompt generated")
-      | Some(prompt) =>
-        OpenAI.request_chat(prompt, req =>
-          switch (OpenAI.handle_chat(req)) {
-          | Some(response) =>
-            schedule_action(Assistant.react_code(response))
-          //schedule_action(PerformAction(SetSelectionFocus(Left)));
-          /*schedule_action(PerformAction(Select(Term(Current))));
-            schedule_action(PerformAction(SetSelectionFocus(Left)));
-            schedule_action(PerformAction(Unselect));*/
-          //let z = Zipper.directional_unselect(z.selection.focus, z);
-          | None => print_endline("Assistant: response parse failed")
-          }
-        )
-      };
-      Ok(model);
-    | BasicComplete =>
-      let (id, ed) = model.editors |> Editors.get_editor_and_id;
-      let z = ed.state.zipper;
-      let ctx = Editors.get_ctx_init(model.editors);
-      switch (BasicComplete.mk_pseudoselection(~ctx, z, id)) {
-      | None => Ok(model)
-      | Some((z, id)) =>
-        let ed = Editor.new_state(Pick_up, z, ed);
-        //TODO: add correct action to history (Pick_up is wrong)
-        let editors = Editors.put_editor_and_id(id, ed, model.editors);
-        Ok({...model, editors});
-      };
-    | AcceptSuggestion =>
-      let ed = model.editors |> Editors.get_editor;
-      let z = ed.state.zipper;
-      switch (Zipper.complete_criteria(z)) {
-      | None =>
-        print_endline("accept suggestion: basic complete");
-        //Note: Selection.clear (Which is called by unselect) modified to set ephmeral to false
-        perform_action(
-          model,
-          Unselect(Some(Right)),
-          state,
-          ~schedule_action,
         );
-      | Some(new_tok) =>
-        print_endline("accept suggestion: smart complete");
-        apply(model, Paste(new_tok), state, ~schedule_action);
-      };
-    | PasteIntoSelection(str) =>
-      //let str = "666";
-      print_endline("paste into selection: " ++ str);
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
-      switch (Printer.zipper_of_string(id, str)) {
-      | None => Error(CantPaste)
-      | Some((z, id)) =>
-        /* NOTE(andrew): These two perform calls are a hack to
-           deal with the fact that pasting something like "let a = b in"
-           won't trigger the barfing of the "in"; to trigger this, we
-           insert a space, and then we immediately delete it. */
-        switch (Perform.go_z(Insert(" "), z, id)) {
-        | Error(_) => Error(CantPaste)
-        | Ok((z, id)) =>
-          switch (Perform.go_z(Destruct(Left), z, id)) {
-          | Error(_) => Error(CantPaste)
-          | Ok((z, id)) =>
-            let z = {
-              ...ed.state.zipper,
-              selection: {
-                content: Zipper.unselect_and_zip(z),
-                focus: Left,
-                ephemeral: true,
-              },
-            };
-            let ed = Editor.new_state(Pick_up, z, ed);
-            print_endline("paste into selection SUECCES:");
-            print_endline(Zipper.show(z));
-            //TODO: add correct action to history (Pick_up is wrong)
-            let editors = Editors.put_editor_and_id(id, ed, model.editors);
-            Ok({...model, editors});
-          }
-        }
-      };
+        Ok(model);
+      | Agent(Complete(Chat)) =>
+        switch (Oracle.ask(model)) {
+        | None => print_endline("Oracle: prompt generation failed")
+        | Some(prompt) =>
+          OpenAI.request_chat(prompt, req =>
+            switch (OpenAI.handle_chat(req)) {
+            | Some(response) => schedule_action(Oracle.react(response))
+            | None => print_endline("Assistant: response parse failed")
+            }
+          )
+        };
+        Ok(model);
+      | Agent(Complete(Code)) =>
+        switch (Filler.prompt(model)) {
+        | None => print_endline("Filler: prompt generation failed")
+        | Some(prompt) =>
+          OpenAI.request_chat(prompt, req =>
+            switch (OpenAI.handle_chat(req)) {
+            | Some(response) => schedule_action(Filler.react(response))
+            | None => print_endline("Filler: handler failed")
+            }
+          )
+        };
+        Ok(model);
+      | Agent(TyDi) =>
+        let (id, ed) = model.editors |> Editors.get_editor_and_id;
+        let z = ed.state.zipper;
+        let ctx = Editors.get_ctx_init(model.editors);
+        switch (TyDi.mk_pseudoselection(~ctx, z, id)) {
+        | None => Ok(model)
+        | Some((z, id)) =>
+          let ed = Editor.new_state(Pick_up, z, ed);
+          //TODO: add correct action to history (Pick_up is wrong)
+          let editors = Editors.put_editor_and_id(id, ed, model.editors);
+          Ok({...model, editors});
+        };
+      | Agent(AcceptSuggestion) =>
+        let ed = model.editors |> Editors.get_editor;
+        let z = ed.state.zipper;
+        switch (Zipper.complete_criteria(z)) {
+        | None =>
+          print_endline("accept suggestion: basic complete");
+          perform_action(
+            model,
+            Unselect(Some(Right)),
+          );
+        | Some(new_tok) =>
+          print_endline("accept suggestion: smart complete");
+          apply(model, Paste(new_tok), state, ~schedule_action);
+        };
+      | Agent(SetBuffer(response)) =>
+        // print_endline("paste into selection: " ++ str);
+        let (id, ed) = Editors.get_editor_and_id(model.editors);
+        switch (Printer.paste_into_zip(Zipper.init(id), id, response)) {
+        | None => Error(CantSuggest)
+        | Some((response_z, id)) =>
+          let content = Zipper.unselect_and_zip(response_z);
+          let z = Zipper.set_buffer(ed.state.zipper, ~content, ~mode=Solid);
+          //print_endline("paste into selection suceeds: " ++ Zipper.show(z));
+          //HACK(andrew): below is not strictly a insert action...
+          let ed = Editor.new_state(Insert(response), z, ed);
+          let editors = Editors.put_editor_and_id(id, ed, model.editors);
+          Ok({...model, editors});
+        };
+        */
     | Paste(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
-      switch (
-        Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
-      ) {
+      switch (Printer.paste_into_zip(ed.state.zipper, id, clipboard)) {
       | None => Error(CantPaste)
       | Some((z, id)) =>
-        /* NOTE(andrew): These two perform calls are a hack to
-           deal with the fact that pasting something like "let a = b in"
-           won't trigger the barfing of the "in"; to trigger this, we
-           insert a space, and then we immediately delete it. */
-        switch (Haz3lcore.Perform.go_z(Insert(" "), z, id)) {
-        | Error(_) => Error(CantPaste)
-        | Ok((z, id)) =>
-          switch (Haz3lcore.Perform.go_z(Destruct(Left), z, id)) {
-          | Error(_) => Error(CantPaste)
-          | Ok((z, id)) =>
-            let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-            //TODO: add correct action to history (Pick_up is wrong)
-            let editors = Editors.put_editor_and_id(id, ed, model.editors);
-            Ok({...model, editors});
-          }
-        }
+        //HACK(andrew): below is not strictly a insert action...
+        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
+        let editors = Editors.put_editor_and_id(id, ed, model.editors);
+        Ok({...model, editors});
       };
     | ResetCurrentEditor =>
       /* This serializes the current editor to text, resets the current
