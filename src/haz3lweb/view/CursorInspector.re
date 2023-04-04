@@ -47,6 +47,9 @@ let term_tag =
 
 let common_err_view = (err: Info.error_common) =>
   switch (err) {
+  | MultiError => [
+      text("Incomplete syntax (maybe missing operator, function parens)"),
+    ]
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid token", token)),
     ]
@@ -224,6 +227,10 @@ let view =
     switch (Id.Map.find_opt(id, info_map)) {
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
+      /*print_endline("TESTING: ChatLSP.Errors.collect:");
+        print_endline(
+          ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
+        );*/
       bar_view([
         inspector_view(~inject, ~settings, ~show_lang_doc, id, ci),
         cls_and_id_view(id, ci),

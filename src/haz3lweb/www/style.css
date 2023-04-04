@@ -73,49 +73,49 @@
 
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
-  --nul-delim-color: var(--nul-text-color);
+  --nul-token-color: var(--nul-text-color);
   --nul-shadow-color: var(--nul-text-color);
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
   --any-text-color: var(--nul-text-color);
   --any-off-color: var(--nul-off-color);
-  --any-delim-color: var(--nul-delim-color);
+  --any-token-color: var(--nul-token-color);
   --any-shadow-color: var(--nul-shadow-color);
   --any-bg-color: var(--nul-bg-color);
   --any-bg-off-color: var(--nul-bg-off-color);
 
   --exp-text-color: var(--light-text-color);
   --exp-off-color: #b1a47f;
-  --exp-delim-color: var(--light-text-color);
+  --exp-token-color: var(--light-text-color);
   --exp-shadow-color: #c4b599;
   --exp-bg-color: #ebdfc5;
   --exp-bg-off-color: #feddb3;
 
   --pat-text-color: #169fdc;
   --pat-off-color: #13aed2;
-  --pat-delim-color: #a2dffb;
+  --pat-token-color: #a2dffb;
   --pat-shadow-color: var(--pat-off-color);
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
 
   --tpat-text-color: #16c8dc;
   --tpat-off-color: #13d2d2;
-  --tpat-delim-color: #a2fbf9;
+  --tpat-token-color: #a2fbf9;
   --tpat-shadow-color: var(--pat-off-color);
   --tpat-bg-color: #b2fbff;
   --tpat-bg-off-color: #d7fff7;
 
   --typ-text-color: #772cff;
   --typ-off-color: #975dff;
-  --typ-delim-color: #cfb5ff;
+  --typ-token-color: #cfb5ff;
   --typ-shadow-color: var(--typ-off-color);
   --typ-bg-color: #f2ccff;
   --typ-bg-off-color: #f9e8ff;
 
   --rul-text-color: var(--exp-text-color);
   --rul-off-color: var(--exp-off-color);
-  --rul-delim-color: #ccc2af;
+  --rul-token-color: #ccc2af;
   --rul-shadow-color: var(--exp-shadow-color);
   --rul-bg-color: var(--exp-bg-color);
   --rul-bg-off-color: var(--exp-bg-off-color);
@@ -557,23 +557,6 @@ body,
   white-space: pre;
 }
 
-/* NOTE(andrew): below 3 styles are part of
-   a hack to display incomplete delims in
-   selections */
-.code-text-shards {
-  /*position: absolute;*/
-  z-index: var(--code-text-shards-z);
-  user-select: none;
-}
-
-.code-text-shards span {
-  color: #0000 !important;
-}
-
-.code-text-shards span.delim-incomplete {
-  color: var(--code-emphasis) !important;
-}
-
 .empty-hole {
   z-index: var(--empty-hole-z);
 }
@@ -657,31 +640,32 @@ body,
   vector-effect: non-scaling-stroke;
 }
 
-.code .delim {
-  font-weight: bold;
-}
-
-.code .token.mono-string-lit {
+.code .token.string-lit {
   color: var(--string-lit-color);
 }
 
-.code .token.mono-inconsistent {
-  color: var(--err-color);
+.code .token.in-buffer {
+  color:#d7cdb2 !important;
 }
 
-.code .token.delim {
-  color: var(--exp-delim-color);
+.code .token.active-prompt {
+  background: var(--link-gradient);
+  background-size: 800% 800%;
+  animation: gradient 12s linear infinite alternate;
+  color: rgb(255, 255, 255);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
+}
+
+.code .token.poly {
   font-weight: bold;
 }
 
-.code .token.delim-incomplete {
-  color: var(--code-emphasis);
-  font-weight: bold;
+.code .token.sort-inconsistent {
+  color: var(--err-color) !important;
 }
 
-.code .token.delim-inconsistent {
-  color: var(--err-color);
-  font-weight: bold;
+.code .token.incomplete {
+  color: var(--code-emphasis) !important;
 }
 
 .child-backing {
@@ -696,7 +680,7 @@ svg.tile-selected {
   fill: var(--selection-color);
 }
 
-.tile-path.selected-ephemeral {
+.tile-path.selected-buffer {
   fill: #fbf3de;
 }
 
@@ -734,22 +718,23 @@ svg.tile-selected {
 
 /* TOKEN COLORS */
 
-.code .text-Nul { color: var(--nul-text-color); }
-.code .text-Any { color: var(--any-text-color); }
-.code .text-Exp { color: var(--exp-text-color); }
-.code .text-Pat { color: var(--pat-text-color); }
-.code .text-Typ { color: var(--typ-text-color); }
-.code .text-Rul { color: var(--rul-text-color); }
-.code .text-TPat { color: var(--tpat-text-color); }
 
-.code .delim.text-Nul { color: var(--nul-delim-color); }
-.code .delim.text-Any { color: var(--any-delim-color); }
-.code .delim.text-Exp { color: var(--exp-delim-color); }
-.code .delim.text-Pat { color: var(--pat-delim-color); }
-.code .delim.text-Typ { color: var(--typ-delim-color); }
-.code .delim.text-Rul { color: var(--rul-delim-color); }
-.code .delim.text-TPat { color: var(--tpat-delim-color); }
-
+.code .token.Nul { color: var(--nul-text-color); }
+.code .token.Any { color: var(--any-text-color); }
+.code .token.Exp { color: var(--exp-text-color); }
+.code .token.Pat { color: var(--pat-text-color); }
+.code .token.Typ { color: var(--typ-text-color); }
+.code .token.Rul { color: var(--rul-text-color); }
+.code .token.TPat { color: var(--tpat-text-color); }
+/*
+.code .token.text-Nul { color: var(--nul-token-color); }
+.code .token.text-Any { color: var(--any-token-color); }
+.code .token.text-Exp { color: var(--exp-token-color); }
+.code .token.text-Pat { color: var(--pat-token-color); }
+.code .token.text-Typ { color: var(--typ-token-color); }
+.code .token.text-Rul { color: var(--rul-token-color); }
+.code .token.text-TPat { color: var(--tpat-token-color); }
+*/
 .tile-path.Nul { filter: url(#drop-shadow-Nul); }
 .tile-path.Any { filter: url(#drop-shadow-Any); }
 .tile-path.Exp { filter: url(#drop-shadow-Exp); }
@@ -886,7 +871,7 @@ svg.tile-selected {
 
 .secondary {
   color: rgb(126, 80, 0);
-  opacity: 20%;
+  opacity: 20%;tok
 }
 
 .linebreak {
@@ -1243,28 +1228,6 @@ svg.tile-selected {
 /* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though...*/
 .lang-doc .content {
   padding-bottom: 8em;
-}
-
-/* TODO seems like should be better way to ignore inconsistentcy colorings...*/
-.lang-doc .code .text-Pat.mono-inconsistent {
-  color: var(--pat-text-color);
-}
-
-.lang-doc .code .text-Exp.mono-inconsistent {
-  color: var(--exp-text-color);
-}
-
-.lang-doc .code .text-Typ.mono-inconsistent {
-  color: var(--typ-text-color);
-}
-
-.lang-doc .code .text-Rul.mono-inconsistent {
-  color: var(--rul-text-color);
-}
-
-.lang-doc .code .token.delim-inconsistent {
-  color: var(--exp-delim-color);
-  font-weight: bold;
 }
 
 .lang-doc .example {
@@ -1900,17 +1863,6 @@ svg.expandable path {
 	}
 }
 
-
-.code .mono-string-lit-query {
-  background: var(--link-gradient);
-  background-size: 800% 800%;
-  animation: gradient 12s linear infinite alternate;
-  color: rgb(255, 255, 255);
-  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
-}
-.code .ghost-delim {
-  color:#d7cdb2; /* var(--light-page-color); */
-}
 .mvu-render .DHCode {
   /*TODO(andrew):unhardcode*/
   display: inline-flex;

@@ -127,6 +127,10 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
 
+let is_filler_prompt = regexp("^\\?\\?$");
+let is_oracle_prompt = regexp("^\".*\\?\\?\"$");
+let is_prompt = str => is_filler_prompt(str) || is_oracle_prompt(str);
+
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
    the empty list and empty tuple. Technically this should be derivable from
@@ -249,7 +253,6 @@ let forms: list((string, t)) = [
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
   ("type-arrow", mk_infix("->", Typ, 6)),
-  ("complete_exp", mk(ii, ["~", "~"], mk_op(Exp, [Exp]))),
   //("secret_exp", mk(ii, ["", ""], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),

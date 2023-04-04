@@ -480,3 +480,11 @@ let mk_map_ctx =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
     uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
   });
+
+let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
+  Id.Map.fold(
+    (id, info: Info.t, acc) =>
+      Option.to_list(Info.error_of(info) |> Option.map(x => (id, x))) @ acc,
+    map,
+    [],
+  );

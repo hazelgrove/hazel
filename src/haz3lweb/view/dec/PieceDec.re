@@ -418,7 +418,7 @@ let view =
     ]
   | SelectedEphemeral(i, j) => [
       chunky_shard(
-        ~style_cls="selected-ephemeral",
+        ~style_cls="selected-buffer",
         ~font_metrics,
         ~rows,
         (i, j),

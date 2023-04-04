@@ -30,7 +30,7 @@ module Deco =
   };
 
   let selected_piece_profile =
-      (~ephemeral, p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
+      (~buffer, p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
     // TODO(d) fix sorts
     let mold =
       switch (p) {
@@ -54,7 +54,7 @@ module Deco =
     // TODO this is ignored in view, clean this up
     let caret = (id, (-1));
     let style: PieceDec.Profile.style =
-      ephemeral
+      buffer
         ? SelectedEphemeral((id, l), (id, r))
         : Selected((id, l), (id, r));
     PieceDec.Profile.{tiles, caret, style};
@@ -90,7 +90,11 @@ module Deco =
     |> ListUtil.fold_left_map(
          (l: Nib.Shape.t, p: Piece.t) => {
            let profile =
-             selected_piece_profile(~ephemeral=z.selection.ephemeral, p, l);
+             selected_piece_profile(
+               ~buffer=Selection.is_buffer(z.selection),
+               p,
+               l,
+             );
            let shape =
              switch (Piece.nibs(p)) {
              | None => l
@@ -284,6 +288,9 @@ module Deco =
       //TODO(andrew): document, make setting: (show/dont show err holes on indicated term)
       | _ when Indicated.index(z) == Some(id) => false
       | None => false
+      //TODO(andrew): supress drawing holes for multis
+      | Some(InfoExp({status: InHole(Common(MultiError)), _})) => false
+      | Some(InfoPat({status: InHole(Common(MultiError)), _})) => false
       | Some(info) => Info.is_error(info)
       };
     let is_rep = (id: Id.t) =>

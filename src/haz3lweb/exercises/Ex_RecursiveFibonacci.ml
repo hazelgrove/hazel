@@ -11,7 +11,7 @@ let exercise : SchoolExercise.spec =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
       {
-        selection = { focus = Left; content = []; ephemeral = false };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -22,7 +22,7 @@ let exercise : SchoolExercise.spec =
       };
     correct_impl =
       {
-        selection = { focus = Left; content = []; ephemeral = false };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -455,7 +455,7 @@ let exercise : SchoolExercise.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; ephemeral = false };
+            selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =
               {
@@ -469,7 +469,7 @@ let exercise : SchoolExercise.spec =
       };
     your_impl =
       {
-        selection = { focus = Left; content = []; ephemeral = false };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -636,7 +636,7 @@ let exercise : SchoolExercise.spec =
         {
           impl =
             {
-              selection = { focus = Left; content = []; ephemeral = false };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -1358,7 +1358,7 @@ let exercise : SchoolExercise.spec =
         {
           impl =
             {
-              selection = { focus = Left; content = []; ephemeral = false };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -1941,7 +1941,7 @@ let exercise : SchoolExercise.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; ephemeral = false };
+            selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =
               {

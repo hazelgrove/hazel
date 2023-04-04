@@ -294,16 +294,28 @@ let editor_view =
       ~color_highlighting: option(ColorSteps.colorMap),
       editor: Editor.t,
     ) => {
-  //~eval_result: option(option(DHExp.t))
-
   let zipper = editor.state.zipper;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
+  let is_in_buffer: Tile.tile => bool = {
+    //TODO(andrew): document or improve
+    let buffer =
+      Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
+    let buffer_map = Measured.of_segment(buffer);
+    t =>
+      try({
+        let _ = Measured.find_t(t, buffer_map);
+        true;
+      }) {
+      | _ => false
+      };
+  };
   let code_base_view =
     Code.view(
+      ~sort=Sort.root,
       ~font_metrics,
-      ~selection=zipper.selection.ephemeral ? zipper.selection.content : [],
+      ~is_in_buffer,
       ~segment,
       ~unselected,
       ~measured,

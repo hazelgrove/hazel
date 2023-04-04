@@ -43,6 +43,7 @@ type self_pat =
 /* Common errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
+  | MultiError
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | FreeTag /* Sum constructor neiter bound nor in ana type */
   | InconsistentWithArrow(Typ.t) /* Bad function position */
@@ -211,6 +212,13 @@ type t =
   | InfoTyp(typ)
   | InfoTPat(tpat);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error =
+  | Exp(error_exp)
+  | Pat(error_pat)
+  | Typ(error_typ)
+  | TPat(error_tpat);
+
 let ctx_of: t => Ctx.t =
   fun
   | InfoExp({ctx, _}) => ctx
@@ -225,6 +233,24 @@ let sort_of: t => Sort.t =
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat;
 
+let term_string_of: t => string =
+  fun
+  | InfoExp({term, _}) => UExp.to_string(term)
+  | InfoPat({term, _}) => UPat.to_string(term)
+  | InfoTyp({term, _}) => UTyp.to_string(term)
+  | InfoTPat({term, _}) => UTPat.to_string(term);
+
+let error_of: t => option(error) =
+  fun
+  | InfoExp({status: NotInHole(_), _})
+  | InfoPat({status: NotInHole(_), _})
+  | InfoTyp({status: NotInHole(_), _})
+  | InfoTPat({status: NotInHole(_), _}) => None
+  | InfoExp({status: InHole(err), _}) => Some(Exp(err))
+  | InfoPat({status: InHole(err), _}) => Some(Pat(err))
+  | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
+  | InfoTPat({status: InHole(err), _}) => Some(TPat(err));
+
 let exp_free: exp => Ctx.co = ({free, _}) => free;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
@@ -237,8 +263,7 @@ let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
   | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Syn | SynFun | Ana(_)) =>
-    NotInHole(SynConsistent(Unknown(Internal)))
+  | (IsMulti, Syn | SynFun | Ana(_)) => InHole(MultiError)
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
   | (Just(ty), SynFun) =>
     switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {

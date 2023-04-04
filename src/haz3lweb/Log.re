@@ -20,9 +20,8 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateResult(_)
-  | AddKey(_)
-  | SetModel(_)
-  | BasicComplete
+  | StoreKey(_)
+  | MVUSet(_)
   | DebugAction(_) => false
   | Execute(_)
   | ResetCurrentEditor
@@ -38,12 +37,9 @@ let is_action_logged: UpdateAction.t => bool =
   | Cut
   | Copy
   | Paste(_)
-  | PasteIntoSelection(_)
-  | AcceptSuggestion
   | Undo
   | Redo
-  | InsertWeather
-  | Complete(_)
+  | Agent(_)
   | MoveToNextHole(_)
   | UpdateLangDocMessages(_) => true;
 

@@ -58,7 +58,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
-    | "F7" => [BasicComplete]
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
@@ -73,8 +72,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Delete") => now_save(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") =>
-      zipper.selection.ephemeral
-        ? [AcceptSuggestion, Save] : now_save(Put_down) //TODO: if empty, move to next hole
+      Selection.is_buffer(zipper.selection)
+        ? [Agent(AcceptSuggestion), Save] : now_save(Put_down) //TODO: if empty, move to next hole
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
@@ -149,10 +148,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (sys, key) {
-    | (_, "Tab") => [
-        PerformAction(Select(Term(Current))),
-        Complete(Chat),
-      ]
     | (_, "ArrowLeft") when restricted =>
       now(MoveToBackpackTarget(Left(ByToken)))
     | (_, "ArrowRight") when restricted =>
