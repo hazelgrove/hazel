@@ -8,25 +8,15 @@ type t = (Terrace.R.t, Terrace.L.t);
 
 exception Convex_inner_tips;
 
-let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
+let uncons_lexeme = (~char=false, ~from: Dir.t, (l, r): t) =>
   switch (from) {
   | L =>
-    let (l, s, a) = from_l(l);
-    (a, Slope.(Dn.mk(~s, l), Up.of_terr(r)));
+    let (l, s, lx) = Terrace.R.unsnoc_lexeme(~char, l);
+    (lx, Slope.(Dn.mk(~s, l), Up.of_terr(r)));
   | R =>
-    let (a, s, r) = from_r(r);
-    (a, Slope.(Dn.of_terr(l), Up.mk(~s, r)));
+    let (lx, s, r) = Terrace.L.uncons_lexeme(~char, r);
+    (lx, Slope.(Dn.of_terr(l), Up.mk(~s, r)));
   };
-let uncons_char =
-  uncons(
-    ~from_l=Terrace.R.unsnoc_lexeme(~char=true),
-    ~from_r=Terrace.L.uncons_lexeme(~char=true),
-  );
-let uncons_lexeme =
-  uncons(
-    ~from_l=Terrace.R.unsnoc_lexeme(~char=false),
-    ~from_r=Terrace.L.uncons_lexeme(~char=false),
-  );
 
 let mold = (~kid=?, t, (l, _)) => Terrace.R.mold(l, ~kid?, t);
 
