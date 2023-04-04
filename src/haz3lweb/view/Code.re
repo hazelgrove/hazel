@@ -23,7 +23,7 @@ let of_delim' =
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
         | [s] when Form.is_prompt(s) => "active-prompt"
-        | [s] when Form.is_string(s) => "mono-string-lit"
+        | [s] when Form.is_string(s) => "string-lit"
         | _ => "default"
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";

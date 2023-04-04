@@ -340,8 +340,8 @@ let rec apply =
     | PerformAction(a) =>
       //NOTE: effectful
       switch (a) {
-      | Insert(_)
-      | Destruct(_) => schedule_action(Agent(Prompt(TyDi)))
+      | Destruct(_)
+      | Insert(_) => schedule_action(Agent(Prompt(TyDi)))
       | _ => ()
       };
       let model = AgentUpdate.reset_buffer(model);

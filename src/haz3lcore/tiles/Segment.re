@@ -252,6 +252,33 @@ and remold_pat = (shape, seg: t): t =>
       }
     }
   }
+and remold_tpat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      switch (remold_tile(TPat, shape, t)) {
+      | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_tpat_uni(snd(Tile.shapes(t)), tl);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      }
+    }
+  }
 and remold_tpat = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
@@ -291,10 +318,18 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t) =>
         switch (Tile.nibs(t)) {
+        | (_, {shape, sort: TPat}) =>
+          let (remolded_tpat, shape, rest) = remold_tpat_uni(shape, tl);
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_tpat] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Pat}) =>
           let (remolded_pat, shape, rest) = remold_pat_uni(shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
           ([Piece.Tile(t), ...remolded_pat] @ remolded_exp, shape, rest);
+        | (_, {shape, sort: Typ}) =>
+          let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_typ] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Rul}) =>
           // TODO review short circuit
           ([Tile(t)], shape, tl)
@@ -349,6 +384,12 @@ and remold_exp = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Pat}) =>
           let (remolded, shape, rest) = remold_pat_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape, sort: TPat}) =>
+          let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
