@@ -4,6 +4,18 @@ type t =
   | Convex
   | Concave(Sort.o, Prec.t);
 
+let is_concave =
+  fun
+  | Convex => None
+  | Concave(s, p) => Some((s, p));
+
+let consistent = (l, r) =>
+  switch (l, r) {
+  | (Convex, Convex) => true
+  | (Concave(l, _), Concave(r, _)) => Sort.consistent(l, r)
+  | _ => false
+  };
+
 let fits = (l, r) =>
   switch (l, r) {
   | (Convex, Concave(_))

@@ -77,6 +77,21 @@ let rec nullable =
   | Seq(gs) => List.for_all(nullable, gs)
   | Alt(gs) => List.exists(nullable, gs);
 
+// let rec consistent = (l: t, r: t) =>
+//   switch (l, r) {
+//   | (Atom(Kid(l)), Atom(Kid(r))) =>
+//     switch (l, r) {
+//     | (Tok(_), Kid(_))
+//     | (Kid(_), Tok(_)) => false
+//     | (Tok(l), Tok(r)) => l == r
+//     | (Kid(None), Kid(_))
+//     | (Kid(_), Kid(None)) => true
+//     | (Kid(Some(l)), Kid(Some(r))) => l == r
+//     }
+//   | (Star(l), Star(r)) => consistent(l, r)
+//   | (Alt())
+//   }
+
 let rec root_token =
   fun
   | Atom(Kid(_)) => false

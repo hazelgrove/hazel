@@ -27,11 +27,11 @@ let append = (l: t, ~kid=Meld.empty(), r: t) =>
 
 let of_complement = (cmpl: Complement.t): option(t) =>
   List.fold_right(
-    ((sugg, mold), wal) => {
-      let g = Piece.of_grout(Grout.mk(~sugg, mold));
+    (proto, wal) => {
+      let t = Piece.of_tile(Tile.mk(proto));
       switch (wal) {
-      | None => Some(of_piece(g))
-      | Some(wal) => Some(link(g, wal))
+      | None => Some(of_piece(t))
+      | Some(wal) => Some(link(t, wal))
       };
     },
     cmpl,
@@ -77,14 +77,9 @@ let fuses = (~kid) =>
   cat((l, r) => {
     open OptUtil.Syntax;
     let* s = Meld.is_porous(kid);
-    switch (Piece.replaces(l, r)) {
-    | Some(L) => return(Padded.mk(~l=s, of_piece(r)))
-    | Some(R) => return(Padded.mk(of_piece(l), ~r=s))
-    | None =>
-      let+ p = Piece.zips(l, r);
-      assert(Space.is_empty(s));
-      Padded.mk(of_piece(p));
-    };
+    let+ p = Piece.fuse(l, r);
+    Piece.(proto(p) == proto(l))
+      ? Padded.mk(of_piece(p), ~r=s) : Padded.mk(~l=s, of_piece(p));
   });
 
 let matches = (~kid) =>

@@ -15,29 +15,21 @@ let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
   };
 let cons_space = cons(~onto_l=Dn.snoc_space, ~onto_r=Up.cons_space);
 
-let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
+let uncons_lexeme = (~char=false, ~from: Dir.t, (l, r)) =>
   switch (from) {
-  | L => from_l(l) |> Option.map(((l, a)) => (a, (l, r)))
-  | R => from_r(r) |> Option.map(((a, r)) => (a, (l, r)))
+  | L =>
+    Dn.unsnoc_lexeme(~char, l) |> Option.map(((l, lx)) => (lx, (l, r)))
+  | R =>
+    Up.uncons_lexeme(~char, r) |> Option.map(((lx, r)) => (lx, (l, r)))
   };
-let uncons_lexeme =
-  uncons(
-    ~from_l=Dn.unsnoc_lexeme(~char=false),
-    ~from_r=Up.uncons_lexeme(~char=false),
-  );
-let uncons_char =
-  uncons(
-    ~from_l=Dn.unsnoc_lexeme(~char=true),
-    ~from_r=Up.uncons_lexeme(~char=true),
-  );
-let uncons_opt_lexeme = (~from: Dir.t, sib) =>
-  switch (uncons_lexeme(~from, sib)) {
+let uncons_opt_lexeme = (~char=false, ~from: Dir.t, sib) =>
+  switch (uncons_lexeme(~char, ~from, sib)) {
   | None => (None, sib)
   | Some((lx, sib)) => (Some(lx), sib)
   };
-let uncons_opt_lexemes = (sib: t) => {
-  let (l, sib) = uncons_opt_lexeme(~from=L, sib);
-  let (r, sib) = uncons_opt_lexeme(~from=R, sib);
+let uncons_opt_lexemes = (~char=false, sib: t) => {
+  let (l, sib) = uncons_opt_lexeme(~char, ~from=L, sib);
+  let (r, sib) = uncons_opt_lexeme(~char, ~from=R, sib);
   ((l, r), sib);
 };
 let peek_lexemes = sib => fst(uncons_opt_lexemes(sib));
@@ -122,10 +114,10 @@ let zip_init = ((dn, up): t) =>
   | ([l, ...terrs_l], [r, ...terrs_r])
       when
         Space.(is_empty(dn.space) && is_empty(up.space))
-        && Option.is_some(Piece.zips(Terrace.R.face(l), Terrace.L.face(r))) =>
+        && Piece.zips(Terrace.R.face(l), Terrace.L.face(r)) =>
     let (tl_l, hd_l) = Terrace.R.split_face(l);
     let (hd_r, tl_r) = Terrace.L.split_face(r);
-    let p = Option.get(Piece.zips(hd_l, hd_r));
+    let p = Option.get(Piece.zip(hd_l, hd_r));
     let kid = Meld.append(tl_l, p, tl_r);
     zip((Dn.mk(terrs_l), Up.mk(terrs_r)), kid);
   | _ => zip((dn, up), Meld.empty())

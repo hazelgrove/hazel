@@ -1,11 +1,17 @@
 open Util;
 
 // https://en.wikipedia.org/wiki/Prototile
+// tiles and grout are instances of prototiles
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   mold: Mold.t,
   label: Token.t,
 };
+
+let mold_ = p => p.mold;
+let label_ = p => p.label;
+
+let length = p => Token.length(p.label);
 
 let uncons_char = (p: t): option((t, t)) => {
   open OptUtil.Syntax;
@@ -18,7 +24,11 @@ let unsnoc_char = (p: t): option((t, t)) => {
   tl == "" ? None : Some(({...p, label: tl}, {...p, label: hd}));
 };
 
+// assumes client checked for zippability (eg same mold)
 let zip = (l: t, r: t): t => {...l, label: l.label ++ r.label};
+let unzip = (n: int, p: t): Either.t(Dir.t, (t, t)) =>
+  Token.unzip(n, p.label)
+  |> Either.map_r(((l, r)) => ({...p, label: l}, {...p, label: r}));
 
 module Tile = {
   let mk = (mold, label) => {mold, label};

@@ -44,15 +44,15 @@ module L = {
       (s, [l, ...ls]);
     };
 
-  let uncons_lexeme = (~char=false, l: t): (Lexeme.t, Space.t, list(t)) => {
+  let uncons_lexeme = (~char=false, l: t): (Lexeme.t(_), Space.t, list(t)) => {
     let (face, rest) = split_face(l);
     switch (Piece.unzip(1, face)) {
     | R((c, rest_face)) when char =>
       let (_empty, l) = Option.get(mk(Meld.link(rest_face, rest)));
-      (Lexeme.of_piece(c), Space.empty, [l]);
+      (Lexeme.T(c), Space.empty, [l]);
     | _ =>
       let (s, ls) = mk_s(rest);
-      (Lexeme.of_piece(face), s, ls);
+      (Lexeme.T(face), s, ls);
     };
   };
 
@@ -88,29 +88,73 @@ module R = {
 
   let prepend = (_: t, _: Meld.t) => failwith("todo prepend");
 
-  let unsnoc_lexeme = (~char=false, r: t): (list(t), Space.t, Lexeme.t) => {
+  let unsnoc_lexeme = (~char=false, r: t): (list(t), Space.t, Lexeme.t(_)) => {
     print_endline("Terrace.unsnoc_lexeme");
     let (rest, face) = split_face(r);
     switch (Piece.unzip(Piece.length(face) - 1, face)) {
     | R((rest_face, c)) when char =>
       let (r, _empty) = Option.get(mk(Meld.knil(rest, rest_face)));
-      ([r], Space.empty, Lexeme.of_piece(c));
+      ([r], Space.empty, Lexeme.T(c));
     | _ =>
       let (rs, s) = mk_s(rest);
-      (rs, s, Lexeme.of_piece(face));
+      (rs, s, Lexeme.T(face));
     };
   };
 
   let tip = (terr: t) => Piece.tip(R, face(terr));
-  // todo: remove option from return type, added just to get things typechecking
-  // todo: review whether match flag is needed here
-  let mold = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
-    switch (tip(terr)) {
-    | Convex => Error(Some(sort(terr)))
-    | Concave(s, _) =>
-      LangUtil.mold_of_token(kid, s, t)
-      |> Result.of_option(~error=Some(sort(terr)))
-    };
+
+  // this function
+  let mold_lt = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+    Piece.tips(R, face(terr))
+    |> List.fold_left(
+         (molded, tip: Tip.t) => {
+           open Result.Syntax;
+           let/ _ = molded;
+           switch (tip) {
+           | Convex => Error(kid)
+           | Concave(s_l, p_l) =>
+             let* mold =
+               LangUtil.mold_of_token(kid, s_l, t)
+               |> Result.of_option(~error=kid);
+             Mold.tips(L, mold)
+             |> List.exists(
+                  fun
+                  | Tip.Convex => true
+                  | Concave(s_r, p_r) =>
+                    s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
+                )
+               ? Ok(mold) : Error(kid);
+           };
+         },
+         // todo: remove option, added just to get things typechecking
+         Error(Some(sort(terr))),
+       );
+
+  let mold_eq = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+    Piece.tips(R, face(terr))
+    |> List.fold_left(
+         (molded, tip: Tip.t) => {
+           switch (tip) {
+           | Convex => molded
+           | Concave(s_l, p_l) =>
+             open Result.Syntax;
+             let/ _ = molded;
+             let* mold =
+               LangUtil.mold_of_token(kid, s_l, t)
+               |> Result.of_option(~error=kid);
+             Mold.tips(L, mold)
+             |> List.exists(
+                  fun
+                  | Tip.Convex => true
+                  | Concave(s_r, p_r) =>
+                    s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
+                )
+               ? Ok(mold) : Error(kid);
+           }
+         },
+         // todo: remove option, added just to get things typechecking
+         Error(Some(sort(terr))),
+       );
 
   let complement = (terr: t) =>
     Piece.complement_beyond(~side=R, face(terr));

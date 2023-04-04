@@ -151,18 +151,18 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
 let push_space = s => map_up(Up.cons_space(s));
 let hsup_space = Fun.flip(s => map_dn(Fun.flip(Dn.snoc_space, s)));
 
-let push_lexeme = (lx, zigg) =>
-  switch (Lexeme.to_piece(lx)) {
-  | Error(s) => Ok(push_space(s, zigg))
-  | Ok(p) => push(Terrace.of_piece(p), zigg)
+let push_lexeme = (lx: Lexeme.t(_), zigg) =>
+  switch (lx) {
+  | S(s) => Ok(push_space(s, zigg))
+  | T(p) => push(Terrace.of_piece(p), zigg)
   };
-let hsup_lexeme = (zigg, lx) =>
-  switch (Lexeme.to_piece(lx)) {
-  | Error(s) => Ok(hsup_space(zigg, s))
-  | Ok(p) => hsup(zigg, Terrace.of_piece(p))
+let hsup_lexeme = (zigg, lx: Lexeme.t(_)) =>
+  switch (lx) {
+  | S(s) => Ok(hsup_space(zigg, s))
+  | T(p) => hsup(zigg, Terrace.of_piece(p))
   };
 
-let pull_lexeme = (~char=false, zigg: t): option((Lexeme.t, t)) => {
+let pull_lexeme = (~char=false, zigg: t): option((Lexeme.t(_), t)) => {
   open OptUtil.Syntax;
   // try pulling from up
   let/ () = {
@@ -177,19 +177,19 @@ let pull_lexeme = (~char=false, zigg: t): option((Lexeme.t, t)) => {
       switch (Piece.unzip(1, p)) {
       | R((c, rest_p)) when char =>
         let top = Chain.link(rest_p, kid, top);
-        (Lexeme.of_piece(c), put_top(top, zigg));
+        (Lexeme.T(c), put_top(top, zigg));
       | _ =>
         let dn = Dn.of_meld(kid);
         let zigg = zigg |> put_top(top) |> put_dn(dn);
-        (Lexeme.of_piece(p), zigg);
+        (Lexeme.T(p), zigg);
       }
     | None =>
       let p = Chain.fst(top);
       switch (Piece.unzip(1, p)) {
       | R((c, rest_p)) when char =>
         let top = Wald.of_piece(rest_p);
-        (Lexeme.of_piece(c), put_top(top, zigg));
-      | _ => (Lexeme.of_piece(p), of_dn(zigg.dn))
+        (Lexeme.T(c), put_top(top, zigg));
+      | _ => (Lexeme.T(p), of_dn(zigg.dn))
       };
     };
   };
@@ -198,7 +198,7 @@ let pull_lexeme = (~char=false, zigg: t): option((Lexeme.t, t)) => {
   let+ (pulled, s) = Space.uncons(~char, zigg.dn.space);
   (Lexeme.S(pulled), {...zigg, dn: Dn.mk(~s, [])});
 };
-let llup_lexeme = (~char=false, zigg: t): option((t, Lexeme.t)) => {
+let llup_lexeme = (~char=false, zigg: t): option((t, Lexeme.t(_))) => {
   open OptUtil.Syntax;
   // try pulling from dn
   let/ () = {
@@ -213,19 +213,19 @@ let llup_lexeme = (~char=false, zigg: t): option((t, Lexeme.t)) => {
       switch (Piece.unzip(Piece.length(p) - 1, p)) {
       | R((rest_p, c)) when char =>
         let top = Chain.knil(top, kid, rest_p);
-        (put_top(top, zigg), Lexeme.of_piece(c));
+        (put_top(top, zigg), Lexeme.T(c));
       | _ =>
         let up = Up.of_meld(kid);
         let zigg = zigg |> put_up(up) |> put_top(top);
-        (zigg, Lexeme.of_piece(p));
+        (zigg, Lexeme.T(p));
       }
     | None =>
       let p = Chain.lst(top);
       switch (Piece.unzip(Piece.length(p) - 1, p)) {
       | R((rest_p, c)) when char =>
         let top = Wald.of_piece(rest_p);
-        (put_top(top, zigg), Lexeme.of_piece(c));
-      | _ => (of_up(zigg.up), Lexeme.of_piece(p))
+        (put_top(top, zigg), Lexeme.T(c));
+      | _ => (of_up(zigg.up), Lexeme.T(p))
       };
     };
   };

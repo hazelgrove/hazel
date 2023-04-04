@@ -37,15 +37,7 @@ rule next_lexeme = parse
     Some (Lexeme.S (Space.of_string (Lexing.lexeme lexbuf)))
   }
 | token {
-    (* todo: use dummy id and have client handle regen *)
-    let token = Lexing.lexeme lexbuf in
-    let mold =
-      match String.get token 0 with
-      | '_' -> Mold.default_operand
-      | c when Util.CharUtil.is_alphanum c -> Mold.default_operand
-      | _ -> Mold.default_infix
-    in
-    Some (Lexeme.T (Tile.mk mold token))
+    Some (Lexeme.T (Lexing.lexeme lexbuf))
   }
 | eof { None }
 

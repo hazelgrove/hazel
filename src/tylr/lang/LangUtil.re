@@ -54,27 +54,6 @@ module Molds = {
     };
 };
 
-module Tokens = {
-  include Mold.Map;
-  type t = Mold.Map.t(list(Token.Shape.t));
-
-  let union2 = union((_, ts_l, ts_r) => Some(ts_l @ ts_r));
-  let union = List.fold_left(union2, empty);
-
-  let t =
-    Molds.bindings(Molds.t)
-    |> List.concat_map(((t, ms)) =>
-         ms |> List.map(m => singleton(m, [t]))
-       )
-    |> union;
-
-  let of_mold = m =>
-    switch (find_opt(m, t)) {
-    | None => []
-    | Some(ts) => ts
-    };
-};
-
 let sorts = List.map(fst, Lang.t);
 
 let keywords: list(Token.t) =
@@ -114,8 +93,6 @@ let mold_of_token = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
     };
   };
 };
-
-let tokens_of_mold = Tokens.of_mold;
 
 let assoc = (s, p) => {
   open OptUtil.Syntax;

@@ -14,6 +14,13 @@ type sort = t;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type o = option(sort);
 
+let consistent = (l: o, r: o) =>
+  switch (l, r) {
+  | (None, _)
+  | (_, None) => true
+  | (Some(l), Some(r)) => l == r
+  };
+
 let eq = (l: o, r: o) => l == r;
 
 let lca = (l: o, r: o): o =>

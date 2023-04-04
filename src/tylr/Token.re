@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 include String;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,3 +48,12 @@ let split = (n, tok) => {
   let r = String.sub(tok, n, String.length(tok) - n);
   (l, r);
 };
+
+let unzip = (n, tok): Either.t(Dir.t, (t, t)) =>
+  if (n <= 0) {
+    L(L);
+  } else if (n >= length(tok)) {
+    L(R);
+  } else {
+    R(split(n, tok));
+  };

@@ -150,10 +150,10 @@ let is_empty_ = mel => Option.is_some(is_empty(mel));
 
 let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
   of_chain(Chain.mk([l, r], [p])) |> aggregate;
-let of_grout = (~l=empty(), ~r=empty(), g: Grout.t) =>
-  of_piece(~l, Piece.of_grout(g), ~r);
-let of_tile = (~l=empty(), ~r=empty(), t: Tile.t) =>
-  of_piece(~l, Piece.of_tile(t), ~r);
+let of_grout = (~l=empty(), ~id=?, ~r=empty(), g: Grout.t) =>
+  of_piece(~l, Piece.of_grout(~id?, g), ~r);
+let of_tile = (~l=empty(), ~id=?, ~r=empty(), t: Tile.t) =>
+  of_piece(~l, Piece.of_tile(~id?, t), ~r);
 
 let root = mel =>
   mel.chain |> Option.map(Chain.links) |> Option.value(~default=[]);
@@ -165,13 +165,17 @@ let sort = mel => root(mel) |> ListUtil.hd_opt |> Option.map(Piece.sort);
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
-// let rec is_porous = mel =>
-//   List.for_all(Piece.is_grout, root(mel))
-//     ? kids(mel)
-//       |> List.map(is_porous)
-//       |> OptUtil.sequence
-//       |> Option.map(Space.concat)
-//     : None;
+let rec is_porous = mel =>
+  List.for_all(Piece.is_empty, root(mel))
+    ? kids(mel)
+      |> List.map(is_porous)
+      |> OptUtil.sequence
+      |> Option.map(Space.concat)
+      |> Option.map(s => {
+           let (l, r) = mel.space;
+           Space.concat([l, s, r]);
+         })
+    : None;
 
 // note: does not distribute paths
 let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
@@ -229,20 +233,22 @@ let unknil = mel =>
     |> Result.of_option(~error=Some(Chain.lst(c)))
   };
 
-let is_hole = (mel: t): option((t, Grout.t, t)) => {
+// todo: clean up
+let is_hole = (mel: t): option((t, (Id.t, Grout.t), t)) => {
   open OptUtil.Syntax;
   let* c = distribute(mel).chain;
   switch (c) {
   // todo: don't drop paths
-  | ([l, r], [{shape: G(g), paths: _}]) when Grout.is_hole(g) =>
-    Some((l, g, r))
+  | ([l, r], [{shape: G(g), id, _}]) when Grout.is_empty(g) =>
+    Some((l, (id, g), r))
   | _ => None
   };
 };
 
-let patch_sort = (~id=?, s: Sort.o, mel: t) =>
+let patch_sort = (~id=?, s: Sort.o, mel: t) => {
+  let of_grout = of_grout(~id?);
   switch (sort(mel)) {
-  | None => of_grout(Grout.mk_operand(~id?, None))
+  | None => of_grout(Grout.mk_operand(None))
   | Some(s') when Sort.eq(s, s') => mel
   | Some(s') =>
     let e: LangUtil.Edge.t =
@@ -250,25 +256,26 @@ let patch_sort = (~id=?, s: Sort.o, mel: t) =>
       |> OptUtil.get_or_fail("probably this means grammar isn't LR");
     e.l
       // todo: confirm use of prec max here is ok
-      ? of_grout(~l=mel, Grout.mk_postfix(~id?, ~l=s', s, Prec.max))
-      : of_grout(Grout.mk_prefix(~id?, s, Prec.max, ~r=s'), ~r=mel);
+      ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
+      : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
   };
+};
 let patch_sort = (s: Sort.o, mel: t) =>
   switch (is_hole(mel)) {
   | None => patch_sort(s, mel)
-  | Some((l, g, r)) =>
+  | Some((l, (id, g), r)) =>
     switch (is_empty(l), is_empty(r)) {
     | (None, None) =>
       let mold =
-        s == g.mold.sort
-          ? g.mold
+        s == g.proto.mold.sort
+          ? g.proto.mold
           // check that max prec is fine
-          : {...g.mold, sort: s, prec: Prec.max};
-      let g = {...g, mold};
-      of_grout(~l, g, ~r);
-    | (Some(l), None) => patch_sort(~id=g.id, s, r) |> pad(~l)
-    | (None, Some(r)) => patch_sort(~id=g.id, s, l) |> pad(~r)
-    | (Some(l), Some(r)) => patch_sort(~id=g.id, s, empty()) |> pad(~l, ~r)
+          : {...g.proto.mold, sort: s, prec: Prec.max};
+      let g = Grout.mk(mold);
+      of_grout(~id, ~l, g, ~r);
+    | (Some(l), None) => patch_sort(~id, s, r) |> pad(~l)
+    | (None, Some(r)) => patch_sort(~id, s, l) |> pad(~r)
+    | (Some(l), Some(r)) => patch_sort(~id, s, empty()) |> pad(~l, ~r)
     }
   };
 
@@ -297,19 +304,19 @@ let patch = (~l=?, ~r=?, mel: t): t =>
 
 let append = (_, _, _) => failwith("todo append");
 
-let rec to_lexemes = (mel): Lexeme.s => {
-  let (l, r) = mel.space;
-  let (l, r) = Lexeme.(S(l), S(r));
-  (
-    switch (mel.chain) {
-    | None => []
-    | Some(c) => Chain.to_list(to_lexemes, p => [Lexeme.of_piece(p)], c)
-    }
-  )
-  |> List.cons([l])
-  |> Fun.flip((@), [[r]])
-  |> List.concat;
-};
+// let rec to_lexemes = (mel): Lexeme.s => {
+//   let (l, r) = mel.space;
+//   let (l, r) = Lexeme.(S(l), S(r));
+//   (
+//     switch (mel.chain) {
+//     | None => []
+//     | Some(c) => Chain.to_list(to_lexemes, p => [Lexeme.of_piece(p)], c)
+//     }
+//   )
+//   |> List.cons([l])
+//   |> Fun.flip((@), [[r]])
+//   |> List.concat;
+// };
 
 let tip = (side: Dir.t, mel: t): option(Tip.t) => {
   let tip = (kid, p) =>
@@ -339,14 +346,14 @@ let split_piece = (n, mel) =>
 let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
   open OptUtil.Syntax;
   let* (kid, p_r, tl) = Result.to_option(unlink(mel));
-  let+ p = Piece.zips(p_l, p_r);
+  let+ p = Piece.zip(p_l, p_r);
   assert(Option.is_some(is_empty(kid)));
   link(p, tl);
 };
 let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
   open OptUtil.Syntax;
   let* (tl, p_l, kid) = Result.to_option(unknil(mel));
-  let+ p = Piece.zips(p_l, p_r);
+  let+ p = Piece.zip(p_l, p_r);
   assert(Option.is_some(is_empty(kid)));
   knil(tl, p);
 };

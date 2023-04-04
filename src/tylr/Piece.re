@@ -1,27 +1,32 @@
 open Sexplib.Std;
 open Util;
 
-module Shape = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | T(Tile.t)
-    | G(Grout.t);
-};
-
 module Path = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = int;
   let shift = (n, p) => p + n;
 };
 
+// todo: rename to something like Material
+module Shape = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | T(Tile.t)
+    | G(Grout.t);
+
+  let t = t => T(t);
+  let g = g => G(g);
+};
+
+// invariant: !is_empty(proto.label) ==> is_prefix(filled, proto.label)
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
-  shape: Shape.t,
   paths: list(Path.t),
+  shape: Shape.t,
 };
 
-let mk = (~id=?, ~paths=[], shape) => {
+let mk = (~id=?, ~paths=[], shape: Shape.t) => {
   let id = id |> OptUtil.get(() => Id.Gen.next());
   {id, paths, shape};
 };
@@ -31,7 +36,14 @@ let of_tile = (~id=?, ~paths=[], t) => mk(~id?, ~paths, T(t));
 let add_paths = (ps, p) => {...p, paths: ps @ p.paths};
 let clear_paths = p => {...p, paths: []};
 
-let is_porous = _ => failwith("todo is_porous");
+// let is_porous = _ => failwith("todo is_porous");
+
+// todo: rename
+let is_empty = p =>
+  switch (p.shape) {
+  | G(g) when Grout.is_empty(g) => true
+  | _ => false
+  };
 
 let id = p => p.id;
 
@@ -42,11 +54,13 @@ let length = (p: t) => {
   };
 };
 
-let mold = p =>
+let proto = p =>
   switch (p.shape) {
-  | T(t) => t.proto.mold
-  | G(g) => g.mold
+  | G(g) => g.proto
+  | T(t) => t.proto
   };
+let label = p => proto(p).label;
+let mold = p => proto(p).mold;
 let sort = p => Mold.sort_(mold(p));
 let prec = p => Mold.prec_(mold(p));
 let tip = (side, p) => Mold.tip(side, mold(p));
@@ -54,26 +68,16 @@ let tips = (side, p) => Mold.tips(side, mold(p));
 
 let convexable = (side, p) => List.mem(Tip.Convex, tips(side, p));
 
-let is_grout = p =>
-  switch (p.shape) {
-  | G(_) => true
-  | T(_) => false
-  };
+// let is_strict = p =>
+//   switch (material(p)) {
+//   | Tile => true
+//   | Grout => false
+//   };
 
-let is_strict = p =>
-  switch (p.shape) {
-  | T(_) => true
-  | G(g) => Grout.has_sugg(g)
-  };
-
-let zipper = (p: t): Gram.Zipper.a(_) => {
-  let t =
-    switch (p.shape) {
-    | G(g) => g.sugg
-    | T(t) => t.token
-    };
-  (Tok(LangUtil.shape_of_token(t)), mold(p).frames);
-};
+let zipper = (p: t): Gram.Zipper.a(_) => (
+  Tok(LangUtil.shape_of_token(label(p))),
+  mold(p).frames,
+);
 
 // todo: fix hack, reorg gram zipper
 let zipper_const = ((a, frames): Gram.Zipper.a(_)) =>
@@ -95,29 +99,54 @@ let unzip = (path: Path.t, p: t): Either.t(Dir.t, (t, t)) => {
 
 let fst_set = _ => failwith("todo fst");
 
-let zips = (l: t, r: t): option(t) => {
+let zip = (l: t, r: t): option(t) => {
   open OptUtil.Syntax;
-  let+ shape =
+  let+ () = OptUtil.of_bool(Id.eq(l.id, r.id));
+  let shape =
     switch (l.shape, r.shape) {
     | (G(_), T(_))
-    | (T(_), G(_)) => None
-    | (G(g_l), G(g_r)) =>
-      let+ g = Grout.zip(g_l, g_r);
-      Shape.G(g);
-    | (T(t_l), T(t_r)) =>
-      let+ t = Tile.zip(t_l, t_r);
-      Shape.T(t);
+    | (T(_), G(_)) =>
+      failwith("unexpected: same-id pieces of different shapes")
+    | (G(l), G(r)) => Shape.G(Grout.zip(l, r))
+    | (T(l), T(r)) => Shape.T(Tile.zip(l, r))
     };
   let paths = l.paths @ List.map(Path.shift(length(l)), r.paths);
   mk(~paths, shape);
 };
+let zips = (l, r) => Option.is_some(zip(l, r));
 
-let replaces = (l: t, r: t): option(Dir.t) =>
+let replace = (l: t, r: t): option(t) => {
+  let replaced_l = add_paths(List.map(_ => 0, l.paths), r);
+  let replaced_r = add_paths(List.map(_ => length(l), r.paths), l);
   switch (l.shape, r.shape) {
-  | (G(_), _) when mold(l) == mold(r) => Some(L)
-  | (_, G(_)) when mold(l) == mold(r) => Some(R)
+  | (G(g), _)
+      when Grout.is_empty(g) && Tips.consistent(tips(L, l), tips(L, r)) =>
+    Some(replaced_l)
+  | (_, G(g))
+      when Grout.is_empty(g) && Tips.consistent(tips(R, l), tips(R, r)) =>
+    Some(replaced_r)
+  | (T(t), _) when !Tile.is_filled(t) && proto(l) == proto(r) =>
+    Some(replaced_l)
+  | (_, T(t)) when !Tile.is_filled(t) && proto(l) == proto(r) =>
+    Some(replaced_r)
   | _ => None
   };
+};
+
+let merge = (l: t, r: t): option(t) =>
+  switch (l.shape, r.shape) {
+  | (G(g_l), G(g_r)) =>
+    Grout.merge(g_l, g_r)
+    |> Option.map(of_grout(~id=l.id, ~paths=l.paths @ r.paths))
+  | _ => None
+  };
+
+let fuse = (l: t, r: t): option(t) => {
+  open OptUtil.Syntax;
+  let/ () = zip(l, r);
+  let/ () = replace(l, r);
+  merge(l, r);
+};
 
 let matches = (l: t, r: t): option(Complement.t) => {
   let mk_mold = frames => {...mold(l), frames};
@@ -125,14 +154,18 @@ let matches = (l: t, r: t): option(Complement.t) => {
     let moved = Gram.Zipper.move_to_tok(~skip_nullable=true, R, l);
     if (List.mem(r, moved)) {
       zipper_const(l)
-      |> Option.map(((t, frames)) => [(t, mk_mold(frames))]);
+      |> Option.map(((label, frames)) =>
+           [Proto.{label, mold: mk_mold(frames)}]
+         );
     } else {
       moved
       |> List.map(l => (l, go(l, r)))
       |> List.filter(((_, found_r)) => Option.is_some(found_r))
       |> List.filter_map(((l, found_r)) =>
            zipper_const(l)
-           |> Option.map(((t, frames)) => ((t, mk_mold(frames)), found_r))
+           |> Option.map(((label, frames)) =>
+                (Proto.{label, mold: mk_mold(frames)}, found_r)
+              )
          )
       |> ListUtil.hd_opt
       |> Option.map(((l, compl)) => [l, ...Option.get(compl)]);
@@ -146,9 +179,9 @@ let complement_beyond = (~side: Dir.t, p: t): Complement.t => {
     switch (Gram.Zipper.move_to_tok(~skip_nullable=true, side, z)) {
     // | [z, ..._] when Option.map(zipper, upto) == Some(z) => []
     // default to first alternative
-    | [(Tok(Const(t)), frames) as z, ..._] =>
-      let m = {...mold(p), frames};
-      [(t, m), ...go(z)];
+    | [(Tok(Const(label)), frames) as z, ..._] =>
+      let mold = {...mold(p), frames};
+      [Proto.{label, mold}, ...go(z)];
     | _ => []
     };
   go(zipper(p));
@@ -156,11 +189,11 @@ let complement_beyond = (~side: Dir.t, p: t): Complement.t => {
 
 let fst_mold = (cmpl: Complement.t, p: t) =>
   ListUtil.hd_opt(cmpl)
-  |> Option.map(snd)
+  |> Option.map(Proto.mold_)
   |> Option.value(~default=mold(p));
 let lst_mold = (p: t, cmpl: Complement.t) =>
   ListUtil.last_opt(cmpl)
-  |> Option.map(snd)
+  |> Option.map(Proto.mold_)
   |> Option.value(~default=mold(p));
 
 let lt = (l: t, r: t): option(Complement.t) => {

@@ -135,10 +135,10 @@ let assemble = (~sel=Ziggurat.empty, rel: t): t => {
   |> cons_slopes((pre_geq_sel, sel_leq_suf));
 };
 
-let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t) =>
-  switch (Lexeme.to_piece(lx)) {
-  | Error(s) => cons_space(~onto, s)
-  | Ok(p) => cons(~onto, Terrace.of_piece(p))
+let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t(_)) =>
+  switch (lx) {
+  | S(s) => cons_space(~onto, s)
+  | T(p) => cons(~onto, Terrace.of_piece(p))
   };
 let cons_opt_lexeme = (~onto: Dir.t, lx) =>
   switch (lx) {
@@ -146,51 +146,34 @@ let cons_opt_lexeme = (~onto: Dir.t, lx) =>
   | Some(lx) => cons_lexeme(~onto, lx)
   };
 
-let uncons = (~from_slopes, ~from_par, ~from: Dir.t, rel: t) =>
-  switch (from_slopes(~from, get_slopes(rel))) {
+let uncons_lexeme = (~char=false, ~from: Dir.t, rel) =>
+  switch (Slopes.uncons_lexeme(~char, ~from, get_slopes(rel))) {
   | Some((a, sib)) => Some((a, put_slopes(sib, rel)))
   | None =>
     open OptUtil.Syntax;
     let+ (sib, par, rel) = Chain.unlink(rel);
-    let (a, par) = from_par(~from, par);
+    let (a, par) = Bridge.uncons_lexeme(~char, ~from, par);
     let rel = rel |> cons_slopes(Slopes.cat(sib, par)) |> assemble;
     (a, rel);
   };
-let uncons_char =
-  uncons(~from_slopes=Slopes.uncons_char, ~from_par=Bridge.uncons_char);
-let uncons_lexeme =
-  uncons(~from_slopes=Slopes.uncons_lexeme, ~from_par=Bridge.uncons_lexeme);
-let uncons_opt_lexeme = (~from, rel) =>
+let uncons_opt_lexeme = (~char=false, ~from, rel) =>
   switch (uncons_lexeme(~from, rel)) {
   | None => (None, rel)
   | Some((l, rel)) => (Some(l), rel)
   };
-let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
+let uncons_opt_lexemes =
+    (~char=false, rel: t): ((option(Lexeme.t(Piece.t)) as 'l, 'l), t) => {
   let (l, rel) = uncons_opt_lexeme(~from=L, rel);
   let (r, rel) = uncons_opt_lexeme(~from=R, rel);
   ((l, r), rel);
 };
 
-let shift_char = (~from: Dir.t, rel) => {
-  let go = () => {
-    open OptUtil.Syntax;
-    let+ (c, rel) = uncons_char(~from, rel);
-    cons_lexeme(~onto=Dir.toggle(from), c, rel);
-  };
-  switch (from, uncons_opt_lexemes(rel)) {
-  | (L, ((Some(G(g)), r), rel)) =>
-    switch (r) {
-    | Some(G(g')) when g.id == g'.id => go()
-    | _ =>
-      let (l, r) = (g, {...g, fill: ""});
-      rel
-      |> cons_lexeme(~onto=L, G(l))
-      |> cons_lexeme(~onto=R, G(r))
-      |> Option.some;
-    }
-  | _ => go()
-  };
+let shift_char = (~from: Dir.t, rel: t) => {
+  open OptUtil.Syntax;
+  let+ (c, rel) = uncons_lexeme(~char=true, ~from, rel);
+  cons_lexeme(~onto=Dir.toggle(from), c, rel);
 };
+
 let rec shift_chars = (n, rel) =>
   if (n < 0) {
     shift_char(~from=L, rel) |> OptUtil.and_then(shift_chars(n + 1));
@@ -203,50 +186,53 @@ let rec shift_chars = (n, rel) =>
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
 // note the latter case always returns Some.
-let rec shift_lexeme =
-        (~until: option((Lexeme.t, t) => option(t))=?, ~from: Dir.t, rel: t)
-        : option(t) => {
-  let onto = Dir.toggle(from);
-  switch (until, uncons_lexeme(~from, rel)) {
-  | (None, None) => None
-  | (Some(_), None) => Some(rel)
-  | (None, Some((l, rel))) => Some(cons_lexeme(~onto, l, rel))
-  | (Some(f), Some((l, rel))) =>
-    switch (f(l, rel)) {
-    | Some(rel) => Some(rel)
-    | None => rel |> cons_lexeme(~onto, l) |> shift_lexeme(~from, ~until?)
+// let rec shift_lexeme =
+//         (~until: option((Lexeme.t, t) => option(t))=?, ~from: Dir.t, rel: t)
+//         : option(t) => {
+//   let onto = Dir.toggle(from);
+//   switch (until, uncons_lexeme(~from, rel)) {
+//   | (None, None) => None
+//   | (Some(_), None) => Some(rel)
+//   | (None, Some((l, rel))) => Some(cons_lexeme(~onto, l, rel))
+//   | (Some(f), Some((l, rel))) =>
+//     switch (f(l, rel)) {
+//     | Some(rel) => Some(rel)
+//     | None => rel |> cons_lexeme(~onto, l) |> shift_lexeme(~from, ~until?)
+//     }
+//   };
+// };
+
+let mold_lt = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
+  open Result.Syntax;
+  let (pre, _) = get_slopes(rel);
+  let/ kid = Slope.Dn.mold_lt(pre, ~kid?, t);
+  switch (Chain.unlink(rel)) {
+  | None => Error(kid)
+  | Some((_slopes, bridge, _)) => Bridge.mold_lt(~kid?, t, bridge)
+  };
+};
+let rec mold_eq =
+        (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
+  open Result.Syntax;
+  let (pre, _) = get_slopes(rel);
+  let/ kid = Slope.Dn.mold(pre, ~kid?, t);
+  switch (Chain.unlink(rel)) {
+  | None => Error(kid)
+  | Some((_slopes, bridge, rel)) =>
+    let/ kid = Bridge.mold_eq(~kid?, t, bridge);
+    mold_eq(~kid?, t, rel);
+  };
+};
+let mold__ = (t: Token.t, rel: t): Mold.t =>
+  switch (mold_eq(t, rel)) {
+  | Ok(m) => m
+  | Error(_) =>
+    switch (mold_lt(t, rel)) {
+    | Ok(m) => m
+    | Error(_) =>
+      Token.is_default_convex(t) ? Mold.default_operand : Mold.default_infix
     }
   };
-};
-
-let mold_ =
-    (~match, ~kid: option(Sort.o)=?, t: Token.t, rel: t)
-    : Result.t(Mold.t, option(Sort.o)) => {
-  let rec go = (~kid: option(Sort.o)=?, rel: t) => {
-    open Result.Syntax;
-    let (pre, _) = get_slopes(rel);
-    let/ kid = Slope.Dn.mold(~match, pre, ~kid?, t);
-    switch (Chain.unlink(rel)) {
-    | None =>
-      match
-        ? Error(kid)
-        : Result.of_option(
-            ~error=kid,
-            LangUtil.mold_of_token(kid, Sort.root_o, t),
-          )
-    | Some((_slopes, par, rel)) =>
-      // todo: review whether match flag should be propagated to bridge
-      let/ kid = Bridge.mold(~kid?, t, par);
-      match ? go(~kid?, rel) : Error(kid);
-    };
-  };
-  go(~kid?, rel);
-};
-let mold = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
-  open Result.Syntax;
-  let/ _ = mold_(~match=true, ~kid?, t, rel);
-  mold_(~match=false, ~kid?, t, rel);
-};
 
 let bounds = (rel: t): (option(Terrace.R.t), option(Terrace.L.t)) => {
   let bounds = Slopes.bounds(get_slopes(rel));
@@ -269,15 +255,21 @@ let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
     |> cons(~onto=L, Terrace.of_piece(p))
     |> insert_up(~complement, Slope.Up.of_meld(rest))
   | T(t) =>
-    switch (mold(t.token, rel)) {
-    | Ok(m) when m == t.mold =>
+    switch (mold(t.proto.label, rel)) {
+    | Ok(m) when m == t.proto.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
       cons(~onto=L, terr, rel)
     | m =>
       let t =
         switch (m) {
         | Error(_) => t
-        | Ok(mold) => {...t, mold}
+        | Ok(mold) => {
+            ...t,
+            proto: {
+              ...t.proto,
+              mold,
+            },
+          }
         };
       rel
       |> cons(~onto=L, Terrace.of_piece(Piece.of_tile(~paths=p.paths, t)))
@@ -288,8 +280,10 @@ let rec insert_terr = (~complement, terr: Terrace.L.t, rel: t): t => {
 and insert_complement = (rel: t) => {
   let (pre, _) = get_slopes(rel);
   Slope.Dn.complement(pre)
-  |> List.map(((tok, mol)) =>
-       Terrace.of_piece(Piece.of_grout(Grout.mk(~sugg=tok, mol)))
+  |> List.map(proto =>
+       Tile.mk(~unfilled=Proto.length(proto), proto)
+       |> Piece.of_tile
+       |> Terrace.of_piece
      )
   |> List.fold_left(Fun.flip(insert_terr(~complement=false)), rel);
 }
@@ -315,10 +309,10 @@ and insert_up = (~complement, up: Slope.Up.t, rel: t): t =>
        (rel, t) => insert_terr(~complement, t, rel),
      );
 
-let insert_lexeme = (~complement=false, lx: Lexeme.t, rel: t): t =>
-  switch (Lexeme.to_piece(lx)) {
-  | Error(s) => insert_space(~complement, s, rel)
-  | Ok(p) => insert_terr(~complement, Terrace.of_piece(p), rel)
+let insert_lexeme = (~complement=false, lx: Lexeme.t(Token.t), rel: t): t =>
+  switch (lx) {
+  | S(s) => insert_space(~complement, s, rel)
+  | T(t) => insert_terr(~complement, Terrace.of_piece(p), rel)
   };
 
 let regrout = rel => {

@@ -90,7 +90,7 @@ module Dn = {
       }
     };
   };
-  let unsnoc_lexeme = (~char=false, dn: t): option((t, Lexeme.t)) =>
+  let unsnoc_lexeme = (~char=false, dn: t): option((t, Lexeme.t(_))) =>
     switch (Space.unsnoc(~char, dn.space)) {
     | Some((space, s)) => Some(({...dn, space}, Lexeme.S(s)))
     | None =>
@@ -119,6 +119,23 @@ module Dn = {
       open Result.Syntax;
       let/ kid = Terrace.R.mold(terr, ~kid?, t);
       mold(~match, {...dn, terrs}, ~kid?, t);
+    };
+
+  let rec mold_lt = (dn: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+    switch (dn.terrs) {
+    | [] => Error(kid)
+    | [terr, ...terrs] =>
+      open Result.Syntax;
+      let/ kid = Terrace.R.mold_lt(terr, ~kid?, t);
+      mold_lt({...dn, terrs}, ~kid?, t);
+    };
+  let rec mold_eq = (dn: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+    switch (dn.terrs) {
+    | [] => Error(kid)
+    | [terr, ...terrs] =>
+      open Result.Syntax;
+      let/ kid = Terrace.R.mold_eq(terr, ~kid?, t);
+      mold_eq({...dn, terrs}, ~kid?, t);
     };
 
   let complement = dn => List.concat_map(Terrace.R.complement, dn.terrs);
@@ -187,7 +204,7 @@ module Up = {
       }
     };
   };
-  let uncons_lexeme = (~char=false, up: t): option((Lexeme.t, t)) =>
+  let uncons_lexeme = (~char=false, up: t): option((Lexeme.t(_), t)) =>
     switch (Space.uncons(~char, up.space)) {
     | Some((s, space)) => Some((Lexeme.S(s), {...up, space}))
     | None =>

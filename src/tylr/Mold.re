@@ -2,6 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = {
+  // todo: make non-optional
   sort: Sort.o,
   prec: Prec.t,
   [@opaque]
@@ -34,6 +35,17 @@ let mk_infix = (~l: option(Sort.o)=?, ~r: option(Sort.o)=?, sort, prec) => {
   let r = Option.value(r, ~default=sort);
   mk(~frames=[Seq_([Atom(Kid(l))], [Atom(Kid(r))])], sort, prec);
 };
+
+let of_tips = (l: Tip.t, s: Sort.o, r: Tip.t) =>
+  switch (l, r) {
+  | (Convex, Convex) => mk_operand(s)
+  | (Convex, Concave(r, p)) => mk_prefix(s, p, ~r)
+  | (Concave(l, p), Convex) => mk_postfix(~l, s, p)
+  | (Concave(l, p_l), Concave(r, p_r)) =>
+    let p_l = l == s ? p_l : Prec.max;
+    let p_r = r == s ? p_r : Prec.max;
+    mk_infix(~l, s, min(p_l, p_r), ~r);
+  };
 
 let default_operand = mk_operand(None);
 let default_infix = mk_infix(None, Prec.max_op);
