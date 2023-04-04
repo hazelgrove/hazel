@@ -13,6 +13,46 @@ let z_to_ci = (~ctx: Ctx.t, z: Zipper.t) => {
   Id.Map.find_opt(index, map);
 };
 
+let unk: Typ.t = Unknown(Internal);
+
+let leading_delim_tys: list((Token.t, Typ.t)) = [
+  ("case ", unk),
+  ("fun ", Arrow(unk, unk)),
+  ("if ", unk),
+  ("let ", unk),
+  ("test ", Prod([])),
+  ("type ", unk),
+];
+
+let infix_delim_tys: list((Token.t, Typ.t)) = [
+  (",", unk), //NOTE: current approach doesn't work for this, but irrelevant as 1-char
+  ("::", List(unk)),
+  (";", unk),
+  ("&&", Bool),
+  ("||", Bool),
+  ("$==", Bool),
+  ("==.", Bool),
+  ("==", Bool),
+  ("<", Bool),
+  (">", Bool),
+  ("<=", Bool),
+  (">=", Bool),
+  ("<.", Bool),
+  (">.", Bool),
+  ("<=.", Bool),
+  (">=.", Bool),
+  ("+", Int),
+  ("-", Int),
+  ("*", Int),
+  ("/", Int),
+  ("**", Int),
+  ("+.", Float),
+  ("-.", Float),
+  ("*.", Float),
+  ("/.", Float),
+  ("**.", Float),
+];
+
 let ctx_candidates = (ci: Info.t): list(string) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
@@ -45,10 +85,51 @@ let const_candidates = (ci: Info.t): list(string) =>
   | _ => []
   };
 
-let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
+let filter_by_type =
+    (
+      ctx: Ctx.t,
+      expected_ty: Typ.t,
+      self_tys: list((Token.t, Typ.t)),
+      delims: list(Token.t),
+    ) =>
+  List.filter(
+    delim => {
+      switch (List.assoc_opt(delim, self_tys)) {
+      | Some(self_ty) => Typ.join(ctx, expected_ty, self_ty) != None
+      | None => false
+      }
+    },
+    delims,
+  );
+
+let expanding_candidates = (ci: Info.t): list(string) => {
   let sort = Info.sort_of(ci);
-  backpack_candidate(sort, z)
-  @ Molds.leading_delims(sort)
+  let delims = Molds.delayed_leading_delims(sort);
+  switch (ci) {
+  | InfoExp({mode, ctx, _})
+  | InfoPat({mode, ctx, _}) =>
+    filter_by_type(ctx, Typ.of_mode(mode), leading_delim_tys, delims)
+  | InfoTyp(_) => delims
+  | _ => []
+  };
+};
+
+let infix_candidates = (ci: Info.t): list(string) => {
+  let sort = Info.sort_of(ci);
+  let delims = Molds.infix_delims(sort);
+  switch (ci) {
+  | InfoExp({mode, ctx, _})
+  | InfoPat({mode, ctx, _}) =>
+    filter_by_type(ctx, Typ.of_mode(mode), infix_delim_tys, delims)
+  | InfoTyp(_) => delims
+  | _ => []
+  };
+};
+
+let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
+  backpack_candidate(Info.sort_of(ci), z)
+  @ expanding_candidates(ci)
+  @ infix_candidates(ci)
   @ const_candidates(ci)
   @ ctx_candidates(ci);
 };

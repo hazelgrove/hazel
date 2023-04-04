@@ -114,55 +114,106 @@ let allow_append_left = (char: string, t: Token.t): bool =>
 let allow_insertion = (char: string, t: Token.t, new_t: Token.t): bool =>
   Form.is_valid_token(new_t) || !Form.is_valid_token(t) && append_safe(char);
 
-let non_leading_delims: list(Token.t) =
-  List.fold_left(
-    (acc, (_, {label, _}: Form.t)) => {
-      switch (label) {
-      | [_, ...tl] => acc @ tl
-      | _ => acc
-      }
-    },
-    [],
-    Form.forms,
-  );
-
-let leading_delims = (sort: Sort.t): list(string) => {
-  // TODO(andrew): cleanup. seperate infix delims from leading
+let delayed_leading_delims = (sort: Sort.t): list(Token.t) =>
   Form.delims
-  |> List.filter_map(token => {
+  |> List.map(token => {
        let (lbl, _) = delayed_expansion(token);
-       switch (get(lbl)) {
-       | [a] when List.mem(token, non_leading_delims) && a.out != Any =>
-         // Case for delims lile "->" which are both infix and non-leading kws
-         Some(lbl)
-       | _ when List.mem(token, non_leading_delims) => None
-       | [a] when a.out == Any => None
-       | molds =>
-         Some(
-           List.filter_map(
-             (m: Mold.t) =>
-               //TODO(andrew): below is hack see TyDi.complete_criteria
-               m.out == sort
-                 ? Some(List.length(lbl) > 1 ? token ++ " " : token) : None,
-             molds,
-           ),
-         )
-       };
+       List.filter_map(
+         (m: Mold.t) =>
+           List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
+             ? Some(token ++ " ") : None,
+         get(lbl),
+       );
      })
-  |> List.flatten;
-};
-
-let lead_delims_exp = leading_delims(Exp);
-let lead_delims_pat = leading_delims(Pat);
-let lead_delims_typ = leading_delims(Typ);
-
-let leading_delims = (sort: Sort.t): list(string) =>
+  |> List.flatten
+  |> List.sort_uniq(compare);
+let delated_leading_delims_exp = delayed_leading_delims(Exp);
+let delated_leading_delims_pat = delayed_leading_delims(Pat);
+let delated_leading_delims_typ = delayed_leading_delims(Typ);
+let delayed_leading_delims = (sort: Sort.t): list(string) =>
   switch (sort) {
-  | Exp => lead_delims_exp
-  | Pat => lead_delims_pat
-  | Typ => lead_delims_typ
-  | TPat
-  | Nul
-  | Any
-  | Rul => []
+  | Exp => delated_leading_delims_exp
+  | Pat => delated_leading_delims_pat
+  | Typ => delated_leading_delims_typ
+  | _ => []
   };
+
+let infix_delims = (sort: Sort.t): list(Token.t) =>
+  Form.delims
+  |> List.map(token => {
+       List.filter_map(
+         (m: Mold.t) =>
+           m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
+         get([token]),
+       )
+     })
+  |> List.flatten
+  |> List.sort_uniq(compare);
+let infix_delims_exp = infix_delims(Exp);
+let infix_delims_pat = infix_delims(Pat);
+let infix_delims_typ = infix_delims(Typ);
+let infix_delims = (sort: Sort.t): list(string) =>
+  switch (sort) {
+  | Exp => infix_delims_exp
+  | Pat => infix_delims_pat
+  | Typ => infix_delims_typ
+  | _ => []
+  };
+print_endline("infix_delims_exp: " ++ String.concat(", ", infix_delims_exp));
+print_endline("infix_delims_pat: " ++ String.concat(", ", infix_delims_pat));
+print_endline("infix_delims_typ: " ++ String.concat(", ", infix_delims_typ));
+
+//TODO(andrew): cleanup
+/*
+ let non_leading_delims: list(Token.t) =
+   List.fold_left(
+     (acc, (_, {label, _}: Form.t)) => {
+       switch (label) {
+       | [_, ...tl] => acc @ tl
+       | _ => acc
+       }
+     },
+     [],
+     Form.forms,
+   );
+ let leading_delims = (sort: Sort.t): list(Token.t) => {
+   // TODO(andrew): cleanup. seperate infix delims from leading
+   Form.delims
+   |> List.filter_map(token => {
+        let (lbl, _) = delayed_expansion(token);
+        switch (get(lbl)) {
+        | [a] when List.mem(token, non_leading_delims) && a.out != Any =>
+          // Case for delims lile "->" which are both infix and non-leading kws
+          Some(lbl)
+        | _ when List.mem(token, non_leading_delims) => None
+        | [a] when a.out == Any => None
+        | molds =>
+          Some(
+            List.filter_map(
+              (m: Mold.t) =>
+                //TODO(andrew): below is hack see TyDi.complete_criteria
+                m.out == sort
+                  ? Some(List.length(lbl) > 1 ? token ++ " " : token) : None,
+              molds,
+            ),
+          )
+        };
+      })
+   |> List.flatten;
+ };
+
+ let lead_delims_exp = leading_delims(Exp);
+ let lead_delims_pat = leading_delims(Pat);
+ let lead_delims_typ = leading_delims(Typ);
+
+ let leading_delims = (sort: Sort.t): list(string) =>
+   switch (sort) {
+   | Exp => lead_delims_exp
+   | Pat => lead_delims_pat
+   | Typ => lead_delims_typ
+   | TPat
+   | Nul
+   | Any
+   | Rul => []
+   };
+ */
