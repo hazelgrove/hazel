@@ -390,7 +390,7 @@ let apply =
       Ok(model)
     | UpdateExplainThisMessages(u) =>
       let explainThisMessages =
-        ExplainThisMessages.set_update(model.explainThisMessages, u);
+        ExplainThisUpdate.set_update(model.explainThisMessages, u);
       //LocalStorage.ExplainThisMessages.save(explainThisMessages);
       Ok({...model, explainThisMessages});
     | UpdateResult(key, res) =>

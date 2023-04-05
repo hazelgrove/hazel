@@ -1,6 +1,6 @@
 open Haz3lcore;
 open ExplainThisForm;
-open ExampleUtil;
+open Example;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type function_group = {

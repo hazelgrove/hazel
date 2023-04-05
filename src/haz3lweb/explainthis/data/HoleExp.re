@@ -1,5 +1,5 @@
 open ExplainThisForm;
-open ExampleUtil;
+open Example;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type empty_hole_exp_group = {

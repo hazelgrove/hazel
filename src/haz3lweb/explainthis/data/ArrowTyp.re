@@ -1,5 +1,5 @@
 /*open Haz3lcore;
-  open ExampleUtil;
+  open Example;
   open ExplainThisForm;
 
   let arrow_typ_group = "arrow_typ_group";
