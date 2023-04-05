@@ -298,7 +298,7 @@ let deco =
                           Attr.on_click(_ =>
                             inject(
                               Update.UpdateExplainThisMessages(
-                                ExplainThisMessages.UpdateGroupSelection(
+                                ExplainThisUpdate.UpdateGroupSelection(
                                   group_id,
                                   id,
                                 ),
@@ -337,7 +337,7 @@ let deco =
                   Attr.on_click(_ => {
                     inject(
                       Update.UpdateExplainThisMessages(
-                        ExplainThisMessages.SpecificityOpen(
+                        ExplainThisUpdate.SpecificityOpen(
                           !doc.specificity_open,
                         ),
                       ),
@@ -2179,7 +2179,7 @@ let view =
               toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
                 inject(
                   Update.UpdateExplainThisMessages(
-                    ExplainThisMessages.ToggleHighlight,
+                    ExplainThisUpdate.ToggleHighlight,
                   ),
                 )
               ),
@@ -2190,7 +2190,7 @@ let view =
                     Attr.on_click(_ =>
                       inject(
                         Update.UpdateExplainThisMessages(
-                          ExplainThisMessages.ToggleShow,
+                          ExplainThisUpdate.ToggleShow,
                         ),
                       )
                     ),
