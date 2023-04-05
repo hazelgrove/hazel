@@ -62,7 +62,12 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
     switch (get_roc_term(tl)) {
     | ListLit([]) => ListLit([get_roc_term(hd)])
     | ListLit(l) => ListLit(List.append([get_roc_term(hd)], l))
-    | _ => Bool(false)
+    | _ =>
+      SeqNoBreak([
+        Var("List.concat"),
+        ListLit([get_roc_term(hd)]),
+        Parens(get_roc_term(tl)),
+      ])
     }
   | UnOp(op_un, v) => UnOp(get_roc_op_un(op_un), get_roc_term(v))
   | BinOp(op_bin, v1, v2) =>
@@ -96,46 +101,59 @@ and get_roc_list_match =
         ]
       | (true, var, count) =>
         let seqlist: ref(list(TermRoc.UExp.t)) = ref([]);
-        seqlist :=
-          List.append(
-            seqlist^,
-            [
-              Assign(
-                Var(var ++ "0"),
-                SeqNoBreak([Var("List.dropAt"), scrut, Var("0")]),
-              ),
-            ],
-          );
-        for (i in 1 to count - 2) {
+        if (count > 1) {
           seqlist :=
             List.append(
               seqlist^,
               [
                 Assign(
-                  Var(var ++ string_of_int(i)),
+                  Var(var ++ "0"),
+                  SeqNoBreak([Var("List.dropAt"), scrut, Var("0")]),
+                ),
+              ],
+            );
+          for (i in 1 to count - 2) {
+            seqlist :=
+              List.append(
+                seqlist^,
+                [
+                  Assign(
+                    Var(var ++ string_of_int(i)),
+                    SeqNoBreak([
+                      Var("List.dropAt"),
+                      Var(var ++ string_of_int(i - 1)),
+                      Var(string_of_int(i)),
+                    ]),
+                  ),
+                ],
+              );
+          };
+          seqlist :=
+            List.append(
+              seqlist^,
+              [
+                Assign(
+                  Var(var),
                   SeqNoBreak([
                     Var("List.dropAt"),
-                    Var(var ++ string_of_int(i - 1)),
-                    Var(string_of_int(i)),
+                    Var(var ++ string_of_int(count - 2)),
+                    Var(string_of_int(count - 1)),
                   ]),
                 ),
               ],
             );
+        } else {
+          seqlist :=
+            List.append(
+              seqlist^,
+              [
+                Assign(
+                  Var(var),
+                  SeqNoBreak([Var("List.dropAt"), scrut, Var("0")]),
+                ),
+              ],
+            );
         };
-        seqlist :=
-          List.append(
-            seqlist^,
-            [
-              Assign(
-                Var(var),
-                SeqNoBreak([
-                  Var("List.dropAt"),
-                  Var(var ++ string_of_int(count - 2)),
-                  Var(string_of_int(count - 1)),
-                ]),
-              ),
-            ],
-          );
         [
           (
             get_roc_pat_term(p),

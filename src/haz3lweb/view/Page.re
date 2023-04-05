@@ -197,6 +197,7 @@ let main_ui_view =
     let top_bar_view = top_bar_view(~inject, ~toolbar_buttons, model);
     let result_key = ScratchSlide.scratch_key;
     let editor = Editors.get_editor(editors);
+
     let result =
       settings.dynamics
         ? ModelResult.get_simple(ModelResults.lookup(results, result_key))

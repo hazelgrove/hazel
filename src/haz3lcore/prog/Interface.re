@@ -12,10 +12,11 @@ let elaborate = (map, term): DHExp.t =>
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
 let evaluate =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    Evaluator.evaluate(Environment.empty),
-  );
+  Core.Memo.general(~cache_size_bound=1000, d => {
+    Util.TimeUtil.measure_time("normal compiler", true, () =>
+      Evaluator.evaluate(Environment.empty, d)
+    )
+  });
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
 //     es
