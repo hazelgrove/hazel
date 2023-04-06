@@ -111,11 +111,14 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
           // can modulate with directional arg
           : (
             switch (d) {
+            //TODO(andrew): dunno if below directions ~d are right
             | Left =>
-              let+ trim = add_grout(s_r, trim_r);
+              print_endline("add_grout called in Relatives.regrout: Left");
+              let+ trim = add_grout(~d=Right, s_r, trim_r);
               (seg_l, to_seg(trim));
             | Right =>
-              let+ trim = add_grout(s_l, trim_l);
+              print_endline("add_grout called in Relatives.regrout: Right");
+              let+ trim = add_grout(~d=Left, s_l, trim_l);
               (to_seg(trim), seg_r);
             }
           )

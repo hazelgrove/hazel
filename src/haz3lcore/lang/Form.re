@@ -267,7 +267,7 @@ let forms: list((string, t)) = [
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
-  // ("ap_exp_triv", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
+  //("ap_exp_triv", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   // ("ap_pat_triv", mk(ii, ["()"], mk_post(P.ap, Pat, []))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
