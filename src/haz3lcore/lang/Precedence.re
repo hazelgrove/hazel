@@ -25,12 +25,13 @@ let fun_ = 13;
 let prod = 14;
 let semi = 15;
 let let_ = 16;
-let rule_arr = 17;
-let rule_pre = 18;
-let rule_sep = 19;
-let case_ = 20;
+let filter = 17;
+let rule_arr = 18;
+let rule_pre = 19;
+let rule_sep = 20;
+let case_ = 21;
 
-let min = 21;
+let min = 22;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

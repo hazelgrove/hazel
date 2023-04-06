@@ -355,6 +355,7 @@ module UExp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | Filter(_) => Filter
     | Parens(_) => Parens
     | Cons(_) => Cons
     | UnOp(op, _) => UnOp(op)
@@ -431,6 +432,7 @@ module UExp = {
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
+    | Filter => "Filter"
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
     | BinOp(op) => show_binop(op)
@@ -457,6 +459,7 @@ module UExp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | Filter(_)
     | Cons(_)
     | UnOp(_)
     | BinOp(_)
@@ -487,6 +490,7 @@ module UExp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | Filter(_)
       | Cons(_)
       | UnOp(_)
       | BinOp(_)

@@ -394,6 +394,14 @@ and uexp_to_info_map =
   | Test(test) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
     add(~self=Just(Prod([])), ~free=free_test, m1);
+  | Filter(_, cond, body) =>
+    let (_, free_cond, m_cond) = go(~mode, cond);
+    let (ty_body, free_body, m_body) = go(~mode, body);
+    add(
+      ~self=Just(ty_body),
+      ~free=Ctx.union([free_cond, free_body]),
+      union_m([m_cond, m_body]),
+    );
   | If(cond, e1, e2) =>
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);

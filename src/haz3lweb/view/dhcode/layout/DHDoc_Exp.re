@@ -58,7 +58,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
-  | Closure(_) => DHDoc_common.precedence_const
+  | Closure(_)
+  | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -213,6 +214,8 @@ let rec mk =
         | _ => fdoc(~enforce_inline, ~d=d')
         // DHDoc_common.mk_StringLit("Help:PostprocessedNonHoleInClosure")
         }
+
+      | Filter(_, d') => fdoc(~enforce_inline, ~d=d')
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */

@@ -14,12 +14,15 @@ type t = M.t(ModelResult.t);
 
 let init = (~step=false, ds: list((Key.t, DHExp.t))): t => {
   ds
-  |> List.map(((key, d)) =>
-       (
-         key,
-         ModelResult.init(step ? Interface.nop(d) : Interface.evaluate(d)),
-       )
-     )
+  |> List.map(((key, d)) => {
+       let result =
+         if (step) {
+           Interface.step(EvaluatorStep.EvalObj.init(d));
+         } else {
+           Interface.evaluate(d);
+         };
+       (key, ModelResult.init(result));
+     })
   |> List.to_seq
   |> of_seq;
 };
