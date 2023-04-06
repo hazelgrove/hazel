@@ -121,29 +121,10 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   | d => d
   };
 
-//TODO(andrew): cleanup, doc
-let fit_of = (~p, ~sort, (l, r): t): Nibs.t => {
-  let (l, r) = (
-    Segment.trim_secondary(Right, l),
-    Segment.trim_secondary(Left, r),
-  );
-  let l =
-    switch (ListUtil.last_opt(l)) {
-    | None
-    | Some(Secondary(_)) => Nib.{shape: Convex, sort}
-    | Some(Tile({mold: {nibs: (_, r_nib), _}, _})) => Nib.flip(~p, r_nib)
-    | Some(Grout({shape: Convex, _})) => Nib.{shape: Concave(p), sort}
-    | Some(Grout({shape: Concave, _})) => Nib.{shape: Convex, sort}
-    };
-  let r =
-    switch (ListUtil.hd_opt(r)) {
-    | None
-    | Some(Secondary(_)) => Nib.{shape: Convex, sort}
-    | Some(Tile({mold: {nibs: (l_nib, _), _}, _})) => Nib.flip(~p, l_nib)
-    | Some(Grout({shape: Convex, _})) => Nib.{shape: Concave(p), sort}
-    | Some(Grout({shape: Concave, _})) => Nib.{shape: Convex, sort}
-    };
-  (l, r);
-};
+let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
+  switch (direction_between(sibs)) {
+  | Some(d) => Mold.chevron(sort, p, d)
+  | None => Mold.mk_op(sort, [])
+  };
 
 let sorted_children = TupleUtil.map2(Segment.sorted_children);

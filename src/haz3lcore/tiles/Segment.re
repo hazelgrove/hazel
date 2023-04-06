@@ -544,8 +544,8 @@ module Trim = {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
       | [] =>
-        print_endline("add_grout called in Trim.regrout");
-        add_grout(~d, l, merged);
+        //print_endline("add_grout called in Trim.regrout");
+        add_grout(~d, l, merged)
       | [_, ..._] => IdGen.return(merged)
       };
     };

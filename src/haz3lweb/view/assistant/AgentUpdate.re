@@ -106,7 +106,6 @@ let apply =
       | None => Ok(model) /*TODO(andrew): shouldnt happen
       if we assume that we prevalidate everything we put
       in the amorphous buffer*/
-
       | Some(completion) =>
         //print_endline("accept suggestion: smart complete");
         main(model, Paste(completion), state, ~schedule_action)
