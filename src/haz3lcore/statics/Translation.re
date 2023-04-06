@@ -1,9 +1,9 @@
 let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
   switch (t.term) {
-  // | Invalid(parse_flag)
-  // | EmptyHole
-  // | MultiHole(list(Any.t))
-  // | Tag(s) => Tag(s)
+  | Invalid(_) => String("Invalid Not implemented")
+  | EmptyHole => String("EmptyHole Not implemented")
+  | MultiHole(_) => String("MultiHole Not implemented")
+  | Tag(_) => String("Tag Not implemented")
   | Triv => Record([])
   | Bool(b) => Bool(b)
   | Int(n) => Int(n)
@@ -52,6 +52,7 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
   | Ap(fn, v) => Ap(get_roc_term(fn), get_roc_term(v))
   | If(cond, if_true, if_false) =>
     If(get_roc_term(cond), get_roc_term(if_true), get_roc_term(if_false))
+  | Seq(_, t2) => get_roc_term(t2)
   | Test(t) => Expect(get_roc_term(t))
   | Parens(t) =>
     switch (t.term) {
@@ -75,7 +76,6 @@ let rec get_roc_term = (t: TermBase.UExp.t): TermRoc.UExp.t =>
   | Match(t, l) =>
     let scrut = get_roc_term(t);
     Match(scrut, get_roc_list_match(l, scrut));
-  | _ => String("Not implemented")
   }
 
 and get_roc_list = (list: list(TermBase.UExp.t)) =>
@@ -87,10 +87,6 @@ and get_roc_list_match =
     (list: list((TermBase.UPat.t, TermBase.UExp.t)), scrut: TermRoc.UExp.t) =>
   switch (list) {
   | [] => []
-  // | [(p, t), ...xs] => [
-  //     (get_roc_pat_term(p), get_roc_term(t)),
-  //     ...get_roc_list_match(xs),
-  //   ]
   | [(p, t), ...xs] =>
     switch (p.term) {
     | Cons(_, tl) =>
@@ -222,11 +218,15 @@ and get_roc_type = (t: TermBase.UTyp.t): TermRoc.UTyp.t =>
   | Float => Float
   | Bool => Bool
   | String => String
-  | List(t) => List(get_roc_type(t))
+  | List(t2) => List(get_roc_type(t2))
   | Var(s) => Var(get_camel_case(s))
   | Arrow(t1, t2) => Arrow(get_roc_type(t1), get_roc_type(t2))
   | Tuple(l) => Record(get_roc_list_type(l))
-  | Parens(t) => Parens(get_roc_type(t))
+  | Parens(t2) =>
+    switch (t2.term) {
+    | Tuple(_) => get_roc_type(t2)
+    | _ => Parens(get_roc_type(t2))
+    }
   | _ => Var("Not_implemented")
   }
 and get_roc_list_type = (list: list(TermBase.UTyp.t)) =>
