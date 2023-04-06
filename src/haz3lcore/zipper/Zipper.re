@@ -135,46 +135,18 @@ let remold = (z: t): t => {
 let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
   z |> remold |> regrout(d);
 
-//TODO(andrew): hack by having this here
-// right now need to distinguish ignore selection behavior
-// in basiccomplete versus smartcomplete cases
-//because former is shape-amorphous but latter isnt,
-// leading to nonconcex segments in latter case
-/* Criteria: selection is buffer and a single monotile with the caret on the left,
-   and the left sibling ends in a monotile, such that appending the two would result
-   in a valid token */
-let complete_criteria = (z: t) =>
-  switch (
-    z.selection.focus,
-    z.selection.mode,
-    z.selection.content,
-    z.relatives.siblings |> fst |> List.rev,
-    z.relatives.siblings |> snd,
-  ) {
-  | (
-      Left,
-      Buffer(_), //TODO(andrew): can improve now that records buffer mode
-      [Tile({label: [completion], _})],
-      [Tile({label: [tok_to_left], _}), ..._],
-      _,
-    )
-      when
-        Form.is_valid_token(tok_to_left ++ completion)
-        || String.sub(completion, String.length(completion) - 1, 1) == "("
-        || String.sub(completion, String.length(completion) - 1, 1) == " " =>
-    //TODO(andrew): second clause is hack see Ctx.re filtered_entries
-    //TODO(andrew): third clause is also hack see Molds.re leading_delims
-    Some(completion)
-  | _ => None
-  };
-
 let unselect = (~ignore_selection=false, z: t): t => {
-  //TODO(andrew): document selection clearing
+  /*TODO(andrew): document selection clearing. Right now
+    we're only doing it for amorphous buffer; solid buffer is a bit more complicated
+    as we can't just empty the selection without regrouting. */
   let z =
-    z.selection.mode != Normal
-    && ignore_selection
-    && complete_criteria(z) != None
-      ? {...z, selection: Selection.empty} : z;
+    switch (z.selection.mode) {
+    | Buffer(Amorphous) when ignore_selection => {
+        ...z,
+        selection: Selection.empty,
+      }
+    | _ => z
+    };
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)

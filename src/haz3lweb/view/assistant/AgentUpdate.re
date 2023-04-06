@@ -96,13 +96,21 @@ let apply =
       Ok({...model, editors});
     };
   | AcceptSuggestion =>
-    switch (Zipper.complete_criteria(z)) {
-    | None =>
+    switch (z.selection.mode) {
+    | Normal => Ok(model)
+    | Buffer(Solid) =>
       //print_endline("accept suggestion: basic complete");
       perform_action(model, Unselect(Some(Right)))
-    | Some(new_tok) =>
-      //print_endline("accept suggestion: smart complete");
-      main(model, Paste(new_tok), state, ~schedule_action)
+    | Buffer(Amorphous) =>
+      switch (TyDi.get_amorphous_buffer_text(z)) {
+      | None => Ok(model) /*TODO(andrew): shouldnt happen
+      if we assume that we prevalidate everything we put
+      in the amorphous buffer*/
+
+      | Some(completion) =>
+        //print_endline("accept suggestion: smart complete");
+        main(model, Paste(completion), state, ~schedule_action)
+      }
     }
   | SetBuffer(response) =>
     // print_endline("paste into selection: " ++ str);

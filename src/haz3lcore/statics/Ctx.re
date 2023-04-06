@@ -117,13 +117,22 @@ let filtered_entries = (~return_ty=false, ty: Typ.t, ctx: t): list(string) =>
   /* get names of all var and tag entries consistent with ty */
   List.filter_map(
     fun
-    | VarEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
-    | TagEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
+    | VarEntry({typ: Arrow(_ty_in, ty_out) as ty_arr, name, _})
+    | TagEntry({typ: Arrow(_ty_in, ty_out) as ty_arr, name, _})
         when
           return_ty
           && Typ.join(ctx, ty, ty_out) != None
-          && Typ.join(ctx, ty, ty_arr) == None =>
-      Some(name ++ "(") // TODO(andrew): this is a hack
+          && Typ.join(ctx, ty, ty_arr) == None => {
+        /*let pre =
+          switch (ty_in) {
+          | Prod(ts) =>
+            String.concat("", List.init(List.length(ts) - 1, _ => ","))
+          | _ => ""
+          };*/
+        Some(
+          name ++ "(" /*++ pre*/,
+        );
+      } // TODO(andrew): this is a hack
     | VarEntry({typ, name, _})
     | TagEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
       Some(name)

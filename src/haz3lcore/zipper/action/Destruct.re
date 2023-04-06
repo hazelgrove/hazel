@@ -113,7 +113,9 @@ let parent_duomerges = (z: Zipper.t) => {
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
   //let (z, id_gen) = Zipper.regrout(Right, z, id_gen);
-  let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
+  //let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
+  //let z_trimmed = update_siblings(Siblings.trim_grout, z);
+  let z_trimmed = z;
   switch (
     parent_duomerges(z),
     z.caret,

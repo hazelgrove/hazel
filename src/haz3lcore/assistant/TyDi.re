@@ -39,6 +39,42 @@ let leading_delim_tys: list((Token.t, Typ.t)) = [
   ("type ", unk),
 ];
 
+/*
+   idea: if there are ~ no current suggestions, and there's a type error(?),
+   suggest a following infix to address it, e.g. on "let a:Float = fst(1.0|"
+   suggest comma, or on "let b:Bool = 1|" suggest <, >, <=, >=, ==, !=, etc.
+
+  idea: maybe more likely to use case/if if you have unused variables
+
+  IDEA: add a keybinding to reveal suggestion, even where one might not otherwise show?
+     could use this to give prefix suggestions e.g... actually, do we want this...
+
+  how to decide if a literal is likely vs variable vs computation
+
+  heuristic: dual-informed:
+  in app funpos: favor input ty consistent with arg
+  in case scrut, favor pattern ty (or tys if incosistent?)
+  in pat ann typpos: favor patann expected type
+
+  heuristic: if type inconsistent, and no suggestions otherwise,
+  suggest inserting infix after that would make it consistent
+
+  heuristic: deprioritize fns returning unknown & variables of type unknown
+
+  2-multihole: pretend it's an ap?
+     choose funpos based on parent expect and other branch
+     (if to non-prefix, A><B| choose arg similarly, but wrap it in parens A><(B|) )
+
+  A|><B
+  2-multihole, alternate: pretend its another binop
+     get self tys of both branches, filter based on Statics.typ_exp_binop
+
+ 2-multihole, alternate alternate: suggest applicable bp drop if possible
+
+  stylistic: in funpos: suggest only vars/tags/aps-producing-arrows
+
+  */
+
 let infix_delim_tys: list((Token.t, Typ.t)) = [
   (",", unk), //NOTE: current approach doesn't work for this, but irrelevant as 1-char
   ("::", List(unk)),
@@ -136,6 +172,12 @@ let mk_pseudotile =
   (id_gen, {id, label: [t], shards: [0], children: [], mold});
 };
 
+let get_amorphous_buffer_text = (z: Zipper.t) =>
+  switch (z.selection.content) {
+  | [Tile({label: [completion], _})] => Some(completion)
+  | _ => None
+  };
+
 let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
   let candidate_suffix =
     String.sub(
@@ -151,6 +193,7 @@ let set_buffer =
   let* tok_to_left = left_of_mono(z);
   let* ci = z_to_ci(~ctx, z);
   let candidates = candidates(ci, z);
+  print_endline("CANDIDATES:" ++ String.concat(", ", candidates));
   //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
   // a filtered candidate is a prefix match with at least one more char
   //TODO(andrew): need to escape tok_to_left, e.g. dots....
