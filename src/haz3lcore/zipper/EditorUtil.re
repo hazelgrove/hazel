@@ -85,6 +85,9 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Seq(e11, e12) =>
     let (id, e12') = append_exp(id, e12, e2);
     (id, TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')});
+  | Filter(act, econd, ebody) =>
+    let (id, ebody') = append_exp(id, ebody, e2);
+    (id, TermBase.UExp.{ids: e1.ids, term: Filter(act, econd, ebody')});
   | Let(p, edef, ebody) =>
     let (id, ebody') = append_exp(id, ebody, e2);
     (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});

@@ -113,6 +113,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       /* DHExp-specific forms: Don't cast */
       | Cast(_)
       | Closure(_)
+      | Filter(_)
       | FailedCast(_)
       | InvalidOperation(_) => Some(d)
       /* Normal cases: wrap */
@@ -211,6 +212,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);
+      | Filter(act, cond, body) =>
+        let* dcond = dhexp_of_uexp(m, cond);
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Filter([(dcond, act)], dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(Free(Variable)) => Some(FreeVar(id, 0, name))

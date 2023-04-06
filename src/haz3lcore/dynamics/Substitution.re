@@ -14,6 +14,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
+  | Filter(fs, dbody) =>
+    let fs = fs |> List.map(((f, act)) => (subst_var(d1, x, f), act));
+    let dbody = subst_var(d1, x, dbody);
+    Filter(fs, dbody);
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =

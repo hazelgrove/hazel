@@ -1946,6 +1946,23 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
+      | Filter(_, _, body) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.test_group,
+            docs,
+          );
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.test_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            body_id,
+          ),
+          LangDocMessages.test_exp_coloring_ids(~body_id),
+        );
       | Test(body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(

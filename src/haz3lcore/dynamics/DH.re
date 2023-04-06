@@ -55,6 +55,7 @@ module rec DHExp: {
     | Closure(ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
+    | Filter(list((t, TermBase.UExp.filter_action)), t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -154,6 +155,7 @@ module rec DHExp: {
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
+    | Filter(list((t, TermBase.UExp.filter_action)), t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -192,6 +194,7 @@ module rec DHExp: {
     | InvalidText(_) => "InvalidText"
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
+    | Filter(_, _) => "Filter"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
@@ -229,6 +232,7 @@ module rec DHExp: {
     | InvalidText(_) => "InvalidText"
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
+    | Filter(_, _) => "Filter"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
@@ -286,6 +290,8 @@ module rec DHExp: {
       ListLit(a, b, c, d, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
+    | Filter(fs, b) =>
+      Filter(List.map(((f, act)) => (strip_casts(f), act), fs), b)
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
@@ -336,6 +342,14 @@ module rec DHExp: {
     /* Non-hole forms: recurse */
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Filter(fs1, d1), Filter(fs2, d2)) =>
+      List.fold_left2(
+        (res, (f1, act1), (f2, act2)) =>
+          res && act1 == act2 && fast_equal(f1, f2),
+        fast_equal(d1, d2),
+        fs1,
+        fs2,
+      )
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
@@ -373,6 +387,7 @@ module rec DHExp: {
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)
+    | (Filter(_), _)
     | (Let(_), _)
     | (FixF(_), _)
     | (Fun(_), _)

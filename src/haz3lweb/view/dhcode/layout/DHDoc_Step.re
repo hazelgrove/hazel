@@ -58,7 +58,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
-  | Closure(_) => DHDoc_common.precedence_const
+  | Closure(_)
+  | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -238,6 +239,11 @@ let rec mk =
          the time the result is partial evaluated and those conditions
          cannot be met. */
       | Closure(_, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
+
+      | Filter(_, d') => go'(d', unwrap(objs, Filter)) |> mk_cast
+
+      /* Hole expressions must appear within a closure in
+         the postprocessed result */
       | EmptyHole(u, i) =>
         let selected =
           switch (selected_hole_instance) {
@@ -484,21 +490,23 @@ let rec mk =
         }
       };
     };
-    let doc = {
+    let parenthesize = doc =>
+      if (parenthesize) {
+        hcats([
+          DHDoc_common.Delim.open_Parenthesized,
+          doc |> DHDoc_common.pad_child(~enforce_inline),
+          DHDoc_common.Delim.close_Parenthesized,
+        ]);
+      } else {
+        doc(~enforce_inline);
+      };
+    let doc = (~enforce_inline) =>
       switch (steppable) {
       | Some((_, full)) =>
-        annot(DHAnnot.Steppable(full), fdoc(~enforce_inline, d, []))
-      | None =>
-        parenthesize
-          ? hcats([
-              DHDoc_common.Delim.open_Parenthesized,
-              fdoc(d, objs) |> DHDoc_common.pad_child(~enforce_inline),
-              DHDoc_common.Delim.close_Parenthesized,
-            ])
-          : fdoc(~enforce_inline, d, objs)
+        fdoc(~enforce_inline, d, []) |> annot(DHAnnot.Steppable(full))
+      | None => fdoc(~enforce_inline, d, objs)
       };
-    };
-    (doc, cast);
+    (parenthesize(doc), cast);
   };
   // annot(DHAnnot.Steppable(List.hd(objs)), fdoc(~enforce_inline));
   let objs =

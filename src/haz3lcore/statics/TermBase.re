@@ -85,6 +85,11 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type filter_action =
+    | Step
+    | Eval;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -104,6 +109,7 @@ and UExp: {
     | If
     | Seq
     | Test
+    | Filter
     | Parens
     | Cons
     | UnOp(op_un)
@@ -131,6 +137,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Filter(filter_action, t, t)
     | Parens(t) // (
     | Cons(t, t)
     | UnOp(op_un, t)
@@ -193,6 +200,11 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type filter_action =
+    | Step
+    | Eval;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -212,6 +224,7 @@ and UExp: {
     | If
     | Seq
     | Test
+    | Filter
     | Parens
     | Cons
     | UnOp(op_un)
@@ -239,6 +252,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Filter(filter_action, t, t)
     | Parens(t) // (
     | Cons(t, t)
     | UnOp(op_un, t)
