@@ -508,10 +508,17 @@ let rec mk =
       };
     (parenthesize(doc), cast);
   };
-  // annot(DHAnnot.Steppable(List.hd(objs)), fdoc(~enforce_inline));
   let objs =
     if (decompose) {
-      Interface.decompose(d);
+      switch (Interface.decompose(d)) {
+      | objs => objs
+      | exception exn =>
+        print_endline(
+          "Error when decomposing expression: "
+          ++ Sexplib.Sexp.to_string_hum(Sexplib.Std.sexp_of_exn(exn)),
+        );
+        [];
+      };
     } else {
       [];
     };

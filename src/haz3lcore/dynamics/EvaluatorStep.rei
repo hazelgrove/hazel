@@ -113,3 +113,7 @@ type t =
 let step: EvalObj.t => (EvaluatorState.t, t);
 
 let decompose: DHExp.t => (EvaluatorState.t, list(EvalObj.t));
+
+let preproc: DHExp.t => EvaluatorMonad.t(DHExp.t);
+
+let postproc: t => EvaluatorMonad.t(t);
