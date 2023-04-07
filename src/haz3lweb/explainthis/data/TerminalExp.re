@@ -1,39 +1,23 @@
 open ExplainThisForm;
 open Example;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type triv_exp_group = {
-  id: group_id,
-  triv_exp: form,
-};
 let triv_exp: form = {
-  let explanation = {message: "Trivial expression.", feedback: Unselected};
-  {
-    id: TrivExp,
-    syntactic_form: [exp("Triv")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: TrivExp,
+  syntactic_form: [exp("Triv")],
+  expandable_id: None,
+  explanation: "Trivial expression.",
+  examples: [],
 };
-let triv_exp_group = {id: TrivExp, triv_exp};
+let triv_exps: group = {id: TrivExp, forms: [triv_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type bool_exp_group = {
-  id: group_id,
-  bool_exp: form,
-};
 let bool_exp: form = {
-  let explanation = {message: "Boolean literal.", feedback: Unselected};
-  {
-    id: BoolExp,
-    syntactic_form: [exp("BoolLit")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: BoolExp,
+  syntactic_form: [exp("BoolLit")],
+  expandable_id: None,
+  explanation: "Boolean literal.",
+  examples: [],
 };
-let bool_exp_group = {id: BoolExp, bool_exp};
+let bool_exps: group = {id: BoolExp, forms: [bool_exp]};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type int_exp_group = {
@@ -41,87 +25,46 @@ type int_exp_group = {
   int_exp: form,
 };
 let int_exp: form = {
-  let explanation = {message: "Integer literal.", feedback: Unselected};
-  {
-    id: IntExp,
-    syntactic_form: [exp("IntLit")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: IntExp,
+  syntactic_form: [exp("IntLit")],
+  expandable_id: None,
+  explanation: "Integer literal.",
+  examples: [],
 };
-let int_exp_group = {id: IntExp, int_exp};
+let int_exps: group = {id: IntExp, forms: [int_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type float_exp_group = {
-  id: group_id,
-  float_exp: form,
-};
 let float_exp: form = {
-  let explanation = {
-    message: "Floating-point literal.",
-    feedback: Unselected,
-  };
-  {
-    id: FloatExp,
-    syntactic_form: [exp("FloatLit")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: FloatExp,
+  syntactic_form: [exp("FloatLit")],
+  expandable_id: None,
+  explanation: "Floating-point literal.",
+  examples: [],
 };
-let float_exp_group = {id: FloatExp, float_exp};
+let float_exps: group = {id: FloatExp, forms: [float_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type string_exp_group = {
-  id: group_id,
-  string_exp: form,
-};
 let string_exp: form = {
-  let explanation = {message: "String literal.", feedback: Unselected};
-  {
-    id: StringExp,
-    syntactic_form: [exp("StringLit")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: StringExp,
+  syntactic_form: [exp("StringLit")],
+  expandable_id: None,
+  explanation: "String literal.",
+  examples: [],
 };
-let string_exp_group = {id: StringExp, string_exp};
+let string_exps: group = {id: StringExp, forms: [string_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type var_exp_group = {
-  id: group_id,
-  var_exp: form,
-};
 let var_exp: form = {
-  let explanation = {
-    message: "Variable. Takes the value of the expression that it was bound to.",
-    feedback: Unselected,
-  };
-  {
-    id: VarExp,
-    syntactic_form: [exp("x")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: VarExp,
+  syntactic_form: [exp("x")],
+  expandable_id: None,
+  explanation: "Variable. Takes the value of the expression that it was bound to.",
+  examples: [],
 };
-let var_exp_group = {id: VarExp, var_exp};
+let var_exps: group = {id: VarExp, forms: [var_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type tag_exp_group = {
-  id: group_id,
-  tag_exp: form,
-};
 let tag_exp: form = {
-  let explanation = {message: "`%s` constructor.", feedback: Unselected};
-  {
-    id: TagExp,
-    syntactic_form: [exp("C")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: TagExp,
+  syntactic_form: [exp("C")],
+  expandable_id: None,
+  explanation: "`%s` constructor.",
+  examples: [],
 };
-let tag_exp_group = {id: TagExp, tag_exp};
+let tag_exps: group = {id: TagExp, forms: [tag_exp]};

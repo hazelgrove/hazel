@@ -88,8 +88,8 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
 
 let load_model = (model: Model.t): Model.t => {
   let settings = LocalStorage.Settings.load();
-  //let explainThisMessages = LocalStorage.ExplainThisMessages.load();
-  let model = {...model, settings /*, explainThisMessages*/};
+  //let explainThisModel = LocalStorage.ExplainThisModel.load();
+  let model = {...model, settings /*, explainThisModel*/};
   let model =
     switch (model.settings.mode) {
     | DebugLoad => model
@@ -155,7 +155,7 @@ let reevaluate_post_update =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | FailedInput(_)
-  | UpdateExplainThisMessages(_)
+  | UpdateExplainThisModel(_)
   | DebugAction(_) => false
   // may not be necessary on all of these
   // TODO review and prune
@@ -388,11 +388,11 @@ let apply =
     | MoveToNextHole(_d) =>
       // TODO restore
       Ok(model)
-    | UpdateExplainThisMessages(u) =>
-      let explainThisMessages =
-        ExplainThisUpdate.set_update(model.explainThisMessages, u);
-      //LocalStorage.ExplainThisMessages.save(explainThisMessages);
-      Ok({...model, explainThisMessages});
+    | UpdateExplainThisModel(u) =>
+      let explainThisModel =
+        ExplainThisUpdate.set_update(model.explainThisModel, u);
+      //LocalStorage.ExplainThisModel.save(explainThisModel);
+      Ok({...model, explainThisModel});
     | UpdateResult(key, res) =>
       /* If error, print a message. */
       switch (res) {

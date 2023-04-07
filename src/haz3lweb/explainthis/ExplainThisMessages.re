@@ -1,134 +1,3 @@
-open Sexplib.Std;
-open Haz3lcore;
-open ExplainThisForm;
-
-//Add a selected field to the form_option
-// Need a separate structure or something to list the options for the group instead of in the form_option?
-[@deriving (show({with_path: false}), sexp, yojson)]
-type messages = {
-  empty_hole_exp_group: HoleExp.empty_hole_exp_group,
-  multi_hole_exp_group: HoleExp.multi_hole_exp_group,
-  triv_exp_group: TerminalExp.triv_exp_group,
-  bool_exp_group: TerminalExp.bool_exp_group,
-  int_exp_group: TerminalExp.int_exp_group,
-  float_exp_group: TerminalExp.float_exp_group,
-  string_exp_group: TerminalExp.string_exp_group,
-  var_exp_group: TerminalExp.var_exp_group,
-  tag_exp_group: TerminalExp.tag_exp_group,
-  function_exp_group: FunctionExp.function_group,
-  function_empty_hole_group: FunctionExp.function_empty_hole_group,
-  function_multi_hole_group: FunctionExp.function_multi_hole_group,
-  function_wild_group: FunctionExp.function_wild_group,
-  function_int_group: FunctionExp.function_int_group,
-  function_float_group: FunctionExp.function_float_group,
-  function_bool_group: FunctionExp.function_bool_group,
-};
-
-// Just have a flat list of forms w/ their explanations and examples
-// Keep track of options/groups in a separate structure
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  show: bool,
-  highlight: bool,
-  specificity_open: bool,
-  messages,
-};
-
-let get_form_and_options =
-    (group_id: group_id, doc: t): (form, list((form_id, Segment.t))) => {
-  let messages = doc.messages;
-  switch (group_id) {
-  | EmptyHoleExp => (messages.empty_hole_exp_group.empty_hole_exp, [])
-  | MultiHoleExp => (messages.multi_hole_exp_group.multi_hole_exp, [])
-  | TrivExp => (messages.triv_exp_group.triv_exp, [])
-  | BoolExp => (messages.bool_exp_group.bool_exp, [])
-  | IntExp => (messages.int_exp_group.int_exp, [])
-  | FloatExp => (messages.float_exp_group.float_exp, [])
-  | StringExp => (messages.string_exp_group.string_exp, [])
-  | VarExp => (messages.var_exp_group.var_exp, [])
-  | TagExp => (messages.tag_exp_group.tag_exp, [])
-  | FunctionExp => (messages.function_exp_group.function_exp, [])
-  | FunctionEmptyHole =>
-    let group = messages.function_empty_hole_group;
-    let general = group.function_exp;
-    let empty_hole = group.function_empty_hole_exp;
-    let options = [
-      (general.form.id, general.expansion_label),
-      (empty_hole.form.id, empty_hole.expansion_label),
-    ];
-    if (general.selected) {
-      (general.form, options);
-    } else {
-      (empty_hole.form, options);
-    };
-  | FunctionMultiHole =>
-    let group = messages.function_multi_hole_group;
-    let general = group.function_exp;
-    let multi_hole = group.function_multi_hole_exp;
-    let options = [
-      (general.form.id, general.expansion_label),
-      (multi_hole.form.id, multi_hole.expansion_label),
-    ];
-    if (general.selected) {
-      (general.form, options);
-    } else {
-      (multi_hole.form, options);
-    };
-  | FunctionWild =>
-    let group = messages.function_wild_group;
-    let general = group.function_exp;
-    let wild = group.function_wild_exp;
-    let options = [
-      (general.form.id, general.expansion_label),
-      (wild.form.id, wild.expansion_label),
-    ];
-    if (general.selected) {
-      (general.form, options);
-    } else {
-      (wild.form, options);
-    };
-  | FunctionInt =>
-    let group = messages.function_int_group;
-    let general = group.function_exp;
-    let intlit = group.function_intlit_exp;
-    let options = [
-      (general.form.id, general.expansion_label),
-      (intlit.form.id, intlit.expansion_label),
-    ];
-    if (general.selected) {
-      (general.form, options);
-    } else {
-      (intlit.form, options);
-    };
-  | FunctionFloat =>
-    let group = messages.function_float_group;
-    let general = group.function_exp;
-    let floatlit = group.function_floatlit_exp;
-    let options = [
-      (general.form.id, general.expansion_label),
-      (floatlit.form.id, floatlit.expansion_label),
-    ];
-    if (general.selected) {
-      (general.form, options);
-    } else {
-      (floatlit.form, options);
-    };
-  | FunctionBool =>
-    let group = messages.function_bool_group;
-    let general = group.function_exp;
-    let boollit = group.function_boollit_exp;
-    let options = [
-      (general.form.id, general.expansion_label),
-      (boollit.form.id, boollit.expansion_label),
-    ];
-    if (general.selected) {
-      (general.form, options);
-    } else {
-      (boollit.form, options);
-    };
-  };
-};
-
 /*let get_group_opt = (group_id, doc: t) =>
     List.find_opt(((id, _)) => id == group_id, doc.groups);
   let get_group = (group_id, doc: t) => {
@@ -193,7 +62,6 @@ let get_form_and_options =
         Invalid_argument(form_id ++ " is not present in the list of forms"),
       )
     };*/
-
 /*let rec update_form = (new_form, docs) => {
     switch (docs) {
     | [] => []
@@ -232,472 +100,446 @@ let get_form_and_options =
       }
     };
   };*/
-
-let init = {
-  show: true,
-  highlight: true,
-  specificity_open: false,
-  messages:
-    // Expressions
-    {
-      empty_hole_exp_group: HoleExp.empty_hole_exp_group,
-      multi_hole_exp_group: HoleExp.multi_hole_exp_group,
-      triv_exp_group: TerminalExp.triv_exp_group,
-      bool_exp_group: TerminalExp.bool_exp_group,
-      int_exp_group: TerminalExp.int_exp_group,
-      float_exp_group: TerminalExp.float_exp_group,
-      string_exp_group: TerminalExp.string_exp_group,
-      var_exp_group: TerminalExp.var_exp_group,
-      tag_exp_group: TerminalExp.tag_exp_group,
-      function_exp_group: FunctionExp.function_group,
-      function_empty_hole_group: FunctionExp.function_empty_hole_group,
-      function_multi_hole_group: FunctionExp.function_multi_hole_group,
-      function_wild_group: FunctionExp.function_wild_group,
-      function_int_group: FunctionExp.function_int_group,
-      function_float_group: FunctionExp.function_float_group,
-      function_bool_group: FunctionExp.function_bool_group,
-    },
-  /*
-       list_exp_group: ListExp.list_exp,
-     cons_exp_group: ListExp.cons_exp,(
-     FunctionExp.function_str_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (FunctionExp.function_strlit_exp.id, [pat("StringLit")]),
-     ]),
-   ),
-   (
-     FunctionExp.function_triv_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (FunctionExp.function_triv_exp.id, [pat("triv")]),
-     ]),
-   ),
-   (
-     FunctionExp.function_listnil_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (FunctionExp.function_listnil_exp.id, [pat("nil")]),
-     ]),
-   ),
-   (
-     FunctionExp.function_listlit_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (
-         FunctionExp.function_listlit_exp.id,
-         [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
-       ),
-     ]),
-   ),
-   (
-     FunctionExp.function_cons_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (
-         FunctionExp.function_cons_exp.id,
-         [pat("p_hd"), cons_pat(), pat("p_tl")],
-       ),
-     ]),
-   ),
-   (
-     FunctionExp.function_var_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (FunctionExp.function_var_exp.id, [pat("x")]),
-     ]),
-   ),
-   (
-     FunctionExp.function_tuple_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (
-         FunctionExp.function_tuple_exp.id,
-         [pat("p1"), comma_pat(), pat("...")],
-       ),
-     ]),
-   ),
-   (
-     FunctionExp.function_tuple_2_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (
-         FunctionExp.function_tuple_exp.id,
-         [pat("p1"), comma_pat(), pat("...")],
-       ),
-       (
-         FunctionExp.function_tuple2_exp.id,
-         [pat("p1"), comma_pat(), pat("p2")],
-       ),
-     ]),
-   ),
-   (
-     FunctionExp.function_tuple_3_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (
-         FunctionExp.function_tuple_exp.id,
-         [pat("p1"), comma_pat(), pat("...")],
-       ),
-       (
-         FunctionExp.function_tuple3_exp.id,
-         [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
-       ),
-     ]),
-   ),
-   (
-     FunctionExp.function_tag_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (FunctionExp.function_tag_exp.id, [pat("C")]),
-     ]),
-   ),
-   (
-     FunctionExp.function_ap_group,
-     init_options([
-       (FunctionExp.function_exp.id, [pat("p")]),
-       (
-         FunctionExp.function_ap_exp.id,
-         [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
-       ),
-     ]),
-   ),
-   (TupleExp.tuple_exp_group, init_options([(TupleExp.tuple_exp.id, [])])),
-   (
-     TupleExp.tuple_exp_2_group,
-     init_options([
-       (TupleExp.tuple_exp.id, [exp("e1"), comma_exp(), exp("...")]),
-       (TupleExp.tuple_exp_size2.id, [exp("e1"), comma_exp(), exp("e2")]),
-     ]),
-   ),
-   (
-     TupleExp.tuple_exp_3_group,
-     init_options([
-       (TupleExp.tuple_exp.id, [exp("e1"), comma_exp(), exp("...")]),
-       (
-         TupleExp.tuple_exp_size3.id,
-         [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
-       ),
-     ]),
-   ),
-   (
-     LetExp.let_base_exp_group,
-     init_options([(LetExp.let_base_exp.id, [])]),
-   ),
-   (
-     LetExp.let_empty_hole_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_empty_hole_exp.id, [pat("EmptyHole")]),
-     ]),
-   ),
-   (
-     LetExp.let_multi_hole_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_multi_hole_exp.id, [pat("INVALID")]),
-     ]),
-   ),
-   (
-     LetExp.let_wild_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_wild_exp.id, [pat("_")]),
-     ]),
-   ),
-   (
-     LetExp.let_int_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_int_exp.id, [pat("IntLit")]),
-     ]),
-   ),
-   (
-     LetExp.let_float_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_float_exp.id, [pat("FloatLit")]),
-     ]),
-   ),
-   (
-     LetExp.let_bool_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_bool_exp.id, [pat("BoolLit")]),
-     ]),
-   ),
-   (
-     LetExp.let_str_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_str_exp.id, [pat("StringLit")]),
-     ]),
-   ),
-   (
-     LetExp.let_triv_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_triv_exp.id, [pat("triv")]),
-     ]),
-   ),
-   (
-     LetExp.let_listlit_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_listlit_exp.id, [pat("p1"), comma_pat(), pat("...")]),
-     ]),
-   ),
-   (
-     LetExp.let_listnil_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_listnil_exp.id, [pat("nil")]),
-     ]),
-   ),
-   (
-     LetExp.let_cons_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_cons_exp.id, [pat("p_hd"), cons_pat(), pat("p_tl")]),
-     ]),
-   ),
-   (
-     LetExp.let_var_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_var_exp.id, [pat("x")]),
-     ]),
-   ),
-   (
-     LetExp.let_tuple_base_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
-     ]),
-   ),
-   (
-     LetExp.let_tuple2_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
-       (LetExp.let_tuple2_exp.id, [pat("p1"), comma_pat(), pat("p2")]),
-     ]),
-   ),
-   (
-     LetExp.let_tuple3_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
-       (
-         LetExp.let_tuple3_exp.id,
-         [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
-       ),
-     ]),
-   ),
-   (
-     LetExp.let_tag_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (LetExp.let_tag_exp.id, [pat("C")]),
-     ]),
-   ),
-   (
-     LetExp.let_ap_exp_group,
-     init_options([
-       (LetExp.let_base_exp.id, [pat("p")]),
-       (
-         LetExp.let_ap_exp.id,
-         [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
-       ),
-     ]),
-   ),
-   (AppExp.funapp_exp_group, init_options([(AppExp.funapp_exp.id, [])])),
-   (AppExp.conapp_exp_group, init_options([(AppExp.conapp_exp.id, [])])),
-   (IfExp.if_exp_group, init_options([(IfExp.if_exp.id, [])])),
-   (SeqExp.seq_exp_group, init_options([(SeqExp.seq_exp.id, [])])),
-   (TestExp.test_group, init_options([(TestExp.test_exp.id, [])])),
-   (
-     OpExp.int_unary_minus_group,
-     init_options([(OpExp.int_unary_minus_exp.id, [])]),
-   ),
-   (OpExp.int_plus_group, init_options([(OpExp.int_plus_exp.id, [])])),
-   (OpExp.int_minus_group, init_options([(OpExp.int_minus_exp.id, [])])),
-   (OpExp.int_times_group, init_options([(OpExp.int_times_exp.id, [])])),
-   (OpExp.int_power_group, init_options([(OpExp.int_power_exp.id, [])])),
-   (OpExp.int_divide_group, init_options([(OpExp.int_divide_exp.id, [])])),
-   (OpExp.int_lt_group, init_options([(OpExp.int_lt_exp.id, [])])),
-   (OpExp.int_lte_group, init_options([(OpExp.int_lte_exp.id, [])])),
-   (OpExp.int_gt_group, init_options([(OpExp.int_gt_exp.id, [])])),
-   (OpExp.int_gte_group, init_options([(OpExp.int_gte_exp.id, [])])),
-   (OpExp.int_eq_group, init_options([(OpExp.int_eq_exp.id, [])])),
-   (OpExp.float_plus_group, init_options([(OpExp.float_plus_exp.id, [])])),
-   (
-     OpExp.float_minus_group,
-     init_options([(OpExp.float_minus_exp.id, [])]),
-   ),
-   (
-     OpExp.float_times_group,
-     init_options([(OpExp.float_times_exp.id, [])]),
-   ),
-   (
-     OpExp.float_power_group,
-     init_options([(OpExp.float_power_exp.id, [])]),
-   ),
-   (
-     OpExp.float_divide_group,
-     init_options([(OpExp.float_divide_exp.id, [])]),
-   ),
-   (OpExp.float_lt_group, init_options([(OpExp.float_lt_exp.id, [])])),
-   (OpExp.float_lte_group, init_options([(OpExp.float_lte_exp.id, [])])),
-   (OpExp.float_gt_group, init_options([(OpExp.float_gt_exp.id, [])])),
-   (OpExp.float_gte_group, init_options([(OpExp.float_gte_exp.id, [])])),
-   (OpExp.float_eq_group, init_options([(OpExp.float_eq_exp.id, [])])),
-   (OpExp.bool_and_group, init_options([(OpExp.bool_and_exp.id, [])])),
-   (OpExp.bool_or_group, init_options([(OpExp.bool_or_exp.id, [])])),
-   (OpExp.str_eq_group, init_options([(OpExp.str_eq_exp.id, [])])),
-   (CaseExp.case_exp_group, init_options([(CaseExp.case_exp.id, [])])),
-   // Rules
-   // Patterns
-   (
-     HolePat.empty_hole_pat_group,
-     init_options([(HolePat.empty_hole_pat.id, [])]),
-   ),
-   (
-     HolePat.multi_hole_pat_group,
-     init_options([(HolePat.multi_hole_pat.id, [])]),
-   ),
-   (
-     TerminalPat.wild_pat_group,
-     init_options([(TerminalPat.wild_pat.id, [])]),
-   ),
-   (
-     TerminalPat.intlit_pat_group,
-     init_options([(TerminalPat.intlit_pat.id, [])]),
-   ),
-   (
-     TerminalPat.floatlit_pat_group,
-     init_options([(TerminalPat.floatlit_pat.id, [])]),
-   ),
-   (
-     TerminalPat.boollit_pat_group,
-     init_options([(TerminalPat.boollit_pat.id, [])]),
-   ),
-   (
-     TerminalPat.strlit_pat_group,
-     init_options([(TerminalPat.strlit_pat.id, [])]),
-   ),
-   (
-     TerminalPat.triv_pat_group,
-     init_options([(TerminalPat.triv_pat.id, [])]),
-   ),
-   (
-     TerminalPat.var_pat_group,
-     init_options([(TerminalPat.var_pat.id, [])]),
-   ),
-   (
-     TerminalPat.tag_pat_group,
-     init_options([(TerminalPat.tag_pat.id, [])]),
-   ),
-   (
-     ListPat.listlit_pat_group,
-     init_options([(ListPat.listlit_pat.id, [])]),
-   ),
-   (
-     ListPat.listnil_pat_group,
-     init_options([(ListPat.listnil_pat.id, [])]),
-   ),
-   (
-     ListPat.cons_pat_group,
-     init_options([(ListPat.cons_base_pat.id, [])]),
-   ),
-   (
-     ListPat.cons2_pat_group,
-     init_options([
-       (ListPat.cons_base_pat.id, [pat("p_tl")]),
-       (ListPat.cons2_pat.id, [pat("p_snd"), cons_pat(), pat("p_tl")]),
-     ]),
-   ),
-   (TuplePat.tuple_pat_group, init_options([(TuplePat.tuple_pat.id, [])])),
-   (
-     TuplePat.tuple_pat_2_group,
-     init_options([
-       (TuplePat.tuple_pat.id, [pat("p1"), comma_pat(), pat("...")]),
-       (TuplePat.tuple_pat_size2.id, [pat("p1"), comma_pat(), pat("p2")]),
-     ]),
-   ),
-   (
-     TuplePat.tuple_pat_3_group,
-     init_options([
-       (TuplePat.tuple_pat.id, [pat("p1"), comma_pat(), pat("...")]),
-       (
-         TuplePat.tuple_pat_size3.id,
-         [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
-       ),
-     ]),
-   ),
-   (AppPat.ap_pat_group, init_options([(AppPat.ap_pat.id, [])])),
-   (
-     TypAnnPat.typann_pat_group,
-     init_options([(TypAnnPat.typann_pat.id, [])]),
-   ),
-   // Types
-   (
-     HoleTyp.empty_hole_typ_group,
-     init_options([(HoleTyp.empty_hole_typ.id, [])]),
-   ),
-   (
-     HoleTyp.multi_hole_typ_group,
-     init_options([(HoleTyp.multi_hole_typ.id, [])]),
-   ),
-   (
-     TerminalTyp.int_typ_group,
-     init_options([(TerminalTyp.int_typ.id, [])]),
-   ),
-   (
-     TerminalTyp.float_typ_group,
-     init_options([(TerminalTyp.float_typ.id, [])]),
-   ),
-   (
-     TerminalTyp.bool_typ_group,
-     init_options([(TerminalTyp.bool_typ.id, [])]),
-   ),
-   (
-     TerminalTyp.str_typ_group,
-     init_options([(TerminalTyp.str_typ.id, [])]),
-   ),
-   (
-     TerminalTyp.var_typ_group,
-     init_options([(TerminalTyp.var_typ.id, [])]),
-   ),
-   (ListTyp.list_typ_group, init_options([(ListTyp.list_typ.id, [])])),
-   (ArrowTyp.arrow_typ_group, init_options([(ArrowTyp.arrow_typ.id, [])])),
-   (
-     ArrowTyp.arrow3_typ_group,
-     init_options([
-       (ArrowTyp.arrow_typ.id, [typ("ty_out")]),
-       (ArrowTyp.arrow3_typ.id, [typ("ty_arg2"), arrow(), typ("ty_out")]),
-     ]),
-   ),
-   (TupleTyp.tuple_typ_group, init_options([(TupleTyp.tuple_typ.id, [])])),
-   (
-     TupleTyp.tuple2_typ_group,
-     init_options([
-       (TupleTyp.tuple_typ.id, [typ("ty1"), comma_typ(), typ("...")]),
-       (TupleTyp.tuple2_typ.id, [typ("ty1"), comma_typ(), typ("ty2")]),
-     ]),
-   ),
-   (
-     TupleTyp.tuple3_typ_group,
-     init_options([
-       (TupleTyp.tuple_typ.id, [typ("ty1"), comma_typ(), typ("...")]),
-       (
-         TupleTyp.tuple3_typ.id,
-         [typ("ty1"), comma_typ(), typ("ty2"), comma_typ(), typ("ty3")],
-       ),
-     ]),
-   ),*/
-};
-
+/*
+     list_exp_group: ListExp.list_exp,
+   cons_exp_group: ListExp.cons_exp,(
+   FunctionExp.function_str_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (FunctionExp.function_strlit_exp.id, [pat("StringLit")]),
+   ]),
+ ),
+ (
+   FunctionExp.function_triv_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (FunctionExp.function_triv_exp.id, [pat("triv")]),
+   ]),
+ ),
+ (
+   FunctionExp.function_listnil_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (FunctionExp.function_listnil_exp.id, [pat("nil")]),
+   ]),
+ ),
+ (
+   FunctionExp.function_listlit_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (
+       FunctionExp.function_listlit_exp.id,
+       [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
+     ),
+   ]),
+ ),
+ (
+   FunctionExp.function_cons_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (
+       FunctionExp.function_cons_exp.id,
+       [pat("p_hd"), cons_pat(), pat("p_tl")],
+     ),
+   ]),
+ ),
+ (
+   FunctionExp.function_var_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (FunctionExp.function_var_exp.id, [pat("x")]),
+   ]),
+ ),
+ (
+   FunctionExp.function_tuple_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (
+       FunctionExp.function_tuple_exp.id,
+       [pat("p1"), comma_pat(), pat("...")],
+     ),
+   ]),
+ ),
+ (
+   FunctionExp.function_tuple_2_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (
+       FunctionExp.function_tuple_exp.id,
+       [pat("p1"), comma_pat(), pat("...")],
+     ),
+     (
+       FunctionExp.function_tuple2_exp.id,
+       [pat("p1"), comma_pat(), pat("p2")],
+     ),
+   ]),
+ ),
+ (
+   FunctionExp.function_tuple_3_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (
+       FunctionExp.function_tuple_exp.id,
+       [pat("p1"), comma_pat(), pat("...")],
+     ),
+     (
+       FunctionExp.function_tuple3_exp.id,
+       [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
+     ),
+   ]),
+ ),
+ (
+   FunctionExp.function_tag_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (FunctionExp.function_tag_exp.id, [pat("C")]),
+   ]),
+ ),
+ (
+   FunctionExp.function_ap_group,
+   init_options([
+     (FunctionExp.function_exp.id, [pat("p")]),
+     (
+       FunctionExp.function_ap_exp.id,
+       [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
+     ),
+   ]),
+ ),
+ (TupleExp.tuple_exp_group, init_options([(TupleExp.tuple_exp.id, [])])),
+ (
+   TupleExp.tuple_exp_2_group,
+   init_options([
+     (TupleExp.tuple_exp.id, [exp("e1"), comma_exp(), exp("...")]),
+     (TupleExp.tuple_exp_size2.id, [exp("e1"), comma_exp(), exp("e2")]),
+   ]),
+ ),
+ (
+   TupleExp.tuple_exp_3_group,
+   init_options([
+     (TupleExp.tuple_exp.id, [exp("e1"), comma_exp(), exp("...")]),
+     (
+       TupleExp.tuple_exp_size3.id,
+       [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
+     ),
+   ]),
+ ),
+ (
+   LetExp.let_base_exp_group,
+   init_options([(LetExp.let_base_exp.id, [])]),
+ ),
+ (
+   LetExp.let_empty_hole_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_empty_hole_exp.id, [pat("EmptyHole")]),
+   ]),
+ ),
+ (
+   LetExp.let_multi_hole_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_multi_hole_exp.id, [pat("INVALID")]),
+   ]),
+ ),
+ (
+   LetExp.let_wild_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_wild_exp.id, [pat("_")]),
+   ]),
+ ),
+ (
+   LetExp.let_int_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_int_exp.id, [pat("IntLit")]),
+   ]),
+ ),
+ (
+   LetExp.let_float_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_float_exp.id, [pat("FloatLit")]),
+   ]),
+ ),
+ (
+   LetExp.let_bool_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_bool_exp.id, [pat("BoolLit")]),
+   ]),
+ ),
+ (
+   LetExp.let_str_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_str_exp.id, [pat("StringLit")]),
+   ]),
+ ),
+ (
+   LetExp.let_triv_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_triv_exp.id, [pat("triv")]),
+   ]),
+ ),
+ (
+   LetExp.let_listlit_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_listlit_exp.id, [pat("p1"), comma_pat(), pat("...")]),
+   ]),
+ ),
+ (
+   LetExp.let_listnil_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_listnil_exp.id, [pat("nil")]),
+   ]),
+ ),
+ (
+   LetExp.let_cons_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_cons_exp.id, [pat("p_hd"), cons_pat(), pat("p_tl")]),
+   ]),
+ ),
+ (
+   LetExp.let_var_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_var_exp.id, [pat("x")]),
+   ]),
+ ),
+ (
+   LetExp.let_tuple_base_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
+   ]),
+ ),
+ (
+   LetExp.let_tuple2_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
+     (LetExp.let_tuple2_exp.id, [pat("p1"), comma_pat(), pat("p2")]),
+   ]),
+ ),
+ (
+   LetExp.let_tuple3_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
+     (
+       LetExp.let_tuple3_exp.id,
+       [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
+     ),
+   ]),
+ ),
+ (
+   LetExp.let_tag_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (LetExp.let_tag_exp.id, [pat("C")]),
+   ]),
+ ),
+ (
+   LetExp.let_ap_exp_group,
+   init_options([
+     (LetExp.let_base_exp.id, [pat("p")]),
+     (
+       LetExp.let_ap_exp.id,
+       [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
+     ),
+   ]),
+ ),
+ (AppExp.funapp_exp_group, init_options([(AppExp.funapp_exp.id, [])])),
+ (AppExp.conapp_exp_group, init_options([(AppExp.conapp_exp.id, [])])),
+ (IfExp.if_exp_group, init_options([(IfExp.if_exp.id, [])])),
+ (SeqExp.seq_exp_group, init_options([(SeqExp.seq_exp.id, [])])),
+ (TestExp.test_group, init_options([(TestExp.test_exp.id, [])])),
+ (
+   OpExp.int_unary_minus_group,
+   init_options([(OpExp.int_unary_minus_exp.id, [])]),
+ ),
+ (OpExp.int_plus_group, init_options([(OpExp.int_plus_exp.id, [])])),
+ (OpExp.int_minus_group, init_options([(OpExp.int_minus_exp.id, [])])),
+ (OpExp.int_times_group, init_options([(OpExp.int_times_exp.id, [])])),
+ (OpExp.int_power_group, init_options([(OpExp.int_power_exp.id, [])])),
+ (OpExp.int_divide_group, init_options([(OpExp.int_divide_exp.id, [])])),
+ (OpExp.int_lt_group, init_options([(OpExp.int_lt_exp.id, [])])),
+ (OpExp.int_lte_group, init_options([(OpExp.int_lte_exp.id, [])])),
+ (OpExp.int_gt_group, init_options([(OpExp.int_gt_exp.id, [])])),
+ (OpExp.int_gte_group, init_options([(OpExp.int_gte_exp.id, [])])),
+ (OpExp.int_eq_group, init_options([(OpExp.int_eq_exp.id, [])])),
+ (OpExp.float_plus_group, init_options([(OpExp.float_plus_exp.id, [])])),
+ (
+   OpExp.float_minus_group,
+   init_options([(OpExp.float_minus_exp.id, [])]),
+ ),
+ (
+   OpExp.float_times_group,
+   init_options([(OpExp.float_times_exp.id, [])]),
+ ),
+ (
+   OpExp.float_power_group,
+   init_options([(OpExp.float_power_exp.id, [])]),
+ ),
+ (
+   OpExp.float_divide_group,
+   init_options([(OpExp.float_divide_exp.id, [])]),
+ ),
+ (OpExp.float_lt_group, init_options([(OpExp.float_lt_exp.id, [])])),
+ (OpExp.float_lte_group, init_options([(OpExp.float_lte_exp.id, [])])),
+ (OpExp.float_gt_group, init_options([(OpExp.float_gt_exp.id, [])])),
+ (OpExp.float_gte_group, init_options([(OpExp.float_gte_exp.id, [])])),
+ (OpExp.float_eq_group, init_options([(OpExp.float_eq_exp.id, [])])),
+ (OpExp.bool_and_group, init_options([(OpExp.bool_and_exp.id, [])])),
+ (OpExp.bool_or_group, init_options([(OpExp.bool_or_exp.id, [])])),
+ (OpExp.str_eq_group, init_options([(OpExp.str_eq_exp.id, [])])),
+ (CaseExp.case_exp_group, init_options([(CaseExp.case_exp.id, [])])),
+ // Rules
+ // Patterns
+ (
+   HolePat.empty_hole_pat_group,
+   init_options([(HolePat.empty_hole_pat.id, [])]),
+ ),
+ (
+   HolePat.multi_hole_pat_group,
+   init_options([(HolePat.multi_hole_pat.id, [])]),
+ ),
+ (
+   TerminalPat.wild_pat_group,
+   init_options([(TerminalPat.wild_pat.id, [])]),
+ ),
+ (
+   TerminalPat.intlit_pat_group,
+   init_options([(TerminalPat.intlit_pat.id, [])]),
+ ),
+ (
+   TerminalPat.floatlit_pat_group,
+   init_options([(TerminalPat.floatlit_pat.id, [])]),
+ ),
+ (
+   TerminalPat.boollit_pat_group,
+   init_options([(TerminalPat.boollit_pat.id, [])]),
+ ),
+ (
+   TerminalPat.strlit_pat_group,
+   init_options([(TerminalPat.strlit_pat.id, [])]),
+ ),
+ (
+   TerminalPat.triv_pat_group,
+   init_options([(TerminalPat.triv_pat.id, [])]),
+ ),
+ (
+   TerminalPat.var_pat_group,
+   init_options([(TerminalPat.var_pat.id, [])]),
+ ),
+ (
+   TerminalPat.tag_pat_group,
+   init_options([(TerminalPat.tag_pat.id, [])]),
+ ),
+ (
+   ListPat.listlit_pat_group,
+   init_options([(ListPat.listlit_pat.id, [])]),
+ ),
+ (
+   ListPat.listnil_pat_group,
+   init_options([(ListPat.listnil_pat.id, [])]),
+ ),
+ (
+   ListPat.cons_pat_group,
+   init_options([(ListPat.cons_base_pat.id, [])]),
+ ),
+ (
+   ListPat.cons2_pat_group,
+   init_options([
+     (ListPat.cons_base_pat.id, [pat("p_tl")]),
+     (ListPat.cons2_pat.id, [pat("p_snd"), cons_pat(), pat("p_tl")]),
+   ]),
+ ),
+ (TuplePat.tuple_pat_group, init_options([(TuplePat.tuple_pat.id, [])])),
+ (
+   TuplePat.tuple_pat_2_group,
+   init_options([
+     (TuplePat.tuple_pat.id, [pat("p1"), comma_pat(), pat("...")]),
+     (TuplePat.tuple_pat_size2.id, [pat("p1"), comma_pat(), pat("p2")]),
+   ]),
+ ),
+ (
+   TuplePat.tuple_pat_3_group,
+   init_options([
+     (TuplePat.tuple_pat.id, [pat("p1"), comma_pat(), pat("...")]),
+     (
+       TuplePat.tuple_pat_size3.id,
+       [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
+     ),
+   ]),
+ ),
+ (AppPat.ap_pat_group, init_options([(AppPat.ap_pat.id, [])])),
+ (
+   TypAnnPat.typann_pat_group,
+   init_options([(TypAnnPat.typann_pat.id, [])]),
+ ),
+ // Types
+ (
+   HoleTyp.empty_hole_typ_group,
+   init_options([(HoleTyp.empty_hole_typ.id, [])]),
+ ),
+ (
+   HoleTyp.multi_hole_typ_group,
+   init_options([(HoleTyp.multi_hole_typ.id, [])]),
+ ),
+ (
+   TerminalTyp.int_typ_group,
+   init_options([(TerminalTyp.int_typ.id, [])]),
+ ),
+ (
+   TerminalTyp.float_typ_group,
+   init_options([(TerminalTyp.float_typ.id, [])]),
+ ),
+ (
+   TerminalTyp.bool_typ_group,
+   init_options([(TerminalTyp.bool_typ.id, [])]),
+ ),
+ (
+   TerminalTyp.str_typ_group,
+   init_options([(TerminalTyp.str_typ.id, [])]),
+ ),
+ (
+   TerminalTyp.var_typ_group,
+   init_options([(TerminalTyp.var_typ.id, [])]),
+ ),
+ (ListTyp.list_typ_group, init_options([(ListTyp.list_typ.id, [])])),
+ (ArrowTyp.arrow_typ_group, init_options([(ArrowTyp.arrow_typ.id, [])])),
+ (
+   ArrowTyp.arrow3_typ_group,
+   init_options([
+     (ArrowTyp.arrow_typ.id, [typ("ty_out")]),
+     (ArrowTyp.arrow3_typ.id, [typ("ty_arg2"), arrow(), typ("ty_out")]),
+   ]),
+ ),
+ (TupleTyp.tuple_typ_group, init_options([(TupleTyp.tuple_typ.id, [])])),
+ (
+   TupleTyp.tuple2_typ_group,
+   init_options([
+     (TupleTyp.tuple_typ.id, [typ("ty1"), comma_typ(), typ("...")]),
+     (TupleTyp.tuple2_typ.id, [typ("ty1"), comma_typ(), typ("ty2")]),
+   ]),
+ ),
+ (
+   TupleTyp.tuple3_typ_group,
+   init_options([
+     (TupleTyp.tuple_typ.id, [typ("ty1"), comma_typ(), typ("...")]),
+     (
+       TupleTyp.tuple3_typ.id,
+       [typ("ty1"), comma_typ(), typ("ty2"), comma_typ(), typ("ty3")],
+     ),
+   ]),
+ ),*/
+//};
 /*[@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_example = {
     sub_id: string,
@@ -853,8 +695,8 @@ let init = {
     };
   };
 
-  let serialize = (explainThisMessages: t): string => {
-    persist(explainThisMessages)
+  let serialize = (explainThisModel: t): string => {
+    persist(explainThisModel)
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
   };

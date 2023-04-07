@@ -2,159 +2,101 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_group = {
-  id: group_id,
-  function_exp: form,
-};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_empty_hole_group = {
-  id: group_id,
-  function_exp: form_option,
-  function_empty_hole_exp: form_option,
-};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_multi_hole_group = {
-  id: group_id,
-  function_exp: form_option,
-  function_multi_hole_exp: form_option,
-};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_wild_group = {
-  id: group_id,
-  function_exp: form_option,
-  function_wild_exp: form_option,
-};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_int_group = {
-  id: group_id,
-  function_exp: form_option,
-  function_intlit_exp: form_option,
-};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_float_group = {
-  id: group_id,
-  function_exp: form_option,
-  function_floatlit_exp: form_option,
-};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type function_bool_group = {
-  id: group_id,
-  function_exp: form_option,
-  function_boollit_exp: form_option,
-};
-let function_str_group = "function_str_group";
-let function_triv_group = "function_triv_group";
-let function_listnil_group = "function_listnil_group";
-let function_listlit_group = "function_listlit_group";
-let function_cons_group = "function_cons_group";
-let function_var_group = "function_var_group";
-let function_tuple_group = "function_tuple_group";
-let function_tuple_2_group = "function_tuple_2_group";
-let function_tuple_3_group = "function_tuple_3_group";
-let function_tag_group = "function_tag_group";
-let function_ap_group = "function_ap_group";
+/*let function_str_group = "function_str_group";
+  let function_triv_group = "function_triv_group";
+  let function_listnil_group = "function_listnil_group";
+  let function_listlit_group = "function_listlit_group";
+  let function_cons_group = "function_cons_group";
+  let function_var_group = "function_var_group";
+  let function_tuple_group = "function_tuple_group";
+  let function_tuple_2_group = "function_tuple_2_group";
+  let function_tuple_3_group = "function_tuple_3_group";
+  let function_tag_group = "function_tag_group";
+  let function_ap_group = "function_ap_group";*/
 let basic_fun_ex = {
   sub_id: BasicFun,
   term: mk_example("fun x -> x"),
   message: "The identity function. When given an argument, the function evaluates to that argument.",
-  feedback: Unselected,
 };
 let wild_fun_ex = {
   sub_id: WildFun,
   term: mk_example("fun _ -> 3"),
   message: "When given an argument, the function throws away the supplied argument and always evaluates to 3.",
-  feedback: Unselected,
 };
 let intlit_fun_ex = {
   sub_id: IntLitFun,
   term: mk_example("fun 1 -> 2"),
   message: "When given an argument with value 1, the function throws away the supplied argument and always evaluates to 2.",
-  feedback: Unselected,
 };
 let floatlit_fun_ex = {
   sub_id: FloatLitFun,
   term: mk_example("fun 1.1 -> 2"),
   message: "When given an argument with value 1.1, the function throws away the supplied argument and always evaluates to 2.",
-  feedback: Unselected,
 };
 let boollit_fun_ex = {
   sub_id: BoolLitFun,
   term: mk_example("fun true -> 2"),
   message: "When given an argument with value true, the function throws away the supplied argument and always evaluates to 2.",
-  feedback: Unselected,
 };
 let strlit_fun_ex = {
   sub_id: StrLitFun,
   term: mk_example("fun \"abc\" -> 2"),
   message: "When given an argument with value \"abc\", the function throws away the supplied argument and always evaluates to 2.",
-  feedback: Unselected,
 };
 let triv_fun_ex = {
   sub_id: TrivFun,
   term: mk_example("fun triv -> 2"),
   message: "When given an argument with the triv value, the function throws away the supplied argument and always evaluates to 2.",
-  feedback: Unselected,
 };
 let listnil_fun_ex = {
   sub_id: ListNilFun,
   term: mk_example("fun nil -> 2"),
   message: "When given an argument with the empty list value, the function throws away the supplied argument and always evaluates to 2.",
-  feedback: Unselected,
 };
 let listlist_fun_ex = {
   sub_id: ListListFun,
   term: mk_example("fun [x, y] -> x"),
   message: "When given an argument that is a list of two elements, the function evaluates to the first element of that list.",
-  feedback: Unselected,
 };
 let cons_hd_fun_ex = {
   sub_id: ConsHdFun,
   term: mk_example("fun hd::tl -> hd"),
   message: "When given an argument that is a non-empty list, the function evaluates to the head of that list.",
-  feedback: Unselected,
 };
 let cons_snd_fun_ex = {
   sub_id: ConsSndFun,
   term: mk_example("fun fst::snd::tl -> snd"),
   message: "When given an argument that is a list with at least two elements, the function evaluates to the second element of that list.",
-  feedback: Unselected,
 };
 let var_incr_fun_ex = {
   sub_id: VarIncrFun,
   term: mk_example("fun x -> x + 1"),
   message: "When given an integer argument, the function evaluates to the argument plus 1.",
-  feedback: Unselected,
 };
 let var_and_fun_ex = {
   sub_id: VarAndFun,
   term: mk_example("fun b -> b && true"),
   message: "When given a boolean argument, the function evaluates to the logical-and of the argument and true, which evaluates to the truth value of the argument.",
-  feedback: Unselected,
 };
 let tuple2_fun_ex = {
   sub_id: Tuple2Fun,
   term: mk_example("fun (x, y) -> x + y"),
   message: "When given a 2-tuple of integers, the function evaluates to the sum of the two integers.",
-  feedback: Unselected,
 };
 let tuple3_fun_ex = {
   sub_id: Tuple3Fun,
   term: mk_example("fun (a, b, c) -> a && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
-  feedback: Unselected,
 };
 let tag_fun_ex = {
   sub_id: TagFun,
   term: mk_example("fun None -> 1"),
   message: "When given a None constructor argument, the function evaluates 1.",
-  feedback: Unselected,
 };
 let ap_fun_ex = {
   sub_id: ApFun,
   term: mk_example("fun Some(a) -> a"),
   message: "When given a Some constructor argument, the function evaluates to the constructor's argument.",
-  feedback: Unselected,
 };
 // TODO for shared examples, should the feedback be stored separately for each "instance"?
 let _pat_body_function_exp_coloring_ids =
@@ -167,15 +109,12 @@ let _exp = exp("e");
 let function_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_exp: form = {
-  let explanation = {
-    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
-    feedback: Unselected,
-  };
+  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(_pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("p")])),
     explanation,
     examples: [basic_fun_ex] // TODO What other examples should be here
   };
@@ -186,15 +125,12 @@ let _exp = exp("e");
 let function_empty_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_empty_hole_exp: form = {
-  let explanation = {
-    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.",
-    feedback: Unselected,
-  };
+  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionEmptyHole,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(_pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("EMPTYHOLE")])),
     explanation,
     examples: [basic_fun_ex],
   };
@@ -204,15 +140,12 @@ let _exp = exp("e");
 let function_multi_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_multi_hole_exp: form = {
-  let explanation = {
-    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.",
-    feedback: Unselected,
-  };
+  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionMultiHole,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(_pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("INVALID")])),
     explanation,
     examples: [basic_fun_ex],
   };
@@ -222,16 +155,13 @@ let function_wild_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => {
   [(Piece.id(_exp), body_id)];
 };
 let function_wild_exp: form = {
-  let explanation = {
-    message: "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%i).",
-    feedback: Unselected,
-  };
-  let pat = pat("_");
-  let form = [mk_fun([[space(), pat, space()]]), space(), _exp];
+  let explanation = "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%i).";
+  let _pat = pat("_");
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionWild,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("_")])),
     explanation,
     examples: [wild_fun_ex],
   };
@@ -241,15 +171,12 @@ let _exp = exp("e");
 let function_intlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_intlit_exp: form = {
-  let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
-    feedback: Unselected,
-  };
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionInt,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(_pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
     explanation,
     examples: [intlit_fun_ex],
   };
@@ -259,16 +186,13 @@ let _exp = exp("e");
 let function_floatlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_floatlit_exp: form = {
-  let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%f`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
-    feedback: Unselected,
-  };
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%f`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
   // TODO print out the float literal nicer
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionFloat,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(_pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("FloatLit")])),
     explanation,
     examples: [floatlit_fun_ex],
   };
@@ -278,15 +202,12 @@ let _exp = exp("e");
 let function_boollit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_boollit_exp: form = {
-  let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
-    feedback: Unselected,
-  };
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionBool,
     syntactic_form: form,
-    expandable_id: Some(Piece.id(_pat)),
+    expandable_id: Some((Piece.id(_pat), [pat("BoolLit")])),
     explanation,
     examples: [boollit_fun_ex],
   };
@@ -552,83 +473,28 @@ let function_boollit_exp: form = {
       examples: [ap_fun_ex],
     };
   };*/
-
-let function_group = {id: FunctionExp, function_exp};
-let function_empty_hole_group = {
+let functions: group = {id: FunctionExp, forms: [function_exp]};
+let functions_empty_hole = {
   id: FunctionEmptyHole,
-  function_exp: {
-    form: function_exp,
-    expansion_label: [pat("p")],
-    selected: false,
-  },
-  function_empty_hole_exp: {
-    form: function_empty_hole_exp,
-    expansion_label: [pat("EMPTYHOLE")],
-    selected: true,
-  },
+  forms: [function_empty_hole_exp, function_exp],
 };
-let function_multi_hole_group = {
+let functions_multi_hole = {
   id: FunctionMultiHole,
-  function_exp: {
-    form: function_exp,
-    expansion_label: [pat("p")],
-    selected: false,
-  },
-  function_multi_hole_exp: {
-    form: function_multi_hole_exp,
-    expansion_label: [pat("INVALID")],
-    selected: true,
-  },
+  forms: [function_multi_hole_exp, function_exp],
 };
-let function_wild_group = {
+let functions_wild = {
   id: FunctionWild,
-  function_exp: {
-    form: function_exp,
-    expansion_label: [pat("p")],
-    selected: false,
-  },
-  function_wild_exp: {
-    form: function_wild_exp,
-    expansion_label: [pat("_")],
-    selected: true,
-  },
+  forms: [function_wild_exp, function_exp],
 };
-let function_int_group = {
+let functions_int = {
   id: FunctionInt,
-  function_exp: {
-    form: function_exp,
-    expansion_label: [pat("p")],
-    selected: false,
-  },
-  function_intlit_exp: {
-    form: function_intlit_exp,
-    expansion_label: [pat("IntLit")],
-    selected: true,
-  },
+  forms: [function_intlit_exp, function_exp],
 };
-let function_float_group = {
+let functions_float = {
   id: FunctionFloat,
-  function_exp: {
-    form: function_exp,
-    expansion_label: [pat("p")],
-    selected: false,
-  },
-  function_floatlit_exp: {
-    form: function_floatlit_exp,
-    expansion_label: [pat("FloatLit")],
-    selected: true,
-  },
+  forms: [function_exp, function_floatlit_exp],
 };
-let function_bool_group = {
+let functions_bool = {
   id: FunctionBool,
-  function_exp: {
-    form: function_exp,
-    expansion_label: [pat("p")],
-    selected: false,
-  },
-  function_boollit_exp: {
-    form: function_boollit_exp,
-    expansion_label: [pat("BoolLit")],
-    selected: true,
-  },
+  forms: [function_boollit_exp, function_exp],
 };

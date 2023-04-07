@@ -13,7 +13,7 @@ type t = {
   show_backpack_targets: bool,
   double_tap: option(timestamp),
   mousedown: bool,
-  explainThisMessages: ExplainThisMessages.t,
+  explainThisModel: ExplainThisModel.t,
 };
 
 let cutoff = (===);
@@ -28,7 +28,7 @@ let mk = editors => {
   show_backpack_targets: false,
   double_tap: None,
   mousedown: false,
-  explainThisMessages: ExplainThisMessages.init,
+  explainThisModel: ExplainThisModel.init,
 };
 
 let blank = mk(Editors.Scratch(0, []));
