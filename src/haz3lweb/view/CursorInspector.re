@@ -118,7 +118,7 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
           ~tooltip="Toggle language documentation", "i", show_lang_doc, _ =>
           Effect.Many([
             inject(
-              Update.UpdateExplainThisMessages(ExplainThisUpdate.ToggleShow),
+              Update.UpdateExplainThisModel(ExplainThisUpdate.ToggleShow),
             ),
             Effect.Stop_propagation,
           ])

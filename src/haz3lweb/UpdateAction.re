@@ -41,7 +41,7 @@ type t =
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
-  | UpdateExplainThisMessages(ExplainThisUpdate.update)
+  | UpdateExplainThisModel(ExplainThisUpdate.update)
   | DebugAction(DebugAction.t);
 
 module Failure = {

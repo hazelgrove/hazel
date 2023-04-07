@@ -1,16 +1,8 @@
 open ExplainThisForm;
 open Example;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type empty_hole_exp_group = {
-  id: group_id,
-  empty_hole_exp: form,
-};
 let empty_hole_exp: form = {
-  let explanation = {
-    message: "Empty hole. This marks an expression that needs to be filled in.",
-    feedback: Unselected,
-  };
+  let explanation = "Empty hole. This marks an expression that needs to be filled in.";
   {
     id: EmptyHoleExp,
     syntactic_form: [exp("EmptyHole")],
@@ -19,18 +11,10 @@ let empty_hole_exp: form = {
     examples: [],
   };
 };
-let empty_hole_exp_group = {id: EmptyHoleExp, empty_hole_exp};
+let empty_hole_exps = {id: EmptyHoleExp, forms: [empty_hole_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type multi_hole_exp_group = {
-  id: group_id,
-  multi_hole_exp: form,
-};
 let multi_hole_exp: form = {
-  let explanation = {
-    message: "Not recognized. This is an invalid term.",
-    feedback: Unselected,
-  };
+  let explanation = "Not recognized. This is an invalid term.";
   {
     id: MultiHoleExp,
     syntactic_form: [exp("INVALID")],
@@ -40,4 +24,4 @@ let multi_hole_exp: form = {
   };
 };
 
-let multi_hole_exp_group = {id: MultiHoleExp, multi_hole_exp};
+let multi_hole_exps = {id: MultiHoleExp, forms: [multi_hole_exp]};

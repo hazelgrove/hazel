@@ -41,42 +41,42 @@ module Settings = {
   };
 };
 
-// ExplainThisMessages serialization
-/*module ExplainThisMessages = {
-    let save_ExplainThisMessages_key: string = "ExplainThisMessages";
+// ExplainThisModel serialization
+/*module ExplainThisModel = {
+    let save_ExplainThisModel_key: string = "ExplainThisModel";
 
-    let serialize = explainThisMessages =>
-      ExplainThisMessages.serialize(explainThisMessages);
+    let serialize = explainThisModel =>
+      ExplainThisModel.serialize(explainThisModel);
 
     let deserialize = data =>
-      try(ExplainThisMessages.deserialize(data)) {
+      try(ExplainThisModel.deserialize(data)) {
       | _ =>
-        print_endline("Could not deserialize ExplainThisMessages.");
-        ExplainThisMessages.init;
+        print_endline("Could not deserialize ExplainThisModel.");
+        ExplainThisModel.init;
       };
 
-    let save = (explainThisMessages: ExplainThisMessages.t): unit =>
+    let save = (explainThisModel: ExplainThisModel.t): unit =>
       JsUtil.set_localstore(
-        save_ExplainThisMessages_key,
-        serialize(explainThisMessages),
+        save_ExplainThisModel_key,
+        serialize(explainThisModel),
       );
 
     let init = () => {
       JsUtil.set_localstore(
-        save_ExplainThisMessages_key,
-        serialize(ExplainThisMessages.init),
+        save_ExplainThisModel_key,
+        serialize(ExplainThisModel.init),
       );
-      ExplainThisMessages.init;
+      ExplainThisModel.init;
     };
 
-    let load = (): ExplainThisMessages.t =>
-      switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
+    let load = (): ExplainThisModel.t =>
+      switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
       | None => init()
       | Some(data) => deserialize(data)
       };
 
     let rec export = () =>
-      switch (JsUtil.get_localstore(save_ExplainThisMessages_key)) {
+      switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
       | None =>
         let _ = init();
         export();
@@ -84,8 +84,8 @@ module Settings = {
       };
 
     let import = data => {
-      let explainThisMessages = deserialize(data);
-      save(explainThisMessages);
+      let explainThisModel = deserialize(data);
+      save(explainThisModel);
     };
   };*/
 

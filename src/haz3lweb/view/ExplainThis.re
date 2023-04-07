@@ -29,60 +29,62 @@ let feedback_view = (message, up_active, up_action, down_active, down_action) =>
   );
 };
 
-let explanation_feedback_view =
-    (~inject, group_id, form_id, explanation: ExplainThisForm.explanation) => {
+let explanation_feedback_view = (~inject, group_id, form_id, model) => {
   let (up_active, down_active) =
-    switch (explanation.feedback) {
-    | ThumbsUp => (true, false)
-    | ThumbsDown => (false, true)
-    | Unselected => (false, false)
+    switch (
+      ExplainThisModel.get_explanation_feedback(group_id, form_id, model)
+    ) {
+    | Some(ThumbsUp) => (true, false)
+    | Some(ThumbsDown) => (false, true)
+    | None => (false, false)
     };
   feedback_view(
     "This explanation is helpful",
     up_active,
     _ =>
       inject(
-        Update.UpdateExplainThisMessages(
+        Update.UpdateExplainThisModel(
           ToggleExplanationFeedback(group_id, form_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
-        Update.UpdateExplainThisMessages(
+        Update.UpdateExplainThisModel(
           ToggleExplanationFeedback(group_id, form_id, ThumbsDown),
         ),
       ),
   );
 };
 
-let example_feedback_view =
-    (~inject, group_id, form_id, example: ExplainThisForm.example) => {
+let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
   let (up_active, down_active) =
-    switch (example.feedback) {
-    | ThumbsUp => (true, false)
-    | ThumbsDown => (false, true)
-    | Unselected => (false, false)
+    switch (
+      ExplainThisModel.get_example_feedback(
+        group_id,
+        form_id,
+        example_id,
+        model,
+      )
+    ) {
+    | Some(ThumbsUp) => (true, false)
+    | Some(ThumbsDown) => (false, true)
+    | None => (false, false)
     };
   feedback_view(
     "This example is helpful",
     up_active,
     _ =>
       inject(
-        Update.UpdateExplainThisMessages(
-          ToggleExampleFeedback(group_id, form_id, example.sub_id, ThumbsUp),
+        Update.UpdateExplainThisModel(
+          ToggleExampleFeedback(group_id, form_id, example_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
-        Update.UpdateExplainThisMessages(
-          ToggleExampleFeedback(
-            group_id,
-            form_id,
-            example.sub_id,
-            ThumbsDown,
-          ),
+        Update.UpdateExplainThisModel(
+          ToggleExampleFeedback(group_id, form_id, example_id, ThumbsDown),
         ),
       ),
   );
@@ -199,9 +201,9 @@ let mk_explanation =
       ~inject,
       group_id,
       form_id,
-      explanation,
       text: string,
       show_highlight: bool,
+      model: ExplainThisModel.t,
     )
     : (Node.t, ColorSteps.t) => {
   let (msg, color_map) =
@@ -209,7 +211,7 @@ let mk_explanation =
   (
     div([
       div(~attr=clss(["explanation-contents"]), msg),
-      explanation_feedback_view(~inject, group_id, form_id, explanation),
+      explanation_feedback_view(~inject, group_id, form_id, model),
     ]),
     color_map,
   );
@@ -217,10 +219,10 @@ let mk_explanation =
 
 let deco =
     (
-      ~doc: ExplainThisMessages.t,
+      ~doc: ExplainThisModel.t,
       ~settings,
       ~colorings,
-      ~expandable: option(Id.t),
+      ~expandable: option((Id.t, Segment.t)),
       ~unselected,
       ~map,
       ~inject,
@@ -244,7 +246,7 @@ let deco =
     switch (expandable, List.length(options)) {
     | (None, _)
     | (_, 0 | 1) => []
-    | (Some(expandable), _) => [
+    | (Some((expandable, _)), _) => [
         Deco.term_decoration(
           ~id=expandable,
           ((origin, path)) => {
@@ -297,7 +299,7 @@ let deco =
                           clss(classes),
                           Attr.on_click(_ =>
                             inject(
-                              Update.UpdateExplainThisMessages(
+                              Update.UpdateExplainThisModel(
                                 ExplainThisUpdate.UpdateGroupSelection(
                                   group_id,
                                   id,
@@ -336,7 +338,7 @@ let deco =
                   DecUtil.abs_position(~font_metrics, origin),
                   Attr.on_click(_ => {
                     inject(
-                      Update.UpdateExplainThisMessages(
+                      Update.UpdateExplainThisModel(
                         ExplainThisUpdate.SpecificityOpen(
                           !doc.specificity_open,
                         ),
@@ -405,6 +407,7 @@ let example_view =
       ~group_id,
       ~form_id,
       ~examples: list(ExplainThisForm.example),
+      ~model: ExplainThisModel.t,
     ) => {
   div(
     ~attr=Attr.id("examples"),
@@ -444,7 +447,13 @@ let example_view =
                   ~attr=clss(["explanation"]),
                   [text("Explanation: "), text(message)],
                 ),
-                example_feedback_view(~inject, group_id, form_id, example),
+                example_feedback_view(
+                  ~inject,
+                  group_id,
+                  form_id,
+                  example.sub_id,
+                  model,
+                ),
               ],
             );
           },
@@ -492,11 +501,7 @@ type message_mode =
   | Colorings;
 
 let get_doc =
-    (
-      ~docs: ExplainThisMessages.t,
-      info: option(Statics.t),
-      mode: message_mode,
-    )
+    (~docs: ExplainThisModel.t, info: option(Statics.t), mode: message_mode)
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -504,33 +509,32 @@ let get_doc =
     [text("No examples available")],
   );
   let get_specificity_level = group_id =>
-    fst(ExplainThisMessages.get_form_and_options(group_id, docs)).id;
+    fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
   let get_message =
       (
         ~colorings=[],
         ~format: option(string => string)=None,
-        group_id: ExplainThisForm.group_id,
+        group: ExplainThisForm.group,
       )
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-    let (doc, options) =
-      ExplainThisMessages.get_form_and_options(group_id, docs);
+    let (doc, options) = ExplainThisModel.get_form_and_options(group, docs);
 
     // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
     let explanation_msg =
       switch (format) {
-      | Some(f) => f(doc.explanation.message)
-      | None => doc.explanation.message
+      | Some(f) => f(doc.explanation)
+      | None => doc.explanation
       };
     switch (mode) {
     | MessageContent(inject, font_metrics, settings) =>
       let (explanation, color_map) =
         mk_explanation(
           ~inject,
-          group_id,
+          group.id,
           doc.id,
-          doc.explanation,
           explanation_msg,
           docs.highlight,
+          docs,
         );
       let syntactic_form_view =
         syntactic_form_view(
@@ -550,7 +554,7 @@ let get_doc =
           ~settings,
           ~id="syntactic-form-code",
           ~options,
-          ~group_id,
+          ~group_id=group.id,
           ~form_id=doc.id,
         );
       let example_view =
@@ -558,9 +562,10 @@ let get_doc =
           ~inject,
           ~font_metrics,
           ~settings,
-          ~group_id,
+          ~group_id=group.id,
           ~form_id=doc.id,
           ~examples=doc.examples,
+          ~model=docs,
         );
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
     | Colorings =>
@@ -577,14 +582,14 @@ let get_doc =
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
       | TermBase.UExp.Invalid(_) => default
-      | EmptyHole => get_message(HoleExp.empty_hole_exp_group.id)
+      | EmptyHole => get_message(HoleExp.empty_hole_exps)
 
-      | MultiHole(_children) => get_message(HoleExp.multi_hole_exp_group.id)
-      | Triv => get_message(TerminalExp.triv_exp_group.id)
-      | Bool(_bool_lit) => get_message(TerminalExp.bool_exp_group.id)
-      | Int(_int_lit) => get_message(TerminalExp.int_exp_group.id)
-      | Float(_float_lit) => get_message(TerminalExp.float_exp_group.id)
-      | String(_str_lit) => get_message(TerminalExp.string_exp_group.id)
+      | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
+      | Triv => get_message(TerminalExp.triv_exps)
+      | Bool(_bool_lit) => get_message(TerminalExp.bool_exps)
+      | Int(_int_lit) => get_message(TerminalExp.int_exps)
+      | Float(_float_lit) => get_message(TerminalExp.float_exps)
+      | String(_str_lit) => get_message(TerminalExp.string_exps)
       | ListLit(_terms) => /*get_message(
                                 ~format=
                                   Some(
@@ -621,9 +626,7 @@ let get_doc =
         switch (pat.term) {
         | EmptyHole =>
           if (FunctionExp.function_empty_hole_exp.id
-              == get_specificity_level(
-                   FunctionExp.function_empty_hole_group.id,
-                 )) {
+              == get_specificity_level(FunctionExp.functions_empty_hole)) {
             get_message(
               ~colorings=
                 FunctionExp.function_empty_hole_exp_coloring_ids(
@@ -640,16 +643,14 @@ let get_doc =
                       pat_id,
                     ),
                 ),
-              FunctionExp.function_empty_hole_group.id,
+              FunctionExp.functions_empty_hole,
             );
           } else {
-            basic(FunctionExp.function_empty_hole_group.id);
+            basic(FunctionExp.functions_empty_hole);
           }
         | MultiHole(_) =>
           if (FunctionExp.function_multi_hole_exp.id
-              == get_specificity_level(
-                   FunctionExp.function_multi_hole_group.id,
-                 )) {
+              == get_specificity_level(FunctionExp.functions_multi_hole)) {
             get_message(
               ~colorings=
                 FunctionExp.function_multi_hole_exp_coloring_ids(
@@ -666,14 +667,14 @@ let get_doc =
                       pat_id,
                     ),
                 ),
-              FunctionExp.function_multi_hole_group.id,
+              FunctionExp.functions_multi_hole,
             );
           } else {
-            basic(FunctionExp.function_multi_hole_group.id);
+            basic(FunctionExp.functions_multi_hole);
           }
         | Wild =>
           if (FunctionExp.function_wild_exp.id
-              == get_specificity_level(FunctionExp.function_wild_group.id)) {
+              == get_specificity_level(FunctionExp.functions_wild)) {
             get_message(
               ~colorings=FunctionExp.function_wild_exp_coloring_ids(~body_id),
               ~format=
@@ -684,14 +685,14 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_wild_group.id,
+              FunctionExp.functions_wild,
             );
           } else {
-            basic(FunctionExp.function_wild_group.id);
+            basic(FunctionExp.functions_wild);
           }
         | Int(i) =>
           if (FunctionExp.function_intlit_exp.id
-              == get_specificity_level(FunctionExp.function_int_group.id)) {
+              == get_specificity_level(FunctionExp.functions_int)) {
             get_message(
               ~colorings=
                 FunctionExp.function_intlit_exp_coloring_ids(
@@ -709,14 +710,14 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_int_group.id,
+              FunctionExp.functions_int,
             );
           } else {
-            basic(FunctionExp.function_int_group.id);
+            basic(FunctionExp.functions_int);
           }
         | Float(f) =>
           if (FunctionExp.function_floatlit_exp.id
-              == get_specificity_level(FunctionExp.function_float_group.id)) {
+              == get_specificity_level(FunctionExp.functions_float)) {
             get_message(
               ~colorings=
                 FunctionExp.function_floatlit_exp_coloring_ids(
@@ -734,14 +735,14 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_float_group.id,
+              FunctionExp.functions_float,
             );
           } else {
-            basic(FunctionExp.function_float_group.id);
+            basic(FunctionExp.functions_float);
           }
         | Bool(b) =>
           if (FunctionExp.function_boollit_exp.id
-              == get_specificity_level(FunctionExp.function_bool_group.id)) {
+              == get_specificity_level(FunctionExp.functions_bool)) {
             get_message(
               ~colorings=
                 FunctionExp.function_boollit_exp_coloring_ids(
@@ -759,10 +760,10 @@ let get_doc =
                       body_id,
                     ),
                 ),
-              FunctionExp.function_bool_group.id,
+              FunctionExp.functions_bool,
             );
           } else {
-            basic(FunctionExp.function_bool_group.id);
+            basic(FunctionExp.functions_bool);
           }
         | String(_s) => default
         /*if (FunctionExp.function_strlit_exp.id
@@ -2133,7 +2134,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: ExplainThisMessages.t, index': option(int), info_map: Statics.map) => {
+    (~doc: ExplainThisModel.t, index': option(int), info_map: Statics.map) => {
   let info: option(Statics.t) =
     switch (index') {
     | Some(index) =>
@@ -2152,7 +2153,7 @@ let view =
       ~inject,
       ~font_metrics: FontMetrics.t,
       ~settings: ModelSettings.t,
-      ~doc: ExplainThisMessages.t,
+      ~doc: ExplainThisModel.t,
       index': option(int),
       info_map: Statics.map,
     ) => {
@@ -2178,7 +2179,7 @@ let view =
             [
               toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
                 inject(
-                  Update.UpdateExplainThisMessages(
+                  Update.UpdateExplainThisModel(
                     ExplainThisUpdate.ToggleHighlight,
                   ),
                 )
@@ -2189,7 +2190,7 @@ let view =
                     clss(["close"]),
                     Attr.on_click(_ =>
                       inject(
-                        Update.UpdateExplainThisMessages(
+                        Update.UpdateExplainThisModel(
                           ExplainThisUpdate.ToggleShow,
                         ),
                       )
