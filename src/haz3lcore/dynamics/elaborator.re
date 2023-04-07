@@ -365,30 +365,8 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   };
 };
 
-//let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
-//  List.fold_left(
-//    (d', (ident, (elab, _))) => DHExp.Let(Var(ident), elab, d'),
-//    d,
-//    Builtins.forms(Builtins.Pervasives.builtins),
-//  );
-
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
-  | Some(d) =>
-    // let d = uexp_elab_wrap_builtins(d); No wrapping
-    Elaborates(d, Typ.Unknown(Internal), Delta.empty) //TODO: get type from ci
+  | Some(d) => Elaborates(d, Typ.Unknown(Internal), Delta.empty) //TODO: get type from ci
   };
-
-//let uexp_elab_new = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
-//  switch (dhexp_of_uexp(m, uexp)) {
-//  | None => DoesNotElaborate
-//  | Some(d) =>
-//    let builtins =
-//      List.fold_left(
-//        (d', (ident, (elab, _))) => DHExp.Let(Var(ident), elab, d'),
-//        EmptyHole(0, 0),
-//        Builtins.forms(Builtins.Pervasives.builtins),
-//      );
-//    DoesNotElaborate; // Do I call the evaluator to get the new environment, or built one on my own?
-//  };

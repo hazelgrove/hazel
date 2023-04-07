@@ -88,11 +88,7 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
   };
 };
 
-let step =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    EvaluatorStep.step(Builtins.Pervasives.builtins_as_environment),
-  );
+let step = Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.step);
 
 let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   let (es, d) = step(obj);
@@ -119,16 +115,17 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   };
 };
 
-let nop = (d: DHExp.t): ProgramResult.t => {
+let init = (d: DHExp.t): ProgramResult.t => {
   let es = EvaluatorState.init;
-  (BoxedValue(d), es, HoleInstanceInfo.empty);
+  let (env, es) =
+    Builtins.Pervasives.builtins_as_environment
+    |> ClosureEnvironment.of_environment
+    |> EvaluatorState.with_eig(_, es);
+  (BoxedValue(Closure(env, d)), es, HoleInstanceInfo.empty);
 };
 
 let decompose =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    EvaluatorStep.decompose(Builtins.Pervasives.builtins_as_environment),
-  );
+  Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.decompose);
 
 let decompose = (d: DHExp.t): list(EvaluatorStep.EvalObj.t) => {
   let (_, objs) = decompose(d);
