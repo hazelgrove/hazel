@@ -78,9 +78,6 @@ module EvalObj: {
 
   let mk: (ClosureEnvironment.t, EvalCtx.t, DHExp.t) => t;
 
-  let init: DHExp.t => t;
-
-  let get_env: t => ClosureEnvironment.t;
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;
 
@@ -93,9 +90,10 @@ type t =
   | Indet(DHExp.t)
   | Step(DHExp.t);
 
-let step: (Environment.t, EvalObj.t) => (EvaluatorState.t, t);
+let step: EvalObj.t => (EvaluatorState.t, t);
 
-let decompose:
-  (Environment.t, DHExp.t) => (EvaluatorState.t, list(EvalObj.t));
+let decompose: DHExp.t => (EvaluatorState.t, list(EvalObj.t));
 
-/* let transition: (Environment.t, DHExp.t) => (EvaluatorState.t, t); */
+let preproc: DHExp.t => EvaluatorMonad.t(DHExp.t);
+
+let postproc: t => EvaluatorMonad.t(t);

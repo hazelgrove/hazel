@@ -484,26 +484,35 @@ let rec mk =
         }
       };
     };
-    let doc = {
+    let parenthesize = doc =>
+      if (parenthesize) {
+        hcats([
+          DHDoc_common.Delim.open_Parenthesized,
+          doc |> DHDoc_common.pad_child(~enforce_inline),
+          DHDoc_common.Delim.close_Parenthesized,
+        ]);
+      } else {
+        doc(~enforce_inline);
+      };
+    let doc = (~enforce_inline) =>
       switch (steppable) {
       | Some((_, full)) =>
-        annot(DHAnnot.Steppable(full), fdoc(~enforce_inline, d, []))
-      | None =>
-        parenthesize
-          ? hcats([
-              DHDoc_common.Delim.open_Parenthesized,
-              fdoc(d, objs) |> DHDoc_common.pad_child(~enforce_inline),
-              DHDoc_common.Delim.close_Parenthesized,
-            ])
-          : fdoc(~enforce_inline, d, objs)
+        fdoc(~enforce_inline, d, []) |> annot(DHAnnot.Steppable(full))
+      | None => fdoc(~enforce_inline, d, objs)
       };
-    };
-    (doc, cast);
+    (parenthesize(doc), cast);
   };
-  // annot(DHAnnot.Steppable(List.hd(objs)), fdoc(~enforce_inline));
   let objs =
     if (decompose) {
-      Interface.decompose(d);
+      switch (Interface.decompose(d)) {
+      | objs => objs
+      | exception exn =>
+        print_endline(
+          "Error when decomposing expression: "
+          ++ Sexplib.Sexp.to_string_hum(Sexplib.Std.sexp_of_exn(exn)),
+        );
+        [];
+      };
     } else {
       [];
     };
