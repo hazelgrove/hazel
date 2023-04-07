@@ -115,9 +115,13 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   };
 };
 
-let nop = (d: DHExp.t): ProgramResult.t => {
+let init = (d: DHExp.t): ProgramResult.t => {
   let es = EvaluatorState.init;
-  (BoxedValue(d), es, HoleInstanceInfo.empty);
+  let (env, es) =
+    Builtins.Pervasives.builtins_as_environment
+    |> ClosureEnvironment.of_environment
+    |> EvaluatorState.with_eig(_, es);
+  (BoxedValue(Closure(env, d)), es, HoleInstanceInfo.empty);
 };
 
 let decompose =
