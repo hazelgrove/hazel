@@ -268,26 +268,7 @@ module EvalFilter = {
 
 let rec transition =
         (env: ClosureEnvironment.t, d: DHExp.t, f: EvalFilter.t): m(t) => {
-  /* print_endline( */
-  /*   "transitioning: d = " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)), */
-  /* ); */
-  /* print_endline( */
-  /*   "transitioning: f = " */
-  /*   ++ Sexplib.Sexp.to_string_hum(EvalFilter.sexp_of_t(f)), */
-  /* ); */
   let act = EvalFilter.matches(d, f);
-  /* print_endline( */
-  /*   "transitioning: act = " */
-  /*   ++ Sexplib.Sexp.to_string_hum(EvalFilter.sexp_of_action(act)), */
-  /* ); */
-  let return = r => {
-    /* print_endline( */
-    /*   "transitioned: r = " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)), */
-    /* ); */
-    return(
-      r,
-    );
-  };
   /* TODO: Investigate */
   /* Increment number of evaluation steps (calls to `evaluate`). */
   let* () = take_step;
@@ -365,9 +346,6 @@ let rec transition =
 
   | Ap(d1, d2) =>
     let* r1 = transition(env, d1, f);
-    print_endline(
-      "Ap(d1, d2) = " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r1)),
-    );
     switch (r1) {
     | Step(d1') => Step(Ap(d1', d2)) |> return
     | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2, f)
@@ -1063,13 +1041,21 @@ let is_final = (d: t): bool =>
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    env: ClosureEnvironment.t,
     ctx: EvalCtx.t,
     exp: DHExp.t,
+    flt: EvalFilter.t,
   };
 
-  let mk = (ctx: EvalCtx.t, exp: DHExp.t): t => {ctx, exp};
+  let mk = (env, ctx, exp, flt) => {env, ctx, exp, flt};
 
-  let init = (exp: DHExp.t): t => {ctx: Mark, exp};
+  let init = (exp: DHExp.t): t => {
+    let (env, _) =
+      Builtins.Pervasives.builtins_as_environment
+      |> ClosureEnvironment.of_environment
+      |> EvaluatorState.with_eig(_, EvaluatorState.init);
+    {env, ctx: Mark, exp, flt: EvalFilter.init};
+  };
 
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
   let get_exp = (obj: t): DHExp.t => obj.exp;
@@ -1164,7 +1150,7 @@ let rec decompose =
       dcs |> List.map(fst) |> List.fold_left(f, true |> return);
     };
     if (is_final) {
-      [EvalObj.mk(Mark, Closure(env, Filter(f, d)))] |> return;
+      [EvalObj.mk(env, Mark, d, f)] |> return;
     } else {
       List.fold_left(
         (rc, (d, fc)) => {
@@ -1203,7 +1189,7 @@ let rec decompose =
   | ExpandingKeyword(_) => [] |> return
   | ApBuiltin(_)
   | FixF(_, _, _)
-  | BoundVar(_) => [EvalObj.mk(Mark, Closure(env, Filter(f, d)))] |> return
+  | BoundVar(_) => [EvalObj.mk(env, Mark, d, f)] |> return
   | Ap(d1, d2) => go([(d1, c => Ap1(c, d2)), (d2, c => Ap2(d1, c))])
   | NonEmptyHole(reason, u, i, d1) =>
     go([(d1, c => NonEmptyHole(reason, u, i, c))])
@@ -1295,36 +1281,13 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
 };
 
 let step = (obj: EvalObj.t): m(t) => {
-  let* env =
-    Environment.empty |> ClosureEnvironment.of_environment |> with_eig;
-  let* r = transition(env, obj.exp, EvalFilter.init);
-  print_endline(
-    "transitioned: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)),
-  );
+  let* r = transition(obj.env, obj.exp, obj.flt);
   let d = compose(obj.ctx, unbox(r));
-  /* let wrap = (d: DHExp.t) => */
-  /*   switch (d) { */
-  /*   | Closure(_, Filter(_, _)) => d */
-  /*   | Closure(env', d') => Closure(env', Filter(EvalFilter.init, d')) */
-  /*   | Filter(_, _) => Closure(env, d) */
-  /*   | _ => Closure(env, Filter(EvalFilter.init, d)) */
-  /*   }; */
-  "composed: "
-  ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d))
-  |> print_endline;
   switch (r) {
   | Step(_) => Step(d) |> return
   | BoxedValue(_) => BoxedValue(d) |> return
   | Indet(_) => Indet(d) |> return
   };
-  /* "wrapped: " */
-  /* ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(wrap(d))) */
-  /* |> print_endline; */
-  /* switch (r) { */
-  /* | Step(_) => Step(wrap(d)) |> return */
-  /* | BoxedValue(_) => BoxedValue(wrap(d)) |> return */
-  /* | Indet(_) => Indet(wrap(d)) |> return */
-  /* }; */
 };
 
 let step = (obj: EvalObj.t) => {
@@ -1333,19 +1296,9 @@ let step = (obj: EvalObj.t) => {
 
 let decompose = (d: DHExp.t) => {
   let f = EvalFilter.init;
-  print_endline(
-    "decomposing: d = " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  );
   let (env, es) =
     Environment.empty
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  let (es, ld) = decompose(env, d, f, es);
-  print_endline(
-    "decomposed: ld = "
-    ++ Sexplib.Sexp.to_string_hum(
-         Sexplib.Std.sexp_of_list(EvalObj.sexp_of_t, ld),
-       ),
-  );
-  (es, ld);
+  decompose(env, d, f, es);
 };

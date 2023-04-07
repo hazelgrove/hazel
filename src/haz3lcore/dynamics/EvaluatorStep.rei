@@ -88,18 +88,16 @@ module EvalFilter: {
 module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    /* env: ClosureEnvironment.t, */
+    env: ClosureEnvironment.t,
     ctx: EvalCtx.t,
     exp: DHExp.t,
-    /* flt: EvalFilter.t, */
+    flt: EvalFilter.t,
   };
 
-  /* let mk: (ClosureEnvironment.t, EvalCtx.t, DHExp.t, EvalFilter.t) => t; */
-  let mk: (EvalCtx.t, DHExp.t) => t;
+  let mk: (ClosureEnvironment.t, EvalCtx.t, DHExp.t, EvalFilter.t) => t;
 
   let init: DHExp.t => t;
 
-  /* let get_env: t => ClosureEnvironment.t; */
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;
 
