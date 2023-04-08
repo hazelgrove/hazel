@@ -16,7 +16,7 @@ let button = (~tooltip="", icon, action) =>
 let hoverable_button =
     (
       ~tooltip="",
-      icon,
+      icon: list(t),
       on_mousedown_action,
       on_mouseover_action,
       on_mouseleave_action,
@@ -30,7 +30,7 @@ let hoverable_button =
         Attr.on_mouseleave(on_mouseleave_action),
         Attr.title(tooltip),
       ]),
-    [icon],
+    icon,
   );
 
 let button_d = (~tooltip="", icon, action, ~disabled: bool) =>

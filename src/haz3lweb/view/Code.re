@@ -30,25 +30,23 @@ let of_delim =
     (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
 
-// let of_grout = (id: Id.t) => [
-//   id
-//   |> InferenceResult.get_annotation_of_id
-//   |> OptUtil.get(() => Unicode.nbsp)
-//   |> Node.text,
-// ];
-
 let of_grout =
     (~global_inference_info: InferenceResult.global_inference_info, id: Id.t) => {
-  let solution: InferenceResult.solution =
-    InferenceResult.get_solution_of_id2(id, global_inference_info);
-  switch (solution) {
-  | Solved(Unknown(_))
-  | NotTypeHole => [Node.text(Unicode.nbsp)]
-  | Solved(ityp) => [
-      [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> Node.text]
-      |> span_c("solved-annotation"),
+  let suggestion: InferenceResult.suggestion =
+    InferenceResult.get_suggestion_for_id(id, global_inference_info);
+  switch (suggestion) {
+  | NoSuggestion(SuggestionsDisabled)
+  | NoSuggestion(NonTypeHoleId)
+  | NoSuggestion(OnlyHoleSolutions) => [Node.text(Unicode.nbsp)]
+  | Solvable(suggestion_string) => [
+      [Node.text(suggestion_string)] |> span_c("solved-annotation"),
     ]
-  | Unsolved => [["!" |> Node.text] |> span_c("unsolved-annotation")]
+  | NestedInconsistency(suggestion_string) => [
+      [Node.text(suggestion_string)] |> span_c("unsolved-annotation"),
+    ]
+  | NoSuggestion(InconsistentSet) => [
+      [Node.text("!")] |> span_c("unsolved-annotation"),
+    ]
   };
 };
 
@@ -151,17 +149,25 @@ let rec holes =
            holes(~global_inference_info, ~map, ~font_metrics),
            t.children,
          )
-       | Grout(g) => [
-           EmptyHoleDec.view(
-             ~global_inference_info,
-             ~font_metrics, // TODO(d) fix sort
-             g.id,
-             {
-               measurement: Measured.find_g(g, map),
-               mold: Mold.of_grout(g, Any),
-             },
-           ),
-         ],
+       | Grout(g) => {
+           let (show_dec, is_unsolved) =
+             InferenceResult.svg_display_settings(
+               ~global_inference_info,
+               g.id,
+             );
+           show_dec
+             ? [
+               EmptyHoleDec.view(
+                 ~font_metrics, // TODO(d) fix sort
+                 is_unsolved,
+                 {
+                   measurement: Measured.find_g(g, map),
+                   mold: Mold.of_grout(g, Any),
+                 },
+               ),
+             ]
+             : [];
+         },
      );
 
 let simple_view =

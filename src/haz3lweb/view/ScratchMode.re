@@ -64,6 +64,7 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
+          ~font_metrics,
           ~show_lang_doc=langDocMessages.show,
           zipper,
           info_map,

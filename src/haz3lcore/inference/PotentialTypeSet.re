@@ -477,38 +477,31 @@ let string_of_btyp = (btyp: base_typ): string => {
   btyp |> base_typ_to_ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
 };
 
-let rec string_of_potential_typ_set = (potential_typ_set: t): string =>
+let rec string_of_potential_typ_set_no_nesting =
+        (outermost, potential_typ_set: t): string =>
   switch (potential_typ_set) {
   | [] => ""
-  | [hd] => string_of_potential_typ(hd)
-  | [hd, ...tl] =>
-    let hd_str = string_of_potential_typ(hd);
-    String.concat(" // ", [hd_str, string_of_potential_typ_set(tl)]);
+  | [hd] => string_of_potential_typ(outermost, hd)
+  | [_hd, ..._tl] => "!"
   }
-and string_of_potential_typ_set_no_nesting = (potential_typ_set: t): string =>
-  switch (potential_typ_set) {
-  | [] => ""
-  | [hd] => string_of_potential_typ(hd)
-  | [_hd, ..._tl] => "?"
-  }
-and string_of_potential_typ = (potential_typ: potential_typ) =>
+and string_of_potential_typ = (outermost: bool, potential_typ: potential_typ) =>
   switch (potential_typ) {
   | Base(btyp) => string_of_btyp(btyp)
   | Binary(ctor, potential_typ_set_lt, potential_typ_set_rt) =>
     let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => ("(", " -> ", ")")
+      | CArrow => outermost ? ("", " -> ", "") : ("(", " -> ", ")")
       | CProd => ("(", ", ", ")")
-      | CSum => ("", " + ", "")
+      | CSum => outermost ? ("", " + ", "") : ("(", " + ", ")")
       };
 
     String.concat(
       "",
       [
         ctor_start,
-        string_of_potential_typ_set_no_nesting(potential_typ_set_lt),
+        string_of_potential_typ_set_no_nesting(false, potential_typ_set_lt),
         ctor_string,
-        string_of_potential_typ_set_no_nesting(potential_typ_set_rt),
+        string_of_potential_typ_set_no_nesting(false, potential_typ_set_rt),
         ctor_end,
       ],
     );
@@ -522,11 +515,11 @@ and string_of_potential_typ = (potential_typ: potential_typ) =>
       "",
       [
         start_text,
-        string_of_potential_typ_set_no_nesting(potential_typ_set),
+        string_of_potential_typ_set_no_nesting(false, potential_typ_set),
         end_text,
       ],
     );
   };
 
 let strings_of_potential_typ_set = (potential_typ_set: t): list(string) =>
-  List.map(string_of_potential_typ, potential_typ_set);
+  List.map(string_of_potential_typ(true), potential_typ_set);

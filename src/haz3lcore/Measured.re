@@ -380,14 +380,15 @@ let of_segment =
           | Grout(g) =>
             let annotation_offset =
               switch (
-                InferenceResult.get_solution_of_id(
+                InferenceResult.get_suggestion_for_id(
                   g.id,
                   global_inference_info,
                 )
               ) {
-              | Some(ityp) =>
-                ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> String.length
-              | None => 1
+              | Solvable(suggestion_string)
+              | NestedInconsistency(suggestion_string) =>
+                String.length(suggestion_string)
+              | NoSuggestion(_) => 1
               };
 
             let last = {...origin, col: origin.col + annotation_offset};

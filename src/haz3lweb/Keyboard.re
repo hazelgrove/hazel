@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Util;
 
 let is_printable = s => Re.Str.(string_match(regexp("^[ -~]$"), s, 0));
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
@@ -73,22 +74,24 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (_, "Enter") =>
       let suggestion_opt = {
         open Util.OptUtil.Syntax;
-        let* (p, _) = Zipper.representative_piece(zipper);
-        InferenceResult.get_recommended_string(
-          ~global_inference_info,
+        let+ (p, _) = Zipper.representative_piece(zipper);
+        InferenceResult.get_suggestion_for_id(
           Piece.id(p),
+          global_inference_info,
         );
       };
       switch (suggestion_opt) {
-      | Some(typ_filling) =>
+      | Some(Solvable(typ_filling))
+      | Some(NestedInconsistency(typ_filling)) =>
         // question marks (holes) can't be inserted manually, so filter them out
-        let explode = s =>
-          List.init(String.length(s), i => String.make(1, s.[i]));
         let join = List.fold_left((s, acc) => s ++ acc, "");
-        let no_q_marks =
-          typ_filling |> explode |> List.filter(s => s != "?") |> join;
-        [UpdateAction.Paste(no_q_marks)];
-      | None => now_save(Insert(Form.linebreak))
+        let no_hole_marks =
+          typ_filling
+          |> StringUtil.to_list
+          |> List.filter(s => s != "?" && s != "!")
+          |> join;
+        [UpdateAction.Paste(no_hole_marks)];
+      | _ => now_save(Insert(Form.linebreak))
       };
     | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things

@@ -25,12 +25,7 @@ let path = (tip_l, tip_r, offset, s: float) => {
 };
 
 let view =
-    (
-      ~global_inference_info: InferenceResult.global_inference_info,
-      ~font_metrics,
-      id,
-      {measurement, mold}: Profile.t,
-    )
+    (~font_metrics, is_unsolved: bool, {measurement, mold}: Profile.t)
     : Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
@@ -40,25 +35,19 @@ let view =
     {sort, shape: tip_l},
     {sort, shape: tip_r},
   );
-  let (svg_enabled, unsolved_path_class) =
-    InferenceResult.svg_display_settings(~global_inference_info, id);
-  let svg_path_class =
-    unsolved_path_class ? "unsolved-empty-hole-path" : "empty-hole-path";
-  svg_enabled
-    ? unsolved_path_class
-        ? DecUtil.code_svg_sized(
-            ~font_metrics,
-            ~measurement,
-            ~base_cls=["empty-hole"],
-            ~path_cls=[svg_path_class, c_cls],
-            path(tip_l, tip_r, 0., 0.58),
-          )
-        : DecUtil.code_svg_sized(
-            ~font_metrics,
-            ~measurement,
-            ~base_cls=["empty-hole"],
-            ~path_cls=[svg_path_class, c_cls],
-            path(tip_l, tip_r, 0., 0.28),
-          )
-    : Node.none;
+  is_unsolved
+    ? DecUtil.code_svg_sized(
+        ~font_metrics,
+        ~measurement,
+        ~base_cls=["empty-hole"],
+        ~path_cls=["unsolved-empty-hole-path", c_cls],
+        path(tip_l, tip_r, 0., 0.58),
+      )
+    : DecUtil.code_svg_sized(
+        ~font_metrics,
+        ~measurement,
+        ~base_cls=["empty-hole"],
+        ~path_cls=["empty-hole-path", c_cls],
+        path(tip_l, tip_r, 0., 0.28),
+      );
 };

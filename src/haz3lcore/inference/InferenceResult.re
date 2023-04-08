@@ -39,54 +39,54 @@ let get_desired_solutions =
   new_map;
 };
 
-type solution =
-  | Solved(ITyp.t)
-  | Unsolved
-  | NotTypeHole;
+type suggestion =
+  | Solvable(string)
+  | NestedInconsistency(string)
+  | NoSuggestion(reason_for_silence)
+and reason_for_silence =
+  | SuggestionsDisabled
+  | NonTypeHoleId
+  | OnlyHoleSolutions
+  | InconsistentSet;
 
-let get_solution_of_id2 =
-    (id: Id.t, global_inference_info: global_inference_info): solution =>
+let get_suggestion_for_id =
+    (id: Id.t, global_inference_info: global_inference_info): suggestion =>
   if (global_inference_info.enabled) {
-    let status =
+    let status_opt =
       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
-    switch (status) {
-    | Some(Solved(ityp)) => Solved(ityp)
-    | Some(Unsolved(_)) => Unsolved
-    | None => NotTypeHole
+    switch (status_opt) {
+    | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
+    | Some(Solved(ityp)) =>
+      Solvable(ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string)
+    | Some(Unsolved([potential_typ])) =>
+      NestedInconsistency(
+        PotentialTypeSet.string_of_potential_typ(true, potential_typ),
+      )
+    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+    | None => NoSuggestion(NonTypeHoleId)
     };
   } else {
-    NotTypeHole;
-  };
-
-let get_solution_of_id =
-    (id: Id.t, global_inference_info: global_inference_info): option(ITyp.t) =>
-  if (global_inference_info.enabled) {
-    let* status =
-      Hashtbl.find_opt(global_inference_info.solution_statuses, id);
-    switch (status) {
-    | Solved(Unknown(_)) => None
-    | Solved(ityp) => Some(ityp)
-    | Unsolved(_) => None
-    };
-  } else {
-    None;
+    NoSuggestion(SuggestionsDisabled);
   };
 
 let svg_display_settings =
-    (~global_inference_info: global_inference_info, id: Id.t): (bool, bool) =>
-  if (global_inference_info.enabled) {
-    switch (Hashtbl.find_opt(global_inference_info.solution_statuses, id)) {
-    | Some(status) =>
-      switch (status) {
-      | Solved(Unknown(_)) => (true, false)
-      | Solved(_) => (false, false)
-      | Unsolved(_) => (true, true)
-      }
-    | None => (true, false)
+    (~global_inference_info: global_inference_info, id: Id.t): (bool, bool) => {
+  let (show_svg, is_unsolved) =
+    if (global_inference_info.enabled) {
+      switch (Hashtbl.find_opt(global_inference_info.solution_statuses, id)) {
+      | Some(status) =>
+        switch (status) {
+        | Solved(Unknown(_)) => (true, false)
+        | Solved(_) => (false, false)
+        | Unsolved(_) => (true, true)
+        }
+      | None => (true, false)
+      };
+    } else {
+      (true, false);
     };
-  } else {
-    (true, false);
-  };
+  (show_svg, is_unsolved);
+};
 
 let get_cursor_inspect_result =
     (~global_inference_info: global_inference_info, id: Id.t)
@@ -106,12 +106,6 @@ let get_cursor_inspect_result =
   } else {
     None;
   };
-
-let get_recommended_string =
-    (~global_inference_info: global_inference_info, id: Id.t): option(string) => {
-  let+ ityp = get_solution_of_id(id, global_inference_info);
-  ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
-};
 
 let condense =
     (potential_typ_set: MutablePotentialTypeSet.t, key: ITyp.t): status => {
