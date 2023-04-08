@@ -70,6 +70,35 @@ let code_svg_sized =
     ) => {
   let (left, top) = (origin.col, origin.row);
   let (width, height) = (last.col - origin.col, last.row - origin.row + 1);
+  print_endline(string_of_int(width));
+  print_endline(string_of_int(height));
+  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  create_svg(
+    "svg",
+    ~attr=
+      Attr.many([
+        Attr.classes(base_cls),
+        Attr.create("style", style),
+        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
+        Attr.create("preserveAspectRatio", "none"),
+      ]),
+    [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
+  );
+};
+
+let code_svg_sized2 =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
+      ~base_cls=[],
+      ~path_cls=[],
+      ~fudge: fdims=fzero,
+      paths: list(SvgUtil.Path.cmd),
+    ) => {
+  let (left, top) = (origin.col, origin.row);
+  let (width, height) = (last.col - origin.col, last.row - origin.row + 1);
+  print_endline(string_of_int(width));
+  print_endline(string_of_int(height));
   let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
   create_svg(
     "svg",
