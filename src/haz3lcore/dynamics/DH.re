@@ -44,6 +44,14 @@ module rec DHExp: {
       | SEquals;
   };
 
+  module Filter: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action = TermBase.UExp.filter_action;
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = list((DHExp.t, action));
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -55,7 +63,7 @@ module rec DHExp: {
     | Closure(ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
-    | Filter(list((t, TermBase.UExp.filter_action)), t)
+    | Filter(Filter.t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -141,6 +149,14 @@ module rec DHExp: {
       | SEquals;
   };
 
+  module Filter = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action = TermBase.UExp.filter_action;
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = list((DHExp.t, action));
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -155,7 +171,7 @@ module rec DHExp: {
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
-    | Filter(list((t, TermBase.UExp.filter_action)), t)
+    | Filter(Filter.t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))

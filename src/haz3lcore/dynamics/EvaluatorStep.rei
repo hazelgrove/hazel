@@ -1,3 +1,18 @@
+module EvalFilter: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = TermBase.UExp.filter_action;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list((DHExp.t, action));
+
+  let init: t;
+
+  let matches_exp: (DHExp.t, DHExp.t) => bool;
+  let matches_pat: (DHPat.t, DHPat.t) => bool;
+  let matches_typ: (Typ.t, Typ.t) => bool;
+  let matches_rul: (DHExp.rule, DHExp.rule) => bool;
+};
+
 module EvalCtx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -33,7 +48,7 @@ module EvalCtx: {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
-    | Filter(list((DHExp.t, TermBase.UExp.filter_action)), t)
+    | Filter(EvalFilter.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
@@ -70,21 +85,6 @@ module EvalCtx: {
   and rule = DHExp.rule;
 };
 
-module EvalFilter: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = TermBase.UExp.filter_action;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list((DHExp.t, action));
-
-  let init: t;
-
-  let matches_exp: (DHExp.t, DHExp.t) => bool;
-  let matches_pat: (DHPat.t, DHPat.t) => bool;
-  let matches_typ: (Typ.t, Typ.t) => bool;
-  let matches_rul: (DHExp.rule, DHExp.rule) => bool;
-};
-
 module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -109,6 +109,14 @@ type t =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t)
   | Step(DHExp.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cls =
+  | BoxedValue
+  | Indet
+  | Step;
+
+let init: DHExp.t => (EvaluatorState.t, t);
 
 let step: EvalObj.t => (EvaluatorState.t, t);
 

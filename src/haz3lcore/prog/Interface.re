@@ -115,13 +115,31 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   };
 };
 
+let init = Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.init);
+
 let init = (d: DHExp.t): ProgramResult.t => {
-  let es = EvaluatorState.init;
-  let (env, es) =
-    Builtins.Pervasives.builtins_as_environment
-    |> ClosureEnvironment.of_environment
-    |> EvaluatorState.with_eig(_, es);
-  (BoxedValue(Closure(env, d)), es, HoleInstanceInfo.empty);
+  let (es, r) = init(d);
+  switch (r) {
+  | Step(d)
+  | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
+  | Indet(d) => (Indet(d), es, HoleInstanceInfo.empty)
+  | exception (EvaluatorError.Exception(_reason)) =>
+    //HACK(andrew): supress exceptions for release
+    //raise(EvalError(reason))
+    print_endline("Interface.step EXCEPTION");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
+  | exception _ =>
+    print_endline("Other evaluation exception raised (stack overflow?)");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
+  };
 };
 
 let decompose =
