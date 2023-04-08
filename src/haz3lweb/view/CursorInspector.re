@@ -227,14 +227,44 @@ let view =
     switch (Id.Map.find_opt(id, info_map)) {
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
-      /*print_endline("TESTING: ChatLSP.Errors.collect:");
+      if (zipper.backpack != []) {
+        print_endline("TESTING: ChatLSP.Errors backpack not empty:");
         print_endline(
           ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
-        );*/
+        );
+      };
+      /*
+       levels of syntax error:
+
+       general checks:
+       a. get list of all backpack items (use label + shards to get actual delim)
+       b. check if exist unbound kw: if, then, else, let, in, fun, case, test, end
+       c. check if exist unbound false kws: match, of, with
+       d. check if exist multiholes
+
+       heuristics:
+          if rule (|,=>) in backpack, suggest => instead of -> (check for ->?)
+          if case, test in backpack, suggest end might be missing/unrecognized
+          if let, type in backpack, suggest in might be missing/unrecognized
+          if ( or [: suggest ) or ] might be missing
+
+       // check if these exist unbound
+       reserved: if, then, else, let, in, fun, case, test, end
+
+
+       1: backpack empty, but exist multiholes:
+       1a check for reserved/ false reserved
+       1b suggest function application syntax
+
+        */
+      print_endline("TESTING: ChatLSP.Errors.collect:");
+      print_endline(
+        ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
+      );
       bar_view([
         inspector_view(~inject, ~settings, ~show_lang_doc, id, ci),
         cls_and_id_view(id, ci),
-      ])
+      ]);
     }
   };
 };

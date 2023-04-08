@@ -31,7 +31,16 @@ let of_delim' =
         span(
           ~attr=
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
-          [Node.text(List.nth(label, i))],
+          switch (label) {
+          /*| [s] when Form.is_string(s) =>
+            let ss = Str.split(Str.regexp("⏎"), s) |> List.map(Node.text);
+            ListUtil.interleave(
+              ss,
+              List.init(List.length(ss) - 1, _ => Node.br()),
+            );*/
+          //[Node.br()]
+          | _ => [Node.text(List.nth(label, i))]
+          },
         ),
       ];
     },

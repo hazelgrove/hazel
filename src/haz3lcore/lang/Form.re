@@ -110,7 +110,8 @@ let is_bad_lit = str =>
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
 let is_string = t =>
-  regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
+  regexp("^\"[^⏎]*\"$", t)
+  && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
