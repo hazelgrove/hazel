@@ -403,6 +403,12 @@ let is_linebreak_to_right_of_caret =
  logic, but if there is something, try to drop as soon as possible?
  idea is youre targetting the restructuring case where you just
  picked something up
+
+ IDEA: above logic works well for as-you-type, but not restructuring.
+  for example, if the top of the backpack is a leading delimiter,
+  which means you must have picked it up. maybe you want to drop those
+  as soon as possible?
+
   */
 let try_to_dump_backpack = (zipper: t) => {
   /*NOTE(andrew): setting caret to outer
@@ -422,7 +428,7 @@ let try_to_dump_backpack = (zipper: t) => {
     | None => false
     };
   let rec move_until_cant_put_down = (z_last, z: t) =>
-    if (can_put_down(z /*&& !is_linebreak_to_right_of_caret(z)*/)) {
+    if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
       switch (move(Right, z)) {
       | None => z
       | Some(z_new) => move_until_cant_put_down(z, z_new)

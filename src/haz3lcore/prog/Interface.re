@@ -2,10 +2,10 @@ exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t =>
   switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
-    print_endline("Interface.elaborate EXCEPTION");
+    print_endline("Interface.elaborate: Elaborate returns None");
     //HACK(andrew): supress exceptions for release
     //raise(DoesNotElaborate)
-    InvalidText(0, 0, "EXCEPTION");
+    InvalidText(0, 0, "ELAB_ERROR");
   | Elaborates(d, _, _) => d
   };
 

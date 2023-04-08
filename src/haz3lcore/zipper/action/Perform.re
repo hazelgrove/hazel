@@ -1,4 +1,5 @@
 open Util;
+open OptUtil.Syntax;
 open Zipper;
 
 let is_write_action = (a: Action.t) => {
@@ -8,6 +9,7 @@ let is_write_action = (a: Action.t) => {
   | SetSelectionFocus(_) //TODO(andrew): remove
   | Jump(_)
   | Select(_) => false
+  | RemoteAction(_)
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -31,6 +33,7 @@ let go_z =
     | None => Editor.Meta.init(z)
     };
   module M = (val Editor.Meta.module_of_t(meta));
+  module Move2 = Move;
   module Move = Move.Make(M);
   module Select = Select.Make(M);
   switch (a) {
@@ -60,6 +63,28 @@ let go_z =
     )
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move);
+  | RemoteAction(move_action, f) =>
+    let caret_point = Zipper.caret_point(M.measured, z);
+    let z =
+      switch (Move.go(move_action, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    let state = {
+      let* (z, id_gen) = f(z, id_gen);
+      //TODO(andrew): hacky, slow
+      //will fuck up unless move target is right of or below caret
+      let unselected = Zipper.unselect_and_zip(z);
+      let measured = Measured.of_segment(unselected);
+      module M2 = (val Editor.Meta.module_of_t({...meta, measured}));
+      module Move3 = Move2.Make(M2);
+      let+ z = Move3.go(Goal(caret_point), z);
+      (z, id_gen);
+    };
+    switch (state) {
+    | Some((z, id_gen)) => Ok((z, id_gen))
+    | None => Error(Action.Failure.Cant_move) //TODO: better error
+    };
   | SetSelectionFocus(d) =>
     let z = {
       ...z,

@@ -4,7 +4,13 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
+/*[@deriving (show({with_path: false}), yojson, sexp)]
+  type mode =
+    | Normal
+    | ChatConsole;*/
+
 type t = {
+  //mode,
   editors: Editors.t,
   results: ModelResults.t,
   mvu_states: VarMap.t_(DHExp.t),
@@ -20,6 +26,7 @@ type t = {
 let cutoff = (===);
 
 let mk = editors => {
+  //mode: Normal,
   editors,
   results: ModelResults.empty,
   mvu_states: VarMap.empty,
