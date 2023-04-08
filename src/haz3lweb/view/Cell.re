@@ -359,6 +359,9 @@ let get_elab = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
       ~ignore_selection=true,
       ~dump_backpack=true,
     );
+  /*print_endline(
+      "get_elab: smart_seg:" ++ Printer.of_segment(~holes=Some("?"), seg),
+    );*/
   let (term, _) = MakeTerm.go(seg);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   Interface.elaborate(info_map, term);

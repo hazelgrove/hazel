@@ -103,9 +103,10 @@ let apply =
       perform_action(model, Unselect(Some(Right)))
     | Buffer(Amorphous) =>
       switch (TyDi.get_amorphous_buffer_text(z)) {
-      | None => Ok(model) /*TODO(andrew): shouldnt happen
-      if we assume that we prevalidate everything we put
-      in the amorphous buffer*/
+      | None => Ok(model)
+      /*TODO(andrew): shouldnt happen
+        if we assume that we prevalidate everything we put
+        in the amorphous buffer*/
       | Some(completion) =>
         //print_endline("accept suggestion: smart complete");
         main(model, Paste(completion), state, ~schedule_action)

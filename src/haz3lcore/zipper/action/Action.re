@@ -27,6 +27,7 @@ type select =
 type t =
   | Move(move)
   | Jump(jump_target)
+  | RemoteAction(move, (Zipper.t, Id.t) => option((Zipper.t, Id.t)))
   | Select(select)
   | Unselect(option(Direction.t))
   | SetSelectionFocus(Direction.t)

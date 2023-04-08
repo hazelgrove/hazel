@@ -84,9 +84,9 @@ let rec render_div =
   };
 
 let go = (context: t) => {
-  print_endline("eval_result blee");
   let result = eval(Ap(context.view, context.model));
-
+  //print_endline("RESULT:");
+  //print_endline(DHExp.show(result));
   let node =
     switch (render_div(context, result)) {
     | Some(node) =>
@@ -94,8 +94,6 @@ let go = (context: t) => {
       node
     | None => Node.text("ERROR: render_div returned None")
     };
-  //print_endline("RESULT:");
-  //print_endline(DHExp.show(result));
   [
     Node.div(
       ~attr=Attr.classes(["mvu-render"]),

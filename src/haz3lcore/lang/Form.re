@@ -165,6 +165,7 @@ let space = " ";
    issues with using \n. Someone who understands regexps better
    should fix this. */
 let linebreak = "⏎";
+//let hspace = "¶";
 let comment_regexp = "^#[^#⏎]*#$"; /* Multiline comments not supported */
 let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";

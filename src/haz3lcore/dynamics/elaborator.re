@@ -164,10 +164,20 @@ let rec dhexp_of_uexp =
       | Invalid(t) => Some(DHExp.InvalidText(id, 0, t))
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
       | MultiHole(_tms) =>
+        let+ ds =
+          _tms
+          |> List.map(
+               fun
+               | Term.Exp(t) => dhexp_of_uexp(m, t)
+               | _ => Some(EmptyHole(id, 0)),
+             )
+          |> OptUtil.sequence;
+        //TODO(andrew): turning this into tuples for now; yolo
         /* TODO: add a dhexp case and eval logic for multiholes.
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
-        Some(EmptyHole(id, 0))
+        //Some(EmptyHole(id, 0))
+        DHExp.Tuple(ds);
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
@@ -297,8 +307,12 @@ let rec dhexp_of_uexp =
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
-  | None => None
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_)) =>
+    print_endline("Elaborate: Exp: Infomap returned wrong sort");
+    None;
+  | None =>
+    print_endline("Elaborate: Exp: Infomap lookup failed");
+    None;
   };
 }
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
@@ -354,8 +368,12 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
-  | None => None
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_)) =>
+    print_endline("Elaborate: Pat: Infomap returned wrong sort");
+    None;
+  | None =>
+    print_endline("Elaborate: Pat: Infomap lookup failed");
+    None;
   };
 };
 

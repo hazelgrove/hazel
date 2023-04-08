@@ -20,6 +20,9 @@ let spliced_elabs = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => {
       ~ignore_selection=true,
       ~dump_backpack=true,
     );
+  /*print_endline(
+      "spliced_elabs: smart_seg:" ++ Printer.of_segment(~holes=Some("?"), seg),
+    );*/
   let (term, _) = MakeTerm.go(seg);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   [(scratch_key, Interface.elaborate(info_map, term))];

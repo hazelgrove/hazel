@@ -653,7 +653,9 @@ body,
 }
 
 .code .token.sort-inconsistent {
-  color: var(--err-color) !important;
+  /*color: var(--err-color) !important;*/
+  /*TODO(andrew): less shouty for now*/
+  color: #938870 !important;
 }
   
 .code .token.incomplete {
