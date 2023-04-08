@@ -211,6 +211,15 @@ let go =
         || Form.is_comment(t)
         && Form.is_comment_delim(char) =>
     Some((z, id_gen))
+  //TODO(andrew): refine this case:
+  /*| (Inner(d_idx, n), (_, Some(t)))
+      when Form.is_string(t) || Form.is_comment(t) =>
+    let idx = n + 1;
+    let new_t = Token.insert_nth(idx, char, t);
+    z
+    |> Zipper.set_caret(Inner(d_idx, idx))
+    |> (z => Zipper.replace_mono(Right, new_t, (z, id_gen)))
+    |> opt_regrold(Left);*/
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
