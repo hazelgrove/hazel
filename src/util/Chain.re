@@ -14,6 +14,8 @@ let of_loop = (lp: 'loop): t('loop, _) => ([lp], []);
 let loops: t('loop, _) => list('loop) = fst;
 let links: t(_, 'link) => list('link) = snd;
 
+let length = ((lps, _)) => List.length(lps);
+
 let split_fst =
     ((loops, links): t('loop, 'link))
     : ('loop, (list('link), list('loop))) => {

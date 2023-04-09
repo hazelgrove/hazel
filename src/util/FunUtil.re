@@ -6,3 +6,5 @@ let force_opt = (f: 'x => option('y), x: 'x): 'y =>
   | None => failwith("FunUtil.force_opt")
   | Some(y) => y
   };
+
+let curry2 = (f, x, y) => f((x, y));
