@@ -251,8 +251,8 @@ let patch_sort = (~id=?, s: Sort.o, mel: t) => {
   | None => of_grout(Grout.mk_operand(None))
   | Some(s') when Sort.eq(s, s') => mel
   | Some(s') =>
-    let e: LangUtil.Edge.t =
-      LangUtil.takes(s, s')
+    let e: SortDeps.Edge.t =
+      SortDeps.takes(s, s')
       |> OptUtil.get_or_fail("probably this means grammar isn't LR");
     e.l
       // todo: confirm use of prec max here is ok

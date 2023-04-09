@@ -2,7 +2,7 @@ open Util;
 
 // https://en.wikipedia.org/wiki/Prototile
 // tiles and grout are instances of prototiles
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = {
   mold: Mold.t,
   label: Token.t,
@@ -25,6 +25,7 @@ let unsnoc_char = (p: t): option((t, t)) => {
 };
 
 // assumes client checked for zippability (eg same mold)
+// todo: rename to avoid clashing with grammar zipper
 let zip = (l: t, r: t): t => {...l, label: l.label ++ r.label};
 let unzip = (n: int, p: t): Either.t(Dir.t, (t, t)) =>
   Token.unzip(n, p.label)
@@ -44,3 +45,10 @@ module Grout = {
   // let mk_infix = (~l=?, ~r=?, s, p) =>
   //   mk(Mold.mk_infix(~l?, ~r?, s, p));
 };
+
+module Ord = {
+  type nonrec t = t;
+  let compare = compare;
+};
+module Map = Map.Make(Ord);
+module Set = Set.Make(Ord);

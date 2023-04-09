@@ -1,3 +1,5 @@
+open Util;
+
 // todo: add must_match flag
 type t =
   // Flat?

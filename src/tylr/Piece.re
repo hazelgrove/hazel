@@ -199,7 +199,7 @@ let lst_mold = (p: t, cmpl: Complement.t) =>
 let lt = (l: t, r: t): option(Complement.t) => {
   open OptUtil.Syntax;
   let* (s_l, p_l) = Mold.concavable(R, mold(l));
-  let* _ = LangUtil.takes(s_l, sort(r));
+  let* _ = SortDeps.takes(s_l, sort(r));
   let cmpl = complement_beyond(~side=L, r);
   switch (Mold.concavable(L, fst_mold(cmpl, r))) {
   | Some((s_r, p_r))
@@ -212,7 +212,7 @@ let lt = (l: t, r: t): option(Complement.t) => {
 let gt = (l: t, r: t): option(Complement.t) => {
   open OptUtil.Syntax;
   let* (s_r, p_r) = Mold.concavable(L, mold(r));
-  let* _ = LangUtil.takes(s_r, sort(l));
+  let* _ = SortDeps.takes(s_r, sort(l));
   let cmpl = complement_beyond(~side=R, l);
   switch (Mold.concavable(R, lst_mold(l, cmpl))) {
   | Some((s_l, p_l))
@@ -221,3 +221,31 @@ let gt = (l: t, r: t): option(Complement.t) => {
   | _ => Some(cmpl)
   };
 };
+
+let mold_eq = (p: t, t: Token.t): option((Grammar.Walk.Eq.t, Mold.t)) => {
+  let leq = Grammar.walk(R, proto(p));
+  Prototiles.of_token(t)
+  |> List.filter_map(q => {
+    open OptUtil.Syntax;
+    let* ws = Proto.Map.find_opt(q, leq);
+    let* w = ListUtil.hd_opt(ws);
+    Grammar.Walk.height(w) == 1 ? Some((w, q)) : None;
+  })
+  |> ListUtil.hd_opt;
+};
+
+// todo: factor in kid (may want to include kids in grammar walks?)
+// (hmmm... realizing that would also indicate exactly what holes to insert)
+// (so then melding doesn't need to be responsible for error correction at all)
+let mold_lt = (p: t, ~kid=?, t: Token.t): Result.t((Grammar.Walk.t, Mold.t), Sort.o) => {
+  let leq = Grammar.walk(R, proto(p));
+  Prototiles.of_token(t)
+  |> List.filter_map(q => {
+    open OptUtil.Syntax;
+    let* ws = Proto.Map.find_opt(q, leq);
+    let* w = ListUtil.hd_opt(ws);
+    Grammar.Walk.height(w) > 1 ? Some((w, q)) : None;
+  })
+  |> ListUtil.hd_opt
+  |> Result.of_option(~error=sort(p));
+}

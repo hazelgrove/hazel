@@ -1,5 +1,6 @@
 open Sexplib.Std;
-module Either3 = Util.Either3;
+open Util;
+// module Either3 = Util.Either3;
 
 module Kid = {
   [@deriving (show({with_path: false}), sexp, yojson)]

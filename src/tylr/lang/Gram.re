@@ -43,14 +43,17 @@ let eps = Seq([]);
 
 let opt = g => Alt([eps, g]);
 
-let rec fold: 's. (Atom.t('s) => _, _, _, _, t('s)) => _ =
-  (f_atom, f_star, f_seq, f_alt) => {
-    let fold = fold(f_atom, f_star, f_seq, f_alt);
+let rec fold:
+  's.
+  (~atom: Atom.t('s) => _, ~star: _, ~seq: _, ~alt: _, t('s)) => _
+ =
+  (~atom, ~star, ~seq, ~alt) => {
+    let fold = fold(~atom, ~star, ~seq, ~alt);
     fun
-    | Atom(a) => f_atom(a)
-    | Star(g) => f_star(fold(g))
-    | Seq(gs) => f_seq(List.map(fold, gs))
-    | Alt(gs) => f_alt(List.map(fold, gs));
+    | Atom(a) => atom(a)
+    | Star(g) => star(fold(g))
+    | Seq(gs) => seq(List.map(fold, gs))
+    | Alt(gs) => alt(List.map(fold, gs));
   };
 
 let rec kids =
