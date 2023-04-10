@@ -231,6 +231,7 @@ let view =
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
   let editor = Editors.get_editor(model.editors);
+  let index' = Haz3lcore.Indicated.index(zipper);
 
   let info_str =
     switch (model.accessibility_info) {
@@ -239,7 +240,16 @@ let view =
       | (_, []) => ""
       | (_, [(action, _), ..._]) => action_string(action, editor)
       }
-    | Context => "No Static Data"
+    | Context =>
+      switch (index') {
+      | Some(index) =>
+        let ci = Haz3lcore.Id.Map.find_opt(index, info_map);
+        switch (ci) {
+        | Some(ci) => ctx_inspector_string(ci)
+        | None => "No Static Data"
+        };
+      | None => "No Static Data"
+      }
     | Cursor => cursor_inspector_string(zipper, info_map)
     };
 
