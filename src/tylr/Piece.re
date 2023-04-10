@@ -19,6 +19,7 @@ module Shape = {
 };
 
 // invariant: !is_empty(proto.label) ==> is_prefix(filled, proto.label)
+// todo: unify tile and grout
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
@@ -226,26 +227,27 @@ let mold_eq = (p: t, t: Token.t): option((Grammar.Walk.Eq.t, Mold.t)) => {
   let leq = Grammar.walk(R, proto(p));
   Prototiles.of_token(t)
   |> List.filter_map(q => {
-    open OptUtil.Syntax;
-    let* ws = Proto.Map.find_opt(q, leq);
-    let* w = ListUtil.hd_opt(ws);
-    Grammar.Walk.height(w) == 1 ? Some((w, q)) : None;
-  })
+       open OptUtil.Syntax;
+       let* ws = Proto.Map.find_opt(q, leq);
+       let* w = ListUtil.hd_opt(ws);
+       Grammar.Walk.height(w) == 1 ? Some((w, q)) : None;
+     })
   |> ListUtil.hd_opt;
 };
 
 // todo: factor in kid (may want to include kids in grammar walks?)
 // (hmmm... realizing that would also indicate exactly what holes to insert)
 // (so then melding doesn't need to be responsible for error correction at all)
-let mold_lt = (p: t, ~kid=?, t: Token.t): Result.t((Grammar.Walk.t, Mold.t), Sort.o) => {
+let mold_lt =
+    (p: t, ~kid=?, t: Token.t): Result.t((Grammar.Walk.t, Mold.t), Sort.o) => {
   let leq = Grammar.walk(R, proto(p));
   Prototiles.of_token(t)
   |> List.filter_map(q => {
-    open OptUtil.Syntax;
-    let* ws = Proto.Map.find_opt(q, leq);
-    let* w = ListUtil.hd_opt(ws);
-    Grammar.Walk.height(w) > 1 ? Some((w, q)) : None;
-  })
+       open OptUtil.Syntax;
+       let* ws = Proto.Map.find_opt(q, leq);
+       let* w = ListUtil.hd_opt(ws);
+       Grammar.Walk.height(w) > 1 ? Some((w, q)) : None;
+     })
   |> ListUtil.hd_opt
   |> Result.of_option(~error=sort(p));
-}
+};

@@ -5,7 +5,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = {
   mold: Mold.t,
-  label: Token.t,
+  label: Label.t,
 };
 
 let mold_ = p => p.mold;

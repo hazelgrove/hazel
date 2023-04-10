@@ -1,11 +1,11 @@
-type t = PTable.t(Regex.t);
+type t('s) = list((Regex.t('s), Assoc.t));
 
 let enter_eq =
-    (~from: Dir.t, ~bound=?, p: t): list(list(Regex.Zipper.t(Label.t))) =>
+    (~from: Util.Dir.t, ~bound=?, p: t(_))
+    : list(list(Regex.Zipper.t(Label.t, _))) =>
   p
   |> List.mapi((prec, (r, a: Assoc.t)) => {
-       open Regex;
-       let entered = Zipper.enter(~from, r, Unzipped.empty);
+       let entered = enter(~from, r, Unzipped.empty);
        // assuming same opseq form within each precedence level
        let entered_toks = List.exists(((a, _)) => Atom.is_tok(a), entered);
        let bounded =
@@ -21,10 +21,11 @@ let enter_eq =
        if (entered_toks) {
          entered;
        } else if (bounded) {
-         entered |> List.concat_map(Zipper.move_to_tok(Dir.toggle(from)));
+         entered
+         |> List.concat_map(Regex.Zipper.move_to_tok(Dir.toggle(from)));
        } else {
          [];
        };
      });
 
-let end_toks = (side: Dir.t) => PTable.map(Regex.end_toks(side));
+// let end_toks = (side: Dir.t) => PTable.map(Regex.end_toks(side));

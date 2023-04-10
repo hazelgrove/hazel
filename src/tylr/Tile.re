@@ -4,7 +4,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   proto: Proto.t,
-  unfilled: int,
+  token: Token.t,
 };
 
 let mk = (~unfilled=0, proto) => {proto, unfilled};

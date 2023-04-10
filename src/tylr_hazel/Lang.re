@@ -1,5 +1,3 @@
-open Gram;
-
 module Sort = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -37,50 +35,54 @@ module Sort = {
     | _ => raise(Invalid_argument("Sort.of_string: unrecognized sort"));
 };
 
-let p = (~a: option(Dir.t)=?, g: t(Sort.t)) => (g, a);
+module Grammar = {
+  open Regex;
 
-module Typ = {
-  let t = [];
+  let p = (~a: option(Dir.t)=?, g: t(Sort.t)) => (g, a);
+
+  module Typ = {
+    let t = [];
+  };
+
+  module Pat = {
+    let t = [];
+  };
+
+  module Exp = {
+    let e = kid(Sort.Exp);
+
+    [@warning "-32"]
+    let comma_sep = seq([e, Star(seq([tok(","), e]))]);
+
+    // let rule = seq([tok("|"), p, tok("=>"), e]);
+
+    // let statement = seq([e, tok(";")]);
+    // let block = Star(statement);
+
+    let operand =
+      alt([
+        tok_shape(Int_lit),
+        tok_shape(Float_lit),
+        tok_shape(Id_lower),
+        // todo: seq([tok("("), opt(comma_sep), tok(")")]),
+        seq([tok("("), e, tok(")")]),
+        // todo: seq([tok("["), opt(comma_sep), tok("]")]),
+        seq([tok("["), e, tok("]")]),
+        // seq([tok("case"), e, Star(rule), tok("end")]),
+      ]);
+
+    let tok_alt = ss => alt(List.map(tok, ss));
+    let add_op = tok_alt(["+", "+.", "-", "-."]);
+    let mult_op = tok_alt(["*", "*.", "/", "/."]);
+    let neg_op = tok_alt(["-", "-."]);
+
+    let t = [
+      p(~a=L, seq([e, add_op, e])),
+      p(~a=L, seq([e, mult_op, e])),
+      p(seq([neg_op, e])),
+      p(operand),
+    ];
+  };
+
+  let v = Sort.[(Typ, Typ.t), (Pat, Pat.t), (Exp, Exp.t)];
 };
-
-module Pat = {
-  let t = [];
-};
-
-module Exp = {
-  let e = kid(Sort.Exp);
-
-  [@warning "-32"]
-  let comma_sep = seq([e, Star(seq([tok(","), e]))]);
-
-  // let rule = seq([tok("|"), p, tok("=>"), e]);
-
-  // let statement = seq([e, tok(";")]);
-  // let block = Star(statement);
-
-  let operand =
-    alt([
-      tok_shape(Int_lit),
-      tok_shape(Float_lit),
-      tok_shape(Id_lower),
-      // todo: seq([tok("("), opt(comma_sep), tok(")")]),
-      seq([tok("("), e, tok(")")]),
-      // todo: seq([tok("["), opt(comma_sep), tok("]")]),
-      seq([tok("["), e, tok("]")]),
-      // seq([tok("case"), e, Star(rule), tok("end")]),
-    ]);
-
-  let tok_alt = ss => alt(List.map(tok, ss));
-  let add_op = tok_alt(["+", "+.", "-", "-."]);
-  let mult_op = tok_alt(["*", "*.", "/", "/."]);
-  let neg_op = tok_alt(["-", "-."]);
-
-  let t = [
-    p(~a=L, seq([e, add_op, e])),
-    p(~a=L, seq([e, mult_op, e])),
-    p(seq([neg_op, e])),
-    p(operand),
-  ];
-};
-
-let t = Sort.[(Typ, Typ.t), (Pat, Pat.t), (Exp, Exp.t)];

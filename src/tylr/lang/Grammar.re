@@ -1,4 +1,5 @@
-type t = list((Sort.t, Precex.t));
+// type t('s) = list((Sort.t, Precex.t('s)));
+include Lang.Grammar;
 
 let enter_eq = {
   let go =
@@ -17,24 +18,24 @@ let enter_eq = {
   (~bound=?, ~from: Dir.t, s: Sort.t) => go((bound, from, s));
 };
 
-let step_eq =
+let step_eq: (Util.Dir.t, Proto.t) => list((Walk.t, Proto.t)) =
   Core.Memo.general(((d, Proto.{label, mold})) =>
-    Regex.Zipper.move_to_tok(d, (label, mold.unzipped))
-    |> List.map(((label, unzipped)) => {
+    Regex.move_to_tok(d, (label, mold.unzipped))
+    |> List.map((w, (label, unzipped)) => {
          let mold = {...mold, unzipped};
-         Proto.{mold, label};
+         (w, Proto.{mold, label});
        })
   )
   |> Util.FunUtil.curry2;
 
-let step_lt =
+let step_lt: (Util.Dir.t, Proto.t) => _ =
   Core.Memo.general(((d, Proto.{label, mold})) => {
     open Regex;
     let b = Util.Dir.toggle(d);
     let bound = Unzipped.nullable(d, mold.unzipped) ? Some(mold.prec) : None;
     let neighbor_sorts =
-      Zipper.step(d, (label, mold.unzipped))
-      |> List.filter_map(((a, _)) => Atom.is_kid(a))
+      step(d, (Atom(label), mold.unzipped))
+      |> List.filter_map(((w, (a, _))) => Atom.is_kid(a))
       |> List.concat_map(s => [s, ...SortDeps.uni_deps(b, s)])
       |> Util.ListUtil.dedup;
     neighbor_sorts |> List.concat_map(enter_eq(~from=b, ~bound));
@@ -45,7 +46,9 @@ module Walk = {
   open Util;
 
   module Level = {
-    type t = list(Proto.t);
+    type t = Chain.t(option(Sort.t), Proto.t);
+
+    let empty = Chain.of_loop(None);
 
     let compare = (l, r) => Int.compare(List.length(l), List.length(r));
   };
@@ -58,19 +61,25 @@ module Walk = {
     } else if (m > n) {
       1;
     } else {
-      List.fold_left2();
+      let (l, r) = Chain.(loops(l), loops(r));
+      List.fold_left2(
+        (c, l, r) => c == 0 ? Level.compare(l, r) : c,
+        0,
+        l,
+        r,
+      );
     };
   };
 
-  let add_step = (side: Dir.t, p: Proto.t) =>
+  let add_step = (side: Dir.t, ~kid=?, p: Proto.t) =>
     switch (side) {
-    | L => Chain.map_fst(List.cons(p))
-    | R => Chain.map_lst(eq => eq @ [p])
+    | L => Chain.map_fst(Chain.link(kid, p))
+    | R => Chain.map_lst(lvl => Chain.knil(lvl, p, kid))
     };
   let add_level = (side: Dir.t, w: t) =>
     switch (side) {
-    | L => Chain.link([], (), w)
-    | R => Chain.knil(w, (), [])
+    | L => Chain.link(Level.empty, (), w)
+    | R => Chain.knil(w, (), Level.empty)
     };
 };
 
