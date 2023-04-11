@@ -52,29 +52,29 @@ module Grammar = {
     let e = kid(Sort.Exp);
 
     [@warning "-32"]
-    let comma_sep = seq([e, Star(seq([tok(","), e]))]);
+    let comma_sep = seq([e, Star(seq([tokc(","), e]))]);
 
-    // let rule = seq([tok("|"), p, tok("=>"), e]);
+    // let rule = seq([tokc("|"), p, tokc("=>"), e]);
 
-    // let statement = seq([e, tok(";")]);
+    // let statement = seq([e, tokc(";")]);
     // let block = Star(statement);
 
     let operand =
       alt([
-        tok_shape(Int_lit),
-        tok_shape(Float_lit),
-        tok_shape(Id_lower),
-        // todo: seq([tok("("), opt(comma_sep), tok(")")]),
-        seq([tok("("), e, tok(")")]),
-        // todo: seq([tok("["), opt(comma_sep), tok("]")]),
-        seq([tok("["), e, tok("]")]),
-        // seq([tok("case"), e, Star(rule), tok("end")]),
+        tok(Int_lit),
+        tok(Float_lit),
+        tok(Id_lower),
+        // todo: seq([tokc("("), opt(comma_sep), tokc(")")]),
+        seq([tokc("("), e, tokc(")")]),
+        // todo: seq([tokc("["), opt(comma_sep), tokc("]")]),
+        seq([tokc("["), e, tokc("]")]),
+        // seq([tokc("case"), e, Star(rule), tokc("end")]),
       ]);
 
-    let tok_alt = ss => alt(List.map(tok, ss));
-    let add_op = tok_alt(["+", "+.", "-", "-."]);
-    let mult_op = tok_alt(["*", "*.", "/", "/."]);
-    let neg_op = tok_alt(["-", "-."]);
+    let tokc_alt = ss => alt(List.map(tokc, ss));
+    let add_op = tokc_alt(["+", "+.", "-", "-."]);
+    let mult_op = tokc_alt(["*", "*.", "/", "/."]);
+    let neg_op = tokc_alt(["-", "-."]);
 
     let t = [
       p(~a=L, seq([e, add_op, e])),

@@ -40,7 +40,14 @@ let rec map = f =>
   | Seq(rs) => Seq(List.map(map(f), rs))
   | Alt(rs) => Alt(List.map(map(f), rs));
 
-let rec fold = (~atom, ~star, ~seq, ~alt) => {
+let rec fold =
+        (
+          ~atom: Atom.t(_) => 'acc,
+          ~star: 'acc => 'acc,
+          ~seq: list('acc) => 'acc,
+          ~alt: list('acc) => 'acc,
+        )
+        : (t(_) => 'acc) => {
   let fold = fold(~atom, ~star, ~seq, ~alt);
   fun
   | Atom(a) => atom(a)
@@ -50,15 +57,15 @@ let rec fold = (~atom, ~star, ~seq, ~alt) => {
 };
 
 let nullable = r =>
-  fold(
-    // assuming all atoms are non-nullable
-    // but could change this in future
-    ~atom=_ => false,
-    ~star=_ => true,
-    ~seq=List.for_all(Fun.id),
-    ~alt=List.exists(Fun.id),
-    r,
-  );
+  r
+  |> fold(
+       // assuming all atoms are non-nullable
+       // but could change this in future
+       ~atom=_ => false,
+       ~star=_ => true,
+       ~seq=List.for_all(Fun.id),
+       ~alt=List.exists(Fun.id),
+     );
 
 module Unzipped = {
   type t('s) =
@@ -179,23 +186,12 @@ let step = (~skip_nullable=true, d, (a, uz)) =>
   step(~skip_nullable, d, (Atom(a), uz));
 
 module Walk = {
-  type t('s) = Chain.t(option(Zipper.t('s, 's)), Zipper.t(Label.t, 's));
-  let empty = Chain.of_loop(None);
-  let add_kid = (side: Dir.t, z: Zipper.t(_)) =>
-    // lossy in general but not for well-typed walks
+  type t('s) = list(Zipper.t(Atom.t('s), 's));
+  let empty = [];
+  let add_step = (side: Dir.t, z: Zipper.t(_), w) =>
     switch (side) {
-    | L => Chain.map_fst(_ => Some(z))
-    | R => Chain.map_lst(_ => Some(z))
-    };
-  let add_lbl = (side: Dir.t, z: Zipper.t(Label.t, _), w) =>
-    switch (side) {
-    | L => Chain.link(None, z, w)
-    | R => Chain.knil(w, z, None)
-    };
-  let add_step = (side: Dir.t, (a, uz): Zipper.t(Atom.t(_), _), w: t(_)) =>
-    switch (a) {
-    | Kid(s) => add_kid(side, (s, uz))
-    | Tok(lbl) => add_lbl(side, (lbl, uz))
+    | L => [z, ...w]
+    | R => w @ [z]
     };
 };
 
@@ -207,7 +203,7 @@ let rec walk =
           ~seen=Walk.empty,
           (a, uz): Zipper.t(Atom.t(_), _),
         )
-        : list((Walk.t(_), Zipper.t(Atom.t(_), _))) => {
+        : list((Walk.t(_), Zipper.t('a, _))) => {
   let go = walk(~skip_nullable, ~until, d);
   let step = step(~skip_nullable, d);
   let (found_now, found_later) =
@@ -221,8 +217,8 @@ let rec walk =
   found_now @ List.concat(found_later);
 };
 
-let move_to_tok = move(~until=Atom.is_tok);
-let move_to_kid = move(~until=Atom.is_kid);
+let walk_to_tok = walk(~until=Atom.is_tok);
+let walk_to_kid = walk(~until=Atom.is_kid);
 
 // currently assuming:
 // (1) no consecutive kids
@@ -231,17 +227,18 @@ let move_to_kid = move(~until=Atom.is_kid);
 // only (1) fundamentally necessary
 exception Ill_typed;
 
-let tok_shape = (t: Token.Shape.t) => Atom(Atom.Tok(t));
-let tok = (s: string) => tok_shape(Const(s));
+let tok = (lbl: Label.t) => Atom(Atom.Tok(lbl));
+let tokc = (t: Token.t) => tok(Const(t));
 let kid = s => Atom(Atom.Kid(s));
 
-let kids =
-  fold(
-    ~atom=a => Option.to_list(Atom.is_kid(a)),
-    ~star=Fun.id,
-    ~seq=List.concat,
-    ~alt=List.concat,
-  );
+let kids = r =>
+  r
+  |> fold(
+       ~atom=a => Option.to_list(Atom.is_kid(a)),
+       ~star=Fun.id,
+       ~seq=List.concat,
+       ~alt=List.concat,
+     );
 
 // let end_toks = (side: Dir.t, r: t): list(Zipper.t(Token.Shape.t)) =>
 //   enter(~from=side, r, Unzipped.empty)

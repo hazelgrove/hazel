@@ -5,9 +5,10 @@ let enter_eq =
     : list(list(Regex.Zipper.t(Label.t, _))) =>
   p
   |> List.mapi((prec, (r, a: Assoc.t)) => {
-       let entered = enter(~from, r, Unzipped.empty);
-       // assuming same opseq form within each precedence level
-       let entered_toks = List.exists(((a, _)) => Atom.is_tok(a), entered);
+       let entered = Regex.enter(~from, r, Regex.Unzipped.empty);
+       // assuming same opseq form within each precedence level,
+       // thus safe to check for single existence
+       let entered_toks = List.exists(((a, _)) => Regex.Atom.is_tok(a), entered);
        let bounded =
          switch (bound) {
          | None => true
