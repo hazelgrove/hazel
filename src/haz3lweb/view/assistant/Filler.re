@@ -31,6 +31,38 @@ let samples = [
     Type.expected(Some(Ana(Var("MenuItem")))),
     "fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend",
   ),
+  (
+    {|
+let List.merge: (( , )->Bool,[ ], [ ]) -> [ ] = fun cmp,left, right ->
+case left, right
+| [], _ => right
+| _, [] => left
+| h1::t1, h2::t2 =>
+if cmp(h1, h2)
+then h1 :: List.merge(cmp, t1, right)
+else h2 :: List.merge(cmp,left, t2)
+end
+in
+
+let List.sort: ((?, ?) -> Bool, [?]) -> [?] =
+fun cmp, list ->
+let merge_sort_helper: [?] -> [?] = fun l ->
+case  l
+| [] => ?
+| [x] => [x]
+| _ => ??
+end
+in merge_sort_helper(list)
+in
+test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
+    |},
+    Type.expected(Some(Ana(List(Unknown(Internal))))),
+    {|
+let mid = List.length(l) / 2 in
+let left, right = List.take(mid, l), List.drop(mid, l) in
+List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
+|},
+  ),
 ];
 
 let mk_prompt =
@@ -60,9 +92,10 @@ let collate_samples: samples => list(string) =
 let code_instructions = [
   {|You are an ancient and thoughtful spirit of code completion|},
   "When you encounter an incomplete program sketch as a prompt, you come up with a reasonable replacement for the hole labelled ?? in the actual prompt",
-  "Your replacement suggestion doesn't have to be complete; it's okay to leave holes (denoted ??) in your completion if there isn't enough information to fill them in",
+  "Your replacement suggestion doesn't have to be complete; it's okay to leave holes (marked '?') in your completion if there isn't enough information to fill them in",
   "Respond only with a replacement for the symbol ?? in the actual prompt",
   "Respond only with a single replacement expression; you do not need to provide replacements for the samples",
+  "Do not suggest replacements for other holes in the sketch (marked '?'), or implicit holes. Suggest a replacement only for the distinguished hole ('??')",
   "Do not include the provided program sketch in your response",
   "Include only code in your response",
   "Use C-style function application syntax, with parenthesis around comma-separated arguments",
@@ -90,7 +123,7 @@ let prompt = (model: Model.t): option(string) => {
     ["Consider these examples:"]
     @ collate_samples(samples)
     @ code_instructions;
-  let body = Printer.to_string_editor(~holes=Some("HOLE"), editor);
+  let body = Printer.to_string_editor(~holes=Some("?"), editor);
   switch (String.trim(body)) {
   | "" => None
   | _ =>

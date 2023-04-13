@@ -670,6 +670,11 @@ body,
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
 }
 
+.code .token.explicit-hole {
+  color: #ffd04f !important;
+  text-shadow: 1px 1px 0px rgb(45, 34, 6);
+}
+
 
 .child-backing {
   z-index: -1;
