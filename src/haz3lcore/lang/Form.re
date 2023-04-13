@@ -177,6 +177,10 @@ let is_secondary = t =>
 let const_mono_delims =
   base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
 
+let explicit_hole = "?";
+let expliciter_hole = "??";
+let is_explicit_hole = t => t == explicit_hole || t == expliciter_hole;
+
 /* B. Operands:
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
@@ -184,7 +188,13 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("export", (Hyper.is_export, [mk_op(Exp, [])])),
   //("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("explicit_hole", ((==)("??"), [mk_op(Exp, [])])),
+  (
+    "explicit_hole",
+    (
+      is_explicit_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    ),
+  ),
   ("hole", ((==)("_"), [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
