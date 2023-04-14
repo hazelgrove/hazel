@@ -29,9 +29,9 @@ let forms = (builtins: t): forms =>
     builtins,
   );
 
-let using_const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
+let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
   VarMap.extend(builtins, (name, Builtin.mk_zero(name, typ, v)));
-let using_fn = (name: Var.t, typ: Typ.t, impl: pervasive, builtins: t): t =>
+let fn = (name: Var.t, typ: Typ.t, impl: pervasive, builtins: t): t =>
   VarMap.extend(builtins, (name, Builtin.mk_one(name, typ, impl)));
 
 module Pervasives = {
@@ -260,39 +260,106 @@ module Pervasives = {
         raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
       | Indet(d) => Indet(ApBuiltin(name, [d])) |> return
       };
+
+    let string_length =
+      unary(
+        fun
+        | StringLit(s) => Ok(IntLit(String.length(s)))
+        | d => Error(InvalidBoxedStringLit(d)),
+      );
+
+    let string_compare =
+      unary(
+        fun
+        | Tuple([StringLit(s1), StringLit(s2)]) =>
+          Ok(IntLit(String.compare(s1, s2)))
+        | d => Error(InvalidBoxedTuple(d)),
+      );
+
+    let string_trim =
+      unary(
+        fun
+        | StringLit(s) => Ok(StringLit(String.trim(s)))
+        | d => Error(InvalidBoxedStringLit(d)),
+      );
+
+    let string_concat =
+      unary(
+        fun
+        | Tuple([StringLit(s1), ListLit(_, _, _, _, xs)]) =>
+          switch (
+            List.map(
+              fun
+              | DHExp.StringLit(s) => Some(s)
+              | _ => None,
+              xs,
+            )
+            |> Util.OptUtil.sequence
+          ) {
+          | None => Error(InvalidBoxedStringLit(List.hd(xs)))
+          | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
+          }
+        | d => Error(InvalidBoxedTuple(d)),
+      );
+
+    let string_sub = name =>
+      unary'(
+        fun
+        | Tuple([StringLit(s), IntLit(i), IntLit(j)]) as d =>
+          try(Ok(BoxedValue(StringLit(String.sub(s, i, j))))) {
+          | _ =>
+            let d' = DHExp.ApBuiltin(name, [d]);
+            Ok(Indet(InvalidOperation(d', ToStringFailed)));
+          }
+        | d => Error(InvalidBoxedTuple(d)),
+        name,
+      );
   };
 
   open Impls;
   let builtins =
     VarMap.empty
-    |> using_const("pi", Float, pi)
-    |> using_const("max_int", Int, max_int)
-    |> using_const("min_int", Int, min_int)
-    |> using_const("epsilon_float", Float, epsilon_float)
-    |> using_const("infinity", Float, infinity)
-    |> using_const("neg_infinity", Float, neg_infinity)
-    |> using_const("nan", Float, nan)
-    |> using_fn("int_of_float", Arrow(Float, Int), int_of_float)
-    |> using_fn("float_of_int", Arrow(Int, Float), float_of_int)
-    |> using_fn("string_of_int", Arrow(Int, String), string_of_int)
-    |> using_fn("string_of_float", Arrow(Float, String), string_of_float)
-    |> using_fn("string_of_bool", Arrow(Bool, String), string_of_bool)
-    |> using_fn("int_of_string", Arrow(String, Int), int_of_string)
-    |> using_fn("float_of_string", Arrow(String, Float), float_of_string)
-    |> using_fn("bool_of_string", Arrow(String, Bool), bool_of_string)
-    |> using_fn("abs", Arrow(Int, Int), abs)
-    |> using_fn("abs_float", Arrow(Float, Float), abs_float)
-    |> using_fn("ceil", Arrow(Float, Float), ceil)
-    |> using_fn("floor", Arrow(Float, Float), floor)
-    |> using_fn("exp", Arrow(Float, Float), exp)
-    |> using_fn("log", Arrow(Float, Float), log)
-    |> using_fn("log10", Arrow(Float, Float), log10)
-    |> using_fn("sqrt", Arrow(Float, Float), sqrt)
-    |> using_fn("sin", Arrow(Float, Float), sin)
-    |> using_fn("cos", Arrow(Float, Float), cos)
-    |> using_fn("tan", Arrow(Float, Float), tan)
-    |> using_fn("asin", Arrow(Float, Float), asin)
-    |> using_fn("acos", Arrow(Float, Float), acos)
-    |> using_fn("atan", Arrow(Float, Float), atan)
-    |> using_fn("mod", Arrow(Prod([Int, Int]), Int), int_mod);
+    |> const("pi", Float, pi)
+    |> const("max_int", Int, max_int)
+    |> const("min_int", Int, min_int)
+    |> const("epsilon_float", Float, epsilon_float)
+    |> const("infinity", Float, infinity)
+    |> const("neg_infinity", Float, neg_infinity)
+    |> const("nan", Float, nan)
+    |> fn("int_of_float", Arrow(Float, Int), int_of_float)
+    |> fn("float_of_int", Arrow(Int, Float), float_of_int)
+    |> fn("string_of_int", Arrow(Int, String), string_of_int)
+    |> fn("string_of_float", Arrow(Float, String), string_of_float)
+    |> fn("string_of_bool", Arrow(Bool, String), string_of_bool)
+    |> fn("int_of_string", Arrow(String, Int), int_of_string)
+    |> fn("float_of_string", Arrow(String, Float), float_of_string)
+    |> fn("bool_of_string", Arrow(String, Bool), bool_of_string)
+    |> fn("abs", Arrow(Int, Int), abs)
+    |> fn("abs_float", Arrow(Float, Float), abs_float)
+    |> fn("ceil", Arrow(Float, Float), ceil)
+    |> fn("floor", Arrow(Float, Float), floor)
+    |> fn("exp", Arrow(Float, Float), exp)
+    |> fn("log", Arrow(Float, Float), log)
+    |> fn("log10", Arrow(Float, Float), log10)
+    |> fn("sqrt", Arrow(Float, Float), sqrt)
+    |> fn("sin", Arrow(Float, Float), sin)
+    |> fn("cos", Arrow(Float, Float), cos)
+    |> fn("tan", Arrow(Float, Float), tan)
+    |> fn("asin", Arrow(Float, Float), asin)
+    |> fn("acos", Arrow(Float, Float), acos)
+    |> fn("atan", Arrow(Float, Float), atan)
+    |> fn("mod", Arrow(Prod([Int, Int]), Int), int_mod)
+    |> fn("String.length", Arrow(String, Int), string_length)
+    |> fn(
+         "String.compare",
+         Arrow(Prod([String, String]), Int),
+         string_compare,
+       )
+    |> fn("String.trim", Arrow(String, String), string_trim)
+    |> fn(
+         "String.concat",
+         Arrow(Prod([String, List(String)]), String),
+         string_concat,
+       )
+    |> fn("String.sub", Arrow(Prod([String, Int, Int]), String), string_sub);
 };

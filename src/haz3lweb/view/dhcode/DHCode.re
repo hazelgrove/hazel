@@ -55,11 +55,9 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             | OperationError(DivideByZero) => (
-                 [with_cls("DivideByZero", txt)],
-                 ds,
-               )
-             | OperationError(ToStringFailed) => (
+             | OperationError(
+                 DivideByZero | ToStringFailed | IndexOutOfBounds,
+               ) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
@@ -193,11 +191,9 @@ let view_of_layout_tylr =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             | OperationError(DivideByZero) => (
-                 [with_cls("DivideByZero", txt)],
-                 ds,
-               )
-             | OperationError(ToStringFailed) => (
+             | OperationError(
+                 DivideByZero | ToStringFailed | IndexOutOfBounds,
+               ) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
