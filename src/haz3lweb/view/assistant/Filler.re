@@ -24,7 +24,7 @@ let samples = [
   (
     "let merge_sort: [Int]->[Int] =\n??\nin\nmerge_sort([4,1,3,7,2])",
     Type.expected(Some(Ana(Arrow(Int, Int)))),
-    "fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ??\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ??\nin\nmerge_sort_helper(list)",
+    "fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)",
   ),
   (
     "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
@@ -144,6 +144,42 @@ actual_completion:
       ++ "\nREMEMBER TO USE 'end' where applicable. REMEMBER NOT TO USE 'rec'. Format the code with proper linebreaks.\n";
     print_endline("ABOUT TO SUBMIT PROMPT:\n " ++ prompt);
     Some(prompt);
+  };
+};
+
+let error_reply = (response: string, id: Id.t, ~init_ctx: Ctx.t) => {
+  let wrap = (intro, errs) =>
+    Some(
+      [intro]
+      @ errs
+      @ [
+        "Please try to address the error(s) by updating your previous code suggestion",
+        "Please respond ONLY with the update suggestion",
+      ]
+      |> String.concat("\n"),
+    );
+  switch (Printer.paste_into_zip(Zipper.init(id), id, response)) {
+  | None =>
+    wrap("Syntax errors: Undocumented parse error, no feedback available", [])
+  | Some((response_z, _id)) =>
+    let errors =
+      response_z
+      |> ChatLSP.get_info_from_zipper(~ctx=init_ctx)
+      |> ChatLSP.Errors.collect_static;
+    let orphans = Printer.of_backpack(response_z);
+    switch (orphans, errors) {
+    | ([], []) => None
+    | ([_, ..._], _) =>
+      wrap(
+        "Syntax errors: The parser has detected the following unmatched delimiters:",
+        orphans,
+      )
+    | ([], [_, ..._]) =>
+      wrap(
+        "Statics errors: The following static errors were encountered:",
+        errors,
+      )
+    };
   };
 };
 

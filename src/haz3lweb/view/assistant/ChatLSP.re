@@ -1,14 +1,22 @@
 open Haz3lcore;
 
 //TODO(andrew): calculate this in a more principled way
+let get_info_from_zipper = (~ctx=Ctx.empty, z: Zipper.t): Statics.Map.t => {
+  z
+  |> Zipper.unselect_and_zip(~ignore_selection=true)
+  |> MakeTerm.go
+  |> fst
+  |> Statics.mk_map_ctx(ctx);
+};
+
 let get_ci = (model: Model.t): option(Info.t) => {
   let editor = model.editors |> Editors.get_editor;
-  let index = Indicated.index(editor.state.zipper);
-  let get_term = z =>
-    z |> Zipper.unselect_and_zip(~ignore_selection=true) |> MakeTerm.go |> fst;
-  let map = editor.state.zipper |> get_term |> Statics.mk_map;
+  let z = editor.state.zipper;
+  let index = Indicated.index(z);
   switch (index) {
-  | Some(index) => Haz3lcore.Id.Map.find_opt(index, map)
+  | Some(index) =>
+    let map = get_info_from_zipper(z);
+    Haz3lcore.Id.Map.find_opt(index, map);
   | _ => None
   };
 };
