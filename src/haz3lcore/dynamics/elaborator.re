@@ -8,50 +8,12 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
-  fun
-  | Plus => Plus
-  | Minus => Minus
-  | Times => Times
-  | Divide => Divide
-  | LessThan => LessThan
-  | LessThanOrEqual => LessThanOrEqual
-  | GreaterThan => GreaterThan
-  | GreaterThanOrEqual => GreaterThanOrEqual
-  | Equals => Equals
-  | Power => Power;
-
-let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
-  fun
-  | Plus => FPlus
-  | Minus => FMinus
-  | Times => FTimes
-  | Divide => FDivide
-  | LessThan => FLessThan
-  | LessThanOrEqual => FLessThanOrEqual
-  | GreaterThan => FGreaterThan
-  | GreaterThanOrEqual => FGreaterThanOrEqual
-  | Equals => FEquals
-  | Power => FPower;
-
-let string_op_of: Term.UExp.op_bin_string => DHExp.BinStringOp.t =
-  fun
-  | Equals => SEquals;
-
-let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
-  fun
-  | And => And
-  | Or => Or;
-
 let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   fun
-  | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
-  | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
-  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)))
-  | String(op) => (
-      String,
-      ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
-    );
+  | Int(op) => (Int, ((e1, e2) => BinIntOp(op, e1, e2)))
+  | Float(op) => (Float, ((e1, e2) => BinFloatOp(op, e1, e2)))
+  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(op, e1, e2)))
+  | String(op) => (String, ((e1, e2) => BinStringOp(op, e1, e2)));
 
 let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
@@ -204,6 +166,14 @@ let rec dhexp_of_uexp =
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
+      | UnOp(Bool(Not), e) =>
+        let+ d_scrut = dhexp_of_uexp(m, e);
+        let d_rules =
+          DHExp.[
+            Rule(BoolLit(true), BoolLit(false)),
+            Rule(BoolLit(false), BoolLit(true)),
+          ];
+        DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
       | BinOp(op, e1, e2) =>
         let (_, cons) = exp_binop_of(op);
         let* dc1 = dhexp_of_uexp(m, e1);

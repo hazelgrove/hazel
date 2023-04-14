@@ -36,7 +36,6 @@ let dhexp_view = (~font_metrics, d) =>
     d,
   );
 
-let strip_quotes = s => String.sub(s, 1, String.length(s) - 2);
 let eval = d =>
   switch (Interface.evaluate(d)) {
   | (result, _, _) => EvaluatorResult.unbox(result)
@@ -46,7 +45,7 @@ let render_attr =
     ({name, inject, update, model, _}: t, d: DHExp.t): option(Attr.t) =>
   switch (d) {
   | Ap(Tag("Create"), Tuple([StringLit(name), StringLit(value)])) =>
-    Some(Attr.create(strip_quotes(name), strip_quotes(value)))
+    Some(Attr.create(Form.strip_quotes(name), Form.strip_quotes(value)))
   | Ap(Tag("OnClick"), click_handler) =>
     Attr.on_click(_ => {
       //print_endline("ONCLICK EXECUTING");
@@ -74,7 +73,8 @@ let rec render_div =
     let* attrs = attrs |> List.map(render_attr(context)) |> OptUtil.sequence;
     let+ divs = divs |> List.map(render_div(context)) |> OptUtil.sequence;
     Node.div(~attr=Attr.many(attrs), divs);
-  | Ap(Tag("Text"), StringLit(str)) => Some(Node.text(strip_quotes(str)))
+  | Ap(Tag("Text"), StringLit(str)) =>
+    Some(Node.text(Form.strip_quotes(str)))
   | Ap(Tag("Num"), IntLit(n)) => Some(Node.text(string_of_int(n)))
   | _ =>
     //print_endline("ERROR: render_div: " ++ DHExp.show(d));

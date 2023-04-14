@@ -1981,7 +1981,8 @@ let get_doc =
         );
       | UnOp(op, exp) =>
         switch (op) {
-        | Int(Minus) =>
+        | Int(Minus)
+        | Bool(Not) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
               LangDocMessages.int_unary_minus_group,
@@ -2038,7 +2039,7 @@ let get_doc =
               LangDocMessages.int_gte_group,
               LangDocMessages.int_gte_exp_coloring_ids,
             )
-          | Int(Equals) => (
+          | Int(Equals | NotEquals) => (
               LangDocMessages.int_eq_group,
               LangDocMessages.int_eq_exp_coloring_ids,
             )
@@ -2078,7 +2079,7 @@ let get_doc =
               LangDocMessages.float_gte_group,
               LangDocMessages.float_gte_exp_coloring_ids,
             )
-          | Float(Equals) => (
+          | Float(Equals | NotEquals) => (
               LangDocMessages.float_eq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
             )
@@ -2090,7 +2091,7 @@ let get_doc =
               LangDocMessages.bool_or_group,
               LangDocMessages.bool_or_exp_coloring_ids,
             )
-          | String(Equals) => (
+          | String(Equals | Concat) => (
               LangDocMessages.str_eq_group,
               LangDocMessages.str_eq_exp_coloring_ids,
             )

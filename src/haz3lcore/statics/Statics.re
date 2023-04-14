@@ -42,18 +42,25 @@ let extend_let_def_ctx =
 let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Int
-  | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
+  | (
+      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
+      NotEquals
+    ) as _op =>
     Bool;
 
 let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Float
-  | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
+  | (
+      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
+      NotEquals
+    ) as _op =>
     Bool;
 
 let typ_exp_binop_bin_string: UExp.op_bin_string => Typ.t =
   fun
-  | Equals as _op => Bool;
+  | Concat => String
+  | Equals => Bool;
 
 let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
@@ -64,6 +71,7 @@ let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
 
 let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   fun
+  | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
 let rec any_to_info_map =

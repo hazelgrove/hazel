@@ -59,6 +59,10 @@ let view_of_layout =
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
+             | OperationError(ToStringFailed) => (
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
              | OperationError(NegativeExponent) => (
                  [with_cls("NegativeExponent", txt)],
                  ds,
@@ -190,6 +194,10 @@ let view_of_layout_tylr =
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(DivideByZero) => (
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
+             | OperationError(ToStringFailed) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
                )

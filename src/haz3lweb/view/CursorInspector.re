@@ -227,12 +227,12 @@ let view =
     switch (Id.Map.find_opt(id, info_map)) {
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
-      if (zipper.backpack != []) {
-        print_endline("TESTING: ChatLSP.Errors backpack not empty:");
-        print_endline(
-          ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
-        );
-      };
+      /*if (zipper.backpack != []) {
+          print_endline("TESTING: ChatLSP.Errors backpack not empty:");
+          print_endline(
+            ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
+          );
+        };*/
       /*
        levels of syntax error:
 
@@ -257,14 +257,14 @@ let view =
        1b suggest function application syntax
 
         */
-      print_endline("TESTING: ChatLSP.Errors.collect:");
-      print_endline(
-        ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
-      );
+      /*print_endline("TESTING: ChatLSP.Errors.collect:");
+        print_endline(
+          ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
+        );*/
       bar_view([
         inspector_view(~inject, ~settings, ~show_lang_doc, id, ci),
         cls_and_id_view(id, ci),
-      ]);
+      ])
     }
   };
 };
