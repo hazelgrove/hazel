@@ -80,7 +80,7 @@ let infix_delim_tys: list((Token.t, Typ.t)) = [
   ("::", List(unk)),
   (";", unk),
   ("&&", Bool),
-  ("\/", Bool),
+  ("\\/", Bool),
   ("$==", Bool),
   ("==.", Bool),
   ("==", Bool),

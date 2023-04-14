@@ -324,7 +324,7 @@ let forms: list((string, t)) = [
   // ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
   // ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
-  //("concat", mk_infix("@", Exp, P.concat)),
+  ("list_concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),

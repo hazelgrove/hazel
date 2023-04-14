@@ -319,7 +319,8 @@ and matches_cast_Sum =
   | Sequence(_, _)
   | Closure(_)
   | TestLit(_)
-  | Cons(_) => DoesNotMatch
+  | Cons(_)
+  | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
     (
@@ -400,6 +401,7 @@ and matches_cast_Tuple =
   | StringLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
+  | ListConcat(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Tag(_) => DoesNotMatch
   | ConsistentCase(_)
@@ -527,6 +529,7 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
+  | ListConcat(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -927,6 +930,28 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
+    | ListConcat(d1, d2) =>
+      let* d1 = evaluate(env, d1);
+      let* d2 = evaluate(env, d2);
+      switch (d1, d2) {
+      | (Indet(d1), Indet(d2))
+      | (Indet(d1), BoxedValue(d2))
+      | (BoxedValue(d1), Indet(d2)) => Indet(ListConcat(d1, d2)) |> return
+      | (BoxedValue(d1), BoxedValue(d2)) =>
+        switch (d1, d2) {
+        | (ListLit(u, i, err, ty, ds1), ListLit(_, _, _, _, ds2)) =>
+          BoxedValue(ListLit(u, i, err, ty, ds1 @ ds2)) |> return
+        | (Cast(d1, List(ty), List(ty')), d2)
+        | (d1, Cast(d2, List(ty), List(ty'))) =>
+          evaluate(env, Cast(ListConcat(d1, d2), List(ty), List(ty')))
+        | (ListLit(_), _) =>
+          print_endline("InvalidBoxedListLit: " ++ DHExp.show(d2));
+          raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+        | _ =>
+          print_endline("InvalidBoxedListLit: " ++ DHExp.show(d1));
+          raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
+        }
+      };
     | ListLit(u, i, err, ty, lst) =>
       let+ lst = lst |> List.map(evaluate(env)) |> sequence;
       let (lst, indet) =
