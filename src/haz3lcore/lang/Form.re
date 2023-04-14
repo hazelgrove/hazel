@@ -115,6 +115,15 @@ let is_string = t =>
 let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
+let strip_quotes = s =>
+  if (String.length(s) < 2) {
+    s;
+  } else if (String.sub(s, 0, 1) != "\""
+             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+    s;
+  } else {
+    String.sub(s, 1, String.length(s) - 2);
+  };
 
 /* List literals */
 let list_start = "[";
@@ -243,11 +252,13 @@ let forms: list((string, t)) = [
   //("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
+  ("string_append", mk_infix("++", Exp, P.plus)), //TODO: precedence
   //("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
   //("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
-  //("not_equals", mk_infix("!=", Exp, 5)),
+  ("not_equals", mk_infix("!=", Exp, 5)),
+  ("not", mk(ds, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
   ("gte", mk_infix(">=", Exp, P.eqs)),
   ("lte", mk_infix("<=", Exp, P.eqs)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
@@ -257,14 +268,14 @@ let forms: list((string, t)) = [
   ("fequals", mk_infix("==.", Exp, P.eqs)),
   ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
   ("fgt", mk_infix(">.", Exp, 5)), //TODO: precedence
-  //("fnot_equals", mk_infix("!=.", Exp, 5)),
+  ("fnot_equals", mk_infix("!=.", Exp, 5)),
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   //("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
   //("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
-  ("logical_or", mk_infix("||", Exp, P.or_)),
+  ("logical_or", mk_infix("\\/", Exp, P.or_)),
   //("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
@@ -289,6 +300,10 @@ let forms: list((string, t)) = [
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
+  //TODO(andrew): temp hacky shit bwlow
+  ("json{}}", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
+  ("json:", mk(ss, [":"], mk_bin'(P.ann, Exp, Pat, [], Exp))),
+  ("json,", mk_infix(",", Any, P.prod)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
@@ -319,7 +334,6 @@ let forms: list((string, t)) = [
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),
-  //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
 let get: String.t => t =

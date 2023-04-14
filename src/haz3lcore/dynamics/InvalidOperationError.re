@@ -1,5 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | ToStringFailed
   | DivideByZero
   | NegativeExponent
   | OutOfFuel
@@ -7,6 +8,7 @@ type t =
 
 let err_msg = (err: t): string =>
   switch (err) {
+  | ToStringFailed => "Error: ToString Failed"
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"

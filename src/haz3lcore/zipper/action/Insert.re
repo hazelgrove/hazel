@@ -76,7 +76,37 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t, id_gen): state =>
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
-      construct(~caret, ~backpack, lbl, z, id_gen);
+      switch (t) {
+      | "{" =>
+        let (z, id_gen) = construct(~backpack, ~caret, lbl, z, id_gen);
+        let (z, id_gen) =
+          construct(~backpack, ~caret=Left, [Form.linebreak], z, id_gen);
+
+        let z =
+          switch (move(Right, z)) {
+          | Some(z) => z
+          | None => z
+          };
+        let (z, id_gen) =
+          construct(~backpack, ~caret=Right, [Form.linebreak], z, id_gen);
+        let z =
+          switch (put_down(Right, z)) {
+          | Some(z) => z
+          | None => z
+          };
+        let z =
+          switch (move(Left, z)) {
+          | Some(z) => z
+          | None => z
+          };
+        let z =
+          switch (move(Left, z)) {
+          | Some(z) => z
+          | None => z
+          };
+        (z, id_gen);
+      | _ => construct(~caret, ~backpack, lbl, z, id_gen)
+      };
     };
 
 let expand_neighbors_and_make_new_tile =

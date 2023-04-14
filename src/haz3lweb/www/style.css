@@ -672,7 +672,7 @@ body,
 
 .code .token.explicit-hole {
   color: #ffd04f !important;
-  text-shadow: 1px 1px 0px rgb(45, 34, 6);
+  text-shadow: 1px 1px 0px rgb(45, 34, 6), -0.5px -0.5px 0 #ff9b00;
 }
 
 

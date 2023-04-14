@@ -466,12 +466,17 @@ module UExp = {
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
 
+  let show_op_un_bool: op_un_bool => string =
+    fun
+    | Not => "Boolean Negation";
+
   let show_op_un_int: op_un_int => string =
     fun
     | Minus => "Integer Negation";
 
   let show_unop: op_un => string =
     fun
+    | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
   let show_op_bin_bool: op_bin_bool => string =
@@ -490,7 +495,8 @@ module UExp = {
     | LessThanOrEqual => "Integer Less Than or Equal"
     | GreaterThan => "Integer Greater Than"
     | GreaterThanOrEqual => "Integer Greater Than or Equal"
-    | Equals => "Integer Equality";
+    | Equals => "Integer Equality"
+    | NotEquals => "Integer Inequality";
 
   let show_op_bin_float: op_bin_float => string =
     fun
@@ -503,10 +509,12 @@ module UExp = {
     | LessThanOrEqual => "Float Less Than or Equal"
     | GreaterThan => "Float Greater Than"
     | GreaterThanOrEqual => "Float Greater Than or Equal"
-    | Equals => "Float Equality";
+    | Equals => "Float Equality"
+    | NotEquals => "Float Inequality";
 
   let show_op_bin_string: op_bin_string => string =
     fun
+    | Concat => "String Concatenation"
     | Equals => "String Equality";
 
   let show_binop: op_bin => string =

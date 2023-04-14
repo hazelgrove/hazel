@@ -15,20 +15,6 @@ let ctx: t => Ctx.t;
 let forms: t => forms;
 
 /**
-  [using name impl builtins] extends the map [builtins] with the builtin given
-  by [impl] with name [name].
- */
-let using: (Var.t, Var.t => Builtin.t, t) => t;
-
-/**
   Module of some builtin functions.
  */
-module Pervasives: {
-  let pi: Var.t => Builtin.t;
-
-  let int_of_float: Var.t => Builtin.t;
-  let float_of_int: Var.t => Builtin.t;
-  let modulo: Var.t => Builtin.t;
-
-  let builtins: t;
-};
+module Pervasives: {let builtins: t;};
