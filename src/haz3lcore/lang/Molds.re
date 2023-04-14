@@ -25,6 +25,19 @@ let get = (label: Label.t): list(Mold.t) =>
     Form.atomic_molds(t) @ molds
   | ([t], None) when Form.atomic_molds(t) != [] => Form.atomic_molds(t)
   | (_, Some(molds)) => molds
+  | ([t], None) =>
+    /* For tokens which are not assigned molds by the language definition,
+       assing a default 'Any' mold, which is either convex or concave
+       depending on the first character. This is a heuristic at the
+       moment as we don't currently rigorously divide token classes
+       for operators vs operands, but is somewhat load-bearing in that
+       remolding as one is typing in a multi-character operator can cause
+       jank, which is alleviated if we correctly guess that it will
+       become an operator. Alternatively, this could be based on
+       logic which checks if the token is the prefix of whatever. */
+    Form.regexp("^[a-zA-Z0-9_]$", String.sub(t, 0, 1))
+      ? [Mold.mk_op(Any, [])] : [Mold.mk_bin(Precedence.min, Any, [])]
+  //Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
   | (_lbl, None) =>
     //Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
     [Mold.mk_op(Any, [])]
