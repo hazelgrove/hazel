@@ -13,6 +13,7 @@ let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
 let precedence_Minus = P.plus;
 let precedence_Cons = P.cons;
+let precedence_Concat = P.concat;
 let precedence_Equals = P.eqs;
 let precedence_LessThan = P.eqs;
 let precedence_GreaterThan = P.eqs;
@@ -119,6 +120,7 @@ let mk_BoolLit = b => Doc.text(string_of_bool(b));
 let mk_TagLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
+let mk_ListConcat = (hd, tl) => Doc.(hcats([hd, text("@"), tl]));
 
 let rec mk_comma_seq = (ld, rd, l, ol) =>
   switch (l) {

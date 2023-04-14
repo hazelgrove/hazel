@@ -564,6 +564,7 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: TermBase.UExp.term)) {
+      | ListConcat(_) //TODO
       | Invalid(_) => default
       | EmptyHole => basic_info(LangDocMessages.empty_hole_exp_group)
       | MultiHole(_) => basic_info(LangDocMessages.multi_hole_exp_group)

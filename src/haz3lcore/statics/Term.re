@@ -462,6 +462,7 @@ module UExp = {
     | Test(_) => Test
     | Parens(_) => Parens
     | Cons(_) => Cons
+    | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
@@ -547,6 +548,7 @@ module UExp = {
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
+    | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | Match => "Match Expression";
@@ -573,6 +575,7 @@ module UExp = {
     | Seq(_)
     | Test(_)
     | Cons(_)
+    | ListConcat(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
@@ -604,6 +607,7 @@ module UExp = {
       | Seq(_)
       | Test(_)
       | Cons(_)
+      | ListConcat(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)

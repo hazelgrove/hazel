@@ -10,6 +10,7 @@ let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;
 let precedence_Cons: int;
+let precedence_Concat: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
 let precedence_GreaterThan: int;
@@ -86,6 +87,7 @@ let mk_TagLit: string => Pretty.Doc.t('a);
 let mk_StringLit: string => Pretty.Doc.t('a);
 
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+let mk_ListConcat: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_ListLit: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

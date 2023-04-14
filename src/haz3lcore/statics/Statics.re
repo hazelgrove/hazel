@@ -162,6 +162,23 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Typ.matched_list_mode(mode), e1, m);
     let (e2, m) = go(~mode=Ana(List(e1.ty)), e2, m);
     add(~self=Just(List(e1.ty)), ~free=Ctx.union([e1.free, e2.free]), m);
+  | ListConcat(e1, e2) =>
+    let e_ids = List.map(Term.UExp.rep_id, [e1, e2]);
+    let mode: Typ.mode =
+      switch (mode) {
+      | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+      | SynFun
+      | Syn => Ana(List(Unknown(SynSwitch)))
+      };
+    let (e1, m) = go(~mode, e1, m);
+    let (e2, m) = go(~mode, e2, m);
+    let tys = [e1.ty, e2.ty];
+    let self: Info.self_common =
+      switch (Typ.join_all(ctx, tys)) {
+      | None => NoJoin(List.map2((id, ty) => Info.{id, ty}, e_ids, tys))
+      | Some(ty) => Just(ty)
+      };
+    add(~self, ~free=Ctx.union([e1.free, e2.free]), m);
   | Var(name) =>
     add'(
       ~self=Info.self_var(ctx, name),

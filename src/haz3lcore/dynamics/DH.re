@@ -28,6 +28,7 @@ module rec DHExp: {
     | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
+    | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Tag(string)
@@ -81,6 +82,7 @@ module rec DHExp: {
     | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
+    | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Tag(string)
@@ -119,6 +121,7 @@ module rec DHExp: {
     | BinStringOp(_, _, _) => "BinStringOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
+    | ListConcat(_, _) => "ListConcat"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Tag(_) => "Tag"
@@ -153,6 +156,7 @@ module rec DHExp: {
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
+    | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, d, ds) =>
       ListLit(a, b, c, d, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
@@ -216,6 +220,8 @@ module rec DHExp: {
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
@@ -248,6 +254,7 @@ module rec DHExp: {
     | (Ap(_), _)
     | (ApBuiltin(_), _)
     | (Cons(_), _)
+    | (ListConcat(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)

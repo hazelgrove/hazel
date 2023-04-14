@@ -42,6 +42,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
+    | ListConcat(_) //TODO(andrew): does this make sense
     | Cons(_) =>
       switch (ana_ty) {
       | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
@@ -163,6 +164,10 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.Cons(dc1, dc2);
+      | ListConcat(e1, e2) =>
+        let* dc1 = dhexp_of_uexp(m, e1);
+        let+ dc2 = dhexp_of_uexp(m, e2);
+        DHExp.ListConcat(dc1, dc2);
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);

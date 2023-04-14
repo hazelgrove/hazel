@@ -132,6 +132,7 @@ and UExp: {
     | Test
     | Parens
     | Cons
+    | ListConcat
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
@@ -159,6 +160,7 @@ and UExp: {
     | Test(t)
     | Parens(t) // (
     | Cons(t, t)
+    | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -255,6 +257,7 @@ and UExp: {
     | Test
     | Parens
     | Cons
+    | ListConcat
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
@@ -282,6 +285,7 @@ and UExp: {
     | Test(t)
     | Parens(t) // (
     | Cons(t, t)
+    | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -392,6 +396,7 @@ and UExp: {
     | Test(e) => Printf.sprintf("test %s end", s(e))
     | Parens(e) => Printf.sprintf("(%s)", s(e))
     | Cons(e1, e2) => Printf.sprintf("%s :: %s", s(e1), s(e2))
+    | ListConcat(e1, e2) => Printf.sprintf("%s @ %s", s(e1), s(e2))
     | UnOp(op, e) => un_op_to_string(op) ++ s(e)
     | BinOp(op, e1, e2) =>
       s(e1) ++ " " ++ bin_op_to_string(op) ++ " " ++ s(e2)
