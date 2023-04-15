@@ -87,12 +87,12 @@ let evaluate = (~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
   };
 };
 
-let eval_to_result = (map, term): ProgramResult.t =>
-  term |> elaborate(map) |> evaluate;
+let eval_to_result = (~env=Environment.empty, map, term): ProgramResult.t =>
+  term |> elaborate(map) |> evaluate(~env);
 
-let eval_segment_to_result = (s: Segment.t) => {
+let eval_segment_to_result = (env, s: Segment.t) => {
   let term = s |> MakeTerm.go |> fst;
-  eval_to_result(Statics.mk_map(term), term);
+  eval_to_result(~env, Statics.mk_map(term), term);
 };
 let eval_segment_to_result =
   Core.Memo.general(~cache_size_bound=1000, eval_segment_to_result);
