@@ -124,6 +124,7 @@ let strip_quotes = s =>
   } else {
     String.sub(s, 1, String.length(s) - 2);
   };
+let string_quote = s => "\"" ++ s ++ "\"";
 
 /* List literals */
 let list_start = "[";

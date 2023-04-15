@@ -56,7 +56,7 @@ let apply =
   | Prompt(Weather) =>
     WeatherAPI.request(req =>
       switch (WeatherAPI.handle(req)) {
-      | Some(str) => schedule_action(Paste("\"" ++ str ++ "\""))
+      | Some(str) => schedule_action(Paste(Form.string_quote(str)))
       | None => print_endline("WeatherAPI: response parse failed")
       }
     );
