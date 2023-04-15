@@ -21,7 +21,7 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
 };
 
 let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
-  let zipper = Editors.get_zipper(model.editors);
+  let zipper = Editors.active_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
   let now = a => [Update.PerformAction(a) /*Update.UpdateDoubleTap(None)*/];
   let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
