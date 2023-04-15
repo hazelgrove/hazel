@@ -45,7 +45,7 @@ let render_attr =
     ({name, inject, update, model, _}: t, d: DHExp.t): option(Attr.t) =>
   switch (d) {
   | Ap(Tag("Create"), Tuple([StringLit(name), StringLit(value)])) =>
-    Some(Attr.create(Form.strip_quotes(name), Form.strip_quotes(value)))
+    Some(Attr.create(name, value))
   | Ap(Tag("OnClick"), click_handler) =>
     Attr.on_click(_ => {
       //print_endline("ONCLICK EXECUTING");
@@ -73,8 +73,7 @@ let rec render_div =
     let* attrs = attrs |> List.map(render_attr(context)) |> OptUtil.sequence;
     let+ divs = divs |> List.map(render_div(context)) |> OptUtil.sequence;
     Node.div(~attr=Attr.many(attrs), divs);
-  | Ap(Tag("Text"), StringLit(str)) =>
-    Some(Node.text(Form.strip_quotes(str)))
+  | Ap(Tag("Text"), StringLit(str)) => Some(Node.text(str))
   | Ap(Tag("Num"), IntLit(n)) => Some(Node.text(string_of_int(n)))
   | _ =>
     //print_endline("ERROR: render_div: " ++ DHExp.show(d));

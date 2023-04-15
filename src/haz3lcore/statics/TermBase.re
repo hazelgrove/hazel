@@ -469,9 +469,9 @@ and UPat: {
     | Wild => "_"
     | Triv => "()"
     | Invalid(token)
-    | String(token)
     | Tag(token)
     | Var(token) => token
+    | String(token) => Form.string_quote(token)
     | Int(i) => string_of_int(i)
     | Float(f) => string_of_float(f)
     | Bool(b) => string_of_bool(b)

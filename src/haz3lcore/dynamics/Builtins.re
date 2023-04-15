@@ -16,6 +16,8 @@ type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
 type pervasive =
   (string, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
+type result = Result.t(EvaluatorResult.t, EvaluatorError.t);
+
 let ctx = (builtins: t): Ctx.t =>
   List.map(
     ((name, Builtin.{typ, _})) =>
@@ -48,12 +50,7 @@ module Pervasives = {
     let nan = DHExp.FloatLit(Float.nan);
     let epsilon_float = DHExp.FloatLit(epsilon_float);
 
-    let unary' =
-        (
-          f: DHExp.t => Result.t(EvaluatorResult.t, EvaluatorError.t),
-          name: string,
-          r: EvaluatorResult.t,
-        ) =>
+    let unary' = (f: DHExp.t => result, name: string, r: EvaluatorResult.t) =>
       switch (r) {
       | BoxedValue(b) =>
         switch (f(b)) {
@@ -64,8 +61,8 @@ module Pervasives = {
       };
 
     let unary = (f: DHExp.t => Result.t(DHExp.t, EvaluatorError.t), name, r) => {
-      let f = b =>
-        switch (f(b)) {
+      let f = (d: DHExp.t): result =>
+        switch (f(d)) {
         | Ok(r') => Ok(BoxedValue(r'))
         | Error(e) => Error(e)
         };
@@ -114,103 +111,34 @@ module Pervasives = {
         | d => Error(InvalidBoxedIntLit(d)),
       );
 
-    let abs_float =
+    let float_op = fn =>
       unary(
         fun
-        | FloatLit(f) => Ok(FloatLit(abs_float(f)))
+        | FloatLit(f) => Ok(FloatLit(fn(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
-    let ceil =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(ceil(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
+    let abs_float = float_op(abs_float);
+    let ceil = float_op(ceil);
+    let floor = float_op(floor);
+    let sqrt = float_op(sqrt);
+    let exp = float_op(exp);
+    let log = float_op(log);
+    let log10 = float_op(log10);
+    let sin = float_op(sin);
+    let cos = float_op(cos);
+    let tan = float_op(tan);
+    let asin = float_op(asin);
+    let acos = float_op(acos);
+    let atan = float_op(atan);
 
-    let floor =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(floor(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let sqrt =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(sqrt(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let exp =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(exp(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let log =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(log(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let log10 =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(log10(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let sin =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(sin(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let cos =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(cos(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let tan =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(tan(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let asin =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(asin(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let acos =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(acos(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let atan =
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(atan(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
-      );
-
-    let int_of_string = name =>
+    let of_string =
+        (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
       unary'(
         fun
         | StringLit(s) as d =>
-          switch (int_of_string_opt(Form.strip_quotes(s))) {
-          | Some(n) => Ok(BoxedValue(IntLit(n)))
+          switch (convert(s)) {
+          | Some(n) => Ok(BoxedValue(wrap(n)))
           | None =>
             let d' = DHExp.ApBuiltin(name, [d]);
             Ok(Indet(InvalidOperation(d', ToStringFailed)));
@@ -219,33 +147,9 @@ module Pervasives = {
         name,
       );
 
-    let float_of_string = name =>
-      unary'(
-        fun
-        | StringLit(s) as d =>
-          switch (float_of_string_opt(Form.strip_quotes(s))) {
-          | Some(f) => Ok(BoxedValue(FloatLit(f)))
-          | None =>
-            let d' = DHExp.ApBuiltin(name, [d]);
-            Ok(Indet(InvalidOperation(d', ToStringFailed)));
-          }
-        | d => Error(InvalidBoxedStringLit(d)),
-        name,
-      );
-
-    let bool_of_string = name =>
-      unary'(
-        fun
-        | StringLit(s) as d =>
-          switch (bool_of_string_opt(Form.strip_quotes(s))) {
-          | Some(b) => Ok(BoxedValue(BoolLit(b)))
-          | None =>
-            let d' = DHExp.ApBuiltin(name, [d]);
-            Ok(Indet(InvalidOperation(d', ToStringFailed)));
-          }
-        | d => Error(InvalidBoxedStringLit(d)),
-        name,
-      );
+    let int_of_string = of_string(int_of_string_opt, n => IntLit(n));
+    let float_of_string = of_string(float_of_string_opt, f => FloatLit(f));
+    let bool_of_string = of_string(bool_of_string_opt, b => BoolLit(b));
 
     let int_mod = (name, r) =>
       switch (r) {
@@ -283,19 +187,16 @@ module Pervasives = {
         | d => Error(InvalidBoxedStringLit(d)),
       );
 
+    let string_of: DHExp.t => option(string) =
+      fun
+      | StringLit(s) => Some(s)
+      | _ => None;
+
     let string_concat =
       unary(
         fun
         | Tuple([StringLit(s1), ListLit(_, _, _, _, xs)]) =>
-          switch (
-            List.map(
-              fun
-              | DHExp.StringLit(s) => Some(s)
-              | _ => None,
-              xs,
-            )
-            |> Util.OptUtil.sequence
-          ) {
+          switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
           | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
           }
@@ -305,11 +206,11 @@ module Pervasives = {
     let string_sub = name =>
       unary'(
         fun
-        | Tuple([StringLit(s), IntLit(i), IntLit(j)]) as d =>
-          try(Ok(BoxedValue(StringLit(String.sub(s, i, j))))) {
+        | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
+          try(Ok(BoxedValue(StringLit(String.sub(s, idx, len))))) {
           | _ =>
             let d' = DHExp.ApBuiltin(name, [d]);
-            Ok(Indet(InvalidOperation(d', ToStringFailed)));
+            Ok(Indet(InvalidOperation(d', IndexOutOfBounds)));
           }
         | d => Error(InvalidBoxedTuple(d)),
         name,

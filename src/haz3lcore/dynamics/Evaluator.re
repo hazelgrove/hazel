@@ -612,10 +612,7 @@ let eval_bin_float_op =
 let eval_bin_string_op =
     (op: TermBase.UExp.op_bin_string, s1: string, s2: string): DHExp.t =>
   switch (op) {
-  | Concat =>
-    StringLit(
-      "\"" ++ Form.strip_quotes(s1) ++ Form.strip_quotes(s2) ++ "\"",
-    )
+  | Concat => StringLit(s1 ++ s2)
   | Equals => BoolLit(s1 == s2)
   };
 
