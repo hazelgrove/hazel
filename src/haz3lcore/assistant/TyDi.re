@@ -60,8 +60,8 @@ let expected_ty: Info.t => Typ.t =
 let const_mono_delim_tys: list((Token.t, Typ.t)) = [
   ("true", Bool),
   ("false", Bool),
-  ("[]", List(unk)), //NOTE: would need to refactor buffer for this to show up
-  ("()", Prod([])), //NOTE: would need to refactor buffer for this to show up
+  //("[]", List(unk)), //NOTE: would need to refactor buffer for this to show up
+  //("()", Prod([])), //NOTE: would need to refactor buffer for this to show up
   ("\"\"", String), //NOTE: irrelavent as second quote appears automatically
   ("_", unk),
 ];
@@ -165,8 +165,8 @@ let left_of_mono = (z: Zipper.t) =>
      if this isnt a monotile; we would need to return the label here as well to figure
      out the fit */
   | ([Tile({label: [tok_to_left, ..._], shards: [0], _}), ..._], _) =>
-    print_endline("left_of_mono: " ++ tok_to_left ++ "");
-    Some(tok_to_left);
+    //print_endline("left_of_mono: " ++ tok_to_left ++ "");
+    Some(tok_to_left)
   | _ => None
   };
 

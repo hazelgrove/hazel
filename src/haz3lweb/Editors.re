@@ -68,7 +68,7 @@ let get_ctx_init_slides = (slides, idx) => {
   let stdlib_seg =
     Zipper.smart_seg(
       ~ignore_selection=true,
-      ~dump_backpack=false,
+      ~dump_backpack=true,
       stdlib_ed.state.zipper,
     );
   let (term, _) = MakeTerm.go(stdlib_seg);
@@ -97,7 +97,7 @@ let get_spliced_elabs =
     let tests =
       Zipper.smart_seg(
         ~ignore_selection=true,
-        ~dump_backpack=false,
+        ~dump_backpack=true,
         ed.state.zipper,
       )
       |> Interface.eval_segment_to_result
