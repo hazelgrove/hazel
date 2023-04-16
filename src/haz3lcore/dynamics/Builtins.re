@@ -42,13 +42,13 @@ module Pervasives = {
     open EvaluatorResult;
 
     /* constants */
-    let pi = DHExp.FloatLit(Float.pi);
-    let max_int = DHExp.IntLit(max_int);
-    let min_int = DHExp.IntLit(min_int);
     let infinity = DHExp.FloatLit(Float.infinity);
     let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
     let nan = DHExp.FloatLit(Float.nan);
     let epsilon_float = DHExp.FloatLit(epsilon_float);
+    let pi = DHExp.FloatLit(Float.pi);
+    let max_int = DHExp.IntLit(Int.max_int);
+    let min_int = DHExp.IntLit(Int.min_int);
 
     let unary' = (f: DHExp.t => result, name: string, r: EvaluatorResult.t) =>
       switch (r) {
@@ -220,13 +220,13 @@ module Pervasives = {
   open Impls;
   let builtins =
     VarMap.empty
-    |> const("pi", Float, pi)
-    |> const("max_int", Int, max_int)
-    |> const("min_int", Int, min_int)
-    |> const("epsilon_float", Float, epsilon_float)
     |> const("infinity", Float, infinity)
     |> const("neg_infinity", Float, neg_infinity)
     |> const("nan", Float, nan)
+    |> const("epsilon_float", Float, epsilon_float)
+    |> const("pi", Float, pi)
+    |> const("max_int", Int, max_int)
+    |> const("min_int", Int, min_int)
     |> fn("int_of_float", Arrow(Float, Int), int_of_float)
     |> fn("float_of_int", Arrow(Int, Float), float_of_int)
     |> fn("string_of_int", Arrow(Int, String), string_of_int)
