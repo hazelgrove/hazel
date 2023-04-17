@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
-open Util;
-open OptUtil.Syntax;
+//open Util;
+//open OptUtil.Syntax;
 
 type t = {
   name: string, // key to store model state
@@ -141,6 +141,7 @@ let render_style_attr: DHExp.t => string =
   | Ap(Tag("FontStyle"), StringLit(s)) => "font-style: " ++ s
   | Ap(Tag("FontVariant"), StringLit(s)) => "font-variant: " ++ s
   | Ap(Tag("FontWeight"), StringLit(s)) => "font-weight: " ++ s
+  | Ap(Tag("Gap"), StringLit(s)) => "gap: " ++ s
   | Ap(Tag("Height"), StringLit(s)) => "height: " ++ s
   | Ap(Tag("Left"), StringLit(s)) => "left: " ++ s
   | Ap(Tag("LetterSpacing"), StringLit(s)) => "letter-spacing: " ++ s
@@ -195,66 +196,119 @@ let render_style_attr: DHExp.t => string =
   | Ap(Tag("ZIndex"), StringLit(s)) => "z-index: " ++ s
   | _ => "";
 
-let render_attr =
-    ({name, inject, update, model, _}: t, d: DHExp.t): option(Attr.t) =>
+/*
+ Handlers to implement:
+
+ on_dblclick
+ on_mousedown
+ on_mouseup
+ on_mousemove
+
+ on_keydown
+ on_keyup
+ on_keypress
+
+
+ Event types to support:
+
+ Dom_html.mouseEvent
+ detail: int
+ method clientX : int
+ method clientY : int
+ method ctrlKey : bool
+ method shiftKey : bool
+ method altKey : bool
+ method metaKey : bool
+
+ Dom_html.keyboardEvent
+ key: string
+ method ctrlKey : bool
+ method shiftKey : bool
+ method altKey : bool
+ method metaKey : bool
+
+
+ Effects to support:
+
+ Stop_propagaton
+ Prevent_default
+ */
+
+let render_styles = styles =>
+  styles
+  |> List.map(render_style_attr)
+  |> String.concat(";")
+  |> Attr.create("style");
+
+let render_attr = ({name, inject, update, model, _}: t, d: DHExp.t): Attr.t => {
+  let on_ = (handler, arg) => {
+    let maybe_action = eval(Ap(handler, arg));
+    let maybe_model = eval(Ap(update, Tuple([model, maybe_action])));
+    Virtual_dom.Vdom.Effect.Many([
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+      //Virtual_dom.Vdom.Effect.Prevent_default,
+      inject(MVUSet(name, DHExp.strip_casts(maybe_model))),
+    ]);
+  };
   switch (d) {
   | Ap(Tag("Create"), Tuple([StringLit(name), StringLit(value)])) =>
-    Some(Attr.create(name, value))
-  | Ap(Tag("Style"), ListLit(_, _, _, _, style_attrs)) =>
-    let styles =
-      style_attrs |> List.map(render_style_attr) |> String.concat(";");
-    Some(Attr.create("style", styles));
-  | Ap(Tag("OnClick"), click_handler) =>
-    Attr.on_click(_ => {
-      //print_endline("ONCLICK EXECUTING");
-      let maybe_action = eval(Ap(click_handler, Tuple([])));
-      //print_endline("maybe_action:");
-      //print_endline(DHExp.show(maybe_action));
-      let maybe_model = eval(Ap(update, Tuple([model, maybe_action])));
-      //print_endline("maybe_model:");
-      //print_endline(DHExp.show(maybe_model));
-      inject(MVUSet(name, DHExp.strip_casts(maybe_model)));
-    })
-    |> Option.some
+    Attr.create(name, value)
+  | Ap(Tag("Style"), ListLit(_, _, _, _, styles)) => render_styles(styles)
+  | Ap(Tag("OnClick"), handler) =>
+    Attr.on_click(_evt => on_(handler, Tuple([])))
+  | Ap(Tag("OnMouseDown"), handler) =>
+    Attr.on_mousedown(_evt => on_(handler, Tuple([])))
+  | Ap(Tag("OnInput"), handler) =>
+    Attr.on_input((_evt, input_str) => on_(handler, StringLit(input_str)))
   | _ =>
     //print_endline("ERROR: render_attr: " ++ DHExp.show(d));
-    Some(Attr.create("error", "error"))
+    Attr.create("error", "error")
   };
+};
 
-let rec render_div =
-        (~elide_errors=false, context: t, d: DHExp.t): option(Node.t) =>
+let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
   switch (d) {
-  | Ap(
-      Tag("Div"),
-      Tuple([ListLit(_, _, _, _, attrs), ListLit(_, _, _, _, divs)]),
-    ) =>
-    let* attrs = attrs |> List.map(render_attr(context)) |> OptUtil.sequence;
-    let+ divs = divs |> List.map(render_div(context)) |> OptUtil.sequence;
+  | Ap(Tag("Text"), StringLit(str)) => Node.text(str)
+  | Ap(Tag("Bool"), BoolLit(b)) => Node.text(string_of_bool(b))
+  | Ap(Tag("Num" | "Int"), IntLit(n)) => Node.text(string_of_int(n))
+  | Ap(Tag("Float"), FloatLit(f)) => Node.text(string_of_float(f))
+  | Ap(Tag("Div"), body) =>
+    let (attrs, divs) = attrs_and_divs(context, body);
     Node.div(~attr=Attr.many(attrs), divs);
-  | Ap(Tag("Text"), StringLit(str)) => Some(Node.text(str))
-  | Ap(Tag("Num"), IntLit(n)) => Some(Node.text(string_of_int(n)))
+  | Ap(Tag("Checkbox"), body) =>
+    let (attrs, divs) = attrs_and_divs(context, body);
+    Node.input(
+      ~attr=Attr.many([Attr.create("type", "checkbox")] @ attrs),
+      divs,
+    );
+  | Ap(Tag("Range"), body) =>
+    let (attrs, divs) = attrs_and_divs(context, body);
+    Node.input(
+      ~attr=Attr.many([Attr.create("type", "range")] @ attrs),
+      divs,
+    );
   | _ =>
     //print_endline("ERROR: render_div: " ++ DHExp.show(d));
     let d = elide_errors ? DHExp.EmptyHole(0, 0) : d;
-    Some(dhexp_view(~font_metrics=context.font_metrics, d));
+    dhexp_view(~font_metrics=context.font_metrics, d);
   //Some(Node.text("error"))
+  }
+and attrs_and_divs =
+    (context: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
+  switch (body) {
+  | Tuple([ListLit(_, _, _, _, attrs), ListLit(_, _, _, _, divs)]) =>
+    let attrs = attrs |> List.map(render_attr(context));
+    let divs = divs |> List.map(render_div(context));
+    (attrs, divs);
+  | _ => ([], [])
   };
 
 let go = (context: t) => {
   let result = eval(Ap(context.view, context.model));
-  //print_endline("RESULT:");
-  //print_endline(DHExp.show(result));
-  let node =
-    switch (render_div(context, result)) {
-    | Some(node) =>
-      //print_endline("context.view: " ++ DHExp.show(context.view));
-      node
-    | None => Node.text("ERROR: render_div returned None")
-    };
   [
     Node.div(
       ~attr=Attr.classes(["mvu-render"]),
-      [Node.text("Rendered Node: "), node],
+      [Node.text("Rendered Node: "), render_div(context, result)],
     ),
   ];
 };
