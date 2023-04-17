@@ -8,6 +8,8 @@ type t = {
   backpack: list(list(string)),
 };
 
+let seg_of_zip = Zipper.seg_without_buffer;
+
 let rec of_segment = (~holes, seg: Segment.t): string =>
   seg |> List.map(of_piece(~holes)) |> String.concat("")
 and of_piece = (~holes, p: Piece.t): string =>
@@ -26,9 +28,7 @@ and of_tile = (~holes, t: Tile.t): string =>
 and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 
 let to_string_basic = (z: Zipper.t): string => {
-  z
-  |> Zipper.unselect_and_zip(~ignore_selection=true)
-  |> of_segment(~holes=None);
+  z |> seg_of_zip |> of_segment(~holes=None);
 };
 
 let lines_to_list = String.split_on_char('\n');
@@ -66,7 +66,7 @@ let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
     ~measured,
     ~caret=None,
     ~indent=" ",
-    ~segment=Zipper.unselect_and_zip(~ignore_selection=true, z),
+    ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
@@ -77,8 +77,7 @@ let to_string_editor =
     ~measured=editor.state.meta.measured,
     ~caret=None,
     ~indent=" ",
-    ~segment=
-      Zipper.unselect_and_zip(~ignore_selection=true, editor.state.zipper),
+    ~segment=seg_of_zip(editor.state.zipper),
   )
   |> String.concat("\n");
 
@@ -99,7 +98,7 @@ let to_log = (~measured: Measured.t, z: Zipper.t): t => {
       ~measured,
       ~caret=Some(Zipper.caret_point(measured, z)),
       ~indent=" ",
-      ~segment=Zipper.unselect_and_zip(~ignore_selection=true, z),
+      ~segment=seg_of_zip(z),
     ),
   selection: z.selection.content |> of_segment(~holes=None) |> lines_to_list,
   backpack:

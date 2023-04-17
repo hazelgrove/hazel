@@ -356,7 +356,7 @@ let get_elab = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
   let seg =
     Zipper.smart_seg(
       editor.state.zipper,
-      ~ignore_selection=true,
+      ~erase_buffer=true,
       ~dump_backpack=true,
     );
   /*print_endline(

@@ -22,7 +22,7 @@ let view =
   let unselected =
     Zipper.smart_seg(
       ~dump_backpack=true,
-      ~ignore_selection=true,
+      ~erase_buffer=true,
       editor.state.zipper,
     );
   //print_endline("DUMPED BACKPACK Z:");

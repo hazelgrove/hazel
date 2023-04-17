@@ -3,7 +3,7 @@ open Haz3lcore;
 //TODO(andrew): calculate this in a more principled way
 let get_info_from_zipper = (~ctx=Ctx.empty, z: Zipper.t): Statics.Map.t => {
   z
-  |> Zipper.unselect_and_zip(~ignore_selection=true)
+  |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
   |> MakeTerm.go
   |> fst
   |> Statics.mk_map_ctx(ctx);
