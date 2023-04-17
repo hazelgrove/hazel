@@ -36,14 +36,14 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    //TODO(andrew): selectively (~ignore_selection=true)
+    //TODO(andrew): selectively (~erase_buffer=true)
     let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
     | "F3" =>
       zipper
-      |> Zipper.unselect_and_zip(~ignore_selection=true)
+      |> Zipper.seg_without_buffer
       |> MakeTerm.go
       |> fst
       |> TermBase.UExp.show

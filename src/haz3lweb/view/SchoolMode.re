@@ -83,10 +83,7 @@ let view =
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
-      let (term, _) =
-        MakeTerm.go(
-          Zipper.unselect_and_zip(~ignore_selection=true, focal_zipper),
-        );
+      let (term, _) = MakeTerm.go(Zipper.seg_without_buffer(focal_zipper));
       let map = Statics.mk_map(term);
       Some(
         LangDoc.get_color_map(

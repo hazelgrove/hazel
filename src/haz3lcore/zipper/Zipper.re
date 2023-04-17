@@ -135,18 +135,17 @@ let remold = (z: t): t => {
 let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
   z |> remold |> regrout(d);
 
-let unselect = (~ignore_selection=false, z: t): t => {
+let clear_amorphous_buffer = (z: t) =>
+  switch (z.selection.mode) {
+  | Buffer(Amorphous) => {...z, selection: Selection.empty}
+  | _ => z
+  };
+
+let unselect = (~erase_buffer=false, z: t): t => {
   /*TODO(andrew): document selection clearing. Right now
     we're only doing it for amorphous buffer; solid buffer is a bit more complicated
     as we can't just empty the selection without regrouting. */
-  let z =
-    switch (z.selection.mode) {
-    | Buffer(Amorphous) when ignore_selection => {
-        ...z,
-        selection: Selection.empty,
-      }
-    | _ => z
-    };
+  let z = erase_buffer ? clear_amorphous_buffer(z) : z;
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
@@ -154,8 +153,8 @@ let unselect = (~ignore_selection=false, z: t): t => {
   let selection = Selection.empty;
   {...z, selection, relatives};
 };
-let unselect_and_zip = (~ignore_selection=false, z: t): Segment.t =>
-  z |> unselect(~ignore_selection) |> zip;
+let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
+  z |> unselect(~erase_buffer) |> zip;
 
 let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
   let old = z.selection;
@@ -468,7 +467,10 @@ let try_to_dump_backpack = (zipper: t) => {
   go(zipper);
 };
 
-let smart_seg = (~dump_backpack: bool, ~ignore_selection: bool, z: t) => {
+let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
+  let z = erase_buffer ? clear_amorphous_buffer(z) : z; //need to do this before trying to dump backpack
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
-  unselect_and_zip(~ignore_selection, z);
+  unselect_and_zip(~erase_buffer, z);
 };
+
+let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

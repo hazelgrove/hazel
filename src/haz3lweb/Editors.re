@@ -67,7 +67,7 @@ let get_ctx_init_slides = (slides, idx) => {
   let stdlib_ed: Editor.t = List.nth(slides, Hyper.export_slide) |> snd;
   let stdlib_seg =
     Zipper.smart_seg(
-      ~ignore_selection=true,
+      ~erase_buffer=true,
       ~dump_backpack=true,
       stdlib_ed.state.zipper,
     );
@@ -96,7 +96,7 @@ let get_spliced_elabs =
     let ed = List.nth(slides, Hyper.export_slide) |> snd;
     let tests =
       Zipper.smart_seg(
-        ~ignore_selection=true,
+        ~erase_buffer=true,
         ~dump_backpack=true,
         ed.state.zipper,
       )
