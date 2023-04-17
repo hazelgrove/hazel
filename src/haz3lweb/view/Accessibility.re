@@ -189,13 +189,25 @@ let action_rotate_backpack_string = (editor: Editor.t) => {
   };
 };
 
+let action_move_to_backpack_target_string = (editor: Editor.t) => {
+  let program = Printer.to_string_editor(editor);
+  let rows = String.split_on_char('\n', program);
+  switch (Editor.caret_point(editor)) {
+  | {row, _} =>
+    switch (List.nth_opt(rows, row)) {
+    | Some(str) => str
+    | None => ""
+    }
+  };
+};
+
 let action_string = (action: Action.t, editor: Editor.t) => {
   switch (action) {
   | Move(_) => action_move_string(editor, action)
   | Select(_) => action_select_string(editor)
   | Unselect => "unselected"
   | Pick_up => action_pickup_string(editor)
-  | MoveToBackpackTarget(_) => "" // TODO
+  | MoveToBackpackTarget(_) => action_move_to_backpack_target_string(editor)
   | Put_down => "put down"
   | RotateBackpack => action_rotate_backpack_string(editor)
   | Destruct(_)
