@@ -186,3 +186,20 @@ let error_reply = (response: string, id: Id.t, ~init_ctx: Ctx.t) => {
 let react = (response: string): UpdateAction.t => {
   Agent(SetBuffer(response));
 };
+
+let react_error = (model: Model.t, response: string): UpdateAction.t => {
+  switch (model |> ChatLSP.get_ci |> Option.map(Info.ctx_of)) {
+  | None =>
+    print_endline("react_error: no CI");
+    react(response);
+  | Some(init_ctx) =>
+    switch (error_reply(response, 0, ~init_ctx)) {
+    | None =>
+      print_endline("react_error: no errors.");
+      react(response);
+    | Some(err) =>
+      print_endline("react_error: errors:" ++ err);
+      react(response);
+    }
+  };
+};
