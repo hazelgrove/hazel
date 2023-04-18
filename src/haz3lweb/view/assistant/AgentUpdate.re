@@ -65,7 +65,7 @@ let apply =
     switch (Oracle.ask(model)) {
     | None => print_endline("Oracle: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.request_chat(prompt, req =>
+      OpenAI.start_chat(prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) => schedule_action(Oracle.react(response))
         | None => print_endline("Assistant: response parse failed")
@@ -77,9 +77,31 @@ let apply =
     switch (Filler.prompt(model)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.request_chat(prompt, req =>
+      OpenAI.start_chat(prompt, req =>
         switch (OpenAI.handle_chat(req)) {
-        | Some(response) => schedule_action(Filler.react(response))
+        | Some(response) =>
+          print_endline("Filler: calling react_error");
+          switch (model |> ChatLSP.get_ci |> Option.map(Info.ctx_of)) {
+          | None =>
+            print_endline("react_error: no CI");
+            schedule_action(Agent(SetBuffer(response)));
+          | Some(init_ctx) =>
+            switch (Filler.error_reply(response, 0, ~init_ctx)) {
+            | None =>
+              print_endline("react_error: no errors.");
+              schedule_action(Agent(SetBuffer(response)));
+            | Some(reply) =>
+              print_endline("react_error: errors:" ++ reply);
+              OpenAI.reply_chat(prompt, response, reply, req =>
+                switch (OpenAI.handle_chat(req)) {
+                | Some(response) =>
+                  schedule_action(Agent(SetBuffer(response)))
+                | None => print_endline("Filler: handler failed")
+                }
+              );
+            }
+          // schedule_action(Filler.react_error(model, response));
+          };
         | None => print_endline("Filler: handler failed")
         }
       )
