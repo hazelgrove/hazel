@@ -8,6 +8,14 @@ let get_info_from_zipper = (~ctx=Ctx.empty, z: Zipper.t): Statics.Map.t => {
   |> fst
   |> Statics.mk_map_ctx(ctx);
 };
+let get_info_and_top_ci_from_zipper =
+    (~ctx=Ctx.empty, z: Zipper.t): (Info.exp, Statics.Map.t) => {
+  z
+  |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
+  |> MakeTerm.go
+  |> fst
+  |> Statics.mk_map_and_info_ctx(ctx);
+};
 
 let get_ci = (model: Model.t): option(Info.t) => {
   let editor = model.editors |> Editors.get_editor;
@@ -29,9 +37,22 @@ module Type = {
     | _ => None
     };
 
-  let expected = (mode: option(Typ.mode)): string => {
+  let ctx = (model: Model.t): option(Ctx.t) =>
+    switch (get_ci(model)) {
+    | Some(ci) => Some(Info.ctx_of(ci))
+    | _ => None
+    };
+
+  let expected = (~ctx=Ctx.empty, mode: option(Typ.mode)): string => {
     let prefix = "Hole ?? can be filled by an expression with ";
     switch (mode) {
+    | Some(Ana(Var(name) as ty)) when Ctx.lookup_alias(ctx, name) != None =>
+      let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
+      prefix
+      ++ "a type consistent with "
+      ++ Typ.to_string(ty)
+      ++ " which is a type alias for "
+      ++ Typ.to_string(ty_expanded);
     | Some(Ana(ty)) =>
       prefix ++ "a type consistent with " ++ Typ.to_string(ty)
     | Some(SynFun) =>
