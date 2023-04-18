@@ -501,6 +501,11 @@ let mk_map =
     |> snd
   });
 
+let mk_map_and_info_ctx =
+  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
+  });
+
 let mk_map_ctx =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
     uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd

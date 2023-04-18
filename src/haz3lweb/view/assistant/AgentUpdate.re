@@ -81,12 +81,9 @@ let apply =
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
           print_endline("Filler: calling react_error");
-          switch (model |> ChatLSP.get_ci |> Option.map(Info.ctx_of)) {
-          | None =>
-            print_endline("react_error: no CI");
-            schedule_action(Agent(SetBuffer(response)));
-          | Some(init_ctx) =>
-            switch (Filler.error_reply(response, 0, ~init_ctx)) {
+          switch (ChatLSP.Type.ctx(model), ChatLSP.Type.mode(model)) {
+          | (Some(init_ctx), Some(mode)) =>
+            switch (Filler.error_reply(response, 0, ~init_ctx, ~mode)) {
             | None =>
               print_endline("react_error: no errors.");
               schedule_action(Agent(SetBuffer(response)));
@@ -100,7 +97,9 @@ let apply =
                 }
               );
             }
-          // schedule_action(Filler.react_error(model, response));
+          | _ =>
+            print_endline("react_error: no CI");
+            schedule_action(Agent(SetBuffer(response)));
           };
         | None => print_endline("Filler: handler failed")
         }

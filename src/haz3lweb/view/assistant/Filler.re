@@ -3,6 +3,8 @@ open ChatLSP;
 
 type samples = list((string, string, string));
 
+//TODO(andrew): include ctx in examples to get more precise expected_ty
+
 let samples = [
   ("let a:Float = ??(5)", Type.expected(Some(SynFun)), "float_of_int"),
   ("let f = ?? in f(5)", Type.expected(Some(Syn)), "fun x:Int -> ??"),
@@ -114,11 +116,19 @@ let code_instructions = [
 
  TODO: make holes rendered as some actual text; otherwise it tries to fill them...
 
+
+ TODO: remove leading spaces before linebreaks from reply
+
  REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
 
 let prompt = (model: Model.t): option(string) => {
   let editor = model.editors |> Editors.get_editor;
+  let ctx =
+    switch (ChatLSP.get_ci(model)) {
+    | Some(ci) => Info.ctx_of(ci)
+    | None => Ctx.empty
+    };
   let prefix =
     ["Consider these examples:"]
     @ collate_samples(samples)
@@ -136,7 +146,7 @@ actual_expected_type: %s,
 actual_completion:
       |},
         body,
-        model |> Type.mode |> Type.expected,
+        model |> ChatLSP.Type.mode |> ChatLSP.Type.expected(~ctx),
       );
     let prompt =
       String.concat("\n ", prefix)
@@ -147,7 +157,9 @@ actual_completion:
   };
 };
 
-let error_reply = (response: string, id: Id.t, ~init_ctx: Ctx.t) => {
+let error_reply =
+    (response: string, id: Id.t, ~init_ctx: Ctx.t, ~mode: Typ.mode) => {
+  //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
     Some(
       [intro]
@@ -162,44 +174,41 @@ let error_reply = (response: string, id: Id.t, ~init_ctx: Ctx.t) => {
   | None =>
     wrap("Syntax errors: Undocumented parse error, no feedback available", [])
   | Some((response_z, _id)) =>
-    let errors =
-      response_z
-      |> ChatLSP.get_info_from_zipper(~ctx=init_ctx)
-      |> ChatLSP.Errors.collect_static;
+    let (top_ci, map) =
+      response_z |> ChatLSP.get_info_and_top_ci_from_zipper(~ctx=init_ctx);
+    let self =
+      switch (top_ci.self) {
+      | FreeVar => Info.Just(Unknown(Internal))
+      | Common(self) => self
+      };
+    let status = Info.status_common(init_ctx, mode, self);
+    let errors = ChatLSP.Errors.collect_static(map);
     let orphans = Printer.of_backpack(response_z);
-    switch (orphans, errors) {
-    | ([], []) => None
-    | ([_, ..._], _) =>
+    switch (orphans, errors, status) {
+    | ([_, ..._], _, _) =>
       wrap(
         "Syntax errors: The parser has detected the following unmatched delimiters:",
         orphans,
       )
-    | ([], [_, ..._]) =>
+    | ([], [_, ..._], _) =>
       wrap(
-        "Statics errors: The following static errors were encountered:",
+        "Static errors: The following static errors were encountered:",
         errors,
       )
+    | ([], [], InHole(TypeInconsistent({ana, syn}))) =>
+      wrap(
+        "Static error: The suggested filling has the wrong expected type: expected "
+        ++ Typ.to_string(ana)
+        ++ ", but got "
+        ++ Typ.to_string(syn)
+        ++ ".",
+        [],
+      )
+    | ([], [], _) => None
     };
   };
 };
 
 let react = (response: string): UpdateAction.t => {
   Agent(SetBuffer(response));
-};
-
-let react_error = (model: Model.t, response: string): UpdateAction.t => {
-  switch (model |> ChatLSP.get_ci |> Option.map(Info.ctx_of)) {
-  | None =>
-    print_endline("react_error: no CI");
-    react(response);
-  | Some(init_ctx) =>
-    switch (error_reply(response, 0, ~init_ctx)) {
-    | None =>
-      print_endline("react_error: no errors.");
-      react(response);
-    | Some(err) =>
-      print_endline("react_error: errors:" ++ err);
-      react(response);
-    }
-  };
 };
