@@ -18,6 +18,7 @@ let livelit_style = (font_metrics: FontMetrics.t, livelit_width: float) =>
       font_metrics.col_width *. 0.5,
     ),
   );
+
 let view =
     (
       font_metrics: FontMetrics.t,
@@ -25,9 +26,9 @@ let view =
       name,
       livelits: Livelit.state,
       tile_id,
-    ) =>
+    ) => {
   switch (name) {
-  | "slider\t" => [
+  | x when x == Livelit.slider.name => [
       Node.input(
         ~attr=
           Attr.many([
@@ -60,7 +61,40 @@ let view =
         (),
       ),
     ]
-  | "checkbox\t" =>
+  | x when x == Livelit.fslider.name => [
+      Node.input(
+        ~attr=
+          Attr.many([
+            Attr.create("type", "range"),
+            livelit_style(font_metrics, float_of_int(10)),
+            Attr.create(
+              "value",
+              string_of_int(
+                switch (Id.Map.find_opt(tile_id, livelits)) {
+                | Some(FloatLit(i)) => int_of_float(i *. 100.0)
+                | _ => 50
+                },
+              ),
+            ),
+            Attr.on_input((_evt, str) =>
+              (
+                {
+                  inject(
+                    UpdateAction.LivelitStateChange(
+                      tile_id,
+                      FloatLit(float_of_string(str) /. 100.0),
+                    ),
+                  );
+                }:
+                  Virtual_dom.Vdom.Effect.t(unit)
+              )
+            ),
+            stop_mousedown_propagation,
+          ]),
+        (),
+      ),
+    ]
+  | x when x == Livelit.checkbox.name =>
     let checkbox_state: bool =
       switch (Id.Map.find_opt(tile_id, livelits)) {
       | Some(BoolLit(b)) => b
@@ -91,3 +125,4 @@ let view =
     ];
   | _ => []
   };
+};

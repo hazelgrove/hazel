@@ -24,12 +24,17 @@ let checkbox: t = {
   expansion_type: Bool,
 };
 
+let fslider: t = {
+  name: "fslider\t",
+  width: 10,
+  default: FloatLit(0.5),
+  expansion_type: Float,
+};
+
+let livelits: list(t) = [checkbox, fslider, slider];
+
 let find_livelit = (livelit_name: string): option(t) =>
-  switch (livelit_name) {
-  | "slider\t" => Some(slider)
-  | "checkbox\t" => Some(checkbox)
-  | _ => None
-  };
+  List.find_opt(l => l.name == livelit_name, livelits);
 
 let elaborate_livelit =
     (livelit_name: string, uexp_id: int, livelits: state): option(DHExp.t) => {
