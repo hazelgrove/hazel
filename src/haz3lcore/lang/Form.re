@@ -96,7 +96,7 @@ let is_livelit = t =>
   | _ => false
   };
 let is_unknown_livelit = str => {
-  regexp("^([a-z][A-Za-z0-9_]*)?[\\^]$", str) && !is_livelit(str);
+  regexp("^([a-z][A-Za-z0-9_]*)?\t$", str) && !is_livelit(str);
 };
 
 /* The below case represents tokens which we want the user to be able to

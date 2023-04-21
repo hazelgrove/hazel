@@ -16,14 +16,14 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      a: Action.t,
-      z: Zipper.t,
-      id_gen: IdGen.state,
-    )
-    : Action.Result.t((Zipper.t, IdGen.state)) => {
+let rec go_z =
+        (
+          ~meta: option(Editor.Meta.t)=?,
+          a: Action.t,
+          z: Zipper.t,
+          id_gen: IdGen.state,
+        )
+        : Action.Result.t((Zipper.t, IdGen.state)) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -92,15 +92,24 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_insert)
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z), id_gen))
   | Put_down =>
-    let z =
+    let current_livelit =
+      Zipper.left_neighbor_monotile(z.relatives.siblings)
+      |> Option.bind(_, t => Livelit.find_livelit(t ++ "\t"));
+
+    switch (current_livelit) {
+    | Some(_) => go_z(Insert("\t"), z, id_gen)
+    | _ =>
       /* Alternatively, putting down inside token could eiter merge-in or split */
-      switch (z.caret) {
-      | Inner(_) => None
-      | Outer => Zipper.put_down(Left, z)
-      };
-    z
-    |> Option.map(z => remold_regrout(Left, z, id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_put_down);
+      (
+        switch (z.caret) {
+        | Inner(_) => None
+        | Outer => Zipper.put_down(Left, z)
+        }
+      )
+      |> Option.map(z => remold_regrout(Left, z, id_gen))
+      |> Result.of_option(~error=Action.Failure.Cant_put_down)
+    };
+
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
     Ok((z, id_gen));
