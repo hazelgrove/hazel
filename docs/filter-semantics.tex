@@ -1,0 +1,183 @@
+\documentclass{article}
+
+\usepackage{fullpage}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsmath}
+\usepackage{ebproof}
+\DeclareMathOperator{\FLength}{length}
+\newcommand{\entails}{\mathrel{\mathop\vdash}}
+\newcommand{\stepfor}{\mathrel{\mathop{\text{to step for}}}}
+\newcommand{\yields}{\mathrel{\mathop{\text{yields}}}}
+\newcommand{\val}{~\mathbf{val}}
+\DeclareMathOperator{\step}{step}
+\DeclareMathOperator{\eval}{eval}
+\newcommand{\fin}{\mathrel{\mathop{\text{in}}}}
+\DeclareMathOperator{\flet}{let}
+\DeclareMathOperator{\fclose}{close}
+\newcommand{\funder}{\mathrel{\mathop{\text{under}}}}
+\newcommand{\matches}{\mathrel{\mathop{\blacktriangleright}}}
+\newcommand{\hooksto}{\mathrel{\mathop{\hookrightarrow}}}
+
+\begin{document}
+
+\paragraph{Evaluation Filter Semantics}
+
+\[
+  \begin{prooftree}
+    \hypo{v \val}
+    \infer1[(Val)]{\mathcal{F} \entails v \to_{f}^{0} v}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \infer0[(Closure-I)]{\mathcal{F} \entails (\lambda x .
+      d) \to_{f}^{0}
+  \fclose_{\mathcal{F}} (\lambda x . d)}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{\mathcal{F}'' = \mathcal{F} \cup \mathcal{F}'}
+    \hypo{\mathcal{F}'' \entails d \to_{f}^{s} d'}
+    \infer2[(Closure-P)]{\mathcal{F} \entails
+      \fclose_{\mathcal{F}'} d \to_{f}^{s}
+    \fclose_{\mathcal{F}'} d'}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{\mathcal{F}'' = \mathcal{F} \cup \mathcal{F}'}
+    \hypo{\mathcal{F}'' \entails d \to_{f}^{s} d'}
+    \hypo{d' \val}
+    \infer3[(Closure-E)]{\mathcal{F} \entails
+    \fclose_{\mathcal{F}'} d \to_{f}^{s} d'}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{\mathcal{F} \entails \fclose_{\cdot,\{(f, 1)\}} d
+    \to_{f}^{s} d'}
+    \infer1[(Filter-I-1)]{\mathcal{F} \entails \step f \fin
+    d \to_{f}^{s} d'}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{\mathcal{F} \entails \fclose_{\cdot,\{(f,
+    \infty)\}} d \to_{f}^{s} d'}
+    \infer1[(Filter-I-\(\infty\))]{\mathcal{F} \entails
+    \eval f \fin d \to_{f}^{s} d'}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{\mathcal{F} \entails d_1 \to_{f_1}^{s_1} d_1'}
+    \hypo{\mathcal{F} \entails d_2 \to_{f_2}^{s_2} d_2'}
+    \infer2[(Ap-P)]{\mathcal{F} \entails d_1 (d_2)
+    \to_{f_1(f_2)}^{s_1 + s_2} d_1'(d_2')}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{
+      \mathcal{F}
+      \entails
+      d_1 \to_{f_1}^{s_1}
+        \fclose_{\mathcal{F}'} \lambda x . d_3
+    }
+    \hypo{\mathcal{F} \entails d_2 \to_{f_2}^{s_2} d_2'}
+    \hypo{d_3' = [d_2'/x]d_3}
+    \hypo{
+      \mathcal{F}
+      \entails
+      \fclose_{\mathcal{F}'} d_3' \to_{\ast}^{s_3} d_3''
+    }
+    \infer4[(Ap-E)]{\mathcal{F} \entails d_1 (d_2) \to_{f_1(f_2)}^{s_1 +
+    s_2 + 1 + s_3} d_3''}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{(f, 1) \in \mathcal{F} \cup \{ f_i \}}
+    \hypo{f \matches_d f'}
+    \hypo{\mathcal{F} \entails d \to_{f'}^{1} d'}
+    \infer3[(Match-1)]{\mathcal{F} \entails d \to_{f_i}^{1} d'}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{(f, \infty) \in \mathcal{F} \cup \{ f_i \}}
+    \hypo{f \matches_d f'}
+    \hypo{\mathcal{F} \entails d \to_{f'}^{s} d'}
+    \infer3[(Match-\(\infty\))]{\mathcal{F} \entails d
+    \to_{f_i}^{0} d'}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \hypo{f_1 \matches_{d_1} f_1'}
+    \hypo{f_2 \matches_{d_2} f_2'}
+    \infer2[(M-Ap)]{f_1(f_2) \matches_{d_1(d_2)} f_1'(f_2')}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \infer0[(M-\(\ast\)-Ap)]{\ast \matches_{d_1(d_2)} \ast(\ast)}
+  \end{prooftree}
+\]
+
+\[
+  \begin{prooftree}
+    \infer0[(M-\(\ast\))]{\ast \matches_{d} \ast}
+  \end{prooftree}
+\]
+
+\paragraph{Example Derivation}.
+
+\[
+  \begin{prooftree}
+    \hypo{
+      f
+      \matches_{1 \times 2 + 3 \times 4}
+      f
+    }
+    \hypo{
+      \mathcal{F}
+      \entails
+      1 \times 2 \to_{\ast \times \ast}^{1} 2
+    }
+    \hypo{
+      \mathcal{F}
+      \entails
+      3 \times 4 \to_{\ast \times \ast}^{0} 3 \times 4
+    }
+    \infer2{
+      \mathcal{F}
+      \entails
+      1 \times 2 + 3 \times 4
+      \to_{f}^{1}
+      2 + 3 \times 4
+    }
+    \infer2{
+      \mathcal{F} =
+      \{ (\ast, \infty), (\ast \times \ast + \ast \times \ast, 1) \}
+      \entails
+      1 \times 2 + 3 \times 4
+      \to_{\ast}^{1} 2 + 3 \times 4
+    }
+  \end{prooftree}
+\]
+
+\end{document}
