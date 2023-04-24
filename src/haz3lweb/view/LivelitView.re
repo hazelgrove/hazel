@@ -28,13 +28,6 @@ let view_slider =
       decode: int => DHExp.t,
       encode: DHExp.t => option(int),
     ) => {
-  // let encode = t => {
-  //   switch ((t: DHExp.t)) {
-  //   | IntLit(i) => Some(i)
-  //   | _ => None
-  //   };
-  // };
-  // let decode = (i: int): DHExp.t => IntLit(i);
   Node.input(
     ~attr=
       Attr.many([
