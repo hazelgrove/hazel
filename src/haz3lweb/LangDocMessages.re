@@ -2513,7 +2513,7 @@ let livelit_ap_exp_group = "livelit_ap_exp_group";
 
 let livelit_ap_exp: form = {
   let explanation = {message: "Livelit Application", feedback: Unselected};
-  let form = [exp("slider^")];
+  let form = [exp(Livelit.slider.name)];
   {
     id: "livelit_ap_exp",
     syntactic_form: form,

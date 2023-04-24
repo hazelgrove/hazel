@@ -97,7 +97,7 @@ let rec go_z =
       |> Option.bind(_, t => Livelit.find_livelit(t ++ "\t"));
 
     switch (current_livelit) {
-    | Some(_) => go_z(Insert("\t"), z, id_gen)
+    | Some(_) => go_z(Insert("\t"), z, id_gen) // Tab complete inserts livelit
     | _ =>
       /* Alternatively, putting down inside token could eiter merge-in or split */
       (

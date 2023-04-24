@@ -19,6 +19,54 @@ let livelit_style = (font_metrics: FontMetrics.t, livelit_width: float) =>
     ),
   );
 
+let view_slider =
+    (
+      font_metrics: FontMetrics.t,
+      inject,
+      livelits: Livelit.state,
+      tile_id,
+      decode: int => DHExp.t,
+      encode: DHExp.t => option(int),
+    ) => {
+  // let encode = t => {
+  //   switch ((t: DHExp.t)) {
+  //   | IntLit(i) => Some(i)
+  //   | _ => None
+  //   };
+  // };
+  // let decode = (i: int): DHExp.t => IntLit(i);
+  Node.input(
+    ~attr=
+      Attr.many([
+        Attr.create("type", "range"),
+        livelit_style(font_metrics, float_of_int(10)),
+        Attr.create(
+          "value",
+          string_of_int(
+            Id.Map.find_opt(tile_id, livelits)
+            |> Option.bind(_, encode)
+            |> Option.value(~default=50),
+          ),
+        ),
+        Attr.on_input((_evt, str) =>
+          (
+            {
+              inject(
+                UpdateAction.LivelitStateChange(
+                  tile_id,
+                  decode(int_of_string(str)),
+                ),
+              );
+            }:
+              Virtual_dom.Vdom.Effect.t(unit)
+          )
+        ),
+        stop_mousedown_propagation,
+      ]),
+    (),
+  );
+};
+
 let view =
     (
       font_metrics: FontMetrics.t,
@@ -29,69 +77,33 @@ let view =
     ) => {
   switch (name) {
   | x when x == Livelit.slider.name => [
-      Node.input(
-        ~attr=
-          Attr.many([
-            Attr.create("type", "range"),
-            livelit_style(font_metrics, float_of_int(10)),
-            Attr.create(
-              "value",
-              string_of_int(
-                switch (Id.Map.find_opt(tile_id, livelits)) {
-                | Some(IntLit(i)) => i
-                | _ => 50
-                },
-              ),
-            ),
-            Attr.on_input((_evt, str) =>
-              (
-                {
-                  inject(
-                    UpdateAction.LivelitStateChange(
-                      tile_id,
-                      IntLit(int_of_string(str)),
-                    ),
-                  );
-                }:
-                  Virtual_dom.Vdom.Effect.t(unit)
-              )
-            ),
-            stop_mousedown_propagation,
-          ]),
-        (),
+      view_slider(
+        font_metrics,
+        inject,
+        livelits,
+        tile_id,
+        i => IntLit(i),
+        t => {
+          switch (t) {
+          | IntLit(i) => Some(i)
+          | _ => None
+          }
+        },
       ),
     ]
   | x when x == Livelit.fslider.name => [
-      Node.input(
-        ~attr=
-          Attr.many([
-            Attr.create("type", "range"),
-            livelit_style(font_metrics, float_of_int(10)),
-            Attr.create(
-              "value",
-              string_of_int(
-                switch (Id.Map.find_opt(tile_id, livelits)) {
-                | Some(FloatLit(i)) => int_of_float(i *. 100.0)
-                | _ => 50
-                },
-              ),
-            ),
-            Attr.on_input((_evt, str) =>
-              (
-                {
-                  inject(
-                    UpdateAction.LivelitStateChange(
-                      tile_id,
-                      FloatLit(float_of_string(str) /. 100.0),
-                    ),
-                  );
-                }:
-                  Virtual_dom.Vdom.Effect.t(unit)
-              )
-            ),
-            stop_mousedown_propagation,
-          ]),
-        (),
+      view_slider(
+        font_metrics,
+        inject,
+        livelits,
+        tile_id,
+        i => FloatLit(float_of_int(i) /. 100.0),
+        t => {
+          switch (t) {
+          | FloatLit(i) => Some(int_of_float(i *. 100.0))
+          | _ => None
+          }
+        },
       ),
     ]
   | x when x == Livelit.checkbox.name =>

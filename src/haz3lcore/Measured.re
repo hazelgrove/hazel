@@ -143,7 +143,6 @@ let add_w = (w: Secondary.t, m, map) => {
   ...map,
   secondary: map.secondary |> Id.Map.add(w.id, m),
 };
-
 let add_p = (p: Piece.t, m, map) =>
   p
   |> Piece.get(
@@ -388,13 +387,12 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
-              let foo = livelit_padding(t);
+              let lp = livelit_padding(t);
               let last =
                 Point.{
                   ...origin,
                   col:
-                    origin.col
-                    + (foo > 0 ? foo : String.length(token(shard))),
+                    origin.col + (lp > 0 ? lp : String.length(token(shard))),
                 };
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
