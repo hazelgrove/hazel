@@ -11,21 +11,21 @@ type t = {
 type state = Id.Map.t(DHExp.t);
 let empty_state: state = Id.Map.empty;
 let slider: t = {
-  name: "slider\t",
+  name: "^slider\t",
   width: 10,
   default: IntLit(50),
   expansion_type: Int,
 };
 
 let checkbox: t = {
-  name: "checkbox\t",
+  name: "^checkbox\t",
   width: 1,
   default: BoolLit(false),
   expansion_type: Bool,
 };
 
 let fslider: t = {
-  name: "fslider\t",
+  name: "^fslider\t",
   width: 10,
   default: FloatLit(0.5),
   expansion_type: Float,
