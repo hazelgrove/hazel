@@ -1,18 +1,3 @@
-module EvalFilter: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = TermBase.UExp.filter_action;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list((DHExp.t, action));
-
-  let init: t;
-
-  let matches_exp: (DHExp.t, DHExp.t) => bool;
-  let matches_pat: (DHPat.t, DHPat.t) => bool;
-  let matches_typ: (Typ.t, Typ.t) => bool;
-  let matches_rul: (DHExp.rule, DHExp.rule) => bool;
-};
-
 module EvalCtx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -48,7 +33,7 @@ module EvalCtx: {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
-    | Filter(EvalFilter.t, t)
+    | Filter(FilterAction.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
@@ -89,12 +74,12 @@ module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     env: ClosureEnvironment.t,
+    flt: FilterAction.t,
     ctx: EvalCtx.t,
     exp: DHExp.t,
-    flt: EvalFilter.t,
   };
 
-  let mk: (ClosureEnvironment.t, EvalCtx.t, DHExp.t, EvalFilter.t) => t;
+  let mk: (ClosureEnvironment.t, FilterAction.t, EvalCtx.t, DHExp.t) => t;
 
   let init: DHExp.t => t;
 
@@ -121,7 +106,3 @@ let init: DHExp.t => (EvaluatorState.t, t);
 let step: EvalObj.t => (EvaluatorState.t, t);
 
 let decompose: DHExp.t => (EvaluatorState.t, list(EvalObj.t));
-
-let preproc: DHExp.t => EvaluatorMonad.t(DHExp.t);
-
-let postproc: t => EvaluatorMonad.t(t);
