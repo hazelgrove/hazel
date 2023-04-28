@@ -44,13 +44,44 @@ module rec DHExp: {
       | SEquals;
   };
 
-  module Filter: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type action = TermBase.UExp.filter_action;
+  // module FilterAction: {
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t =
+  //     | Keep
+  //     | Step
+  //     | Eval;
+  // };
 
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = list((DHExp.t, action));
-  };
+  // module Filter: {
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t = {
+  //     pat: DHExp.t,
+  //     act: FilterAction.t,
+  //   };
+
+  //   let mk: (DHExp.t, TermBase.UExp.Filter.action) => t;
+
+  //   let strip_casts: t => t;
+
+  //   let fast_equal: (t, t) => bool;
+  // };
+
+  // module FilterEnvironment: {
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t = {
+  //     outer: list(Filter.t),
+  //     ephemeral: option(Filter.t),
+  //     inner: list(Filter.t),
+  //   };
+
+  //   let empty: option(Filter.t) => t;
+
+  //   let strip_casts: t => t;
+
+  //   let fast_equal: (t, t) => bool;
+
+  //   let singleton: Filter.t => t;
+  // };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -63,7 +94,7 @@ module rec DHExp: {
     | Closure(ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
-    | Filter(Filter.t, t)
+    | Filter(FilterAction.t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -149,13 +180,76 @@ module rec DHExp: {
       | SEquals;
   };
 
-  module Filter = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type action = TermBase.UExp.filter_action;
+  // module FilterAction = {
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t =
+  //     | Keep
+  //     | Step
+  //     | Eval;
+  // };
 
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = list((DHExp.t, action));
-  };
+  // module Filter = {
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t = {
+  //     pat: DHExp.t,
+  //     act: FilterAction.t,
+  //   };
+
+  //   // let init = {pat: EmptyHole(0, 0), act: 1};
+
+  //   let mk = (pat, act: TermBase.UExp.Filter.action) => {
+  //     let act: FilterAction.t =
+  //       switch (act) {
+  //       | Step => Step
+  //       | Eval => Eval
+  //       };
+  //     {pat, act};
+  //   };
+
+  //   let fast_equal =
+  //       ({pat: pat1, act: act1}: t, {pat: pat2, act: act2}: t): bool => {
+  //     act1 == act2 && DHExp.fast_equal(pat1, pat2);
+  //   };
+
+  //   let strip_casts = (f: t): t => {...f, pat: DHExp.strip_casts(f.pat)};
+  // };
+
+  // module FilterEnvironment = {
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t = {
+  //     outer: list(Filter.t),
+  //     ephemeral: option(Filter.t),
+  //     inner: list(Filter.t),
+  //   };
+
+  //   let empty = ephermal => {outer: [], ephemeral: ephermal, inner: []};
+
+  //   let fast_equal = (ctx1: t, ctx2: t): bool => {
+  //     let list_fast_equal = (f1, f2) => {
+  //       let fold =
+  //         List.fold_left2(
+  //           (res, f1: Filter.t, f2: Filter.t) =>
+  //             res && f1.act == f2.act && DHExp.fast_equal(f1.pat, f2.pat),
+  //           false,
+  //         );
+  //       switch (fold(f1, f2)) {
+  //       | res => res
+  //       | exception (Invalid_argument(_)) => false
+  //       };
+  //     };
+  //     list_fast_equal(ctx1.outer, ctx2.outer)
+  //     && Option.equal(Filter.fast_equal, ctx1.ephemeral, ctx2.ephemeral)
+  //     && list_fast_equal(ctx1.inner, ctx2.inner);
+  //   };
+
+  //   let strip_casts = (ctx: t): t => {
+  //     outer: ctx.outer |> List.map(Filter.strip_casts),
+  //     ephemeral: Option.map(ep => Filter.strip_casts(ep), ctx.ephemeral),
+  //     inner: ctx.inner |> List.map(Filter.strip_casts),
+  //   };
+
+  //   let singleton = f => {outer: [], ephemeral: None, inner: [f]};
+  // };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -171,7 +265,7 @@ module rec DHExp: {
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
-    | Filter(Filter.t, t)
+    | Filter(FilterAction.t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -306,8 +400,7 @@ module rec DHExp: {
       ListLit(a, b, c, d, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
-    | Filter(fs, b) =>
-      Filter(List.map(((f, act)) => (strip_casts(f), act), fs), b)
+    | Filter(fact, b) => Filter(fact, strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
@@ -358,14 +451,8 @@ module rec DHExp: {
     /* Non-hole forms: recurse */
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (Filter(fs1, d1), Filter(fs2, d2)) =>
-      List.fold_left2(
-        (res, (f1, act1), (f2, act2)) =>
-          res && act1 == act2 && fast_equal(f1, f2),
-        fast_equal(d1, d2),
-        fs1,
-        fs2,
-      )
+    | (Filter(fact1, d1), Filter(fact2, d2)) =>
+      fact1 == fact2 && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>

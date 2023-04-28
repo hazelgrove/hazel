@@ -17,7 +17,7 @@ let init = (~step=false, ds: list((Key.t, DHExp.t))): t => {
   |> List.map(((key, d)) => {
        let result =
          if (step) {
-           Interface.step(EvaluatorStep.EvalObj.init(d));
+           Interface.init(d);
          } else {
            Interface.evaluate(d);
          };
