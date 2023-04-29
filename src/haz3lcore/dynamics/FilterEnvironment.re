@@ -40,7 +40,7 @@ let rec matches_exp = (d: TermBase.UExp.t, f: TermBase.UExp.t): bool => {
 
   | (Filter(_, _, d1), _) => matches_exp(d1, f)
 
-  | (Parens(d1), _) => matches_exp(d1, f)
+  | (Parens(d1), Parens(f1)) => matches_exp(d1, f1)
 
   | (Cons(d1, d2), Cons(f1, f2)) =>
     matches_exp(d1, f1) && matches_exp(d2, f2)
