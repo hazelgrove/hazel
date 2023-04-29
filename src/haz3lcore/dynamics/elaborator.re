@@ -273,7 +273,15 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(~fenv=fenv1, m, e1);
         let+ dc2 = dhexp_of_uexp(~fenv=fenv2, m, e2);
         cons(dc1, dc2);
-      | Parens(e) => dhexp_of_uexp(m, e)
+      | Parens(e) =>
+        let f =
+          switch (menv.active) {
+          | Some(Filter.{pat: {term: Parens(f), _}, act}) =>
+            Some(Filter.{pat: f, act})
+          | _ => None
+          };
+        let fenv = menv |> FilterEnvironment.map(_ => f);
+        dhexp_of_uexp(~fenv, m, e);
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
