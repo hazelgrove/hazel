@@ -12,7 +12,7 @@ let register_exp_test =
       delta: Delta.t,
     ) =>
   Test.register(
-    ~__FILE__, ~title, ~tags=["hazelcore", "skelparser"] @ tags, () =>
+    ~__FILE__, ~title, ~tags=["hazelcore", "elaborator"] @ tags, () =>
     switch (Elaborator.dhexp_of_uexp(m, uexp)) {
     | None => Test.fail("Elaborator failed: got None")
     | Some((d, dl)) =>
