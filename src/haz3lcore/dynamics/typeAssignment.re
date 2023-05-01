@@ -153,27 +153,52 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     } else {
       None;
     };
-  | BinIntOp(_, d1, d2) =>
+  | BinIntOp(op, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, dl, d1);
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
     if (ty1 == Int && ty2 == Int) {
-      Some(Typ.Int);
+      switch (op) {
+      | Minus
+      | Plus
+      | Times
+      | Power
+      | Divide => Some(Typ.Int)
+      | LessThan
+      | LessThanOrEqual
+      | GreaterThan
+      | GreaterThanOrEqual
+      | Equals => Some(Typ.Bool)
+      };
     } else {
       None;
     };
-  | BinFloatOp(_, d1, d2) =>
+  | BinFloatOp(op, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, dl, d1);
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
     if (ty1 == Float && ty2 == Float) {
-      Some(Typ.Float);
+      switch (op) {
+      | FMinus
+      | FPlus
+      | FTimes
+      | FPower
+      | FDivide => Some(Typ.Int)
+      | FLessThan
+      | FLessThanOrEqual
+      | FGreaterThan
+      | FGreaterThanOrEqual
+      | FEquals => Some(Typ.Bool)
+      };
     } else {
       None;
     };
-  | BinStringOp(_, d1, d2) =>
+  | BinStringOp(op, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, dl, d1);
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
     if (ty1 == String && ty2 == String) {
-      Some(Typ.String);
+      //In case a new string operation comes
+      switch (op) {
+      | SEquals => Some(Typ.Bool)
+      };
     } else {
       None;
     };
