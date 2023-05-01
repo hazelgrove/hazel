@@ -114,18 +114,21 @@ let rec subst = (s: t, ~x: int=0, ty: t) => {
   let subst_keep = subst(~x, s);
   let subst_incr = subst(~x=x + 1, s);
   switch (ty) {
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | String => String
-  | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst_keep(ty1), subst_keep(ty2))
   | Prod(tys) => Prod(List.map(ty => subst_keep(ty), tys))
   | Sum(sm) => Sum(TagMap.map(Option.map(subst_keep), sm))
   | List(ty) => List(subst_keep(ty))
   | Rec({item, name}) => Rec({item: subst_incr(item), name})
   | Forall({item, name}) => Forall({item: subst_incr(item), name})
-  | Var({item: y, _}) => Some(x) == y ? s : ty
+  | Var({item: Some(k), _}) as v =>
+    if (k == x) {
+      s;
+    } else if (k > x) {
+      incr(v, -1);
+    } else {
+      v;
+    }
+  | _ => ty
   };
 };
 

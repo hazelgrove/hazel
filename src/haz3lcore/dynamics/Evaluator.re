@@ -632,6 +632,74 @@ let eval_bin_string_op =
   | SEquals => BoolLit(s1 == s2)
   };
 
+let rec ty_subst =
+        (~idx=0, exp, targ)
+        : DHExp.t /* TODO: Maybe just keep error instead of recursing? */ => {
+  open DH.DHExp;
+  let re = e2 => ty_subst(~idx, e2, targ);
+  switch (exp) {
+  | Cast(t, t1, t2) =>
+    Cast(re(t), Typ.subst(targ, ~x=idx, t1), Typ.subst(targ, ~x=idx, t2))
+  | FixF(arg, ty, body) => FixF(arg, Typ.subst(targ, ~x=idx, ty), re(body))
+  | Fun(arg, ty, body, var) =>
+    Fun(arg, Typ.subst(targ, ~x=idx, ty), re(body), var)
+  | TypAp(tfun, ty) => TypAp(re(tfun), Typ.subst(targ, ~x=idx, ty))
+  | ListLit(mv, mvi, lerr, t, lst) =>
+    ListLit(mv, mvi, lerr, Typ.subst(targ, ~x=idx, t), List.map(re, lst))
+
+  | TypFun(utpat, body) => TypFun(utpat, ty_subst(~idx=idx + 1, body, targ))
+
+  | NonEmptyHole(errstat, mv, hid, t) =>
+    NonEmptyHole(errstat, mv, hid, re(t))
+  | InconsistentBranches(mv, hid, case) =>
+    InconsistentBranches(mv, hid, ty_subst_case(~idx, case, targ))
+  | Closure(ce, t) => Closure(ce, re(t))
+  | Sequence(t1, t2) => Sequence(re(t1), re(t2))
+  | Let(dhpat, t1, t2) => Let(dhpat, re(t1), re(t2))
+  | Ap(t1, t2) => Ap(re(t1), re(t2))
+  | ApBuiltin(s, args) => ApBuiltin(s, List.map(re, args))
+  | BinBoolOp(op, t1, t2) => BinBoolOp(op, re(t1), re(t2))
+  | BinIntOp(op, t1, t2) => BinIntOp(op, re(t1), re(t2))
+  | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
+  | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
+  | Cons(t1, t2) => Cons(re(t1), re(t2))
+  | Tuple(args) => Tuple(List.map(re, args))
+  | Prj(t, n) => Prj(re(t), n)
+  | ConsistentCase(case) => ConsistentCase(ty_subst_case(~idx, case, targ))
+  | InvalidOperation(t, err) => InvalidOperation(re(t), err)
+
+  | EmptyHole(_)
+  | ExpandingKeyword(_, _, _)
+  | FreeVar(_, _, _)
+  | InvalidText(_, _, _)
+  | BoundVar(_)
+  | TestLit(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | Tag(_)
+  | FailedCast(_, _, _) => exp
+  };
+} //TODO: is this correct?
+//TODO: Need to check again for inconsistency?
+//TODO: Same as inconsistent branch.
+/* cases with types we may need to substitute */
+/* special case of changing debruijn indices */
+/* cases where we just syntactically recurse */
+/* Recursion is probably necessary in the following cases for error reporting */
+/* Cases where we don't need to recurse */
+
+and ty_subst_case = (~idx=0, Case(t, rules, n), targ) =>
+  Case(
+    ty_subst(~idx, t, targ),
+    List.map(
+      (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(~idx, t, targ)),
+      rules,
+    ),
+    n,
+  );
+
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
@@ -687,10 +755,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
     | TypAp(d1, _ty) =>
+      // print_endline("Evaluating TypAp.");
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>
-        evaluate(closure_env, d3)
+        evaluate(closure_env, ty_subst(d3, _ty))
       | Indet(_) => r1 |> return
       | _ => failwith("InvalidBoxedTypFun: " ++ show(r1))
       };
