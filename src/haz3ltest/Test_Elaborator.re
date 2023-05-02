@@ -237,3 +237,44 @@ let () =
       Delta.empty,
     ),
   );
+
+let u8a: Term.UExp.t = {
+  ids: [1],
+  term:
+    BinOp(
+      Int(Equals),
+      {ids: [2], term: Int(4)},
+      {ids: [3], term: Int(3)},
+    ),
+};
+let u8b: Term.UExp.t = {
+  ids: [0],
+  term:
+    Match(
+      u8a,
+      [
+        ({ids: [6], term: Bool(true)}, {ids: [4], term: Int(24)}),
+        ({ids: [7], term: Bool(false)}, {ids: [5], term: Bool(false)}),
+      ],
+    ),
+};
+let m8: Statics.map = Statics.mk_map(u8b);
+let d8scrut: DHExp.t = BinIntOp(Equals, IntLit(4), IntLit(3));
+let d8rules =
+  DHExp.[
+    Rule(BoolLit(true), IntLit(24)),
+    Rule(BoolLit(false), BoolLit(false)),
+  ];
+let d8a: DHExp.t = InconsistentBranches(0, 0, Case(d8scrut, d8rules, 0));
+let d8b: DHExp.t = NonEmptyHole(TypeInconsistent, 0, 0, d8a);
+let dl8: Delta.t =
+  Delta.add(
+    0,
+    (
+      ExpressionHole,
+      Unknown(TypeHole),
+      Builtins.ctx(Builtins.Pervasives.builtins),
+    ),
+    Delta.empty,
+  );
+let () = register_exp_test("Inconsistent branches", [], m8, u8b, d8b, dl8);
