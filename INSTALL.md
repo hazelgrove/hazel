@@ -119,9 +119,9 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 5.0.0 (some older versions may also work, but see the
-  ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
-  why we do not use newer versions).
+- Install OCaml 5.0.0 (some older versions may also work; see the
+  ["Current version" section of `Updating.md`](docs/Updating-OCaml-Version.md) for
+  why we may not use the newest version of OCaml).
 
   ```sh
    opam switch create 5.0.0 ocaml-base-compiler.5.0.0
