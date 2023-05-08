@@ -56,7 +56,7 @@ let view_slider =
         ),
         stop_mousedown_propagation,
       ]),
-    (),
+    [],
   );
 };
 
@@ -125,7 +125,7 @@ let view =
             ]
             @ (checkbox_state ? [Attr.checked] : []),
           ),
-        (),
+        [],
       ),
     ];
   | _ => []
