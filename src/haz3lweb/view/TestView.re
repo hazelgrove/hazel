@@ -23,7 +23,9 @@ let test_instance_view =
     ],
   );
 
-let jump_to_test = (~inject as _, _) => Effect.Ignore;
+let jump_to_test = (~inject, id, _) => {
+  inject(Update.PerformAction(Jump(TileId(id))));
+};
 
 let test_report_view =
     (
@@ -39,7 +41,7 @@ let test_report_view =
     ~attr=
       Attr.many([
         Attr.class_("test-report"),
-        Attr.on_click(jump_to_test(~inject)),
+        Attr.on_click(jump_to_test(~inject, _id)),
       ]),
     [
       div(
@@ -88,7 +90,7 @@ let test_bar_segment = (~inject, (_id, reports)) => {
     ~attr=
       Attr.many([
         clss(["segment", status]),
-        Attr.on_click(jump_to_test(~inject)),
+        Attr.on_click(jump_to_test(~inject, _id)),
       ]),
     [],
   );
