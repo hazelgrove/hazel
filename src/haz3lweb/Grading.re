@@ -111,12 +111,12 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status) =>
+  let individual_report = (i, ~inject, ~hint: string, ~status: TestStatus.t) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject)),
+          Attr.on_click(TestView.jump_to_test(~inject, i)),
         ]),
       [
         div(
@@ -270,7 +270,7 @@ module ImplGradingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject)),
+          Attr.on_click(TestView.jump_to_test(~inject, i)),
         ]),
       [
         div(
