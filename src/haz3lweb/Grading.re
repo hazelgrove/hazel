@@ -111,12 +111,12 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status: TestStatus.t) =>
+  let individual_report = (id, ~inject, ~hint: string, ~status: TestStatus.t) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, i)),
+          Attr.on_click(TestView.jump_to_test(~inject, id)),
         ]),
       [
         div(
@@ -126,7 +126,7 @@ module MutationTestingReport = {
               "Test" ++ TestStatus.to_string(status),
             ]),
           /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
+          [text(string_of_int(id + 1))],
         ),
         // TestView.test_instance_view(~font_metrics, instance),
       ]
@@ -265,12 +265,12 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status) =>
+  let individual_report = (id, ~inject, ~hint: string, ~status) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, i)),
+          Attr.on_click(TestView.jump_to_test(~inject, id)),
         ]),
       [
         div(
@@ -280,7 +280,7 @@ module ImplGradingReport = {
               "Test" ++ TestStatus.to_string(status),
             ]),
           /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
+          [text(string_of_int(id + 1))],
         ),
         // TestView.test_instance_view(~font_metrics, instance),
       ]
