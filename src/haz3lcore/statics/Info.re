@@ -62,6 +62,7 @@ type error_exp =
 /* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
+  | ExpectedTag
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -145,7 +146,7 @@ type status_typ =
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsBaseType(Token.t)
+  | ShadowsType(Token.t)
   | NotAVar;
 
 /* Type pattern ok statuses for cursor inspector */
@@ -295,12 +296,20 @@ let rec status_common =
   };
 
 let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
-  switch (self, mode) {
-  | (Common(self_pat), _) =>
+  switch (mode, self) {
+  | (Syn | Ana(_), Common(self_pat))
+  | (SynFun, Common(IsTag(_) as self_pat)) =>
+    /* Little bit of a hack. Anything other than a bound tag will, in
+       function position, have SynFun mode (see Typ.ap_mode). Since we
+       are prohibiting non-tags in tag applications in patterns for now,
+       we catch them here, diverting to an ExpectedTag error. But we
+       avoid capturing the second case above, as these will ultimately
+       get a (more precise) unbound tag  via status_common */
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
+  | (SynFun, _) => InHole(ExpectedTag)
   };
 
 /* Determines whether an expression or pattern is in an error hole,
@@ -363,10 +372,12 @@ let status_typ =
     }
   };
 
-let status_tpat = (utpat: UTPat.t): status_tpat =>
+let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name) when Form.is_base_typ(name) => InHole(ShadowsBaseType(name))
+  | Var(name)
+      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
+    InHole(ShadowsType(name))
   | Var(name) => NotInHole(Var(name))
   | Invalid(_)
   | MultiHole(_) => InHole(NotAVar)
@@ -390,8 +401,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTPat({term, _}) =>
-    switch (status_tpat(term)) {
+  | InfoTPat({term, ctx, _}) =>
+    switch (status_tpat(ctx, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -450,7 +461,7 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
 /* Add derivable attributes for type patterns */
 let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
   let cls = UTPat.cls_of_term(utpat.term);
-  let status = status_tpat(utpat);
+  let status = status_tpat(ctx, utpat);
   {cls, ancestors, status, ctx, term: utpat};
 };
 

@@ -282,7 +282,8 @@ and uexp_to_info_map =
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
-    | Var(name) when !Form.is_base_typ(name) =>
+    | Var(name)
+        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
       /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
          errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables

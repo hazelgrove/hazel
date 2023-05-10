@@ -31,15 +31,29 @@ let lang_doc_toggle = (~inject, ~show_lang_doc) => {
 };
 
 let term_tag =
-    (~inject, ~settings: ModelSettings.t, ~show_lang_doc, is_err, sort) =>
+    (
+      ~inject,
+      ~settings: ModelSettings.t,
+      ~show_lang_doc,
+      is_err,
+      sort,
+      id,
+      ci,
+    ) =>
   div(
     ~attr=clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errc] : [])),
     [
       div(
         ~attr=
-          clss(["gamma"] @ (settings.context_inspector ? ["visible"] : [])),
+          Attr.many([
+            Attr.on_click(_ => inject(Update.Set(ContextInspector))),
+            clss(
+              ["gamma"] @ (settings.context_inspector ? ["visible"] : []),
+            ),
+          ]),
         [text("Γ")],
       ),
+      CtxInspector.inspector_view(~inject, ~settings, id, ci),
       text(sort),
       lang_doc_toggle(~inject, ~show_lang_doc),
     ],
@@ -147,6 +161,7 @@ let exp_view: Info.status_exp => t =
 
 let pat_view: Info.status_pat => t =
   fun
+  | InHole(ExpectedTag) => div_err([text("Expected a constructor")])
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));
 
@@ -161,16 +176,27 @@ let tpat_view: Info.status_tpat => t =
   | NotInHole(Var(name)) =>
     div_ok([Type.alias_view(name), text("is a new type alias")])
   | InHole(NotAVar) => div_err([text("Not a valid type name")])
-  | InHole(ShadowsBaseType(name)) =>
-    div_err([text("Can't shadow base type"), Type.view(Var(name))]);
+  | InHole(ShadowsType(name)) =>
+    div_err([
+      text("Can't shadow existing alias or base type"),
+      Type.view(Var(name)),
+    ]);
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+    (~inject, ~settings, ~show_lang_doc: bool, id, ci: Statics.Info.t): Node.t => {
   let wrapper = (sort, status_view) =>
     div(
       ~attr=clss(["info", sort]),
       [
-        term_tag(~inject, ~settings, ~show_lang_doc, Info.is_error(ci), sort),
+        term_tag(
+          ~inject,
+          ~settings,
+          ~show_lang_doc,
+          Info.is_error(ci),
+          sort,
+          id,
+          ci,
+        ),
         status_view,
       ],
     );
@@ -193,15 +219,8 @@ let cls_and_id_view = (id: int, ci: Statics.Info.t): Node.t =>
 
 let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
   div(
-    ~attr=
-      Attr.many([
-        clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-        Attr.on_click(_ => inject(Update.Set(ContextInspector))),
-      ]),
-    [
-      view_of_info(~inject, ~settings, ~show_lang_doc, ci),
-      CtxInspector.inspector_view(~inject, ~settings, id, ci),
-    ],
+    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    [view_of_info(~inject, ~settings, ~show_lang_doc, id, ci)],
   );
 
 let view =
