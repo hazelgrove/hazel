@@ -255,6 +255,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | 2 => YourTestsTesting
     | 3 => YourTestsValidation
     | 4 => YourImpl
+    | (-1) => HiddenTests
     | _ =>
       if (idx < 0) {
         failwith("negative idx");
