@@ -33,7 +33,7 @@ let test_report_view =
       ~font_metrics,
       ~description: option(string)=None,
       i: int,
-      (_id, instance_reports): TestMap.report,
+      (id, instance_reports): TestMap.report,
     ) => {
   let status =
     instance_reports |> TestMap.joint_status |> TestStatus.to_string;
@@ -41,7 +41,7 @@ let test_report_view =
     ~attr=
       Attr.many([
         Attr.class_("test-report"),
-        Attr.on_click(jump_to_test(~inject, _id)),
+        Attr.on_click(jump_to_test(~inject, id)),
       ]),
     [
       div(
@@ -84,13 +84,13 @@ let test_reports_view =
     },
   );
 
-let test_bar_segment = (~inject, (_id, reports)) => {
+let test_bar_segment = (~inject, (id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
     ~attr=
       Attr.many([
         clss(["segment", status]),
-        Attr.on_click(jump_to_test(~inject, _id)),
+        Attr.on_click(jump_to_test(~inject, id)),
       ]),
     [],
   );
