@@ -102,6 +102,7 @@ module Errors = {
 
   let pat_error: Info.error_pat => string =
     fun
+    | ExpectedTag => "Expected a constructor"
     | Common(error) => common_error(error);
 
   let typ_error: Info.error_typ => string =
@@ -118,7 +119,7 @@ module Errors = {
   let tpat_error: Info.error_tpat => string =
     fun
     | NotAVar => "Not a valid type name"
-    | ShadowsBaseType(name) => "Can't shadow base type " ++ name;
+    | ShadowsType(name) => "Can't shadow base type " ++ name;
 
   let string_of: Info.error => string =
     fun
