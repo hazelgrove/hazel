@@ -37,3 +37,6 @@ let complete: t => bool;
 
 let join: (join, t, t) => option(t);
 let join_all: (join, list(t)) => option(t);
+
+let htyp_of_typ: Typ.t => t;
+let htyp_list_of_typ_list: list(Typ.t) => list(t);

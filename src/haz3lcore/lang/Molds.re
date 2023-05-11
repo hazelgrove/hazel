@@ -4,7 +4,18 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansions = list((Token.t, (list(Token.t), Direction.t)));
 
-let forms_assoc: list((Label.t, list(Mold.t))) =
+let forms_assoc = (label: Label.t): list((Label.t, list(Mold.t))) => {
+  let op =
+    switch (label) {
+    | [hd, ..._] => hd
+    | _ => ""
+    };
+  let forms =
+    if (Form.is_op(op)) {
+      Form.mk_userop_forms(op);
+    } else {
+      Form.forms;
+    };
   List.fold_left(
     (acc, (_, {label, mold, _}: Form.t)) => {
       let molds =
@@ -15,11 +26,12 @@ let forms_assoc: list((Label.t, list(Mold.t))) =
       List.cons((label, molds), List.remove_assoc(label, acc));
     },
     [],
-    Form.forms,
+    forms,
   );
+};
 
-let get = (label: Label.t): list(Mold.t) =>
-  switch (label, List.assoc_opt(label, forms_assoc)) {
+let get = (label: Label.t): list(Mold.t) => {
+  switch (label, List.assoc_opt(label, forms_assoc(label))) {
   | ([t], Some(molds)) when Form.atomic_molds(t) != [] =>
     // TODO(andrew): does this make sense?
     Form.atomic_molds(t) @ molds
@@ -29,6 +41,7 @@ let get = (label: Label.t): list(Mold.t) =>
     Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
     [];
   };
+};
 
 let delayed_expansions: expansions =
   List.filter_map(

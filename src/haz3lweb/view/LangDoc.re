@@ -2113,6 +2113,25 @@ let get_doc =
           ),
           coloring_ids(~left_id, ~right_id),
         );
+      | UserOp(_, left, right) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.userop_exp_group,
+            docs,
+          );
+        let left_id = List.nth(left.ids, 0);
+        let right_id = List.nth(right.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.userop_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            left_id,
+            right_id,
+          ),
+          LangDocMessages.userop_exp_coloring_ids(~left_id, ~right_id),
+        );
       | Match(scrut, _rules) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(

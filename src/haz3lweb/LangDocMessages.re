@@ -81,6 +81,7 @@ let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let sequals = () => Example.mk_monotile(Form.get("string_equals"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
+let userop = () => Example.mk_monotile(Form.get("power")); /* HACK */
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
@@ -1700,6 +1701,7 @@ let float_eq_group = "float_eq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
 let str_eq_group = "str_eq_group";
+let userop_exp_group = "userop_exp_group";
 let int_unary_minus_ex = {
   sub_id: "int_unary_minus_ex",
   term: mk_example("-1"),
@@ -2469,6 +2471,29 @@ let bool_or_exp: form = {
     expandable_id: None,
     explanation,
     examples: [bool_or1_ex, bool_or2_ex],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let userop_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let userop_exp: form = {
+  let explanation = {
+    message: "A user-defined operator. Evaluate [*left operand*](%i) and [*right operand*](%i) based on the user-defined operator.",
+    feedback: Unselected,
+  };
+  {
+    id: "userop_exp",
+    syntactic_form: [_exp1, space(), userop(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
   };
 };
 let _exp1 = exp("e1");
@@ -3328,6 +3353,7 @@ let init = {
     float_eq_exp,
     bool_and_exp,
     bool_or_exp,
+    userop_exp,
     str_eq_exp,
     case_exp,
     // Rules
@@ -3695,6 +3721,7 @@ let init = {
     (triv_pat_group, init_options([(triv_pat.id, [])])),
     (listlit_pat_group, init_options([(listlit_pat.id, [])])),
     (listnil_pat_group, init_options([(listnil_pat.id, [])])),
+    (userop_exp_group, init_options([(userop_exp.id, [])])),
     (cons_pat_group, init_options([(cons_base_pat.id, [])])),
     (
       cons2_pat_group,

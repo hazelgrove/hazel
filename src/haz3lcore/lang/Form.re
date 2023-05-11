@@ -81,7 +81,6 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_bool = str => str == "true" || str == "false";
 let is_reserved = str => is_bool(str);
-let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
 let is_concrete_typ = str =>
@@ -154,6 +153,11 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
+let is_op_in_let_precursor = regexp("^_[`~!@$%^&*()\\-=+/;:,.<>?|]+$");
+let is_op_in_let = regexp("^_[`~!@$%^&*()\\-=+/;:,.<>?|]+_$");
+let is_op = regexp("^[`~!@$%^&*()\\-=+/;:,.<>?|]+$");
+let is_var = str =>
+  !is_reserved(str) && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op(str));
 
 /* B. Operands:
    Order in this list determines relative remolding
@@ -173,6 +177,8 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
+  ("op_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
+  ("op", (is_op_in_let, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
@@ -290,4 +296,61 @@ let is_valid_char = t =>
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
   mk(ss, [t], Mold.(mk_op(sort, [])));
+};
+
+let prec_of_op = (op_name: string): P.t => {
+  switch (op_name) {
+  | "" => P.min /* error should be called before this point */
+  | _ =>
+    switch (op_name.[0]) {
+    | ';' => 10
+    | '+'
+    | '-' => P.plus
+    | '*'
+    | '/'
+    | '%' => P.mult
+    | '='
+    | '$'
+    | '>'
+    | '<' => P.eqs
+    | '&' => P.and_
+    | '|' => P.or_
+    | ',' => P.prod
+    | '('
+    | ')' => P.ap
+    | ':' => P.ann
+    | _ => P.min
+    }
+  };
+};
+
+let mk_userop_nulls = (op_name: string): list((string, t)) => {
+  let prec = prec_of_op(op_name);
+  let rec recur = (op: string): list((string, t)) => {
+    switch (op) {
+    | "" => []
+    | s when String.length(op) == 1 => [
+        ("user_op" ++ s, mk_nul_infix(op, prec)),
+      ]
+    | _ =>
+      List.concat([
+        recur(String.sub(op, 0, String.length(op) - 1)),
+        [("user_op" ++ op, mk_nul_infix(op, prec))],
+      ])
+    };
+  };
+  recur(String.sub(op_name, 0, String.length(op_name) - 1));
+};
+
+let mk_userop = (op_name: string): t => {
+  let op_prec = prec_of_op(op_name);
+  mk_infix(op_name, Exp, op_prec);
+};
+
+let mk_userop_forms = (op_name: string): list((string, t)) => {
+  List.concat([
+    mk_userop_nulls(op_name),
+    [("user_op" ++ op_name, mk_userop(op_name))],
+    forms,
+  ]);
 };

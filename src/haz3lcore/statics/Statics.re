@@ -278,6 +278,25 @@ let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
   fun
   | Int(Minus) => (Int, Int);
 
+let userop_of_info_map = (cls_of_op: Term.UExp.cls, m: map): Term.UExp.t => {
+  let map_seq = Id.Map.to_seq(m);
+  let p = (v: (int, t)) => {
+    switch (v) {
+    | (_, InfoExp({cls: cls_inner, _})) => cls_inner == cls_of_op
+    | _ => false
+    };
+  };
+  let opt_op_item = Seq.find(p, map_seq);
+  switch (opt_op_item) {
+  | None => failwith("Unidentified Operator")
+  | Some((_, v)) =>
+    switch (v) {
+    | InfoExp({term: inner_term, _}) => inner_term
+    | _ => failwith("Unidentified Operator")
+    }
+  };
+};
+
 let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   switch (any) {
   | Exp(e) =>
@@ -374,6 +393,22 @@ and uexp_to_info_map =
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (_, free1, m1) = go(~mode=Ana(ty1), e1);
     let (_, free2, m2) = go(~mode=Ana(ty2), e2);
+    add(
+      ~self=Just(ty_out),
+      ~free=Ctx.union([free1, free2]),
+      union_m([m1, m2]),
+    );
+  | UserOp(op, e1, e2) =>
+    let op_var = Ctx.lookup_var(ctx, op);
+    let ty_out =
+      switch (op_var) {
+      | None => Typ.Unknown(Typ.TypeHole)
+      | Some(var) => var.typ
+      };
+    let (ty1, _, _) = uexp_to_info_map(~ctx, ~mode, e1);
+    let (ty2, _, _) = uexp_to_info_map(~ctx, ~mode, e2);
+    let (_, free1, m1) = uexp_to_info_map(~ctx, ~mode=Ana(ty1), e1);
+    let (_, free2, m2) = uexp_to_info_map(~ctx, ~mode=Ana(ty2), e2);
     add(
       ~self=Just(ty_out),
       ~free=Ctx.union([free1, free2]),

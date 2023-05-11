@@ -297,6 +297,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | ([t], []) =>
+            if (Form.is_op(t)) {
+              UserOp(t, l, r);
+            } else {
+              hole(tm);
+            }
           | _ => hole(tm)
           },
         )
@@ -327,6 +333,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
         | ([t], []) when Form.is_string(t) => String(t)
+        | ([t], []) when Form.is_op_in_let(t) =>
+          Var(String.sub(t, 1, String.length(t) - 2))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_tag(t) => Tag(t)

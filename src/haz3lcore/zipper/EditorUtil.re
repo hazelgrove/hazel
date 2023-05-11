@@ -75,6 +75,7 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Cons(_)
   | UnOp(_)
   | BinOp(_)
+  | UserOp(_)
   | Match(_) => (
       id + 1,
       TermBase.UExp.{

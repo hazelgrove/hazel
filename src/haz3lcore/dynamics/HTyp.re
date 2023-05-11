@@ -188,3 +188,22 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let rec htyp_of_typ = (typ: Typ.t): t =>
+  switch (typ) {
+  | Var(_)
+  | Unknown(_) => Hole /* TEMPORARY FIX */
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | List(n) => List(htyp_of_typ(n))
+  | Arrow(n, m) => Arrow(htyp_of_typ(n), htyp_of_typ(m))
+  | Sum(n, m) => Sum(htyp_of_typ(n), htyp_of_typ(m))
+  | Prod(n) => Prod(htyp_list_of_typ_list(n))
+  }
+and htyp_list_of_typ_list = (lst: list(Typ.t)): list(t) =>
+  switch (lst) {
+  | [] => []
+  | [hd, ...tl] => [htyp_of_typ(hd), ...htyp_list_of_typ_list(tl)]
+  };
