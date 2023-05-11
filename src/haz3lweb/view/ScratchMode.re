@@ -12,7 +12,7 @@ let view =
       ~show_backpack_targets,
       ~mousedown,
       ~editor: Editor.t,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~langDocMessages: LangDocMessages.t,
       ~result: ModelResult.simple,
     ) => {
@@ -62,7 +62,7 @@ let view =
         ),
       ]
       : [];
-  let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
+  let bottom_bar = div(~attr=Attr.class_("bottom-bar"), ci_view);
   let right_panel =
     langDocMessages.show && settings.statics
       ? [
@@ -77,10 +77,13 @@ let view =
       ]
       : [];
 
-  div(
-    ~attr=clss(["editor", "single"]),
-    [editor_view] @ bottom_bar @ right_panel,
-  );
+  [
+    div(
+      ~attr=Attr.id("main"),
+      [div(~attr=clss(["editor", "single"]), [editor_view] @ right_panel)],
+    ),
+    bottom_bar,
+  ];
 };
 
 let download_slide_state = state => {

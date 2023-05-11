@@ -85,7 +85,7 @@ let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
-let nil = () => exp("nil");
+let nil = () => exp("[]");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
@@ -95,8 +95,8 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
-let linebreak = () => Example.mk_secondary(Secondary.linebreak);
-let space = () => Example.mk_secondary(Secondary.space);
+let linebreak = () => Example.mk_secondary(Form.linebreak);
+let space = () => Example.mk_secondary(Form.space);
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
@@ -137,10 +137,10 @@ let multi_hole_exp: form = {
 
 let triv_exp_group = "triv_exp_group";
 let triv_exp: form = {
-  let explanation = {message: "Trivial expression.", feedback: Unselected};
+  let explanation = {message: "Trivial value.", feedback: Unselected};
   {
     id: "triv_exp",
-    syntactic_form: [exp("Triv")],
+    syntactic_form: [exp("()")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -283,13 +283,13 @@ let strlit_fun_ex = {
 };
 let triv_fun_ex = {
   sub_id: "triv_fun_ex",
-  term: mk_example("fun triv -> 2"),
-  message: "When given an argument with the triv value, the function throws away the supplied argument and always evaluates to 2.",
+  term: mk_example("fun () -> 2"),
+  message: "When given an argument with the () value, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let listnil_fun_ex = {
   sub_id: "listnil_fun_ex",
-  term: mk_example("fun nil -> 2"),
+  term: mk_example("fun [] -> 2"),
   message: "When given an argument with the empty list value, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
@@ -499,13 +499,13 @@ let function_strlit_exp: form = {
     examples: [strlit_fun_ex],
   };
 };
-let _pat = pat("triv");
+let _pat = pat("()");
 let _exp = exp("e");
 let function_triv_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_triv_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `triv`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.",
+    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -517,13 +517,13 @@ let function_triv_exp: form = {
     examples: [triv_fun_ex],
   };
 };
-let _pat = pat("nil");
+let _pat = pat("[]");
 let _exp = exp("e");
 let function_listnil_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listnil_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `nil`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -909,8 +909,8 @@ let let_str_ex = {
 };
 let let_triv_ex = {
   sub_id: "let_triv_ex",
-  term: mk_example("let triv = triv in \n2"),
-  message: "The triv is thrown away, so the expression evaluates to 2.",
+  term: mk_example("let () = () in \n2"),
+  message: "The () is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_listlit_ex = {
@@ -921,19 +921,19 @@ let let_listlit_ex = {
 };
 let let_listnil_ex = {
   sub_id: "let_listnil_ex",
-  term: mk_example("let nil = nil in \n2"),
+  term: mk_example("let [] = [] in \n2"),
   message: "The empty list is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_cons_hd_ex = {
   sub_id: "let_cons_hd_ex",
-  term: mk_example("let hd::tl = 1::nil in \nhd"),
+  term: mk_example("let hd::tl = 1::[] in \nhd"),
   message: "The hd is bound to 1 and the tl is bound to the empty list, so the expression evaluates to 1.",
   feedback: Unselected,
 };
 let let_cons_snd_ex = {
   sub_id: "let_cons_snd_ex",
-  term: mk_example("let fst::snd::tl = true::false::nil in \nsnd"),
+  term: mk_example("let fst::snd::tl = true::false::[] in \nsnd"),
   message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
   feedback: Unselected,
 };
@@ -1184,7 +1184,7 @@ let let_str_exp: form = {
     examples: [let_str_ex],
   };
 };
-let _pat = pat("triv");
+let _pat = pat("()");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
 let let_triv_exp_coloring_ids =
@@ -1195,7 +1195,7 @@ let let_triv_exp_coloring_ids =
   );
 let let_triv_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `()`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
   let form = [
@@ -1233,7 +1233,7 @@ let let_listlit_exp: form = {
     examples: [let_listlit_ex],
   };
 };
-let _pat = pat("nil");
+let _pat = pat("[]");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
 let let_listnil_exp_coloring_ids =
@@ -1244,7 +1244,7 @@ let let_listnil_exp_coloring_ids =
   );
 let let_listnil_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `nil`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `[]`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
   let form = [
@@ -1647,13 +1647,13 @@ let test_exp: form = {
 let cons_exp_group = "cons_exp_group";
 let cons1_ex = {
   sub_id: "cons1_ex",
-  term: mk_example("1::nil"),
+  term: mk_example("1::[]"),
   message: "A single element list of 1.",
   feedback: Unselected,
 };
 let cons2_ex = {
   sub_id: "cons2_ex",
-  term: mk_example("true::false::nil"),
+  term: mk_example("true::false::[]"),
   message: "A list with two elements, true and false.",
   feedback: Unselected,
 };
@@ -2590,8 +2590,7 @@ let case_exp: form = {
     explanation,
     examples: [case_example_int, case_example_bool],
   };
-};
-/*let case_exp_rules: form = {
+} /*let case_exp_rules: form = {
     let explanation = {
       message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",
       feedback: Unselected,
@@ -2613,7 +2612,7 @@ let case_exp: form = {
       explanation,
       examples: [case_example_int, case_example_bool],
     };
-  };*/
+  };*/;
 
 let empty_hole_pat_group = "empty_hole_pat_group";
 let empty_hole_pat: form = {
@@ -2723,12 +2722,12 @@ let strlit_pat: form = {
 let triv_pat_group = "triv_pat_group";
 let triv_pat: form = {
   let explanation = {
-    message: "Triv pattern. Only expressions with the trivial value `triv` match the *trivial pattern `triv`*.",
+    message: "() pattern. Only expressions with the trivial value `()` match the *trivial pattern `()`*.",
     feedback: Unselected,
   };
   {
     id: "triv_pat",
-    syntactic_form: [pat("triv")],
+    syntactic_form: [pat("()")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2754,12 +2753,12 @@ let listlit_pat: form = {
 let listnil_pat_group = "listnil_pat_group";
 let listnil_pat: form = {
   let explanation = {
-    message: "Empty list pattern. Only expressions that are empty lists `nil` match the *empty list `nil` pattern*.",
+    message: "Empty list pattern. Only expressions that are empty lists `[]` match the *empty list `[]` pattern*.",
     feedback: Unselected,
   };
   {
     id: "listnil_pat",
-    syntactic_form: [pat("nil")],
+    syntactic_form: [pat("[]")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -3464,14 +3463,14 @@ let init = {
       function_triv_group,
       init_options([
         (function_exp.id, [pat("p")]),
-        (function_triv_exp.id, [pat("triv")]),
+        (function_triv_exp.id, [pat("()")]),
       ]),
     ),
     (
       function_listnil_group,
       init_options([
         (function_exp.id, [pat("p")]),
-        (function_listnil_exp.id, [pat("nil")]),
+        (function_listnil_exp.id, [pat("[]")]),
       ]),
     ),
     (
@@ -3615,7 +3614,7 @@ let init = {
       let_triv_exp_group,
       init_options([
         (let_base_exp.id, [pat("p")]),
-        (let_triv_exp.id, [pat("triv")]),
+        (let_triv_exp.id, [pat("()")]),
       ]),
     ),
     (
@@ -3629,7 +3628,7 @@ let init = {
       let_listnil_exp_group,
       init_options([
         (let_base_exp.id, [pat("p")]),
-        (let_listnil_exp.id, [pat("nil")]),
+        (let_listnil_exp.id, [pat("[]")]),
       ]),
     ),
     (
