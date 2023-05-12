@@ -44,44 +44,40 @@ module rec DHExp: {
       | SEquals;
   };
 
-  // module FilterAction: {
-  //   [@deriving (show({with_path: false}), sexp, yojson)]
-  //   type t =
-  //     | Keep
-  //     | Step
-  //     | Eval;
-  // };
+  module FilterAction: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | Keep
+      | Step
+      | Eval;
 
-  // module Filter: {
-  //   [@deriving (show({with_path: false}), sexp, yojson)]
-  //   type t = {
-  //     pat: DHExp.t,
-  //     act: FilterAction.t,
-  //   };
+    let decr: t => t;
 
-  //   let mk: (DHExp.t, TermBase.UExp.Filter.action) => t;
+    let t_of_uexp: TermBase.UExp.filter_action => t;
+  };
 
-  //   let strip_casts: t => t;
+  module Filter: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      pat: DHExp.t,
+      act: FilterAction.t,
+    };
 
-  //   let fast_equal: (t, t) => bool;
-  // };
+    let mk: (DHExp.t, FilterAction.t) => t;
 
-  // module FilterEnvironment: {
-  //   [@deriving (show({with_path: false}), sexp, yojson)]
-  //   type t = {
-  //     outer: list(Filter.t),
-  //     ephemeral: option(Filter.t),
-  //     inner: list(Filter.t),
-  //   };
+    let map: (DHExp.t => DHExp.t, t) => t;
 
-  //   let empty: option(Filter.t) => t;
+    let matches: (DHExp.t, t) => option(FilterAction.t);
+  };
 
-  //   let strip_casts: t => t;
+  module FilterEnvironment: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = list(Filter.t);
 
-  //   let fast_equal: (t, t) => bool;
+    let matches: (DHExp.t, t) => option(FilterAction.t);
 
-  //   let singleton: Filter.t => t;
-  // };
+    let extends: (Filter.t, t) => t;
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -94,7 +90,7 @@ module rec DHExp: {
     | Closure(ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
-    | Filter(FilterAction.t, t)
+    | Filter(Filter.t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -180,13 +176,173 @@ module rec DHExp: {
       | SEquals;
   };
 
-  // module FilterAction = {
-  //   [@deriving (show({with_path: false}), sexp, yojson)]
-  //   type t =
-  //     | Keep
-  //     | Step
-  //     | Eval;
-  // };
+  module FilterAction = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | Keep
+      | Step
+      | Eval;
+
+    let decr =
+      fun
+      | Keep => Keep
+      | Step => Keep
+      | Eval => Eval;
+
+    let t_of_uexp = (act: TermBase.UExp.filter_action): t => {
+      switch (act) {
+      | Step => Step
+      | Eval => Eval
+      };
+    };
+  };
+
+  module Filter = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      pat: DHExp.t,
+      act: FilterAction.t,
+    };
+
+    let mk = (pat: DHExp.t, act: FilterAction.t): t => {pat, act};
+
+    let map = (f: DHExp.t => DHExp.t, filter: t): t => {
+      ...filter,
+      pat: f(filter.pat),
+    };
+
+    let rec matches_exp = (d: DHExp.t, f: DHExp.t): bool => {
+      switch (d, f) {
+      | (_, EmptyHole(_)) => true
+      | (EmptyHole(_), _) => false
+
+      | (BoolLit(dv), BoolLit(fv)) => dv == fv
+      | (IntLit(dv), IntLit(fv)) => dv == fv
+      | (FloatLit(dv), FloatLit(fv)) => dv == fv
+      | (StringLit(dv), StringLit(fv)) => dv == fv
+
+      | (Tag(dt), Tag(ft)) => dt == ft
+
+      | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
+        matches_pat(dp1, fp1)
+        && dty1 == fty1
+        && matches_exp(d1, f1)
+        && dname1 == fname1
+
+      | (BoundVar(dx), BoundVar(fx))
+      | (BoundVar(dx), FreeVar(_, _, fx))
+      | (FreeVar(_, _, dx), BoundVar(fx))
+      | (FreeVar(_, _, dx), FreeVar(_, _, fx)) => dx == fx
+
+      | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
+        matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (Ap(d1, d2), Ap(f1, f2)) =>
+        matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (Sequence(d1, d2), Sequence(f1, f2)) =>
+        matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (TestLit(d1), TestLit(f1)) => d1 == f1
+
+      | (Filter(_, d1), _) => matches_exp(d1, f)
+
+      | (Cons(d1, d2), Cons(f1, f2)) =>
+        matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (BinBoolOp(d_op_bin, d1, d2), BinBoolOp(f_op_bin, f1, f2)) =>
+        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (BinIntOp(d_op_bin, d1, d2), BinIntOp(f_op_bin, f1, f2)) =>
+        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (BinFloatOp(d_op_bin, d1, d2), BinFloatOp(f_op_bin, f1, f2)) =>
+        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (BinStringOp(d_op_bin, d1, d2), BinStringOp(f_op_bin, f1, f2)) =>
+        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
+
+      | (
+          ConsistentCase(Case(dscrut, drule, _)),
+          ConsistentCase(Case(fscrut, frule, _)),
+        )
+      | (
+          InconsistentBranches(_, _, Case(dscrut, drule, _)),
+          InconsistentBranches(_, _, Case(fscrut, frule, _)),
+        ) =>
+        matches_exp(dscrut, fscrut)
+        && (
+          switch (
+            List.fold_left2(
+              (res, drule, frule) => res && matches_rul(drule, frule),
+              true,
+              drule,
+              frule,
+            )
+          ) {
+          | exception (Invalid_argument(_)) => false
+          | res => res
+          }
+        )
+
+      | (_, _) => false
+      };
+    }
+    and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
+      switch (d, f) {
+      | (_, EmptyHole(_)) => true
+      | (Wild, Wild) => true
+      | (IntLit(dv), IntLit(fv)) => dv == fv
+      | (FloatLit(dv), FloatLit(fv)) => dv == fv
+      | (BoolLit(dv), BoolLit(fv)) => dv == fv
+      | (StringLit(dv), StringLit(fv)) => dv == fv
+      | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
+        switch (
+          List.fold_left2(
+            (res, d, f) => res && matches_pat(d, f),
+            true,
+            dl,
+            fl,
+          )
+        ) {
+        | exception (Invalid_argument(_)) => false
+        | res => matches_typ(dty1, fty1) && res
+        }
+      | (Tag(dt), Tag(ft)) => dt == ft
+      | (Var(dx), Var(fx)) => dx == fx
+      | (Tuple(dl), Tuple(fl)) =>
+        switch (
+          List.fold_left2(
+            (res, d, f) => res && matches_pat(d, f),
+            true,
+            dl,
+            fl,
+          )
+        ) {
+        | exception (Invalid_argument(_)) => false
+        | res => res
+        }
+      | (Ap(d1, d2), Ap(f1, f2)) =>
+        matches_pat(d1, f1) && matches_pat(d2, f2)
+      | (_, _) => false
+      };
+    }
+    and matches_typ = (d: Typ.t, f: Typ.t) => {
+      switch (d, f) {
+      | (_, _) => false
+      };
+    }
+    and matches_rul = (_d: DHExp.rule, _f: DHExp.rule) => {
+      false;
+    };
+
+    let matches = (d: DHExp.t, f: t): option(FilterAction.t) =>
+      if (matches_exp(d, f.pat)) {
+        Some(f.act);
+      } else {
+        None;
+      };
+  };
 
   // module Filter = {
   //   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -213,6 +369,27 @@ module rec DHExp: {
 
   //   let strip_casts = (f: t): t => {...f, pat: DHExp.strip_casts(f.pat)};
   // };
+
+  module FilterEnvironment = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = list(Filter.t);
+
+    let matches = (d, env): option(FilterAction.t) => {
+      let rec matches' = (d, env, act: option(FilterAction.t)) => {
+        switch (env) {
+        | [] => act
+        | [hd, ...tl] =>
+          switch (Filter.matches(d, hd)) {
+          | Some(act) => Some(act)
+          | None => matches'(d, tl, act)
+          }
+        };
+      };
+      matches'(d, env, None);
+    };
+
+    let extends = (f, env) => [f, ...env];
+  };
 
   // module FilterEnvironment = {
   //   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -265,7 +442,7 @@ module rec DHExp: {
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
-    | Filter(FilterAction.t, t)
+    | Filter(Filter.t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))

@@ -33,7 +33,7 @@ module EvalCtx: {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
-    | Filter(FilterAction.t, t)
+    | Filter(DHExp.Filter.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
@@ -74,12 +74,13 @@ module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     env: ClosureEnvironment.t,
-    flt: FilterAction.t,
+    act: DHExp.FilterAction.t,
     ctx: EvalCtx.t,
     exp: DHExp.t,
   };
 
-  let mk: (ClosureEnvironment.t, FilterAction.t, EvalCtx.t, DHExp.t) => t;
+  let mk:
+    (ClosureEnvironment.t, DHExp.FilterAction.t, EvalCtx.t, DHExp.t) => t;
 
   let init: DHExp.t => t;
 
@@ -89,20 +90,8 @@ module EvalObj: {
   let unwrap: (t, EvalCtx.cls) => option(t);
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t)
-  | Step(DHExp.t);
+let init: DHExp.t => (EvaluatorState.t, EvaluatorResult.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type cls =
-  | BoxedValue
-  | Indet
-  | Step;
-
-let init: DHExp.t => (EvaluatorState.t, t);
-
-let step: EvalObj.t => (EvaluatorState.t, t);
+let step: EvalObj.t => (EvaluatorState.t, EvaluatorResult.t);
 
 let decompose: DHExp.t => (EvaluatorState.t, list(EvalObj.t));

@@ -136,56 +136,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
   };
 
-let rec dhexp_of_uexp =
-        (
-          ~fenv: FilterEnvironment.t,
-          ~fact: FilterAction.t,
-          m: Statics.map,
-          uexp: Term.UExp.t,
-        )
-        : option(DHExp.t) => {
-  let menv = FilterEnvironment.matches(uexp, fenv);
-  let mact =
-    switch (menv.active) {
-    // | Some({pat: {term: EmptyHole, _}, _})
-    | None => fact
-    | Some({pat: _, act}) => act
-    };
-  print_endline("========");
-  print_endline(
-    "uexp = " ++ Sexplib.Sexp.to_string_hum(Term.UExp.sexp_of_t(uexp)),
-  );
-  print_endline(
-    "fact = " ++ Sexplib.Sexp.to_string_hum(FilterAction.sexp_of_t(fact)),
-  );
-  fenv
-  |> FilterEnvironment.sexp_of_t
-  |> Sexplib.Sexp.to_string_hum
-  |> (s => print_endline("fenv = " ++ s));
-  menv
-  |> FilterEnvironment.sexp_of_t
-  |> Sexplib.Sexp.to_string_hum
-  |> (s => print_endline("menv = " ++ s));
-  print_endline(
-    "mact = " ++ Sexplib.Sexp.to_string_hum(FilterAction.sexp_of_t(mact)),
-  );
-  let filter_close = (d: DHExp.t) =>
-    if (mact != fact) {
-      print_endline(
-        "returns: "
-        ++ Sexplib.Sexp.to_string_hum(
-             DHExp.sexp_of_t(DHExp.Filter(mact, d)),
-           ),
-      );
-      DHExp.Filter(mact, d);
-    } else {
-      print_endline(
-        "returns: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-      );
-      d;
-    };
-  let dhexp_of_uexp = (~fenv=fenv, ~fact=mact, m, uexp) =>
-    dhexp_of_uexp(~fenv, ~fact, m, uexp);
+let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, _})) =>
@@ -225,16 +176,8 @@ let rec dhexp_of_uexp =
         //TODO: why is there an err status on below?
         DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
       | Fun(p, body) =>
-        let fbody =
-          Option.bind(menv.active, ({pat: {term, _}, act}) =>
-            switch (term) {
-            | Fun(_, fbody) => Some(Filter.{pat: fbody, act})
-            | _ => None
-            }
-          );
-        let fenv = menv |> FilterEnvironment.map(_ => fbody);
         let* dp = dhpat_of_upat(m, p);
-        let+ d1 = dhexp_of_uexp(~fenv, m, body);
+        let+ d1 = dhexp_of_uexp(m, body);
         DHExp.Fun(dp, Statics.pat_typ(m, p), d1, None);
       | Tuple(es) =>
         let+ ds =
@@ -257,31 +200,11 @@ let rec dhexp_of_uexp =
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
       | BinOp(op, e1, e2) =>
-        let (f1, f2) =
-          switch (menv.active) {
-          | Some({pat: {term: BinOp(fop, f1, f2), _}, act}) when fop == op => (
-              Some(Filter.{pat: f1, act}),
-              Some(Filter.{pat: f2, act}),
-            )
-          | _ => (None, None)
-          };
-        let (fenv1, fenv2) = (
-          menv |> FilterEnvironment.map(_ => f1),
-          menv |> FilterEnvironment.map(_ => f2),
-        );
         let (_, cons) = exp_binop_of(op);
-        let* dc1 = dhexp_of_uexp(~fenv=fenv1, m, e1);
-        let+ dc2 = dhexp_of_uexp(~fenv=fenv2, m, e2);
+        let* dc1 = dhexp_of_uexp(m, e1);
+        let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
-      | Parens(e) =>
-        let f =
-          switch (menv.active) {
-          | Some(Filter.{pat: {term: Parens(f), _}, act}) =>
-            Some(Filter.{pat: f, act})
-          | _ => None
-          };
-        let fenv = menv |> FilterEnvironment.map(_ => f);
-        dhexp_of_uexp(~fenv, m, e);
+      | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
@@ -290,17 +213,10 @@ let rec dhexp_of_uexp =
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);
       | Filter(act, cond, body) =>
-        let act = FilterAction.t_of_uexp(act);
-        let fenv' = FilterEnvironment.extends(Filter.mk(cond, act), fenv);
-        let menv = FilterEnvironment.matches(body, fenv');
-        let act =
-          switch (menv.active) {
-          | Some({pat: {term: EmptyHole, _}, _})
-          | None => fact
-          | Some(active_filter) => active_filter.act
-          };
-        let+ dbody = dhexp_of_uexp(~fenv=fenv', ~fact=act, m, body);
-        DHExp.Filter(act, dbody);
+        let act = DHExp.FilterAction.t_of_uexp(act);
+        let* dcond = dhexp_of_uexp(m, cond);
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Filter(DHExp.Filter.mk(dcond, act), dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(Free(Variable)) => Some(FreeVar(id, 0, name))
@@ -382,7 +298,7 @@ let rec dhexp_of_uexp =
         | _ => ConsistentCase(d)
         };
       };
-    d |> filter_close |> wrap(id, mode, self);
+    d |> wrap(id, mode, self);
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
@@ -456,15 +372,9 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
 };
 
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t => {
-  let d =
-    dhexp_of_uexp(~fenv=FilterEnvironment.empty(None), ~fact=Step, m, uexp);
+  let d = dhexp_of_uexp(m, uexp);
   switch (d) {
   | None => DoesNotElaborate
-  | Some(d) =>
-    d
-    |> DHExp.sexp_of_t
-    |> Sexplib.Sexp.to_string_hum
-    |> (s => print_endline("elaborated: " ++ s));
-    Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci
+  | Some(d) => Elaborates(d, Typ.Unknown(Internal), Delta.empty) //TODO: get type from ci
   };
 };

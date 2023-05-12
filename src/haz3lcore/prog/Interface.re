@@ -93,7 +93,6 @@ let step = Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.step);
 let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   let (es, d) = step(obj);
   switch (d) {
-  | Step(d)
   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
   | Indet(d) => (Indet(d), es, HoleInstanceInfo.empty)
   | exception (EvaluatorError.Exception(_reason)) =>
@@ -120,7 +119,6 @@ let init = Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.init);
 let init = (d: DHExp.t): ProgramResult.t => {
   let (es, r) = init(d);
   switch (r) {
-  | Step(d)
   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
   | Indet(d) => (Indet(d), es, HoleInstanceInfo.empty)
   | exception (EvaluatorError.Exception(_reason)) =>

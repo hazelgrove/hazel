@@ -16,6 +16,9 @@ type match_result =
 let evaluate:
   (Environment.t, DHExp.t) => (EvaluatorState.t, EvaluatorResult.t);
 
+let evaluate_closure:
+  (ClosureEnvironment.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
+
 let ground_cases_of: Typ.t => ground_cases;
 
 let matches: (DHPat.t, DHExp.t) => match_result;
