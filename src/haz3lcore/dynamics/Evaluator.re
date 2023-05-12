@@ -1222,6 +1222,8 @@ and evaluate_test_eq =
   (arg_show, arg_result) |> return;
 };
 
+let evaluate_closure = evaluate;
+
 let evaluate = (env, d) => {
   let es = EvaluatorState.init;
   let (env, es) =
