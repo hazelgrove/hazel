@@ -303,23 +303,22 @@ module ImplGradingReport = {
     );
 
   let individual_reports = (~inject, ~report) => {
-    let test_results =
-      switch (report.test_results) {
-      | Some(x) => x
-      | None => failwith("No test results")
-      };
-    div(
-      report.hinted_results
-      |> List.mapi((i, (status, hint)) =>
-           individual_report(
-             i,
-             ~inject,
-             ~hint,
-             ~status,
-             List.nth(test_results.test_map, i),
-           )
-         ),
-    );
+    switch (report.test_results) {
+    | Some(test_results) =>
+      div(
+        report.hinted_results
+        |> List.mapi((i, (status, hint)) =>
+             individual_report(
+               i,
+               ~inject,
+               ~hint,
+               ~status,
+               List.nth(test_results.test_map, i),
+             )
+           ),
+      )
+    | None => div([])
+    };
   };
 
   let view = (~inject, ~report: t, ~max_points: int) => {
