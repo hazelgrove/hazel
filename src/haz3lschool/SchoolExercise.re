@@ -255,7 +255,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | 2 => YourTestsTesting
     | 3 => YourTestsValidation
     | 4 => YourImpl
-    | (-1) => HiddenTests
     | _ =>
       if (idx < 0) {
         failwith("negative idx");
@@ -269,7 +268,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
 
   let switch_editor = (idx: int, {eds, _}) => {
-    pos: pos_of_idx(eds, idx),
+    pos:
+      if (idx == (-1)) {
+        pos_of_idx(eds, 5 + List.length(eds.hidden_bugs));
+      } else {
+        pos_of_idx(eds, idx);
+      },
     eds,
   };
 
