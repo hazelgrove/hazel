@@ -71,19 +71,15 @@ let get_suggestion_for_id =
 
 let svg_display_settings =
     (~global_inference_info: global_inference_info, id: Id.t): (bool, bool) => {
+  // Determines if a hexagon (svg) should be used to represent a type hole, and if so, how it should look
   let (show_svg, is_unsolved) =
-    if (global_inference_info.enabled) {
-      switch (Hashtbl.find_opt(global_inference_info.solution_statuses, id)) {
-      | Some(status) =>
-        switch (status) {
-        | Solved(Unknown(_)) => (true, false)
-        | Solved(_) => (false, false)
-        | Unsolved(_) => (true, true)
-        }
-      | None => (true, false)
-      };
-    } else {
-      (true, false);
+    switch (get_suggestion_for_id(id, global_inference_info)) {
+    | Solvable(_) => (false, false)
+    | NestedInconsistency(_) => (false, true)
+    | NoSuggestion(SuggestionsDisabled)
+    | NoSuggestion(OnlyHoleSolutions) => (true, false)
+    | NoSuggestion(NonTypeHoleId) => (false, false)
+    | NoSuggestion(InconsistentSet) => (true, true)
     };
   (show_svg, is_unsolved);
 };

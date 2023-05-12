@@ -25,8 +25,7 @@ let path = (tip_l, tip_r, offset, s: float) => {
 };
 
 let view =
-    (~font_metrics, is_unsolved: bool, {measurement, mold}: Profile.t)
-    : Node.t => {
+    (~font_metrics, is_unsolved, {measurement, mold}: Profile.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
   let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
@@ -35,6 +34,7 @@ let view =
     {sort, shape: tip_l},
     {sort, shape: tip_r},
   );
+
   is_unsolved
     ? DecUtil.code_svg_sized(
         ~font_metrics,

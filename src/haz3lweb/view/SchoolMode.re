@@ -348,7 +348,7 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~font_metrics,
+          // ~font_metrics,
           ~show_lang_doc=langDocMessages.show,
           focal_zipper,
           focal_info_map,
