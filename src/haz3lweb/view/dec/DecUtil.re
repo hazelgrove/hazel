@@ -59,6 +59,14 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
+let pos_str_relative =
+    (~width, ~height, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
+  Printf.sprintf(
+    "position: relative; width: %fpx; height: %fpx;",
+    Float.of_int(width) *. (font_metrics.col_width +. fudge.width),
+    Float.of_int(height) *. (font_metrics.row_height +. fudge.height),
+  );
+
 let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
@@ -86,20 +94,19 @@ let code_svg_sized =
   );
 };
 
-let code_svg_sized2 =
+let code_svg_sized_relative =
     (
       ~font_metrics: FontMetrics.t,
-      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  let (left, top) = (origin.col, origin.row);
-  let (width, height) = (last.col - origin.col, last.row - origin.row + 1);
+  // let (left, top) = (origin.col, origin.row);
+  let (width, height) = (1, 1);
   print_endline(string_of_int(width));
   print_endline(string_of_int(height));
-  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  let style = pos_str_relative(~width, ~height, ~fudge, font_metrics);
   create_svg(
     "svg",
     ~attr=

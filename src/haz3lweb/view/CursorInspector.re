@@ -161,32 +161,44 @@ let view_of_global_inference_info =
       id: int,
     ) => {
   let text_with_holes = (text_string: string): list(t) => {
-    let is_hole_delimeter = (char) => char == "!" || char == "?";
-    let acc_node_chunks = (acc: list((bool, string)), next_letter: string): list((bool, string)) => {
+    open Haz3lcore;
+    let g: Grout.t = {id, shape: Grout.Convex};
+    let is_hole_delimeter = char => char == "!" || char == "?";
+    let acc_node_chunks =
+        (acc: list((bool, string)), next_letter: string)
+        : list((bool, string)) => {
       switch (acc) {
-        | [] => [(is_hole_delimeter(next_letter), next_letter)]
-        | [(false, str), ...tl] => [(false, str ++ next_letter), ...tl]
-        | [hd, ...tl] => [(is_hole_delimeter(next_letter), next_letter), hd, ...tl]
-      }
-    }
-    let chunks_to_node_list = (acc: list(t), next_chunk: (bool, string)): list(t) => {
+      | [] => [(is_hole_delimeter(next_letter), next_letter)]
+      | [(false, str), ...tl] => [(false, str ++ next_letter), ...tl]
+      | [hd, ...tl] => [
+          (is_hole_delimeter(next_letter), next_letter),
+          hd,
+          ...tl,
+        ]
+      };
+    };
+    let chunks_to_node_list =
+        (acc: list(t), next_chunk: (bool, string)): list(t) => {
       let (is_hole_chunk, chunk_text) = next_chunk;
       if (is_hole_chunk) {
-        if (chunk_text == "?") {
-          [EmptyHoleDec.view(~font_metrics, false, ?), ...acc]
-        } else {
-          [EmptyHoleDec.view(~font_metrics, true, ?), ...acc]
-        }
+        [
+          EmptyHoleDec.view2(
+            ~font_metrics,
+            chunk_text == "?",
+            Mold.of_grout(g, Any),
+          ),
+          ...acc,
+        ];
       } else {
-        [text(chunk_text), ...acc]
-      }
-    }
-    text_string 
+        [text(chunk_text), ...acc];
+      };
+    };
+    text_string
     |> StringUtil.to_list
     |> List.fold_left(acc_node_chunks, [])
     |> List.fold_left(chunks_to_node_list, [])
-    |> List.rev
-  }
+    |> List.rev;
+  };
   switch (
     Haz3lcore.InferenceResult.get_cursor_inspect_result(
       ~global_inference_info,
@@ -196,7 +208,7 @@ let view_of_global_inference_info =
   | Some((true, solution)) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [text("has inferred type "), ...text_with_holes(List.nth(solution, 0))],
+      [text("has inferred type "), text(List.nth(solution, 0))],
     )
   | Some((false, [typ_with_nested_conflict])) =>
     print_endline("in the single case");
@@ -306,7 +318,12 @@ let view_of_info =
         ~attr=clss([infoc, "typ"]),
         [
           term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-          view_of_global_inference_info(~inject, ~font_metrics, ~global_inference_info, id),
+          view_of_global_inference_info(
+            ~inject,
+            ~font_metrics,
+            ~global_inference_info,
+            id,
+          ),
         ],
       )
     }
@@ -367,7 +384,14 @@ let inspector_view =
       ]),
     [
       extra_view(settings.context_inspector, id, ci),
-    view_of_info(~inject, ~font_metrics, ~show_lang_doc, ~global_inference_info, id, ci),
+      view_of_info(
+        ~inject,
+        ~font_metrics,
+        ~show_lang_doc,
+        ~global_inference_info,
+        id,
+        ci,
+      ),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );

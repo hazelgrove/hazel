@@ -51,3 +51,27 @@ let view =
         path(tip_l, tip_r, 0., 0.28),
       );
 };
+
+let view2 = (~font_metrics, is_unsolved: bool, mold: Mold.t): Node.t => {
+  let sort = mold.out;
+  let c_cls = Sort.to_string(sort);
+  let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
+    Util.TupleUtil.map2(Haz3lcore.Nib.shape, mold.nibs);
+  let (tip_l, tip_r): (Haz3lcore.Nib.t, Haz3lcore.Nib.t) = (
+    {sort, shape: tip_l},
+    {sort, shape: tip_r},
+  );
+  is_unsolved
+    ? DecUtil.code_svg_sized_relative(
+        ~font_metrics,
+        ~base_cls=["empty-hole"],
+        ~path_cls=["unsolved-empty-hole-path", c_cls],
+        path(tip_l, tip_r, 0., 0.58),
+      )
+    : DecUtil.code_svg_sized_relative(
+        ~font_metrics,
+        ~base_cls=["empty-hole"],
+        ~path_cls=["empty-hole-path", c_cls],
+        path(tip_l, tip_r, 0., 0.28),
+      );
+};
