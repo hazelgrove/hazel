@@ -4,18 +4,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansions = list((Token.t, (list(Token.t), Direction.t)));
 
-let forms_assoc = (label: Label.t): list((Label.t, list(Mold.t))) => {
-  let op =
-    switch (label) {
-    | [hd, ..._] => hd
-    | _ => ""
-    };
-  let forms =
-    if (Form.is_op(op)) {
-      Form.mk_userop_forms(op);
-    } else {
-      Form.forms;
-    };
+let forms_assoc: list((Label.t, list(Mold.t))) =
   List.fold_left(
     (acc, (_, {label, mold, _}: Form.t)) => {
       let molds =
@@ -26,16 +15,17 @@ let forms_assoc = (label: Label.t): list((Label.t, list(Mold.t))) => {
       List.cons((label, molds), List.remove_assoc(label, acc));
     },
     [],
-    forms,
+    Form.forms,
   );
-};
 
 let get = (label: Label.t): list(Mold.t) => {
-  switch (label, List.assoc_opt(label, forms_assoc(label))) {
+  switch (label, List.assoc_opt(label, forms_assoc)) {
   | ([t], Some(molds)) when Form.atomic_molds(t) != [] =>
     // TODO(andrew): does this make sense?
     Form.atomic_molds(t) @ molds
-  | ([t], None) when Form.atomic_molds(t) != [] => Form.atomic_molds(t)
+  | ([t], None) when Form.atomic_molds(t) != [] =>
+    let Form.{mold: mld, _} = Form.mk_userop(t);
+    [mld] @ Form.atomic_molds(t);
   | (_, Some(molds)) => molds
   | (lbl, None) =>
     Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
@@ -43,7 +33,7 @@ let get = (label: Label.t): list(Mold.t) => {
   };
 };
 
-let delayed_expansions: expansions =
+let delayed_expansions: expansions = {
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>
       switch (expansion, label) {
@@ -61,6 +51,7 @@ let delayed_expansions: expansions =
   )
   |> List.flatten
   |> List.sort_uniq(compare);
+};
 
 let instant_expansions: expansions =
   List.filter_map(

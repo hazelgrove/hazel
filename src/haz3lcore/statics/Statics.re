@@ -398,22 +398,28 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | UserOp(op, e1, e2) =>
+  | UserOp({term: Var(op), _}, e1, e2) =>
     let op_var = Ctx.lookup_var(ctx, op);
     let ty_out =
       switch (op_var) {
       | None => Typ.Unknown(Typ.TypeHole)
-      | Some(var) => var.typ
+      | Some(var) =>
+        switch (var.typ) {
+        | Arrow(_, out) => out
+        | _ => Typ.Unknown(Typ.TypeHole)
+        }
       };
-    let (ty1, _, _) = uexp_to_info_map(~ctx, ~mode, e1);
-    let (ty2, _, _) = uexp_to_info_map(~ctx, ~mode, e2);
-    let (_, free1, m1) = uexp_to_info_map(~ctx, ~mode=Ana(ty1), e1);
-    let (_, free2, m2) = uexp_to_info_map(~ctx, ~mode=Ana(ty2), e2);
+    let mode_e = Typ.matched_list_mode(mode);
+    let (ty1, _, _) = go(~mode=mode_e, e1);
+    let (ty2, _, _) = go(~mode=mode_e, e2);
+    let (_, free1, m1) = go(~mode=Ana(ty1), e1);
+    let (_, free2, m2) = go(~mode=Ana(ty2), e2);
     add(
       ~self=Just(ty_out),
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
+  | UserOp(_) => failwith("Term is not Var")
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);

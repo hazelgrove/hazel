@@ -108,7 +108,7 @@ and UExp: {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | UserOp(Var.t, UExp.t, UExp.t)
+    | UserOp(UExp.t, UExp.t, UExp.t)
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -136,7 +136,7 @@ and UExp: {
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | UserOp(Var.t, t, t)
+    | UserOp(t, t, t)
     | Match(t, list((UPat.t, t)))
   and t = {
     // invariant: nonempty
@@ -218,7 +218,7 @@ and UExp: {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | UserOp(Var.t, UExp.t, UExp.t)
+    | UserOp(UExp.t, UExp.t, UExp.t)
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -246,7 +246,7 @@ and UExp: {
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | UserOp(Var.t, t, t)
+    | UserOp(t, t, t)
     | Match(t, list((UPat.t, t)))
   and t = {
     // invariant: nonempty

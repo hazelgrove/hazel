@@ -269,7 +269,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
-      | ([(_id, t)], []) =>
+      | ([(id, t)], []) =>
         ret(
           switch (t) {
           | (["+"], []) => BinOp(Int(Plus), l, r)
@@ -298,11 +298,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | ([t], []) =>
-            if (Form.is_op(t)) {
-              UserOp(t, l, r);
-            } else {
-              hole(tm);
-            }
+            print_endline("Made it to MakeTerm! " ++ t);
+            UserOp({ids: [id], term: Var(t)}, l, r);
+          /*  | ([t], []) => UserOp({ids: [id], term: Var(t)}, l, r) */
           | _ => hole(tm)
           },
         )

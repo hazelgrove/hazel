@@ -203,13 +203,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
-      | UserOp(_, e1, e2) as uop =>
-        let user_op_cls: Term.UExp.cls = Term.UExp.cls_of_term(uop);
-        let user_op_uexp = Statics.userop_of_info_map(user_op_cls, m);
-        let* user_op = dhexp_of_uexp(m, user_op_uexp);
+      | UserOp(op, e1, e2) =>
+        let* user_op = dhexp_of_uexp(m, op);
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
-        DHExp.Ap(DHExp.Ap(user_op, d1), d2);
+        print_endline("Made it to the elaborator");
+        DHExp.Ap(user_op, Tuple([d1, d2]));
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
