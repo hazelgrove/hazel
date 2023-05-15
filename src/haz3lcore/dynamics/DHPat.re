@@ -17,6 +17,7 @@ type t =
   | Cons(t, t)
   | Tuple(list(t))
   | Tag(string)
+  | As(t, t,)
   | Ap(t, t);
 
 let mk_tuple: list(t) => t =
@@ -39,6 +40,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | BoolLit(_)
   | StringLit(_)
   | Tag(_)
+  | As(_)
   | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
   | Inj(_, dp1) => binds_var(x, dp1)

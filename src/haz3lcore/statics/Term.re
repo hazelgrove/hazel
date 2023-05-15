@@ -116,6 +116,7 @@ module UPat = {
     | Tuple
     | Parens
     | Ap
+    | As
     | TypeAnn;
 
   include TermBase.UPat;
@@ -149,6 +150,7 @@ module UPat = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
+    | As(_) => As
     | TypeAnn(_) => TypeAnn;
 
   let show_cls: cls => string =
@@ -169,6 +171,7 @@ module UPat = {
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
     | Ap => "Constructor Application"
+    | As => "As Pattern"
     | TypeAnn => "Type Annotation";
 
   let rec is_var = (pat: t) => {
@@ -189,6 +192,7 @@ module UPat = {
     | Cons(_, _)
     | Tuple(_)
     | Tag(_)
+    | As(_)
     | Ap(_) => false
     };
   };
@@ -211,6 +215,7 @@ module UPat = {
     | Var(_)
     | Tuple(_)
     | Tag(_)
+    | As(_)
     | Ap(_) => false
     };
   };
@@ -235,6 +240,7 @@ module UPat = {
       | Var(_)
       | TypeAnn(_)
       | Tag(_)
+      | As(_)
       | Ap(_) => false
       }
     );
@@ -257,6 +263,7 @@ module UPat = {
     | Cons(_, _)
     | Tuple(_)
     | Tag(_)
+    | As(_)
     | Ap(_) => None
     };
   };
@@ -284,6 +291,7 @@ module UPat = {
     | Var(_)
     | Tuple(_)
     | Tag(_)
+    | As(_)
     | Ap(_) => None
     };
   };
@@ -315,6 +323,7 @@ module UPat = {
       | Var(_)
       | TypeAnn(_)
       | Tag(_)
+      | As(_)
       | Ap(_) => None
       }
     };

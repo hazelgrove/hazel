@@ -219,6 +219,7 @@ let forms: list((string, t)) = [
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
   ("type-arrow", mk_infix("->", Typ, 6)),
+  ("as_", mk_infix("as", Pat, 6)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),

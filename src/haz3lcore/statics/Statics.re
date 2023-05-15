@@ -582,6 +582,10 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
+  | As(pat, name) =>
+    let (exp_ty, ctx, exp_m) = upat_to_info_map(~ctx, ~mode, pat);
+    let (_, ctx, m) = upat_to_info_map(~ctx, ~mode, name);
+    add(~self=Just(exp_ty), ~ctx, union_m([exp_m, m]));
   | Ap(fn, arg) =>
     /* Contructor application */
     /* Function position mode Ana(Hole->Hole) instead of Syn */

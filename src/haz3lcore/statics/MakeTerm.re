@@ -175,7 +175,7 @@ let return_dark_hole = (~ids=[], s) => {
   hole;
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any => {
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
@@ -198,7 +198,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
         }
       }
     };
-  }
+  };
+}
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
@@ -264,49 +265,52 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Bin(Exp(l), tiles, Exp(r)) as tm =>
-    switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
-    | None =>
-      switch (tiles) {
-      | ([(_id, t)], []) =>
-        ret(
-          switch (t) {
-          | (["+"], []) => BinOp(Int(Plus), l, r)
-          | (["-"], []) => BinOp(Int(Minus), l, r)
-          | (["*"], []) => BinOp(Int(Times), l, r)
-          | (["**"], []) => BinOp(Int(Power), l, r)
-          | (["/"], []) => BinOp(Int(Divide), l, r)
-          | (["<"], []) => BinOp(Int(LessThan), l, r)
-          | ([">"], []) => BinOp(Int(GreaterThan), l, r)
-          | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
-          | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
-          | (["=="], []) => BinOp(Int(Equals), l, r)
-          | (["+."], []) => BinOp(Float(Plus), l, r)
-          | (["-."], []) => BinOp(Float(Minus), l, r)
-          | (["*."], []) => BinOp(Float(Times), l, r)
-          | (["/."], []) => BinOp(Float(Divide), l, r)
-          | (["**."], []) => BinOp(Float(Power), l, r)
-          | (["<."], []) => BinOp(Float(LessThan), l, r)
-          | ([">."], []) => BinOp(Float(GreaterThan), l, r)
-          | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
-          | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
-          | (["==."], []) => BinOp(Float(Equals), l, r)
-          | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
-          | (["::"], []) => Cons(l, r)
-          | ([";"], []) => Seq(l, r)
-          | (["$=="], []) => BinOp(String(Equals), l, r)
-          | _ => hole(tm)
-          },
-        )
-      | _ => ret(hole(tm))
-      }
+  | Bin(Exp(l), tiles, Exp(r)) as tm => {
+      print_endline("exp bin: " ++ show_unsorted(tm));
+      switch (is_tuple_exp(tiles)) {
+      | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+      | None =>
+        switch (tiles) {
+        | ([(_id, t)], []) =>
+          ret(
+            switch (t) {
+            | (["+"], []) => BinOp(Int(Plus), l, r)
+            | (["-"], []) => BinOp(Int(Minus), l, r)
+            | (["*"], []) => BinOp(Int(Times), l, r)
+            | (["**"], []) => BinOp(Int(Power), l, r)
+            | (["/"], []) => BinOp(Int(Divide), l, r)
+            | (["<"], []) => BinOp(Int(LessThan), l, r)
+            | ([">"], []) => BinOp(Int(GreaterThan), l, r)
+            | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
+            | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
+            | (["=="], []) => BinOp(Int(Equals), l, r)
+            | (["+."], []) => BinOp(Float(Plus), l, r)
+            | (["-."], []) => BinOp(Float(Minus), l, r)
+            | (["*."], []) => BinOp(Float(Times), l, r)
+            | (["/."], []) => BinOp(Float(Divide), l, r)
+            | (["**."], []) => BinOp(Float(Power), l, r)
+            | (["<."], []) => BinOp(Float(LessThan), l, r)
+            | ([">."], []) => BinOp(Float(GreaterThan), l, r)
+            | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
+            | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
+            | (["==."], []) => BinOp(Float(Equals), l, r)
+            | (["&&"], []) => BinOp(Bool(And), l, r)
+            | (["||"], []) => BinOp(Bool(Or), l, r)
+            | (["::"], []) => Cons(l, r)
+            | ([";"], []) => Seq(l, r)
+            | (["$=="], []) => BinOp(String(Equals), l, r)
+            | _ => hole(tm)
+            },
+          )
+        | _ => ret(hole(tm))
+        }
+      };
     }
   | tm => ret(hole(tm));
 }
 
 and pat = unsorted => {
+  /* print_endline("pat unsorted: " ++ show_unsorted(unsorted)); */
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(p => Pat(p), ids, {ids, term});
@@ -316,30 +320,33 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let _unrecog = UPat.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UPat.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(tiles) as tm =>
-    switch (tiles) {
-    | ([(_id, tile)], []) =>
-      ret(
-        switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Triv
-        | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_string(t) => String(t)
-        | ([t], []) when Form.is_var(t) => Var(t)
-        | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_tag(t) => Tag(t)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (["[", "]"], [Pat(body)]) =>
-          switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
-          | term => ListLit([term])
-          }
-        | _ => hole(tm)
-        },
-      )
-    | _ => ret(hole(tm))
+  | Op(tiles) as tm => {
+      /* print_endline("op: " ++ show_unsorted(tm)); */
+      /* print_endline("op tiles: " ++ show_tiles(tiles)); */
+      switch (tiles) {
+      | ([(_id, tile)], []) =>
+        ret(
+          switch (tile) {
+          | ([t], []) when Form.is_empty_tuple(t) => Triv
+          | ([t], []) when Form.is_empty_list(t) => ListLit([])
+          | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
+          | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
+          | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
+          | ([t], []) when Form.is_string(t) => String(t)
+          | ([t], []) when Form.is_var(t) => Var(t)
+          | ([t], []) when Form.is_wild(t) => Wild
+          | ([t], []) when Form.is_tag(t) => Tag(t)
+          | (["(", ")"], [Pat(body)]) => Parens(body)
+          | (["[", "]"], [Pat(body)]) =>
+            switch (body) {
+            | {term: Tuple(ps), _} => ListLit(ps)
+            | term => ListLit([term])
+            }
+          | _ => hole(tm)
+          },
+        )
+      | _ => ret(hole(tm))
+      };
     }
   | Post(Pat(l), tiles) as tm =>
     switch (tiles) {
@@ -353,21 +360,32 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Pre(_) as tm => ret(hole(tm))
-  | Bin(Pat(p), tiles, Typ(ty)) as tm =>
-    switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))
-    | _ => ret(hole(tm))
-    }
-  | Bin(Pat(l), tiles, Pat(r)) as tm =>
-    switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
-    | None =>
+  | Bin(Pat(p), tiles, Typ(ty)) as tm => {
       switch (tiles) {
-      | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+      | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))
       | _ => ret(hole(tm))
-      }
+      };
     }
-  | tm => ret(hole(tm));
+  | Bin(Pat(l), tiles, Pat(r)) as tm => {
+      /* print_endline("pat bin pat 2: " ++ show_unsorted(tm)); */
+      switch (is_tuple_pat(tiles)) {
+      //NOTE: this is where the infix patterns are handled
+
+      | Some(between_kids) =>
+        /* let _ = List.map((x) => print_endline(UPat.show(x)), between_kids); */
+        ret(Tuple([l] @ between_kids @ [r]))
+      | None =>
+        switch (tiles) {
+        | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+        | ([(_id, (["as"], []))], []) => ret(As(l, r))
+        | _ => ret(hole(tm))
+        }
+      };
+    }
+  | tm => {
+      /* print_endline("final case: " ++ show_unsorted(tm)); */
+      ret(hole(tm));
+    };
 }
 
 and typ = unsorted => {

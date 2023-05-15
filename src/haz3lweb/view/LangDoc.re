@@ -221,10 +221,16 @@ let deco =
       let font_metrics = font_metrics;
       let map = map;
       let show_backpack_targets = false;
+      //BUG: this line of code is the one erroring now? - 5-12-23 7:52pm
+      //print_endline("above makterm.go (deco)");
       let (term, terms) = MakeTerm.go(unselected);
+      //print_endline("above statics.mk_map (deco)");
       let info_map = Statics.mk_map(term);
+      //print_endline("above term_ranges deco")
       let term_ranges = TermRanges.mk(unselected);
+      //print_endline("above tiles deco")
       let tiles = TileMap.mk(unselected);
+      //print_endline("below tiles deco");
     });
 
   let term_lang_doc =
@@ -353,6 +359,7 @@ let deco =
         ),
       ]
     };
+  //print_endline("below term_lang_doc");
 
   let color_highlight =
     if (doc.highlight) {
@@ -360,6 +367,7 @@ let deco =
     } else {
       [];
     };
+  //print_endline("end of deco");
   color_highlight @ term_lang_doc;
 };
 
@@ -377,8 +385,11 @@ let syntactic_form_view =
       ~group_id,
       ~form_id,
     ) => {
+  //print_endline("above map (syntactic form view)");
   let map = Measured.of_segment(unselected);
+  //print_endline("above code_view (syntactic form view)");
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
+  //print_endline("above deco_view (syntactic form view)");
   let deco_view =
     deco(
       ~doc,
@@ -393,6 +404,7 @@ let syntactic_form_view =
       ~group_id,
       ~form_id,
     );
+  //print_endline("above div (syntactic form view)");
   div(
     ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
     [code_view] @ deco_view,
@@ -511,6 +523,7 @@ let get_doc =
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
     switch (mode) {
     | MessageContent(inject, font_metrics, settings) =>
+      //print_endline("above explanation");
       let (explanation, color_map) =
         mk_explanation(
           ~inject,
@@ -519,6 +532,8 @@ let get_doc =
           explanation_msg,
           docs.highlight,
         );
+
+      //print_endline("above syntactic form view");
       let syntactic_form_view =
         syntactic_form_view(
           ~doc=docs,
@@ -540,6 +555,7 @@ let get_doc =
           ~group_id,
           ~form_id=doc.id,
         );
+      //print_endline("above example_view");
       let example_view =
         example_view(
           ~inject,
@@ -548,6 +564,7 @@ let get_doc =
           ~id=doc.id,
           ~examples=doc.examples,
         );
+      //print_endline("post example view");
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
     | Colorings =>
       let (_, color_map) =
@@ -1187,6 +1204,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | As(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
@@ -1854,6 +1872,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | As(_) => default // Shouldn't get hit?
         };
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2120,6 +2139,7 @@ let get_doc =
             docs,
           );
         let scrut_id = List.nth(scrut.ids, 0);
+
         get_message(
           doc,
           options,
@@ -2464,6 +2484,30 @@ let get_doc =
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
+    | As(left, right) =>
+      //print_endline("lang doc as");
+      //print_endline("doc groups: " ++ LangDocMessages.show(docs));
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.as_exp_group,
+          docs,
+        );
+
+      //print_endline("mid lang doc as mode: " ++ show_message_mode(mode));
+
+      let res =
+        get_message(
+          doc,
+          options,
+          LangDocMessages.as_exp_group,
+          "",
+          LangDocMessages.as_exp_coloring_ids(
+            ~left_id=List.nth(left.ids, 0),
+            ~right_id=List.nth(right.ids, 0),
+          ),
+        );
+      res;
+
     | Tag(con) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
