@@ -278,25 +278,6 @@ let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
   fun
   | Int(Minus) => (Int, Int);
 
-let userop_of_info_map = (cls_of_op: Term.UExp.cls, m: map): Term.UExp.t => {
-  let map_seq = Id.Map.to_seq(m);
-  let p = (v: (int, t)) => {
-    switch (v) {
-    | (_, InfoExp({cls: cls_inner, _})) => cls_inner == cls_of_op
-    | _ => false
-    };
-  };
-  let opt_op_item = Seq.find(p, map_seq);
-  switch (opt_op_item) {
-  | None => failwith("Unidentified Operator")
-  | Some((_, v)) =>
-    switch (v) {
-    | InfoExp({term: inner_term, _}) => inner_term
-    | _ => failwith("Unidentified Operator")
-    }
-  };
-};
-
 let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   switch (any) {
   | Exp(e) =>
@@ -700,4 +681,26 @@ let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
     | _ => None
     };
   entry.id;
+};
+
+let check_for_var = (var_name: Var.t, statics_map: map): bool => {
+  let terms_seq = Ptmap.to_seq(statics_map);
+  Seq.exists(
+    ((_, v)) => {
+      switch (v) {
+      | InfoExp({
+          term: {
+            term: Let({term: TypeAnn({term: Var(x), _}, _), _}, _, _),
+            _,
+          },
+          _,
+        }) =>
+        print_endline("Inputed Operator: " ++ var_name);
+        print_endline("Will it work this time? " ++ x);
+        x == var_name;
+      | _ => false
+      }
+    },
+    terms_seq,
+  );
 };

@@ -324,18 +324,16 @@ let prec_of_op = (op_name: string): P.t => {
   };
 };
 
-let mk_userop_nulls = (op_name: string): list((string, t)) => {
+let mk_userop_nulls = (op_name: string): list(t) => {
   let prec = prec_of_op(op_name);
-  let rec recur = (op: string): list((string, t)) => {
+  let rec recur = (op: string): list(t) => {
     switch (op) {
     | "" => []
-    | s when String.length(op) == 1 => [
-        ("user_op" ++ s, mk_nul_infix(op, prec)),
-      ]
+    | _ when String.length(op) == 1 => [mk_nul_infix(op, prec)]
     | _ =>
       List.concat([
         recur(String.sub(op, 0, String.length(op) - 1)),
-        [("user_op" ++ op, mk_nul_infix(op, prec))],
+        [mk_nul_infix(op, prec)],
       ])
     };
   };
@@ -347,10 +345,12 @@ let mk_userop = (op_name: string): t => {
   mk_infix(op_name, Exp, op_prec);
 };
 
-let mk_userop_forms = (op_name: string): list((string, t)) => {
-  List.concat([
-    mk_userop_nulls(op_name),
-    [("user_op" ++ op_name, mk_userop(op_name))],
-    forms,
-  ]);
+let mk_userop_forms = (op_name: string): list(Mold.t) => {
+  let form_list =
+    List.concat([mk_userop_nulls(op_name), [mk_userop(op_name)]]);
+  let rec extract_molds: list(t) => list(Mold.t) =
+    fun
+    | [] => []
+    | [{mold: mld, _}, ...tl] => [mld, ...extract_molds(tl)];
+  extract_molds(form_list);
 };

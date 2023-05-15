@@ -298,9 +298,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | ([t], []) =>
-            print_endline("Made it to MakeTerm! " ++ t);
+            print_endline("Left expression: " ++ UExp.show(l));
             UserOp({ids: [id], term: Var(t)}, l, r);
-          /*  | ([t], []) => UserOp({ids: [id], term: Var(t)}, l, r) */
           | _ => hole(tm)
           },
         )

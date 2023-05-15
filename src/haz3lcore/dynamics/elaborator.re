@@ -129,6 +129,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
+      | BinUserOp(_)
       | TestLit(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
@@ -190,7 +191,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             Some([]),
           );
         DHExp.Tuple(ds);
-      | Tag(name) => Some(Tag(name))
+      | Tag(name) =>
+        print_endline("A tag is " ++ name);
+        Some(Tag(name));
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
@@ -204,11 +207,24 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
       | UserOp(op, e1, e2) =>
-        let* user_op = dhexp_of_uexp(m, op);
-        let* d1 = dhexp_of_uexp(m, e1);
-        let+ d2 = dhexp_of_uexp(m, e2);
-        print_endline("Made it to the elaborator");
-        DHExp.Ap(user_op, Tuple([d1, d2]));
+        let continue =
+          switch (op) {
+          | {term: TermBase.UExp.Var(x), _} => Statics.check_for_var(x, m)
+          | _ => false
+          };
+        if (continue) {
+          let* user_op = dhexp_of_uexp(m, op);
+          let* d1 = dhexp_of_uexp(m, e1);
+          let+ d2 = dhexp_of_uexp(m, e2);
+          print_endline(
+            "Made it to the elaborator with " ++ DHExp.show(user_op),
+          );
+          DHExp.Ap(user_op, Tuple([d1, d2]));
+        } else {
+          let u = Term.UExp.rep_id(op);
+          print_endline("Invalid operator");
+          Some(DHExp.ExpandingKeyword(u, 0, Fun));
+        };
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
@@ -233,10 +249,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* ddef = dhexp_of_uexp(m, def);
         let+ dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
+        print_endline("Pre-recursion check");
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
+          print_endline("Should be here in non-recursive");
+          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody);
         | Some([f]) =>
           /* simple recursion */
           Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)

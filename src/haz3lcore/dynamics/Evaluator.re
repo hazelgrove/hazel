@@ -277,6 +277,7 @@ and matches_cast_Inj =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_, _, _)
+  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -366,6 +367,7 @@ and matches_cast_Tuple =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
+  | BinUserOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -502,6 +504,7 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
+  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -591,6 +594,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     switch (d) {
     | BoundVar(x) =>
+      print_endline("What's here?: " ++ ClosureEnvironment.show(env));
       let d =
         x
         |> ClosureEnvironment.lookup(env)
@@ -638,6 +642,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
     | Ap(d1, d2) =>
+      print_endline("Made it into Ap with: " ++ DHExp.show(d1));
+      print_endline("Current env: " ++ ClosureEnvironment.show(env));
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
@@ -809,6 +815,19 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
 
+    | BinUserOp(op, d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(IntLit(_) as d1')
+      | BoxedValue(FloatLit(_) as d1')
+      | BoxedValue(BoolLit(_) as d1')
+      | BoxedValue(StringLit(_) as d1') =>
+        evaluate(env, Ap(op, Tuple([d1', d2])))
+      | BoxedValue(_) =>
+        print_endline("InvalidBoxedArgument");
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)));
+      | Indet(d1') => Indet(BinUserOp(op, d1', d2)) |> return
+      };
     | Inj(ty, side, d1) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {

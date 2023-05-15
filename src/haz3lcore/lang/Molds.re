@@ -24,8 +24,8 @@ let get = (label: Label.t): list(Mold.t) => {
     // TODO(andrew): does this make sense?
     Form.atomic_molds(t) @ molds
   | ([t], None) when Form.atomic_molds(t) != [] =>
-    let Form.{mold: mld, _} = Form.mk_userop(t);
-    [mld] @ Form.atomic_molds(t);
+    let molds = Form.mk_userop_forms(t);
+    molds @ Form.atomic_molds(t);
   | (_, Some(molds)) => molds
   | (lbl, None) =>
     Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
