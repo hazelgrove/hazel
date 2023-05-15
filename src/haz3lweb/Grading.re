@@ -270,12 +270,15 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status, (id, _)) =>
+  let individual_report =
+      (i, ~inject, ~hint: string, ~status, (id, _), ~num_hidden_bugs: int) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, -1, id)),
+          Attr.on_click(
+            TestView.jump_to_test(~inject, 5 + num_hidden_bugs, id),
+          ),
         ]),
       [
         div(
@@ -302,7 +305,7 @@ module ImplGradingReport = {
       ],
     );
 
-  let individual_reports = (~inject, ~report) => {
+  let individual_reports = (~inject, ~report, ~num_hidden_bugs: int) => {
     switch (report.test_results) {
     | Some(test_results) =>
       div(
@@ -313,6 +316,7 @@ module ImplGradingReport = {
                ~inject,
                ~hint,
                ~status,
+               ~num_hidden_bugs,
                List.nth(test_results.test_map, i),
              )
            ),
@@ -321,7 +325,7 @@ module ImplGradingReport = {
     };
   };
 
-  let view = (~inject, ~report: t, ~max_points: int) => {
+  let view = (~inject, ~report: t, ~max_points: int, ~num_hidden_bugs: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -329,7 +333,7 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~inject, ~report),
+        individual_reports(~inject, ~report, ~num_hidden_bugs),
       ],
       ~footer=
         Some(
@@ -350,7 +354,11 @@ module ImplGradingReport = {
               @ Option.to_list(
                   report.test_results
                   |> Option.map(test_results =>
-                       TestView.test_bar(~inject, ~test_results, -1)
+                       TestView.test_bar(
+                         ~inject,
+                         ~test_results,
+                         5 + num_hidden_bugs,
+                       )
                      ),
                 ),
             ),

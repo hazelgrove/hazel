@@ -268,12 +268,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
 
   let switch_editor = (idx: int, {eds, _}) => {
-    pos:
-      if (idx == (-1)) {
-        pos_of_idx(eds, 5 + List.length(eds.hidden_bugs));
-      } else {
-        pos_of_idx(eds, idx);
-      },
+    pos: pos_of_idx(eds, idx),
     eds,
   };
 
