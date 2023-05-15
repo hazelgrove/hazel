@@ -25,7 +25,7 @@
     - Code Style Guide
     - High Level overview of the codebase - `md`
     - Mapping UI to Code Modules
-
+    - Abstracting interfaces to make them more independent of implementation
 
 ### Examples with Comments (To-Do)
 ``` ocaml
