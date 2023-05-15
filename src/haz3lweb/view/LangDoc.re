@@ -4,6 +4,10 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
+/*
+    The "LangDoc" module covers the display of the language documentation. In the Hazel web interface, this can be found on the sidebar to the right and is defined for each syntactic form of the language. Any time a new syntax is added, documentation generation must be handled in the below "get_message" function. There, you must create the documentation view for the new form. This involves some outlining (examples, explanations, syntax, colors) of the form in the "LangDocMessages.re" file.
+*/
+
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
   div(
     ~attr=clss(["feedback"]),

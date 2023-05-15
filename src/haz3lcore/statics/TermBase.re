@@ -1,5 +1,9 @@
 open Sexplib.Std;
 
+/*
+    The below modules represent the "term" structure of the language (a pre-static analysis representation derived from the form structure). Any new component added to the language must be defined here, assuming it does not expand from a tile into a pre-existing term. 
+*/
+
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =

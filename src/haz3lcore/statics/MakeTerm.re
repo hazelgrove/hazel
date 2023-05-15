@@ -73,6 +73,7 @@ let _complete_root =
     }
   | root => root;
 
+
 let is_nary =
     (is_sort: any => option('sort), delim: Token.t, (delims, kids): tiles)
     : option(list('sort)) =>
@@ -146,6 +147,10 @@ let return_dark_hole = (~ids=[], s) => {
   hole;
 };
 
+/*
+    The following functions act to transform the tile structure into the term strucutre, as out lined at the top of the file. Each of these functions (exp, pat, typ, tpat, rul, unsorted) act on their respective syntactical components (expressions, patterns, types, tpats, rules, unsorted). The primary component of each function is a pattern match (switch statement) on an "unsorted" type which is eventually expanded into an "Aba.t" of tiles and the TermBase.re "t" type, and matched against various cases for each different language form. 
+*/
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -171,6 +176,11 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
       }
     };
   }
+
+//NOTE: ML - unsure if the below thing about "ret" is correct.
+/*
+    Take note of the "ret" function used to return the final formulated term (without any ids). This is used in most situations, with the exception of terms which contain "child" terms. 
+*/
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
@@ -240,6 +250,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
+    //Any sort of binary expression defined in the Form module will be evaluated to a BinOp term here. 
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
@@ -280,6 +291,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
+
 
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
