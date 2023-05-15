@@ -312,15 +312,17 @@ let apply =
       | DebugLoad => failwith("impossible")
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
-        let exercise = ref(exercise);
-        if (model.settings.instructor_mode || n > (-1) && n < 5) {
-          exercise := SchoolExercise.switch_editor(n, exercise^);
-        };
+        let exercise =
+          if (model.settings.instructor_mode || n > (-1) && n < 5) {
+            SchoolExercise.switch_editor(n, exercise);
+          } else {
+            exercise;
+          };
         LocalStorage.School.save_exercise(
-          exercise^,
+          exercise,
           ~instructor_mode=model.settings.instructor_mode,
         );
-        Ok({...model, editors: School(m, specs, exercise^)});
+        Ok({...model, editors: School(m, specs, exercise)});
       }
     | ToggleMode =>
       let new_mode = Editors.rotate_mode(model.editors);

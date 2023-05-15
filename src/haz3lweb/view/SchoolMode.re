@@ -325,6 +325,8 @@ let view =
         ~inject,
         ~report=grading_report.impl_grading_report,
         ~max_points=grading_report.point_distribution.impl_grading,
+        ~num_hidden_bugs=
+          List.length(grading_report.mutation_testing_report.results),
       ),
     );
 
