@@ -217,6 +217,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
+  | (As(_, _), _) => DoesNotMatch
   }
 and matches_cast_Inj =
     (

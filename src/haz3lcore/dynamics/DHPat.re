@@ -17,7 +17,7 @@ type t =
   | Cons(t, t)
   | Tuple(list(t))
   | Tag(string)
-  | As(t, t,)
+  | As(t, t)
   | Ap(t, t);
 
 let mk_tuple: list(t) => t =
