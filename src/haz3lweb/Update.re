@@ -307,16 +307,20 @@ let apply =
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }
-    | SwitchEditor(n) =>
+    | SwitchEditor(pos) =>
       switch (model.editors) {
       | DebugLoad => failwith("impossible")
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
         let exercise =
-          if (model.settings.instructor_mode || n > (-1) && n < 5) {
-            SchoolExercise.switch_editor(n, exercise);
+          if (!model.settings.instructor_mode) {
+            switch (pos) {
+            | SchoolExercise.HiddenTests
+            | SchoolExercise.HiddenBugs(_) => exercise
+            | _ => {eds: exercise.eds, pos}
+            };
           } else {
-            exercise;
+            {eds: exercise.eds, pos};
           };
         LocalStorage.School.save_exercise(
           exercise,
