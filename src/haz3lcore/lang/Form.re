@@ -181,21 +181,21 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    priority for forms which share the same labels */
 
 let forms: list((string, t)) = [
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("cell-join", mk_infix(";", Exp, 11)), // TODO: Precedence
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
   ("power", mk_infix("**", Exp, P.power)),
   ("fpower", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
-  ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
+  ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ. TODO: Precedence
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
   ("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
   ("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
-  ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
-  ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
-  //("not_equals", mk_infix("!=", Exp, 5)),
+  ("lt", mk_infix("<", Exp, P.eqs)),
+  ("gt", mk_infix(">", Exp, P.eqs)),
+  //("not_equals", mk_infix("!=", Exp, P.eqs)),
   ("gte", mk_infix(">=", Exp, P.eqs)),
   ("lte", mk_infix("<=", Exp, P.eqs)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
@@ -203,22 +203,22 @@ let forms: list((string, t)) = [
   ("ftimes", mk_infix("*.", Exp, P.mult)),
   ("fdivide", mk_infix("/.", Exp, P.mult)),
   ("fequals", mk_infix("==.", Exp, P.eqs)),
-  ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
-  ("fgt", mk_infix(">.", Exp, 5)), //TODO: precedence
-  //("fnot_equals", mk_infix("!=.", Exp, 5)),
+  ("flt", mk_infix("<.", Exp, P.eqs)),
+  ("fgt", mk_infix(">.", Exp, P.eqs)),
+  //("fnot_equals", mk_infix("!=.", Exp, P.eqs)),
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
-  ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
+  ("bitwise_and", mk_nul_infix("&", P.mult)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
-  //("bitwise_or", mk_infix("|", Exp, 5)),
+  ("bitwise_or", mk_infix("|", Exp, P.mult)), // HACK: SUBSTRING REQ
   ("logical_or", mk_infix("||", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
-  ("type-arrow", mk_infix("->", Typ, 6)),
+  ("type-arrow", mk_infix("->", Typ, 6)), // TODO: Precedence
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
@@ -232,7 +232,7 @@ let forms: list((string, t)) = [
   (
     "rule",
     mk(
-      ii,
+      di,
       ["|", "=>"],
       {
         out: Rul,
