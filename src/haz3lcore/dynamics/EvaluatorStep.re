@@ -398,7 +398,79 @@ let decompose = (d: DHExp.t) => {
          | Some(Eval) => Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp))
          | Some(Step)
          | Some(Keep)
-         | None => None
+         | None =>
+           let rec is_final = (d: DHExp.t) => {
+             switch (d) {
+             | TestLit(_)
+             | BoolLit(_)
+             | IntLit(_)
+             | FloatLit(_)
+             | StringLit(_)
+             | Closure(_, Filter(_, Fun(_)))
+             | Tag(_)
+             | FreeVar(_)
+             | InvalidText(_)
+             | EmptyHole(_)
+             | Closure(_, Fun(_))
+             | ExpandingKeyword(_) => true
+             | Fun(_)
+             | ApBuiltin(_)
+             | FixF(_, _, _)
+             | BoundVar(_)
+             | Ap(_, _)
+             | BinBoolOp(_, _, _)
+             | BinIntOp(_, _, _)
+             | BinFloatOp(_, _, _)
+             | BinStringOp(_, _, _)
+             | Cons(_, _)
+             | Sequence(_, _)
+             | Let(_, _, _)
+             | Prj(_, _)
+             | Inj(_, _, _)
+             | InvalidOperation(_, _)
+             | ConsistentCase(_)
+             | InconsistentBranches(_) => false
+             | NonEmptyHole(_, _, _, d)
+             | Closure(_, d)
+             | Filter(_, d)
+             | Cast(d, _, _)
+             | FailedCast(d, _, _) => is_final(d)
+             | ListLit(_, _, _, _, ds)
+             | Tuple(ds) =>
+               ds |> List.fold_left((res, d) => res && is_final(d), true)
+             };
+           };
+           switch (obj.exp) {
+           | TestLit(_)
+           | BoolLit(_)
+           | IntLit(_)
+           | FloatLit(_)
+           | StringLit(_)
+           | Closure(_, Filter(_, Fun(_)))
+           | Tag(_)
+           | FreeVar(_)
+           | InvalidText(_)
+           | EmptyHole(_)
+           | Closure(_, Fun(_))
+           | ExpandingKeyword(_) => None
+           | Fun(_)
+           | ApBuiltin(_)
+           | FixF(_, _, _)
+           | BoundVar(_) => Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp))
+           | Ap(d1, d2) =>
+             if (is_final(d1) && is_final(d2)) {
+               Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp));
+             } else {
+               None;
+             }
+           | BinIntOp(_, d1, d2) =>
+             if (is_final(d1) && is_final(d2)) {
+               Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp));
+             } else {
+               None;
+             }
+           | _ => None
+           };
          };
        });
   rs
