@@ -54,7 +54,11 @@ module TestValidationReport = {
         @ Option.to_list(
             report.test_results
             |> Option.map(test_results =>
-                 TestView.test_bar(~inject, ~test_results, 3)
+                 TestView.test_bar(
+                   ~inject,
+                   ~test_results,
+                   YourTestsValidation,
+                 )
                ),
           ),
       ),
@@ -82,7 +86,9 @@ module MutationTestingReport = {
             ~attr=
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
-                Attr.on_click(TestView.jump_to_test(~inject, 5 + id, id)),
+                Attr.on_click(
+                  TestView.jump_to_test(~inject, HiddenBugs(id), id),
+                ),
               ]),
             [],
           ),
@@ -121,7 +127,7 @@ module MutationTestingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, 5 + id, id)),
+          Attr.on_click(TestView.jump_to_test(~inject, HiddenBugs(id), id)),
         ]),
       [
         div(
@@ -270,15 +276,12 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report =
-      (i, ~inject, ~hint: string, ~status, (id, _), ~num_hidden_bugs: int) =>
+  let individual_report = (i, ~inject, ~hint: string, ~status, (id, _)) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(
-            TestView.jump_to_test(~inject, 5 + num_hidden_bugs, id),
-          ),
+          Attr.on_click(TestView.jump_to_test(~inject, HiddenTests, id)),
         ]),
       [
         div(
@@ -305,7 +308,7 @@ module ImplGradingReport = {
       ],
     );
 
-  let individual_reports = (~inject, ~report, ~num_hidden_bugs: int) => {
+  let individual_reports = (~inject, ~report) => {
     switch (report.test_results) {
     | Some(test_results) =>
       div(
@@ -316,7 +319,6 @@ module ImplGradingReport = {
                ~inject,
                ~hint,
                ~status,
-               ~num_hidden_bugs,
                List.nth(test_results.test_map, i),
              )
            ),
@@ -325,7 +327,7 @@ module ImplGradingReport = {
     };
   };
 
-  let view = (~inject, ~report: t, ~max_points: int, ~num_hidden_bugs: int) => {
+  let view = (~inject, ~report: t, ~max_points: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -333,7 +335,7 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~inject, ~report, ~num_hidden_bugs),
+        individual_reports(~inject, ~report),
       ],
       ~footer=
         Some(
@@ -354,11 +356,7 @@ module ImplGradingReport = {
               @ Option.to_list(
                   report.test_results
                   |> Option.map(test_results =>
-                       TestView.test_bar(
-                         ~inject,
-                         ~test_results,
-                         5 + num_hidden_bugs,
-                       )
+                       TestView.test_bar(~inject, ~test_results, HiddenTests)
                      ),
                 ),
             ),
