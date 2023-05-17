@@ -153,8 +153,9 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
-let is_op_in_let_precursor = regexp("^_[`~!@$%^&*()\\-=+/;:,.<>?|]+$");
-let is_op_in_let = regexp("^_[`~!@$%^&*()\\-=+/;:,.<>?|]+_$");
+let is_op_in_let_precursor =
+  regexp("^_[$%&*+-./:<=>@^|][!~?$%&*+-./:<=>@^|]+$");
+let is_op_in_let = regexp("^_[$%&*+-./:<=>@^|][!~?$%&*+-./:<=>@^|]_$");
 let is_op = regexp("^[`~!@$%^&*()\\-=+/;:,.<>?|]+$");
 let is_var = str =>
   !is_reserved(str) && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op(str));
@@ -324,33 +325,7 @@ let prec_of_op = (op_name: string): P.t => {
   };
 };
 
-let mk_userop_nulls = (op_name: string): list(t) => {
-  let prec = prec_of_op(op_name);
-  let rec recur = (op: string): list(t) => {
-    switch (op) {
-    | "" => []
-    | _ when String.length(op) == 1 => [mk_nul_infix(op, prec)]
-    | _ =>
-      List.concat([
-        recur(String.sub(op, 0, String.length(op) - 1)),
-        [mk_nul_infix(op, prec)],
-      ])
-    };
-  };
-  recur(String.sub(op_name, 0, String.length(op_name) - 1));
-};
-
 let mk_userop = (op_name: string): t => {
   let op_prec = prec_of_op(op_name);
   mk_infix(op_name, Exp, op_prec);
-};
-
-let mk_userop_forms = (op_name: string): list(Mold.t) => {
-  let form_list =
-    List.concat([mk_userop_nulls(op_name), [mk_userop(op_name)]]);
-  let rec extract_molds: list(t) => list(Mold.t) =
-    fun
-    | [] => []
-    | [{mold: mld, _}, ...tl] => [mld, ...extract_molds(tl)];
-  extract_molds(form_list);
 };

@@ -380,23 +380,18 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | UserOp({term: Var(op), _}, e1, e2) =>
-    print_endline("What is the ctx?" ++ Ctx.show(ctx));
     let op_var = Ctx.lookup_var(ctx, op);
-    let ty_out =
+    let ty_all =
       switch (op_var) {
       | None => None
       | Some(var) =>
-        print_endline("var is " ++ Ctx.show_var_entry(var));
         switch (var.typ) {
-        | Arrow(_, out) => Some(out)
+        | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
         | _ => None
-        };
+        }
       };
-    switch (ty_out) {
-    | Some(ty_out) =>
-      let mode_e = Typ.matched_list_mode(mode);
-      let (ty1, _, _) = go(~mode=mode_e, e1);
-      let (ty2, _, _) = go(~mode=mode_e, e2);
+    switch (ty_all) {
+    | Some((ty_out, ty1, ty2)) =>
       let (_, free1, m1) = go(~mode=Ana(ty1), e1);
       let (_, free2, m2) = go(~mode=Ana(ty2), e2);
       add(
@@ -404,7 +399,7 @@ and uexp_to_info_map =
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );
-    | None => atomic(Free(Variable))
+    | None => atomic(Just(Var(op)))
     };
   | UserOp(_) => failwith("Term is not Var")
   | Tuple(es) =>
