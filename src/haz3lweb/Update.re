@@ -459,6 +459,11 @@ let rec apply =
       DebugAction.perform(a);
       Ok(model);
     | Script(StartTest ()) =>
+      schedule_action(SwitchSlide(3));
+      //Unix.sleepf(3);
+      schedule_action(PerformAction(Move(Extreme(Up))));
+      schedule_action(PerformAction(Select(Resize(Extreme(Down)))));
+      schedule_action(Paste("let lol = 666 in your_mom"));
       /*
        0. go to sketch slide (can be first slide for now)
        1. select all and delete
