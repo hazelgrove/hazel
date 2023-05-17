@@ -78,7 +78,7 @@ let go_z =
       let measured = Measured.of_segment(unselected);
       module M2 = (val Editor.Meta.module_of_t({...meta, measured}));
       module Move3 = Move2.Make(M2);
-      let+ z = Move3.go(Goal(caret_point), z);
+      let+ z = Move3.go(Goal(Point(caret_point)), z);
       (z, id_gen);
     };
     switch (state) {

@@ -386,6 +386,12 @@ let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
   selection: Selection.mk_buffer(mode, content),
 };
 
+let can_put_down = z =>
+  switch (pop_backpack(z)) {
+  | Some(_) => z.caret == Outer
+  | None => false
+  };
+
 let is_linebreak_to_right_of_caret =
     ({relatives: {siblings: (_, r), _}, _}: t): bool => {
   switch (r) {
@@ -421,11 +427,6 @@ let try_to_dump_backpack = (zipper: t) => {
     with below set: Outer disabled.
     */
   let zipper = {...zipper, caret: Outer};
-  let can_put_down = z =>
-    switch (pop_backpack(z)) {
-    | Some(_) => z.caret == Outer
-    | None => false
-    };
   let rec move_until_cant_put_down = (z_last, z: t) =>
     if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
       switch (move(Right, z)) {
