@@ -319,7 +319,7 @@ let prec_of_op = (op_name: string): P.t => {
     | '('
     | ')' => P.ap
     | ':' => P.ann
-    | _ => P.min
+    | _ => P.plus
     }
   };
 };

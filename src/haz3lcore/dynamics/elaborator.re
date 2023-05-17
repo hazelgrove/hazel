@@ -208,7 +208,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* user_op = dhexp_of_uexp(m, op);
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
-        DHExp.Ap(Ap(user_op, dc1), dc2);
+        DHExp.Ap(user_op, Tuple([dc1, dc2]));
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
