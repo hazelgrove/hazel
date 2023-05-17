@@ -380,26 +380,32 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | UserOp({term: Var(op), _}, e1, e2) =>
+    print_endline("What is the ctx?" ++ Ctx.show(ctx));
     let op_var = Ctx.lookup_var(ctx, op);
     let ty_out =
       switch (op_var) {
-      | None => Typ.Unknown(Typ.TypeHole)
+      | None => None
       | Some(var) =>
+        print_endline("var is " ++ Ctx.show_var_entry(var));
         switch (var.typ) {
-        | Arrow(_, out) => out
-        | _ => Typ.Unknown(Typ.TypeHole)
-        }
+        | Arrow(_, out) => Some(out)
+        | _ => None
+        };
       };
-    let mode_e = Typ.matched_list_mode(mode);
-    let (ty1, _, _) = go(~mode=mode_e, e1);
-    let (ty2, _, _) = go(~mode=mode_e, e2);
-    let (_, free1, m1) = go(~mode=Ana(ty1), e1);
-    let (_, free2, m2) = go(~mode=Ana(ty2), e2);
-    add(
-      ~self=Just(ty_out),
-      ~free=Ctx.union([free1, free2]),
-      union_m([m1, m2]),
-    );
+    switch (ty_out) {
+    | Some(ty_out) =>
+      let mode_e = Typ.matched_list_mode(mode);
+      let (ty1, _, _) = go(~mode=mode_e, e1);
+      let (ty2, _, _) = go(~mode=mode_e, e2);
+      let (_, free1, m1) = go(~mode=Ana(ty1), e1);
+      let (_, free2, m2) = go(~mode=Ana(ty2), e2);
+      add(
+        ~self=Just(ty_out),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
+    | None => atomic(Free(Variable))
+    };
   | UserOp(_) => failwith("Term is not Var")
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
@@ -695,9 +701,7 @@ let check_for_var = (var_name: Var.t, statics_map: map): bool => {
           },
           _,
         }) =>
-        print_endline("Inputed Operator: " ++ var_name);
-        print_endline("Will it work this time? " ++ x);
-        x == var_name;
+        x == var_name
       | _ => false
       }
     },

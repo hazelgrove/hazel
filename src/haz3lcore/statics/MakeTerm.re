@@ -297,9 +297,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | ([t], []) =>
-            print_endline("Left expression: " ++ UExp.show(l));
-            UserOp({ids: [id], term: Var(t)}, l, r);
+          | ([t], []) => UserOp({ids: [id], term: Var(t)}, l, r)
           | _ => hole(tm)
           },
         )

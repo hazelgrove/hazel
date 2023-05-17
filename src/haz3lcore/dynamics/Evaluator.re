@@ -594,7 +594,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     switch (d) {
     | BoundVar(x) =>
-      print_endline("What's here?: " ++ ClosureEnvironment.show(env));
       let d =
         x
         |> ClosureEnvironment.lookup(env)
@@ -642,8 +641,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
     | Ap(d1, d2) =>
-      print_endline("Made it into Ap with: " ++ DHExp.show(d1));
-      print_endline("Current env: " ++ ClosureEnvironment.show(env));
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
