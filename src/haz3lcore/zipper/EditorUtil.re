@@ -88,6 +88,9 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Let(p, edef, ebody) =>
     let (id, ebody') = append_exp(id, ebody, e2);
     (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});
+  | Module(p, edef, ebody) =>
+    let (id, ebody') = append_exp(id, ebody, e2);
+    (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});
   };
 };
 

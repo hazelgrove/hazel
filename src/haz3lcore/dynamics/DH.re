@@ -56,6 +56,7 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
+    | Module(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -153,6 +154,7 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
+    | Module(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -191,6 +193,7 @@ module rec DHExp: {
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
     | Let(_, _, _) => "Let"
+    | Module(_, _, _) => "Module"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
@@ -248,6 +251,7 @@ module rec DHExp: {
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
+    | Module(dp, b, c) => Module(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
@@ -299,6 +303,8 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Module(dp1, d11, d21), Module(dp2, d12, d22)) =>
+      dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
@@ -335,6 +341,7 @@ module rec DHExp: {
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)
     | (Let(_), _)
+    | (Module(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
     | (Ap(_), _)

@@ -116,6 +116,12 @@ let tuple_end = ")";
 let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
+/* Modules */
+let module_start = "{";
+let module_end = "}";
+let module_lbl = [module_start, module_end];
+let empty_module = module_start ++ module_end;
+let is_empty_module = (==)(empty_module);
 
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
@@ -125,6 +131,7 @@ let duosplits = (t: Token.t): Label.t =>
   switch () {
   | _ when is_empty_list(t) => listlit_lbl
   | _ when is_empty_tuple(t) => tuple_lbl
+  | _ when is_empty_module(t) => module_lbl
   | _ => []
   };
 
@@ -132,6 +139,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
   switch () {
   | _ when lbl == listlit_lbl => Some([empty_list])
   | _ when lbl == tuple_lbl => Some([empty_tuple])
+  | _ when lbl == module_lbl => Some([empty_module])
   | _ => None
   };
 
@@ -168,6 +176,10 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   (
     "empty_tuple",
     (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
+  ),
+  (
+    "empty_module",
+    (is_empty_module, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
   ),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -227,6 +239,10 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  (
+    "module_",
+    mk(ds, ["module", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
@@ -257,7 +273,7 @@ let forms: list((string, t)) = [
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),
-  //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
+  ("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
 let get: String.t => t = name => List.assoc(name, forms);

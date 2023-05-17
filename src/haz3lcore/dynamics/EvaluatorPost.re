@@ -148,6 +148,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
   | Let(_)
+  | Module(_)
   | ConsistentCase(_)
   | Fun(_)
   | EmptyHole(_)
@@ -282,6 +283,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     Let(dp, d1', d2') |> return;
+
+  | Module(dp, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Module(dp, d1', d2') |> return;
 
   | FixF(f, ty, d1) =>
     let* d1' = pp_uneval(env, d1);
@@ -454,6 +460,7 @@ let rec track_children_of_hole =
   | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
+  | Module(_, d1, d2)
   | Ap(d1, d2)
   | BinBoolOp(_, d1, d2)
   | BinIntOp(_, d1, d2)

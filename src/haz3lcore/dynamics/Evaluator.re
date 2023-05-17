@@ -267,6 +267,7 @@ and matches_cast_Inj =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
@@ -356,6 +357,7 @@ and matches_cast_Tuple =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
@@ -493,6 +495,7 @@ and matches_cast_Cons =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
@@ -618,6 +621,20 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | Let(dp, d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(d1)
+      | Indet(d1) =>
+        switch (matches(dp, d1)) {
+        | IndetMatch
+        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
+        | Matches(env') =>
+          let* env = evaluate_extend_env(env', env);
+          evaluate(env, d2);
+        }
+      };
+
+    | Module(dp, d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(d1)

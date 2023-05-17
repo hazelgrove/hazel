@@ -248,6 +248,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
+        | (["module", "=", "in"], [Pat(pat), Exp(def)]) =>
+          Module(pat, def, r)
         | _ => hole(tm)
         },
       )

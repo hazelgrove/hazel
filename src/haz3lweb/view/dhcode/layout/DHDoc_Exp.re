@@ -62,6 +62,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
+  | Module(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
@@ -300,6 +301,27 @@ let rec mk =
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+            DHDoc_common.Delim.mk("="),
+            def_doc
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            DHDoc_common.Delim.mk("in"),
+          ]),
+          mk_cast(go(~enforce_inline=false, dbody)),
+        ]);
+      | Module(dp, ddef, dbody) =>
+        let def_doc = (~enforce_inline) =>
+          mk_cast(go(~enforce_inline, ddef));
+        vseps([
+          hcats([
+            DHDoc_common.Delim.mk("module"),
             DHDoc_Pat.mk(dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
