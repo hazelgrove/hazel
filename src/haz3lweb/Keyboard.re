@@ -64,6 +64,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
+    | "F7" => [Update.Script(StartTest())]
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
@@ -79,7 +80,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") =>
       Selection.is_buffer(zipper.selection)
-        ? [Agent(AcceptSuggestion), Save] : now_save(Put_down) //TODO: if empty, move to next hole
+        ? [Agent(AcceptSuggestion), Save]
+        : Zipper.can_put_down(zipper)
+            ? [PerformAction(Put_down), Save]
+            : [MoveToNextHole(Right), Save]
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))

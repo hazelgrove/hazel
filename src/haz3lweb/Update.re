@@ -177,6 +177,7 @@ let reevaluate_post_update =
   | Agent(_)
   | Execute(_)
   | MVUSet(_)
+  | Script(_)
   | Undo
   | Redo => true;
 
@@ -423,9 +424,13 @@ let rec apply =
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         })
       };
-    | MoveToNextHole(_d) =>
-      // TODO restore
-      Ok(model)
+    | MoveToNextHole(d) =>
+      let p: Piece.t => bool = (
+        fun
+        | Grout(_) => true
+        | _ => false
+      );
+      perform_action(model, Move(Goal(Piece(p, d))));
     | UpdateLangDocMessages(u) =>
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);
@@ -453,6 +458,21 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | Script(StartTest ()) =>
+      /*
+       0. go to sketch slide (can be first slide for now)
+       1. select all and delete
+       2. paste in sketch (or insert segment as zipper manually to save time)
+       3. move caret to immediately after first ??
+       4. schedule_action(PerformAction(Select(Term(Current))));
+           schedule_action(Agent(Prompt(Filler)));
+            */
+      let p: Piece.t => bool = (
+        fun
+        | Tile({label: [t], _}) => t == "XXX"
+        | _ => false
+      );
+      perform_action(model, Move(Goal(Piece(p, Right))));
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

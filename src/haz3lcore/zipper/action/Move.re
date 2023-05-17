@@ -93,6 +93,29 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
+  /* Do move_action until the indicated piece is such that piece_p is true */
+  let do_until =
+      (
+        ~move_first=true,
+        move_action: t => option(t),
+        piece_p: Piece.t => bool,
+        z: t,
+      )
+      : option(t) => {
+    let rec go = (z: t) => {
+      let* z = move_first ? move_action(z) : Some(z);
+      let* (piece, _, _) =
+        Indicated.piece'(~no_ws=false, ~ign=_ => false, z);
+      if (piece_p(piece)) {
+        Some(z);
+      } else {
+        let* z = move_first ? Some(z) : move_action(z);
+        go(z);
+      };
+    };
+    go(z);
+  };
+
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
@@ -263,7 +286,8 @@ module Make = (M: Editor.Meta.S) => {
 
   let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(goal) =>
+    | Goal(Piece(p, d)) => do_until(primary(ByToken, d), p, z)
+    | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
       do_towards(primary(ByChar), goal, z);
     | Extreme(d) => do_extreme(primary(ByToken), d, z)
