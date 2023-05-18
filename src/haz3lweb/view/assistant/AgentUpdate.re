@@ -87,21 +87,28 @@ let apply =
             | None =>
               print_endline("react_error: no errors.");
               schedule_action(Agent(SetBuffer(response)));
+              schedule_action(Script(EndTest()));
             | Some(reply) =>
               print_endline("react_error: errors:" ++ reply);
               OpenAI.reply_chat(prompt, response, reply, req =>
                 switch (OpenAI.handle_chat(req)) {
                 | Some(response) =>
-                  schedule_action(Agent(SetBuffer(response)))
-                | None => print_endline("Filler: handler failed")
+                  schedule_action(Agent(SetBuffer(response)));
+                  schedule_action(Script(EndTest()));
+                | None =>
+                  print_endline("Filler: handler failed");
+                  schedule_action(Script(EndTest()));
                 }
               );
             }
           | _ =>
             print_endline("react_error: no CI");
             schedule_action(Agent(SetBuffer(response)));
+            schedule_action(Script(EndTest()));
           };
-        | None => print_endline("Filler: handler failed")
+        | None =>
+          print_endline("Filler: handler failed");
+          schedule_action(Script(EndTest()));
         }
       )
     };

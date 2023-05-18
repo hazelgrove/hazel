@@ -144,7 +144,7 @@ let reevaluate_post_update =
       Jump(_) |
       SetSelectionFocus(_),
     )
-  | MoveToNextHole(_) //
+  | MoveToNextHole(_)
   | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
@@ -459,25 +459,25 @@ let rec apply =
       DebugAction.perform(a);
       Ok(model);
     | Script(StartTest ()) =>
-      schedule_action(SwitchSlide(3));
-      //Unix.sleepf(3);
-      schedule_action(PerformAction(Move(Extreme(Up))));
-      schedule_action(PerformAction(Select(Resize(Extreme(Down)))));
-      schedule_action(Paste("let lol = 666 in your_mom"));
-      /*
-       0. go to sketch slide (can be first slide for now)
-       1. select all and delete
-       2. paste in sketch (or insert segment as zipper manually to save time)
-       3. move caret to immediately after first ??
-       4. schedule_action(PerformAction(Select(Term(Current))));
-           schedule_action(Agent(Prompt(Filler)));
-            */
-      let p: Piece.t => bool = (
-        fun
-        | Tile({label: [t], _}) => t == "XXX"
-        | _ => false
+      let sketch_str = "let lol: Int = FILL_ME in lol + 2000";
+      let script = Scripter.mk_script(sketch_str);
+      List.iter(schedule_action, script);
+      Ok(model);
+    | Script(EndTest ()) =>
+      schedule_action(Agent(AcceptSuggestion));
+      schedule_action(Script(LogTest()));
+      Ok(model);
+    | Script(LogTest ()) =>
+      print_endline("LOG TEST. Statics results:");
+      let info_map =
+        ChatLSP.get_info_from_zipper(
+          ~ctx=Ctx.empty, //TODO(andrew): better ctx
+          Editors.get_editor(model.editors).state.zipper,
+        );
+      print_endline(
+        ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
       );
-      perform_action(model, Move(Goal(Piece(p, Right))));
+      Ok(model);
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
