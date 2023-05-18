@@ -153,10 +153,9 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
-let is_op_in_let_precursor =
-  regexp("^_[$%&*+-./:<=>@^|][!~?$%&*+-./:<=>@^|]+$");
-let is_op_in_let = regexp("^_[$%&*+-./:<=>@^|][!~?$%&*+-./:<=>@^|]_$");
-let is_op = regexp("^[`~!@$%^&*()\\-=+/;:,.<>?|]+$");
+let is_op_in_let_precursor = regexp("^_[!$%&*+\\-./:<=>@^|]*$");
+let is_op_in_let = regexp("^_[!$%&*+\\-./:<=>@^|]+_$");
+let is_op = regexp("^[!$%&*+\\-./:<=>@^|]+$");
 let is_var = str =>
   !is_reserved(str) && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op(str));
 
