@@ -3,6 +3,11 @@ let sketch_slide = 3;
 let fill_marker = "FILL_ME";
 //TODO(andrew): adjust promptgen to replace this with ??
 
+let tests_raw = [
+  ("one", "let lol = FILL_ME in lol + 2000"),
+  ("two", "let lol: Int = FILL_ME in lol + 2000"),
+];
+
 let is_fill_marker: Piece.t => bool =
   fun
   | Tile({label: [t], _}) => t == fill_marker
@@ -21,6 +26,12 @@ let mk_script = (sketch_str: string): list(UpdateAction.t) => {
     Agent(Prompt(Filler)),
   ];
 };
+
+let test_scripts =
+  List.map(
+    ((name, sketch_str)) => (name, mk_script(sketch_str)),
+    tests_raw,
+  );
 
 /*
 
@@ -42,5 +53,5 @@ let mk_script = (sketch_str: string): list(UpdateAction.t) => {
  and start the next test
  we use the length of the list to tell what test we're on,
  and stop when we've finished all the tests
- at which point we record the results to localstore, using some kind of timestamp in the key (so as not to overwrite)
+ at which point we record the results to localstore, using some kind of timestamp in the key (so as not to overwrite)d
   */
