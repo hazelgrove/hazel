@@ -124,6 +124,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
+    //TODO(andrew): rm
     | "p" =>
       print_endline("DEBUG: CMD+P");
       let f = (z, id_gen) =>
