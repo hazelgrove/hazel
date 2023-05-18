@@ -468,6 +468,7 @@ let rec apply =
       schedule_action(Script(LogTest()));
       Ok(model);
     | Script(LogTest ()) =>
+      let script = model.script;
       print_endline("LOG TEST. Statics results:");
       let info_map =
         ChatLSP.get_info_from_zipper(
@@ -477,7 +478,7 @@ let rec apply =
       print_endline(
         ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
       );
-      Ok(model);
+      Ok({...model, script});
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
