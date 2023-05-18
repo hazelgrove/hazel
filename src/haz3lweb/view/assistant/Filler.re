@@ -129,6 +129,7 @@ let prompt = (model: Model.t): option(string) => {
     | Some(ci) => Info.ctx_of(ci)
     | None => Ctx.empty
     };
+  let expected_ty = model |> ChatLSP.Type.mode |> ChatLSP.Type.expected(~ctx);
   let prefix =
     ["Consider these examples:"]
     @ collate_samples(samples)
@@ -146,7 +147,7 @@ actual_expected_type: %s,
 actual_completion:
       |},
         body,
-        model |> ChatLSP.Type.mode |> ChatLSP.Type.expected(~ctx),
+        expected_ty,
       );
     let prompt =
       String.concat("\n ", prefix)

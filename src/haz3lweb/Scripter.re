@@ -21,3 +21,26 @@ let mk_script = (sketch_str: string): list(UpdateAction.t) => {
     Agent(Prompt(Filler)),
   ];
 };
+
+/*
+
+ get timestamp at beginning of test
+ and at end of test
+ log if we send errors back
+
+ indep vars:
+ parametrize Filler.prompt to take a fn
+ from model? -> prompt
+ also want to be able to vary GPT 3.5/4
+
+
+ 1. create entry in model to store test results
+ when we begin a run, we must specify a list of scripts
+ each must have some kind of text description saying what were varying (think about more structure)
+ test ledger in model is initially an empty list
+ after each test, we cons the result
+ and start the next test
+ we use the length of the list to tell what test we're on,
+ and stop when we've finished all the tests
+ at which point we record the results to localstore, using some kind of timestamp in the key (so as not to overwrite)
+  */
