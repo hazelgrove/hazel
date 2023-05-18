@@ -1011,7 +1011,7 @@ svg.tile-selected {
   gap: 0.5em;
   color: #0006;
   font-weight: bolder;
-  text-transform: uppercase;
+  /*text-transform: uppercase;*/
   align-items: center;
 }
 
