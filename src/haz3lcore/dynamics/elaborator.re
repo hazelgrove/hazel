@@ -130,7 +130,8 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
-      | TestLit(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
+      | TestLit(_)
+      | ModuleVal(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
@@ -258,47 +259,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                );
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
-      | Module(p, def, body) =>
-        let add_name: (option(string), DHExp.t) => DHExp.t = (
-          name =>
-            fun
-            | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
-            | d => d
-        );
-        let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
-        let+ dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.pat_self_typ(m, p);
-        switch (Term.UPat.get_recursive_bindings(p)) {
-        | None =>
-          /* not recursive */
-          DHExp.Module(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
-        | Some([f]) =>
-          /* simple recursion */
-          Module(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
-        | Some(fs) =>
-          /* mutual recursion */
-          let ddef =
-            switch (ddef) {
-            | Tuple(a) =>
-              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
-            | _ => ddef
-            };
-          let uniq_id = List.nth(def.ids, 0);
-          let self_id = "__mutual__" ++ string_of_int(uniq_id);
-          let self_var = DHExp.BoundVar(self_id);
-          let (_, substituted_def) =
-            fs
-            |> List.fold_left(
-                 ((i, ddef), f) => {
-                   let ddef =
-                     Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
-                   (i + 1, ddef);
-                 },
-                 (0, ddef),
-               );
-          Module(dp, FixF(self_id, ty, substituted_def), dbody);
-        };
+      | Module(_) => Some(IntLit(1))
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);

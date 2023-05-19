@@ -460,13 +460,10 @@ and uexp_to_info_map =
       union_m([m_pat, m_def, m_body]),
     );
   | Module(pat, def, body) =>
-    let (ty_pat, _, _) =
-      upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
-    let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx, ~mode=Ana(ty_pat), def);
+    let (_, free_def, m_def) = uexp_to_info_map(~ctx, ~mode=Syn, def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) =
-      upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
+      upat_to_info_map(~is_synswitch=false, ~mode=Ana(Module), pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);

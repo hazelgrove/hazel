@@ -58,7 +58,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Tag(_)
+  | ModuleVal(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -272,7 +273,8 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Tag(_)
+  | ModuleVal(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -450,7 +452,8 @@ let rec track_children_of_hole =
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | BoundVar(_) => hii
+  | BoundVar(_)
+  | ModuleVal(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d, _)
   | Inj(_, _, d)

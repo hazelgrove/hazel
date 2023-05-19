@@ -22,7 +22,8 @@ type t =
   | List(t)
   | Arrow(t, t)
   | Sum(t, t) // unused
-  | Prod(list(t));
+  | Prod(list(t))
+  | Module;
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
@@ -128,6 +129,8 @@ let rec join = (ty1: t, ty2: t): option(t) =>
   | (List(_), _) => None
   | (Var(n1), Var(n2)) when n1 == n2 => Some(ty1)
   | (Var(_), _) => None
+  | (Module, Module) => Some(Module)
+  | (Module, _) => None
   };
 
 let join_all: list(t) => option(t) =
@@ -210,6 +213,7 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Prod([])
+  | Module
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -243,4 +247,6 @@ let rec eq = (t1, t2) =>
   | (List(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
+  | (Module, Module) => true
+  | (Module, _) => false
   };

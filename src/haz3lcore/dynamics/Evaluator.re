@@ -34,6 +34,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Int
   | Float
   | String
+  | Module
   | Var(_)
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
@@ -284,6 +285,7 @@ and matches_cast_Inj =
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | ListLit(_, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
@@ -370,6 +372,7 @@ and matches_cast_Tuple =
   | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -507,6 +510,7 @@ and matches_cast_Cons =
   | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -635,13 +639,14 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | Module(dp, d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let empty_env = Environment.empty;
+      let* r1 = module_evaluate(env, empty_env, d1);
       switch (r1) {
       | BoxedValue(d1)
       | Indet(d1) =>
         switch (matches(dp, d1)) {
         | IndetMatch
-        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
+        | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2))) |> return
         | Matches(env') =>
           let* env = evaluate_extend_env(env', env);
           evaluate(env, d2);
@@ -706,7 +711,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Tag(_) => BoxedValue(d) |> return
+    | Tag(_)
+    | ModuleVal(_) => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -1231,7 +1237,28 @@ and evaluate_test_eq =
   let* arg_result = evaluate(env, arg_show);
 
   (arg_show, arg_result) |> return;
-};
+}
+and module_evaluate:
+  (ClosureEnvironment.t, Environment.t, DHExp.t) => m(EvaluatorResult.t) =
+  (env, env_in, d) => {
+    switch (d) {
+    | Let(dp, d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(d1)
+      | Indet(d1) =>
+        switch (matches(dp, d1)) {
+        | IndetMatch
+        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
+        | Matches(env') =>
+          let* env = evaluate_extend_env(env', env);
+          let env_in = Environment.union(env_in, env');
+          module_evaluate(env, env_in, d2);
+        }
+      };
+    | _ => BoxedValue(ModuleVal(env_in)) |> return
+    };
+  };
 
 let evaluate = (env, d) => {
   let es = EvaluatorState.init;

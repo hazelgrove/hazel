@@ -80,6 +80,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | ModuleVal(Environment.t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -178,6 +179,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | ModuleVal(Environment.t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -219,6 +221,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
+    | ModuleVal(_) => "ModuleVal"
     };
 
   let mk_tuple: list(t) => t =
@@ -282,7 +285,8 @@ module rec DHExp: {
     | FloatLit(_) as d
     | StringLit(_) as d
     | Tag(_) as d
-    | InvalidOperation(_) as d => d
+    | InvalidOperation(_) as d
+    | ModuleVal(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
@@ -337,6 +341,7 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
+    | (ModuleVal(mv1), ModuleVal(mv2)) => mv1 == mv2
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)
@@ -358,7 +363,8 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
-    | (ConsistentCase(_), _) => false
+    | (ConsistentCase(_), _)
+    | (ModuleVal(_), _) => false
 
     /* Hole forms: when checking environments, only check that
        environment ID's are equal, don't check structural equality.

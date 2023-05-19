@@ -52,4 +52,5 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
     )
   | Sum(t1, t2) =>
     div(~attr=clss(["typ-view", "Sum"]), [view(t1), text("+"), view(t2)])
+  | Module => ty_view("Module", "Module")
   };

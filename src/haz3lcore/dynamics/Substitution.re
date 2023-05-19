@@ -65,7 +65,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d2
+  | Tag(_)
+  | ModuleVal(_) => d2
   | ListLit(a, b, c, d, ds) =>
     ListLit(a, b, c, d, List.map(subst_var(d1, x), ds))
   | Cons(d3, d4) =>
