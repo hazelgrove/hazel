@@ -1072,7 +1072,7 @@ svg.tile-selected {
   border-color: var(--warn-color);
 }
 
-.cursor-inspector:hover .context-inspector,
+.cursor-inspector .gamma:hover + .context-inspector,
 .context-inspector.visible {
   display: flex;
 }
