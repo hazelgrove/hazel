@@ -70,6 +70,7 @@ let shard_index = (z: Zipper.t): option(int) =>
       }
     | Sibling =>
       switch (p) {
+      | Livelit(_) // TODO Livelit
       | Secondary(_)
       | Grout(_) => Some(0)
       | Tile(t) =>
@@ -86,6 +87,7 @@ let index = (z: Zipper.t): option(int) =>
   | None => None
   | Some((p, _, _)) =>
     switch (p) {
+    | Livelit({id, _}) => Some(id)
     | Secondary({id, _}) => Some(id)
     | Grout({id, _}) => Some(id)
     | Tile({id, _}) => Some(id)

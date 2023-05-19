@@ -8,22 +8,23 @@ let secondary = w => Secondary(w);
 let grout = g => Grout(g);
 let tile = t => Tile(t);
 
-let get = (f_w, f_g, f_t, p: t) =>
+let get = (f_w, f_g, f_t, f_l, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
   | Grout(g) => f_g(g)
   | Tile(t) => f_t(t)
+  | Livelit(l) => f_l(l)
   };
 
-let id = get(Secondary.id, Grout.id, Tile.id);
+let id: t => int = get(Secondary.id, Grout.id, Tile.id, LivelitPiece.id);
 
 let sort =
   get(
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
     t => (t.mold.out, t.mold.in_),
+    _ => (Sort.Any, []) // TODO Livelit
   );
-
 let nibs =
   get(
     _ => None,
@@ -32,6 +33,7 @@ let nibs =
       Some(Nib.({shape: l, sort: Any}, {shape: r, sort: Any}));
     },
     t => Some(Tile.nibs(t)),
+    _ => None // TODO Livelits
   );
 
 let nib_sorts =
@@ -42,9 +44,10 @@ let nib_sorts =
       let (l, r) = Tile.nibs(t);
       (l.sort, r.sort);
     },
+    _ => (Sort.Any, Sort.Any),
   );
-
-let sorted_children = get(_ => [], _ => [], Tile.sorted_children);
+let sorted_children: t => list((Sort.t, Tile.segment)) =
+  get(_ => [], _ => [], Tile.sorted_children, _ => []);
 let children = p => sorted_children(p) |> List.split |> snd;
 
 // let is_balanced =
@@ -58,18 +61,21 @@ let pop_l = (p: t): (t, segment) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
   | Grout(_)
+  | Livelit(_) // TODO Livelit
   | Secondary(_) => (p, [])
   };
 let pop_r = (p: t): (segment, t) =>
   switch (p) {
   | Tile(t) => Tile.pop_r(t)
   | Grout(_)
+  | Livelit(_) // TODO Livelit
   | Secondary(_) => ([], p)
   };
 
 let disassemble = (p: t): segment =>
   switch (p) {
   | Grout(_)
+  | Livelit(_) // TODO Livelit
   | Secondary(_) => [p]
   | Tile(t) => Tile.disassemble(t)
   };
@@ -82,7 +88,12 @@ let disassemble = (p: t): segment =>
 //   };
 
 let shapes =
-  get(_ => None, g => Some(Grout.shapes(g)), t => Some(Tile.shapes(t)));
+  get(
+    _ => None,
+    g => Some(Grout.shapes(g)),
+    t => Some(Tile.shapes(t)),
+    _ => Some((Convex, Convex)) // TODO Livelit
+  );
 
 let is_grout: t => bool =
   fun
@@ -123,6 +134,7 @@ let is_complete: t => bool =
 let get_outside_sorts = (~default_sort=Sort.Any, p: t): list(Sort.t) =>
   //TODO: David please review this
   switch (p) {
+  | Livelit(_) // TODO Livelit. Looks like this fn is unused
   | Secondary(_) => []
   | Grout({shape: Convex, _}) => []
   | Grout({shape: Concave, _}) => [default_sort, default_sort]

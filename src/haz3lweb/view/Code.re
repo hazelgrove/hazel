@@ -62,6 +62,10 @@ let of_delim =
 
 let of_grout = [Node.text(Unicode.nbsp)];
 
+let of_livelit = (l: LivelitPiece.t) => [
+  Node.text("TODO LIVELIT: " ++ l.livelit.name),
+];
+
 let of_secondary =
   Core.Memo.general(
     ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
@@ -146,6 +150,7 @@ module Text = (M: {
     | Tile(t) =>
       of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelit_state)
     | Grout(_) => of_grout
+    | Livelit(l) => of_livelit(l)
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
@@ -189,6 +194,7 @@ let rec holes =
   seg
   |> List.concat_map(
        fun
+       | Piece.Livelit(_) => [] // TODO Livelit
        | Piece.Secondary(_) => []
        | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) => [

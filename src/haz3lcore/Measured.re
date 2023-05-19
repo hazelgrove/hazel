@@ -97,6 +97,7 @@ type t = {
   secondary: Id.Map.t(measurement),
   rows: Rows.t,
   linebreaks: Id.Map.t(rel_indent),
+  livelits: Id.Map.t(measurement),
 };
 
 let empty = {
@@ -105,6 +106,7 @@ let empty = {
   secondary: Id.Map.empty,
   rows: Rows.empty,
   linebreaks: Id.Map.empty,
+  livelits: Id.Map.empty,
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -143,13 +145,17 @@ let add_w = (w: Secondary.t, m, map) => {
   ...map,
   secondary: map.secondary |> Id.Map.add(w.id, m),
 };
-
+let add_l = (l: LivelitPiece.t, m, map) => {
+  ...map,
+  livelits: map.livelits |> Id.Map.add(l.id, m),
+};
 let add_p = (p: Piece.t, m, map) =>
   p
   |> Piece.get(
        w => add_w(w, m, map),
        g => add_g(g, m, map),
        t => add_t(t, m, map),
+       l => add_l(l, m, map),
      );
 
 let add_row = (row: int, shape: Rows.shape, map) => {
@@ -181,9 +187,11 @@ let find_shards' = (id: Id.t, map) =>
 let find_w = (w: Secondary.t, map): measurement =>
   Id.Map.find(w.id, map.secondary);
 let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
+let find_l = (l: LivelitPiece.t, map: t): measurement =>
+  Id.Map.find(l.id, map.livelits);
+
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
-  // Here
   let shards = Id.Map.find(t.id, map.tiles);
   let first = List.assoc(Tile.l_shard(t), shards);
   let last = List.assoc(Tile.r_shard(t), shards);
@@ -191,15 +199,15 @@ let find_t = (t: Tile.t, map): measurement => {
 };
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
 //   List.assoc(l @ r, Id.Map.find(a.id, map.tiles));
-let find_p = (p: Piece.t, map): measurement => {
-  // print_endline("p: " ++ Piece.show(p));
+let find_p = (p: Piece.t, map): measurement =>
   p
   |> Piece.get(
        w => find_w(w, map),
        g => find_g(g, map),
        t => find_t(t, map),
+       l => find_l(l, map),
      );
-};
+
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
@@ -238,6 +246,7 @@ let union2 = (map: t, map': t) => {
     ),
   linebreaks:
     Id.Map.union((_, i, _) => Some(i), map.linebreaks, map'.linebreaks),
+  livelits: Id.Map.union((_, i, _) => Some(i), map.livelits, map'.livelits),
 };
 let union = List.fold_left(union2, empty);
 
@@ -267,6 +276,7 @@ let is_indented_map = (seg: Segment.t) => {
                false,
                Id.Map.add(w.id, is_indented, map),
              )
+           | Livelit(_) // TODO Livelitzs
            | Secondary(_)
            | Grout(_) => (is_indented, map)
            | Tile(t) =>
@@ -285,7 +295,6 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-// TODO There's still issues detecting spaces in the segment
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -323,19 +332,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               ~contained_indent: rel_indent=0,
               ~origin: Point.t,
               seg: Segment.t,
-              extra_livelit_padding: int,
             )
-            : (Point.t, t) => {
-      let livelit_padding: int =
-        switch (seg) {
-        | [Tile({label: [l], _} as _a), Tile(_), ..._]
-            when String.starts_with(~prefix="^", l) =>
-          switch (Livelit.find_livelit(l)) {
-          | Some(ll) => ll.width
-          | None => 0
-          }
-        | _ => 0
-        };
+            : (Point.t, t) =>
       switch (seg) {
       | [] =>
         let map =
@@ -385,29 +383,19 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
             let last = {...origin, col: origin.col + wspace_length};
-            // print_endline("Secondary: " ++ Point.show(last));
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
             let last = {...origin, col: origin.col + 1};
             let map = map |> add_g(g, {origin, last});
-            // print_endline("Grout: " ++ Point.show(last));
+            (contained_indent, last, map);
+          | Livelit(l) =>
+            let last = {...origin, col: origin.col + l.livelit.width};
+            let map = map |> add_l(l, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
-            if (livelit_padding > 0) {
-              print_endline("tile:" ++ Tile.show(t));
-            };
             let token = List.nth(t.label);
 
-            let addendum =
-              switch (tl) {
-              | [] =>
-                if (extra_livelit_padding > 0) {
-                  print_endline("Here:" ++ Tile.show(t));
-                };
-                extra_livelit_padding;
-              | _ => 0
-              };
             let add_shard = (origin, shard, map) => {
               let last =
                 Point.{
@@ -417,7 +405,6 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
             };
-            let current: ref(int) = ref(0); // Reimplement this adjusting the last node without mutation
 
             let (last, map) =
               Aba.mk(t.shards, t.children)
@@ -431,31 +418,15 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                          ~origin,
                          child,
                        );
-
-                     // Who knows if this is right
-                     let child_livelit_adjustment = {
-                       ...child_last,
-                       col:
-                         child_last.col
-                         + (
-                           current^ == List.length(t.children) - 1
-                             ? addendum : 0
-                         ),
-                     };
-                     current := current^ + 1;
-                     add_shard(child_livelit_adjustment, shard, child_map);
+                     add_shard(child_last, shard, child_map);
                    },
                  );
             (contained_indent, last, map);
           };
-        let (tl_last, map) =
-          go_seq(~map, ~contained_indent, ~origin, tl, livelit_padding);
+        let (tl_last, map) = go_seq(~map, ~contained_indent, ~origin, tl);
         (tl_last, map);
       };
-    };
-
-    let (pt, a) = go_seq(~map, ~origin, seg, 0);
-    ({row: pt.row, col: pt.col}, a);
+    go_seq(~map, ~origin, seg);
   };
   snd(go_nested(~map=empty, seg));
 };

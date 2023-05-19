@@ -67,6 +67,8 @@ type rel =
 
 let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
   switch (p1, p2) {
+  | (Livelit(_), _)
+  | (_, Livelit(_)) // TODO Livelit
   | (Secondary(_), _)
   | (_, Secondary(_)) => None
   | (Grout({shape, _}), _) =>

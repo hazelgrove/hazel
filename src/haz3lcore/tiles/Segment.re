@@ -68,6 +68,7 @@ let shape_affix =
     | [p, ...tl] =>
       let (wgw, s, tl) = go(tl, r);
       switch (p) {
+      | Livelit(_) => (empty_wgw, r, []) // TODO Livelit. I have no idea what this method does.
       | Secondary(w) =>
         let (wss, gs) = wgw;
         let (ws, wss) = ListUtil.split_first(wss);
@@ -89,6 +90,7 @@ let rec convex = seg => {
       (p: Piece.t, shape) => {
         let* s = shape;
         switch (p) {
+        | Livelit(_) // TODO Livelit
         | Secondary(_) => shape
         | Grout(g) =>
           Grout.fits_shape(g, s) ? Some(fst(Grout.shapes(g))) : None
@@ -157,11 +159,12 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     );
   {...remolded, children};
 }
-and remold_typ = (shape, seg: t): t =>
+and remold_typ = (shape: Nib.Shape.t, seg: t): t =>
   switch (seg) {
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
     | Tile(t) =>
@@ -176,6 +179,7 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [] => ([], shape, [])
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) =>
       let (remolded, shape, rest) = remold_typ_uni(shape, tl);
@@ -205,6 +209,7 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [] => ([], shape, [])
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) =>
       let (remolded, shape, rest) = remold_pat_uni(shape, tl);
@@ -236,6 +241,7 @@ and remold_pat = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
     | Tile(t) =>
@@ -256,6 +262,7 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [] => ([], shape, [])
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) =>
       let (remolded, shape, rest) = remold_exp_uni(shape, tl);
@@ -290,6 +297,7 @@ and remold_rul = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) => [hd, ...remold_rul(shape, tl)]
     | Tile(t) =>
@@ -319,6 +327,7 @@ and remold_exp = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
     | Tile(t) =>
@@ -353,12 +362,13 @@ module Trim = {
 
   let rev = Aba.rev(List.rev, Fun.id);
 
-  let cons_w = (w: Secondary.t, (wss, gs)) => {
+  let cons_w =
+      (w: Secondary.t, (wss, gs): Aba.t(list(Secondary.t), Grout.t)) => {
     // safe bc Aba always has at least one A element
     let (ws, wss) = ListUtil.split_first(wss);
     Aba.mk([[w, ...ws], ...wss], gs);
   };
-  let cons_g = (g: Grout.t, (wss, gs)) =>
+  let cons_g = (g: Grout.t, (wss, gs)): Aba.t(list(Secondary.t), Grout.t) =>
     Aba.mk([[], ...wss], [g, ...gs]);
 
   let ws = ((wss, _): t): seg => List.(map(Piece.secondary, concat(wss)));
@@ -481,6 +491,7 @@ and regrout_affix =
       (p: Piece.t, id_gen) => {
         let* (trim, r, tl) = id_gen;
         switch (p) {
+        | Livelit(_) => IdGen.return((trim, r, tl)) // TODO Livelit
         | Secondary(w) => IdGen.return((Trim.cons_w(w, trim), r, tl))
         | Grout(g) => IdGen.return((Trim.(merge(cons_g(g, trim))), r, tl))
         | Tile(t) =>
@@ -602,7 +613,9 @@ let rec serialize = (seg: t) =>
   seg
   |> List.concat_map(
        fun
-       | (Piece.Secondary(_) | Grout(_) | Tile({shards: [_], _})) as p => [
+       | (
+           Piece.Secondary(_) | Livelit(_) | Grout(_) | Tile({shards: [_], _})
+         ) as p => [
            p,
          ]
        | Tile(t) => {

@@ -6,6 +6,7 @@ and piece =
   | Tile(tile)
   | Grout(Grout.t)
   | Secondary(Secondary.t)
+  | Livelit(LivelitPiece.t)
 and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)

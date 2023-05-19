@@ -34,6 +34,7 @@ module Deco =
     // TODO(d) fix sorts
     let mold =
       switch (p) {
+      | Livelit(_) // TODO Livelit
       | Secondary(_) => Mold.of_secondary({sort: Any, shape: nib_shape})
       | Grout(g) => Mold.of_grout(g, Any)
       | Tile(t) => t.mold
@@ -41,6 +42,7 @@ module Deco =
     // TODO(d) awkward
     let shards =
       switch (p) {
+      | Livelit(l) => [(0, Measured.find_l(l, M.map))] // TODO Livelit
       | Secondary(w) => [(0, Measured.find_w(w, M.map))]
       | Grout(g) => [(0, Measured.find_g(g, M.map))]
       | Tile(t) =>

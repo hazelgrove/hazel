@@ -25,6 +25,7 @@ let set = (seg: Base.segment): unit =>
              let lr = l @ r;
              lr == [] ? None : Some((t.id, l @ r));
            }
+         | Livelit(_) // TODO Livelit. I think I want a tile id on the livelit I cna add to this map
          | Grout(_)
          | Secondary(_) => None,
        )

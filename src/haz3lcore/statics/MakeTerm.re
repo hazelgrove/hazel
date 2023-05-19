@@ -19,6 +19,7 @@ let tokens =
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    l => [l.livelit.name] // TODO Livelit
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -445,6 +446,7 @@ and rul = (unsorted: unsorted): URul.t => {
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {
+    | Livelit(_) // TODO Livelit
     | Secondary(_)
     | Grout(_) => []
     | Tile({mold, shards, children, _}) =>

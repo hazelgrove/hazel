@@ -15,6 +15,7 @@ and of_piece: Piece.t => string =
   | Grout(_) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  | Livelit(l) => l.livelit.name // TODO Livelit
 and of_tile = (t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(of_delim(t), of_segment)
