@@ -354,15 +354,26 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    switch (Ctx.lookup_var(ctx, name)) {
+    let var = Ctx.lookup_var(ctx, name);
+    switch (var) {
     | None => atomic(Free(Variable))
+    | Some(var) when Form.is_op(name) =>
+      switch (var.typ) {
+      | Arrow(Prod(lst), _) when List.length(lst) == 2 =>
+        add(
+          ~self=Just(var.typ),
+          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+          Id.Map.empty,
+        )
+      | _ => atomic(Free(UserOp))
+      }
     | Some(var) =>
       add(
         ~self=Just(var.typ),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
-    }
+    };
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -477,11 +488,27 @@ and uexp_to_info_map =
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-    add(
-      ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
-      union_m([m_pat, m_def, m_body]),
-    );
+    let TermBase.UPat.{term: trm, _} = pat;
+    switch (trm) {
+    | Var(name) when Form.is_op(name) =>
+      switch (ty_def) {
+      | Arrow(Prod([_a, _b]), _out) =>
+        add(
+          ~self=Just(ty_body),
+          ~free=
+            Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+          union_m([m_pat, m_def, m_body]),
+        )
+      | _ => atomic(Free(UserOp))
+      }
+    | _ =>
+      add(
+        ~self=Just(ty_body),
+        ~free=
+          Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+        union_m([m_pat, m_def, m_body]),
+      )
+    };
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
@@ -682,24 +709,4 @@ let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
     | _ => None
     };
   entry.id;
-};
-
-let check_for_var = (var_name: Var.t, statics_map: map): bool => {
-  let terms_seq = Ptmap.to_seq(statics_map);
-  Seq.exists(
-    ((_, v)) => {
-      switch (v) {
-      | InfoExp({
-          term: {
-            term: Let({term: TypeAnn({term: Var(x), _}, _), _}, _, _),
-            _,
-          },
-          _,
-        }) =>
-        x == var_name
-      | _ => false
-      }
-    },
-    terms_seq,
-  );
 };

@@ -20,6 +20,11 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   switch (err) {
   | Multi =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
+  | Free(UserOp) =>
+    div(
+      ~attr=clss([errorc, "err-free-userop"]),
+      [text("User Defined Operator is Non-binary")],
+    )
   | Free(Variable) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),

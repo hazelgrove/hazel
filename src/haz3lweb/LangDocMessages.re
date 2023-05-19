@@ -81,7 +81,8 @@ let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let sequals = () => Example.mk_monotile(Form.get("string_equals"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
-let userop = () => Example.mk_monotile(Form.get("power")); /* HACK */
+let userop = () =>
+  Example.mk_monotile(Form.mk_infix("user_operator", Exp, Precedence.plus)); /* HACK */
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
