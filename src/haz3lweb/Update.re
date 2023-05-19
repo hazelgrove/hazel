@@ -458,27 +458,83 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | Script(StartRun ()) =>
+      print_endline("RUN: starting");
+      switch (model.script) {
+      | {current_script: Some(_), _}
+      | {to_run: [_, ..._], _} =>
+        print_endline("RUN: Error: run already in progress");
+        Ok(model);
+      | _ =>
+        schedule_action(Script(StartTest())); //TODO: which test?
+        let script: Model.script = {
+          current_script: None,
+          to_run: Scripter.test_scripts,
+          results: VarMap.empty,
+        };
+        Ok({...model, script});
+      };
     | Script(StartTest ()) =>
-      let sketch_str = "let lol: Int = FILL_ME in lol + 2000";
-      let script = Scripter.mk_script(sketch_str);
-      List.iter(schedule_action, script);
-      Ok(model);
+      switch (model.script) {
+      | {current_script: Some(_), _} =>
+        print_endline("SCRIPT: Error: previous test still in progress");
+        Ok(model);
+      | {to_run: [], results, _} =>
+        print_endline("SCRIPT: Error: no tests left to run. Results:");
+        print_endline(Model.show_results(results));
+        Ok(model);
+      | {to_run: [(name, s1), ...to_run], results, _} =>
+        print_endline("SCRIPT: Starting script: " ++ name);
+        List.iter(schedule_action, s1);
+        let script: Model.script = {
+          current_script: Some(name),
+          to_run,
+          results,
+        };
+        //TODO(andrew): remove next line
+        //schedule_action(Script(EndTest()));
+        Ok({...model, script});
+      }
     | Script(EndTest ()) =>
-      schedule_action(Agent(AcceptSuggestion));
-      schedule_action(Script(LogTest()));
-      Ok(model);
+      switch (model.script) {
+      | {current_script: None, _} =>
+        //schedule_action(Agent(AcceptSuggestion));
+        //schedule_action(Script(LogTest()));
+        print_endline("SCRIPT: EndTest: Error: no test in progress");
+        Ok(model);
+      | {current_script: Some(name), to_run: _, results: _, _} =>
+        print_endline("SCRIPT: Ending script: " ++ name);
+        //TODO(andrew): abstract this script into cleanup function
+        schedule_action(Agent(AcceptSuggestion));
+        schedule_action(Script(LogTest()));
+        Ok(model);
+      }
     | Script(LogTest ()) =>
-      let script = model.script;
-      print_endline("LOG TEST. Statics results:");
-      let info_map =
-        ChatLSP.get_info_from_zipper(
-          ~ctx=Ctx.empty, //TODO(andrew): better ctx
-          Editors.get_editor(model.editors).state.zipper,
-        );
-      print_endline(
-        ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
-      );
-      Ok({...model, script});
+      switch (model.script) {
+      | {current_script: Some(name), to_run, results, _} =>
+        let editor = Editors.get_editor(model.editors);
+        print_endline("SCRIPT: LogTest: Logging script: " ++ name);
+        let info_map =
+          ChatLSP.get_info_from_zipper(
+            ~ctx=Ctx.empty, //TODO(andrew): better ctx
+            editor.state.zipper,
+          );
+        let errors =
+          ChatLSP.Errors.collect_static(info_map) |> String.concat("\n");
+        let time = Sys.time() |> string_of_float;
+        //TODO(andrew): actually calculate elapsed time
+        let completed_sketch = Printer.to_string_editor(editor);
+        //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
+        let result: Model.result = {errors, time, completed_sketch};
+        let results = VarMap.extend(results, (name, result));
+        let script: Model.script = {current_script: None, to_run, results};
+        //schedule_action(Script(StartTest()));
+        let model = {...model, script};
+        apply(model, Script(StartTest()), state, ~schedule_action);
+      | {current_script: None, _} =>
+        print_endline("SCRIPT: LogTest: Error: no test in progress");
+        Ok(model);
+      }
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

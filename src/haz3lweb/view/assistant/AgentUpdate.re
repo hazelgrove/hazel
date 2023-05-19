@@ -47,6 +47,8 @@ let reset_buffer = (model: Model.t) => {
   };
 };
 
+//TODO(andrew): add special case for when it just returns the whole sketch instead of completion
+
 let apply =
     (model: Model.t, update: agent_action, ~schedule_action, ~state, ~main)
     : Result.t(Model.t) => {
@@ -95,9 +97,8 @@ let apply =
                 | Some(response) =>
                   schedule_action(Agent(SetBuffer(response)));
                   schedule_action(Script(EndTest()));
-                | None =>
-                  print_endline("Filler: handler failed");
-                  schedule_action(Script(EndTest()));
+                | None => print_endline("Filler: handler failed")
+                //schedule_action(Script(EndTest()));
                 }
               );
             }
@@ -106,9 +107,8 @@ let apply =
             schedule_action(Agent(SetBuffer(response)));
             schedule_action(Script(EndTest()));
           };
-        | None =>
-          print_endline("Filler: handler failed");
-          schedule_action(Script(EndTest()));
+        | None => print_endline("Filler: handler failed")
+        //schedule_action(Script(EndTest()));
         }
       )
     };
