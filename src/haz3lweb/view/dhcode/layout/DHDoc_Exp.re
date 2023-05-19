@@ -231,7 +231,7 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | ModuleVal(_) => DHDoc_common.mk_StringLit("TODO")
+      | ModuleVal(c) => DHDoc_common.mk_StringLit("Module")
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
@@ -323,7 +323,7 @@ let rec mk =
           mk_cast(go(~enforce_inline, ddef));
         vseps([
           hcats([
-            DHDoc_common.Delim.mk("module"),
+            DHDoc_common.Delim.mk("<module>"),
             DHDoc_Pat.mk(dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
