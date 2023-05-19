@@ -65,6 +65,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       | _ => print("DEBUG: No indicated index")
       };
     | "F7" => [Update.Script(StartTest())]
+    | "F8" => [Update.Script(StartRun())]
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

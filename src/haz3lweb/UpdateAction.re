@@ -28,11 +28,11 @@ type agent_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type script_action =
-  //| StartRun(unit)
+  | StartRun(unit)
   | StartTest(unit)
   | LogTest(unit)
   | EndTest(unit);
-//| EndRun(unit);
+
 /*
  To start a run:
  1. reset model to init
