@@ -54,7 +54,9 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | List(_) => grounded_List
   };
 
-let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
+let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
+   print_endline("matches dp: " ++ DHPat.show(dp));
+   print_endline("matches d: " ++ DHExp.show(d));
   switch (dp, d) {
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_), _)
@@ -219,6 +221,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Ap(_, _), _) => DoesNotMatch
   | (As(_, _), _) => DoesNotMatch
   }
+}
 and matches_cast_Inj =
     (
       side: InjSide.t,

@@ -266,7 +266,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm => {
-      print_endline("exp bin: " ++ show_unsorted(tm));
+      // print_endline("exp bin: " ++ show_unsorted(tm));
       switch (is_tuple_exp(tiles)) {
       | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
       | None =>
