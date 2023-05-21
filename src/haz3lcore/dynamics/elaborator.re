@@ -108,6 +108,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       /* Hole-like forms: Don't cast */
       | InvalidText(_)
       | FreeVar(_)
+      | FreeDot(_)
       | ExpandingKeyword(_)
       | EmptyHole(_)
       | NonEmptyHole(_) => Some(d)
@@ -119,6 +120,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       /* Normal cases: wrap */
       | BoundVar(_)
       | Ap(_)
+      | Dot(_)
       | ApBuiltin(_)
       | Prj(_)
       | Tag(_)
@@ -299,6 +301,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                  (0, ddef),
                );
           Module(dp, FixF(self_id, ty, substituted_def), dbody);
+        };
+      | Dot(modul, name) =>
+        let* dmodul = dhexp_of_uexp(m, modul);
+        switch (err_status) {
+        | InHole(Free(Variable)) =>
+          Some(DHExp.FreeDot(id, 0, dmodul, name))
+        | _ => Some(DHExp.Dot(dmodul, name))
         };
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);

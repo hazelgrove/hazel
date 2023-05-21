@@ -50,6 +50,7 @@ module rec DHExp: {
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
+    | FreeDot(MetaVar.t, HoleInstanceId.t, t, Token.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | Closure(ClosureEnvironment.t, t)
@@ -57,6 +58,7 @@ module rec DHExp: {
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
     | Module(DHPat.t, t, t)
+    | Dot(t, Token.t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -147,6 +149,7 @@ module rec DHExp: {
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
+    | FreeDot(MetaVar.t, HoleInstanceId.t, t, Token.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
@@ -156,6 +159,7 @@ module rec DHExp: {
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
     | Module(DHPat.t, t, t)
+    | Dot(t, Token.t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -191,11 +195,13 @@ module rec DHExp: {
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
     | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
     | FreeVar(_, _, _) => "FreeVar"
+    | FreeDot(_, _, _, _) => "FreeDotMember"
     | InvalidText(_) => "InvalidText"
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
     | Let(_, _, _) => "Let"
     | Module(_, _, _) => "Module"
+    | Dot(_, _) => "DotMember"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
@@ -255,6 +261,7 @@ module rec DHExp: {
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | Module(dp, b, c) => Module(dp, strip_casts(b), strip_casts(c))
+    | Dot(d, dp) => Dot(strip_casts(d), dp)
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
@@ -277,6 +284,7 @@ module rec DHExp: {
     | EmptyHole(_) as d
     | ExpandingKeyword(_) as d
     | FreeVar(_) as d
+    | FreeDot(_) as d
     | InvalidText(_) as d
     | BoundVar(_) as d
     | TestLit(_) as d
@@ -309,6 +317,7 @@ module rec DHExp: {
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Module(dp1, d11, d21), Module(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Dot(d11, dp1), Dot(d12, dp2)) => dp1 == dp2 && fast_equal(d11, d12)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
@@ -347,6 +356,7 @@ module rec DHExp: {
     | (Sequence(_), _)
     | (Let(_), _)
     | (Module(_), _)
+    | (Dot(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
     | (Ap(_), _)
@@ -377,6 +387,8 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && kw1 == kw2
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
+    | (FreeDot(u1, i1, e1, x1), FreeDot(u2, i2, e2, x2)) =>
+      u1 == u2 && i1 == i2 && e1 == e2 && x1 == x2
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
       u1 == u2 && i1 == i2 && text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
@@ -390,6 +402,7 @@ module rec DHExp: {
     | (NonEmptyHole(_), _)
     | (ExpandingKeyword(_), _)
     | (FreeVar(_), _)
+    | (FreeDot(_), _)
     | (InvalidText(_), _)
     | (Closure(_), _)
     | (InconsistentBranches(_), _) => false

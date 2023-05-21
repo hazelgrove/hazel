@@ -82,6 +82,7 @@ let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_bool = str => str == "true" || str == "false";
 let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
+let is_dot_var = str => regexp("^\\.[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
 let is_concrete_typ = str =>
@@ -116,12 +117,6 @@ let tuple_end = ")";
 let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
-/* Modules */
-let module_start = "{";
-let module_end = "}";
-let module_lbl = [module_start, module_end];
-let empty_module = module_start ++ module_end;
-let is_empty_module = (==)(empty_module);
 
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
@@ -131,7 +126,6 @@ let duosplits = (t: Token.t): Label.t =>
   switch () {
   | _ when is_empty_list(t) => listlit_lbl
   | _ when is_empty_tuple(t) => tuple_lbl
-  | _ when is_empty_module(t) => module_lbl
   | _ => []
   };
 
@@ -139,7 +133,6 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
   switch () {
   | _ when lbl == listlit_lbl => Some([empty_list])
   | _ when lbl == tuple_lbl => Some([empty_tuple])
-  | _ when lbl == module_lbl => Some([empty_module])
   | _ => None
   };
 
@@ -168,6 +161,7 @@ let is_secondary = t =>
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
+  ("dot_var", (is_dot_var, [mk_post(P.ap, Exp, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -176,10 +170,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   (
     "empty_tuple",
     (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
-  ),
-  (
-    "empty_module",
-    (is_empty_module, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
   ),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -273,7 +263,7 @@ let forms: list((string, t)) = [
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),
-  ("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
+  //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
 let get: String.t => t = name => List.assoc(name, forms);

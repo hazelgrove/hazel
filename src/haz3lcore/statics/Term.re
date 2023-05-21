@@ -352,6 +352,7 @@ module UExp = {
     | Var(_) => Var
     | Let(_) => Let
     | Module(_) => Module
+    | Dot(_) => Dot
     | Ap(_) => Ap
     | If(_) => If
     | Seq(_) => Seq
@@ -429,6 +430,7 @@ module UExp = {
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | Module => "Module Expression"
+    | Dot => "Dot Access"
     | Ap => "Function/Contructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
@@ -456,6 +458,7 @@ module UExp = {
     | Var(_)
     | Let(_)
     | Module(_)
+    | Dot(_)
     | Ap(_)
     | If(_)
     | Seq(_)
@@ -487,6 +490,7 @@ module UExp = {
       | Var(_)
       | Let(_)
       | Module(_)
+      | Dot(_)
       | Ap(_)
       | If(_)
       | Seq(_)

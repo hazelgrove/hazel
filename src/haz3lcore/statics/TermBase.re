@@ -101,6 +101,7 @@ and UExp: {
     | Var
     | Let
     | Module
+    | Dot
     | Ap
     | If
     | Seq
@@ -128,6 +129,7 @@ and UExp: {
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | Module(UPat.t, t, t)
+    | Dot(t, Token.t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
@@ -211,6 +213,7 @@ and UExp: {
     | Var
     | Let
     | Module
+    | Dot
     | Ap
     | If
     | Seq
@@ -238,6 +241,7 @@ and UExp: {
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | Module(UPat.t, t, t)
+    | Dot(t, Token.t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)

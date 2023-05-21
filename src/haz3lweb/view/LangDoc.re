@@ -1857,6 +1857,7 @@ let get_doc =
         };
       // TODO
       | Module(_) => default
+      | Dot(_) => default
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);

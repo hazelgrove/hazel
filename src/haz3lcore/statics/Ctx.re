@@ -106,3 +106,16 @@ let filter_duplicates = (ctx: t): t =>
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
+
+let get_vars = (ctx: t): list((string, Typ.t)) => {
+  List.fold_left(
+    (l: list((string, Typ.t)), e: entry) => {
+      switch (e) {
+      | VarEntry(ve) => [(ve.name, ve.typ)] @ l
+      | _ => l
+      }
+    },
+    [],
+    filter_duplicates(ctx),
+  );
+};

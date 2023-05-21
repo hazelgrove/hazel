@@ -73,6 +73,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinStringOp(op, _, _) => precedence_bin_string_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
+  | Dot(_) => DHDoc_common.precedence_Ap
+  | FreeDot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Tuple(_) => DHDoc_common.precedence_Comma
 
@@ -222,6 +224,7 @@ let rec mk =
       | NonEmptyHole(_)
       | ExpandingKeyword(_)
       | FreeVar(_)
+      | FreeDot(_)
       | InvalidText(_)
       | InconsistentBranches(_) =>
         DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure")
@@ -253,6 +256,9 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | Dot(d, name) =>
+        let doc1 = go(~enforce_inline, d);
+        Doc.(hcats([mk_cast(doc1), text("."), text(name)]));
       | ApBuiltin(ident, args) =>
         switch (args) {
         | [hd, ...tl] =>

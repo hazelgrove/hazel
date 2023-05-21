@@ -23,7 +23,7 @@ type t =
   | Arrow(t, t)
   | Sum(t, t) // unused
   | Prod(list(t))
-  | Module;
+  | Module(list((string, t)));
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
@@ -129,8 +129,25 @@ let rec join = (ty1: t, ty2: t): option(t) =>
   | (List(_), _) => None
   | (Var(n1), Var(n2)) when n1 == n2 => Some(ty1)
   | (Var(_), _) => None
-  | (Module, Module) => Some(Module)
-  | (Module, _) => None
+  | (Module(ctx1), Module(ctx2)) =>
+    if (List.length(ctx1) != List.length(ctx2)) {
+      None;
+    } else {
+      let ctx_join = ((n1, t1): (string, t), (n2, t2): (string, t)) =>
+        if (n1 == n2) {
+          switch (join(t1, t2)) {
+          | Some(t) => Some((n1, t))
+          | None => None
+          };
+        } else {
+          None;
+        };
+      switch (List.map2(ctx_join, ctx1, ctx2) |> Util.OptUtil.sequence) {
+      | None => None
+      | Some(ctx) => Some(Module(ctx))
+      };
+    }
+  | (Module(_), _) => None
   };
 
 let join_all: list(t) => option(t) =
@@ -213,7 +230,7 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Prod([])
-  | Module
+  | Module(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -247,6 +264,12 @@ let rec eq = (t1, t2) =>
   | (List(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
-  | (Module, Module) => true
-  | (Module, _) => false
+  | (Module(ctx1), Module(ctx2)) =>
+    let ctx_eq = ((n1, t1): (string, t), (n2, t2): (string, t)) =>
+      n1 == n2 && eq(t1, t2);
+    List.length(ctx1) == List.length(ctx2)
+    && List.for_all(ctx => List.exists(ctx_eq(ctx), ctx1), ctx2)
+    && List.for_all(ctx => List.exists(ctx_eq(ctx), ctx2), ctx1);
+  // O(n^2)? Probably not a good idea to use list.
+  | (Module(_), _) => false
   };

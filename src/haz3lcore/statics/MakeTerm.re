@@ -261,6 +261,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | ([t], []) when Form.is_dot_var(t) =>
+          Dot(l, String.sub(t, 1, String.length(t) - 1))
         | _ => hole(tm)
         },
       )
