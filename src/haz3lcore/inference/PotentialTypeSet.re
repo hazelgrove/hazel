@@ -477,6 +477,44 @@ let string_of_btyp = (btyp: base_typ): string => {
   btyp |> base_typ_to_ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
 };
 
+let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
+  switch (pts) {
+  // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
+  | [] => [ITyp.Unknown(Internal(id))]
+  | [hd] => [potential_typ_to_ityp(id, hd)]
+  | _ => List.map(potential_typ_to_ityp(id), pts)
+  };
+}
+and potential_typ_set_to_ityp_no_unroll = (id: Id.t, pts: t): ITyp.t => {
+  switch (pts) {
+  // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
+  | [] => ITyp.Unknown(Anonymous)
+  | [hd] => potential_typ_to_ityp(id, hd)
+  | _ => ITyp.Unknown(Anonymous)
+  };
+}
+and potential_typ_to_ityp = (id: Id.t, ptyp: potential_typ): ITyp.t => {
+  switch (ptyp) {
+  | Base(btyp) => base_typ_to_ityp(btyp)
+  | Unary(CList, t) => ITyp.List(potential_typ_set_to_ityp_no_unroll(id, t))
+  | Binary(CArrow, t1, t2) =>
+    ITyp.Arrow(
+      potential_typ_set_to_ityp_no_unroll(id, t1),
+      potential_typ_set_to_ityp_no_unroll(id, t2),
+    )
+  | Binary(CProd, t1, t2) =>
+    ITyp.Prod(
+      potential_typ_set_to_ityp_no_unroll(id, t1),
+      potential_typ_set_to_ityp_no_unroll(id, t2),
+    )
+  | Binary(CSum, t1, t2) =>
+    ITyp.Sum(
+      potential_typ_set_to_ityp_no_unroll(id, t1),
+      potential_typ_set_to_ityp_no_unroll(id, t2),
+    )
+  };
+};
+
 let rec string_of_potential_typ_set_no_nesting =
         (outermost, potential_typ_set: t): string =>
   switch (potential_typ_set) {

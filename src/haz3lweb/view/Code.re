@@ -31,18 +31,25 @@ let of_delim =
   of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
 
 let of_grout =
-    (~global_inference_info: InferenceResult.global_inference_info, id: Id.t) => {
-  let suggestion: InferenceResult.suggestion =
-    InferenceResult.get_suggestion_for_id(id, global_inference_info);
+    (
+      ~font_metrics,
+      ~global_inference_info: InferenceResult.global_inference_info,
+      id: Id.t,
+    ) => {
+  let suggestion: InferenceResult.suggestion(Node.t) =
+    InferenceView.get_suggestion_ui_for_id(
+      ~font_metrics,
+      id,
+      global_inference_info,
+      false,
+    );
   switch (suggestion) {
   | NoSuggestion(SuggestionsDisabled)
   | NoSuggestion(NonTypeHoleId)
   | NoSuggestion(OnlyHoleSolutions) => [Node.text(Unicode.nbsp)]
-  | Solvable(suggestion_string) => [
-      [Node.text(suggestion_string)] |> span_c("solved-annotation"),
-    ]
-  | NestedInconsistency(suggestion_string) => [
-      [Node.text(suggestion_string)] |> span_c("unsolved-annotation"),
+  | Solvable(suggestion_node)
+  | NestedInconsistency(suggestion_node) => [
+      [suggestion_node] |> span_c("solved-annotation"),
     ]
   | NoSuggestion(InconsistentSet) => [
       [Node.text("!")] |> span_c("unsolved-annotation"),
@@ -83,6 +90,7 @@ module Text =
           (
             ~no_sorts=false,
             ~sort=Sort.root,
+            ~font_metrics,
             ~global_inference_info=M.global_inference_info,
             seg: Segment.t,
           )
@@ -100,21 +108,32 @@ module Text =
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~global_inference_info, sort_of_p_idx(i), p)
+         of_piece(~font_metrics, ~global_inference_info, sort_of_p_idx(i), p)
        );
   }
   and of_piece =
-      (~global_inference_info, expected_sort: Sort.t, p: Piece.t)
+      (
+        ~font_metrics,
+        ~global_inference_info,
+        expected_sort: Sort.t,
+        p: Piece.t,
+      )
       : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(~global_inference_info, expected_sort, t)
-    | Grout(g) => of_grout(~global_inference_info, g.id)
+    | Tile(t) =>
+      of_tile(~font_metrics, ~global_inference_info, expected_sort, t)
+    | Grout(g) => of_grout(~font_metrics, ~global_inference_info, g.id)
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
   and of_tile =
-      (~global_inference_info, expected_sort: Sort.t, t: Tile.t)
+      (
+        ~font_metrics,
+        ~global_inference_info,
+        expected_sort: Sort.t,
+        t: Tile.t,
+      )
       : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
@@ -126,7 +145,7 @@ module Text =
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, ~global_inference_info, seg)
+         of_segment(~sort, ~font_metrics, ~global_inference_info, seg)
        )
     |> List.concat;
   };
@@ -134,8 +153,8 @@ module Text =
 
 let rec holes =
         (
-          ~global_inference_info,
           ~font_metrics,
+          ~global_inference_info,
           ~map: Measured.t,
           seg: Segment.t,
         )
@@ -151,10 +170,7 @@ let rec holes =
          )
        | Grout(g) => {
            let (show_dec, is_unsolved) =
-             InferenceResult.svg_display_settings(
-               ~global_inference_info,
-               g.id,
-             );
+             InferenceView.svg_display_settings(~global_inference_info, g.id);
            show_dec
              ? [
                EmptyHoleDec.view(
@@ -171,7 +187,13 @@ let rec holes =
      );
 
 let simple_view =
-    (~unselected, ~map, ~global_inference_info, ~settings: ModelSettings.t)
+    (
+      ~unselected,
+      ~map,
+      ~font_metrics,
+      ~global_inference_info,
+      ~settings: ModelSettings.t,
+    )
     : Node.t => {
   module Text =
     Text({
@@ -184,7 +206,7 @@ let simple_view =
     [
       span_c(
         "code-text",
-        Text.of_segment(~global_inference_info, unselected),
+        Text.of_segment(~font_metrics, ~global_inference_info, unselected),
       ),
     ],
   );
@@ -192,7 +214,7 @@ let simple_view =
 
 let view =
     (
-      ~font_metrics,
+      ~font_metrics: FontMetrics.t,
       ~segment,
       ~unselected,
       ~measured,
@@ -208,11 +230,11 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~global_inference_info, unselected)
+      Text.of_segment(~font_metrics, ~global_inference_info, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~global_inference_info, ~map=measured, ~font_metrics, segment)
+      holes(~font_metrics, ~global_inference_info, ~map=measured, segment)
     );
   div(
     ~attr=Attr.class_("code"),

@@ -4,6 +4,7 @@ open Haz3lcore;
 
 let backpack_sel_view =
     (
+      ~font_metrics,
       ~global_inference_info: InferenceResult.global_inference_info,
       x_off: float,
       y_off: float,
@@ -34,7 +35,12 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(~no_sorts=true, ~global_inference_info, content)
+    Text.of_segment(
+      ~no_sorts=true,
+      ~font_metrics,
+      ~global_inference_info,
+      content,
+    )
     @ [text(Unicode.zwsp)],
   );
 };
@@ -101,6 +107,7 @@ let view =
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
         let v =
           backpack_sel_view(
+            ~font_metrics,
             ~global_inference_info,
             x_offset,
             new_y_offset,

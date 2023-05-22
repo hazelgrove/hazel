@@ -75,7 +75,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       let suggestion_opt = {
         open Util.OptUtil.Syntax;
         let+ (p, _) = Zipper.representative_piece(zipper);
-        InferenceResult.get_suggestion_for_id(
+        InferenceResult.get_suggestion_text_for_id(
           Piece.id(p),
           global_inference_info,
         );

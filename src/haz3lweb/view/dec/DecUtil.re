@@ -78,8 +78,6 @@ let code_svg_sized =
     ) => {
   let (left, top) = (origin.col, origin.row);
   let (width, height) = (last.col - origin.col, last.row - origin.row + 1);
-  print_endline(string_of_int(width));
-  print_endline(string_of_int(height));
   let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
   create_svg(
     "svg",
@@ -102,6 +100,7 @@ let code_svg_sized_relative =
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
+  // let (left, top) = (origin.col, origin.row);
   let (width, height) = (1, 1);
   let style = pos_str_relative(~width, ~height, ~fudge, font_metrics);
   create_svg(

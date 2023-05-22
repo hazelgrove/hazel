@@ -276,6 +276,7 @@ let deco =
                     let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(
+                        ~font_metrics,
                         ~global_inference_info,
                         ~unselected=segment,
                         ~map,
@@ -387,7 +388,13 @@ let syntactic_form_view =
     ) => {
   let map = Measured.of_segment(unselected);
   let code_view =
-    Code.simple_view(~global_inference_info, ~unselected, ~map, ~settings);
+    Code.simple_view(
+      ~font_metrics,
+      ~global_inference_info,
+      ~unselected,
+      ~map,
+      ~settings,
+    );
   let deco_view =
     deco(
       ~doc,
@@ -427,6 +434,7 @@ let example_view =
             let map_code = Measured.of_segment(term);
             let code_view =
               Code.simple_view(
+                ~font_metrics,
                 ~global_inference_info,
                 ~unselected=term,
                 ~map=map_code,

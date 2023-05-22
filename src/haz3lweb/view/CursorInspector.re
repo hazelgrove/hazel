@@ -153,119 +153,24 @@ module State = {
   let set_last_inspector = v => curr_state.last_inspector := v;
 };
 
-// let view_of_global_inference_info =
-//     (
-//       ~inject,
-//       ~font_metrics,
-//       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
-//       id: int,
-//     ) => {
-//   let text_with_holes = (text_string: string): list(t) => {
-//     let is_hole_delimeter = char => char == "!" || char == "?";
-//     let acc_node_chunks =
-//         (acc: list((bool, string)), next_letter: string)
-//         : list((bool, string)) => {
-//       switch (acc) {
-//       | [] => [(is_hole_delimeter(next_letter), next_letter)]
-//       | [(false, str), ...tl] => [(false, str ++ next_letter), ...tl]
-//       | [hd, ...tl] => [
-//           (is_hole_delimeter(next_letter), next_letter),
-//           hd,
-//           ...tl,
-//         ]
-//       };
-//     };
-//     let chunks_to_node_list =
-//         (acc: list(t), next_chunk: (bool, string)): list(t) => {
-//       let (is_hole_chunk, chunk_text) = next_chunk;
-//       if (is_hole_chunk) {
-//         if (chunk_text == "?") {
-//           [EmptyHoleDec.view(~font_metrics, false), ...acc];
-//         } else {
-//           [EmptyHoleDec.view(~font_metrics, true), ...acc];
-//         };
-//       } else {
-//         [text(chunk_text), ...acc];
-//       };
-//     };
-//     text_string
-//     |> StringUtil.to_list
-//     |> List.fold_left(acc_node_chunks, [])
-//     |> List.fold_left(chunks_to_node_list, [])
-//     |> List.rev;
-//   };
-//   switch (
-//     Haz3lcore.InferenceResult.get_cursor_inspect_result(
-//       ~global_inference_info,
-//       id,
-//     )
-//   ) {
-//   | Some((true, solution)) =>
-//     div(
-//       ~attr=clss([infoc, "typ"]),
-//       [
-//         text("has inferred type "),
-//         ...text_with_holes(List.nth(solution, 0)),
-//       ],
-//     )
-//   | Some((false, [typ_with_nested_conflict])) =>
-//     print_endline("in the single case");
-//     div(
-//       ~attr=clss([infoc, "typ-view-conflict"]),
-//       text_with_holes(typ_with_nested_conflict),
-//     );
-//   | Some((false, conflicting_typs)) =>
-//     List.iter(print_endline, conflicting_typs);
-//     div(
-//       ~attr=clss([infoc, "typ"]),
-//       List.map(
-//         typ =>
-//           div(
-//             ~attr=clss(["typ-view-conflict"]),
-//             [
-//               Widgets.hoverable_button(
-//                 text_with_holes(typ),
-//                 _mouse_event => {
-//                   State.set_considering_suggestion(false);
-//                   inject(Update.Mouseup);
-//                 },
-//                 _mouse_event => {
-//                   State.set_considering_suggestion(true);
-//                   inject(Update.Paste(typ));
-//                 },
-//                 _mouse_event =>
-//                   if (State.get_considering_suggestion()) {
-//                     State.set_considering_suggestion(false);
-//                     inject(Update.Undo);
-//                   } else {
-//                     inject(Update.Mouseup);
-//                   },
-//               ),
-//             ],
-//           ),
-//         conflicting_typs,
-//       ),
-//     );
-//   | None => div([])
-//   };
-// };
-
 let view_of_global_inference_info =
     (
       ~inject,
+      ~font_metrics: FontMetrics.t,
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
       id: int,
     ) => {
-  switch (
-    Haz3lcore.InferenceResult.get_cursor_inspect_result(
-      ~global_inference_info,
-      id,
-    )
-  ) {
+  let font_metrics = Some(font_metrics);
+  switch (InferenceView.get_cursor_inspect_result(~global_inference_info, id)) {
   | Some((true, solution)) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [text("has inferred type "), text(List.nth(solution, 0))],
+      [Type.view(~font_metrics, List.nth(solution, 0))],
+    )
+  | Some((false, [typ_with_nested_conflict])) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [Type.view(~font_metrics, typ_with_nested_conflict)],
     )
   | Some((false, conflicting_typs)) =>
     div(
@@ -276,14 +181,14 @@ let view_of_global_inference_info =
             ~attr=clss(["typ-view-conflict"]),
             [
               Widgets.hoverable_button(
-                [text(typ)],
+                [Type.view(~font_metrics, typ)],
                 _mouse_event => {
                   State.set_considering_suggestion(false);
                   inject(Update.Mouseup);
                 },
                 _mouse_event => {
                   State.set_considering_suggestion(true);
-                  inject(Update.Paste(typ));
+                  inject(Update.Paste(Haz3lcore.Typ.typ_to_string(typ)));
                 },
                 _mouse_event =>
                   if (State.get_considering_suggestion()) {
@@ -305,7 +210,7 @@ let view_of_global_inference_info =
 let view_of_info =
     (
       ~inject,
-      // ~font_metrics,
+      ~font_metrics,
       ~show_lang_doc: bool,
       ~global_inference_info,
       id: int,
@@ -347,7 +252,7 @@ let view_of_info =
     )
   | InfoTyp({self: Just(ty), _}) =>
     switch (
-      Haz3lcore.InferenceResult.get_suggestion_for_id(
+      Haz3lcore.InferenceResult.get_suggestion_text_for_id(
         id,
         global_inference_info,
       )
@@ -370,7 +275,7 @@ let view_of_info =
           term_tag(~inject, ~show_lang_doc, is_err, "typ"),
           view_of_global_inference_info(
             ~inject,
-            // ~font_metrics,
+            ~font_metrics,
             ~global_inference_info,
             id,
           ),
@@ -415,7 +320,7 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
 let inspector_view =
     (
       ~inject,
-      // ~font_metrics,
+      ~font_metrics,
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
       ~settings: ModelSettings.t,
       ~show_lang_doc: bool,
@@ -436,7 +341,7 @@ let inspector_view =
       extra_view(settings.context_inspector, id, ci),
       view_of_info(
         ~inject,
-        // ~font_metrics,
+        ~font_metrics,
         ~show_lang_doc,
         ~global_inference_info,
         id,
@@ -450,7 +355,7 @@ let view =
     (
       ~inject,
       ~settings,
-      // ~font_metrics,
+      ~font_metrics,
       ~show_lang_doc: bool,
       zipper: Haz3lcore.Zipper.t,
       info_map: Haz3lcore.Statics.map,
@@ -471,7 +376,7 @@ let view =
         | Some(ci) =>
           inspector_view(
             ~inject,
-            // ~font_metrics,
+            ~font_metrics,
             ~global_inference_info,
             ~settings,
             ~show_lang_doc,

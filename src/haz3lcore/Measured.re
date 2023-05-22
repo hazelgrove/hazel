@@ -380,14 +380,19 @@ let of_segment =
           | Grout(g) =>
             let annotation_offset =
               switch (
-                InferenceResult.get_suggestion_for_id(
+                InferenceResult.get_suggestion_text_for_id(
                   g.id,
                   global_inference_info,
                 )
               ) {
               | Solvable(suggestion_string)
               | NestedInconsistency(suggestion_string) =>
-                String.length(suggestion_string)
+                print_endline("Suggestions: ");
+                print_endline(suggestion_string);
+                print_endline(
+                  suggestion_string |> String.length |> string_of_int,
+                );
+                String.length(suggestion_string);
               | NoSuggestion(_) => 1
               };
 
