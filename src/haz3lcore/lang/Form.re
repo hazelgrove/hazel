@@ -240,7 +240,7 @@ let forms: list((string, t)) = [
   (
     "rule",
     mk(
-      ii,
+      di,
       ["|", "=>"],
       {
         out: Rul,

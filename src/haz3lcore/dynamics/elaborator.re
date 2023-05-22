@@ -213,7 +213,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           };
         switch (err_status) {
         | InHole(Free(Variable)) => Some(FreeVar(id, 0, var_name))
-        | NotInHole(SynConsistent(Var(x))) => Some(FreeVar(id, 0, x))
+        | NotInHole(SynConsistent(Var(_))) =>
+          Some(
+            DHExp.NonEmptyHole(
+              TypeInconsistent,
+              id,
+              0,
+              FreeVar(id, 0, var_name),
+            ),
+          )
         | _ =>
           let* user_op = dhexp_of_uexp(m, op);
           let* dc1 = dhexp_of_uexp(m, e1);

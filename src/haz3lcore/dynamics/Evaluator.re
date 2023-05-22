@@ -957,6 +957,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
 
     | NonEmptyHole(reason, u, i, d1) =>
+      print_endline("This is causing the crash: " ++ DHExp.show(d));
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(d1')

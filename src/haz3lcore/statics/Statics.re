@@ -391,6 +391,7 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | UserOp({term: Var(op), _}, e1, e2) =>
+    print_endline("What does ctx contain? " ++ Ctx.show(ctx));
     let op_var = Ctx.lookup_var(ctx, op);
     let ty_all =
       switch (op_var) {
@@ -410,7 +411,7 @@ and uexp_to_info_map =
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );
-    | None => atomic(Just(Var(op)))
+    | None => atomic(Free(Variable))
     };
   | UserOp(_) => failwith("Term is not Var")
   | Tuple(es) =>
