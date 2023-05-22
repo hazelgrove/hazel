@@ -70,6 +70,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
+    | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
+    | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
       let suggestion_opt = {
