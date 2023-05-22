@@ -82,6 +82,22 @@ let cast_sum_maps =
   };
 };
 
+
+/*
+This function describes how a DHPattern matches a DHExpression. 
+
+If they matches, it returns Matches(Environment.t),
+where a new environment is generated to be extended 
+to the closure environment. 
+
+If one of the pattern and the expression is hole-like
+(in such a case that the matching can't be determined), 
+it returns IndetMatch.
+
+If both have determined types which does not match, 
+returns DoesNotMatch.
+*/
+
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
   | (_, Cast(d, Rec(_, _) as r, ty)) when !Typ.is_rec(ty) =>
