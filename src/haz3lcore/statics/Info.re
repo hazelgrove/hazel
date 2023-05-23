@@ -225,12 +225,19 @@ let source_tys = List.map((source: source) => source.ty);
 let rec status_common =
         (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
   switch (self, mode) {
-  | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Syn | SynFun | Ana(_)) =>
+  | (BadToken(name), Syn | SynFun | SynTypFun | Ana(_)) =>
+    InHole(BadToken(name))
+  | (IsMulti, Syn | SynFun | SynTypFun | Ana(_)) =>
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
   | (Just(ty), SynFun) =>
     switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    | Some(_) => NotInHole(SynConsistent(ty))
+    | None => InHole(InconsistentWithArrow(ty))
+    }
+  | (Just(ty), SynTypFun) =>
+    /* Use ty first to preserve name if it exists. */
+    switch (Typ.join(ctx, ty, Forall({item: Unknown(Internal), name: "_"}))) {
     | Some(_) => NotInHole(SynConsistent(ty))
     | None => InHole(InconsistentWithArrow(ty))
     }
@@ -249,7 +256,7 @@ let rec status_common =
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
     }
-  | (NoJoin(tys), Syn | SynFun) =>
+  | (NoJoin(tys), Syn | SynFun | SynTypFun) =>
     InHole(SynInconsistentBranches(source_tys(tys)))
   | (NoJoin(tys), Ana(ana)) =>
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))

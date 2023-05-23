@@ -42,6 +42,7 @@ let matched_rec: t => ann(t) =
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | SynFun
+  | SynTypFun
   | Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
@@ -59,6 +60,7 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
 let matched_forall_mode: mode => mode =
   fun
   | SynFun
+  | SynTypFun
   | Syn => Syn
   | Ana(ty) => {
       let ann = matched_forall(ty);
@@ -68,6 +70,7 @@ let matched_forall_mode: mode => mode =
 let matched_rec_mode: mode => mode =
   fun
   | SynFun
+  | SynTypFun
   | Syn => Syn
   | Ana(ty) => {
       let ann = matched_rec(ty);
@@ -83,10 +86,12 @@ let matched_list: t => t =
 let matched_list_mode: mode => mode =
   fun
   | SynFun
+  | SynTypFun
   | Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
 let ap_mode: mode = SynFun;
+let typap_mode: mode = SynTypFun;
 
 /* Legacy precedence code from HTyp */
 let precedence_Prod = 1;

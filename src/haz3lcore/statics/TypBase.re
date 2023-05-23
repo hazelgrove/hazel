@@ -45,6 +45,7 @@ type sum_entry = (Token.t, option(t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | SynFun
+  | SynTypFun
   | Syn
   | Ana(t);
 
