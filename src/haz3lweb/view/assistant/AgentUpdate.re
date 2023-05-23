@@ -27,7 +27,11 @@ let schedule_prompt = (zipper: Zipper.t, ~schedule_action): unit =>
   | (Outer, _, [Tile({label: [s], _}), ..._])
       when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
     schedule_action(PerformAction(Select(Term(Current))));
-    schedule_action(Agent(Prompt(Filler)));
+    schedule_action(
+      Agent(
+        Prompt(Filler(Some({llm: GPT4, prompt_builder: Filler.prompt}))),
+      ),
+    );
   | _ => ()
   };
 
@@ -75,15 +79,19 @@ let apply =
       )
     };
     Ok(model);
-  | Prompt(Filler) =>
-    switch (Filler.prompt(model)) {
+  | Prompt(Filler(None)) =>
+    print_endline("deprecated");
+    Ok(model);
+  | Prompt(Filler(Some({llm, prompt_builder}))) =>
+    let editor = model.editors |> Editors.get_editor;
+    switch (prompt_builder(editor)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.start_chat(prompt, req =>
+      OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
           print_endline("Filler: calling react_error");
-          switch (ChatLSP.Type.ctx(model), ChatLSP.Type.mode(model)) {
+          switch (ChatLSP.Type.ctx(editor), ChatLSP.Type.mode(editor)) {
           | (Some(init_ctx), Some(mode)) =>
             switch (Filler.error_reply(response, 0, ~init_ctx, ~mode)) {
             | None =>

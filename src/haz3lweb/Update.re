@@ -491,15 +491,14 @@ let rec apply =
           to_run,
           results,
         };
-        //TODO(andrew): remove next line
-        //schedule_action(Script(EndTest()));
+        schedule_action(
+          Script(UpdateResult(name, UpdateAction.initialize_results)),
+        );
         Ok({...model, script});
       }
     | Script(EndTest ()) =>
       switch (model.script) {
       | {current_script: None, _} =>
-        //schedule_action(Agent(AcceptSuggestion));
-        //schedule_action(Script(LogTest()));
         print_endline("SCRIPT: EndTest: Error: no test in progress");
         Ok(model);
       | {current_script: Some(name), to_run: _, results: _, _} =>
@@ -509,6 +508,31 @@ let rec apply =
         schedule_action(Script(LogTest()));
         Ok(model);
       }
+    | Script(UpdateResult(name, updater)) =>
+      let results =
+        switch (VarMap.lookup(model.script.results, name)) {
+        | None =>
+          print_endline(
+            "Script: UpdateResult: Creating new result entry for: " ++ name,
+          );
+          VarMap.extend(
+            model.script.results,
+            (name, updater(UpdateAction.empty_script_result)),
+          );
+        | Some(_) =>
+          print_endline(
+            "Script: UpdateResult: Updating existing result entry for: "
+            ++ name,
+          );
+          VarMap.update(model.script.results, name, updater);
+        };
+      Ok({
+        ...model,
+        script: {
+          ...model.script,
+          results,
+        },
+      });
     | Script(LogTest ()) =>
       switch (model.script) {
       | {current_script: Some(name), to_run, results, _} =>
@@ -519,18 +543,26 @@ let rec apply =
             ~ctx=Ctx.empty, //TODO(andrew): better ctx
             editor.state.zipper,
           );
-        let errors =
-          ChatLSP.Errors.collect_static(info_map) |> String.concat("\n");
-        let time = Sys.time() |> string_of_float;
-        //TODO(andrew): actually calculate elapsed time
+        let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
+        let static_errors = Statics.collect_errors(info_map);
         let completed_sketch = Printer.to_string_editor(editor);
         //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
-        let result: Model.result = {errors, time, completed_sketch};
-        let results = VarMap.extend(results, (name, result));
         let script: Model.script = {current_script: None, to_run, results};
-        //schedule_action(Script(StartTest()));
         let model = {...model, script};
-        apply(model, Script(StartTest()), state, ~schedule_action);
+        schedule_action(
+          Script(
+            UpdateResult(
+              name,
+              UpdateAction.finalize_results(
+                syntax_errors,
+                static_errors,
+                completed_sketch,
+              ),
+            ),
+          ),
+        );
+        schedule_action(Script(StartTest()));
+        Ok(model);
       | {current_script: None, _} =>
         print_endline("SCRIPT: LogTest: Error: no test in progress");
         Ok(model);
