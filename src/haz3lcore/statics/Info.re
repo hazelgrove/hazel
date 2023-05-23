@@ -259,7 +259,18 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
-  | (Just(syn), Syn) => NotInHole(Syn(syn))
+  | (Just(ty), Syn) => NotInHole(Syn(ty))
+  | (Just(ty), SynFun) =>
+    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(InconsistentWithArrow(ty))
+    }
+  | (Just(ty), SynTypFun) =>
+    /* Use ty first to preserve name if it exists. */
+    switch (Typ.join(ctx, ty, Forall({item: Unknown(Internal), name: "_"}))) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(InconsistentWithArrow(ty))
+    }
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({syn, ana})))
@@ -293,7 +304,7 @@ let rec status_common =
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun) =>
+  | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 

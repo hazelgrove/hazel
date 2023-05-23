@@ -237,7 +237,12 @@ and uexp_to_info_map =
       m,
     );
   | TypAp(fn, utyp) =>
-    let (fn, m_fn) = go(~mode=Syn, fn);
+    /* Might need something similar to Ap's case where we check analysis mode when tagged? */
+    let typfn_mode = /* switch(fn) {
+                          | {term: Tag(name), _} => Typ.tag_typap_mode(ctx, mode, name)
+                          | _ => Typ.typap_mode
+                        }; */ Typ.typap_mode;
+    let (fn, m_fn) = go(~mode=typfn_mode, fn);
     let Typ.{item: ty_body, _} = Typ.matched_forall(fn.ty);
     let ty = Term.UTyp.to_typ(ctx, utyp);
     add(~self=Just(Typ.subst(ty, ty_body)), ~free=fn.free, m_fn);

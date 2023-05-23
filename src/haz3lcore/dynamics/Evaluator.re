@@ -51,6 +51,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Var(_)
   | Rec(_)
   | Arrow(Unknown(_), Unknown(_))
+  | Forall({item: Unknown(_), name: _})
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
     if (List.for_all(
@@ -686,13 +687,7 @@ let rec ty_subst =
   | FailedCast(_, _, _) => exp
   };
 } //TODO: is this correct?
-//TODO: Need to check again for inconsistency?
-//TODO: Same as inconsistent branch.
-/* cases with types we may need to substitute */
-/* special case of changing debruijn indices */
-/* cases where we just syntactically recurse */
-/* Recursion is probably necessary in the following cases for error reporting */
-/* Cases where we don't need to recurse */
+//TODO: Inconsistent cases: need to check again for inconsistency?
 
 and ty_subst_case = (~idx=0, Case(t, rules, n), targ) =>
   Case(
@@ -759,7 +754,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
     | TypAp(d1, _ty) =>
-      // print_endline("Evaluating TypAp.");
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>

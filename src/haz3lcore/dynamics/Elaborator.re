@@ -37,6 +37,18 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
+  | SynTypFun =>
+    switch (self_ty) {
+    | Unknown(prov) =>
+      /* ? |> forall _. ? */
+      DHExp.cast(
+        d,
+        Unknown(prov),
+        Forall({item: Unknown(prov), name: "_"}),
+      )
+    | Forall(_) => d
+    | _ => failwith("Elaborator.wrap: SynTypFun non-forall-type")
+    }
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -71,6 +83,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | _ => d
       }
     | Ap(Constructor(_), _)
+    | TypAp(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec({item: Sum(_), _}))
