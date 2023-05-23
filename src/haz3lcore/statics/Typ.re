@@ -127,7 +127,7 @@ let rec subst = (s: t, ~x: int=0, ty: t) => {
   | Forall({item, name}) => Forall({item: subst_incr(item), name})
   | Var({item: Some(k), _}) as v =>
     if (k == x) {
-      s;
+      incr(s, x);
     } else if (k > x) {
       incr(v, -1);
     } else {

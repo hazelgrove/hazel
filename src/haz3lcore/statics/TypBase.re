@@ -55,7 +55,7 @@ let rec incr = (~depth=0, ty: t, i: int): t => {
   | Var({item: Some(k), name}) =>
     Var({
       item:
-        /* The variable is free and should not be incremented if k < depth */
+        /* The variable is bound and should not be incremented if k < depth */
         Some(k < depth ? k : i + k),
       name,
     })
@@ -74,7 +74,7 @@ let rec incr = (~depth=0, ty: t, i: int): t => {
       ),
     )
   | Prod(tys) => Prod(List.map(ty => recurse(ty, i), tys))
-  | Rec({item, name}) => Rec({item: recurse(item, i), name})
+  | Rec({item, name}) => Rec({item: incr(~depth=depth + 1, item, i), name})
   | Forall({item, name}) =>
     Forall({item: incr(~depth=depth + 1, item, i), name})
   | Int => Int
