@@ -1,10 +1,12 @@
 open API;
 open Util.OptUtil.Syntax;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type chat_models =
   | GPT4
   | GPT3_5Turbo;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type role =
   | User
   | Assistant;
@@ -42,21 +44,21 @@ let string_of_role =
       ]
    }*/
 
-let body = (~model=GPT3_5Turbo, messages: list((role, string))): Json.t => {
+let body = (~llm=GPT4, messages: list((role, string))): Json.t => {
   let mk_msg = ((role, content)) =>
     `Assoc([
       ("role", `String(string_of_role(role))),
       ("content", `String(content)),
     ]);
   `Assoc([
-    ("model", `String(string_of_chat_model(model))),
+    ("model", `String(string_of_chat_model(llm))),
     ("messages", `List(List.map(mk_msg, messages))),
   ]);
 };
 
-let body_simple = (~model=GPT4, prompt) => body(~model, [(User, prompt)]);
+let body_simple = (~llm, prompt) => body(~llm, [(User, prompt)]);
 
-let request_chat = (prompt, handler): unit =>
+let additive_chat = (~body, ~handler): unit =>
   switch (LocalStorage.Generic.load(OpenAI)) {
   | None => print_endline("NO OPENAI API KEY FOUND")
   | Some(api_key) =>
@@ -67,10 +69,19 @@ let request_chat = (prompt, handler): unit =>
         ("Content-Type", "application/json"),
         ("Authorization", "Bearer " ++ api_key),
       ],
-      ~body=body_simple(prompt),
+      ~body,
       handler,
     )
   };
+
+let start_chat = (~llm=GPT4, prompt, handler): unit =>
+  additive_chat(~body=body_simple(~llm, prompt), ~handler);
+
+let reply_chat = (prompt, response, reply, handler): unit =>
+  additive_chat(
+    ~body=body([(User, prompt), (Assistant, response), (User, reply)]),
+    ~handler,
+  );
 
 let handle_chat = (request: request): option(string) =>
   switch (receive(request)) {

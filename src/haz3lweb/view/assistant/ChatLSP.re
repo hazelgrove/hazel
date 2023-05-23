@@ -3,14 +3,21 @@ open Haz3lcore;
 //TODO(andrew): calculate this in a more principled way
 let get_info_from_zipper = (~ctx=Ctx.empty, z: Zipper.t): Statics.Map.t => {
   z
-  |> Zipper.unselect_and_zip(~ignore_selection=true)
+  |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
   |> MakeTerm.go
   |> fst
   |> Statics.mk_map_ctx(ctx);
 };
+let get_info_and_top_ci_from_zipper =
+    (~ctx=Ctx.empty, z: Zipper.t): (Info.exp, Statics.Map.t) => {
+  z
+  |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
+  |> MakeTerm.go
+  |> fst
+  |> Statics.mk_map_and_info_ctx(ctx);
+};
 
-let get_ci = (model: Model.t): option(Info.t) => {
-  let editor = model.editors |> Editors.get_editor;
+let get_ci = (editor: Editor.t): option(Info.t) => {
   let z = editor.state.zipper;
   let index = Indicated.index(z);
   switch (index) {
@@ -22,16 +29,29 @@ let get_ci = (model: Model.t): option(Info.t) => {
 };
 
 module Type = {
-  let mode = (model: Model.t): option(Typ.mode) =>
-    switch (get_ci(model)) {
+  let mode = (editor: Editor.t): option(Typ.mode) =>
+    switch (get_ci(editor)) {
     | Some(InfoExp({mode, _})) => Some(mode)
     | Some(InfoPat({mode, _})) => Some(mode)
     | _ => None
     };
 
-  let expected = (mode: option(Typ.mode)): string => {
+  let ctx = (editor: Editor.t): option(Ctx.t) =>
+    switch (get_ci(editor)) {
+    | Some(ci) => Some(Info.ctx_of(ci))
+    | _ => None
+    };
+
+  let expected = (~ctx=Ctx.empty, mode: option(Typ.mode)): string => {
     let prefix = "Hole ?? can be filled by an expression with ";
     switch (mode) {
+    | Some(Ana(Var(name) as ty)) when Ctx.lookup_alias(ctx, name) != None =>
+      let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
+      prefix
+      ++ "a type consistent with "
+      ++ Typ.to_string(ty)
+      ++ " which is a type alias for "
+      ++ Typ.to_string(ty_expanded);
     | Some(Ana(ty)) =>
       prefix ++ "a type consistent with " ++ Typ.to_string(ty)
     | Some(SynFun) =>
@@ -81,6 +101,7 @@ module Errors = {
 
   let pat_error: Info.error_pat => string =
     fun
+    | ExpectedTag => "Expected a constructor"
     | Common(error) => common_error(error);
 
   let typ_error: Info.error_typ => string =
@@ -97,7 +118,7 @@ module Errors = {
   let tpat_error: Info.error_tpat => string =
     fun
     | NotAVar => "Not a valid type name"
-    | ShadowsBaseType(name) => "Can't shadow base type " ++ name;
+    | ShadowsType(name) => "Can't shadow base type " ++ name;
 
   let string_of: Info.error => string =
     fun

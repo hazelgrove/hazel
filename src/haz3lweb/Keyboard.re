@@ -36,14 +36,14 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    //TODO(andrew): selectively (~ignore_selection=true)
+    //TODO(andrew): selectively (~erase_buffer=true)
     let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
     | "F3" =>
       zipper
-      |> Zipper.unselect_and_zip(~ignore_selection=true)
+      |> Zipper.seg_without_buffer
       |> MakeTerm.go
       |> fst
       |> TermBase.UExp.show
@@ -64,6 +64,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
+    | "F7" => [Update.Script(StartTest())]
+    | "F8" => [Update.Script(StartRun())]
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
@@ -77,14 +79,19 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Backspace") => now_save(Destruct(Left))
     | (Up, "Delete") => now_save(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
+    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Up, "Tab") =>
       Selection.is_buffer(zipper.selection)
-        ? [Agent(AcceptSuggestion), Save] : now_save(Put_down) //TODO: if empty, move to next hole
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
+        ? [Agent(AcceptSuggestion), Save]
+        : Zipper.can_put_down(zipper)
+            ? [PerformAction(Put_down), Save] : [MoveToNextHole(Right)]
+    | (Down, "Tab") => [MoveToNextHole(Left)]
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
+    | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
+    | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") => now_save(Insert(Form.linebreak))
     | _ when /*Form.is_valid_char(key) &&*/ String.length(key) == 1 =>
@@ -118,6 +125,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
+    //TODO(andrew): rm
     | "p" =>
       print_endline("DEBUG: CMD+P");
       let f = (z, id_gen) =>

@@ -144,7 +144,7 @@ let reevaluate_post_update =
       Jump(_) |
       SetSelectionFocus(_),
     )
-  | MoveToNextHole(_) //
+  | MoveToNextHole(_)
   | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
@@ -177,6 +177,7 @@ let reevaluate_post_update =
   | Agent(_)
   | Execute(_)
   | MVUSet(_)
+  | Script(_)
   | Undo
   | Redo => true;
 
@@ -423,9 +424,13 @@ let rec apply =
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         })
       };
-    | MoveToNextHole(_d) =>
-      // TODO restore
-      Ok(model)
+    | MoveToNextHole(d) =>
+      let p: Piece.t => bool = (
+        fun
+        | Grout(_) => true
+        | _ => false
+      );
+      perform_action(model, Move(Goal(Piece(p, d))));
     | UpdateLangDocMessages(u) =>
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);
@@ -453,6 +458,115 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | Script(StartRun ()) =>
+      print_endline("RUN: starting");
+      switch (model.script) {
+      | {current_script: Some(_), _}
+      | {to_run: [_, ..._], _} =>
+        print_endline("RUN: Error: run already in progress");
+        Ok(model);
+      | _ =>
+        schedule_action(Script(StartTest())); //TODO: which test?
+        let script: Model.script = {
+          current_script: None,
+          to_run: Scripter.test_scripts,
+          results: VarMap.empty,
+        };
+        Ok({...model, script});
+      };
+    | Script(StartTest ()) =>
+      switch (model.script) {
+      | {current_script: Some(_), _} =>
+        print_endline("SCRIPT: Error: previous test still in progress");
+        Ok(model);
+      | {to_run: [], results, _} =>
+        print_endline("SCRIPT: Error: no tests left to run. Results:");
+        print_endline(Model.show_results(results));
+        Ok(model);
+      | {to_run: [(name, s1), ...to_run], results, _} =>
+        print_endline("SCRIPT: Starting script: " ++ name);
+        List.iter(schedule_action, s1);
+        let script: Model.script = {
+          current_script: Some(name),
+          to_run,
+          results,
+        };
+        schedule_action(
+          Script(UpdateResult(name, UpdateAction.initialize_results)),
+        );
+        Ok({...model, script});
+      }
+    | Script(EndTest ()) =>
+      switch (model.script) {
+      | {current_script: None, _} =>
+        print_endline("SCRIPT: EndTest: Error: no test in progress");
+        Ok(model);
+      | {current_script: Some(name), to_run: _, results: _, _} =>
+        print_endline("SCRIPT: Ending script: " ++ name);
+        //TODO(andrew): abstract this script into cleanup function
+        schedule_action(Agent(AcceptSuggestion));
+        schedule_action(Script(LogTest()));
+        Ok(model);
+      }
+    | Script(UpdateResult(name, updater)) =>
+      let results =
+        switch (VarMap.lookup(model.script.results, name)) {
+        | None =>
+          print_endline(
+            "Script: UpdateResult: Creating new result entry for: " ++ name,
+          );
+          VarMap.extend(
+            model.script.results,
+            (name, updater(UpdateAction.empty_script_result)),
+          );
+        | Some(_) =>
+          print_endline(
+            "Script: UpdateResult: Updating existing result entry for: "
+            ++ name,
+          );
+          VarMap.update(model.script.results, name, updater);
+        };
+      Ok({
+        ...model,
+        script: {
+          ...model.script,
+          results,
+        },
+      });
+    | Script(LogTest ()) =>
+      switch (model.script) {
+      | {current_script: Some(name), to_run, results, _} =>
+        let editor = Editors.get_editor(model.editors);
+        print_endline("SCRIPT: LogTest: Logging script: " ++ name);
+        let info_map =
+          ChatLSP.get_info_from_zipper(
+            ~ctx=Ctx.empty, //TODO(andrew): better ctx
+            editor.state.zipper,
+          );
+        let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
+        let static_errors = Statics.collect_errors(info_map);
+        let completed_sketch = Printer.to_string_editor(editor);
+        //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
+        let script: Model.script = {current_script: None, to_run, results};
+        let model = {...model, script};
+        schedule_action(
+          Script(
+            UpdateResult(
+              name,
+              UpdateAction.finalize_results(
+                syntax_errors,
+                static_errors,
+                completed_sketch,
+              ),
+            ),
+          ),
+        );
+        schedule_action(Script(StartTest()));
+        Ok(model);
+      | {current_script: None, _} =>
+        print_endline("SCRIPT: LogTest: Error: no test in progress");
+        Ok(model);
+      }
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
