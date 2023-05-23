@@ -5,20 +5,13 @@ open Haz3lcore;
 type timestamp = float;
 
 [@deriving (show({with_path: false}), yojson, sexp)]
-type result = {
-  completed_sketch: string,
-  errors: string,
-  time: string,
-};
-
-[@deriving (show({with_path: false}), yojson, sexp)]
-type results = VarMap.t_(result);
+type results = VarMap.t_(UpdateAction.script_result);
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type script = {
   current_script: option(string),
   to_run: list((string, list(UpdateAction.t))),
-  results: VarMap.t_(result),
+  results,
 };
 
 let script_init: script = {

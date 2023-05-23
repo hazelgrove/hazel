@@ -14,11 +14,17 @@ type settings_action =
   | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type filler_options = {
+  llm: OpenAI.chat_models,
+  prompt_builder: Editor.t => option(string),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
   | TyDi
   | Weather
   | Oracle
-  | Filler;
+  | Filler(option(filler_options));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent_action =
@@ -26,12 +32,47 @@ type agent_action =
   | SetBuffer(string)
   | AcceptSuggestion;
 
+[@deriving (show({with_path: false}), yojson, sexp)]
+type script_result = {
+  time_start: option(float),
+  time_end: option(float),
+  completed_sketch: option(string),
+  static_errors: option(list((Id.t, Info.error))),
+  syntax_errors: option(list(string)),
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type script_action =
   | StartRun(unit)
   | StartTest(unit)
+  | UpdateResult(string, script_result => script_result)
   | LogTest(unit)
   | EndTest(unit);
+
+let empty_script_result = {
+  time_start: None,
+  time_end: None,
+  completed_sketch: None,
+  static_errors: None,
+  syntax_errors: None,
+};
+
+let initialize_results = _r => {
+  time_start: Some(Sys.time()),
+  time_end: None,
+  completed_sketch: None,
+  static_errors: None,
+  syntax_errors: None,
+};
+
+let finalize_results =
+    (syntax_errors, static_errors, completed_sketch, result: script_result) => {
+  ...result,
+  syntax_errors: Some(syntax_errors),
+  static_errors: Some(static_errors),
+  completed_sketch: Some(completed_sketch),
+  time_end: Some(Sys.time()),
+};
 
 /*
  To start a run:

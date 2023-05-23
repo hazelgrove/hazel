@@ -122,14 +122,14 @@ let code_instructions = [
  REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
 
-let prompt = (model: Model.t): option(string) => {
-  let editor = model.editors |> Editors.get_editor;
+let prompt = (editor: Editor.t): option(string) => {
   let ctx =
-    switch (ChatLSP.get_ci(model)) {
+    switch (ChatLSP.get_ci(editor)) {
     | Some(ci) => Info.ctx_of(ci)
     | None => Ctx.empty
     };
-  let expected_ty = model |> ChatLSP.Type.mode |> ChatLSP.Type.expected(~ctx);
+  let expected_ty =
+    editor |> ChatLSP.Type.mode |> ChatLSP.Type.expected(~ctx);
   let prefix =
     ["Consider these examples:"]
     @ collate_samples(samples)
@@ -185,6 +185,7 @@ let error_reply =
     let status = Info.status_common(init_ctx, mode, self);
     let errors = ChatLSP.Errors.collect_static(map);
     let orphans = Printer.of_backpack(response_z);
+    //TODO(andrew): for syntax errors, also collect bad syntax eg % operator
     switch (orphans, errors, status) {
     | ([_, ..._], _, _) =>
       wrap(

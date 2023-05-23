@@ -1,11 +1,36 @@
 open Haz3lcore;
+open Sexplib.Std;
+
 let sketch_slide = 3;
 let fill_marker = "FILL_ME";
-//TODO(andrew): adjust promptgen to replace this with ??
 
-let tests_raw = [
-  ("one", "let lol = FILL_ME in lol + 2000"),
-  ("two", "let lol: Int = FILL_ME in lol + 2000"),
+[@deriving (show({with_path: false}), sexp, yojson)]
+type test = {
+  name: string,
+  sketch: string,
+  llm: OpenAI.chat_models,
+  prompt_builder: Editor.t => option(string),
+};
+
+let tests_raw: list(test) = [
+  {
+    name: "one",
+    sketch: "let lol = FILL_ME in lol + 666",
+    llm: GPT3_5Turbo,
+    prompt_builder: Filler.prompt,
+  },
+  {
+    name: "two",
+    sketch: "let lol: Int = FILL_ME in lol + 1337",
+    llm: GPT3_5Turbo,
+    prompt_builder: Filler.prompt,
+  },
+  {
+    name: "three",
+    sketch: "let lol: Int-> Bool = FILL_ME in lol(4) && lol(5)",
+    llm: GPT3_5Turbo,
+    prompt_builder: Filler.prompt,
+  },
 ];
 
 let is_fill_marker: Piece.t => bool =
@@ -13,46 +38,31 @@ let is_fill_marker: Piece.t => bool =
   | Tile({label: [t], _}) => t == fill_marker
   | _ => false;
 
-let mk_script = (sketch_str: string): list(UpdateAction.t) => {
+let mk_script =
+    (~llm, ~prompt_builder, ~sketch: string): list(UpdateAction.t) => {
   [
     SwitchSlide(sketch_slide),
-    PerformAction(Unselect(None)),
     PerformAction(Move(Extreme(Up))),
     PerformAction(Select(Resize(Extreme(Down)))),
-    Paste(sketch_str),
+    Paste(sketch),
     PerformAction(Move(Goal(Piece(is_fill_marker, Left)))),
     PerformAction(Select(Term(Current))),
     Paste(Form.expliciter_hole),
     PerformAction(Select(Term(Current))),
-    Agent(Prompt(Filler)),
+    Agent(Prompt(Filler(Some({llm, prompt_builder})))),
   ];
 };
 
 let test_scripts =
   List.map(
-    ((name, sketch_str)) => (name, mk_script(sketch_str)),
+    ({name, sketch, llm, prompt_builder}) =>
+      (name, mk_script(~sketch, ~llm, ~prompt_builder)),
     tests_raw,
   );
 
 /*
+ TODO(andrew):
+ - log if we send errors back
+ - backup to localstore
 
- get timestamp at beginning of test
- and at end of test
- log if we send errors back
-
- indep vars:
- parametrize Filler.prompt to take a fn
- from model? -> prompt
- also want to be able to vary GPT 3.5/4
-
-
- 1. create entry in model to store test results
- when we begin a run, we must specify a list of scripts
- each must have some kind of text description saying what were varying (think about more structure)
- test ledger in model is initially an empty list
- after each test, we cons the result
- and start the next test
- we use the length of the list to tell what test we're on,
- and stop when we've finished all the tests
- at which point we record the results to localstore, using some kind of timestamp in the key (so as not to overwrite)d
-  */
+ */

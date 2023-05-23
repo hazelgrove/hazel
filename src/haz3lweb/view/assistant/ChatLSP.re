@@ -17,8 +17,7 @@ let get_info_and_top_ci_from_zipper =
   |> Statics.mk_map_and_info_ctx(ctx);
 };
 
-let get_ci = (model: Model.t): option(Info.t) => {
-  let editor = model.editors |> Editors.get_editor;
+let get_ci = (editor: Editor.t): option(Info.t) => {
   let z = editor.state.zipper;
   let index = Indicated.index(z);
   switch (index) {
@@ -30,15 +29,15 @@ let get_ci = (model: Model.t): option(Info.t) => {
 };
 
 module Type = {
-  let mode = (model: Model.t): option(Typ.mode) =>
-    switch (get_ci(model)) {
+  let mode = (editor: Editor.t): option(Typ.mode) =>
+    switch (get_ci(editor)) {
     | Some(InfoExp({mode, _})) => Some(mode)
     | Some(InfoPat({mode, _})) => Some(mode)
     | _ => None
     };
 
-  let ctx = (model: Model.t): option(Ctx.t) =>
-    switch (get_ci(model)) {
+  let ctx = (editor: Editor.t): option(Ctx.t) =>
+    switch (get_ci(editor)) {
     | Some(ci) => Some(Info.ctx_of(ci))
     | _ => None
     };
