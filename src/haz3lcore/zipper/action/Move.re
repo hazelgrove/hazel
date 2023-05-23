@@ -171,6 +171,43 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let to_start = do_extreme(primary(ByToken), Up);
+  let to_end = do_extreme(primary(ByToken), Down);
+
+  let to_edge: (Direction.t, t) => option(t) =
+    fun
+    | Left => to_start
+    | Right => to_end;
+
+  /* Do move_action until the indicated piece is such that piece_p is true.
+     If no such piece is found, don't move. */
+  let rec do_until =
+          (
+            ~move_first=true,
+            move_action: t => option(t),
+            piece_p: Piece.t => bool,
+            z: t,
+          )
+          : option(t) => {
+    let* z = move_first ? move_action(z) : Some(z);
+    let* (piece, _, _) = Indicated.piece'(~no_ws=false, ~ign=_ => false, z);
+    if (piece_p(piece)) {
+      Some(z);
+    } else {
+      let* z = move_first ? Some(z) : move_action(z);
+      do_until(~move_first, move_action, piece_p, z);
+    };
+  };
+
+  /* Do move_action until the indicated piece is such that piece_p is true,
+     restarting from the beginning/end if not found in forward direction.
+     If no such piece is found, don't move. */
+  let do_until_wrap = (p, d, z) =>
+    switch (do_until(primary(ByToken, d), p, z)) {
+    | None =>
+      let* z = to_edge(Direction.toggle(d), z);
+      do_until(primary(ByToken, d), p, z);
+    | Some(z) => Some(z)
+    };
 
   let jump_to_id = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
@@ -263,7 +300,8 @@ module Make = (M: Editor.Meta.S) => {
 
   let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(goal) =>
+    | Goal(Piece(p, d)) => do_until_wrap(p, d, z)
+    | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
       do_towards(primary(ByChar), goal, z);
     | Extreme(d) => do_extreme(primary(ByToken), d, z)

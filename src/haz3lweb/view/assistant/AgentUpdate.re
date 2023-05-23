@@ -27,7 +27,11 @@ let schedule_prompt = (zipper: Zipper.t, ~schedule_action): unit =>
   | (Outer, _, [Tile({label: [s], _}), ..._])
       when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
     schedule_action(PerformAction(Select(Term(Current))));
-    schedule_action(Agent(Prompt(Filler)));
+    schedule_action(
+      Agent(
+        Prompt(Filler(Some({llm: GPT4, prompt_builder: Filler.prompt}))),
+      ),
+    );
   | _ => ()
   };
 
@@ -47,6 +51,8 @@ let reset_buffer = (model: Model.t) => {
   };
 };
 
+//TODO(andrew): add special case for when it just returns the whole sketch instead of completion
+
 let apply =
     (model: Model.t, update: agent_action, ~schedule_action, ~state, ~main)
     : Result.t(Model.t) => {
@@ -65,7 +71,7 @@ let apply =
     switch (Oracle.ask(model)) {
     | None => print_endline("Oracle: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.request_chat(prompt, req =>
+      OpenAI.start_chat(prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) => schedule_action(Oracle.react(response))
         | None => print_endline("Assistant: response parse failed")
@@ -73,14 +79,44 @@ let apply =
       )
     };
     Ok(model);
-  | Prompt(Filler) =>
-    switch (Filler.prompt(model)) {
+  | Prompt(Filler(None)) =>
+    print_endline("deprecated");
+    Ok(model);
+  | Prompt(Filler(Some({llm, prompt_builder}))) =>
+    let editor = model.editors |> Editors.get_editor;
+    switch (prompt_builder(editor)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.request_chat(prompt, req =>
+      OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
-        | Some(response) => schedule_action(Filler.react(response))
+        | Some(response) =>
+          print_endline("Filler: calling react_error");
+          switch (ChatLSP.Type.ctx(editor), ChatLSP.Type.mode(editor)) {
+          | (Some(init_ctx), Some(mode)) =>
+            switch (Filler.error_reply(response, 0, ~init_ctx, ~mode)) {
+            | None =>
+              print_endline("react_error: no errors.");
+              schedule_action(Agent(SetBuffer(response)));
+              schedule_action(Script(EndTest()));
+            | Some(reply) =>
+              print_endline("react_error: errors:" ++ reply);
+              OpenAI.reply_chat(prompt, response, reply, req =>
+                switch (OpenAI.handle_chat(req)) {
+                | Some(response) =>
+                  schedule_action(Agent(SetBuffer(response)));
+                  schedule_action(Script(EndTest()));
+                | None => print_endline("Filler: handler failed")
+                //schedule_action(Script(EndTest()));
+                }
+              );
+            }
+          | _ =>
+            print_endline("react_error: no CI");
+            schedule_action(Agent(SetBuffer(response)));
+            schedule_action(Script(EndTest()));
+          };
         | None => print_endline("Filler: handler failed")
+        //schedule_action(Script(EndTest()));
         }
       )
     };

@@ -22,7 +22,8 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | StoreKey(_)
   | MVUSet(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | Script(_) => false
   | Execute(_)
   | ResetCurrentEditor
   | Set(_)

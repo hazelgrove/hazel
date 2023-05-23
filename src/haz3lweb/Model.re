@@ -4,13 +4,23 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
-/*[@deriving (show({with_path: false}), yojson, sexp)]
-  type mode =
-    | Normal
-    | ChatConsole;*/
+[@deriving (show({with_path: false}), yojson, sexp)]
+type results = VarMap.t_(UpdateAction.script_result);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type script = {
+  current_script: option(string),
+  to_run: list((string, list(UpdateAction.t))),
+  results,
+};
+
+let script_init: script = {
+  current_script: None,
+  to_run: [],
+  results: VarMap.empty,
+};
 
 type t = {
-  //mode,
   editors: Editors.t,
   results: ModelResults.t,
   mvu_states: VarMap.t_(DHExp.t),
@@ -21,12 +31,12 @@ type t = {
   double_tap: option(timestamp),
   mousedown: bool,
   langDocMessages: LangDocMessages.t,
+  script,
 };
 
 let cutoff = (===);
 
 let mk = editors => {
-  //mode: Normal,
   editors,
   results: ModelResults.empty,
   mvu_states: VarMap.empty,
@@ -38,6 +48,7 @@ let mk = editors => {
   double_tap: None,
   mousedown: false,
   langDocMessages: LangDocMessages.init,
+  script: script_init,
 };
 
 let blank = mk(Editors.Scratch(0, []));

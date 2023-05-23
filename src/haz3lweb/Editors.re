@@ -65,11 +65,7 @@ let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
 let seg_for_semantics = (ed: Editor.t): Segment.t =>
-  Zipper.smart_seg(
-    ~ignore_selection=true,
-    ~dump_backpack=true,
-    ed.state.zipper,
-  );
+  Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true, ed.state.zipper);
 
 let export_ctx = (init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
   let stdlib_seg = seg_for_semantics(ed);

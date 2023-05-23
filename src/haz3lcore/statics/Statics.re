@@ -282,7 +282,8 @@ and uexp_to_info_map =
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
-    | Var(name) when !Form.is_base_typ(name) =>
+    | Var(name)
+        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
       /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
          errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
@@ -499,6 +500,11 @@ let mk_map =
       Id.Map.empty,
     )
     |> snd
+  });
+
+let mk_map_and_info_ctx =
+  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
   });
 
 let mk_map_ctx =

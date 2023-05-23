@@ -342,6 +342,13 @@ let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
   };
 };
 
+let tag_mode = (ctx: Ctx.t, mode: mode, name: Token.t): option(mode) =>
+  switch (tag_ana_typ(ctx, mode, name)) {
+  | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
+  | Some(ty_ana) => Some(Ana(Arrow(Unknown(Internal), ty_ana)))
+  | None => None
+  };
+
 let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
@@ -349,9 +356,8 @@ let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
      we use the typical mode for function applications */
   switch (tag_name) {
   | Some(name) =>
-    switch (tag_ana_typ(ctx, mode, name)) {
-    | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
-    | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
+    switch (tag_mode(ctx, mode, name)) {
+    | Some(mode) => mode
     | _ => SynFun
     }
   | None => SynFun

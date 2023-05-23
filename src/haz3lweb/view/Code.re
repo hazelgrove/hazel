@@ -101,11 +101,11 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~is_in_buffer, sort_of_p_idx(i), p)
+         of_piece(is_in_buffer, sort_of_p_idx(i), p)
        );
   }
   and of_piece =
-      (~is_in_buffer, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (is_in_buffer, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(~is_in_buffer, expected_sort, t)
     | Grout(_) => of_grout

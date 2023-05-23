@@ -1011,7 +1011,7 @@ svg.tile-selected {
   gap: 0.5em;
   color: #0006;
   font-weight: bolder;
-  text-transform: uppercase;
+  /*text-transform: uppercase;*/
   align-items: center;
 }
 
@@ -1045,7 +1045,7 @@ svg.tile-selected {
   border-color: var(--err-color);
 }
 
-.cursor-inspector:hover .context-inspector,
+.cursor-inspector .gamma:hover + .context-inspector,
 .context-inspector.visible {
   display: flex;
 }

@@ -47,7 +47,7 @@ let go_z =
     let idx = Indicated.index(z);
     let (term, _) =
       Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.go", true, () =>
-        MakeTerm.go(Zipper.unselect_and_zip(~ignore_selection=true, z))
+        MakeTerm.go(Zipper.seg_without_buffer(z))
       );
     let statics = Statics.mk_map(term);
 
@@ -78,7 +78,7 @@ let go_z =
       let measured = Measured.of_segment(unselected);
       module M2 = (val Editor.Meta.module_of_t({...meta, measured}));
       module Move3 = Move2.Make(M2);
-      let+ z = Move3.go(Goal(caret_point), z);
+      let+ z = Move3.go(Goal(Point(caret_point)), z);
       (z, id_gen);
     };
     switch (state) {
