@@ -753,11 +753,30 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
     | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
-    | TypAp(d1, _ty) =>
+    | TypAp(d1, tau) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
-      | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>
-        evaluate(closure_env, ty_subst(d3, _ty))
+      | BoxedValue(Closure(closure_env, TypFun(_, d2))) =>
+        // TODO: Maybe additional cases to be done?
+        evaluate(closure_env, ty_subst(d2, tau))
+      | BoxedValue(
+          Cast(
+            d1',
+            Forall({item: t, name: _}),
+            Forall({item: t', name: _}),
+          ),
+        )
+      | Indet(
+          Cast(
+            d1',
+            Forall({item: t, name: _}),
+            Forall({item: t', name: _}),
+          ),
+        ) =>
+        evaluate(
+          env,
+          Cast(TypAp(d1', tau), Typ.subst(t, tau), Typ.subst(t', tau)),
+        )
       | Indet(_) => r1 |> return
       | _ => failwith("InvalidBoxedTypFun: " ++ show(r1))
       };
