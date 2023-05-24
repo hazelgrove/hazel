@@ -13,7 +13,7 @@ let id_of_state = ((id, _): state) => id;
 let put_editor_and_id = ((_, _): state, id, editor) => (id, editor);
 
 let scratch_key = "scratch";
-let spliced_elabs = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => {
+let spliced_elab = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => {
   let seg =
     Zipper.smart_seg(
       editor.state.zipper,
@@ -28,7 +28,7 @@ let spliced_elabs = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => {
   let (term, _) = MakeTerm.go(seg);
   //print_endline("spliced_elabs: term:" ++ Term.UExp.show(term));
   let info_map = Statics.mk_map_ctx(ctx_init, term);
-  [(scratch_key, Interface.elaborate(info_map, term))];
+  (scratch_key, Interface.elaborate(info_map, term));
 };
 
 let persist = ((id, editor: Editor.t)) => {
