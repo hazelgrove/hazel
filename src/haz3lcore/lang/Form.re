@@ -82,9 +82,9 @@ let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_bool = str => str == "true" || str == "false";
 let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
-let is_dot_var = str => regexp("^\\.[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
+let is_dot_var = str => regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str);
 let is_concrete_typ = str =>
   str == "String" || str == "Int" || str == "Float" || str == "Bool";
 let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
