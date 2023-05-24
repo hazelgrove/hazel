@@ -313,15 +313,11 @@ let apply =
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
         let exercise =
-          if (!model.settings.instructor_mode) {
-            switch (pos) {
-            | SchoolExercise.HiddenTests
-            | SchoolExercise.HiddenBugs(_) => exercise
-            | _ => {eds: exercise.eds, pos}
-            };
-          } else {
-            {eds: exercise.eds, pos};
-          };
+          SchoolExercise.switch_editor(
+            ~pos,
+            model.settings.instructor_mode,
+            ~exercise,
+          );
         LocalStorage.School.save_exercise(
           exercise,
           ~instructor_mode=model.settings.instructor_mode,

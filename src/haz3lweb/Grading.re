@@ -82,7 +82,6 @@ module MutationTestingReport = {
       List.mapi(
         (id, (status, _)) =>
           div(
-            //~attr=Attr.classes(["segment", TestStatus.to_string(status)]),
             ~attr=
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
