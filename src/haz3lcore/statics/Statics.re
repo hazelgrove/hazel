@@ -387,9 +387,18 @@ and uexp_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
   | Tag(name) =>
-    switch (BuiltinADTs.get_tag_typ(name)) {
-    | None => atomic(Free(Tag))
-    | Some(typ) => atomic(Just(typ))
+    switch (Ctx.lookup_var(ctx, name)) {
+    | None =>
+      switch (BuiltinADTs.get_tag_typ(name)) {
+      | None => atomic(Free(Tag))
+      | Some(typ) => atomic(Just(typ))
+      }
+    | Some(var) =>
+      add(
+        ~self=Just(var.typ),
+        ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+        Id.Map.empty,
+      )
     }
   | Test(test) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
@@ -460,11 +469,11 @@ and uexp_to_info_map =
       union_m([m_pat, m_def, m_body]),
     );
   | Module(pat, def, body) =>
-    let (ty_pat, ctx_pat, _m_pat) =
+    let (_, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let (_, free_def, m_def) =
-      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
+      uexp_to_info_map(~ctx=def_ctx, ~mode=Syn, def);
     let ty_def = uexp_to_module(def_ctx, def, []);
     let (_, ctx_pat_ana, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
@@ -587,14 +596,25 @@ and upat_to_info_map =
     add(~self=Just(List(ty1)), ~ctx, union_m([m_hd, m_tl]));
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
-    | None => atomic(Free(Tag))
+    | None =>
+      if (Typ.is_module_ana(mode)) {
+        let typ = typ_after_fix(mode, Just(Unknown(Internal)));
+        let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+        add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
+      } else {
+        atomic(Free(Tag));
+      }
     | Some(typ) => atomic(Just(typ))
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    let typ = typ_after_fix(mode, Just(Unknown(Internal)));
-    let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
+    if (Typ.is_module_ana(mode)) {
+      atomic(Free(Variable));
+    } else {
+      let typ = typ_after_fix(mode, Just(Unknown(Internal)));
+      let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
+    }
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =
@@ -681,7 +701,7 @@ and uexp_to_module =
     uexp_to_module(ctx_body, body, new_inner);
   | Module(pat, def, body) =>
     let (_, ctx_pat, _m_pat) =
-      upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
+      upat_to_info_map(~is_synswitch=true, ~mode=Ana(Module([])), pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let ty_def = uexp_to_module(def_ctx, def, []);
     let (_, ctx_pat_ana, _) =

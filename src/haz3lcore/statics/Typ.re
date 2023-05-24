@@ -66,6 +66,15 @@ type mode =
   | Syn
   | Ana(t);
 
+let is_module_ana = (mode: mode): bool => {
+  switch (mode) {
+  | Ana(Module(_)) => true
+  | Ana(_)
+  | Syn
+  | SynFun => false
+  };
+};
+
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 

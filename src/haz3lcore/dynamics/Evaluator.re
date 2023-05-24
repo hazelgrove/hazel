@@ -63,6 +63,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Wild, _) => Matches(Environment.empty)
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
+  | (Var(_), ModuleVal(_)) => DoesNotMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
@@ -125,6 +126,9 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
+  | (Tag(x), ModuleVal(_)) =>
+    let env = Environment.extend(Environment.empty, (x, d));
+    Matches(env);
   | (Tag(_), Cast(d, _, Unknown(_))) => matches(dp, d)
   | (Tag(_), Cast(d, Unknown(_), _)) => matches(dp, d)
   | (Tag(_), _) => DoesNotMatch
@@ -736,8 +740,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Tag(_)
     | ModuleVal(_) => BoxedValue(d) |> return
+    | Tag(x) =>
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | None => return(BoxedValue(d))
+      | Some(d) => evaluate(env, d)
+      }
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = evaluate(env, d1);

@@ -275,7 +275,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Module(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
+          DHExp.Module(dp, add_name(Term.UPat.get_tag(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
           Module(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)

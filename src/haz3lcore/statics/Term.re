@@ -261,6 +261,28 @@ module UPat = {
     };
   };
 
+  let rec get_tag = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => get_tag(pat)
+    | Tag(x) => Some(x)
+    | TypeAnn(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Tuple(_)
+    | Var(_)
+    | Ap(_) => None
+    };
+  };
+
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
