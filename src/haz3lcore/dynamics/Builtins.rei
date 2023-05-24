@@ -25,9 +25,10 @@ let using: (Var.t, Var.t => Builtin.t, t) => t;
  */
 module Pervasives: {
   let pi: Var.t => Builtin.t;
-
   let int_of_float: Var.t => Builtin.t;
   let float_of_int: Var.t => Builtin.t;
+  let int_of_string: Var.t => Builtin.t;
+  let string_of_int: Var.t => Builtin.t;
   let modulo: Var.t => Builtin.t;
 
   let builtins: t;
