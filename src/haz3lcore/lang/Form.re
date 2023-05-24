@@ -153,13 +153,10 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
-let is_op_in_let_precursor = regexp("^_[!$%&*+\\-./:<=>@^|]*$");
-let is_op_in_let = regexp("^_[!$%&*+\\-./:<=>@^|]+_$");
-let is_op = regexp("^[!$%&*+\\-./:<=>@^|]+$");
-let is_var = str =>
-  !is_reserved(str) && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op(str));
-let is_var_in_let = str =>
-  !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
+let is_op_in_let_precursor = regexp("^_[!$%&*+\\-./:<=>@^]*$");
+let is_op_in_let = regexp("^_[!$%&*+\\-./:<=>@^]+_$");
+let is_op = regexp("^[!$%&*+\\-./:<=>@^]+$");
+let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 
 /* B. Operands:
    Order in this list determines relative remolding
@@ -179,8 +176,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
-  ("op_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
-  ("op", (is_op_in_let, [mk_op(Pat, [])])),
+  ("op_in_let_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
+  ("op_in_let", (is_op_in_let, [mk_op(Pat, [])])),
+  ("op", (is_op, [mk_op(Exp, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
@@ -240,7 +238,7 @@ let forms: list((string, t)) = [
   (
     "rule",
     mk(
-      di,
+      ii,
       ["|", "=>"],
       {
         out: Rul,

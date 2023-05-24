@@ -23,7 +23,7 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   | Free(UserOp) =>
     div(
       ~attr=clss([errorc, "err-free-userop"]),
-      [text("User Defined Operator is Non-binary")],
+      [text("User-defined operator is non-binary")],
     )
   | Free(Variable) =>
     div(
@@ -60,6 +60,11 @@ let error_view = (err: Haz3lcore.Statics.error) =>
         text("but found"),
         Type.view(ty_syn),
       ],
+    )
+  | Free(BuiltinOpExists(op_name)) =>
+    div(
+      ~attr=clss([errorc, "err-builtin-op-exists"]),
+      [text("Operator " ++ op_name ++ " exists as a built-in operator.")],
     )
   };
 

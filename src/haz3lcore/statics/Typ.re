@@ -38,6 +38,7 @@ type source = {
 type free_errors =
   | Variable
   | UserOp
+  | BuiltinOpExists(string)
   | Tag
   | TypeVariable;
 

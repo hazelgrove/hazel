@@ -138,7 +138,8 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
-  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  let expr = Id.Map.find_opt(Term.UExp.rep_id(uexp), m);
+  switch (expr) {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
@@ -331,6 +332,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         };
       };
     wrap(id, mode, self, d);
+  | Some(Invalid(InvalidBinaryOperator)) => Some(DHExp.EmptyHole(-1, 0))
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };

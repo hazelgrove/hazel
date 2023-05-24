@@ -478,6 +478,7 @@ and uexp_to_info_map =
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
+    print_endline("Pat in let is: " ++ TermBase.UPat.show(pat));
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
@@ -491,6 +492,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     let TermBase.UPat.{term: trm, _} = pat;
     switch (trm) {
+    | TypeAnn({term: Var(name), _}, _)
     | Var(name) when Form.is_op(name) =>
       switch (ty_def) {
       | Arrow(Prod([_a, _b]), _out) =>
@@ -500,7 +502,26 @@ and uexp_to_info_map =
             Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
           union_m([m_pat, m_def, m_body]),
         )
-      | _ => atomic(Free(UserOp))
+      | _ =>
+        let err_def =
+          TermBase.UExp.{
+            ids: def.ids,
+            term: TermBase.UExp.Invalid(InvalidBinaryOperator),
+          };
+        let err_def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, err_def);
+        let (ty_err_def, free_err_def, m_err_def) =
+          uexp_to_info_map(~ctx=err_def_ctx, ~mode=Ana(ty_pat), err_def);
+        let (_, ctx_pat_ana, m_pat) =
+          upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_err_def), pat);
+        add(
+          ~self=Just(ty_body),
+          ~free=
+            Ctx.union([
+              free_err_def,
+              Ctx.subtract_typ(ctx_pat_ana, free_body),
+            ]),
+          union_m([m_pat, m_err_def, m_body]),
+        );
       }
     | _ =>
       add(
@@ -612,9 +633,13 @@ and upat_to_info_map =
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    let typ = typ_after_fix(mode, Just(Unknown(Internal)));
-    let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
+    if (List.mem(name, Form.delims)) {
+      atomic(Free(BuiltinOpExists(name)));
+    } else {
+      let typ = typ_after_fix(mode, Just(Unknown(Internal)));
+      let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
+    }
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =
