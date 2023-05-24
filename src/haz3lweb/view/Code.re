@@ -11,6 +11,7 @@ let of_delim' =
       let cls =
         switch (label) {
         | [_] when !is_consistent => "mono-inconsistent"
+        | [s] when Form.is_int(s) => "mono-int-lit"
         | [s] when Form.is_string(s) => "mono-string-lit"
         | [_] => "mono"
         | _ when !is_consistent => "delim-inconsistent"

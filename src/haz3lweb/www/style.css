@@ -694,6 +694,11 @@ body {
 
 .code .token.mono {}
 
+.code .token.mono-int-lit{
+  color: var(--exp-text-color);
+  text-decoration: underline;
+}
+
 .code .token.mono-string-lit {
   color: var(--string-lit-color);
 }
