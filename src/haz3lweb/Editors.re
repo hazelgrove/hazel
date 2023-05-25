@@ -126,15 +126,19 @@ let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
   let get = idx => List.nth(slides, idx) |> snd;
   let acc_1 = 1 |> get |> fn(0, acc_0);
   let acc_2 = 2 |> get |> fn(1, acc_1);
-  //let acc_3 = 3 |> get |> fn(acc_2);
-  //let acc_4 = 4 |> get |> fn(acc_3);
+  let acc_3 = 3 |> get |> fn(2, acc_2);
+  let acc_4 = 4 |> get |> fn(3, acc_3);
+  let acc_5 = 5 |> get |> fn(4, acc_4);
+  let acc_6 = 6 |> get |> fn(5, acc_5);
   switch (idx) {
   | 0
   | 1 => acc_0
   | 2 => acc_1
   | 3 => acc_2
-  //| 4 => acc_3
-  //| _ => acc_4
+  | 4 => acc_3
+  | 5 => acc_4
+  | 6 => acc_5
+  | 7 => acc_6
   | _ => acc_0
   };
 };
