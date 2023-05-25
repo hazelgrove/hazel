@@ -208,23 +208,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
       | UserOp(op, e1, e2) =>
-        let var_name =
-          switch (op.term) {
-          | Var(x) => x
-          | _ => "Error: Non-Var in UserOp"
-          };
-        switch (err_status) {
-        | InHole(Free(Variable)) =>
-          let* user_op = Some(DHExp.FreeVar(id, 0, var_name));
-          let* dc1 = dhexp_of_uexp(m, e1);
-          let+ dc2 = dhexp_of_uexp(m, e2);
-          DHExp.Ap(user_op, Tuple([dc1, dc2]));
-        | _ =>
-          let* user_op = dhexp_of_uexp(m, op);
-          let* dc1 = dhexp_of_uexp(m, e1);
-          let+ dc2 = dhexp_of_uexp(m, e2);
-          DHExp.Ap(user_op, Tuple([dc1, dc2]));
-        };
+        let* user_op = dhexp_of_uexp(m, op);
+        let* dc1 = dhexp_of_uexp(m, e1);
+        let+ dc2 = dhexp_of_uexp(m, e2);
+        DHExp.Ap(user_op, Tuple([dc1, dc2]));
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
@@ -317,9 +304,19 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     wrap(id, mode, self, d);
   | Some(Invalid(InvalidOperatorApplication(var_name)))
   | Some(Invalid(InvalidBinaryOperator(var_name))) =>
-    Some(DHExp.FreeVar(-1, 0, var_name))
+    let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+    Some(DHExp.FreeVar(id, 0, var_name));
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
-  | None => None
+  | None =>
+    print_endline("This is not elaborating: " ++ TermBase.UExp.show(uexp));
+
+    print_endline("Map: ");
+    Seq.iter(
+      ((id, entry)) =>
+        print_endline(string_of_int(id) ++ " " ++ Statics.show(entry)),
+      Ptmap.to_seq(m),
+    );
+    None;
   };
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {

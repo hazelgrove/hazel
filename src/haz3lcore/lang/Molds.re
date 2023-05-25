@@ -21,7 +21,6 @@ let forms_assoc: list((string, Form.t)) => list((Label.t, list(Mold.t))) =
 
 let get = (label: Label.t): list(Mold.t) => {
   let t = List.hd(label);
-  print_endline("What do we get here? " ++ t);
   let forms =
     if (Form.is_op(t)) {
       [

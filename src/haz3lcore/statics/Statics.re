@@ -357,7 +357,7 @@ and uexp_to_info_map =
     let var = Ctx.lookup_var(ctx, name);
     switch (var) {
     | None => atomic(Free(Variable))
-    | Some(var) when Form.is_op(name) =>
+    | Some(var) when Form.is_op_in_let(name) =>
       switch (var.typ) {
       | Arrow(Prod(lst), _) when List.length(lst) == 2 =>
         add(
@@ -391,7 +391,6 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | UserOp({term: Var(op), _}, e1, e2) =>
-    print_endline("What does ctx contain? " ++ Ctx.show(ctx));
     let op_var = Ctx.lookup_var(ctx, op);
     let ty_all =
       switch (op_var) {
@@ -411,7 +410,14 @@ and uexp_to_info_map =
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );
-    | None => atomic(Free(Variable))
+    | None =>
+      let (_, free1, m1) = go(~mode=Syn, e1);
+      let (_, free2, m2) = go(~mode=Syn, e2);
+      add(
+        ~self=Free(Variable),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
     };
   | UserOp(_) => failwith("Term is not Var")
   | Tuple(es) =>
@@ -493,7 +499,7 @@ and uexp_to_info_map =
     let TermBase.UPat.{term: trm, _} = pat;
     switch (trm) {
     | TypeAnn({term: Var(name), _}, _)
-    | Var(name) when Form.is_op(name) =>
+    | Var(name) when Form.is_op_in_let(name) =>
       switch (ty_def) {
       | Arrow(Prod([_a, _b]), _out) =>
         add(
