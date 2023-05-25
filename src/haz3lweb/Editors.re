@@ -125,14 +125,14 @@ let export_env = (idx: int, init_env: Environment.t, ed: Editor.t) => {
 let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
   let get = idx => List.nth(slides, idx) |> snd;
   let acc_1 = 1 |> get |> fn(0, acc_0);
-  //let acc_2 = 2 |> get |> fn(acc_1);
+  let acc_2 = 2 |> get |> fn(1, acc_1);
   //let acc_3 = 3 |> get |> fn(acc_2);
   //let acc_4 = 4 |> get |> fn(acc_3);
   switch (idx) {
   | 0
   | 1 => acc_0
   | 2 => acc_1
-  //| 3 => acc_2
+  | 3 => acc_2
   //| 4 => acc_3
   //| _ => acc_4
   | _ => acc_0

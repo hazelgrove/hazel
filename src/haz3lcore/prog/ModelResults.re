@@ -20,7 +20,10 @@ let init = (ds: list((Key.t, DHExp.t, Environment.t))): t =>
        | Some(_) => print_endline("ModelResults:  List.nth found in env")
        };
        print_endline("ModelResults: starting eval of key " ++ key);
-       let blah = (key, ModelResult.init(Interface.evaluate(~env, d)));
+       let blah = (
+         key,
+         ModelResult.init(Interface.evaluate(~memo=false, ~env, d)),
+       );
        print_endline("ModelResults: ended eval of key " ++ key);
        blah;
      })

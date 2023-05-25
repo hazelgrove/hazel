@@ -11,10 +11,11 @@ let elaborate = (map, term): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let evaluate =
+let evaluate = Evaluator.evaluate; /*
   Core.Memo.general(~cache_size_bound=1000, (env, dhexp) =>
     Evaluator.evaluate(env, dhexp)
-  );
+  );*/
+
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
 //     es
@@ -54,9 +55,9 @@ let evaluate =
 //   ((d, hii), EvaluatorState.put_tests(tests, es));
 // };
 
-let evaluate = (~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
-  let result = evaluate(env, d);
-
+let evaluate =
+    (~memo=true, ~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
+  let result = memo ? evaluate(env, d) : Evaluator.evaluate(env, d);
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
   | (es, BoxedValue(_) as r) =>
@@ -94,7 +95,7 @@ let eval_segment_to_result = (env, s: Segment.t) => {
   let term = s |> MakeTerm.go |> fst;
   eval_to_result(~env, Statics.mk_map(term), term);
 };
-let eval_segment_to_result =
+let _eval_segment_to_result =
   Core.Memo.general(~cache_size_bound=1000, eval_segment_to_result);
 
 let eval_to_dhexp = (map, term): option(DHExp.t) =>
