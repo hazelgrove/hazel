@@ -145,6 +145,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let* d: DHExp.t =
       switch (uexp.term) {
+      | Invalid(InvalidBinaryOperator(var_name)) =>
+        Some(DHExp.FreeVar(id, 0, var_name))
       | Invalid(_) /* NOTE: treating invalid as a hole for now */
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
       | MultiHole(_tms) =>
@@ -206,23 +208,17 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
       | UserOp(op, e1, e2) =>
-        print_endline(Statics.show_error_status(err_status));
         let var_name =
           switch (op.term) {
           | Var(x) => x
           | _ => "Error: Non-Var in UserOp"
           };
         switch (err_status) {
-        | InHole(Free(Variable)) => Some(FreeVar(id, 0, var_name))
-        | NotInHole(SynConsistent(Var(_))) =>
-          Some(
-            DHExp.NonEmptyHole(
-              TypeInconsistent,
-              id,
-              0,
-              FreeVar(id, 0, var_name),
-            ),
-          )
+        | InHole(Free(Variable)) =>
+          let* user_op = Some(DHExp.FreeVar(id, 0, var_name));
+          let* dc1 = dhexp_of_uexp(m, e1);
+          let+ dc2 = dhexp_of_uexp(m, e2);
+          DHExp.Ap(user_op, Tuple([dc1, dc2]));
         | _ =>
           let* user_op = dhexp_of_uexp(m, op);
           let* dc1 = dhexp_of_uexp(m, e1);
@@ -243,58 +239,45 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         | _ => Some(BoundVar(name))
         }
       | Let(p, def, body) =>
-        let var_name =
-          switch (p.term) {
-          | Var(x) => x
-          | _ => "No Var Name"
-          };
-        switch (err_status) {
-        | InHole(Free(UserOp)) => Some(FreeVar(id, 0, var_name))
-        | _ =>
-          let add_name: (option(string), DHExp.t) => DHExp.t = (
-            name =>
-              fun
-              | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
-              | d => d
-          );
-          let* dp = dhpat_of_upat(m, p);
-          let* ddef = dhexp_of_uexp(m, def);
-          let+ dbody = dhexp_of_uexp(m, body);
-          let ty = Statics.pat_self_typ(m, p);
-          switch (Term.UPat.get_recursive_bindings(p)) {
-          | None =>
-            /* not recursive */
-            DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
-          | Some([f]) =>
-            /* simple recursion */
-            Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
-          | Some(fs) =>
-            /* mutual recursion */
-            let ddef =
-              switch (ddef) {
-              | Tuple(a) =>
-                DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
-              | _ => ddef
-              };
-            let uniq_id = List.nth(def.ids, 0);
-            let self_id = "__mutual__" ++ string_of_int(uniq_id);
-            let self_var = DHExp.BoundVar(self_id);
-            let (_, substituted_def) =
-              fs
-              |> List.fold_left(
-                   ((i, ddef), f) => {
-                     let ddef =
-                       Substitution.subst_var(
-                         DHExp.Prj(self_var, i),
-                         f,
-                         ddef,
-                       );
-                     (i + 1, ddef);
-                   },
-                   (0, ddef),
-                 );
-            Let(dp, FixF(self_id, ty, substituted_def), dbody);
-          };
+        let add_name: (option(string), DHExp.t) => DHExp.t = (
+          name =>
+            fun
+            | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | d => d
+        );
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let+ dbody = dhexp_of_uexp(m, body);
+        let ty = Statics.pat_self_typ(m, p);
+        switch (Term.UPat.get_recursive_bindings(p)) {
+        | None =>
+          /* not recursive */
+          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
+        | Some([f]) =>
+          /* simple recursion */
+          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+        | Some(fs) =>
+          /* mutual recursion */
+          let ddef =
+            switch (ddef) {
+            | Tuple(a) =>
+              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+            | _ => ddef
+            };
+          let uniq_id = List.nth(def.ids, 0);
+          let self_id = "__mutual__" ++ string_of_int(uniq_id);
+          let self_var = DHExp.BoundVar(self_id);
+          let (_, substituted_def) =
+            fs
+            |> List.fold_left(
+                 ((i, ddef), f) => {
+                   let ddef =
+                     Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
+                   (i + 1, ddef);
+                 },
+                 (0, ddef),
+               );
+          Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
@@ -332,7 +315,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         };
       };
     wrap(id, mode, self, d);
-  | Some(Invalid(InvalidBinaryOperator)) => Some(DHExp.EmptyHole(-1, 0))
+  | Some(Invalid(InvalidOperatorApplication(var_name)))
+  | Some(Invalid(InvalidBinaryOperator(var_name))) =>
+    Some(DHExp.FreeVar(-1, 0, var_name))
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };

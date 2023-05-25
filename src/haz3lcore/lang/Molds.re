@@ -4,28 +4,42 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansions = list((Token.t, (list(Token.t), Direction.t)));
 
-let forms_assoc: list((Label.t, list(Mold.t))) =
-  List.fold_left(
-    (acc, (_, {label, mold, _}: Form.t)) => {
-      let molds =
-        switch (List.assoc_opt(label, acc)) {
-        | Some(old_molds) => old_molds @ [mold]
-        | None => [mold]
-        };
-      List.cons((label, molds), List.remove_assoc(label, acc));
-    },
-    [],
-    Form.forms,
-  );
+let forms_assoc: list((string, Form.t)) => list((Label.t, list(Mold.t))) =
+  forms =>
+    List.fold_left(
+      (acc, (_, {label, mold, _}: Form.t)) => {
+        let molds =
+          switch (List.assoc_opt(label, acc)) {
+          | Some(old_molds) => old_molds @ [mold]
+          | None => [mold]
+          };
+        List.cons((label, molds), List.remove_assoc(label, acc));
+      },
+      [],
+      forms,
+    );
 
 let get = (label: Label.t): list(Mold.t) => {
-  switch (label, List.assoc_opt(label, forms_assoc)) {
-  | ([t], Some(molds)) when Form.atomic_molds(t) != [] =>
+  let t = List.hd(label);
+  print_endline("What do we get here? " ++ t);
+  let forms =
+    if (Form.is_op(t)) {
+      [
+        (
+          "user_op",
+          (Form.is_op, [Mold.mk_bin(Form.prec_of_op(t), Exp, [])]),
+        ),
+      ]
+      @ List.tl(Form.atomic_forms);
+    } else {
+      Form.atomic_forms;
+    };
+  switch (label, List.assoc_opt(label, forms_assoc(Form.forms))) {
+  | ([t], Some(molds)) when Form.atomic_molds(t, forms) != [] =>
     // TODO(andrew): does this make sense?
-    Form.atomic_molds(t) @ molds
-  | ([t], None) when Form.atomic_molds(t) != [] =>
-    let Form.{mold, _} = Form.mk_userop(t);
-    [mold] @ Form.atomic_molds(t);
+    Form.atomic_molds(t, forms) @ molds
+  | ([t], None) when Form.atomic_molds(t, forms) != [] =>
+    Form.atomic_molds(t, forms)
   | (_, Some(molds)) => molds
   | (lbl, None) =>
     Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));

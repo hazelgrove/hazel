@@ -506,7 +506,7 @@ and uexp_to_info_map =
         let err_def =
           TermBase.UExp.{
             ids: def.ids,
-            term: TermBase.UExp.Invalid(InvalidBinaryOperator),
+            term: TermBase.UExp.Invalid(InvalidBinaryOperator(name)),
           };
         let err_def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, err_def);
         let (ty_err_def, free_err_def, m_err_def) =

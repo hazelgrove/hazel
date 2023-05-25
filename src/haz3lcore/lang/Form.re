@@ -156,12 +156,15 @@ let is_secondary = t =>
 let is_op_in_let_precursor = regexp("^_[!$%&*+\\-./:<=>@^]*$");
 let is_op_in_let = regexp("^_[!$%&*+\\-./:<=>@^]+_$");
 let is_op = regexp("^[!$%&*+\\-./:<=>@^]+$");
-let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
+let is_var = str =>
+  !is_reserved(str)
+  && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op_in_let(str));
 
 /* B. Operands:
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("op", (is_op, [mk_bin(P.plus, Exp, [])])), // HACK infix expansion
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
@@ -177,8 +180,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("op_in_let_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
-  ("op_in_let", (is_op_in_let, [mk_op(Pat, [])])),
-  ("op", (is_op, [mk_op(Exp, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
@@ -273,15 +274,16 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
-let atomic_molds: Token.t => list(Mold.t) =
-  s =>
-    List.fold_left(
-      (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
-      [],
-      atomic_forms,
-    );
+let atomic_molds =
+    (s: Token.t, forms: list((string, (string => bool, list(Mold.t)))))
+    : list(Mold.t) =>
+  List.fold_left(
+    (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
+    [],
+    forms,
+  );
 
-let is_atomic = t => atomic_molds(t) != [];
+let is_atomic = t => atomic_molds(t, atomic_forms) != [];
 
 let is_delim = t => List.mem(t, delims);
 
@@ -319,12 +321,38 @@ let prec_of_op = (op_name: string): P.t => {
     | '('
     | ')' => P.ap
     | ':' => P.ann
-    | _ => P.plus
+    | _ => P.min
     }
   };
+};
+
+let mk_userop_nulls = (op_name: string): list((string, t)) => {
+  let prec = prec_of_op(op_name);
+  let rec recur = (op: string): list((string, t)) => {
+    switch (op) {
+    | "" => []
+    | s when String.length(op) == 1 => [
+        ("user_op" ++ s, mk_nul_infix(op, prec)),
+      ]
+    | _ =>
+      List.concat([
+        recur(String.sub(op, 0, String.length(op) - 1)),
+        [("user_op" ++ op, mk_nul_infix(op, prec))],
+      ])
+    };
+  };
+  recur(String.sub(op_name, 0, String.length(op_name) - 1));
 };
 
 let mk_userop = (op_name: string): t => {
   let op_prec = prec_of_op(op_name);
   mk_infix(op_name, Exp, op_prec);
+};
+
+let mk_userop_forms = (op_name: string): list((string, t)) => {
+  List.concat([
+    mk_userop_nulls(op_name),
+    [("user_op" ++ op_name, mk_userop(op_name))],
+    forms,
+  ]);
 };
