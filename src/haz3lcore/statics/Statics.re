@@ -85,6 +85,7 @@ type error =
   | Free(Typ.free_errors)
   | Multi
   | NoFun(Typ.t)
+  | InvalidBinOp
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
 
@@ -125,8 +126,9 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
       | Some(_) => NotInHole(SynConsistent(ty_joined))
       }
     };
-  | (Syn | SynFun | Ana(_), Free(free_error)) => InHole(Free(free_error))
-  | (Syn | SynFun | Ana(_), Multi) =>
+  | (Syn | SynFun | Ana(_) | AnaInfix(_), Free(free_error)) =>
+    InHole(Free(free_error))
+  | (Syn | SynFun | Ana(_) | AnaInfix(_), Multi) =>
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
@@ -148,6 +150,26 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
       switch (Typ.join(ty_syn, ty_ana)) {
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
       | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
+      };
+    | None =>
+      NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
+    }
+  | (AnaInfix(ty_ana), Just(ty_syn)) =>
+    switch (Typ.join(ty_ana, ty_syn)) {
+    | Some(Arrow(Prod([_a, _b]), _) as ty_join) =>
+      NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
+    | Some(_)
+    | None => InHole(InvalidBinOp)
+    }
+  | (AnaInfix(ty_ana), Joined(wrap, tys_syn)) =>
+    switch (Typ.join_all(Typ.source_tys(tys_syn))) {
+    | Some(ty_syn) =>
+      let ty_syn = wrap(ty_syn);
+      switch (Typ.join(ty_ana, ty_syn)) {
+      | Some(Arrow(Prod([_a, _b]), _) as ty_join) =>
+        NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
+      | Some(_)
+      | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
       };
     | None =>
       NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
@@ -488,55 +510,25 @@ and uexp_to_info_map =
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    let e_mode =
+      switch (pat) {
+      | {term: TypeAnn({term: Var(x), _}, _), _}
+      | {term: Var(x), _} when Form.is_op_in_let(x) => Typ.AnaInfix(ty_pat)
+      | _ => Typ.Ana(ty_pat)
+      };
     let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
+      uexp_to_info_map(~ctx=def_ctx, ~mode=e_mode, def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-    let TermBase.UPat.{term: trm, _} = pat;
-    switch (trm) {
-    | TypeAnn({term: Var(name), _}, _)
-    | Var(name) when Form.is_op_in_let(name) =>
-      switch (ty_def) {
-      | Arrow(Prod([_a, _b]), _out) =>
-        add(
-          ~self=Just(ty_body),
-          ~free=
-            Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
-          union_m([m_pat, m_def, m_body]),
-        )
-      | _ =>
-        let err_def =
-          TermBase.UExp.{
-            ids: def.ids,
-            term: TermBase.UExp.Invalid(InvalidBinaryOperator(name)),
-          };
-        let err_def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, err_def);
-        let (ty_err_def, free_err_def, m_err_def) =
-          uexp_to_info_map(~ctx=err_def_ctx, ~mode=Ana(ty_pat), err_def);
-        let (_, ctx_pat_ana, m_pat) =
-          upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_err_def), pat);
-        add(
-          ~self=Just(ty_body),
-          ~free=
-            Ctx.union([
-              free_err_def,
-              Ctx.subtract_typ(ctx_pat_ana, free_body),
-            ]),
-          union_m([m_pat, m_err_def, m_body]),
-        );
-      }
-    | _ =>
-      add(
-        ~self=Just(ty_body),
-        ~free=
-          Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
-        union_m([m_pat, m_def, m_body]),
-      )
-    };
+    add(
+      ~self=Just(ty_body),
+      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+      union_m([m_pat, m_def, m_body]),
+    );
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);

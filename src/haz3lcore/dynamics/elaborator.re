@@ -69,6 +69,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | Arrow(_) => Some(d)
       | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
       };
+    | AnaInfix(ana_ty)
     | Ana(ana_ty) =>
       /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {

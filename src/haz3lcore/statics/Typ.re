@@ -65,6 +65,7 @@ type self =
 type mode =
   | SynFun
   | Syn
+  | AnaInfix(t)
   | Ana(t);
 
 /* Strip location information from a list of sources */
@@ -170,6 +171,7 @@ let matched_arrow_mode: mode => (mode, mode) =
   fun
   | SynFun
   | Syn => (Syn, Syn)
+  | AnaInfix(ty)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
@@ -193,6 +195,7 @@ let matched_list_mode: mode => mode =
   fun
   | SynFun
   | Syn => Syn
+  | AnaInfix(ty)
   | Ana(ty) => Ana(matched_list(ty));
 
 let ap_mode: mode = SynFun;
