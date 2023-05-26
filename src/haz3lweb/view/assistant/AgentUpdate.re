@@ -97,6 +97,12 @@ let apply =
       OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
+          let trim_indentation = s =>
+            Js_of_ocaml.Regexp.global_replace(
+              Js_of_ocaml.Regexp.regexp("\n(\\s)*"),
+              s,
+              "\n",
+            );
           print_endline("Filler: calling react_error");
           switch (
             ChatLSP.Type.ctx(~ctx_init, editor),
@@ -106,14 +112,24 @@ let apply =
             switch (Filler.error_reply(response, 0, ~init_ctx, ~mode)) {
             | None =>
               print_endline("react_error: no errors.");
-              schedule_action(Agent(SetBuffer(response)));
+              print_endline("RECEIVED RESPONSE:\n " ++ response);
+              print_endline(
+                "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
+              );
+              let trimmed_response = trim_indentation(response);
+              schedule_action(Agent(SetBuffer(trimmed_response)));
               schedule_action(Script(EndTest()));
             | Some(reply) =>
               print_endline("react_error: errors:" ++ reply);
               OpenAI.reply_chat(prompt, response, reply, req =>
                 switch (OpenAI.handle_chat(req)) {
                 | Some(response) =>
-                  schedule_action(Agent(SetBuffer(response)));
+                  print_endline("RECEIVED RESPONSE:\n " ++ response);
+                  print_endline(
+                    "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
+                  );
+                  let trimmed_response = trim_indentation(response);
+                  schedule_action(Agent(SetBuffer(trimmed_response)));
                   schedule_action(Script(EndTest()));
                 | None => print_endline("Filler: handler failed")
                 //schedule_action(Script(EndTest()));

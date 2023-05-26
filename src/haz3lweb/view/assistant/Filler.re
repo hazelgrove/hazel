@@ -242,7 +242,3 @@ let error_reply =
     };
   };
 };
-
-let react = (response: string): UpdateAction.t => {
-  Agent(SetBuffer(response));
-};
