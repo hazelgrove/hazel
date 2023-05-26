@@ -2050,7 +2050,7 @@ let int_power_exp_coloring_ids =
   );
 let int_power_exp: form = {
   let explanation = {
-    message: "Integer exponentiation. Gives the result of raising [*left*](%i) ro the [*right*](%i).",
+    message: "Integer exponentiation. Gives the result of raising [*left*](%i) to the [*right*](%i).",
     feedback: Unselected,
   };
   {

@@ -329,34 +329,3 @@ let prec_of_op = (op_name: string): P.t => {
     }
   };
 };
-
-let mk_userop_nulls = (op_name: string): list((string, t)) => {
-  let prec = prec_of_op(op_name);
-  let rec recur = (op: string): list((string, t)) => {
-    switch (op) {
-    | "" => []
-    | s when String.length(op) == 1 => [
-        ("user_op" ++ s, mk_nul_infix(op, prec)),
-      ]
-    | _ =>
-      List.concat([
-        recur(String.sub(op, 0, String.length(op) - 1)),
-        [("user_op" ++ op, mk_nul_infix(op, prec))],
-      ])
-    };
-  };
-  recur(String.sub(op_name, 0, String.length(op_name) - 1));
-};
-
-let mk_userop = (op_name: string): t => {
-  let op_prec = prec_of_op(op_name);
-  mk_infix(op_name, Exp, op_prec);
-};
-
-let mk_userop_forms = (op_name: string): list((string, t)) => {
-  List.concat([
-    mk_userop_nulls(op_name),
-    [("user_op" ++ op_name, mk_userop(op_name))],
-    forms,
-  ]);
-};
