@@ -34,6 +34,17 @@ module Pervasives = {
     open EvaluatorMonad;
     open EvaluatorResult;
 
+    /* is_infinity implementation. */
+    let is_infinite = (name, r1) =>
+      switch (r1) {
+      | BoxedValue(FloatLit(f)) =>
+        let b = Float.is_infinite(f);
+        BoxedValue(BoolLit(b)) |> return;
+      | BoxedValue(d1) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      };
+
     /* int_of_float implementation. */
     let int_of_float = (name, r1) =>
       switch (r1) {
@@ -73,9 +84,17 @@ module Pervasives = {
 
     /* PI implementation. */
     let pi = DHExp.FloatLit(Float.pi);
+
+    /* Infinity float implementation. */
+    let infinity = DHExp.FloatLit(Float.infinity);
+    let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
   };
 
   let pi = name => Builtin.mk_zero(name, Float, Impls.pi);
+  let infinity = name => Builtin.mk_zero(name, Float, Impls.infinity);
+  let neg_infinity = name => Builtin.mk_zero(name, Float, Impls.neg_infinity);
+  let is_infinite = name =>
+    Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_infinite);
   let int_of_float = name =>
     Builtin.mk_one(name, Arrow(Float, Int), Impls.int_of_float);
   let float_of_int = name =>
@@ -86,6 +105,9 @@ module Pervasives = {
   let builtins =
     VarMap.empty
     |> using("pi", pi)
+    |> using("infinity", infinity)
+    |> using("neg_infinity", neg_infinity)
+    |> using("is_infinite", is_infinite)
     |> using("int_of_float", int_of_float)
     |> using("float_of_int", float_of_int)
     |> using("mod", modulo);
