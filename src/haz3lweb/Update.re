@@ -338,7 +338,12 @@ let rec apply =
       Ok({...model, logo_font_metrics})
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
-      AgentUpdate.schedule_prompt(editor.state.zipper, ~schedule_action);
+      let ctx_init = Editors.get_ctx_init(model.editors);
+      AgentUpdate.schedule_prompt(
+        ~ctx_init,
+        editor.state.zipper,
+        ~schedule_action,
+      );
       perform_action(model, a);
     | PerformAction(a) =>
       //NOTE: effectful
@@ -467,9 +472,10 @@ let rec apply =
         Ok(model);
       | _ =>
         schedule_action(Script(StartTest())); //TODO: which test?
+        let ctx_init = Editors.get_ctx_init(model.editors);
         let script: Model.script = {
           current_script: None,
-          to_run: Scripter.test_scripts,
+          to_run: Scripter.test_scripts(~ctx_init),
           results: VarMap.empty,
         };
         Ok({...model, script});
@@ -537,12 +543,10 @@ let rec apply =
       switch (model.script) {
       | {current_script: Some(name), to_run, results, _} =>
         let editor = Editors.get_editor(model.editors);
+        let ctx_init = Editors.get_ctx_init(model.editors);
         print_endline("SCRIPT: LogTest: Logging script: " ++ name);
         let info_map =
-          ChatLSP.get_info_from_zipper(
-            ~ctx=Ctx.empty, //TODO(andrew): better ctx
-            editor.state.zipper,
-          );
+          ChatLSP.get_info_from_zipper(~ctx_init, editor.state.zipper);
         let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
         let static_errors = Statics.collect_errors(info_map);
         let completed_sketch = Printer.to_string_editor(editor);
