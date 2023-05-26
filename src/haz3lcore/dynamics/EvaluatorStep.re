@@ -84,17 +84,6 @@ let unbox: EvaluatorResult.t => DHExp.t =
  */
 type m('a) = EvaluatorMonad.t('a);
 
-module DecomposeResult = {
-  type t = {
-    env: ClosureEnvironment.t,
-    flt: DHExp.FilterEnvironment.t,
-    ctx: EvalCtx.t,
-    exp: DHExp.t,
-  };
-
-  let mk = (env, flt, ctx, exp) => {env, flt, ctx, exp};
-};
-
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -189,33 +178,30 @@ module EvalObj = {
       raise(EvaluatorError.Exception(StepDoesNotMatch));
     };
   };
+
+  let wrap = (f: EvalCtx.t => EvalCtx.t, obj: t) => {
+    ...obj,
+    ctx: obj.ctx |> f,
+  };
 };
 
 let rec decompose =
         (
           env: ClosureEnvironment.t,
-          fenv: DHExp.FilterEnvironment.t,
-          d: DHExp.t,
+          flt: DHExp.FilterEnvironment.t,
+          act: DHExp.FilterAction.t,
+          exp: DHExp.t,
         )
-        : m(list(DecomposeResult.t)) => {
-  let wrap = (fctx: EvalCtx.t => EvalCtx.t, ld: list(DecomposeResult.t)) =>
-    List.map((obj: DecomposeResult.t) => {...obj, ctx: fctx(obj.ctx)}, ld);
+        : m((DHExp.FilterAction.t, list(EvalObj.t))) => {
+  let return = (r: (DHExp.FilterAction.t, list(EvalObj.t))) => r |> return;
+  let mk = EvalObj.mk;
+  let act =
+    switch (DHExp.FilterEnvironment.matches(exp, flt)) {
+    | Some(act) => act
+    | None => act
+    };
 
-  let go = (dcs: list((DHExp.t, EvalCtx.t => EvalCtx.t))) => {
-    List.fold_left(
-      (rc, (d, fc)) => {
-        let* c = decompose(env, fenv, d);
-        let* rc = rc;
-        rc @ wrap(fc, c) |> return;
-      },
-      return([]),
-      dcs,
-    );
-  };
-
-  let mk = DecomposeResult.mk;
-
-  switch (d) {
+  switch (exp) {
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
@@ -226,81 +212,51 @@ let rec decompose =
   | FreeVar(_)
   | InvalidText(_)
   | EmptyHole(_)
-  | ExpandingKeyword(_) => [] |> return
+  | ExpandingKeyword(_) => (Keep, []) |> return
   | Closure(_, Fun(_))
   | Fun(_)
   | ApBuiltin(_)
   | FixF(_, _, _)
-  | BoundVar(_) => [mk(env, fenv, Mark, d)] |> return
+  | BoundVar(_) => (Eval, [mk(env, Eval, Mark, exp)]) |> return
   | Ap(d1, d2) =>
-    let* sc = go([(d1, c => Ap1(c, d2)), (d2, c => Ap2(d1, c))]);
-    [mk(env, fenv, Mark, d), ...sc] |> return;
+    let* (a1, r1) = decompose(env, flt, act, d1);
+    let* (a2, r2) = decompose(env, flt, act, d2);
+    switch (act, a1, a2) {
+    | (Eval, Eval, Eval) =>
+      (Eval, [EvalObj.mk(env, Eval, Mark, exp)]) |> return
+    | _ =>
+      (
+        Step,
+        List.map(EvalObj.wrap(c => Ap1(c, d2)), r1)
+        @ List.map(EvalObj.wrap(c => Ap2(d1, c)), r2),
+      )
+      |> return
+    };
   | Closure(env', d) =>
     let* env = env |> ClosureEnvironment.union(env') |> with_eig;
-    let* ld = decompose(env, fenv, d);
-    wrap(c => Closure(env', c), ld) |> return;
+    let* (a, r) = decompose(env, flt, act, d);
+    (a, List.map(EvalObj.wrap(c => Closure(env', c)), r)) |> return;
   | Filter(f, d) =>
-    let fenv' = DHExp.FilterEnvironment.extends(f, fenv);
-    let* ld = decompose(env, fenv', d);
-    wrap(c => Filter(f, c), ld) |> return;
-  | Cast(d, ty, ty') =>
-    let* ld = decompose(env, fenv, d);
-    wrap(c => Cast(c, ty, ty'), ld) |> return;
-  | NonEmptyHole(reason, u, i, d1) =>
-    go([(d1, c => NonEmptyHole(reason, u, i, c))])
-  | BinBoolOp(op, d1, d2) =>
-    go([
-      (d1, c => BinBoolOp1(op, c, d2)),
-      (d2, c => BinBoolOp2(op, d1, c)),
-    ])
+    let flt' = DHExp.FilterEnvironment.extends(f, flt);
+    let* (a, r) = decompose(env, flt', act, d);
+    (a, List.map(EvalObj.wrap(c => Filter(f, c)), r)) |> return;
   | BinIntOp(op, d1, d2) =>
-    let* sc =
-      go([
-        (d1, c => BinIntOp1(op, c, d2)),
-        (d2, c => BinIntOp2(op, d1, c)),
-      ]);
-    [mk(env, fenv, Mark, d), ...sc] |> return;
-  | BinFloatOp(op, d1, d2) =>
-    go([
-      (d1, c => BinFloatOp1(op, c, d2)),
-      (d2, c => BinFloatOp2(op, d1, c)),
-    ])
-  | BinStringOp(op, d1, d2) =>
-    go([
-      (d1, c => BinStringOp1(op, c, d2)),
-      (d2, c => BinStringOp2(op, d1, c)),
-    ])
-  | Cons(d1, d2) =>
-    go([(d1, c => Cons1(c, d2)), (d2, c => Cons2(d1, c))])
-  | FailedCast(d1, ty1, ty2) => go([(d1, c => FailedCast(c, ty1, ty2))])
-  | Tuple(ds) =>
-    let rec walk = (ld, rd, rc) =>
-      switch (rd) {
-      | [] => rc
-      | [hd, ...tl] =>
-        let rc = rc @ [(hd, (c => EvalCtx.Tuple(c, (ld, tl))))];
-        walk(ld @ [hd], tl, rc);
-      };
-    go(walk([], ds, []));
-  | ListLit(m, i, e, t, ds) =>
-    let rec walk = (ld, rd, rc) =>
-      switch (rd) {
-      | [] => rc
-      | [hd, ...tl] =>
-        let rc =
-          rc @ [(hd, (c => EvalCtx.ListLit(m, i, e, t, c, (ld, tl))))];
-        walk(ld @ [hd], tl, rc);
-      };
-    go(walk([], ds, []));
-  | Sequence(d1, d2) => go([(d1, c => Sequence(c, d2))])
-  | Let(dp, d1, d2) => go([(d1, c => Let(dp, c, d2))])
-  | Prj(d, n) => go([(d, c => Prj(c, n))])
-  | Inj(ty, side, d1) => go([(d1, c => Inj(ty, side, c))])
-  | InvalidOperation(d1, err) => go([(d1, c => InvalidOperation(c, err))])
-  | ConsistentCase(Case(d1, rule, n)) =>
-    go([(d1, c => ConsistentCase(Case(c, rule, n)))])
-  | InconsistentBranches(u, i, Case(d1, rule, n)) =>
-    go([(d1, c => InconsistentBranches(u, i, Case(c, rule, n)))])
+    let* (a1, r1) = decompose(env, flt, act, d1);
+    let* (a2, r2) = decompose(env, flt, act, d2);
+    switch (act, a1, a2) {
+    | (Eval, Eval | Keep, Eval | Keep) =>
+      (Eval, [EvalObj.mk(env, Eval, Mark, exp)]) |> return
+    | (Step, Keep, Keep) =>
+      (Step, [EvalObj.mk(env, Step, Mark, exp)]) |> return
+    | _ =>
+      (
+        Step,
+        List.map(EvalObj.wrap(c => BinIntOp1(op, c, d2)), r1)
+        @ List.map(EvalObj.wrap(c => BinIntOp2(op, d1, c)), r2),
+      )
+      |> return
+    };
+  | _ => (Eval, []) |> return
   };
 };
 
@@ -378,101 +334,7 @@ let decompose = (d: DHExp.t) => {
     Environment.empty
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  let (es, rs) = decompose(env, [], d, es);
-  let rs =
-    rs
-    |> List.filter_map((obj: DecomposeResult.t) => {
-         obj.exp
-         |> DHExp.sexp_of_t
-         |> Sexplib.Sexp.to_string_hum
-         |> (s => print_endline("obj.exp = " ++ s));
-         obj.flt
-         |> DHExp.FilterEnvironment.sexp_of_t
-         |> Sexplib.Sexp.to_string_hum
-         |> (s => print_endline("obj.flt = " ++ s));
-         DHExp.FilterEnvironment.matches(obj.exp, obj.flt)
-         |> sexp_of_option(DHExp.FilterAction.sexp_of_t)
-         |> Sexplib.Sexp.to_string_hum
-         |> (s => print_endline("match result = " ++ s));
-         switch (DHExp.FilterEnvironment.matches(obj.exp, obj.flt)) {
-         | Some(Eval) => Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp))
-         | Some(Step)
-         | Some(Keep)
-         | None =>
-           let rec is_final = (d: DHExp.t) => {
-             switch (d) {
-             | TestLit(_)
-             | BoolLit(_)
-             | IntLit(_)
-             | FloatLit(_)
-             | StringLit(_)
-             | Closure(_, Filter(_, Fun(_)))
-             | Tag(_)
-             | FreeVar(_)
-             | InvalidText(_)
-             | EmptyHole(_)
-             | Closure(_, Fun(_))
-             | ExpandingKeyword(_) => true
-             | Fun(_)
-             | ApBuiltin(_)
-             | FixF(_, _, _)
-             | BoundVar(_)
-             | Ap(_, _)
-             | BinBoolOp(_, _, _)
-             | BinIntOp(_, _, _)
-             | BinFloatOp(_, _, _)
-             | BinStringOp(_, _, _)
-             | Cons(_, _)
-             | Sequence(_, _)
-             | Let(_, _, _)
-             | Prj(_, _)
-             | Inj(_, _, _)
-             | InvalidOperation(_, _)
-             | ConsistentCase(_)
-             | InconsistentBranches(_) => false
-             | NonEmptyHole(_, _, _, d)
-             | Closure(_, d)
-             | Filter(_, d)
-             | Cast(d, _, _)
-             | FailedCast(d, _, _) => is_final(d)
-             | ListLit(_, _, _, _, ds)
-             | Tuple(ds) =>
-               ds |> List.fold_left((res, d) => res && is_final(d), true)
-             };
-           };
-           switch (obj.exp) {
-           | TestLit(_)
-           | BoolLit(_)
-           | IntLit(_)
-           | FloatLit(_)
-           | StringLit(_)
-           | Closure(_, Filter(_, Fun(_)))
-           | Tag(_)
-           | FreeVar(_)
-           | InvalidText(_)
-           | EmptyHole(_)
-           | Closure(_, Fun(_))
-           | ExpandingKeyword(_) => None
-           | Fun(_)
-           | ApBuiltin(_)
-           | FixF(_, _, _)
-           | BoundVar(_) => Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp))
-           | Ap(d1, d2) =>
-             if (is_final(d1) && is_final(d2)) {
-               Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp));
-             } else {
-               None;
-             }
-           | BinIntOp(_, d1, d2) =>
-             if (is_final(d1) && is_final(d2)) {
-               Some(EvalObj.mk(obj.env, Eval, obj.ctx, obj.exp));
-             } else {
-               None;
-             }
-           | _ => None
-           };
-         };
-       });
+  let (es, (_, rs)) = decompose(env, [], Eval, d, es);
   rs
   |> Sexplib.Std.sexp_of_list(EvalObj.sexp_of_t)
   |> Sexplib.Sexp.to_string_hum
