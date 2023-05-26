@@ -61,15 +61,15 @@ let error_view = (err: Haz3lcore.Statics.error) =>
         Type.view(ty_syn),
       ],
     )
-  | Free(BuiltinOpExists(op_name)) =>
+  | Free(BuiltinOpExists) =>
     div(
       ~attr=clss([errorc, "err-builtin-op-exists"]),
-      [text("Operator " ++ op_name ++ " exists as a built-in operator")],
+      [text("Operator exists as a built-in operator")],
     )
   | InvalidBinOp =>
     div(
       ~attr=clss([errorc, "err-invalid-binop"]),
-      [text("User defined operators must be binary")],
+      [text("User-defined operators must be binary functions")],
     )
   };
 

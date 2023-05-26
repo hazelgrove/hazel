@@ -277,7 +277,6 @@ and matches_cast_Inj =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_, _, _)
-  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -367,7 +366,6 @@ and matches_cast_Tuple =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
-  | BinUserOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -504,7 +502,6 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
-  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -812,19 +809,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
 
-    | BinUserOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(IntLit(_) as d1')
-      | BoxedValue(FloatLit(_) as d1')
-      | BoxedValue(BoolLit(_) as d1')
-      | BoxedValue(StringLit(_) as d1') =>
-        evaluate(env, Ap(op, Tuple([d1', d2])))
-      | BoxedValue(_) =>
-        print_endline("InvalidBoxedArgument");
-        raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)));
-      | Indet(d1') => Indet(BinUserOp(op, d1', d2)) |> return
-      };
     | Inj(ty, side, d1) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
@@ -957,7 +941,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
 
     | NonEmptyHole(reason, u, i, d1) =>
-      print_endline("This is causing the crash: " ++ DHExp.show(d));
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(d1')

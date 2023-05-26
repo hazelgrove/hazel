@@ -130,7 +130,6 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
-      | BinUserOp(_)
       | TestLit(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
@@ -139,15 +138,12 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
-  let expr = Id.Map.find_opt(Term.UExp.rep_id(uexp), m);
-  switch (expr) {
+  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let* d: DHExp.t =
       switch (uexp.term) {
-      | Invalid(InvalidBinaryOperator(var_name)) =>
-        Some(DHExp.FreeVar(id, 0, var_name))
       | Invalid(_) /* NOTE: treating invalid as a hole for now */
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
       | MultiHole(_tms) =>
@@ -303,21 +299,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         };
       };
     wrap(id, mode, self, d);
-  | Some(Invalid(InvalidOperatorApplication(var_name)))
-  | Some(Invalid(InvalidBinaryOperator(var_name))) =>
-    let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    Some(DHExp.FreeVar(id, 0, var_name));
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
-  | None =>
-    print_endline("This is not elaborating: " ++ TermBase.UExp.show(uexp));
-
-    print_endline("Map: ");
-    Seq.iter(
-      ((id, entry)) =>
-        print_endline(string_of_int(id) ++ " " ++ Statics.show(entry)),
-      Ptmap.to_seq(m),
-    );
-    None;
+  | None => None
   };
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {

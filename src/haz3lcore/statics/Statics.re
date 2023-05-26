@@ -412,27 +412,38 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | UserOp({term: Var(op), _}, e1, e2) =>
-    let op_var = Ctx.lookup_var(ctx, op);
-    let ty_all =
-      switch (op_var) {
-      | None => None
-      | Some(var) =>
-        switch (var.typ) {
-        | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
-        | _ => None
-        }
+  | UserOp(op, e1, e2) =>
+    switch (op) {
+    | {term: Var(x), _} =>
+      let op_var = Ctx.lookup_var(ctx, x);
+      let ty_all =
+        switch (op_var) {
+        | None => None
+        | Some(var) =>
+          switch (var.typ) {
+          | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
+          | _ => None
+          }
+        };
+      switch (ty_all) {
+      | Some((ty_out, ty1, ty2)) =>
+        let (_, free1, m1) = go(~mode=Ana(ty1), e1);
+        let (_, free2, m2) = go(~mode=Ana(ty2), e2);
+        add(
+          ~self=Just(ty_out),
+          ~free=Ctx.union([free1, free2]),
+          union_m([m1, m2]),
+        );
+      | None =>
+        let (_, free1, m1) = go(~mode=Syn, e1);
+        let (_, free2, m2) = go(~mode=Syn, e2);
+        add(
+          ~self=Free(Variable),
+          ~free=Ctx.union([free1, free2]),
+          union_m([m1, m2]),
+        );
       };
-    switch (ty_all) {
-    | Some((ty_out, ty1, ty2)) =>
-      let (_, free1, m1) = go(~mode=Ana(ty1), e1);
-      let (_, free2, m2) = go(~mode=Ana(ty2), e2);
-      add(
-        ~self=Just(ty_out),
-        ~free=Ctx.union([free1, free2]),
-        union_m([m1, m2]),
-      );
-    | None =>
+    | _ =>
       let (_, free1, m1) = go(~mode=Syn, e1);
       let (_, free2, m2) = go(~mode=Syn, e2);
       add(
@@ -440,8 +451,7 @@ and uexp_to_info_map =
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );
-    };
-  | UserOp(_) => failwith("Term is not Var")
+    }
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
@@ -506,13 +516,13 @@ and uexp_to_info_map =
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
-    print_endline("Pat in let is: " ++ TermBase.UPat.show(pat));
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let e_mode =
       switch (pat) {
-      | {term: TypeAnn({term: Var(x), _}, _), _}
+      | {term: TypeAnn({term: Var(x), _}, _), _} when Form.is_op_in_let(x) =>
+        Typ.AnaInfix(ty_pat)
       | {term: Var(x), _} when Form.is_op_in_let(x) => Typ.AnaInfix(ty_pat)
       | _ => Typ.Ana(ty_pat)
       };
@@ -631,13 +641,19 @@ and upat_to_info_map =
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    if (List.mem(name, Form.delims)) {
-      atomic(Free(BuiltinOpExists(name)));
+    let op_name =
+      if (Form.is_op_in_let(name)) {
+        String.sub(name, 1, String.length(name) - 2);
+      } else {
+        name;
+      };
+    if (List.mem(op_name, Form.delims)) {
+      atomic(Free(BuiltinOpExists));
     } else {
       let typ = typ_after_fix(mode, Just(Unknown(Internal)));
       let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
-    }
+    };
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =

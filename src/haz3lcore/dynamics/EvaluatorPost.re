@@ -94,12 +94,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     BinStringOp(op, d1', d2') |> return;
 
-  | BinUserOp(op, d1, d2) =>
-    let* op' = pp_eval(op);
-    let* d1' = pp_eval(d1);
-    let* d2' = pp_eval(d2);
-    BinUserOp(op', d1', d2') |> return;
-
   | Cons(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
@@ -325,12 +319,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     BinStringOp(op, d1', d2') |> return;
 
-  | BinUserOp(op, d1, d2) =>
-    let* op' = pp_uneval(env, op);
-    let* d1' = pp_uneval(env, d1);
-    let* d2' = pp_uneval(env, d2);
-    BinUserOp(op', d1', d2') |> return;
-
   | Cons(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
@@ -474,11 +462,6 @@ let rec track_children_of_hole =
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
-
-  | BinUserOp(op, d1, d2) =>
-    let hii = track_children_of_hole(hii, parent, op);
-    let hii' = track_children_of_hole(hii, parent, d1);
-    track_children_of_hole(hii', parent, d2);
 
   | ListLit(_, _, _, _, ds) =>
     List.fold_right(

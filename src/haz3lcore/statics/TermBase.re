@@ -2,8 +2,6 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type parse_flag =
-  | InvalidBinaryOperator(Var.t) // When binary user-defined operators are non-binary
-  | InvalidOperatorApplication(Var.t) // When a user-defiend operator is applied incorrectly
   | Secondary // Not really an error
   | MalformedGrout // Should never happen
   | UnrecognizedTerm // Reminder to add term to MakeTerm
@@ -11,8 +9,6 @@ type parse_flag =
 
 let show_parse_flag: parse_flag => string =
   fun
-  | InvalidBinaryOperator(_) => "Binary function required for operators"
-  | InvalidOperatorApplication(_) => "Prefix application must be surrounded by underscores"
   | Secondary => "Secondary"
   | MalformedGrout => "Malformed Grout"
   | UnrecognizedTerm => "Unrecognized Term"

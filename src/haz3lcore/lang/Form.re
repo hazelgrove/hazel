@@ -302,7 +302,7 @@ let mk_atomic = (sort: Sort.t, t: Token.t) => {
 
 let prec_of_op = (op_name: string): P.t => {
   switch (op_name) {
-  | "" => P.min /* error should be called before this point */
+  | "" => P.plus /* error should be called before this point */
   | _ =>
     switch (op_name.[0]) {
     | ';' => 10
@@ -310,7 +310,11 @@ let prec_of_op = (op_name: string): P.t => {
     | '-' => P.plus
     | '*'
     | '/'
-    | '%' => P.mult
+    | '%'
+    | '@' => P.mult
+    | '^' => P.power
+    | '.'
+    | '!'
     | '='
     | '$'
     | '>'
@@ -321,7 +325,7 @@ let prec_of_op = (op_name: string): P.t => {
     | '('
     | ')' => P.ap
     | ':' => P.ann
-    | _ => P.min
+    | _ => P.plus
     }
   };
 };
