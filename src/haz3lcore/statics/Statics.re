@@ -376,8 +376,7 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Var(name) =>
-    let var = Ctx.lookup_var(ctx, name);
-    switch (var) {
+    switch (Ctx.lookup_var(ctx, name)) {
     | None => atomic(Free(Variable))
     | Some(var) when Form.is_op_in_let(name) =>
       switch (var.typ) {
@@ -395,7 +394,7 @@ and uexp_to_info_map =
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
-    };
+    }
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -521,8 +520,7 @@ and uexp_to_info_map =
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let e_mode =
       switch (pat) {
-      | {term: TypeAnn({term: Var(x), _}, _), _} when Form.is_op_in_let(x) =>
-        Typ.AnaInfix(ty_pat)
+      | {term: TypeAnn({term: Var(x), _}, _), _}
       | {term: Var(x), _} when Form.is_op_in_let(x) => Typ.AnaInfix(ty_pat)
       | _ => Typ.Ana(ty_pat)
       };
@@ -641,19 +639,17 @@ and upat_to_info_map =
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    let op_name =
-      if (Form.is_op_in_let(name)) {
-        String.sub(name, 1, String.length(name) - 2);
-      } else {
-        name;
-      };
-    if (List.mem(op_name, Form.delims)) {
+    if (Form.is_op_in_let(name)
+        && List.mem(
+             String.sub(name, 1, String.length(name) - 2),
+             Form.delims,
+           )) {
       atomic(Free(BuiltinOpExists));
     } else {
       let typ = typ_after_fix(mode, Just(Unknown(Internal)));
       let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
-    };
+    }
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =

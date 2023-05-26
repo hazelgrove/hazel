@@ -46,7 +46,7 @@ let get = (label: Label.t): list(Mold.t) => {
   };
 };
 
-let delayed_expansions: expansions = {
+let delayed_expansions: expansions =
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>
       switch (expansion, label) {
@@ -64,7 +64,6 @@ let delayed_expansions: expansions = {
   )
   |> List.flatten
   |> List.sort_uniq(compare);
-};
 
 let instant_expansions: expansions =
   List.filter_map(
