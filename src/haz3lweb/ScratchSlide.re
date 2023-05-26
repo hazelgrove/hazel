@@ -22,7 +22,7 @@ let spliced_elabs = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => {
     );
   //print_endline("zipper: " ++ Zipper.show(editor.state.zipper));
   /*print_endline(
-      "spliced_elabs: smart_seg:" ++ Printer.of_segment(~holes=Some("?"), seg),
+    "spliced_elabs: smart_seg:" ++ Printer.of_segment(~holes=Some("?"), seg),
     );*/
   //print_endline("spliced_elabs: seg:" ++ Segment.show(seg));
   let (term, _) = MakeTerm.go(seg);
