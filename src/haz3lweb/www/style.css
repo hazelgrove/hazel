@@ -458,7 +458,7 @@ body,
 .editor {
   display: flex;
   justify-content: space-between;
-  padding-bottom: 1em;
+  padding-bottom: 3em;
 }
 
 .editor.column {
