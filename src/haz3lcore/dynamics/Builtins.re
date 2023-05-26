@@ -34,14 +34,25 @@ module Pervasives = {
     open EvaluatorMonad;
     open EvaluatorResult;
 
-    /* is_infinity implementation. */
+    /* is_infinite implementation. */
     let is_infinite = (name, r1) =>
       switch (r1) {
       | BoxedValue(FloatLit(f)) =>
         let b = Float.is_infinite(f);
         BoxedValue(BoolLit(b)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      };
+
+    /* is_NaN implementation. */
+    let is_nan = (name, r1) =>
+      switch (r1) {
+      | BoxedValue(FloatLit(f)) =>
+        let b = Float.is_nan(f);
+        BoxedValue(BoolLit(b)) |> return;
+      | BoxedValue(d1) =>
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -88,13 +99,19 @@ module Pervasives = {
     /* Infinity float implementation. */
     let infinity = DHExp.FloatLit(Float.infinity);
     let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
+
+    /* NaN float implementation. */
+    let nan = DHExp.FloatLit(Float.nan);
   };
 
   let pi = name => Builtin.mk_zero(name, Float, Impls.pi);
   let infinity = name => Builtin.mk_zero(name, Float, Impls.infinity);
   let neg_infinity = name => Builtin.mk_zero(name, Float, Impls.neg_infinity);
+  let nan = name => Builtin.mk_zero(name, Float, Impls.nan);
   let is_infinite = name =>
     Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_infinite);
+  let is_nan = name =>
+    Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_nan);
   let int_of_float = name =>
     Builtin.mk_one(name, Arrow(Float, Int), Impls.int_of_float);
   let float_of_int = name =>
@@ -107,7 +124,9 @@ module Pervasives = {
     |> using("pi", pi)
     |> using("infinity", infinity)
     |> using("neg_infinity", neg_infinity)
+    |> using("nan", nan)
     |> using("is_infinite", is_infinite)
+    |> using("is_nan", is_nan)
     |> using("int_of_float", int_of_float)
     |> using("float_of_int", float_of_int)
     |> using("mod", modulo);
