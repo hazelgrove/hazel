@@ -5,14 +5,15 @@ type parse_flag =
   | Secondary // Not really an error
   | MalformedGrout // Should never happen
   | UnrecognizedTerm // Reminder to add term to MakeTerm
-  | IncompleteTile; // Remove in future
-
+  | IncompleteTile // Remove in future
+  | BadInt // Integer is out of range;
 let show_parse_flag: parse_flag => string =
   fun
   | Secondary => "Secondary"
   | MalformedGrout => "Malformed Grout"
   | UnrecognizedTerm => "Unrecognized Term"
-  | IncompleteTile => "Incomplete Tile";
+  | IncompleteTile => "Incomplete Tile"
+  | BadInt => "Integer out of range";
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
