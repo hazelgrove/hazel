@@ -412,6 +412,7 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | UserOp(op, e1, e2) =>
+    let (_, free_op, m_op) = uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, op);
     switch (op) {
     | {term: Var(x), _} =>
       let op_var = Ctx.lookup_var(ctx, x);
@@ -430,16 +431,16 @@ and uexp_to_info_map =
         let (_, free2, m2) = go(~mode=Ana(ty2), e2);
         add(
           ~self=Just(ty_out),
-          ~free=Ctx.union([free1, free2]),
-          union_m([m1, m2]),
+          ~free=Ctx.union([free_op, free1, free2]),
+          union_m([m_op, m1, m2]),
         );
       | None =>
         let (_, free1, m1) = go(~mode=Syn, e1);
         let (_, free2, m2) = go(~mode=Syn, e2);
         add(
           ~self=Free(Variable),
-          ~free=Ctx.union([free1, free2]),
-          union_m([m1, m2]),
+          ~free=Ctx.union([free_op, free1, free2]),
+          union_m([m_op, m1, m2]),
         );
       };
     | _ =>
@@ -447,10 +448,10 @@ and uexp_to_info_map =
       let (_, free2, m2) = go(~mode=Syn, e2);
       add(
         ~self=Free(Variable),
-        ~free=Ctx.union([free1, free2]),
-        union_m([m1, m2]),
+        ~free=Ctx.union([free_op, free1, free2]),
+        union_m([m_op, m1, m2]),
       );
-    }
+    };
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);

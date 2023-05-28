@@ -269,7 +269,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
-      | ([(id, t)], []) =>
+      | ([(_id, t)], []) =>
         ret(
           switch (t) {
           | (["+"], []) => BinOp(Int(Plus), l, r)
@@ -298,7 +298,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | ([t], []) when Form.is_op(t) =>
-            UserOp({ids: [id], term: Var("_" ++ t ++ "_")}, l, r)
+            UserOp({ids: [dark_id()], term: Var("_" ++ t ++ "_")}, l, r)
           | _ => hole(tm)
           },
         )
