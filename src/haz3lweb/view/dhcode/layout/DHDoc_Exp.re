@@ -37,7 +37,6 @@ let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
   switch (bso) {
   | SEquals => DHDoc_common.precedence_Equals
   };
-
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
