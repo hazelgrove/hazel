@@ -218,16 +218,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
-        print_endline(
-          "For variable "
-          ++ name
-          ++ " the error status is: "
-          ++ Statics.show_error_status(err_status),
-        );
         switch (err_status) {
         | InHole(Free(Variable)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
-        };
+        }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
           name =>
@@ -306,9 +300,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       };
     wrap(id, mode, self, d);
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
-  | None =>
-    print_endline("Cannot elaborate this: " ++ Term.UExp.show(uexp));
-    None;
+  | None => None
   };
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {

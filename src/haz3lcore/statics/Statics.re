@@ -438,7 +438,7 @@ and uexp_to_info_map =
         let (_, free1, m1) = go(~mode=Syn, e1);
         let (_, free2, m2) = go(~mode=Syn, e2);
         add(
-          ~self=Free(Variable),
+          ~self=Free(UserOp),
           ~free=Ctx.union([free_op, free1, free2]),
           union_m([m_op, m1, m2]),
         );
