@@ -6,7 +6,7 @@ type parse_flag =
   | MalformedGrout // Should never happen
   | UnrecognizedTerm // Reminder to add term to MakeTerm
   | IncompleteTile // Remove in future
-  | BadInt // Integer is out of range;
+  | BadInt; // Integer is out of range;
 let show_parse_flag: parse_flag => string =
   fun
   | Secondary => "Secondary"
