@@ -1,3 +1,4 @@
+// todo: add operator class
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t =
   | Const(Token.t)
@@ -6,12 +7,16 @@ type t =
   | Int_lit
   | Float_lit;
 
-// NOTE: keys are shapes, not the token strings
 module Map =
   Map.Make({
     type nonrec t = t;
     let compare = compare;
   });
+
+let is_const =
+  fun
+  | Const(t) => Some(t)
+  | _ => None;
 
 let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0);
 
@@ -27,13 +32,3 @@ let is_float_lit = str =>
 
 let is_id_lower = regexp("^[a-z][A-Za-z0-9_]*$");
 let is_id_upper = regexp("^[A-Z][A-Za-z0-9_]*$");
-
-// do not call directly, use LangUtil.shape_of_token
-let of_token = (t: Token.t): t =>
-  switch (t) {
-  | _ when is_id_lower(t) => Id_lower
-  | _ when is_id_upper(t) => Id_upper
-  | _ when is_int_lit(t) => Int_lit
-  | _ when is_float_lit(t) => Float_lit
-  | _ => Const(t)
-  };

@@ -1,3 +1,18 @@
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t;
+
+let root: t;
+let compare: (t, t) => int;
+let lca: (t, t) => t;
+
+let to_string: t => string;
+// hack to do sort-specific stuff in web
+// todo: unhack
+let of_string: string => t;
+
+module Map: Map.S with type key = t;
+
+/** old Sort.re
 open Sexplib.Std;
 
 include Lang.Sort;
@@ -45,3 +60,4 @@ module Ana = {
 
 let leq = (l, r) => lca(l, r) == l;
 let geq = (l, r) => lca(l, r) == r;
+*/;

@@ -68,13 +68,15 @@ let nullable = r =>
      );
 
 module Unzipped = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('s) =
     | Star_
     | Seq_(s('s), s('s))
     | Alt_(s('s), s('s));
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type s('s) = list(t('s));
 
-  let empty = [];
+  let empty: s(_) = [];
 
   let zip = (r: regex(_), uz: t(_)) =>
     switch (uz) {

@@ -1,6 +1,6 @@
 open Util;
 
-let sorts = List.map(fst, Lang.t);
+let sorts = List.map(fst, Sort.Map.bindings(Grammar.v));
 
 module Edge = {
   type t = {
