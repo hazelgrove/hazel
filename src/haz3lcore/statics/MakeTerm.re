@@ -127,7 +127,10 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     kids
     |> List.map(
          fun
-         | Exp(clause) => Some(clause)
+         | Exp(clause) => {
+             //print_endline("exp clause: " ++ UExp.show(clause));
+             Some(clause);
+           }
          | _ => None,
        )
     |> OptUtil.sequence;
@@ -231,10 +234,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
-          Match(scrut, rules),
-          ids,
-        )
+      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) =>
+        (Match(scrut, rules), ids);
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -266,7 +267,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm => {
-      // print_endline("exp bin: " ++ show_unsorted(tm));
+      //print_endline("exp bin: " ++ show_unsorted(tm));
       switch (is_tuple_exp(tiles)) {
       | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
       | None =>
@@ -299,6 +300,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
             | (["::"], []) => Cons(l, r)
             | ([";"], []) => Seq(l, r)
             | (["$=="], []) => BinOp(String(Equals), l, r)
+            | (["as"], []) => Tuple([l])
             | _ => hole(tm)
             },
           )
@@ -433,6 +435,8 @@ and typ_term: unsorted => UTyp.term = {
 // }
 and rul = (unsorted: unsorted): URul.t => {
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
+  //print_endline("make term rul: " ++ show_unsorted(unsorted));
+  //print_endline("rul exp_term: " ++ show_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {

@@ -225,7 +225,7 @@ let deco =
       let (term, terms) = MakeTerm.go(unselected);
 
       let info_map = Statics.mk_map(term);
-      
+
       let term_ranges = TermRanges.mk(unselected);
 
       let tiles = TileMap.mk(unselected);
@@ -2476,7 +2476,6 @@ let get_doc =
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
     | As(left, right) =>
-
       let (doc, options) =
         LangDocMessages.get_form_and_options(
           LangDocMessages.as_exp_group,

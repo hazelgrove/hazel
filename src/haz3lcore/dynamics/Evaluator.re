@@ -55,8 +55,8 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   };
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
-   print_endline("matches dp: " ++ DHPat.show(dp));
-   print_endline("matches d: " ++ DHExp.show(d));
+  //  print_endline("matches dp: " ++ DHPat.show(dp));
+  // print_endline("matches d: " ++ DHExp.show(d));
   switch (dp, d) {
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_), _)
@@ -219,8 +219,20 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
-  | (As(_, _), _) => DoesNotMatch
-  }
+  | (As(dp, var_pat), _) =>
+    switch (matches(dp, d)) {
+    | DoesNotMatch => DoesNotMatch
+    | IndetMatch => IndetMatch
+    | Matches(env) =>
+      switch (var_pat) {
+      | Var(name) =>
+        let env = Environment.extend(env, (name, d));
+        Matches(env);
+      | _ => DoesNotMatch
+      }
+    }
+  //  | (As(_, _), _) => DoesNotMatch
+  };
 }
 and matches_cast_Inj =
     (
@@ -595,6 +607,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     switch (d) {
     | BoundVar(x) =>
+      print_endline("BoundVar: " ++ x);
+      print_endline("closure environment: " ++ ClosureEnvironment.show(env));
       let d =
         x
         |> ClosureEnvironment.lookup(env)
@@ -662,6 +676,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | Matches(env') =>
             // evaluate a closure: extend the closure environment with the
             // new bindings introduced by the function application.
+            print_endline("matches box val ap");
             let* env = evaluate_extend_env(env', closure_env);
             evaluate(env, d3);
           }
@@ -1114,6 +1129,7 @@ and eval_rule =
       |> return;
     | Matches(env') =>
       // extend environment with new bindings introduced
+      print_endline("matches eval");
       let* env = evaluate_extend_env(env', env);
       evaluate(env, d);
     // by the rule and evaluate the expression.
@@ -1129,6 +1145,10 @@ and eval_rule =
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : m(ClosureEnvironment.t) => {
+  print_endline(
+    "evaluate_extend_env with new_bindings: "
+    ++ Environment.show(new_bindings),
+  );
   let map =
     Environment.union(new_bindings, ClosureEnvironment.map_of(to_extend));
   map |> ClosureEnvironment.of_environment |> with_eig;
