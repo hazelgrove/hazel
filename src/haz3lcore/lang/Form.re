@@ -64,7 +64,7 @@ let mk_nul_infix = (t: Token.t, prec) =>
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^[0-9_]*$");
 let is_arbitary_float = x =>
-  x != "." && regexp("^-?[0-9]*\\.[0-9]*((e|E)-?[0-9]*)?$", x);
+  x != "." && regexp("^-?[0-9]*\\.[0-9]*((e|E)-?[0-9]*)?$", x); // digits after e|E are "optional" so that Hazel allows the incomplete part
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */

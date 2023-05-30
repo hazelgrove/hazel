@@ -78,6 +78,32 @@ module Pervasives = {
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
+    let float_of_string = (name, r1) =>
+      switch (r1) {
+      | BoxedValue(StringLit(s)) =>
+        let s = Re.Str.string_after(s, 1);
+        let s = Re.Str.string_before(s, String.length(s) - 1);
+        if (String.length(s) == 0) {
+          BoxedValue(FloatLit(0.)) |> return;
+        } else {
+          let f = float_of_string(s);
+          BoxedValue(FloatLit(f)) |> return;
+        };
+      | BoxedValue(d1) =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      };
+
+    let string_of_float = (name, r1) =>
+      switch (r1) {
+      | BoxedValue(FloatLit(f)) =>
+        let s = string_of_float(f);
+        BoxedValue(StringLit(s)) |> return;
+      | BoxedValue(d1) =>
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
+      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      };
+
     /* mod implementation */
     let int_mod = (name, r1) =>
       switch (r1) {
@@ -116,6 +142,10 @@ module Pervasives = {
     Builtin.mk_one(name, Arrow(Float, Int), Impls.int_of_float);
   let float_of_int = name =>
     Builtin.mk_one(name, Arrow(Int, Float), Impls.float_of_int);
+  let float_of_string = name =>
+    Builtin.mk_one(name, Arrow(String, Float), Impls.float_of_string);
+  let string_of_float = name =>
+    Builtin.mk_one(name, Arrow(Float, String), Impls.string_of_float);
   let modulo = name =>
     Builtin.mk_one(name, Arrow(Prod([Int, Int]), Int), Impls.int_mod);
 
@@ -129,5 +159,7 @@ module Pervasives = {
     |> using("is_nan", is_nan)
     |> using("int_of_float", int_of_float)
     |> using("float_of_int", float_of_int)
+    |> using("float_of_string", float_of_string)
+    |> using("string_of_float", string_of_float)
     |> using("mod", modulo);
 };
