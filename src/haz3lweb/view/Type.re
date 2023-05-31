@@ -52,5 +52,24 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
     )
   | Sum(t1, t2) =>
     div(~attr=clss(["typ-view", "Sum"]), [view(t1), text("+"), view(t2)])
-  | Module(_) => ty_view("Module", "Module")
+  | Module([]) => div(~attr=clss(["typ-view", "Module"]), [text("Module")])
+  | Module([(n0, t0), ...nts]) =>
+    div(
+      ~attr=clss(["typ-view", "atom", "Module"]),
+      [
+        text("Module("),
+        div(
+          ~attr=clss(["typ-view", "Module"]),
+          [text(n0), text(":"), view(t0)]
+          @ (
+            List.map(
+              ((n, t)) => [text(", "), text(n), text(":"), view(t)],
+              nts,
+            )
+            |> List.flatten
+          ),
+        ),
+        text(")"),
+      ],
+    )
   };

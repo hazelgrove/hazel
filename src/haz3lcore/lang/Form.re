@@ -84,7 +84,8 @@ let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
-let is_dot_var = str => regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str);
+let is_dot_var = str =>
+  regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str) || str == ".";
 let is_concrete_typ = str =>
   str == "String" || str == "Int" || str == "Float" || str == "Bool";
 let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
@@ -161,7 +162,6 @@ let is_secondary = t =>
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
-  ("dot_var", (is_dot_var, [mk_post(P.ap, Exp, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -174,6 +174,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("dot_var", (is_dot_var, [mk_post(P.ap, Exp, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
