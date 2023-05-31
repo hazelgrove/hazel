@@ -357,7 +357,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_p2 = dhpat_of_upat(m, p2);
       wrap(Ap(d_p1, d_p2));
     | As(pat, name) =>
-      // print_endline("as exp elaborator pat1: " ++ Term.UPat.show(pat));
       let* d_pat1 = dhpat_of_upat(m, pat);
       let* d_pat2 = dhpat_of_upat(m, name);
 

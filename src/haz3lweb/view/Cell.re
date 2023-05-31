@@ -157,7 +157,6 @@ let test_result_layer =
       test_results: Interface.test_results,
     )
     : list(Node.t) => {
-  //print_endline(Interface.show_test_results(test_results));
   List.filter_map(
     ((id, insts)) =>
       switch (Id.Map.find_opt(id, measured.tiles)) {

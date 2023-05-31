@@ -357,7 +357,6 @@ and uexp_to_info_map =
     switch (Ctx.lookup_var(ctx, name)) {
     | None => atomic(Free(Variable))
     | Some(var) =>
-    //print_endline("var named: " ++ name ++ " free: " ++ Ctx.show_co([(name, [{id: Term.UExp.rep_id(uexp), mode}])]));
       add(
         ~self=Just(var.typ),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
@@ -436,13 +435,11 @@ and uexp_to_info_map =
     let (ty_pat, ctx_pat, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=mode_pat, pat);
 
-    //print_endline("Fun ctx_pat: " ++ Ctx.show(ctx_pat));
 
     let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
 
-    //print_endline("Fun free: " ++ Ctx.show_co(Ctx.subtract_typ(ctx_pat, free_body)));
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
@@ -476,7 +473,6 @@ and uexp_to_info_map =
     let branch_infos =
       List.map2(
         (branch, (_, ctx_pat, _)) => {
-        //print_endline("branch mode: " ++ Typ.show_mode(mode));
           uexp_to_info_map(~ctx=VarMap.concat(ctx, ctx_pat), ~mode, branch)
         },
         branches,
@@ -495,7 +491,6 @@ and uexp_to_info_map =
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
 
 
-    //print_endline("branch frees 0: " ++ Ctx.show_co(List.hd(branch_frees)));
 
     let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
@@ -597,17 +592,8 @@ and upat_to_info_map =
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
   | As(pat, name) =>
-    print_endline("statics as mode: " ++ Typ.show_mode(mode));
     let (ty_pat1, ctx, m_pat1) = upat_to_info_map(~ctx, ~mode, pat);
     let (_ty_pat2, ctx, m_pat2) = upat_to_info_map(~ctx, ~mode, name);
-
-    print_endline("final as ctx: " ++ Ctx.show(ctx));
-
-/*    let add = (~self, ~free, m) => (
-      typ_after_fix(mode, self),
-      free,
-      add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
-    ); */
 
     add(~self=Just(ty_pat1), ~ctx, union_m([m_pat1, m_pat2]));
   | Ap(fn, arg) =>

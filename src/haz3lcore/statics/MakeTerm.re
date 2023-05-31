@@ -128,7 +128,6 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> List.map(
          fun
          | Exp(clause) => {
-             //print_endline("exp clause: " ++ UExp.show(clause));
              Some(clause);
            }
          | _ => None,
@@ -267,7 +266,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm => {
-      //print_endline("exp bin: " ++ show_unsorted(tm));
       switch (is_tuple_exp(tiles)) {
       | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
       | None =>
@@ -312,7 +310,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 }
 
 and pat = unsorted => {
-  /* print_endline("pat unsorted: " ++ show_unsorted(unsorted)); */
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(p => Pat(p), ids, {ids, term});
@@ -323,8 +320,6 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let hole = unsorted => Term.UPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm => {
-      /* print_endline("op: " ++ show_unsorted(tm)); */
-      /* print_endline("op tiles: " ++ show_tiles(tiles)); */
       switch (tiles) {
       | ([(_id, tile)], []) =>
         ret(
@@ -369,12 +364,10 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       };
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm => {
-      /* print_endline("pat bin pat 2: " ++ show_unsorted(tm)); */
       switch (is_tuple_pat(tiles)) {
       //NOTE: this is where the infix patterns are handled
 
       | Some(between_kids) =>
-        /* let _ = List.map((x) => print_endline(UPat.show(x)), between_kids); */
         ret(Tuple([l] @ between_kids @ [r]))
       | None =>
         switch (tiles) {
@@ -435,8 +428,6 @@ and typ_term: unsorted => UTyp.term = {
 // }
 and rul = (unsorted: unsorted): URul.t => {
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
-  //print_endline("make term rul: " ++ show_unsorted(unsorted));
-  //print_endline("rul exp_term: " ++ show_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
