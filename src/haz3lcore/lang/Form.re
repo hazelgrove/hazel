@@ -234,6 +234,7 @@ let forms: list((string, t)) = [
     "module_",
     mk(ds, ["module", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
   ),
+  ("module_type", mk(ii, ["{", "}"], mk_op(Typ, [Pat]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (

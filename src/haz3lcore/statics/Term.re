@@ -34,7 +34,8 @@ module UTyp = {
     | Tuple
     | List
     | Var
-    | Parens;
+    | Parens
+    | Module;
 
   include TermBase.UTyp;
 
@@ -62,7 +63,8 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Tuple(_) => Tuple
-    | Parens(_) => Parens;
+    | Parens(_) => Parens
+    | Module(_) => Module;
 
   let show_cls: cls => string =
     fun
@@ -77,7 +79,8 @@ module UTyp = {
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
-    | Parens => "Parenthesized Type Term";
+    | Parens => "Parenthesized Type Term"
+    | Module => "Module Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -92,7 +95,8 @@ module UTyp = {
     | String
     | List(_)
     | Tuple(_)
-    | Var(_) => false
+    | Var(_)
+    | Module(_) => false
     };
   };
 };
@@ -542,6 +546,44 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
     | Parens(u) => utyp_to_ty(u)
+    | Module(u) =>
+      let rec get_Tuple: UPat.term => Typ.t = (
+        ut =>
+          switch (ut) {
+          | Tuple(us) =>
+            let upat_to_ctx = (ctx: list((string, Typ.t)), upat: UPat.t) => {
+              switch (upat.term) {
+              | Invalid(_)
+              | EmptyHole
+              | MultiHole(_)
+              | Wild
+              | Int(_)
+              | Float(_)
+              | Bool(_)
+              | String(_)
+              | Triv
+              | ListLit(_)
+              | Cons(_)
+              | Tuple(_)
+              | Parens(_)
+              | Ap(_) => ctx
+              | TypeAnn(var, utyp1) =>
+                switch (var.term, utyp1.term) {
+                | (Var(name), _)
+                | (Tag(name), _) => [(name, utyp_to_ty(utyp1)), ...ctx]
+                | _ => ctx
+                }
+              | Var(name)
+              | Tag(name) => [(name, Unknown(Internal)), ...ctx]
+              };
+            };
+            let module_ctx = List.fold_left(upat_to_ctx, [], us);
+            Module(module_ctx);
+          | Parens(p) => get_Tuple(p.term)
+          | _ => Unknown(Internal)
+          }
+      );
+      get_Tuple(u.term);
     };
 
 // TODO(d): consider just folding this into UExp

@@ -682,6 +682,9 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     let (_, maps) =
       tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
     just(union_m(maps));
+  | Module(p) =>
+    let (_, _, m) = upat_to_info_map(~is_synswitch=true, ~mode=Syn, p);
+    just(m);
   };
 }
 and uexp_to_module =

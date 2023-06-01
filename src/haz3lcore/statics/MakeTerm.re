@@ -395,6 +395,7 @@ and typ_term: unsorted => UTyp.term = {
       | ([t], []) when Form.is_typ_var(t) => Var(t)
       | (["(", ")"], [Typ(body)]) => Parens(body)
       | (["[", "]"], [Typ(body)]) => List(body)
+      | (["{", "}"], [Pat(body)]) => Module(body)
       | _ => hole(tm)
       }
     | _ => hole(tm)

@@ -322,6 +322,7 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Module(UPat.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -341,6 +342,7 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Module(UPat.t)
   and t = {
     ids: list(Id.t),
     term,

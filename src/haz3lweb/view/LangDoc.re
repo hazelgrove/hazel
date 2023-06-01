@@ -2745,6 +2745,7 @@ let get_doc =
         ),
         [],
       );
+    | Module(_) // TODO
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     }
