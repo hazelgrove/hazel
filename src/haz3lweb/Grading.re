@@ -344,6 +344,27 @@ module ImplGradingReport = {
   };
 };
 
+module ImplSyntaxReport = {
+  let view = (syntax_result: bool) => {
+    let result_string = if (syntax_result) {"Pass"} else {"Fail"};
+    Cell.panel(
+      ~classes=["test-panel"],
+      [
+        Cell.bolded_caption(
+          "Syntax Report",
+          ~rest=": Syntax of your implementation",
+        ),
+        div(
+          ~attr=
+            Attr.classes(["syntax-report", "test-instance", result_string]),
+          [text(result_string)],
+        ),
+      ],
+      ~footer=None,
+    );
+  };
+};
+
 module GradingReport = {
   include GradingReport;
 
