@@ -139,7 +139,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, _})) =>
+  | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Statics.error_status(mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let* d: DHExp.t =
@@ -205,10 +205,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
       | UserOp(op, e1, e2) =>
-        let* user_op = dhexp_of_uexp(m, op);
+        let var = Ctx.lookup_var(ctx, op);
+        let var_term: DHExp.t =
+          switch (var) {
+          | Some(var) => BoundVar(var.name)
+          | None => FreeVar(id, 0, op)
+          };
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
-        DHExp.Ap(user_op, Tuple([dc1, dc2]));
+        DHExp.Ap(var_term, Tuple([dc1, dc2]));
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);

@@ -297,8 +297,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | ([t], []) when Form.is_op(t) =>
-            UserOp({ids: [dark_id()], term: Var("_" ++ t ++ "_")}, l, r)
+          | ([t], []) when Form.is_op(t) => UserOp("_" ++ t ++ "_", l, r)
           | _ => hole(tm)
           },
         )

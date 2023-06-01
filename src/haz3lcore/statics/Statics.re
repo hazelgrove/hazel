@@ -412,44 +412,32 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | UserOp(op, e1, e2) =>
-    let (_, free_op, m_op) = uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, op);
-    switch (op) {
-    | {term: Var(x), _} =>
-      let op_var = Ctx.lookup_var(ctx, x);
-      let ty_all =
-        switch (op_var) {
-        | None => None
-        | Some(var) =>
-          switch (var.typ) {
-          | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
-          | _ => None
-          }
-        };
-      switch (ty_all) {
-      | Some((ty_out, ty1, ty2)) =>
-        let (_, free1, m1) = go(~mode=Ana(ty1), e1);
-        let (_, free2, m2) = go(~mode=Ana(ty2), e2);
-        add(
-          ~self=Just(ty_out),
-          ~free=Ctx.union([free_op, free1, free2]),
-          union_m([m_op, m1, m2]),
-        );
-      | None =>
-        let (_, free1, m1) = go(~mode=Syn, e1);
-        let (_, free2, m2) = go(~mode=Syn, e2);
-        add(
-          ~self=Free(UserOp),
-          ~free=Ctx.union([free_op, free1, free2]),
-          union_m([m_op, m1, m2]),
-        );
+    let op_var = Ctx.lookup_var(ctx, op);
+    let ty_all =
+      switch (op_var) {
+      | None => None
+      | Some(var) =>
+        switch (var.typ) {
+        | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
+        | _ => None
+        }
       };
-    | _ =>
+    switch (ty_all) {
+    | Some((ty_out, ty1, ty2)) =>
+      let (_, free1, m1) = go(~mode=Ana(ty1), e1);
+      let (_, free2, m2) = go(~mode=Ana(ty2), e2);
+      add(
+        ~self=Just(ty_out),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
+    | None =>
       let (_, free1, m1) = go(~mode=Syn, e1);
       let (_, free2, m2) = go(~mode=Syn, e2);
       add(
-        ~self=Free(Variable),
-        ~free=Ctx.union([free_op, free1, free2]),
-        union_m([m_op, m1, m2]),
+        ~self=Free(UserOp),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
       );
     };
   | Tuple(es) =>
