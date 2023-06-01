@@ -5,20 +5,6 @@ type params = {
   recursive: list(string),
 };
 
-/*let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
-	switch(uexp.term) {
-
-	};
-};
-
-let rec find_func = (uexp: Term.UExp.t, name: string): bool => {
-	switch(uexp.term) {
-	|
-	|
-	| 
-	};
-};*/
-
 let rec find_var = (uexp: Term.UExp.t, name: string): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
