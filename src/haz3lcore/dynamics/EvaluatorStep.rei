@@ -1,3 +1,9 @@
+module Filter = DHExp.Filter;
+
+module FilterAction = DHExp.FilterAction;
+
+module FilterEnvironment = DHExp.FilterEnvironment;
+
 module EvalCtx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -33,7 +39,7 @@ module EvalCtx: {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
-    | Filter(DHExp.Filter.t, t)
+    | Filter(DHExp.FilterEnvironment.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
@@ -74,23 +80,18 @@ module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     env: ClosureEnvironment.t,
-    act: DHExp.FilterAction.t,
     ctx: EvalCtx.t,
+    act: FilterAction.t,
     exp: DHExp.t,
   };
 
-  let mk:
-    (ClosureEnvironment.t, DHExp.FilterAction.t, EvalCtx.t, DHExp.t) => t;
-
-  let init: DHExp.t => t;
+  let mk: (ClosureEnvironment.t, EvalCtx.t, FilterAction.t, DHExp.t) => t;
 
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;
 
   let unwrap: (t, EvalCtx.cls) => option(t);
 };
-
-let init: DHExp.t => (EvaluatorState.t, EvaluatorResult.t);
 
 let step: EvalObj.t => (EvaluatorState.t, EvaluatorResult.t);
 
