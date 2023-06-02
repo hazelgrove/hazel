@@ -7,10 +7,12 @@ module Atom = {
     | Tok(Label.t)
     | Kid('s);
 
-  let is_tok =
+  let get_tok =
     fun
     | Kid(_) => None
     | Tok(t) => Some(t);
+  let is_tok = a => Option.is_some(get_tok(a));
+
   let is_kid =
     fun
     | Tok(_) => None
@@ -122,7 +124,7 @@ module Zipper = {
 
 let rec enter =
         (~skip_nullable=true, ~from: Dir.t, r: t(_), uz: Unzipped.s(_))
-        : list(Zipper.t(_)) => {
+        : list(Zipper.t(_)) => p
   let go = enter(~skip_nullable, ~from);
   switch (r) {
   | Atom(a) => [(a, uz)]

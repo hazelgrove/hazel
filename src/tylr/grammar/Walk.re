@@ -1,15 +1,5 @@
 open Util;
 
-module Slot = {
-  /**
-   * cf `Walk`
-   */
-  type t = {
-    cmp: Cmp.t,
-    reg: Regex.t(Sort.t),
-  };
-};
-
 /**
   * A sequence of intermediate consecutive prototiles that are expected
   * to appear between a pair of bounding prototiles (not specified here).
@@ -22,4 +12,4 @@ module Slot = {
   * there; this info is used to determine where to place the middle term
   * relative to the error-correction-inserted prototiles.
   */
-type t = Chain.t(Slot.t, Proto.t);
+type t = Chain.t(Prec.Framed.t(Sort.t), Proto.t);

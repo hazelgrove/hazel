@@ -10,7 +10,7 @@ type t = {
 let mk = (~unfilled=0, proto) => {proto, unfilled};
 
 // let get_proto = (f, t) => f(t.proto);
-let length = t => Proto.length(t.proto);
+let length = t => Token.length(t.token);
 
 let is_empty = t => t.unfilled == length(t);
 let is_filled = t => t.unfilled == 0;

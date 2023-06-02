@@ -202,6 +202,33 @@ let rec shift_chars = (n, rel) =>
 //   };
 // };
 
+let rec mold_eq = (~kid=?, t: Token.t, rel: t): (Result.t(unit, Meld.t), t) => {
+  let (pre, _) = get_slopes(rel);
+  ();
+};
+
+let rec mold_eq =
+        (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
+  open Result.Syntax;
+  let (pre, _) = get_slopes(rel);
+  let/ kid = Slope.Dn.mold(pre, ~kid?, t);
+  switch (Chain.unlink(rel)) {
+  | None => Error(kid)
+  | Some((_slopes, bridge, rel)) =>
+    let/ kid = Bridge.mold_eq(~kid?, t, bridge);
+    mold_eq(~kid?, t, rel);
+  };
+};
+let mold__ = (t: Token.t, rel: t): Mold.t =>
+  switch (mold_eq(t, rel)) {
+  | Ok(m) => m
+  | Error(_) =>
+    switch (mold_lt(t, rel)) {
+    | Ok(m) => m
+    | Error(_) => failwith("todo default mold")
+    }
+  };
+
 let mold_lt = (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
   open Result.Syntax;
   let (pre, _) = get_slopes(rel);

@@ -1,27 +1,30 @@
 open Util;
 
+type t = Proto.Map.t(list(Walk.t));
+
+// todo: use List.merge to keep walks ordered by whatever metric
+let union2 = Proto.Map.union(
+  (_, l, r) => Some(l @ r),
+);
+let union = List.fold_left(union2, Proto.Map.empty);
+
 let enter_eq = {
   let go =
     Core.Memo.general(((bound, from: Dir.t, s)) =>
       List.assoc(s, v)
-      |> List.mapi((prec, (r, a)) => {
-           let bounded_entry = ((atom, _)) => {
-             let well_bounded =
-               switch (bound) {
-               | None => true
-               | Some(bound) => Prec.is_bounded(~on=from, ~a, prec, bound)
-               };
-             well_bounded || Regex.Atom.is_tok(atom);
-           };
+      |> List.mapi((prec, (r, a)) =>
            Regex.enter(~from, r, Regex.Unzipped.empty)
-           |> List.filter(bounded_entry)
+           |> List.filter(((atom, _)) =>
+             Regex.Atom.is_tok(atom)
+             || Prec.lower_bounded(~a, ~side=from, prec, bound)
+           )
            |> List.concat_map(((a, uz) as z) =>
                 switch (Regex.Atom.is_tok(a)) {
                 | Some(lbl) => [(lbl, uz)]
                 | None => Regex.walk_to_tok(Dir.toggle(from), z)
                 }
-              );
-         })
+              )
+         )
       |> List.mapi((prec, zs) =>
            zs
            |> List.map(((label, unzipped)) => {
@@ -31,10 +34,76 @@ let enter_eq = {
          )
       |> List.concat
     );
-  (~bound=?, ~from: Dir.t, s: Sort.t) => go((bound, from, s));
+  (~bound=Prec.min, ~from: Dir.t, s: Sort.t) => go((bound, from, s));
 };
 
-let step_eq: (Util.Dir.t, Proto.t) => list((Walk.t, Proto.t)) =
+let rec enter =
+    (~ctx=Prec.Ctx.init, ~walked=Walk.empty, ~from: Dir.t, s: Sort.t): t => {
+  let p =
+    Sort.Map.find(s, Grammar.v)
+    |> Precex.frame
+    |> Precex.bound
+    |> Regex.normalize_failure;
+
+  Regex.enter(~skip_nullable=false, ~from, p)
+  |> List.filter_map(
+    ((a, unzipped): Regex.Zipper.t(_)) =>
+      switch (a) {
+      | Tok(label) =>
+        let mold = Mold.{sort: s, unzipped};
+        let proto = Proto.{label, mold};
+        Proto.Map.singleton(proto, walked);
+      | Kid({frame, subj: s}) =>
+        let entered =
+
+
+
+
+
+
+        {
+          let walked = Walk.hsup_kid(walked, kid);
+          enter(~ctx, ~walked, ~from, s);
+        };
+        let entered_eq = {
+
+        }
+      }
+  )
+}
+and step = (~walked=Walk.empty, ~ctx, z: Regex.Zipper.t(_)): t =>
+  Regex.step(~skip_nullable=false, d, z)
+  |> List.map(((a, unzipped) as z) =>
+    switch (a) {
+    | Tok(label) =>
+      // complete step
+      let mold = {...mold, unzipped};
+      let proto = Proto.{label, mold};
+      Proto.Map.singleton(proto, walked);
+    | Kid(kid) =>
+      // fork step
+      let stepped_eq = {
+        let walked = Walk.hsup_kid(walked, kid);
+        go(~walked, ~ctx, z);
+      };
+      let stepped_lt = {
+      };
+    }
+  )
+  |> union;
+
+and step =
+    (~ctx=Prec.Ctx.init, ~walked=Walk.empty, d: Dir.t, {label, mold}: Proto.t): t => {
+  go((Tok(label), mold.unzipped));
+};
+
+let step_lt =
+    (~ctx=Prec.Ctx.init, {label, mold}: Proto.t): t => {
+
+}
+
+
+let step_eq: (Dir.t, Proto.t) => list((Walk.t, Proto.t)) =
   Core.Memo.general(((d, Proto.{label, mold})) =>
     Regex.move_to_tok(d, (label, mold.unzipped))
     |> List.map((w, (label, unzipped)) => {
@@ -42,21 +111,21 @@ let step_eq: (Util.Dir.t, Proto.t) => list((Walk.t, Proto.t)) =
          (w, Proto.{mold, label});
        })
   )
-  |> Util.FunUtil.curry2;
+  |> FunUtil.curry2;
 
 let step_lt: (Dir.t, Proto.t) => _ =
   Core.Memo.general(((d, Proto.{label, mold})) => {
     open Regex;
-    let b = Util.Dir.toggle(d);
+    let b = Dir.toggle(d);
     let bound = Unzipped.nullable(d, mold.unzipped) ? Some(mold.prec) : None;
     let neighbor_sorts =
       step(d, (Atom(label), mold.unzipped))
       |> List.filter_map(((w, (a, _))) => Atom.is_kid(a))
       |> List.concat_map(s => [s, ...SortDeps.uni_deps(b, s)])
-      |> Util.ListUtil.dedup;
+      |> ListUtil.dedup;
     neighbor_sorts |> List.concat_map(enter_eq(~from=b, ~bound));
   })
-  |> Util.FunUtil.curry2;
+  |> FunUtil.curry2;
 
 // module Walk = {
 //   open Util;
@@ -100,7 +169,7 @@ let step_lt: (Dir.t, Proto.t) => _ =
 // };
 
 let rec walk =
-        (~seen=Proto.Set.empty, d: Util.Dir.t, p: Proto.t)
+        (~seen=Proto.Set.empty, d: Dir.t, p: Proto.t)
         : Proto.Map.t(list(Walk.t)) =>
   if (Proto.Set.mem(p, seen)) {
     Proto.Map.empty;
@@ -125,4 +194,4 @@ let rec walk =
        );
   };
 let walk =
-  Core.Memo.general(((d, proto)) => walk(d, proto)) |> Util.FunUtil.curry2;
+  Core.Memo.general(((d, proto)) => walk(d, proto)) |> FunUtil.curry2;

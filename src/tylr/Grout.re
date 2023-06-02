@@ -10,7 +10,6 @@ exception Invalid;
 
 let mk = (~filled="", mold) => {filled, proto: Proto.Grout.mk(mold)};
 
-// todo: remove sort parameter and always make min sort
 let mk_operand = (sort: Sort.o) => mk(Mold.mk(sort, Prec.max));
 let mk_prefix = (~r=?, sort, prec) => mk(Mold.mk_prefix(sort, prec, ~r?));
 let mk_postfix = (~l=?, sort, prec) => mk(Mold.mk_postfix(~l?, sort, prec));

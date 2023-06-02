@@ -73,6 +73,8 @@ module Dn = {
         // todo: tighten this check to sort and left tip change
         // todo: avoid decomposing left kid if unneeded
         if (Meld.end_piece(~side=L, hd_kid_terr) != Some(Chain.fst(hd.wal))) {
+          // if eq merge led to replacing left end of hd with a new piece,
+          // then need to continue recursing in case of precedence change
           let (l, hkt) =
             Terrace.L.mk(hd_kid_terr) |> OptUtil.get_or_fail("expected root");
           let dn = cat(mk(tl), of_meld(l));

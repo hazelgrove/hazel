@@ -107,6 +107,8 @@ let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
   };
 };
 
+// checks whether r wins custody battle against l over kid.
+// if so, returns complemented r and left unikid (possibly empty).
 let lt = (l: t, ~kid=Meld.empty(), r: t): option((Meld.t, t)) => {
   open OptUtil.Syntax;
   let+ cmpl = Piece.lt(face(R, l), face(L, r));
