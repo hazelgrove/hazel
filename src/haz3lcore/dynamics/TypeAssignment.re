@@ -42,6 +42,7 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     let+ var = Ctx.lookup_var(ctx, name);
     var.typ;
   | FreeVar(_, _, _) => Some(Unknown(Internal))
+  /* this is wrong the pattern does not need to be of the form Var(x) */
   | Fun(Var(name), ty1, d, _) =>
     let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
     let+ ty2 = typ_of_dhexp(Ctx.extend(entry, ctx), dl, d);
@@ -138,6 +139,7 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     } else {
       None;
     };
+  /* this is wrong the pattern does not need to be of the form Var(x) */
   | Let(Var(name), de, db) =>
     let* ty1 = typ_of_dhexp(ctx, dl, de);
     let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
