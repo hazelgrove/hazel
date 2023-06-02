@@ -551,7 +551,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
         ut =>
           switch (ut) {
           | Tuple(us) =>
-            let upat_to_ctx = (ctx: list((string, Typ.t)), upat: UPat.t) => {
+            let rec upat_to_ctx = (ctx: list((string, Typ.t)), upat: UPat.t) => {
               switch (upat.term) {
               | Invalid(_)
               | EmptyHole
@@ -565,7 +565,6 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
               | ListLit(_)
               | Cons(_)
               | Tuple(_)
-              | Parens(_)
               | Ap(_) => ctx
               | TypeAnn(var, utyp1) =>
                 switch (var.term, utyp1.term) {
@@ -575,12 +574,32 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
                 }
               | Var(name)
               | Tag(name) => [(name, Unknown(Internal)), ...ctx]
+              | Parens(p) => upat_to_ctx(ctx, p)
               };
             };
             let module_ctx = List.fold_left(upat_to_ctx, [], us);
             Module(module_ctx);
           | Parens(p) => get_Tuple(p.term)
-          | _ => Unknown(Internal)
+          | TypeAnn(var, utyp1) =>
+            switch (var.term, utyp1.term) {
+            | (Var(name), _)
+            | (Tag(name), _) => Module([(name, utyp_to_ty(utyp1))])
+            | _ => Module([])
+            }
+          | Var(name)
+          | Tag(name) => Module([(name, Unknown(Internal))])
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | Wild
+          | Int(_)
+          | Float(_)
+          | Bool(_)
+          | String(_)
+          | Triv
+          | ListLit(_)
+          | Cons(_)
+          | Ap(_) => Module([])
           }
       );
       get_Tuple(u.term);
