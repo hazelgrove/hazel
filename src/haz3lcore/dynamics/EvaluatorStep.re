@@ -921,7 +921,8 @@ module Decompose = {
     | Let(dp, d1, d2) =>
       let* r1 = decompose(d1);
       switch (r1) {
-      | BoxedValue => Return.mark(Step)
+      | BoxedValue
+      | Eval(_) => Return.mark(Eval)
       | _ => r1 |> Return.wrap(c => Let(dp, c, d2)) |> Monad.return
       };
     | FixF(_) => Return.mark(act)
