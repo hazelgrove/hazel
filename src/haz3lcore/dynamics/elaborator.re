@@ -216,7 +216,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let act = DHExp.FilterAction.t_of_uexp(act);
         let* dcond = dhexp_of_uexp(m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
-        DHExp.Filter(DHExp.Filter.mk(dcond, act), dbody);
+        DHExp.Filter([DHExp.Filter.mk(dcond, act)], dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(Free(Variable)) => Some(FreeVar(id, 0, name))
