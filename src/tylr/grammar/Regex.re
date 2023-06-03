@@ -122,6 +122,34 @@ module Zipper = {
   type t('x, 's) = ('x, Unzipped.s('s));
 };
 
+let fold_zipper = (
+  ~atom,
+  ~star,
+  ~seq,
+  ~alt,
+  r: Regex.t('a),
+): 'acc => {
+  let rec go = (ctx, r) =>
+    switch (r) {
+    | Atom(a) => atom(ctx, a)
+    | Star(r) =>
+      star(ctx, go([Star_, ...ctx], r))
+    | Seq(rs) =>
+      ListUtil.elem_splits(rs)
+      |> List.map(((ls, r, rs)) =>
+        go([Seq_(ls, rs), ...ctx], r)
+      )
+      |> seq(ctx)
+    | Alt(rs) =>
+      ListUtil.elem_splits(rs)
+      |> List.map(((ls, r, rs)) =>
+        go([Alt_(ls, rs), ...ctx], r)
+      )
+      |> alt(ctx)
+    };
+  go(Ctx.empty, r);
+};
+
 let rec enter =
         (~skip_nullable=true, ~from: Dir.t, r: t(_), uz: Unzipped.s(_))
         : list(Zipper.t(_)) => p
