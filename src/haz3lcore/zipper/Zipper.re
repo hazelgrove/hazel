@@ -445,27 +445,28 @@ let try_to_dump_backpack = (zipper: t) => {
     } else {
       z;
     };
-  let rec go: t => t =
-    z =>
-      if (can_put_down(z)) {
-        let z_can = move_until_cant_put_down(z, z);
-        switch (put_down(Right, z_can)) {
-        | None => z_can
-        | Some(z) =>
-          let (z, _id) = regrout(Right, z, 1000000);
-          go(z);
-        };
-      } else {
-        let z_can = move_until_can_put_down(z);
-        let z_can = move_until_cant_put_down(z_can, z_can);
-        switch (put_down(Right, z_can)) {
-        | None => z_can
-        | Some(z) =>
-          let (z, _id) = regrout(Right, z, 1000000);
-          go(z);
-        };
+  let init_id: Id.t = 1000000;
+  //TODO(andrew): figure out how to pipe this id in
+  let rec go = (id_gen: Id.t, z: t): (Id.t, t) =>
+    if (can_put_down(z)) {
+      let z_can = move_until_cant_put_down(z, z);
+      switch (put_down(Right, z_can)) {
+      | None => (id_gen, z_can)
+      | Some(z) =>
+        let (z, id_gen) = regrout(Right, z, id_gen);
+        go(id_gen, z);
       };
-  go(zipper);
+    } else {
+      let z_can = move_until_can_put_down(z);
+      let z_can = move_until_cant_put_down(z_can, z_can);
+      switch (put_down(Right, z_can)) {
+      | None => (id_gen, z_can)
+      | Some(z) =>
+        let (z, id_gen) = regrout(Right, z, id_gen);
+        go(id_gen, z);
+      };
+    };
+  go(init_id, zipper) |> snd;
 };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
@@ -473,5 +474,8 @@ let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
   unselect_and_zip(~erase_buffer, z);
 };
+
+let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
+let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

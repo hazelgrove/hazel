@@ -39,12 +39,7 @@ open OptUtil.Syntax;
 
 //TODO(andrew): PERF DANGER!!
 let z_to_ci = (~ctx: Ctx.t, z: Zipper.t) => {
-  let map =
-    z
-    |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
-    |> MakeTerm.go
-    |> fst
-    |> Statics.mk_map_ctx(ctx);
+  let map = z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx);
   let* index = Indicated.index(z);
   Id.Map.find_opt(index, map);
 };
@@ -201,6 +196,8 @@ let set_buffer =
   let* ci = z_to_ci(~ctx, z);
   let candidates = candidates(ci, z);
   //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
+  //TODO(andrew): maybe dont suggest when current thing is already a type-correct variable ref?
+  // its kind of aggressive
   let filtered_candidates =
     candidates
     |> List.filter(String.starts_with(~prefix=tok_to_left))

@@ -218,6 +218,7 @@ module Pervasives = {
   };
 
   open Impls;
+  //let builtins = VarMap.empty;
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)

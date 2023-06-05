@@ -352,21 +352,6 @@ let editor_view =
   );
 };
 
-let get_elab = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
-  let seg =
-    Zipper.smart_seg(
-      editor.state.zipper,
-      ~erase_buffer=true,
-      ~dump_backpack=true,
-    );
-  /*print_endline(
-      "get_elab: smart_seg:" ++ Printer.of_segment(~holes=Some("?"), seg),
-    );*/
-  let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map_ctx(ctx_init, term);
-  Interface.elaborate(info_map, term);
-};
-
 let editor_with_result_view =
     (
       ~mvu_states,
@@ -387,7 +372,7 @@ let editor_with_result_view =
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let elab = get_elab(~ctx_init, editor);
+  let elab = Interface.elaborate_editor(~ctx_init, editor);
   let eval_result_footer =
     eval_result_footer_view(
       ~mvu_states,

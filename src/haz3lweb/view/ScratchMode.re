@@ -19,26 +19,11 @@ let view =
       ~ctx_init: Ctx.t,
     ) => {
   let zipper = editor.state.zipper;
-  let unselected =
-    Zipper.smart_seg(
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      editor.state.zipper,
-    );
-  //print_endline("DUMPED BACKPACK Z:");
-  //print_endline(Printer.of_segment(~holes=None, unselected));
-  let (term, _) = MakeTerm.go(unselected);
+  let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
-
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
-      Some(
-        LangDoc.get_color_map(
-          ~doc=langDocMessages,
-          Indicated.index(zipper),
-          info_map,
-        ),
-      );
+      Some(LangDoc.get_color_map(~doc=langDocMessages, zipper));
     } else {
       None;
     };

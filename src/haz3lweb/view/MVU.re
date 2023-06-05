@@ -36,10 +36,14 @@ let dhexp_view = (~font_metrics, d) =>
     d,
   );
 
-let eval = d =>
+let eval = d => {
+  print_endline("MVU: eval: starting");
   switch (Interface.evaluate(d)) {
-  | (result, _, _) => EvaluatorResult.unbox(result)
+  | (result, _, _) =>
+    print_endline("MVU: eval: done");
+    EvaluatorResult.unbox(result);
   };
+};
 
 let render_style_attr: DHExp.t => string =
   fun

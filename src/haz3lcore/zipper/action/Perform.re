@@ -46,8 +46,8 @@ let go_z =
 
     let idx = Indicated.index(z);
     let (term, _) =
-      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.go", true, () =>
-        MakeTerm.go(Zipper.seg_without_buffer(z))
+      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.from_zip", true, () =>
+        MakeTerm.from_zip_for_view(z)
       );
     let statics = Statics.mk_map(term);
 
