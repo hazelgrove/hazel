@@ -608,6 +608,7 @@ let eval_bin_string_op =
   };
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
+  /** m() is a monad syntax. return() acts like Some() */
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;

@@ -136,7 +136,11 @@ module rec DHExp: {
     type t =
       | SEquals;
   };
-
+/* 
+Notice: 
+In elaborator, a Var UExpression is determined to be BoundVar or FreeVar. 
+A Let UExpression is determined to be Let or Fix.
+*/
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -153,6 +157,8 @@ module rec DHExp: {
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
+    /* The last Var.t shows that this function is assigned to a variable
+    with that name, for result display. */
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
     | ApBuiltin(string, list(t))
