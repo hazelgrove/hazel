@@ -36,15 +36,15 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    //TODO(andrew): selectively (~erase_buffer=true)
-    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+    //TODO(andrew): clarify when we drop and show buffer
+    let get_term = z =>
+      z |> MakeTerm.from_zip(~erase_buffer=true, ~dump_backpack=false) |> fst;
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
     | "F3" =>
       zipper
-      |> Zipper.seg_without_buffer
-      |> MakeTerm.go
+      |> MakeTerm.from_zip(~erase_buffer=true, ~dump_backpack=false)
       |> fst
       |> TermBase.UExp.show
       |> print
@@ -66,6 +66,14 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       };
     | "F7" => [Update.Script(StartTest())]
     | "F8" => [Update.Script(StartRun())]
+    | "F9" =>
+      print_endline(
+        "DEBUG: F9: Zipepr with dump_backpack=true, erase_buffer=false",
+      );
+      zipper
+      |> Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false)
+      |> Segment.show
+      |> print;
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
