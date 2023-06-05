@@ -345,4 +345,35 @@ and get_camel_case = (name: string) => {
   let parts = String.split_on_char('_', name);
   let capitalizedParts = List.map(String.capitalize_ascii, List.tl(parts));
   List.hd(parts) ++ String.concat("", capitalizedParts);
+}
+and get_name = (map: Statics.map, name: string) => {
+  let count = ref(0);
+  let new_name = ref(get_camel_case(name) ++ string_of_int(count^));
+  while (iterate_map(map, new_name)) {
+    count := count^ + 1;
+    new_name := get_camel_case(name) ++ string_of_int(count^);
+  };
+  new_name;
+}
+and iterate_map = (map: Statics.map, name: ref(string)) => {
+  let flag = ref(true);
+  Id.Map.iter(
+    (_, value) => {
+      switch (value) {
+      | Statics.InfoExp(infoExp) =>
+        switch (infoExp.term.term) {
+        | Var(s) => flag := String.equal(s, name^)
+        | _ => flag := false
+        }
+      | Statics.InfoPat(infoPat) =>
+        switch (infoPat.term.term) {
+        | Var(s) => flag := String.equal(s, name^)
+        | _ => flag := false
+        }
+      | _ => flag := false
+      }
+    },
+    map,
+  );
+  flag^;
 };
