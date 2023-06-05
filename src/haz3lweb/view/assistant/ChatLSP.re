@@ -2,11 +2,11 @@ open Haz3lcore;
 
 //TODO(andrew): calculate this in a more principled way
 let get_info_from_zipper = (~ctx=Ctx.empty, z: Zipper.t): Statics.Map.t => {
-  z |> MakeTerm.from_zip_ghost |> fst |> Statics.mk_map_ctx(ctx);
+  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx);
 };
 let get_info_and_top_ci_from_zipper =
     (~ctx=Ctx.empty, z: Zipper.t): (Info.exp, Statics.Map.t) => {
-  z |> MakeTerm.from_zip_ghost |> fst |> Statics.mk_map_and_info_ctx(ctx);
+  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_and_info_ctx(ctx);
 };
 
 let get_ci = (editor: Editor.t): option(Info.t) => {

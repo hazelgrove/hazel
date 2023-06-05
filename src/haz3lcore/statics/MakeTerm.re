@@ -526,4 +526,6 @@ let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   go(seg);
 };
 
-let from_zip_ghost = from_zip(~dump_backpack=true, ~erase_buffer=true);
+let from_zip_for_view = from_zip(~dump_backpack=false, ~erase_buffer=true);
+
+let from_zip_for_sem = from_zip(~dump_backpack=true, ~erase_buffer=true);

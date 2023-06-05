@@ -37,14 +37,13 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
     //TODO(andrew): clarify when we drop and show buffer
-    let get_term = z =>
-      z |> MakeTerm.from_zip(~erase_buffer=true, ~dump_backpack=false) |> fst;
+    let get_term = z => z |> MakeTerm.from_zip_for_view |> fst;
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
     | "F3" =>
       zipper
-      |> MakeTerm.from_zip(~erase_buffer=true, ~dump_backpack=false)
+      |> MakeTerm.from_zip_for_view
       |> fst
       |> TermBase.UExp.show
       |> print
@@ -70,10 +69,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       print_endline(
         "DEBUG: F9: Zipepr with dump_backpack=true, erase_buffer=false",
       );
-      zipper
-      |> Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false)
-      |> Segment.show
-      |> print;
+      zipper |> Zipper.seg_for_sem |> Segment.show |> print;
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

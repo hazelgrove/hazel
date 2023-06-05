@@ -2782,15 +2782,15 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
     [div(~attr=clss(["section-title"]), [text(title)])] @ contents,
   );
 
-let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.Map.t) => {
+let get_color_map = (~doc: LangDocMessages.t, zipper: Zipper.t) => {
   let info: option(Statics.Info.t) =
-    switch (index') {
+    switch (Indicated.index(zipper)) {
     | Some(index) =>
-      switch (Id.Map.find_opt(index, info_map)) {
-      | Some(ci) => Some(ci)
-      | None => None
-      }
+      let info_map =
+        MakeTerm.from_zip_for_view(zipper)
+        |> fst
+        |> Statics.mk_map_ctx(Ctx.empty);
+      Id.Map.find_opt(index, info_map);
     | None => None
     };
   let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);

@@ -353,7 +353,7 @@ let editor_view =
 };
 
 let get_elab = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
-  let (term, _) = MakeTerm.from_zip_ghost(editor.state.zipper);
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   Interface.elaborate(info_map, term);
 };
