@@ -64,12 +64,8 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
-let seg_for_semantics = (ed: Editor.t): Segment.t =>
-  Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true, ed.state.zipper);
-
 let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
-  let stdlib_seg = seg_for_semantics(ed);
-  let (term, _) = MakeTerm.go(stdlib_seg);
+  let (term, _) = MakeTerm.from_zip_ghost(ed.state.zipper);
   let info_map = Statics.mk_map_ctx(init_ctx, term);
 
   switch (Id.Map.find_opt(Hyper.export_id + idx, info_map)) {
@@ -89,9 +85,9 @@ let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
 };
 
 let export_env = (idx: int, init_env: Environment.t, ed: Editor.t) => {
+  let (term, _) = MakeTerm.from_zip_ghost(ed.state.zipper);
   let tests =
-    seg_for_semantics(ed)
-    |> Interface.eval_segment_to_result(init_env)
+    Interface.eval_to_result(~env=init_env, Statics.mk_map(term), term)
     |> ProgramResult.get_state
     |> EvaluatorState.get_tests
     |> TestMap.lookup(Hyper.export_id + idx);
