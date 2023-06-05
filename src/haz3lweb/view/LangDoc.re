@@ -410,7 +410,7 @@ let example_view =
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
-            let info_map = Statics.mk_map(uhexp);
+            let info_map = Statics.mk_map_ctx(Ctx.empty, uhexp);
             let result_view =
               switch (Interface.eval_to_dhexp(info_map, uhexp)) {
               | None => []

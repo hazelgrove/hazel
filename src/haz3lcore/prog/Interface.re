@@ -1,13 +1,22 @@
 exception DoesNotElaborate;
-let elaborate = (map, term): DHExp.t =>
+let elaborate = (map, term): DHExp.t => {
+  print_endline("Interface.elaborate: starting");
   switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate: Elaborate returns None");
-    //HACK(andrew): supress exceptions for release
-    //raise(DoesNotElaborate)
     InvalidText(0, 0, "ELAB_ERROR");
   | Elaborates(d, _, _) => d
   };
+};
+
+let elaborate_editor = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
+  print_endline(
+    "Interface.elaborate_editor: ctx_init:" ++ Ctx.show(ctx_init),
+  );
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
+  elaborate(info_map, term);
+};
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
@@ -97,11 +106,3 @@ let eval_to_dhexp = (map, term): option(DHExp.t) =>
   };
 
 include TestResults;
-
-let _eval_to_test_results =
-    (~descriptions=[], map, term): option(test_results) => {
-  switch (eval_to_result(map, term)) {
-  | (_, state, _) =>
-    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
-  };
-};

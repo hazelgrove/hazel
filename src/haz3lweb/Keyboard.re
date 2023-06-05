@@ -67,7 +67,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F8" => [Update.Script(StartRun())]
     | "F9" =>
       print_endline(
-        "DEBUG: F9: Zipepr with dump_backpack=true, erase_buffer=false",
+        "DEBUG: F9: Zipper with dump_backpack=true, erase_buffer=false",
       );
       zipper |> Zipper.seg_for_sem |> Segment.show |> print;
     | _ => []
