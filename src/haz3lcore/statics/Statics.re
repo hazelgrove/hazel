@@ -156,7 +156,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     }
   | (AnaInfix(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
-    | Some(Arrow(Prod([_a, _b]), _) as ty_join) =>
+    | Some(Arrow(Prod([_, _]), _) as ty_join) =>
       NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
     | Some(_)
     | None => InHole(InvalidBinOp)
@@ -166,7 +166,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | Some(ty_syn) =>
       let ty_syn = wrap(ty_syn);
       switch (Typ.join(ty_ana, ty_syn)) {
-      | Some(Arrow(Prod([_a, _b]), _) as ty_join) =>
+      | Some(Arrow(Prod([_, _]), _) as ty_join) =>
         NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
       | Some(_)
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
@@ -380,7 +380,7 @@ and uexp_to_info_map =
     | None => atomic(Free(Variable))
     | Some(var) when Form.is_op_in_let(name) =>
       switch (var.typ) {
-      | Arrow(Prod(lst), _) when List.length(lst) == 2 =>
+      | Arrow(Prod([_, _]), _) =>
         add(
           ~self=Just(var.typ),
           ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
