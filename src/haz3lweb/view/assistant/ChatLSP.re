@@ -1,38 +1,51 @@
 open Haz3lcore;
 
 //TODO(andrew): calculate this in a more principled way
-let get_info_from_zipper = (~ctx=Ctx.empty, z: Zipper.t): Statics.Map.t => {
-  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx);
+let get_info_from_zipper = (~ctx_init, z: Zipper.t): Statics.Map.t => {
+  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx_init);
 };
 let get_info_and_top_ci_from_zipper =
     (~ctx=Ctx.empty, z: Zipper.t): (Info.exp, Statics.Map.t) => {
   z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_and_info_ctx(ctx);
 };
 
-let get_ci = (editor: Editor.t): option(Info.t) => {
+let get_ci = (~ctx_init, editor: Editor.t): option(Info.t) => {
   let z = editor.state.zipper;
   let index = Indicated.index(z);
   switch (index) {
   | Some(index) =>
-    let map = get_info_from_zipper(z);
+    let map = get_info_from_zipper(~ctx_init, z);
     Haz3lcore.Id.Map.find_opt(index, map);
   | _ => None
   };
 };
 
 module Type = {
-  let mode = (editor: Editor.t): option(Typ.mode) =>
-    switch (get_ci(editor)) {
+  let mode = (~ctx_init, editor: Editor.t): option(Typ.mode) =>
+    switch (get_ci(~ctx_init, editor)) {
     | Some(InfoExp({mode, _})) => Some(mode)
     | Some(InfoPat({mode, _})) => Some(mode)
     | _ => None
     };
 
-  let ctx = (editor: Editor.t): option(Ctx.t) =>
-    switch (get_ci(editor)) {
+  let ctx = (~ctx_init, editor: Editor.t): option(Ctx.t) =>
+    switch (get_ci(~ctx_init, editor)) {
     | Some(ci) => Some(Info.ctx_of(ci))
     | _ => None
     };
+
+  let expected_ty = (~ctx=Ctx.empty, mode: option(Typ.mode)): Typ.t => {
+    switch (mode) {
+    | Some(Ana(Var(name) as _ty)) when Ctx.lookup_alias(ctx, name) != None =>
+      let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
+      ty_expanded;
+    | Some(Ana(ty)) => ty
+    | Some(SynFun) => Arrow(Unknown(Internal), Unknown(Internal))
+    | Some(Syn)
+    | None => Unknown(SynSwitch)
+    //| _ => "Not applicable"
+    };
+  };
 
   let expected = (~ctx=Ctx.empty, mode: option(Typ.mode)): string => {
     let prefix = "Hole ?? can be filled by an expression with ";

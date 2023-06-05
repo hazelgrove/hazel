@@ -11,7 +11,8 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   };
 };
 
-let schedule_prompt = (zipper: Zipper.t, ~schedule_action): unit =>
+let schedule_prompt =
+    (~ctx_init: Ctx.t, zipper: Zipper.t, ~schedule_action): unit =>
   switch (
     zipper.caret,
     zipper.relatives.siblings |> snd,
@@ -29,7 +30,11 @@ let schedule_prompt = (zipper: Zipper.t, ~schedule_action): unit =>
     schedule_action(PerformAction(Select(Term(Current))));
     schedule_action(
       Agent(
-        Prompt(Filler(Some({llm: GPT4, prompt_builder: Filler.prompt}))),
+        Prompt(
+          Filler(
+            Some({llm: GPT4, prompt_builder: Filler.prompt(~ctx_init)}),
+          ),
+        ),
       ),
     );
   | _ => ()
@@ -56,8 +61,9 @@ let reset_buffer = (model: Model.t) => {
 let apply =
     (model: Model.t, update: agent_action, ~schedule_action, ~state, ~main)
     : Result.t(Model.t) => {
-  let (id, ed) = model.editors |> Editors.get_editor_and_id;
-  let z = ed.state.zipper;
+  let (id, editor) = model.editors |> Editors.get_editor_and_id;
+  let ctx_init = Editors.get_ctx_init(model.editors);
+  let z = editor.state.zipper;
   switch (update) {
   | Prompt(Weather) =>
     WeatherAPI.request(req =>
@@ -83,27 +89,47 @@ let apply =
     print_endline("deprecated");
     Ok(model);
   | Prompt(Filler(Some({llm, prompt_builder}))) =>
-    let editor = model.editors |> Editors.get_editor;
+    //let editor = model.editors |> Editors.get_editor;
+    //let ctx_init = Editors.get_ctx_init(model.editors);
     switch (prompt_builder(editor)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
       OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
+          let trim_indentation = s =>
+            Js_of_ocaml.Regexp.global_replace(
+              Js_of_ocaml.Regexp.regexp("\n(\\s)*"),
+              s,
+              "\n",
+            );
           print_endline("Filler: calling react_error");
-          switch (ChatLSP.Type.ctx(editor), ChatLSP.Type.mode(editor)) {
+          switch (
+            ChatLSP.Type.ctx(~ctx_init, editor),
+            ChatLSP.Type.mode(~ctx_init, editor),
+          ) {
           | (Some(init_ctx), Some(mode)) =>
             switch (Filler.error_reply(response, 0, ~init_ctx, ~mode)) {
             | None =>
               print_endline("react_error: no errors.");
-              schedule_action(Agent(SetBuffer(response)));
+              print_endline("RECEIVED RESPONSE:\n " ++ response);
+              print_endline(
+                "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
+              );
+              let trimmed_response = trim_indentation(response);
+              schedule_action(Agent(SetBuffer(trimmed_response)));
               schedule_action(Script(EndTest()));
             | Some(reply) =>
               print_endline("react_error: errors:" ++ reply);
               OpenAI.reply_chat(prompt, response, reply, req =>
                 switch (OpenAI.handle_chat(req)) {
                 | Some(response) =>
-                  schedule_action(Agent(SetBuffer(response)));
+                  print_endline("RECEIVED RESPONSE:\n " ++ response);
+                  print_endline(
+                    "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
+                  );
+                  let trimmed_response = trim_indentation(response);
+                  schedule_action(Agent(SetBuffer(trimmed_response)));
                   schedule_action(Script(EndTest()));
                 | None => print_endline("Filler: handler failed")
                 //schedule_action(Script(EndTest()));
@@ -122,15 +148,15 @@ let apply =
     };
     Ok(model);
   | Prompt(TyDi) =>
-    let ctx = Editors.get_ctx_init(model.editors);
-    switch (TyDi.set_buffer(~ctx, z, id)) {
+    //let ctx = Editors.get_ctx_init(model.editors);
+    switch (TyDi.set_buffer(~ctx=ctx_init, z, id)) {
     | None => Ok(model)
     | Some((z, id)) =>
-      let ed = Editor.new_state(Pick_up, z, ed);
+      let ed = Editor.new_state(Pick_up, z, editor);
       //TODO: add correct action to history (Pick_up is wrong)
       let editors = Editors.put_editor_and_id(id, ed, model.editors);
       Ok({...model, editors});
-    };
+    }
   | AcceptSuggestion =>
     switch (z.selection.mode) {
     | Normal => Ok(model)
@@ -154,10 +180,10 @@ let apply =
     | None => Error(CantSuggest)
     | Some((response_z, id)) =>
       let content = Zipper.unselect_and_zip(response_z);
-      let z = Zipper.set_buffer(ed.state.zipper, ~content, ~mode=Solid);
+      let z = Zipper.set_buffer(editor.state.zipper, ~content, ~mode=Solid);
       //print_endline("paste into selection suceeds: " ++ Zipper.show(z));
       //HACK(andrew): below is not strictly a insert action...
-      let ed = Editor.new_state(Insert(response), z, ed);
+      let ed = Editor.new_state(Insert(response), z, editor);
       let editors = Editors.put_editor_and_id(id, ed, model.editors);
       Ok({...model, editors});
     }
