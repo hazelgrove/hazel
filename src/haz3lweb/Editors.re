@@ -84,10 +84,11 @@ let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
   };
 };
 
-let export_env = (idx: int, init_env: Environment.t, ed: Editor.t) => {
+let export_env = (ctx_init, idx: int, init_env: Environment.t, ed: Editor.t) => {
   let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
   let tests =
-    Interface.eval_to_result(~env=init_env, Statics.mk_map(term), term)
+    Interface.eval_to_result(~env=init_env, info_map, term)
     |> ProgramResult.get_state
     |> EvaluatorState.get_tests
     |> TestMap.lookup(Hyper.export_id + idx);
@@ -141,7 +142,8 @@ let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
 
 let get_ctx_init_slides =
   deps(export_ctx, Builtins.ctx(Builtins.Pervasives.builtins));
-let get_env_init_slides = deps(export_env, Environment.empty);
+let get_env_init_slides = ctx_init =>
+  deps(export_env(ctx_init), Environment.empty);
 
 let get_ctx_init = (editors: t): Ctx.t =>
   switch (editors) {
@@ -150,18 +152,26 @@ let get_ctx_init = (editors: t): Ctx.t =>
   | School(_, _, _) => Ctx.empty
   };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type blah = list((Var.t, DHExp.t));
+
 let get_spliced_elabs =
     (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
   switch (editors) {
   | DebugLoad => []
   | Scratch(idx, slides) =>
+    print_endline("get_spliced_elabs: idx= " ++ string_of_int(idx));
     let current_slide = List.nth(slides, idx);
     let ctx_init = get_ctx_init_slides(slides, idx);
-    let env_init = get_env_init_slides(slides, idx);
+    print_endline("ctx=" ++ Ctx.show(ctx_init));
+    let env_init = get_env_init_slides(ctx_init, slides, idx);
+    print_endline("env=" ++ Environment.show(env_init));
     let (key, d) = ScratchSlide.spliced_elab(~ctx_init, current_slide);
     print_endline(
       "get_spliced_elabs: checking env for slide: " ++ string_of_int(idx),
     );
+    print_endline("ladies and gentlemen, the env: ");
+    print_endline(show_blah(Environment.to_listo(env_init)));
     switch (Environment.lookup(env_init, "List.nth")) {
     | None => print_endline("export_env: List.nth not found in env")
     | Some(_) => print_endline("export_env: List.nth found in env")

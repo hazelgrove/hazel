@@ -194,7 +194,14 @@ let rec dhexp_of_uexp =
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable) =>
+          print_endline(
+            "Elaborator: FreeVariable: "
+            ++ name
+            ++ " id: "
+            ++ string_of_int(id),
+          );
+          Some(FreeVar(id, 0, name));
         | _ => Some(BoundVar(name))
         }
       | Tag(name) =>
@@ -378,7 +385,8 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
+  print_endline("Elabortor.uexp_elab: starting");
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
@@ -390,3 +398,4 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       };
     Elaborates(d, ty, Delta.empty);
   };
+};
