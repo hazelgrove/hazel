@@ -92,7 +92,7 @@ let collate_samples: samples => list(string) =
   );
 
 let code_instructions = [
-  {|You are an ancient and thoughtful spirit of code completion|},
+  {|You are an experienced developer tasked with helping with code completions |},
   "When you encounter an incomplete program sketch as a prompt, you come up with a reasonable replacement for the hole labelled ?? in the actual prompt",
   "Your replacement suggestion doesn't have to be complete; it's okay to leave holes (marked '?') in your completion if there isn't enough information to fill them in",
   "Respond only with a replacement for the symbol ?? in the actual prompt",
@@ -122,14 +122,44 @@ let code_instructions = [
  REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
 
-let prompt = (editor: Editor.t): option(string) => {
+let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
+  /* If expected_ty not unknown, filter ctx to only include vars consistent with that type,
+       or of arrow type where return type is consistent with that type. convert the var names and types
+       to strings and seperte with commas.
+     */
+  switch (expected_ty) {
+  | Unknown(_) => "LSP: No variables in scope are obviously relevant here\n"
+  | expected_ty =>
+    let ctx' =
+      List.filter_map(
+        fun
+        | Ctx.VarEntry({name, typ: Arrow(_, typ), _})
+        | Ctx.TagEntry({name, typ: Arrow(_, typ), _})
+            when Typ.join(ctx, expected_ty, typ) != None =>
+          Some(name ++ ": " ++ Typ.to_string(typ))
+        | Ctx.VarEntry({name, typ, _})
+        | Ctx.TagEntry({name, typ, _})
+            when Typ.join(ctx, expected_ty, typ) != None =>
+          Some(name ++ ":" ++ Typ.to_string(typ))
+        | _ => None,
+        ctx,
+      );
+    "LSP: Consider using the following functions and constructors relevant to the expected type:\n  "
+    ++ String.concat(",\n  ", ctx')
+    ++ "\n";
+  };
+};
+
+let prompt = (~ctx_init, editor: Editor.t): option(string) => {
   let ctx =
-    switch (ChatLSP.get_ci(editor)) {
+    switch (ChatLSP.get_ci(~ctx_init, editor)) {
     | Some(ci) => Info.ctx_of(ci)
     | None => Ctx.empty
     };
-  let expected_ty =
-    editor |> ChatLSP.Type.mode |> ChatLSP.Type.expected(~ctx);
+  let mode = ChatLSP.Type.mode(~ctx_init, editor);
+  let expected_ty = mode |> ChatLSP.Type.expected(~ctx);
+  let relevant_context =
+    ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
   let prefix =
     ["Consider these examples:"]
     @ collate_samples(samples)
@@ -144,10 +174,12 @@ let prompt = (editor: Editor.t): option(string) => {
 Finally, the details of the actual program sketch to be completed:
 actual_prompt: %s,
 actual_expected_type: %s,
+actual_relevant_context: %s,
 actual_completion:
       |},
         body,
         expected_ty,
+        relevant_context,
       );
     let prompt =
       String.concat("\n ", prefix)
@@ -209,8 +241,4 @@ let error_reply =
     | ([], [], _) => None
     };
   };
-};
-
-let react = (response: string): UpdateAction.t => {
-  Agent(SetBuffer(response));
 };
