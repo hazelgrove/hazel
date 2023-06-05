@@ -22,18 +22,15 @@ let view =
   let (term, _) = MakeTerm.from_zip_ghost(zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   /*TODO(andrew): clarify below. need separate info_map here
-   because the color highlighting depends on the displayed segment
-   structure (with undropped backpack), so need to use that as opposed to 
-   the version for semantics. This should be refactored to more resemble
-   the dataflow in cell, where the raw zipper is passed to deco
-  */
+     because the color highlighting depends on the displayed segment
+     structure (with undropped backpack), so need to use that as opposed to
+     the version for semantics. This should be refactored to more resemble
+     the dataflow in cell, where the raw zipper is passed to deco
+    */
   let info_map_langdocs =
-    
-      MakeTerm.from_zip(~dump_backpack=false, ~erase_buffer=false, zipper)
-      |> fst
-      |>Statics.mk_map_ctx(
-      ctx_init
-    );
+    MakeTerm.from_zip(~dump_backpack=false, ~erase_buffer=false, zipper)
+    |> fst
+    |> Statics.mk_map_ctx(ctx_init);
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
