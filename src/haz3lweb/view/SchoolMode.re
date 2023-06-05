@@ -11,6 +11,11 @@ type t = {
   grading_report: Grading.GradingReport.t,
 };
 
+/* This function takes in the state of the editors
+   in school mode and takes in the results computed
+   from the tests and returns the SchoolMode.t object
+
+   It is used in view/Page.re */
 let mk =
     (
       ~exercise: SchoolExercise.state,
@@ -50,6 +55,19 @@ let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
     v,
   );
 };
+
+/* This function takes in the SchoolMode.t object
+     and takes the editor information (eds) such as
+     prelude, your_tests, and correct_impl to
+     generate DOM node object that will be displayed in
+     school mode
+
+     For editors the helper function Cell.editor_view is
+     used while the helper functions in haz3lschool/Grading.re
+     are used to display test results
+
+     The function is used in Page.re
+   */
 
 let view =
     (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
