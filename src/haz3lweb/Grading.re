@@ -348,7 +348,7 @@ module ImplSyntaxReport = {
   let view = (syntax_result: bool) => {
     let result_string = if (syntax_result) {"Pass"} else {"Fail"};
     Cell.panel(
-      ~classes=["test-panel"],
+      ~classes=["syntax-panel"],
       [
         Cell.bolded_caption(
           "Syntax Report",
