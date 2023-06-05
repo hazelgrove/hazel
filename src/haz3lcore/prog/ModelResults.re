@@ -15,16 +15,12 @@ type t = M.t(ModelResult.t);
 let init = (ds: list((Key.t, DHExp.t, Environment.t))): t =>
   ds
   |> List.map(((key, d, env)) => {
-       switch (Environment.lookup(env, "List.nth")) {
-       | None => print_endline("ModelResults:  List.nth not found in env")
-       | Some(_) => print_endline("ModelResults:  List.nth found in env")
-       };
-       print_endline("ModelResults: starting eval of key " ++ key);
+       //print_endline("ModelResults: starting eval of key " ++ key);
        let blah = (
          key,
          ModelResult.init(Interface.evaluate(~memo=false, ~env, d)),
        );
-       print_endline("ModelResults: ended eval of key " ++ key);
+       //print_endline("ModelResults: ended eval of key " ++ key);
        blah;
      })
   |> List.to_seq

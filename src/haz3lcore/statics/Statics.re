@@ -217,10 +217,10 @@ and uexp_to_info_map =
       Common(IsTag({name, syn_ty: Some(Prod([]))}));
     let info =
       Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~free=[]);
-    print_endline(
-      "adding exprt info, id"
-      ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
-    );
+    /*print_endline(
+        "adding exprt info, id"
+        ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
+      );*/
     (
       info,
       add_info(

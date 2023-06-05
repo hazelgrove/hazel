@@ -76,34 +76,23 @@ let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
     );
     Ctx.empty;
   | Some(info) =>
-    print_endline(
-      "export_ctx: FOUND in info_map, id= "
-      ++ string_of_int(Hyper.export_id + idx),
-    );
-    Info.ctx_of(info);
+    /*print_endline(
+        "export_ctx: FOUND in info_map, id= "
+        ++ string_of_int(Hyper.export_id + idx),
+      );*/
+    Info.ctx_of(info)
   };
 };
 
-let export_env = (ctx_init, idx: int, init_env: Environment.t, ed: Editor.t) => {
-  let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
-  let info_map = Statics.mk_map_ctx(ctx_init, term);
+let export_env =
+    (ctx_init: Ctx.t, idx: int, env_init: Environment.t, ed: Editor.t) => {
   let tests =
-    Interface.eval_to_result(~env=init_env, info_map, term)
+    Interface.eval_editor(~env_init, ~ctx_init, ed)
     |> ProgramResult.get_state
     |> EvaluatorState.get_tests
     |> TestMap.lookup(Hyper.export_id + idx);
   switch (tests) {
-  | Some([(_, _, env), ..._]) =>
-    print_endline(
-      "export_env: testmap lookup returned nonempty list for id: "
-      ++ string_of_int(Hyper.export_id + idx),
-    );
-    switch (Environment.lookup(env, "List.nth")) {
-    | None => print_endline("export_env: List.nth not found in env")
-    | Some(_) => print_endline("export_env: List.nth found in env")
-    };
-    //Environment.show(env) |> print_endline;
-    env;
+  | Some([(_, _, env), ..._]) => env
   | Some([]) =>
     print_endline(
       "WARNING: export_env: testmap lookup returned empty list for id: "
@@ -136,7 +125,7 @@ let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
   | 5 => acc_4
   | 6 => acc_5
   | 7 => acc_6
-  | _ => acc_0
+  | _ => acc_6
   };
 };
 
@@ -152,30 +141,29 @@ let get_ctx_init = (editors: t): Ctx.t =>
   | School(_, _, _) => Ctx.empty
   };
 
+let get_env_init = (editors: t): Environment.t =>
+  switch (editors) {
+  | DebugLoad => Environment.empty
+  | Scratch(idx, slides) =>
+    get_env_init_slides(get_ctx_init(editors), slides, idx)
+  | School(_, _, _) => Environment.empty
+  };
+
+//TODO(andrew): cleanup
 [@deriving (show({with_path: false}), sexp, yojson)]
 type blah = list((Var.t, DHExp.t));
-
 let get_spliced_elabs =
     (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
   switch (editors) {
   | DebugLoad => []
   | Scratch(idx, slides) =>
-    print_endline("get_spliced_elabs: idx= " ++ string_of_int(idx));
+    //print_endline("get_spliced_elabs: idx= " ++ string_of_int(idx));
     let current_slide = List.nth(slides, idx);
     let ctx_init = get_ctx_init_slides(slides, idx);
-    print_endline("ctx=" ++ Ctx.show(ctx_init));
+    //print_endline("ctx=" ++ Ctx.show(ctx_init));
     let env_init = get_env_init_slides(ctx_init, slides, idx);
-    print_endline("env=" ++ Environment.show(env_init));
+    //print_endline("env=" ++ Environment.show(env_init));
     let (key, d) = ScratchSlide.spliced_elab(~ctx_init, current_slide);
-    print_endline(
-      "get_spliced_elabs: checking env for slide: " ++ string_of_int(idx),
-    );
-    print_endline("ladies and gentlemen, the env: ");
-    print_endline(show_blah(Environment.to_listo(env_init)));
-    switch (Environment.lookup(env_init, "List.nth")) {
-    | None => print_endline("export_env: List.nth not found in env")
-    | Some(_) => print_endline("export_env: List.nth found in env")
-    };
     [(key, d, env_init)];
   | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };

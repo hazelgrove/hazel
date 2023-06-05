@@ -1,6 +1,6 @@
 exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t => {
-  print_endline("Interface.elaborate: starting");
+  //print_endline("Interface.elaborate: starting");
   switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate: Elaborate returns None");
@@ -10,9 +10,9 @@ let elaborate = (map, term): DHExp.t => {
 };
 
 let elaborate_editor = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
-  print_endline(
-    "Interface.elaborate_editor: ctx_init:" ++ Ctx.show(ctx_init),
-  );
+  /*print_endline(
+      "Interface.elaborate_editor: ctx_init:" ++ Ctx.show(ctx_init),
+    );*/
   let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   elaborate(info_map, term);
@@ -97,11 +97,18 @@ let evaluate =
   };
 };
 
-let eval_to_result = (~env=Environment.empty, map, term): ProgramResult.t =>
-  term |> elaborate(map) |> evaluate(~env);
+let eval_editor =
+    (~ctx_init: Ctx.t, ~env_init: Environment.t, editor: Editor.t)
+    : ProgramResult.t => {
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
+  let d = elaborate(info_map, term);
+  evaluate(~env=env_init, d);
+};
 
 let eval_to_dhexp = (map, term): option(DHExp.t) =>
-  switch (eval_to_result(map, term)) {
+  //NOTE: assumes empty init ctx, env
+  switch (term |> elaborate(map) |> evaluate(~env=Environment.empty)) {
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
