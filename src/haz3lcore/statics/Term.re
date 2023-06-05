@@ -436,7 +436,7 @@ module UExp = {
     | Cons => "Cons"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | UserOp(op) => "User Operator: " ++ op
+    | UserOp(op) => "User Operator: " ++ Var.show(op)
     | Match => "Match Expression";
 
   let rec is_fun = (e: t) => {
