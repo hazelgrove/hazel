@@ -291,11 +291,15 @@ let rec dhexp_of_uexp =
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_)) =>
-    print_endline("Elaborate: Exp: Infomap returned wrong sort");
+  | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    print_endline("Elaborate: Exp: Infomap returned wrong sort:");
+    print_endline(ci |> Info.show);
     None;
   | None =>
-    print_endline("Elaborate: Exp: Infomap lookup failed");
+    print_endline(
+      "Elaborate: Exp: Infomap lookup failed; id: "
+      ++ string_of_int(Term.UExp.rep_id(uexp)),
+    );
     None;
   };
 }
@@ -352,11 +356,15 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_)) =>
-    print_endline("Elaborate: Pat: Infomap returned wrong sort");
+  | Some((InfoExp(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    print_endline("Elaborate: Pat: Infomap returned wrong sort:");
+    print_endline(ci |> Info.show);
     None;
   | None =>
-    print_endline("Elaborate: Pat: Infomap lookup failed");
+    print_endline(
+      "Elaborate: Pat: Infomap lookup failed; id: "
+      ++ string_of_int(Term.UPat.rep_id(upat)),
+    );
     None;
   };
 };
