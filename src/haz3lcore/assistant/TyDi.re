@@ -39,7 +39,7 @@ open OptUtil.Syntax;
 
 //TODO(andrew): PERF DANGER!!
 let z_to_ci = (~ctx: Ctx.t, z: Zipper.t) => {
-  let map = z |> MakeTerm.from_zip_ghost |> fst |> Statics.mk_map_ctx(ctx);
+  let map = z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx);
   let* index = Indicated.index(z);
   Id.Map.find_opt(index, map);
 };

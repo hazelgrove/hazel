@@ -65,7 +65,7 @@ let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
 let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
-  let (term, _) = MakeTerm.from_zip_ghost(ed.state.zipper);
+  let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
   let info_map = Statics.mk_map_ctx(init_ctx, term);
 
   switch (Id.Map.find_opt(Hyper.export_id + idx, info_map)) {
@@ -85,7 +85,7 @@ let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
 };
 
 let export_env = (idx: int, init_env: Environment.t, ed: Editor.t) => {
-  let (term, _) = MakeTerm.from_zip_ghost(ed.state.zipper);
+  let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
   let tests =
     Interface.eval_to_result(~env=init_env, Statics.mk_map(term), term)
     |> ProgramResult.get_state

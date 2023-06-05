@@ -95,11 +95,7 @@ let stitch = (editors: list(Editor.t)) => {
           () => {
             let (term, _) =
               Util.TimeUtil.measure_time("Time: MakeTerm.from_zip:", true, () =>
-                MakeTerm.from_zip(
-                  ~dump_backpack=false,
-                  ~erase_buffer=false,
-                  ed.state.zipper,
-                )
+                MakeTerm.from_zip_for_view(ed.state.zipper)
               );
             term;
           },

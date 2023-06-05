@@ -14,7 +14,7 @@ let put_editor_and_id = ((_, _): state, id, editor) => (id, editor);
 
 let scratch_key = "scratch";
 let spliced_elab = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => {
-  let (term, _) = MakeTerm.from_zip_ghost(editor.state.zipper);
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   (scratch_key, Interface.elaborate(info_map, term));
 };
