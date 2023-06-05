@@ -61,24 +61,78 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
     School(n, specs, SchoolExercise.put_editor_and_id(exercise, id, ed))
   };
 
-let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
+let active_zipper = (editors: t): Zipper.t =>
+  get_editor(editors).state.zipper;
 
-let get_ctx_init_slides = (slides, idx) => {
-  let stdlib_ed: Editor.t = List.nth(slides, Hyper.export_slide) |> snd;
-  let stdlib_seg =
-    Zipper.smart_seg(
-      ~erase_buffer=true,
-      ~dump_backpack=true,
-      stdlib_ed.state.zipper,
+let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
+  let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
+  let info_map = Statics.mk_map_ctx(init_ctx, term);
+
+  switch (Id.Map.find_opt(Hyper.export_id + idx, info_map)) {
+  | None =>
+    print_endline(
+      "export_ctx: NOT found info_map, id= "
+      ++ string_of_int(Hyper.export_id + idx),
     );
-  let (term, _) = MakeTerm.go(stdlib_seg);
-  let info_map = Statics.mk_map(term);
-  switch (Id.Map.find_opt(Hyper.export_id, info_map)) {
-  | _ when idx == Hyper.export_slide => Ctx.empty
-  | None => Ctx.empty
-  | Some(info) => Info.ctx_of(info)
+    Ctx.empty;
+  | Some(info) =>
+    /*print_endline(
+        "export_ctx: FOUND in info_map, id= "
+        ++ string_of_int(Hyper.export_id + idx),
+      );*/
+    Info.ctx_of(info)
   };
 };
+
+let export_env =
+    (ctx_init: Ctx.t, idx: int, env_init: Environment.t, ed: Editor.t) => {
+  let tests =
+    Interface.eval_editor(~env_init, ~ctx_init, ed)
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> TestMap.lookup(Hyper.export_id + idx);
+  switch (tests) {
+  | Some([(_, _, env), ..._]) => env
+  | Some([]) =>
+    print_endline(
+      "WARNING: export_env: testmap lookup returned empty list for id: "
+      ++ string_of_int(Hyper.export_id + idx),
+    );
+    Environment.empty;
+  | None =>
+    print_endline(
+      "WARNING: export_env: testmap lookup failed for id: "
+      ++ string_of_int(Hyper.export_id + idx),
+    );
+    Environment.empty;
+  };
+};
+
+let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
+  let get = idx => List.nth(slides, idx) |> snd;
+  let acc_1 = 1 |> get |> fn(0, acc_0);
+  let acc_2 = 2 |> get |> fn(1, acc_1);
+  let acc_3 = 3 |> get |> fn(2, acc_2);
+  let acc_4 = 4 |> get |> fn(3, acc_3);
+  let acc_5 = 5 |> get |> fn(4, acc_4);
+  let acc_6 = 6 |> get |> fn(5, acc_5);
+  switch (idx) {
+  | 0
+  | 1 => acc_0
+  | 2 => acc_1
+  | 3 => acc_2
+  | 4 => acc_3
+  | 5 => acc_4
+  | 6 => acc_5
+  | 7 => acc_6
+  | _ => acc_6
+  };
+};
+
+let get_ctx_init_slides =
+  deps(export_ctx, Builtins.ctx(Builtins.Pervasives.builtins));
+let get_env_init_slides = ctx_init =>
+  deps(export_env(ctx_init), Environment.empty);
 
 let get_ctx_init = (editors: t): Ctx.t =>
   switch (editors) {
@@ -87,34 +141,30 @@ let get_ctx_init = (editors: t): Ctx.t =>
   | School(_, _, _) => Ctx.empty
   };
 
+let get_env_init = (editors: t): Environment.t =>
+  switch (editors) {
+  | DebugLoad => Environment.empty
+  | Scratch(idx, slides) =>
+    get_env_init_slides(get_ctx_init(editors), slides, idx)
+  | School(_, _, _) => Environment.empty
+  };
+
+//TODO(andrew): cleanup
+[@deriving (show({with_path: false}), sexp, yojson)]
+type blah = list((Var.t, DHExp.t));
 let get_spliced_elabs =
     (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
   switch (editors) {
   | DebugLoad => []
   | Scratch(idx, slides) =>
-    //TODO(andrew): document this
-    let ed = List.nth(slides, Hyper.export_slide) |> snd;
-    let tests =
-      Zipper.smart_seg(
-        ~erase_buffer=true,
-        ~dump_backpack=true,
-        ed.state.zipper,
-      )
-      |> Interface.eval_segment_to_result
-      |> ProgramResult.get_state
-      |> EvaluatorState.get_tests
-      |> TestMap.lookup(Hyper.export_id);
-    let env =
-      switch (tests) {
-      | Some([(_, _, env), ..._]) => env
-      | _ => Environment.empty
-      };
-    let slide = List.nth(slides, idx);
-    ScratchSlide.spliced_elabs(
-      ~ctx_init=get_ctx_init_slides(slides, idx),
-      slide,
-    )
-    |> List.map(((key, dhexp)) => (key, dhexp, env));
+    //print_endline("get_spliced_elabs: idx= " ++ string_of_int(idx));
+    let current_slide = List.nth(slides, idx);
+    let ctx_init = get_ctx_init_slides(slides, idx);
+    //print_endline("ctx=" ++ Ctx.show(ctx_init));
+    let env_init = get_env_init_slides(ctx_init, slides, idx);
+    //print_endline("env=" ++ Environment.show(env_init));
+    let (key, d) = ScratchSlide.spliced_elab(~ctx_init, current_slide);
+    [(key, d, env_init)];
   | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };
 };

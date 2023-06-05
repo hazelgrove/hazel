@@ -194,13 +194,29 @@ let rec dhexp_of_uexp =
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable) =>
+          print_endline(
+            "Elaborator: FreeVariable: "
+            ++ name
+            ++ " id: "
+            ++ string_of_int(id),
+          );
+          Some(FreeVar(id, 0, name));
         | _ => Some(BoundVar(name))
         }
       | Tag(name) =>
         switch (err_status) {
         | _ when Hyper.is_export(name) =>
-          Some(DHExp.Ap(TestLit(Hyper.export_id), Tuple([])))
+          /*print_endline(
+              "elaborating export: id:"
+              ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
+            );*/
+          Some(
+            DHExp.Ap(
+              TestLit(Hyper.export_id + Hyper.get_export_offset(name)),
+              Tuple([]),
+            ),
+          )
         | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
         | _ => Some(Tag(name))
         }
@@ -282,11 +298,15 @@ let rec dhexp_of_uexp =
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_)) =>
-    print_endline("Elaborate: Exp: Infomap returned wrong sort");
+  | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    print_endline("Elaborate: Exp: Infomap returned wrong sort:");
+    print_endline(ci |> Info.show);
     None;
   | None =>
-    print_endline("Elaborate: Exp: Infomap lookup failed");
+    print_endline(
+      "Elaborate: Exp: Infomap lookup failed; id: "
+      ++ string_of_int(Term.UExp.rep_id(uexp)),
+    );
     None;
   };
 }
@@ -343,11 +363,15 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_)) =>
-    print_endline("Elaborate: Pat: Infomap returned wrong sort");
+  | Some((InfoExp(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    print_endline("Elaborate: Pat: Infomap returned wrong sort:");
+    print_endline(ci |> Info.show);
     None;
   | None =>
-    print_endline("Elaborate: Pat: Infomap lookup failed");
+    print_endline(
+      "Elaborate: Pat: Infomap lookup failed; id: "
+      ++ string_of_int(Term.UPat.rep_id(upat)),
+    );
     None;
   };
 };
@@ -361,7 +385,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
@@ -373,3 +397,4 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       };
     Elaborates(d, ty, Delta.empty);
   };
+};

@@ -520,3 +520,12 @@ let go =
       (e, map^);
     },
   );
+
+let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  go(seg);
+};
+
+let from_zip_for_view = from_zip(~dump_backpack=false, ~erase_buffer=true);
+
+let from_zip_for_sem = from_zip(~dump_backpack=true, ~erase_buffer=true);

@@ -1,20 +1,30 @@
 exception DoesNotElaborate;
-let elaborate = (map, term): DHExp.t =>
+let elaborate = (map, term): DHExp.t => {
+  //print_endline("Interface.elaborate: starting");
   switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate: Elaborate returns None");
-    //HACK(andrew): supress exceptions for release
-    //raise(DoesNotElaborate)
     InvalidText(0, 0, "ELAB_ERROR");
   | Elaborates(d, _, _) => d
   };
+};
+
+let elaborate_editor = (~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
+  /*print_endline(
+      "Interface.elaborate_editor: ctx_init:" ++ Ctx.show(ctx_init),
+    );*/
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
+  elaborate(info_map, term);
+};
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let evaluate =
+let evaluate = Evaluator.evaluate; /*
   Core.Memo.general(~cache_size_bound=1000, (env, dhexp) =>
     Evaluator.evaluate(env, dhexp)
-  );
+  );*/
+
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
 //     es
@@ -54,9 +64,9 @@ let evaluate =
 //   ((d, hii), EvaluatorState.put_tests(tests, es));
 // };
 
-let evaluate = (~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
-  let result = evaluate(env, d);
-
+let evaluate =
+    (~memo=true, ~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
+  let result = memo ? evaluate(env, d) : Evaluator.evaluate(env, d);
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
   | (es, BoxedValue(_) as r) =>
@@ -87,27 +97,19 @@ let evaluate = (~env=Environment.empty, d: DHExp.t): ProgramResult.t => {
   };
 };
 
-let eval_to_result = (map, term): ProgramResult.t =>
-  term |> elaborate(map) |> evaluate;
-
-let eval_segment_to_result = (s: Segment.t) => {
-  let term = s |> MakeTerm.go |> fst;
-  eval_to_result(Statics.mk_map(term), term);
+let eval_editor =
+    (~ctx_init: Ctx.t, ~env_init: Environment.t, editor: Editor.t)
+    : ProgramResult.t => {
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
+  let info_map = Statics.mk_map_ctx(ctx_init, term);
+  let d = elaborate(info_map, term);
+  evaluate(~env=env_init, d);
 };
-let eval_segment_to_result =
-  Core.Memo.general(~cache_size_bound=1000, eval_segment_to_result);
 
 let eval_to_dhexp = (map, term): option(DHExp.t) =>
-  switch (eval_to_result(map, term)) {
+  //NOTE: assumes empty init ctx, env
+  switch (term |> elaborate(map) |> evaluate(~env=Environment.empty)) {
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
 include TestResults;
-
-let _eval_to_test_results =
-    (~descriptions=[], map, term): option(test_results) => {
-  switch (eval_to_result(map, term)) {
-  | (_, state, _) =>
-    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
-  };
-};

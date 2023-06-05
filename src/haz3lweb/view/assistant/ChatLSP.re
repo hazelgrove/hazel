@@ -2,19 +2,11 @@ open Haz3lcore;
 
 //TODO(andrew): calculate this in a more principled way
 let get_info_from_zipper = (~ctx_init, z: Zipper.t): Statics.Map.t => {
-  z
-  |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
-  |> MakeTerm.go
-  |> fst
-  |> Statics.mk_map_ctx(ctx_init);
+  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx_init);
 };
 let get_info_and_top_ci_from_zipper =
     (~ctx=Ctx.empty, z: Zipper.t): (Info.exp, Statics.Map.t) => {
-  z
-  |> Zipper.smart_seg(~erase_buffer=true, ~dump_backpack=true)
-  |> MakeTerm.go
-  |> fst
-  |> Statics.mk_map_and_info_ctx(ctx);
+  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_and_info_ctx(ctx);
 };
 
 let get_ci = (~ctx_init, editor: Editor.t): option(Info.t) => {

@@ -217,7 +217,18 @@ and uexp_to_info_map =
       Common(IsTag({name, syn_ty: Some(Prod([]))}));
     let info =
       Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~free=[]);
-    (info, add_info(ids @ [Hyper.export_id], InfoExp(info), m));
+    /*print_endline(
+        "adding exprt info, id"
+        ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
+      );*/
+    (
+      info,
+      add_info(
+        ids @ [Hyper.export_id + Hyper.get_export_offset(name)],
+        InfoExp(info),
+        m,
+      ),
+    );
   | Tag(tag) => atomic(Info.self_tag(ctx, tag))
   | Ap(fn, arg) =>
     let fn_mode = Typ.ap_mode(ctx, mode, UExp.tag_name(fn));

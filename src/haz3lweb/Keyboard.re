@@ -21,7 +21,8 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
 };
 
 let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
-  let zipper = Editors.get_zipper(model.editors);
+  let editor = Editors.get_editor(model.editors);
+  let zipper = Editors.active_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
   let now = a => [Update.PerformAction(a) /*Update.UpdateDoubleTap(None)*/];
   let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
@@ -36,26 +37,36 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    //TODO(andrew): selectively (~erase_buffer=true)
-    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
+    //TODO(andrew): clarify when we drop and show buffer
+    let get_term = z => z |> MakeTerm.from_zip_for_view |> fst;
+
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
     | "F3" =>
       zipper
-      |> Zipper.seg_without_buffer
-      |> MakeTerm.go
+      |> MakeTerm.from_zip_for_view
       |> fst
       |> TermBase.UExp.show
       |> print
-    | "F4" => zipper |> get_term |> Statics.mk_map |> Statics.Map.show |> print
+    | "F4" =>
+      let ctx_init = Editors.get_ctx_init(model.editors);
+      zipper
+      |> get_term
+      |> Statics.mk_map_ctx(ctx_init)
+      |> Statics.Map.show
+      |> print;
     | "F5" =>
-      let term = zipper |> get_term;
-      let map = term |> Statics.mk_map;
-      Interface.eval_to_result(map, term) |> ProgramResult.show |> print;
+      //TODO(andrew): simplify below
+      let ctx_init = Editors.get_ctx_init(model.editors);
+      let env_init = Editors.get_env_init(model.editors);
+      Interface.eval_editor(~env_init, ~ctx_init, editor)
+      |> ProgramResult.show
+      |> print;
     | "F6" =>
       let index = Indicated.index(zipper);
-      let map = zipper |> get_term |> Statics.mk_map;
+      let ctx_init = Editors.get_ctx_init(model.editors);
+      let map = zipper |> get_term |> Statics.mk_map_ctx(ctx_init);
       switch (index) {
       | Some(index) =>
         switch (Haz3lcore.Id.Map.find_opt(index, map)) {
@@ -66,6 +77,11 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       };
     | "F7" => [Update.Script(StartTest())]
     | "F8" => [Update.Script(StartRun())]
+    | "F9" =>
+      print_endline(
+        "DEBUG: F9: Zipper with dump_backpack=true, erase_buffer=false",
+      );
+      zipper |> Zipper.seg_for_sem |> Segment.show |> print;
     | _ => []
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

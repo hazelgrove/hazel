@@ -619,6 +619,7 @@ let eval_bin_string_op =
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
+    //print_endline("evaluate exexuting, d: " ++ DHExp.show(d));
     let* () = take_step;
 
     switch (d) {
@@ -627,7 +628,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         x
         |> ClosureEnvironment.lookup(env)
         |> OptUtil.get(() => {
-             print_endline("FreeInvalidVar");
+             print_endline("FreeInvalidVar:" ++ x);
              raise(EvaluatorError.Exception(FreeInvalidVar(x)));
            });
       /* We need to call [evaluate] on [d] again since [env] does not store

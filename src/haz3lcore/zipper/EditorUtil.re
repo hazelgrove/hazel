@@ -93,13 +93,9 @@ let stitch = (editors: list(Editor.t)) => {
           "terms",
           true,
           () => {
-            let seg =
-              Util.TimeUtil.measure_time("unselectin", true, () =>
-                Zipper.unselect_and_zip(ed.state.zipper)
-              );
             let (term, _) =
-              Util.TimeUtil.measure_time("makin terms", true, () =>
-                MakeTerm.go(seg)
+              Util.TimeUtil.measure_time("Time: MakeTerm.from_zip:", true, () =>
+                MakeTerm.from_zip_for_view(ed.state.zipper)
               );
             term;
           },
