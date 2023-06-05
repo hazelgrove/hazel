@@ -196,6 +196,8 @@ let set_buffer =
   let* ci = z_to_ci(~ctx, z);
   let candidates = candidates(ci, z);
   //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
+  //TODO(andrew): maybe dont suggest when current thing is already a type-correct variable ref?
+  // its kind of aggressive
   let filtered_candidates =
     candidates
     |> List.filter(String.starts_with(~prefix=tok_to_left))

@@ -207,16 +207,16 @@ let rec dhexp_of_uexp =
       | Tag(name) =>
         switch (err_status) {
         | _ when Hyper.is_export(name) =>
-          print_endline(
-            "elaborating export: id:"
-            ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
-          );
+          /*print_endline(
+              "elaborating export: id:"
+              ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
+            );*/
           Some(
             DHExp.Ap(
               TestLit(Hyper.export_id + Hyper.get_export_offset(name)),
               Tuple([]),
             ),
-          );
+          )
         | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
         | _ => Some(Tag(name))
         }
@@ -386,7 +386,6 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
-  print_endline("Elabortor.uexp_elab: starting");
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
