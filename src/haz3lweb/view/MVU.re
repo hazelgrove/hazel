@@ -150,6 +150,7 @@ let render_style_attr: DHExp.t => string =
   | Ap(Tag("FontWeight"), StringLit(s)) => "font-weight: " ++ s
   | Ap(Tag("Gap"), StringLit(s)) => "gap: " ++ s
   | Ap(Tag("Height"), StringLit(s)) => "height: " ++ s
+  | Ap(Tag("JustifyContent"), StringLit(s)) => "justify-content: " ++ s
   | Ap(Tag("Left"), StringLit(s)) => "left: " ++ s
   | Ap(Tag("LetterSpacing"), StringLit(s)) => "letter-spacing: " ++ s
   | Ap(Tag("LineHeight"), StringLit(s)) => "line-height: " ++ s
