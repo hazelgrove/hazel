@@ -1,0 +1,4 @@
+let stuff : Int = 1 in
+let testStuff : (Int, Int) = (2, 1) in
+
+testStuff
