@@ -267,10 +267,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       }
     };
 
-  let switch_editor = (idx: int, {eds, _}) => {
-    pos: pos_of_idx(eds, idx),
-    eds,
-  };
+  let switch_editor = (~pos, instructor_mode, ~exercise) =>
+    if (!instructor_mode) {
+      switch (pos) {
+      | HiddenTests
+      | HiddenBugs(_) => exercise
+      | _ => {eds: exercise.eds, pos}
+      };
+    } else {
+      {eds: exercise.eds, pos};
+    };
 
   let zipper_of_code = (id, code) => {
     switch (Printer.zipper_of_string(id, code)) {
