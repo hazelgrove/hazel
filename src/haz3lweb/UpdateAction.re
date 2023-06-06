@@ -27,7 +27,7 @@ type t =
   | Save
   | ToggleMode
   | SwitchSlide(int)
-  | SwitchEditor(int)
+  | SwitchEditor(SchoolExercise.pos)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
