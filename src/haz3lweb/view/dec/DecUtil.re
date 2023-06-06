@@ -69,7 +69,10 @@ let code_svg_sized =
       paths: list(SvgUtil.Path.cmd),
     ) => {
   let (left, top) = (origin.col, origin.row);
-  let (width, height) = (last.col - origin.col, last.row - origin.row + 1);
+  let (width, height) = (
+    abs(last.col - origin.col),
+    abs(last.row - origin.row + 1),
+  );
   let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
   create_svg(
     "svg",
