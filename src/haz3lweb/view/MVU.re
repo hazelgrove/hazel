@@ -36,12 +36,14 @@ let dhexp_view = (~font_metrics, d) =>
     d,
   );
 
-let eval = d => {
+let eval = (d: DHExp.t): DHExp.t => {
   print_endline("MVU: eval: starting");
   switch (Interface.evaluate(d)) {
   | (result, _, _) =>
     print_endline("MVU: eval: done");
-    EvaluatorResult.unbox(result);
+    let d = EvaluatorResult.unbox(result);
+    //print_endline("MVU: res: " ++ DHExp.show(d));
+    d;
   };
 };
 
@@ -137,6 +139,7 @@ let render_style_attr: DHExp.t => string =
   | Ap(Tag("Display"), StringLit(s)) => "display: " ++ s
   | Ap(Tag("EmptyCells"), StringLit(s)) => "empty-cells: " ++ s
   | Ap(Tag("Float"), StringLit(s)) => "float: " ++ s
+  | Ap(Tag("FlexDirection"), StringLit(s)) => "flex-direction: " ++ s
   | Ap(Tag("Font"), StringLit(s)) => "font: " ++ s
   | Ap(Tag("FontFamily"), StringLit(s)) => "font-family: " ++ s
   | Ap(Tag("FontSize"), StringLit(s)) => "font-size: " ++ s
@@ -201,19 +204,8 @@ let render_style_attr: DHExp.t => string =
   | _ => "";
 
 /*
- Handlers to implement:
 
- on_dblclick
- on_mousedown
- on_mouseup
- on_mousemove
-
- on_keydown
- on_keyup
- on_keypress
-
-
- Event types to support:
+ TODO: Event types to support:
 
  Dom_html.mouseEvent
  detail: int
@@ -230,7 +222,6 @@ let render_style_attr: DHExp.t => string =
  method shiftKey : bool
  method altKey : bool
  method metaKey : bool
-
 
  Effects to support:
 
@@ -251,9 +242,20 @@ let render_attr = ({name, inject, update, model, _}: t, d: DHExp.t): Attr.t => {
     Virtual_dom.Vdom.Effect.Many([
       Virtual_dom.Vdom.Effect.Stop_propagation,
       //Virtual_dom.Vdom.Effect.Prevent_default,
-      inject(MVUSet(name, DHExp.strip_casts(maybe_model))),
+      inject(MVUSet(name, maybe_model)) //DHExp.strip_casts(maybe_model),
     ]);
   };
+  /* TODO: Handlers to implement:
+
+     on_dblclick
+     on_mousedown
+     on_mouseup
+     on_mousemove
+
+     on_keydown
+     on_keyup
+     on_keypress
+      */
   switch (d) {
   | Ap(Tag("Create"), Tuple([StringLit(name), StringLit(value)])) =>
     Attr.create(name, value)
@@ -279,24 +281,42 @@ let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
   | Ap(Tag("Div"), body) =>
     let (attrs, divs) = attrs_and_divs(context, body);
     Node.div(~attr=Attr.many(attrs), divs);
-  | Ap(Tag("Checkbox"), body) =>
-    let (attrs, divs) = attrs_and_divs(context, body);
-    Node.input(
-      ~attr=Attr.many([Attr.create("type", "checkbox")] @ attrs),
-      divs,
-    );
-  | Ap(Tag("Range"), body) =>
-    let (attrs, divs) = attrs_and_divs(context, body);
-    Node.input(
-      ~attr=Attr.many([Attr.create("type", "range")] @ attrs),
-      divs,
-    );
+  | Ap(Tag("Button"), body) => input_of("button", context, body)
+  | Ap(Tag("Checkbox"), body) => input_of("checkbox", context, body)
+  | Ap(Tag("ColorInput"), body) => input_of("color", context, body)
+  | Ap(Tag("DateInput"), body) => input_of("date", context, body)
+  | Ap(Tag("DateTimeLocal"), body) =>
+    input_of("datetime-local", context, body)
+  | Ap(Tag("EmailInput"), body) => input_of("email", context, body)
+  | Ap(Tag("FileInput"), body) => input_of("file", context, body)
+  | Ap(Tag("HiddenInput"), body) => input_of("hidden", context, body)
+  | Ap(Tag("ImageInput"), body) => input_of("image", context, body)
+  | Ap(Tag("MonthInput"), body) => input_of("month", context, body)
+  | Ap(Tag("NumberInput"), body) => input_of("number", context, body)
+  | Ap(Tag("PasswordInput"), body) => input_of("password", context, body)
+  | Ap(Tag("Radio"), body) => input_of("radio", context, body)
+  | Ap(Tag("Range"), body) => input_of("range", context, body)
+  | Ap(Tag("ResetInput"), body) => input_of("reset", context, body)
+  | Ap(Tag("SearchInput"), body) => input_of("search", context, body)
+  | Ap(Tag("SubmitInput"), body) => input_of("submit", context, body)
+  | Ap(Tag("TelInput"), body) => input_of("tel", context, body)
+  | Ap(Tag("TextInput"), body) => input_of("text", context, body)
+  | Ap(Tag("TimeInput"), body) => input_of("time", context, body)
+  | Ap(Tag("UrlInput"), body) => input_of("url", context, body)
+  | Ap(Tag("WeekInput"), body) => input_of("week", context, body)
   | _ =>
     //print_endline("ERROR: render_div: " ++ DHExp.show(d));
     let d = elide_errors ? DHExp.EmptyHole(0, 0) : d;
     dhexp_view(~font_metrics=context.font_metrics, d);
   //Some(Node.text("error"))
   }
+and input_of = (input_type, context, body) => {
+  let (attrs, divs) = attrs_and_divs(context, body);
+  Node.input(
+    ~attr=Attr.many([Attr.create("type", input_type)] @ attrs),
+    divs,
+  );
+}
 and attrs_and_divs =
     (context: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
   switch (body) {
@@ -308,11 +328,17 @@ and attrs_and_divs =
   };
 
 let go = (context: t) => {
+  print_endline("MVU: go: starting");
+  print_endline("MVU: go: model: " ++ DHExp.show(context.model));
   let result = eval(Ap(context.view, context.model));
+  //TODO(andrew): decide if actually should be stripping casts
   [
     Node.div(
       ~attr=Attr.classes(["mvu-render"]),
-      [Node.text("Rendered Node: "), render_div(context, result)],
+      [
+        Node.text("Rendered Node: "),
+        render_div(context, DHExp.strip_casts(result)),
+      ],
     ),
   ];
 };

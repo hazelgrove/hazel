@@ -9,7 +9,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -62,7 +62,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)

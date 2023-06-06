@@ -1027,7 +1027,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
           | _ =>
-            print_endline("CastBVHoleGround");
+            print_endline("CastBVHoleGround:");
+            print_endline("d1:" ++ DHExp.show(d1));
+            print_endline("d1':" ++ DHExp.show(d1'));
+            print_endline("ty:" ++ Typ.show(ty));
+            print_endline("ty':" ++ Typ.show(ty'));
             raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
