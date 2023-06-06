@@ -1138,7 +1138,7 @@ and eval_rule =
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : m(ClosureEnvironment.t) => {
-    let map =
+  let map =
     Environment.union(new_bindings, ClosureEnvironment.map_of(to_extend));
   map |> ClosureEnvironment.of_environment |> with_eig;
 }
