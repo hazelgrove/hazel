@@ -344,21 +344,47 @@ module ImplGradingReport = {
   };
 };
 
-module ImplSyntaxReport = {
-  let view = (syntax_result: bool) => {
-    let result_string = if (syntax_result) {"Pass"} else {"Fail"};
+module SyntaxReport = {
+  open Haz3lschool;
+  include SyntaxTest.SyntaxReport;
+  let individual_report = (i: int, hint: string, status: bool) => {
+    let result_string = if (status) {"Pass"} else {"Indet"};
+
+    div(
+      ~attr=Attr.classes(["test-report"]),
+      [
+        div(
+          ~attr=Attr.classes(["test-id", "Test" ++ result_string]),
+          [text(string_of_int(i + 1))],
+        ),
+      ]
+      @ [
+        div(
+          ~attr=Attr.classes(["test-hint", "test-instance", result_string]),
+          [text(hint)],
+        ),
+      ],
+    );
+  };
+
+  let individual_reports = (hinted_results: list((bool, string))) => {
+    div(
+      hinted_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, hint, status)
+         ),
+    );
+  };
+
+  let view = (syntax_report: t) => {
     Cell.panel(
-      ~classes=["syntax-panel"],
+      ~classes=["test-panel"],
       [
         Cell.bolded_caption(
           "Syntax Report",
           ~rest=": Syntax of your implementation",
         ),
-        div(
-          ~attr=
-            Attr.classes(["syntax-report", "test-instance", result_string]),
-          [text(result_string)],
-        ),
+        individual_reports(syntax_report.hinted_results),
       ],
       ~footer=None,
     );

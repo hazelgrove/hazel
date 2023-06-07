@@ -662,7 +662,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let syntax_test = ({eds, _}: state): bool => {
+  let syntax_test = ({eds, _}: state): SyntaxTest.SyntaxReport.t => {
     let user_impl_term =
       Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
         EditorUtil.stitch([eds.your_impl])

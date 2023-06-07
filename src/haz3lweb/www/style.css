@@ -1583,18 +1583,6 @@ svg.expandable path {
   border-bottom: 0.5px solid var(--top_bar_icon_fill);
 }
 
-.syntax-panel {
-  z-index: var(--test-panel-z);
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-  padding: 1em;
-  /* flex-grow: 1; */
-  /*TODO(andrew): move fontshit */
-  background-color: var(--test-panel-bkg);
-  border-bottom: 0px;
-}
-
 .test-reports {
   position: relative;
 }
