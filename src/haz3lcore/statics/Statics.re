@@ -473,9 +473,11 @@ and uexp_to_info_map =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let mode1: Typ.mode = Ana(ty_pat);
-    let (ty_def, free_def, m_def) = uexp_to_module(def_ctx, def, [], mode1);
+    let (_, ty_module, free_def, m_def) =
+      uexp_to_module(def_ctx, def, [], mode1);
+    let ty_module = typ_after_fix(mode1, Just(ty_module));
     let (_, ctx_pat_ana, m_pat) =
-      upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
+      upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_module), pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
@@ -693,7 +695,7 @@ and uexp_to_module =
       inner_ctx: list((string, Typ.t)),
       mode: Typ.mode,
     )
-    : (Typ.t, Ctx.co, map) => {
+    : (Typ.t, Typ.t, Ctx.co, map) => {
   let rec out_moded = (out_mode: Typ.mode, pat: Term.UPat.t): Typ.mode => {
     switch (out_mode) {
     | Ana(Module(m)) =>
@@ -765,46 +767,80 @@ and uexp_to_module =
     };
   let cls = Term.UExp.cls_of_term(term);
   let add = (~self, ~free, m) => (
-    typ_after_fix(mode, self),
+    typ_after_fix(Syn, self),
     free,
     add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
   );
   switch (uexp.term) {
   | Let(pat, def, body) =>
+    let mode_pat = out_moded(mode, pat);
     let (ty_pat, ctx_pat, _m_pat) =
-      upat_to_info_map(~is_synswitch=true, ~mode=out_moded(mode, pat), pat);
+      upat_to_info_map(~is_synswitch=true, ~mode=mode_pat, pat);
+    let ty_pat =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynFun => ty_pat
+      };
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
-    /* Analyze pattern to incorporate def type into ctx */
+    let ty_def =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynFun => ty_def
+      };
     let (_, ctx_pat_ana, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let new_inner = VarMap.concat(inner_ctx, Ctx.get_vars(ctx_pat_ana));
-    let (ty_body, free_body, m_body) =
+    let (ty_body, ty_module, free_body, m_body) =
       uexp_to_module(ctx_body, body, new_inner, mode);
-    add(
-      ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
-      union_m([m_pat, m_def, m_body]),
-    );
+    let (ty_body, free, m) =
+      add(
+        ~self=Just(ty_body),
+        ~free=
+          Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+        union_m([m_pat, m_def, m_body]),
+      );
+    (ty_body, ty_module, free, m);
 
   | Module(pat, def, body) =>
-    let (_, ctx_pat, _m_pat) =
-      upat_to_info_map(~is_synswitch=true, ~mode=out_moded(mode, pat), pat);
+    let mode_pat = out_moded(mode, pat);
+    let (ty_pat, ctx_pat, _m_pat) =
+      upat_to_info_map(~is_synswitch=true, ~mode=mode_pat, pat);
+    let ty_pat =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynFun => ty_pat
+      };
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
-    let (ty_def, free_def, m_def) = uexp_to_module(def_ctx, def, [], mode);
+    let mode1: Typ.mode = Ana(ty_pat);
+    let (_, ty_module, free_def, m_def) =
+      uexp_to_module(def_ctx, def, [], mode);
+    let ty_module = typ_after_fix(mode1, Just(ty_module));
+    let ty_module =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynFun => ty_module
+      };
     let (_, ctx_pat_ana, m_pat) =
-      upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
+      upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_module), pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let new_inner = VarMap.concat(inner_ctx, Ctx.get_vars(ctx_pat_ana));
-    let (ty_body, free_body, m_body) =
+    let (ty_body, ty_module, free_body, m_body) =
       uexp_to_module(ctx_body, body, new_inner, mode);
-    add(
-      ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
-      union_m([m_pat, m_def, m_body]),
-    );
+    let (ty_body, free, m) =
+      add(
+        ~self=Just(ty_body),
+        ~free=
+          Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+        union_m([m_pat, m_def, m_body]),
+      );
+    (ty_body, ty_module, free, m);
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -828,8 +864,8 @@ and uexp_to_module =
   | UnOp(_)
   | BinOp(_)
   | Match(_) =>
-    let (_ty, free, m) = uexp_to_info_map(~ctx, ~mode, uexp);
-    (Module(inner_ctx), free, m);
+    let (ty, free, m) = uexp_to_info_map(~ctx, ~mode=Syn, uexp);
+    (ty, Module(inner_ctx), free, m);
   };
 };
 
