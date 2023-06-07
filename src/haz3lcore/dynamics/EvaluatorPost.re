@@ -71,9 +71,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
 
-  | Dot(d, name) =>
+  | Dot(u, i, d, name) =>
     let* d' = pp_eval(d);
-    Dot(d', name) |> return;
+    Dot(u, i, d', name) |> return;
 
   | ApBuiltin(f, args) =>
     let* args' = args |> List.map(pp_eval) |> sequence;
@@ -227,6 +227,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | EmptyHole(_)
     | ExpandingKeyword(_)
     | FreeVar(_)
+    | FreeDot(_)
     | InvalidText(_) => pp_uneval(env, d)
 
     /* Other expression forms cannot be directly in a closure. */
@@ -302,9 +303,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Module(dp, d1', d2') |> return;
 
-  | Dot(d, name) =>
+  | Dot(u, i, d, name) =>
     let* d' = pp_uneval(env, d);
-    Dot(d', name) |> return;
+    Dot(u, i, d', name) |> return;
 
   | FixF(f, ty, d1) =>
     let* d1' = pp_uneval(env, d1);
@@ -481,7 +482,7 @@ let rec track_children_of_hole =
   | Cast(d, _, _)
   | FailedCast(d, _, _)
   | InvalidOperation(d, _)
-  | Dot(d, _) => track_children_of_hole(hii, parent, d)
+  | Dot(_, _, d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
   | Module(_, d1, d2)

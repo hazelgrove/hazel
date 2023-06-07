@@ -58,7 +58,7 @@ module rec DHExp: {
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
     | Module(DHPat.t, t, t)
-    | Dot(t, Token.t)
+    | Dot(MetaVar.t, HoleInstanceId.t, t, Token.t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -159,7 +159,7 @@ module rec DHExp: {
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
     | Module(DHPat.t, t, t)
-    | Dot(t, Token.t)
+    | Dot(MetaVar.t, HoleInstanceId.t, t, Token.t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -201,7 +201,7 @@ module rec DHExp: {
     | Sequence(_, _) => "Sequence"
     | Let(_, _, _) => "Let"
     | Module(_, _, _) => "Module"
-    | Dot(_, _) => "DotMember"
+    | Dot(_, _, _, _) => "DotMember"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
@@ -261,7 +261,7 @@ module rec DHExp: {
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | Module(dp, b, c) => Module(dp, strip_casts(b), strip_casts(c))
-    | Dot(d, dp) => Dot(strip_casts(d), dp)
+    | Dot(a, b, d, dp) => Dot(a, b, strip_casts(d), dp)
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
@@ -317,7 +317,8 @@ module rec DHExp: {
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Module(dp1, d11, d21), Module(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (Dot(d11, dp1), Dot(d12, dp2)) => dp1 == dp2 && fast_equal(d11, d12)
+    | (Dot(_, _, d11, dp1), Dot(_, _, d12, dp2)) =>
+      dp1 == dp2 && fast_equal(d11, d12)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>

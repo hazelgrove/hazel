@@ -32,9 +32,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d4);
       };
     Module(dp, d3, d4);
-  | Dot(d, n) =>
+  | Dot(u, i, d, n) =>
     let d = subst_var(d1, x, d);
-    Dot(d, n);
+    Dot(u, i, d, n);
   | FreeDot(u, i, d, n) =>
     let d = subst_var(d1, x, d);
     FreeDot(u, i, d, n);

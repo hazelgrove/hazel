@@ -307,7 +307,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         switch (err_status) {
         | InHole(Free(Variable)) =>
           Some(DHExp.FreeDot(id, 0, dmodul, name))
-        | _ => Some(DHExp.Dot(dmodul, name))
+        | _ => Some(DHExp.Dot(id, 0, dmodul, name))
         };
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);

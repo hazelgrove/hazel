@@ -210,6 +210,10 @@ let rec mk =
           DHDoc_common.mk_ExpandingKeyword((u, i), k)
         | FreeVar(u, i, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+        | FreeDot(u, i, d', x) =>
+          let doc1 = go'(d');
+          Doc.(hcats([mk_cast(doc1), text("."), text(x)]))
+          |> annot(DHAnnot.VarHole(Free, (u, i)));
         | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
         | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
           go_case(dscrut, drs)
@@ -256,7 +260,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
-      | Dot(d, name) =>
+      | Dot(_, _, d, name) =>
         let doc1 = go(~enforce_inline, d);
         Doc.(hcats([mk_cast(doc1), text("."), text(name)]));
       | ApBuiltin(ident, args) =>

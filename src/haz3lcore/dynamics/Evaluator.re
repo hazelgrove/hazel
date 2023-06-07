@@ -274,7 +274,7 @@ and matches_cast_Inj =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | Module(_, _, _) => IndetMatch
-  | Dot(_, _) => IndetMatch
+  | Dot(_, _, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
@@ -367,7 +367,7 @@ and matches_cast_Tuple =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | Module(_, _, _) => IndetMatch
-  | Dot(_, _) => IndetMatch
+  | Dot(_, _, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
@@ -508,7 +508,7 @@ and matches_cast_Cons =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | Module(_, _, _) => IndetMatch
-  | Dot(_, _) => IndetMatch
+  | Dot(_, _, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
@@ -662,7 +662,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | Dot(d1, name) =>
+    | Dot(u, i, d1, name) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(ModuleVal(inner_env)) =>
@@ -670,8 +670,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           name
           |> Environment.lookup(inner_env)
           |> OptUtil.get(() => {
-               print_endline("FreeInvalidMember");
-               raise(EvaluatorError.Exception(FreeInvalidVar(name)));
+               let res: DHExp.t = EmptyHole(u, i);
+               res;
              });
         /* We need to call [evaluate] on [d] again since [env] does not store
          * final expressions. */
@@ -679,7 +679,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | BoxedValue(d1') =>
         print_endline("InvalidModule");
         raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
-      | Indet(d1') => Indet(Dot(d1', name)) |> return
+      | Indet(d1') => Indet(Dot(u, i, d1', name)) |> return
       };
     | FreeDot(_) => Indet(Closure(env, d)) |> return
     | FixF(f, _, d') =>
