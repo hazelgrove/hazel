@@ -669,7 +669,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let syntax_params: SyntaxTest.params = {
       var_mention: ["xyz"],
-      recursive: [],
+      recursive: ["odd"],
     };
     SyntaxTest.check(user_impl_term, syntax_params);
   };
