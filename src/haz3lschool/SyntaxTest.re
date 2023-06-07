@@ -2,6 +2,10 @@ open Haz3lcore;
 
 module StringMap = Map.Make(String);
 
+module SyntaxReport = {
+  type t = {hinted_results: list((bool, string))};
+};
+
 type params = {
   var_mention: list(string),
   recursive: list(string),
@@ -14,10 +18,6 @@ type vmap = StringMap.t(bool);
 let add_flist = (l: list(string), m: fmap): fmap => {
   List.fold_left((m, name) => {StringMap.add(name, [], m)}, m, l);
 };
-
-//let fmap_union = (m1: fmap, m2: fmap): fmap {
-//	StringMap.union((name: string, l1: list(Term.UExp.t), l2: list(Term.UExp.t)) => {Some(l1 @ l2)}, m1, m2);
-//};
 
 let rec find_funcs = (p: Term.UPat.t, def: Term.UExp.t, m: fmap): fmap => {
   switch (p.term, def.term) {
@@ -92,7 +92,7 @@ let rec find_var = (uexp: Term.UExp.t, name: string): bool => {
   };
 };
 
-let check = (uexp: Term.UExp.t, p: params): bool => {
+let check = (uexp: Term.UExp.t, p: params): SyntaxReport.t => {
   let m = StringMap.empty |> add_flist(p.recursive) |> mk_fmap(uexp);
   StringMap.iter(
     (k, l) => {
@@ -102,9 +102,26 @@ let check = (uexp: Term.UExp.t, p: params): bool => {
     },
     m,
   );
-  List.fold_left(
-    (acc, name) => {acc || find_var(uexp, name)},
-    false,
-    p.var_mention,
-  );
+
+  let recursive_res = false;
+
+  let var_mention_res =
+    List.fold_left(
+      (acc, name) => {acc || find_var(uexp, name)},
+      false,
+      p.var_mention,
+    );
+
+  let var_mention_hint =
+    String.cat(String.concat(", ", p.var_mention), " mentioned anywhere");
+
+  let recursive_hint =
+    String.cat(String.concat(", ", p.recursive), " recursive");
+
+  {
+    hinted_results: [
+      (var_mention_res, var_mention_hint),
+      (recursive_res, recursive_hint),
+    ],
+  };
 };
