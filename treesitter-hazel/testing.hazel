@@ -1,4 +1,15 @@
-let stuff : Int = 1 in
-let testStuff : (Int, Int) = (2, 1) in
+let num : Int = 1 in
+let inc : Int -> Int =
+    fun x -> x + 1
+in
 
-testStuff
+let test : (Int, Int) -> (Int, Int) = 
+    fun (x, y) ->
+        case (x, y)
+            | (1, 2) as z => z
+            | (0, 0) => (0, 0)
+            | _ => (inc(1), 1)
+        end
+in
+
+test(num, 2)

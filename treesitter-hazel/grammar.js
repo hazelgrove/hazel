@@ -10,6 +10,7 @@ function commaSep(rule) {
 
 module.exports = grammar({
     name: 'Hazel',
+    conflicts: $ => [[$._expression, $._pat], [$.tuple_pat, $.tuple_exp], [$.list, $.list_pat]],
 
     rules: {
         program: $ => ($._expression),
@@ -26,11 +27,27 @@ module.exports = grammar({
             $.bool_lit,
             $.string,
             $.tuple_exp,
+            $.infix_exp,
+            $.fun,
+            $.if,
+            $.ap,
+            $.case,
+            $.test,
+            $.list,
         ),
 
         _pat: $ => choice(
             $.var,
             $.typeann,
+            $.wildcard,
+            $.int_lit,
+            $.float_lit,
+            $.bool_lit,
+            $.string,
+            $.tuple_pat,
+            $.list_pat,
+            $.wildcard,
+            $.as_pat
         ),
 
         _type: $ => choice(
@@ -57,6 +74,18 @@ module.exports = grammar({
         )),
 
         //expressions
+
+        test: $ => seq(
+            'test',
+            $._expression,
+            'end',
+        ),
+
+        list: $ => seq(
+            '[',
+            commaSep($._expression),
+            ']',
+        ),
 
         //literals:
 
@@ -86,6 +115,28 @@ module.exports = grammar({
             $.times,
             $.divide,
             $.pow,
+            $.fpow,
+            $.assign,
+            $.equals,
+            $.string_equals,
+            $.less_than,
+            $.greater_than,
+            $.greater_than_equals,
+            $.less_than_equals,
+            $.fplus,
+            $.fminus,
+            $.ftimes,
+            $.fdivide,
+            $.fequals,
+            $.float_greater_than,
+            $.float_less_than,
+            $.float_greater_than_equals,
+            $.float_less_than_equals,
+            $.substr1,
+            $.bitwise_and,
+            $.logical_and,
+            $.bitwise_or,
+            $.logical_or,
         ),
 
         var: $ => $.ident,
@@ -252,6 +303,18 @@ module.exports = grammar({
             $._expression,
         )),
 
+        bitwise_or: $ => prec.left(5, seq(
+            $._expression,
+            '|',
+            $._expression,
+        )),
+
+        logical_or: $ => prec.left(10, seq(
+            $._expression,
+            '||',
+            $._expression,
+        )),
+
         //tuple expressions:
         tuple_exp: $ => seq(
             '(',
@@ -270,14 +333,74 @@ module.exports = grammar({
             $._expression,
         ),
 
+        //ifs and realted:
+        if: $ => seq(
+            'if',
+            $._expression,
+            'then',
+            $._expression,
+            'else',
+            $._expression,
+        ),
+
+        //functions and related
+        fun: $ => seq(
+            'fun',
+            $._pat,
+            '->',
+            $._expression,
+        ),
+
+        //application
+        ap: $ => prec.left(1, seq(
+            $._expression,
+            '(',
+            $._expression,
+            ')'
+        )),
+
+        //cases and rules
+
+        case: $ => seq(
+            'case',
+            $._expression,
+            repeat($.rule),
+            'end'
+        ),
+
+        rule: $ => seq(
+            '|',
+            $._pat,
+            '=>',
+            $._expression,
+        ),
+
         //patterns:
 
-        typeann: $ => seq(
+        typeann: $ => prec(11, seq(
             $._pat,
             ':',
             $._type,
-        )
+        )),
 
+        as_pat: $ => prec.left(6, seq(
+            $._pat,
+            'as',
+            $._pat,
+        )),
 
+        tuple_pat: $ => seq(
+            '(',
+            commaSep($._pat),
+            ')',
+        ),
+
+        list_pat: $ => seq(
+            '[',
+            commaSep($._pat),
+            ']',
+        ),
+
+        wildcard: $ => '_',
     }
 });
