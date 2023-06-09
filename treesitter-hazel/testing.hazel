@@ -3,7 +3,7 @@ let inc : Int -> Int =
     fun x -> x + 1
 in
 
-let test : (Int, Int) -> (Int, Int) = 
+let stuff : (Int, Int) -> (Int, Int) = 
     fun (x, y) ->
         case (x, y)
             | (1, 2) as z => z
@@ -12,4 +12,4 @@ let test : (Int, Int) -> (Int, Int) =
         end
 in
 
-test(num, 2)
+stuff(num, 2)

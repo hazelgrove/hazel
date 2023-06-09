@@ -1,0 +1,10 @@
+let doThings: (Int) -> Int =
+    fun (x) ->
+        case (x)
+            | 1 => 1
+            | 0 => 0
+            | _ => 99
+        end
+in
+
+doThings(1)

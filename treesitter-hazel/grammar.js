@@ -10,16 +10,16 @@ function commaSep(rule) {
 
 module.exports = grammar({
     name: 'Hazel',
-    conflicts: $ => [[$._expression, $._pat], [$.tuple_pat, $.tuple_exp], [$.list, $.list_pat]],
+    conflicts: $ => [[$.expression, $.pat], [$.tuple_pat, $.tuple_exp], [$.list, $.list_pat]],
 
     rules: {
-        program: $ => ($._expression),
+        program: $ => ($.expression),
 
-        ident: $ => /[A-Za-z][A-Za-z0-9_']*/,
+        _ident: $ => /[A-Za-z][A-Za-z0-9_']*/,
 
         //basic structures:
 
-        _expression: $ => choice(
+        expression: $ => choice(
             $.var,
             $.let,
             $.int_lit,
@@ -27,7 +27,7 @@ module.exports = grammar({
             $.bool_lit,
             $.string,
             $.tuple_exp,
-            $.infix_exp,
+            $._infix_exp,
             $.fun,
             $.if,
             $.ap,
@@ -36,7 +36,7 @@ module.exports = grammar({
             $.list,
         ),
 
-        _pat: $ => choice(
+        pat: $ => choice(
             $.var,
             $.typeann,
             $.wildcard,
@@ -77,13 +77,13 @@ module.exports = grammar({
 
         test: $ => seq(
             'test',
-            $._expression,
+            $.expression,
             'end',
         ),
 
         list: $ => seq(
             '[',
-            commaSep($._expression),
+            commaSep($.expression),
             ']',
         ),
 
@@ -109,7 +109,7 @@ module.exports = grammar({
 
         //infix expressions:
 
-        infix_exp: $ => choice(
+        _infix_exp: $ => choice(
             $.plus,
             $.minus,
             $.times,
@@ -139,186 +139,186 @@ module.exports = grammar({
             $.logical_or,
         ),
 
-        var: $ => $.ident,
+        var: $ => $._ident,
 
         plus: $ => prec.left(5, seq(
-            $._expression,
+            $.expression,
             '+',
-            $._expression,
+            $.expression,
         )),
 
         minus: $ => prec.left(5, seq(
-            $._expression,
+            $.expression,
             '-',
-            $._expression,
+            $.expression,
         )),
 
         times: $ => prec.left(4, seq(
-            $._expression,
+            $.expression,
             '*',
-            $._expression,
+            $.expression,
         )),
 
         divide: $ => prec.left(4, seq(
-            $._expression,
+            $.expression,
             '/',
-            $._expression,
+            $.expression,
         )),
 
         pow: $ => prec.right(3, seq(
-            $._expression,
+            $.expression,
             '**',
-            $._expression,
+            $.expression,
         )),
 
         fpow: $ => prec.right(3, seq(
-            $._expression,
+            $.expression,
             '**.',
-            $._expression,
+            $.expression,
         )),
 
         assign: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '=',
-            $._expression,
+            $.expression,
         )),
 
         equals: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '==',
-            $._expression,
+            $.expression,
         )),
 
         string_equals: $ => prec.right(8, choice(
             seq(
-                $._expression,
+                $.expression,
                 '$==',
-                $._expression,
+                $.expression,
             ),
             seq(
-                $._expression,
+                $.expression,
                 '$=',
-                $._expression,
+                $.expression,
             ),
             seq(
-                $._expression,
+                $.expression,
                 '$',
-                $._expression,
+                $.expression,
             ),
         )),
 
         less_than: $ => prec.right(5, seq(
-            $._expression,
+            $.expression,
             '<',
-            $._expression,
+            $.expression,
         )),
 
         greater_than: $ => prec.right(5, seq(
-            $._expression,
+            $.expression,
             '>',
-            $._expression,
+            $.expression,
         )),
 
         greater_than_equals: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '>=',
-            $._expression,
+            $.expression,
         )),
 
         less_than_equals: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '<=',
-            $._expression,
+            $.expression,
         )),
 
         fplus: $ => prec.left(5, seq(
-            $._expression,
+            $.expression,
             '+.',
-            $._expression,
+            $.expression,
         )),
 
         fminus: $ => prec.left(5, seq(
-            $._expression,
+            $.expression,
             '-.',
-            $._expression,
+            $.expression,
         )),
 
         ftimes: $ => prec.left(4, seq(
-            $._expression,
+            $.expression,
             '*.',
-            $._expression,
+            $.expression,
         )),
 
         fdivide: $ => prec.left(4, seq(
-            $._expression,
+            $.expression,
             '/.',
-            $._expression,
+            $.expression,
         )),
 
         fequals: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '==.',
-            $._expression,
+            $.expression,
         )),
 
         float_greater_than: $ => prec.right(5, seq(
-            $._expression,
+            $.expression,
             '>.',
-            $._expression,
+            $.expression,
         )),
 
         float_less_than: $ => prec.right(5, seq(
-            $._expression,
+            $.expression,
             '<.',
-            $._expression,
+            $.expression,
         )),
 
         float_greater_than_equals: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '>=.',
-            $._expression,
+            $.expression,
         )),
 
         float_less_than_equals: $ => prec.right(8, seq(
-            $._expression,
+            $.expression,
             '<=.',
-            $._expression,
+            $.expression,
         )),
 
         substr1: $ => prec.left(8, seq(
-            $._expression,
+            $.expression,
             '=.',
-            $._expression,
+            $.expression,
         )),
 
         bitwise_and: $ => prec.left(9, seq(
-            $._expression,
+            $.expression,
             '&',
-            $._expression,
+            $.expression,
         )),
 
         logical_and: $ => prec.left(9, seq(
-            $._expression,
+            $.expression,
             '&&',
-            $._expression,
+            $.expression,
         )),
 
         bitwise_or: $ => prec.left(5, seq(
-            $._expression,
+            $.expression,
             '|',
-            $._expression,
+            $.expression,
         )),
 
         logical_or: $ => prec.left(10, seq(
-            $._expression,
+            $.expression,
             '||',
-            $._expression,
+            $.expression,
         )),
 
         //tuple expressions:
         tuple_exp: $ => seq(
             '(',
-            commaSep($._expression),
+            commaSep($.expression),
             ')',
         ),
 
@@ -326,36 +326,36 @@ module.exports = grammar({
 
         let: $ => seq(
             'let',
-            $._pat,
+            $.pat,
             '=',
-            $._expression,
+            $.expression,
             'in',
-            $._expression,
+            $.expression,
         ),
 
         //ifs and realted:
         if: $ => seq(
             'if',
-            $._expression,
+            $.expression,
             'then',
-            $._expression,
+            $.expression,
             'else',
-            $._expression,
+            $.expression,
         ),
 
         //functions and related
         fun: $ => seq(
             'fun',
-            $._pat,
+            $.pat,
             '->',
-            $._expression,
+            $.expression,
         ),
 
         //application
         ap: $ => prec.left(1, seq(
-            $._expression,
+            $.expression,
             '(',
-            $._expression,
+            commaSep($.expression),
             ')'
         )),
 
@@ -363,41 +363,44 @@ module.exports = grammar({
 
         case: $ => seq(
             'case',
-            $._expression,
-            repeat($.rule),
+            $.expression,
+            repeat1($.rule),
             'end'
         ),
 
         rule: $ => seq(
             '|',
-            $._pat,
-            '=>',
-            $._expression,
+            $.pat,
+            $.rule_exp_op,
+            $.expression,
+            "\n",
         ),
+
+        rule_exp_op: $ => token('=>'),
 
         //patterns:
 
         typeann: $ => prec(11, seq(
-            $._pat,
+            $.pat,
             ':',
             $._type,
         )),
 
         as_pat: $ => prec.left(6, seq(
-            $._pat,
+            $.pat,
             'as',
-            $._pat,
+            $.pat,
         )),
 
         tuple_pat: $ => seq(
             '(',
-            commaSep($._pat),
+            commaSep($.pat),
             ')',
         ),
 
         list_pat: $ => seq(
             '[',
-            commaSep($._pat),
+            commaSep($.pat),
             ']',
         ),
 

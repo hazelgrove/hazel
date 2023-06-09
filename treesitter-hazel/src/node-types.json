@@ -8,59 +8,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -94,43 +42,7 @@
       "required": true,
       "types": [
         {
-          "type": "as_pat",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "list_pat",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "tuple_pat",
-          "named": true
-        },
-        {
-          "type": "typeann",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        },
-        {
-          "type": "wildcard",
+          "type": "pat",
           "named": true
         }
       ]
@@ -145,59 +57,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -212,59 +72,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -279,59 +87,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -351,63 +107,11 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
+          "type": "expression",
           "named": true
         },
         {
           "type": "rule",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
           "named": true
         }
       ]
@@ -422,59 +126,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -489,1030 +141,24 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "fdivide",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "fequals",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "float_greater_than",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "float_greater_than_equals",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "float_less_than",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "float_less_than_equals",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "fminus",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "fplus",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "fpow",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "ftimes",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "fun",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "as_pat",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "list_pat",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "tuple_pat",
-          "named": true
-        },
-        {
-          "type": "typeann",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        },
-        {
-          "type": "wildcard",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "greater_than",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "greater_than_equals",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "if",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "infix_exp",
+    "type": "expression",
     "named": true,
     "fields": {},
     "children": {
       "multiple": false,
       "required": true,
       "types": [
+        {
+          "type": "ap",
+          "named": true
+        },
         {
           "type": "assign",
           "named": true
@@ -1523,6 +169,14 @@
         },
         {
           "type": "bitwise_or",
+          "named": true
+        },
+        {
+          "type": "bool_lit",
+          "named": true
+        },
+        {
+          "type": "case",
           "named": true
         },
         {
@@ -1558,6 +212,10 @@
           "named": true
         },
         {
+          "type": "float_lit",
+          "named": true
+        },
+        {
           "type": "fminus",
           "named": true
         },
@@ -1574,6 +232,10 @@
           "named": true
         },
         {
+          "type": "fun",
+          "named": true
+        },
+        {
           "type": "greater_than",
           "named": true
         },
@@ -1582,11 +244,27 @@
           "named": true
         },
         {
+          "type": "if",
+          "named": true
+        },
+        {
+          "type": "int_lit",
+          "named": true
+        },
+        {
           "type": "less_than",
           "named": true
         },
         {
           "type": "less_than_equals",
+          "named": true
+        },
+        {
+          "type": "let",
+          "named": true
+        },
+        {
+          "type": "list",
           "named": true
         },
         {
@@ -1610,6 +288,10 @@
           "named": true
         },
         {
+          "type": "string",
+          "named": true
+        },
+        {
           "type": "string_equals",
           "named": true
         },
@@ -1618,7 +300,233 @@
           "named": true
         },
         {
+          "type": "test",
+          "named": true
+        },
+        {
           "type": "times",
+          "named": true
+        },
+        {
+          "type": "tuple_exp",
+          "named": true
+        },
+        {
+          "type": "var",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "fdivide",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "fequals",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "float_greater_than",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "float_greater_than_equals",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "float_less_than",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "float_less_than_equals",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "fminus",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "fplus",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "fpow",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ftimes",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "fun",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        },
+        {
+          "type": "pat",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "greater_than",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "greater_than_equals",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "if",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
           "named": true
         }
       ]
@@ -1633,59 +541,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -1700,59 +556,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -1767,79 +571,11 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
+          "type": "expression",
           "named": true
         },
         {
-          "type": "as_pat",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "list_pat",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "tuple_pat",
-          "named": true
-        },
-        {
-          "type": "typeann",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        },
-        {
-          "type": "wildcard",
+          "type": "pat",
           "named": true
         }
       ]
@@ -1854,59 +590,7 @@
       "required": false,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -1921,43 +605,7 @@
       "required": false,
       "types": [
         {
-          "type": "as_pat",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "list_pat",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "tuple_pat",
-          "named": true
-        },
-        {
-          "type": "typeann",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        },
-        {
-          "type": "wildcard",
+          "type": "pat",
           "named": true
         }
       ]
@@ -1972,59 +620,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2039,59 +635,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2106,277 +650,20 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "plus",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "pow",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "program",
+    "type": "pat",
     "named": true,
     "fields": {},
     "children": {
       "multiple": false,
       "required": true,
       "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "rule",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "ap",
-          "named": true
-        },
         {
           "type": "as_pat",
           "named": true
@@ -2386,35 +673,11 @@
           "named": true
         },
         {
-          "type": "case",
-          "named": true
-        },
-        {
           "type": "float_lit",
           "named": true
         },
         {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
           "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
           "named": true
         },
         {
@@ -2423,14 +686,6 @@
         },
         {
           "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
           "named": true
         },
         {
@@ -2447,6 +702,74 @@
         },
         {
           "type": "wildcard",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "plus",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pow",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "program",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "rule",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        },
+        {
+          "type": "pat",
+          "named": true
+        },
+        {
+          "type": "rule_exp_op",
           "named": true
         }
       ]
@@ -2466,59 +789,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2533,59 +804,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2600,59 +819,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2667,59 +834,7 @@
       "required": true,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2734,59 +849,7 @@
       "required": false,
       "types": [
         {
-          "type": "ap",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "case",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fun",
-          "named": true
-        },
-        {
-          "type": "if",
-          "named": true
-        },
-        {
-          "type": "infix_exp",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "let",
-          "named": true
-        },
-        {
-          "type": "list",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "test",
-          "named": true
-        },
-        {
-          "type": "tuple_exp",
-          "named": true
-        },
-        {
-          "type": "var",
+          "type": "expression",
           "named": true
         }
       ]
@@ -2801,43 +864,7 @@
       "required": false,
       "types": [
         {
-          "type": "as_pat",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "list_pat",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "tuple_pat",
-          "named": true
-        },
-        {
-          "type": "typeann",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        },
-        {
-          "type": "wildcard",
+          "type": "pat",
           "named": true
         }
       ]
@@ -2875,47 +902,11 @@
           "named": true
         },
         {
-          "type": "as_pat",
-          "named": true
-        },
-        {
-          "type": "bool_lit",
-          "named": true
-        },
-        {
-          "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "list_pat",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "tuple_pat",
+          "type": "pat",
           "named": true
         },
         {
           "type": "tuple_type",
-          "named": true
-        },
-        {
-          "type": "typeann",
-          "named": true
-        },
-        {
-          "type": "var",
-          "named": true
-        },
-        {
-          "type": "wildcard",
           "named": true
         }
       ]
@@ -2924,17 +915,11 @@
   {
     "type": "var",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "ident",
-          "named": true
-        }
-      ]
-    }
+    "fields": {}
+  },
+  {
+    "type": "\n",
+    "named": false
   },
   {
     "type": "\"",
@@ -3053,10 +1038,6 @@
     "named": false
   },
   {
-    "type": "=>",
-    "named": false
-  },
-  {
     "type": ">",
     "named": false
   },
@@ -3125,10 +1106,6 @@
     "named": false
   },
   {
-    "type": "ident",
-    "named": true
-  },
-  {
     "type": "if",
     "named": false
   },
@@ -3143,6 +1120,10 @@
   {
     "type": "let",
     "named": false
+  },
+  {
+    "type": "rule_exp_op",
+    "named": true
   },
   {
     "type": "test",
