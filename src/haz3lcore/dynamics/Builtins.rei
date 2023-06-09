@@ -26,8 +26,8 @@ let using: (Var.t, Var.t => Builtin.t, t) => t;
 module Pervasives: {
   let pi: Var.t => Builtin.t;
   let infinity: Var.t => Builtin.t;
-  let nan: Var.t => Builtin.t;
   let neg_infinity: Var.t => Builtin.t;
+  let nan: Var.t => Builtin.t;
 
   let is_infinite: Var.t => Builtin.t;
   let is_nan: Var.t => Builtin.t;

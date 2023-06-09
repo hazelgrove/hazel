@@ -78,6 +78,7 @@ module Pervasives = {
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
+    /* float_of_string implementation. */
     let float_of_string = (name, r1) =>
       switch (r1) {
       | BoxedValue(StringLit(s)) =>
@@ -94,6 +95,7 @@ module Pervasives = {
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
+    /* string_of_float implementation. */
     let string_of_float = (name, r1) =>
       switch (r1) {
       | BoxedValue(FloatLit(f)) =>
@@ -122,7 +124,7 @@ module Pervasives = {
     /* PI implementation. */
     let pi = DHExp.FloatLit(Float.pi);
 
-    /* Infinity float implementation. */
+    /* Infinity-float implementation. */
     let infinity = DHExp.FloatLit(Float.infinity);
     let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
 
