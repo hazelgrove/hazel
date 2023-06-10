@@ -320,12 +320,17 @@ let apply =
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }
-    | SwitchEditor(n) =>
+    | SwitchEditor(pos) =>
       switch (model.editors) {
       | DebugLoad => failwith("impossible")
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
-        let exercise = SchoolExercise.switch_editor(n, exercise);
+        let exercise =
+          SchoolExercise.switch_editor(
+            ~pos,
+            model.settings.instructor_mode,
+            ~exercise,
+          );
         LocalStorage.School.save_exercise(
           exercise,
           ~instructor_mode=model.settings.instructor_mode,
