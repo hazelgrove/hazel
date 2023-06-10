@@ -2,10 +2,8 @@
 
 ## Current version
 
-The most recent version that we use is Ocaml 4.12.1. We have not updated past that for the following
-reasons (which should be re-confirmed periodically):
-
-- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) does not support 4.13 or higher version.
+The most recent version that we use is Ocaml 5.0.0.
+If there are known issues with more recent version of OCaml, we will list them here.
 
 ## How to update Hazel to use a new version of ocaml
 
@@ -17,8 +15,8 @@ To update do the following:
 
 - `opam switch list-available`
 
-- Choose the most recent version that does not contain a `+` character (e.g.,
-  `4.12.1`)
+- Choose the most recent version, but no later than the public release on 
+  ocaml.org (e.g., `5.0.0`).
 
 - Create a new branch called `update_ocaml_VERSION` where VERSION is the 
   version of OCaml you intend to upgrade to. 
@@ -51,7 +49,7 @@ To update do the following:
 
 - Update the version number and instructions in `INSTALL.md`.
 
-- Update the "Current Version" section in `UPDATING.md`
+- Update the "Current Version" section at the top of this file.
 
 - Announce the version change on the `#hazel-dev` channel of the `hazelgrove`
   Slack by sending the following message, with the appropriate VERSION:
@@ -66,5 +64,8 @@ To update do the following:
         ```
         opam update
         opam switch create VERSION
+        eval $(opam env)
         make deps
         ```
+     
+     - Verify that the latest version builds by running `make clean; make`.
