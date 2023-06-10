@@ -228,9 +228,9 @@ let main_ui_view =
       settings.dynamics
         ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
         : None;
-    [
-      top_bar_view,
-      ScratchMode.view(
+
+    [top_bar_view]
+    @ ScratchMode.view(
         ~inject,
         ~font_metrics,
         ~mousedown,
@@ -239,8 +239,7 @@ let main_ui_view =
         ~langDocMessages,
         ~editor,
         ~result,
-      ),
-    ];
+      );
   | School(_, _, exercise) =>
     let toolbar_buttons =
       SchoolMode.toolbar_buttons(~inject, ~settings, editors);
@@ -257,16 +256,15 @@ let main_ui_view =
         ~toolbar_buttons,
         ~top_right=overall_score,
       );
-    [
-      top_bar_view,
-      SchoolMode.view(
+
+    [top_bar_view]
+    @ SchoolMode.view(
         ~inject,
         ~font_metrics,
         ~mousedown,
         ~show_backpack_targets,
         school_mode,
-      ),
-    ];
+      );
   };
 };
 

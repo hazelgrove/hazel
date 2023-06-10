@@ -96,9 +96,7 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~mousedown_updates=[
-        Update.SwitchEditor(SchoolExercise.idx_of_pos(pos, eds)),
-      ],
+      ~mousedown_updates=[Update.SwitchEditor(pos)],
       ~settings,
       ~color_highlighting,
     );
@@ -341,43 +339,49 @@ let view =
       ]
       : [];
 
-  div(
-    ~attr=Attr.classes(["editor", "column"]),
-    [title_view, prompt_view]
-    @ render_cells(
-        settings,
-        [
-          prelude_view,
-          correct_impl_view,
-          correct_impl_ctx_view,
-          your_tests_view,
-        ]
-        @ wrong_impl_views
-        @ [
-          mutation_testing_view,
-          your_impl_view,
-          impl_validation_view,
-          hidden_tests_view,
-          impl_grading_view,
-        ],
-      )
-    // TODO lang doc visibility tied to ci visibility (is this desired?)
-    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)]
-    @ (
-      langDocMessages.show && settings.statics
-        ? [
-          LangDoc.view(
-            ~inject,
-            ~font_metrics,
-            ~settings,
-            ~doc=langDocMessages,
-            Indicated.index(focal_zipper),
-            focal_info_map,
+  [
+    div(
+      ~attr=Attr.id("main"),
+      [
+        div(
+          ~attr=Attr.classes(["editor", "column"]),
+          [title_view, prompt_view]
+          @ render_cells(
+              settings,
+              [
+                prelude_view,
+                correct_impl_view,
+                correct_impl_ctx_view,
+                your_tests_view,
+              ]
+              @ wrong_impl_views
+              @ [
+                mutation_testing_view,
+                your_impl_view,
+                impl_validation_view,
+                hidden_tests_view,
+                impl_grading_view,
+              ],
+            )
+          @ (
+            langDocMessages.show && settings.statics
+              ? [
+                LangDoc.view(
+                  ~inject,
+                  ~font_metrics,
+                  ~settings,
+                  ~doc=langDocMessages,
+                  Indicated.index(focal_zipper),
+                  focal_info_map,
+                ),
+              ]
+              : []
           ),
-        ]
-        : []
+        ),
+      ],
     ),
-  );
+    div(~attr=Attr.class_("bottom-bar"), ci_view),
+  ]; // TODO lang doc visibility tied to ci visibility (is this desired?)
 };
 
 let toolbar_buttons =
