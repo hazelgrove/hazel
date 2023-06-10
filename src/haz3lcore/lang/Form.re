@@ -86,17 +86,16 @@ let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
 let is_dot_var = str =>
   regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str) || str == ".";
-let is_concrete_typ = str =>
+let is_base_typ = str =>
   str == "String" || str == "Int" || str == "Float" || str == "Bool";
-let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
-let is_partial_concrete_typ = x =>
-  !is_concrete_typ(x) && is_capitalized_name(x);
+let is_typ_var = t => is_capitalized_name(t) /*&& !is_base_typ(t)*/;
+let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
+  is_bad_int(str) || is_bad_float(str) || is_partial_base_typ(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
@@ -143,7 +142,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
    exceptions when used elsewhere, as no molds will be found. Such exceptions are
    currently caught. This should be replaced by a more disciplined
    approach to invalid text.*/
-let is_whitelisted_char = regexp("[!@]");
+let is_whitelisted_char = regexp("[!@\\{\\}]");
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
 let space = " ";
@@ -164,8 +163,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("type", (is_concrete_typ, [mk_op(Typ, [])])),
+  ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
@@ -184,6 +184,8 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    priority for forms which share the same labels */
 
 let forms: list((string, t)) = [
+  ("typ_plus", mk_infix("+", Typ, P.or_)),
+  ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
@@ -229,12 +231,17 @@ let forms: list((string, t)) = [
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
+  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
     "module_",
     mk(ds, ["module", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
   ),
   ("module_type", mk(ii, ["{", "}"], mk_op(Typ, [Pat]))),
+  (
+    "type_alias",
+    mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
@@ -268,7 +275,8 @@ let forms: list((string, t)) = [
   //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
-let get: String.t => t = name => List.assoc(name, forms);
+let get: String.t => t =
+  name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
 
 let delims: list(Token.t) =
   forms

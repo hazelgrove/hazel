@@ -19,7 +19,6 @@
 include TermBase.Any;
 
 type any = t;
-
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -32,10 +31,14 @@ module UTyp = {
     | String
     | Arrow
     | Tuple
+    | Sum
     | List
     | Var
+    | Module
+    | Tag
     | Parens
-    | Module;
+    | Ap
+    | USum;
 
   include TermBase.UTyp;
 
@@ -62,9 +65,12 @@ module UTyp = {
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
+    | Tag(_) => Tag
     | Tuple(_) => Tuple
     | Parens(_) => Parens
-    | Module(_) => Module;
+    | Module(_) => Module
+    | Ap(_) => Ap
+    | USum(_) => USum;
 
   let show_cls: cls => string =
     fun
@@ -76,11 +82,15 @@ module UTyp = {
     | String
     | Bool => "Base Type"
     | Var => "Type Variable"
+    | Tag => "Sum Constructor"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Parens => "Parenthesized Type Term"
-    | Module => "Module Type";
+    | Module => "Module Type"
+    | Sum => "Sum Type"
+    | Ap => "Sum Constructor Application"
+    | USum => "Sum Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -96,9 +106,206 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Var(_)
-    | Module(_) => false
+    | Module(_)
+    | Tag(_)
+    | Ap(_)
+    | USum(_) => false
     };
   };
+
+  /* Converts a syntactic type into a semantic type */
+  let rec to_typ: (Ctx.t, t) => Typ.t =
+    (ctx, utyp) =>
+      switch (utyp.term) {
+      | Invalid(_)
+      | MultiHole(_) => Unknown(Internal)
+      | EmptyHole => Unknown(TypeHole)
+      | Bool => Bool
+      | Int => Int
+      | Float => Float
+      | String => String
+      | Var(name) =>
+        //Var(name)
+        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
+        switch (Ctx.lookup_tvar(ctx, name)) {
+        | Some(_) => Var(name)
+        | None => Unknown(TypeHole)
+        }
+      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | USum(uts) => Sum(to_tag_map(ctx, uts))
+      | List(u) => List(to_typ(ctx, u))
+      | Parens(u) => to_typ(ctx, u)
+      /* The below cases should occur only inside sums */
+      | Tag(_)
+      | Ap(_) => Unknown(Internal)
+      | Module(u) =>
+        let rep_id = ({ids, _}: TermBase.UPat.t) => {
+          assert(ids != []);
+          List.hd(ids);
+        };
+        let rec get_Tuple: TermBase.UPat.term => Typ.t = (
+          ut =>
+            switch (ut) {
+            | Tuple(us) =>
+              let rec upat_to_ctx = (inner_ctx: Ctx.t, upat: TermBase.UPat.t) => {
+                switch (upat.term) {
+                | Invalid(_)
+                | EmptyHole
+                | MultiHole(_)
+                | Wild
+                | Int(_)
+                | Float(_)
+                | Bool(_)
+                | String(_)
+                | Triv
+                | ListLit(_)
+                | Cons(_)
+                | Tuple(_)
+                | Ap(_) => inner_ctx
+                | TypeAnn(var, utyp1) =>
+                  switch (var.term, utyp1.term) {
+                  | (Var(name), _) => [
+                      VarEntry({
+                        name,
+                        id: rep_id(var),
+                        typ: to_typ(ctx, utyp1),
+                      }),
+                      ...inner_ctx,
+                    ]
+                  | (Tag(name), _) => [
+                      TagEntry({
+                        name,
+                        id: rep_id(var),
+                        typ: to_typ(ctx, utyp1),
+                      }),
+                      ...inner_ctx,
+                    ]
+                  | _ => inner_ctx
+                  }
+                | Var(name) => [
+                    VarEntry({
+                      name,
+                      id: rep_id(upat),
+                      typ: Unknown(Internal),
+                    }),
+                    ...inner_ctx,
+                  ]
+                | Tag(name) => [
+                    TagEntry({
+                      name,
+                      id: rep_id(upat),
+                      typ: Unknown(Internal),
+                    }),
+                    ...inner_ctx,
+                  ]
+                | Parens(p) => upat_to_ctx(inner_ctx, p)
+                };
+              };
+              let module_ctx = List.fold_left(upat_to_ctx, [], us);
+              Module(module_ctx);
+            | Parens(p) => get_Tuple(p.term)
+            | TypeAnn(var, utyp1) =>
+              switch (var.term, utyp1.term) {
+              | (Var(name), _) =>
+                Module([
+                  VarEntry({
+                    name,
+                    id: rep_id(var),
+                    typ: to_typ(ctx, utyp1),
+                  }),
+                ])
+              | (Tag(name), _) =>
+                Module([
+                  TagEntry({
+                    name,
+                    id: rep_id(var),
+                    typ: to_typ(ctx, utyp1),
+                  }),
+                ])
+              | _ => Module([])
+              }
+            | Var(name) =>
+              Module([
+                VarEntry({name, id: rep_id(u), typ: Unknown(Internal)}),
+              ])
+            | Tag(name) =>
+              Module([
+                TagEntry({name, id: rep_id(u), typ: Unknown(Internal)}),
+              ])
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_)
+            | Wild
+            | Int(_)
+            | Float(_)
+            | Bool(_)
+            | String(_)
+            | Triv
+            | ListLit(_)
+            | Cons(_)
+            | Ap(_) => Module([])
+            }
+        );
+        get_Tuple(u.term);
+      }
+  and to_variant = ctx =>
+    fun
+    | {term: Var(tag), _} => [(tag, None)]
+    | {term: Ap({term: Var(tag), _}, u), _} => [
+        (tag, Some(to_typ(ctx, u))),
+      ]
+    | _ => []
+  and get_tag = (ctx, ut) =>
+    switch (to_variant(ctx, ut)) {
+    | [(tag, _)] => Some(tag)
+    | _ => None
+    }
+  and to_tag_map = (ctx, uts: list(t)): Typ.sum_map => {
+    List.fold_left(
+      (acc, ut) =>
+        List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
+          ? acc @ [ut] : acc,
+      [],
+      Util.ListUtil.flat_map(to_variant(ctx), uts),
+    );
+  };
+};
+
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Var;
+
+  include TermBase.UTPat;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type Variable"
+    | EmptyHole => "Empty Type Variable Hole"
+    | MultiHole => "Multi Type Variable Hole"
+    | Var => "Type Variable";
 };
 
 module UPat = {
@@ -161,18 +368,18 @@ module UPat = {
     | EmptyHole => "Empty Pattern Hole"
     | MultiHole => "Multi Pattern Hole"
     | Wild => "Wildcard Pattern"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | Bool => "Boolean Literal"
-    | String => "String Literal"
-    | Triv => "Trivial Literal. Pathetic, really."
+    | Int => "Integer Pattern Literal"
+    | Float => "Float Pattern Literal"
+    | Bool => "Boolean Pattern Literal"
+    | String => "String Pattern Literal"
+    | Triv => "Trivial Pattern Literal"
     | ListLit => "List Literal Pattern"
     | Tag => "Constructor Pattern"
-    | Cons => "List Cons"
+    | Cons => "Cons Pattern"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
-    | Ap => "Constructor Application"
+    | Ap => "Constructor Application Pattern"
     | TypeAnn => "Type Annotation";
 
   let rec is_var = (pat: t) => {
@@ -345,6 +552,12 @@ module UPat = {
       }
     };
   };
+
+  let tag_name = (p: t): option(Token.t) =>
+    switch (p.term) {
+    | Tag(name) => Some(name)
+    | _ => None
+    };
 };
 
 module UExp = {
@@ -379,6 +592,7 @@ module UExp = {
     | Let(_) => Let
     | Module(_) => Module
     | Dot(_) => Dot
+    | TyAlias(_) => TyAlias
     | Ap(_) => Ap
     | If(_) => If
     | Seq(_) => Seq
@@ -457,6 +671,7 @@ module UExp = {
     | Let => "Let Expression"
     | Module => "Module Expression"
     | Dot => "Dot Access"
+    | TyAlias => "Type Alias Definition"
     | Ap => "Function/Contructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
@@ -485,6 +700,7 @@ module UExp = {
     | Let(_)
     | Module(_)
     | Dot(_)
+    | TyAlias(_)
     | Ap(_)
     | If(_)
     | Seq(_)
@@ -517,6 +733,7 @@ module UExp = {
       | Let(_)
       | Module(_)
       | Dot(_)
+      | TyAlias(_)
       | Ap(_)
       | If(_)
       | Seq(_)
@@ -528,82 +745,13 @@ module UExp = {
       | Tag(_) => false
       }
     );
-};
 
-/* Converts a syntactic type into a semantic type */
-let rec utyp_to_ty: UTyp.t => Typ.t =
-  utyp =>
-    switch (utyp.term) {
-    | Invalid(_)
-    | MultiHole(_) => Unknown(Internal)
-    | EmptyHole => Unknown(TypeHole)
-    | Bool => Bool
-    | Int => Int
-    | Float => Float
-    | String => String
-    | Var(name) => Var(name)
-    | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(us) => Prod(List.map(utyp_to_ty, us))
-    | List(u) => List(utyp_to_ty(u))
-    | Parens(u) => utyp_to_ty(u)
-    | Module(u) =>
-      let rec get_Tuple: UPat.term => Typ.t = (
-        ut =>
-          switch (ut) {
-          | Tuple(us) =>
-            let rec upat_to_ctx = (ctx: list((string, Typ.t)), upat: UPat.t) => {
-              switch (upat.term) {
-              | Invalid(_)
-              | EmptyHole
-              | MultiHole(_)
-              | Wild
-              | Int(_)
-              | Float(_)
-              | Bool(_)
-              | String(_)
-              | Triv
-              | ListLit(_)
-              | Cons(_)
-              | Tuple(_)
-              | Ap(_) => ctx
-              | TypeAnn(var, utyp1) =>
-                switch (var.term, utyp1.term) {
-                | (Var(name), _)
-                | (Tag(name), _) => [(name, utyp_to_ty(utyp1)), ...ctx]
-                | _ => ctx
-                }
-              | Var(name)
-              | Tag(name) => [(name, Unknown(Internal)), ...ctx]
-              | Parens(p) => upat_to_ctx(ctx, p)
-              };
-            };
-            let module_ctx = List.fold_left(upat_to_ctx, [], us);
-            Module(module_ctx);
-          | Parens(p) => get_Tuple(p.term)
-          | TypeAnn(var, utyp1) =>
-            switch (var.term, utyp1.term) {
-            | (Var(name), _)
-            | (Tag(name), _) => Module([(name, utyp_to_ty(utyp1))])
-            | _ => Module([])
-            }
-          | Var(name)
-          | Tag(name) => Module([(name, Unknown(Internal))])
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_)
-          | Wild
-          | Int(_)
-          | Float(_)
-          | Bool(_)
-          | String(_)
-          | Triv
-          | ListLit(_)
-          | Cons(_)
-          | Ap(_) => Module([])
-          }
-      );
-      get_Tuple(u.term);
+  let tag_name = (e: t): option(Token.t) =>
+    switch (e.term) {
+    | Tag(name) => Some(name)
+    | _ => None
     };
+};
 
 // TODO(d): consider just folding this into UExp
 module URul = {
@@ -639,6 +787,7 @@ let rec ids =
   | Exp(tm) => tm.ids
   | Pat(tm) => tm.ids
   | Typ(tm) => tm.ids
+  | TPat(tm) => tm.ids
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];
@@ -659,6 +808,7 @@ let rep_id =
   | Exp(tm) => UExp.rep_id(tm)
   | Pat(tm) => UPat.rep_id(tm)
   | Typ(tm) => UTyp.rep_id(tm)
+  | TPat(tm) => UTPat.rep_id(tm)
   | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
   | Nul ()
   | Any () => raise(Invalid_argument("Term.rep_id"));

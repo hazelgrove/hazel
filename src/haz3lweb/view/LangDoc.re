@@ -250,18 +250,11 @@ let deco =
 
             let get_clss = segment =>
               switch (List.nth(segment, 0)) {
-              | Base.Tile({mold, _}) =>
-                switch (mold.out) {
-                | Pat => ["term-tag-pat"]
-                | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
-                | Typ => ["term-tag-typ"]
-                | Any
-                | Nul
-                | Rul => []
-                }
+              | Base.Tile({mold, _}) => [
+                  "term-tag-" ++ Sort.to_string(mold.out),
+                ]
               | _ => []
               };
-
             let specificity_menu =
               Node.div(
                 ~attr=
@@ -493,7 +486,11 @@ type message_mode =
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Statics.t), mode: message_mode)
+    (
+      ~docs: LangDocMessages.t,
+      info: option(Statics.Info.t),
+      mode: message_mode,
+    )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -556,38 +553,38 @@ let get_doc =
     };
   };
 
+  let basic_info = group => {
+    let (doc, options) = LangDocMessages.get_form_and_options(group, docs);
+    get_message(doc, options, group, doc.explanation.message, []);
+  };
+
   switch (info) {
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch (term) {
-      | TermBase.UExp.Invalid(_) => default
-      | EmptyHole =>
+      switch ((term: TermBase.UExp.term)) {
+      | Invalid(_) => default
+      | EmptyHole => basic_info(LangDocMessages.empty_hole_exp_group)
+      | MultiHole(_) => basic_info(LangDocMessages.multi_hole_exp_group)
+      | TyAlias(ty_pat, ty_def, _body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.empty_hole_exp_group,
+            LangDocMessages.tyalias_exp_group,
             docs,
           );
+        let tpat_id = List.nth(ty_pat.ids, 0);
+        let def_id = List.nth(ty_def.ids, 0);
         get_message(
           doc,
           options,
-          LangDocMessages.empty_hole_exp_group,
-          doc.explanation.message,
-          [],
-        );
-      | MultiHole(_children) =>
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.multi_hole_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.multi_hole_exp_group,
-          doc.explanation.message,
-          [],
+          LangDocMessages.tyalias_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            def_id,
+            tpat_id,
+          ),
+          LangDocMessages.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
         );
       | Triv =>
         let (doc, options) =
@@ -2507,7 +2504,7 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, _})) =>
+  | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {
     | EmptyHole =>
       let (doc, options) =
@@ -2729,6 +2726,10 @@ let get_doc =
           );
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
+    | Tag(_) =>
+      basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
+    | Var(_) when cls == Tag =>
+      basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2745,13 +2746,35 @@ let get_doc =
         ),
         [],
       );
+    | USum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
+    | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
     | Module(_) // TODO
-    | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
+    | Invalid(_) => default
     }
-  | Some(InfoRul(_)) // Can't have cursor on just a rule atm
-  | None
-  | Some(Invalid(_)) => default
+  | Some(InfoTPat(info)) =>
+    switch (info.term.term) {
+    | Invalid(_) => default
+    | EmptyHole => basic_info(LangDocMessages.empty_hole_tpat_group)
+    | MultiHole(_) => basic_info(LangDocMessages.multi_hole_tpat_group)
+    | Var(v) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.var_typ_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.var_typ_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s"),
+          v,
+        ),
+        [],
+      );
+    }
+  | None => default
   };
 };
 
@@ -2762,8 +2785,8 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
-  let info: option(Statics.t) =
+    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.Map.t) => {
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2783,9 +2806,9 @@ let view =
       ~settings: ModelSettings.t,
       ~doc: LangDocMessages.t,
       index': option(int),
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     ) => {
-  let info: option(Statics.t) =
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {

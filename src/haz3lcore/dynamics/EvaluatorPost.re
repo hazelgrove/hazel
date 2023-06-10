@@ -117,10 +117,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, d, ds);
 
-  | Inj(ty, side, d') =>
-    let* d'' = pp_eval(d');
-    Inj(ty, side, d'') |> return;
-
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -361,10 +357,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, d, ds);
 
-  | Inj(ty, side, d') =>
-    let* d'' = pp_uneval(env, d');
-    Inj(ty, side, d'') |> return;
-
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -477,7 +469,6 @@ let rec track_children_of_hole =
   | ModuleVal(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d, _)
-  | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)

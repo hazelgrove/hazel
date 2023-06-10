@@ -48,9 +48,6 @@ module Delim: {
   let open_FixF: DHDoc.t;
   let close_FixF: DHDoc.t;
 
-  let open_Inj: InjSide.t => DHDoc.t;
-  let close_Inj: DHDoc.t;
-
   let open_Case: DHDoc.t;
   let close_Case: DHDoc.t;
 
@@ -87,8 +84,6 @@ let mk_BoolLit: bool => Pretty.Doc.t('a);
 let mk_TagLit: string => Pretty.Doc.t('a);
 
 let mk_StringLit: string => Pretty.Doc.t('a);
-
-let mk_Inj: (InjSide.t, Pretty.Doc.t(DHAnnot.t)) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

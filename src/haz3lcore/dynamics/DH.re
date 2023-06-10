@@ -76,7 +76,6 @@ module rec DHExp: {
     | Cons(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Inj(Typ.t, InjSide.t, t)
     | Tag(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
@@ -177,7 +176,6 @@ module rec DHExp: {
     | Cons(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Inj(Typ.t, InjSide.t, t)
     | Tag(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
@@ -220,7 +218,6 @@ module rec DHExp: {
     | Cons(_, _) => "Cons"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
-    | Inj(_, _, _) => "Inj"
     | Tag(_) => "Tag"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
@@ -251,7 +248,6 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
-    | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
@@ -342,8 +338,6 @@ module rec DHExp: {
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (Inj(ty1, side1, d1), Inj(ty2, side2, d2)) =>
-      ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
@@ -370,7 +364,6 @@ module rec DHExp: {
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
     | (BinStringOp(_), _)
-    | (Inj(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)

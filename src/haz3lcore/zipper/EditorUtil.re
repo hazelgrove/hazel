@@ -92,6 +92,9 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Module(p, edef, ebody) =>
     let (id, ebody') = append_exp(id, ebody, e2);
     (id, TermBase.UExp.{ids: e1.ids, term: Module(p, edef, ebody')});
+  | TyAlias(tp, tdef, ebody) =>
+    let (id, ebody') = append_exp(id, ebody, e2);
+    (id, TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')});
   };
 };
 
