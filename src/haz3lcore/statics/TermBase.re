@@ -269,7 +269,6 @@ and UPat: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | As(t, t)
     | TypeAnn(t, UTyp.t)
   and t = {
     ids: list(Id.t),
@@ -294,7 +293,6 @@ and UPat: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | As(t, t)
     | TypeAnn(t, UTyp.t)
   and t = {
     ids: list(Id.t),

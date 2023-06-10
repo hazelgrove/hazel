@@ -148,8 +148,6 @@ let mk_ListLit = l => mk_comma_seq("[", "]", l, l);
 
 let mk_Tuple = elts => mk_comma_seq("(", ")", elts, elts);
 
-let mk_As = (doc1, doc2) => Doc.(hcats([doc1, text(" as "), doc2]));
-
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
 

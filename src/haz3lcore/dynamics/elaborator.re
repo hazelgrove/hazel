@@ -356,11 +356,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_p1 = dhpat_of_upat(m, p1);
       let* d_p2 = dhpat_of_upat(m, p2);
       wrap(Ap(d_p1, d_p2));
-    | As(pat, name) =>
-      let* d_pat1 = dhpat_of_upat(m, pat);
-      let* d_pat2 = dhpat_of_upat(m, name);
-
-      wrap(As(d_pat1, d_pat2));
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);

@@ -434,11 +434,9 @@ and uexp_to_info_map =
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=mode_pat, pat);
-
     let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
-
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
@@ -471,9 +469,8 @@ and uexp_to_info_map =
       );
     let branch_infos =
       List.map2(
-        (branch, (_, ctx_pat, _)) => {
-          uexp_to_info_map(~ctx=VarMap.concat(ctx, ctx_pat), ~mode, branch)
-        },
+        (branch, (_, ctx_pat, _)) =>
+          uexp_to_info_map(~ctx=VarMap.concat(ctx, ctx_pat), ~mode, branch),
         branches,
         pat_infos,
       );
@@ -483,11 +480,9 @@ and uexp_to_info_map =
         branches,
         branch_infos,
       );
-
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
-
     let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
@@ -587,11 +582,6 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
-  | As(pat, name) =>
-    let (ty_pat1, ctx, m_pat1) = upat_to_info_map(~ctx, ~mode, pat);
-    let (_ty_pat2, ctx, m_pat2) = upat_to_info_map(~ctx, ~mode, name);
-
-    add(~self=Just(ty_pat1), ~ctx, union_m([m_pat1, m_pat2]));
   | Ap(fn, arg) =>
     /* Contructor application */
     /* Function position mode Ana(Hole->Hole) instead of Syn */

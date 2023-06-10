@@ -15,7 +15,6 @@ let precedence = (dp: DHPat.t) =>
   | StringLit(_)
   | Inj(_)
   | ListLit(_)
-  | As(_)
   | Tag(_) => DHDoc_common.precedence_const
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Cons(_) => DHDoc_common.precedence_Cons
@@ -62,10 +61,6 @@ let rec mk =
       DHDoc_common.mk_Cons(doc1, doc2);
     | Tuple([]) => DHDoc_common.Delim.triv
     | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
-    | As(dp1, dp2) =>
-      let (doc1, doc2) =
-        mk_left_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
-      DHDoc_common.mk_As(doc1, doc2);
     | Ap(dp1, dp2) =>
       let (doc1, doc2) =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);

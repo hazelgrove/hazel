@@ -221,13 +221,9 @@ let deco =
       let font_metrics = font_metrics;
       let map = map;
       let show_backpack_targets = false;
-
       let (term, terms) = MakeTerm.go(unselected);
-
       let info_map = Statics.mk_map(term);
-
       let term_ranges = TermRanges.mk(unselected);
-
       let tiles = TileMap.mk(unselected);
     });
 
@@ -382,7 +378,6 @@ let syntactic_form_view =
       ~form_id,
     ) => {
   let map = Measured.of_segment(unselected);
-
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
   let deco_view =
     deco(
@@ -524,7 +519,6 @@ let get_doc =
           explanation_msg,
           docs.highlight,
         );
-
       let syntactic_form_view =
         syntactic_form_view(
           ~doc=docs,
@@ -546,7 +540,6 @@ let get_doc =
           ~group_id,
           ~form_id=doc.id,
         );
-
       let example_view =
         example_view(
           ~inject,
@@ -555,7 +548,6 @@ let get_doc =
           ~id=doc.id,
           ~examples=doc.examples,
         );
-
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
     | Colorings =>
       let (_, color_map) =
@@ -1195,7 +1187,6 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
-        | As(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
@@ -1863,7 +1854,6 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
-        | As(_) => default // Shouldn't get hit?
         };
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2130,7 +2120,6 @@ let get_doc =
             docs,
           );
         let scrut_id = List.nth(scrut.ids, 0);
-
         get_message(
           doc,
           options,
@@ -2475,26 +2464,6 @@ let get_doc =
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
-    | As(left, right) =>
-      let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.as_exp_group,
-          docs,
-        );
-
-      let res =
-        get_message(
-          doc,
-          options,
-          LangDocMessages.as_exp_group,
-          "",
-          LangDocMessages.as_exp_coloring_ids(
-            ~left_id=List.nth(left.ids, 0),
-            ~right_id=List.nth(right.ids, 0),
-          ),
-        );
-      res;
-
     | Tag(con) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(

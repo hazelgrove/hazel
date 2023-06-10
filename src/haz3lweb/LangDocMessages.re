@@ -79,7 +79,6 @@ let flte = () => Example.mk_monotile(Form.get("flte"));
 let fgt = () => Example.mk_monotile(Form.get("fgt"));
 let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let sequals = () => Example.mk_monotile(Form.get("string_equals"));
-let as_tile = () => Example.mk_monotile(Form.get("as_"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
@@ -778,7 +777,6 @@ let tuple_exp_size2_coloring_ids =
     (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => {
   [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
 };
-//NOTE: this is the tuple for the as patterns
 let tuple_exp_size2: form = {
   let explanation = {
     message: "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.",
@@ -995,7 +993,7 @@ let let_base_exp: form = {
     feedback: Unselected,
   };
   let form = [
-    /* mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]), */
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
     exp("e_body"),
   ];
@@ -1948,14 +1946,6 @@ let str_eq2_ex = {
   message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
   feedback: Unselected,
 };
-
-let as_exp_ex = {
-  sub_id: "as_exp_ex",
-  term: mk_example("(x, y) as z"),
-  message: "x and y become one value (with the tuple type), z",
-  feedback: Unselected,
-};
-
 let _exp = exp("e");
 let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp), exp_id),
@@ -2502,34 +2492,6 @@ let str_eq_exp: form = {
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
-  };
-};
-
-let _exp1 = exp("e1");
-let _exp2 = exp("e2");
-let _exp3 = exp("e3");
-let as_exp_coloring_ids =
-    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
-  _binop_exp_coloring_ids(
-    Piece.id(_exp1),
-    Piece.id(_exp2),
-    ~left_id,
-    ~right_id,
-  );
-let as_exp_group = "as_exp_group";
-//BUG: this is the line that throws errors
-let as_exp: form = {
-  let explanation = {
-    message: "As expression blah blah blah",
-    feedback: Unselected,
-  };
-  //  let comma = comma_exp();
-  {
-    id: "as_exp",
-    syntactic_form: [_exp1, space(), as_tile(), space(), _exp2],
-    expandable_id: None,
-    explanation,
-    examples: [] /* as_exp_ex */,
   };
 };
 
@@ -3367,7 +3329,6 @@ let init = {
     bool_and_exp,
     bool_or_exp,
     str_eq_exp,
-    as_exp,
     case_exp,
     // Rules
     // Patterns
@@ -3721,7 +3682,6 @@ let init = {
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),
     (str_eq_group, init_options([(str_eq_exp.id, [])])),
-    (as_exp_group, init_options([(as_exp.id, [])])),
     (case_exp_group, init_options([(case_exp.id, [])])),
     // Rules
     // Patterns

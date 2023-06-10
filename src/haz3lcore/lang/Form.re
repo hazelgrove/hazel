@@ -3,16 +3,13 @@ open Mold;
 module P = Precedence;
 
 /* FORM
-     This module determines the syntactic extent of the language; the
-     entire Syntax module is driven by the below definitions. Adding
-     a new syntactic form is simply a matter of adding a new line to either
-     the 'convex_monos' table, for single-token forms, or the 'forms'
-     table, for compound forms.
-     The wrapping functions seen in both of those tables determine the
-     shape, precedence, and expansion behavior of the form.
-   */
-
-//NOTE: Any changes made to the language syntax here should also be reflected in the Hazel treesitter grammar.js file (which can be found in the tree-sitter-hazel repo in the Hazel organization on GitHub)
+   This module determines the syntactic extent of the language; the
+   entire Syntax module is driven by the below definitions. Adding
+   a new syntactic form is simply a matter of adding a new line to either
+   the 'convex_monos' table, for single-token forms, or the 'forms'
+   table, for compound forms.
+   The wrapping functions seen in both of those tables determine the
+   shape, precedence, and expansion behavior of the form. */
 
 let regexp = (r, s) =>
   Js_of_ocaml.Regexp.string_match(Js_of_ocaml.Regexp.regexp(r), s, 0)
@@ -222,7 +219,6 @@ let forms: list((string, t)) = [
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
   ("type-arrow", mk_infix("->", Typ, 6)),
-  ("as_", mk_infix("as", Pat, 6)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
