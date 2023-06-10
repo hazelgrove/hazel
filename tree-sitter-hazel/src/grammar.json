@@ -1,5 +1,5 @@
 {
-  "name": "Hazel",
+  "name": "hazel",
   "rules": {
     "program": {
       "type": "SYMBOL",
@@ -42,7 +42,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "_infix_exp"
+          "name": "infix_exp"
         },
         {
           "type": "SYMBOL",
@@ -119,7 +119,7 @@
         }
       ]
     },
-    "_type": {
+    "type": {
       "type": "CHOICE",
       "members": [
         {
@@ -163,7 +163,7 @@
               "members": [
                 {
                   "type": "SYMBOL",
-                  "name": "_type"
+                  "name": "type"
                 },
                 {
                   "type": "REPEAT",
@@ -176,7 +176,7 @@
                       },
                       {
                         "type": "SYMBOL",
-                        "name": "_type"
+                        "name": "type"
                       }
                     ]
                   }
@@ -202,7 +202,7 @@
         "members": [
           {
             "type": "SYMBOL",
-            "name": "_type"
+            "name": "type"
           },
           {
             "type": "STRING",
@@ -210,7 +210,7 @@
           },
           {
             "type": "SYMBOL",
-            "name": "_type"
+            "name": "type"
           }
         ]
       }
@@ -328,7 +328,7 @@
         }
       ]
     },
-    "_infix_exp": {
+    "infix_exp": {
       "type": "CHOICE",
       "members": [
         {
@@ -1302,7 +1302,7 @@
           },
           {
             "type": "SYMBOL",
-            "name": "_type"
+            "name": "type"
           }
         ]
       }

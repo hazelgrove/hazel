@@ -20,14 +20,10 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
-          "type": "arrow_type",
-          "named": true
-        },
-        {
-          "type": "tuple_type",
+          "type": "type",
           "named": true
         }
       ]
@@ -160,18 +156,6 @@
           "named": true
         },
         {
-          "type": "assign",
-          "named": true
-        },
-        {
-          "type": "bitwise_and",
-          "named": true
-        },
-        {
-          "type": "bitwise_or",
-          "named": true
-        },
-        {
           "type": "bool_lit",
           "named": true
         },
@@ -180,55 +164,7 @@
           "named": true
         },
         {
-          "type": "divide",
-          "named": true
-        },
-        {
-          "type": "equals",
-          "named": true
-        },
-        {
-          "type": "fdivide",
-          "named": true
-        },
-        {
-          "type": "fequals",
-          "named": true
-        },
-        {
-          "type": "float_greater_than",
-          "named": true
-        },
-        {
-          "type": "float_greater_than_equals",
-          "named": true
-        },
-        {
-          "type": "float_less_than",
-          "named": true
-        },
-        {
-          "type": "float_less_than_equals",
-          "named": true
-        },
-        {
           "type": "float_lit",
-          "named": true
-        },
-        {
-          "type": "fminus",
-          "named": true
-        },
-        {
-          "type": "fplus",
-          "named": true
-        },
-        {
-          "type": "fpow",
-          "named": true
-        },
-        {
-          "type": "ftimes",
           "named": true
         },
         {
@@ -236,27 +172,15 @@
           "named": true
         },
         {
-          "type": "greater_than",
-          "named": true
-        },
-        {
-          "type": "greater_than_equals",
-          "named": true
-        },
-        {
           "type": "if",
           "named": true
         },
         {
+          "type": "infix_exp",
+          "named": true
+        },
+        {
           "type": "int_lit",
-          "named": true
-        },
-        {
-          "type": "less_than",
-          "named": true
-        },
-        {
-          "type": "less_than_equals",
           "named": true
         },
         {
@@ -268,43 +192,11 @@
           "named": true
         },
         {
-          "type": "logical_and",
-          "named": true
-        },
-        {
-          "type": "logical_or",
-          "named": true
-        },
-        {
-          "type": "minus",
-          "named": true
-        },
-        {
-          "type": "plus",
-          "named": true
-        },
-        {
-          "type": "pow",
-          "named": true
-        },
-        {
           "type": "string",
           "named": true
         },
         {
-          "type": "string_equals",
-          "named": true
-        },
-        {
-          "type": "substr1",
-          "named": true
-        },
-        {
           "type": "test",
-          "named": true
-        },
-        {
-          "type": "times",
           "named": true
         },
         {
@@ -527,6 +419,125 @@
       "types": [
         {
           "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "infix_exp",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "assign",
+          "named": true
+        },
+        {
+          "type": "bitwise_and",
+          "named": true
+        },
+        {
+          "type": "bitwise_or",
+          "named": true
+        },
+        {
+          "type": "divide",
+          "named": true
+        },
+        {
+          "type": "equals",
+          "named": true
+        },
+        {
+          "type": "fdivide",
+          "named": true
+        },
+        {
+          "type": "fequals",
+          "named": true
+        },
+        {
+          "type": "float_greater_than",
+          "named": true
+        },
+        {
+          "type": "float_greater_than_equals",
+          "named": true
+        },
+        {
+          "type": "float_less_than",
+          "named": true
+        },
+        {
+          "type": "float_less_than_equals",
+          "named": true
+        },
+        {
+          "type": "fminus",
+          "named": true
+        },
+        {
+          "type": "fplus",
+          "named": true
+        },
+        {
+          "type": "fpow",
+          "named": true
+        },
+        {
+          "type": "ftimes",
+          "named": true
+        },
+        {
+          "type": "greater_than",
+          "named": true
+        },
+        {
+          "type": "greater_than_equals",
+          "named": true
+        },
+        {
+          "type": "less_than",
+          "named": true
+        },
+        {
+          "type": "less_than_equals",
+          "named": true
+        },
+        {
+          "type": "logical_and",
+          "named": true
+        },
+        {
+          "type": "logical_or",
+          "named": true
+        },
+        {
+          "type": "minus",
+          "named": true
+        },
+        {
+          "type": "plus",
+          "named": true
+        },
+        {
+          "type": "pow",
+          "named": true
+        },
+        {
+          "type": "string_equals",
+          "named": true
+        },
+        {
+          "type": "substr1",
+          "named": true
+        },
+        {
+          "type": "times",
           "named": true
         }
       ]
@@ -879,6 +890,21 @@
       "required": false,
       "types": [
         {
+          "type": "type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
           "type": "arrow_type",
           "named": true
         },
@@ -898,15 +924,11 @@
       "required": true,
       "types": [
         {
-          "type": "arrow_type",
-          "named": true
-        },
-        {
           "type": "pat",
           "named": true
         },
         {
-          "type": "tuple_type",
+          "type": "type",
           "named": true
         }
       ]

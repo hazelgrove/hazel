@@ -9,7 +9,7 @@ function commaSep(rule) {
 
 
 module.exports = grammar({
-    name: 'Hazel',
+    name: 'hazel',
     conflicts: $ => [[$.expression, $.pat], [$.tuple_pat, $.tuple_exp], [$.list, $.list_pat]],
 
     rules: {
@@ -27,7 +27,7 @@ module.exports = grammar({
             $.bool_lit,
             $.string,
             $.tuple_exp,
-            $._infix_exp,
+            $.infix_exp,
             $.fun,
             $.if,
             $.ap,
@@ -50,7 +50,7 @@ module.exports = grammar({
             $.as_pat
         ),
 
-        _type: $ => choice(
+        type: $ => choice(
             'Int',
             'String',
             'Float',
@@ -63,14 +63,14 @@ module.exports = grammar({
 
         tuple_type: $ => seq(
             '(',
-            commaSep($._type),
+            commaSep($.type),
             ')',
         ),
 
         arrow_type: $ => prec.left(seq(
-            $._type,
+            $.type,
             '->',
-            $._type,
+            $.type,
         )),
 
         //expressions
@@ -109,7 +109,7 @@ module.exports = grammar({
 
         //infix expressions:
 
-        _infix_exp: $ => choice(
+        infix_exp: $ => choice(
             $.plus,
             $.minus,
             $.times,
@@ -383,7 +383,7 @@ module.exports = grammar({
         typeann: $ => prec(11, seq(
             $.pat,
             ':',
-            $._type,
+            $.type,
         )),
 
         as_pat: $ => prec.left(6, seq(
