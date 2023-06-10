@@ -435,7 +435,6 @@ and uexp_to_info_map =
     let (ty_pat, ctx_pat, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=mode_pat, pat);
 
-
     let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
@@ -485,12 +484,9 @@ and uexp_to_info_map =
         branch_infos,
       );
 
-
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
-
-
 
     let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);

@@ -3,14 +3,14 @@ open Mold;
 module P = Precedence;
 
 /* FORM
-   This module determines the syntactic extent of the language; the
-   entire Syntax module is driven by the below definitions. Adding
-   a new syntactic form is simply a matter of adding a new line to either
-   the 'convex_monos' table, for single-token forms, or the 'forms'
-   table, for compound forms.
-   The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form.
- */
+     This module determines the syntactic extent of the language; the
+     entire Syntax module is driven by the below definitions. Adding
+     a new syntactic form is simply a matter of adding a new line to either
+     the 'convex_monos' table, for single-token forms, or the 'forms'
+     table, for compound forms.
+     The wrapping functions seen in both of those tables determine the
+     shape, precedence, and expansion behavior of the form.
+   */
 
 //NOTE: Any changes made to the language syntax here should also be reflected in the Hazel treesitter grammar.js file (which can be found in the tree-sitter-hazel repo in the Hazel organization on GitHub)
 

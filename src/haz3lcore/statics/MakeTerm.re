@@ -233,8 +233,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) =>
-        (Match(scrut, rules), ids);
+      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
+          Match(scrut, rules),
+          ids,
+        )
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -367,8 +369,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       switch (is_tuple_pat(tiles)) {
       //NOTE: this is where the infix patterns are handled
 
-      | Some(between_kids) =>
-        ret(Tuple([l] @ between_kids @ [r]))
+      | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
       | None =>
         switch (tiles) {
         | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
