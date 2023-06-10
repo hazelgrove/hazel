@@ -9,7 +9,10 @@ module P = Precedence;
    the 'convex_monos' table, for single-token forms, or the 'forms'
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form. */
+   shape, precedence, and expansion behavior of the form.
+ */
+
+//NOTE: Any changes made to the language syntax here should also be reflected in the Hazel treesitter grammar.js file (which can be found in the tree-sitter-hazel repo in the Hazel organization on GitHub)
 
 let regexp = (r, s) =>
   Js_of_ocaml.Regexp.string_match(Js_of_ocaml.Regexp.regexp(r), s, 0)
