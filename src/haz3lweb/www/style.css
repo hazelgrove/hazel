@@ -1927,8 +1927,7 @@ svg.expandable path {
 }
 
 .submenu-text:hover,
-.submenu-button:hover,
-.submenu-label:hover {
+.submenu-button:hover {
   /* animation: wobble 0.6s ease 0s 1 normal forwards; */
   filter: brightness(1.2);
   transition: 0.6s;
@@ -1947,6 +1946,10 @@ svg.expandable path {
 .submenu-button,
 .submenu-label {
   padding: 0.5em 0.875em;
+}
+
+.submenu-label {
+  cursor: default;
 }
 
 .submenu-button {
