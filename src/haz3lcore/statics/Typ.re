@@ -364,3 +364,12 @@ let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
     }
   | None => SynFun
   };
+
+let is_module_ana = (mode: mode): bool => {
+  switch (mode) {
+  | Ana(Module(_)) => true
+  | Ana(_)
+  | Syn
+  | SynFun => false
+  };
+};

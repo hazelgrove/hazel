@@ -92,6 +92,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
   | (BadTag(_), _) => IndetMatch
+  | (Var(_), ModuleVal(_)) => DoesNotMatch
+  | (Tag(x), ModuleVal(_)) =>
+    let env = Environment.extend(Environment.empty, (x, d));
+    Matches(env);
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);

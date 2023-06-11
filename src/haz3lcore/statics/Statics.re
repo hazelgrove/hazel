@@ -378,10 +378,14 @@ and upat_to_info_map =
     /* Note the self type assigned to pattern variables (unknown)
        may be SynSwitch, but the type we add to the context is
        always Unknown Internal */
-    let ctx_typ =
-      Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), m);
+    if (Typ.is_module_ana(mode)) {
+      atomic(BadToken(name));
+    } else {
+      let ctx_typ =
+        Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), m);
+    }
   | Tuple(ps) =>
     let modes = Typ.matched_prod_modes(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
@@ -389,7 +393,16 @@ and upat_to_info_map =
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
-  | Tag(tag) => atomic(Info.self_tag(ctx, tag))
+  | Tag(tag) =>
+    if (Typ.is_module_ana(mode)) {
+      let ctx_typ =
+        Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      let entry =
+        Ctx.TagEntry({name: tag, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), m);
+    } else {
+      atomic(Info.self_tag(ctx, tag));
+    }
   | Ap(fn, arg) =>
     let fn_mode = Typ.ap_mode(ctx, mode, UPat.tag_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
