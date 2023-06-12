@@ -34,6 +34,17 @@ module Pervasives = {
     open EvaluatorMonad;
     open EvaluatorResult;
 
+    /* is_finite implementation. */
+    let is_finite = (name, r1) =>
+      switch (r1) {
+      | BoxedValue(FloatLit(f)) =>
+        let b = Float.is_finite(f);
+        BoxedValue(BoolLit(b)) |> return;
+      | BoxedValue(d1) =>
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      };
+
     /* is_infinite implementation. */
     let is_infinite = (name, r1) =>
       switch (r1) {
@@ -136,6 +147,8 @@ module Pervasives = {
   let infinity = name => Builtin.mk_zero(name, Float, Impls.infinity);
   let neg_infinity = name => Builtin.mk_zero(name, Float, Impls.neg_infinity);
   let nan = name => Builtin.mk_zero(name, Float, Impls.nan);
+  let is_finite = name =>
+    Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_finite);
   let is_infinite = name =>
     Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_infinite);
   let is_nan = name =>
@@ -157,6 +170,7 @@ module Pervasives = {
     |> using("infinity", infinity)
     |> using("neg_infinity", neg_infinity)
     |> using("nan", nan)
+    |> using("is_finite", is_finite)
     |> using("is_infinite", is_infinite)
     |> using("is_nan", is_nan)
     |> using("int_of_float", int_of_float)
