@@ -1,4 +1,9 @@
-let slide0: ScratchSlide.persistent_state = LanguageRefSlide.slide;
+let filled_slides = [
+  LanguageRefSlide.lang_ref,
+  LanguageRefSlide.basic_type_egs,
+  LanguageRefSlide.adt_egs,
+  LanguageRefSlide.adt_dynamics_tests,
+];
 
 let empty: ScratchSlide.persistent_state = (
   1,
@@ -8,9 +13,9 @@ let empty: ScratchSlide.persistent_state = (
   },
 );
 
-let num_empty = 7;
+let num_empty = 6;
 
-let init_data = [slide0, ...List.init(num_empty, _ => empty)];
+let init_data = filled_slides @ List.init(num_empty, _ => empty);
 
 assert(List.length(init_data) > 0);
 

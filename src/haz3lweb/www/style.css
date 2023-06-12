@@ -250,8 +250,6 @@ svg {
 /* PAGE */
 
 #page {
-  overflow-x: auto;
-  overflow-y: auto;
   height: 100vh;
   width: 100vw;
   position: fixed;
@@ -259,6 +257,8 @@ svg {
   left: 0%;
   background-color: var(--light-page-color);
   color: var(--light-text-color);
+  display: flex;
+  flex-direction: column;
 }
 
 #font-specimen {
@@ -297,7 +297,6 @@ body,
 
 #top-bar {
   z-index: var(--top-bar-z);
-  position: fixed;
   box-sizing: border-box;
   width: 100%;
   min-width: fit-content;
@@ -457,7 +456,7 @@ body,
 .editor {
   display: flex;
   justify-content: space-between;
-  padding-bottom: 3em;
+  padding-bottom: 1em;
 }
 
 .editor.column {
@@ -471,8 +470,7 @@ body,
 }
 
 .editor.single {
-  position: relative;
-  top: 5em;
+  padding-top: 2em;
   padding-left: 2em;
 }
 
@@ -496,8 +494,7 @@ body,
 
 .cell-container {
   width: fit-content;
-  min-width: 70vw;
-  max-width: 70vw;
+  min-width: 24em;
 }
 
 .cell-container .cell-item:first-child {
@@ -1049,7 +1046,7 @@ svg.tile-selected {
   border-color: var(--err-color);
 }
 
-.cursor-inspector:hover .context-inspector,
+.cursor-inspector .gamma:hover + .context-inspector,
 .context-inspector.visible {
   display: flex;
 }
@@ -1075,7 +1072,8 @@ svg.tile-selected {
 
 /* CONTEXT INSPECTOR */
 .context-inspector {
-  scroll-snap-type: y mandatory;
+  /* below triggers chrome jank bug */
+  /*scroll-snap-type: y mandatory;*/
   direction: rtl;
   position: absolute;
   z-index: 20;
@@ -1093,8 +1091,14 @@ svg.tile-selected {
   color: #586e75;
   border-top: 1px solid #e6ce8f;
   border-right: 1px solid #c7b480;
+  border-bottom: 1px solid #c7b480;
   background-color: #f7ebc5;
   box-shadow: 0px 20px 20px #77580255;
+  scrollbar-color: #c7b480 #e4d6a6;
+  scrollbar-width: thin;
+}
+@supports (-moz-appearance:none) {
+  .context-inspector  { scroll-snap-type: y mandatory; }
 }
 
 .context-inspector::-webkit-scrollbar {
@@ -1152,6 +1156,8 @@ svg.tile-selected {
   z-index: var(--result-z);
   position: fixed;
   bottom: 0;
+  /*max-height: 3.2em;
+  overflow-y: auto;*/
   left: 0;
   width: 100%;
   display: flex;
@@ -1197,7 +1203,7 @@ svg.tile-selected {
   padding-left: 0.5em;
   padding-right: 0.7em;
   color: var(--light-page-color);
-  height: -webkit-fill-available;
+  height: 100%;
 }
 
 .bottom-bar .cursor-inspector .gamma:hover,
@@ -1870,4 +1876,9 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
+}
+
+#main {
+  overflow: auto;
+  flex: 1;
 }

@@ -234,7 +234,7 @@ let deco =
     | (Some(expandable), _) => [
         Deco.term_decoration(
           ~id=expandable,
-          ((origin, path)) => {
+          ((origin, _, path)) => {
             let specificity_pos =
               Printf.sprintf(
                 "position: absolute; top: %fpx;",
@@ -481,12 +481,16 @@ type message_mode =
   | MessageContent(
       Update.t => Virtual_dom.Vdom.Effect.t(unit),
       FontMetrics.t,
-      Model.settings,
+      ModelSettings.t,
     )
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Info.t), mode: message_mode)
+    (
+      ~docs: LangDocMessages.t,
+      info: option(Statics.Info.t),
+      mode: message_mode,
+    )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -2724,7 +2728,6 @@ let get_doc =
     | Var(_) when cls == Tag =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
-      //TODO(andrew): constructor/tag case
       let (doc, options) =
         LangDocMessages.get_form_and_options(
           LangDocMessages.var_typ_group,
@@ -2778,8 +2781,8 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
-  let info: option(Info.t) =
+    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.Map.t) => {
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2796,12 +2799,12 @@ let view =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~doc: LangDocMessages.t,
       index': option(int),
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     ) => {
-  let info: option(Info.t) =
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
