@@ -31,6 +31,14 @@ let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
 };
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
+/*
+This function is for cast calculus use.
+
+It determines whether a type is a hole or a ground type
+and return the corresponding ground type if not,
+ground types includes all basic types and 
+composite types with all members unknown.
+*/
 let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   let is_ground_arg: option(Typ.t) => bool =
     fun
@@ -659,6 +667,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d');
 
+    /* Needs to keep the current environment to be attended when application
+     * Evaluates into the function body. */
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
     | Ap(d1, d2) =>
