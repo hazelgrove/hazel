@@ -588,11 +588,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
-  /* This function generates the external information,
-     such as the uexp term, with the given editor states
-     and returns the stitched_statics object for each
-     component of school mode such as user tests
-     and user implementation */
+  /* This function generates the UExp terms and corresponding Statics maps 
+  from the given editor states and returns the stitched_statics object for each
+  component of school mode such as user tests and user implementation. */
   let stitch_static = ({eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
@@ -680,6 +678,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
+  /* This function takes the current state and generates
+  UExp information, using stitch_statics, for each editor 
+  state such as user implementation and hidden tests. It then
+  performs elaboration on each UExp expression and returns a list
+  of pairs which will be used to form a ModelResults.t object.*/
+  
   let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
     state => {
       let {
@@ -734,6 +738,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       simple_result: ModelResult.simple,
     };
   };
+
+  /* This function takes the state and ModelResults object to extract and
+  return the DHExp expressions corresponding to the editors in school mode
+  along with the evaluation result of each expression.*/
   let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     let {
       test_validation,
