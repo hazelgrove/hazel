@@ -386,13 +386,7 @@ let of_segment =
                 )
               ) {
               | Solvable(suggestion_string)
-              | NestedInconsistency(suggestion_string) =>
-                print_endline("Suggestions: ");
-                print_endline(suggestion_string);
-                print_endline(
-                  suggestion_string |> String.length |> string_of_int,
-                );
-                String.length(suggestion_string);
+              | NestedInconsistency(suggestion_string) => String.length(suggestion_string);
               | NoSuggestion(_) => 1
               };
 

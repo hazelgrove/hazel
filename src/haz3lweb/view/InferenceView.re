@@ -19,12 +19,17 @@ let get_suggestion_ui_for_id =
       Solvable(
         ityp
         |> ITyp.ityp_to_typ
-        |> Type.view(~font_metrics=Some(font_metrics)),
+        |> Type.view(~font_metrics=Some(font_metrics), ~with_cls=false),
       )
     | Some(Unsolved([potential_typ])) =>
-      NestedInconsistency(
-        potential_typ |> Type.view_of_ptyp(~font_metrics, true, colored_ui),
-      )
+      let ptyp_node =
+        Type.view_of_potential_typ(
+          ~font_metrics,
+          ~with_cls=colored_ui,
+          true,
+          potential_typ,
+        );
+      NestedInconsistency(ptyp_node);
     | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
     | None => NoSuggestion(NonTypeHoleId)
     };
