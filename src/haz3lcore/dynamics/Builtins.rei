@@ -29,6 +29,7 @@ module Pervasives: {
   let neg_infinity: Var.t => Builtin.t;
   let nan: Var.t => Builtin.t;
 
+  let is_finite: Var.t => Builtin.t;
   let is_infinite: Var.t => Builtin.t;
   let is_nan: Var.t => Builtin.t;
   let int_of_float: Var.t => Builtin.t;
