@@ -582,12 +582,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
-  /*
-   This function generates the external information
-          such that the uexp term and uexp map and returns the
-          stitched_statics object for each component of school mode
-          such that user tests and user implementation
-       */
+  /* This function generates the external information,
+     such as the uexp term, with the given editor states
+     and returns the stitched_statics object for each
+     component of school mode such as user tests
+     and user implementation */
   let stitch_static = ({eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
