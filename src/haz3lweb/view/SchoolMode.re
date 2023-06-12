@@ -113,9 +113,7 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~mousedown_updates=[
-        Update.SwitchEditor(SchoolExercise.idx_of_pos(pos, eds)),
-      ],
+      ~mousedown_updates=[Update.SwitchEditor(pos)],
       ~settings,
       ~color_highlighting,
     );
