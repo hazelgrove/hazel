@@ -13,9 +13,9 @@ let rec equal_typ = (l: list(Typ.t), ty: Typ.t): bool => {
   };
 };
 
-let rule_prj = (dr: DHExp.rule): DHExp.t => {
+let rule_prj = (dr: DHExp.rule): (DHPat.t, DHExp.t) => {
   switch (dr) {
-  | Rule(_, dh) => dh
+  | Rule(dhp, dh) => (dhp, dh)
   };
 };
 
@@ -31,6 +31,34 @@ let ground = (ty: Typ.t): bool => {
   };
 };
 
+let rec dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
+  switch (dhpat, ty) {
+  | (Var(name), _) =>
+    let entry = Ctx.VarEntry({name, id: 0, typ: ty});
+    Ctx.extend(entry, ctx);
+  | (Tuple(l1), Prod(l2)) =>
+    List.fold_left2(
+      (acc, dhp, typ) => {dhpat_extend_ctx(dhp, typ, acc)},
+      ctx,
+      l1,
+      l2,
+    )
+  | (Cons(dhp1, dhp2), List(typ)) =>
+    ctx |> dhpat_extend_ctx(dhp1, typ) |> dhpat_extend_ctx(dhp2, ty)
+  | (ListLit(typ1, l), List(typ2)) =>
+    if (typ1 == typ2) {
+      List.fold_left(
+        (acc, dhp) => {dhpat_extend_ctx(dhp, typ1, acc)},
+        ctx,
+        l,
+      );
+    } else {
+      ctx;
+    }
+  | _ => ctx
+  };
+};
+
 let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => {
   switch (dh) {
   | BoolLit(_) => Some(Bool)
@@ -42,11 +70,15 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     let+ var = Ctx.lookup_var(ctx, name);
     var.typ;
   | FreeVar(_, _, _) => Some(Unknown(Internal))
-  /* this is wrong the pattern does not need to be of the form Var(x) */
-  | Fun(Var(name), ty1, d, _) =>
-    let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
-    let+ ty2 = typ_of_dhexp(Ctx.extend(entry, ctx), dl, d);
+  | Fun(dhp, ty1, d, _) =>
+    let+ ty2 = typ_of_dhexp(dhpat_extend_ctx(dhp, ty1, ctx), dl, d);
     Typ.Arrow(ty1, ty2);
+  | Let(dhp, de, db) =>
+    let* ty1 = typ_of_dhexp(ctx, dl, de);
+    typ_of_dhexp(dhpat_extend_ctx(dhp, ty1, ctx), dl, db);
+  | FixF(name, ty1, d) =>
+    let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
+    typ_of_dhexp(Ctx.extend(entry, ctx), dl, d);
   | Ap(d1, d2) =>
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
     let* ty = typ_of_dhexp(ctx, dl, d1);
@@ -96,13 +128,15 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     } else {
       None;
     }
-  | InconsistentBranches(id, _, Case(d_scrut, d_cases, _)) =>
+  | InconsistentBranches(id, _, Case(d_scrut, d_rules, _)) =>
     switch (typ_of_dhexp(ctx, dl, d_scrut)) {
-    | Some(Bool) =>
+    | Some(ty') =>
       let typ_cases =
-        d_cases
+        d_rules
         |> List.map(rule_prj)
-        |> List.map(typ_of_dhexp(ctx, dl))
+        |> List.map(((dhp, de)) => {
+             typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), dl, de)
+           })
         |> OptUtil.sequence;
 
       switch (typ_cases) {
@@ -115,13 +149,15 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
       };
     | _ => None
     }
-  | ConsistentCase(Case(d_scrut, d_cases, _)) =>
+  | ConsistentCase(Case(d_scrut, d_rules, _)) =>
     switch (typ_of_dhexp(ctx, dl, d_scrut)) {
-    | Some(Bool) =>
+    | Some(ty') =>
       let* typ_cases =
-        d_cases
+        d_rules
         |> List.map(rule_prj)
-        |> List.map(typ_of_dhexp(ctx, dl))
+        |> List.map(((dhp, de)) => {
+             typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), dl, de)
+           })
         |> OptUtil.sequence;
       let hd = List.hd(typ_cases);
       if (equal_typ(typ_cases, hd)) {
@@ -139,14 +175,6 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     } else {
       None;
     };
-  /* this is wrong the pattern does not need to be of the form Var(x) */
-  | Let(Var(name), de, db) =>
-    let* ty1 = typ_of_dhexp(ctx, dl, de);
-    let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
-    typ_of_dhexp(Ctx.extend(entry, ctx), dl, db);
-  | FixF(name, ty1, d) =>
-    let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
-    typ_of_dhexp(Ctx.extend(entry, ctx), dl, d);
   | BinBoolOp(_, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, dl, d1);
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
