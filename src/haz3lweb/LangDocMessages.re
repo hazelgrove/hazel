@@ -41,7 +41,7 @@ type form_group = {
 // TODO Should this have its own ID generator or is using the Example one fine?
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
 let cons_pat = () => Example.mk_monotile(Form.get("cons_pat"));
-let seq = () => Example.mk_monotile(Form.get("cell-join"));
+let seq = () => Example.mk_monotile(Form.get("sequence"));
 let exp = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
 let pat = v =>
