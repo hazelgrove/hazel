@@ -244,7 +244,15 @@ let eval_result_footer_view =
     | Some({
         eval_result:
           Ap(
-            Tag("Render"),
+            FixF(
+              "Render",
+              model_ty,
+              FixF(
+                "Render",
+                action_ty,
+                FixF("Render", node_ty, Tag("Render")),
+              ),
+            ),
             Tuple([StringLit(name), init_model, view, update]),
           ),
         _,
@@ -254,7 +262,27 @@ let eval_result_footer_view =
         | Some(d) => d
         | _ => init_model
         };
-      MVU.go(MVU.mk(~name, ~inject, ~model, ~view, ~update, ~font_metrics));
+      /*TODO(andrew):
+        need to get ctx here so can add it to mvu,
+        to later extract model, action, update types for casting
+        (use cast fn which also requires ctx for type normalization)
+        which ctx?
+        technically should be diff ctxs after the relevant things are
+        actually defined, but i guess for now any ctx after theyre all defined will do
+        */
+      MVU.go(
+        MVU.mk(
+          ~name,
+          ~inject,
+          ~model,
+          ~view,
+          ~update,
+          ~font_metrics,
+          ~model_ty,
+          ~action_ty,
+          ~node_ty,
+        ),
+      );
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,

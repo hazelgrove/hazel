@@ -10,15 +10,32 @@ type t = {
   model: DHExp.t,
   view: DHExp.t,
   font_metrics: FontMetrics.t,
+  model_ty: Typ.t,
+  action_ty: Typ.t,
+  node_ty: Typ.t,
 };
 
-let mk = (~name, ~inject, ~update, ~model, ~view, ~font_metrics) => {
+let mk =
+    (
+      ~name,
+      ~inject,
+      ~update,
+      ~model,
+      ~view,
+      ~font_metrics,
+      ~model_ty,
+      ~action_ty,
+      ~node_ty,
+    ) => {
   name,
   inject,
   update,
   model,
   view,
   font_metrics,
+  model_ty,
+  action_ty,
+  node_ty,
 };
 
 let dhexp_view = (~font_metrics, d) =>
@@ -37,12 +54,13 @@ let dhexp_view = (~font_metrics, d) =>
   );
 
 let eval = (d: DHExp.t): DHExp.t => {
-  print_endline("MVU: eval: starting");
+  //print_endline("MVU: eval: starting");
+  //print_endline("MVU: eval: dhexp to evaluate: " ++ DHExp.show(d));
   switch (Interface.evaluate(d)) {
   | (result, _, _) =>
-    print_endline("MVU: eval: done");
+    //print_endline("MVU: eval: done");
     let d = EvaluatorResult.unbox(result);
-    //print_endline("MVU: res: " ++ DHExp.show(d));
+    //print_endline("MVU: eval: dhexp after evaluation: " ++ DHExp.show(d));
     d;
   };
 };
@@ -238,8 +256,13 @@ let render_styles = styles =>
 
 let render_attr = ({name, inject, update, model, _}: t, d: DHExp.t): Attr.t => {
   let on_ = (handler, arg) => {
+    //TODO(andrew): casting?
+    //print_endline("MVU: render_attr: handler ap eval starting");
     let maybe_action = eval(Ap(handler, arg));
+    //print_endline("MVU: render_attr: handler ap eval finished");
+    //print_endline("MVU: render_attr: update ap eval starting");
     let maybe_model = eval(Ap(update, Tuple([model, maybe_action])));
+    //print_endline("MVU: render_attr: update ap eval finished");
     Virtual_dom.Vdom.Effect.Many([
       Virtual_dom.Vdom.Effect.Stop_propagation,
       //Virtual_dom.Vdom.Effect.Prevent_default,
@@ -309,7 +332,6 @@ let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
     //print_endline("ERROR: render_div: " ++ DHExp.show(d));
     let d = elide_errors ? DHExp.EmptyHole(0, 0) : d;
     dhexp_view(~font_metrics=context.font_metrics, d);
-  //Some(Node.text("error"))
   }
 and input_of = (input_type, context, body) => {
   let (attrs, divs) = attrs_and_divs(context, body);
@@ -328,18 +350,18 @@ and attrs_and_divs =
   | _ => ([], [])
   };
 
-let go = (context: t) => {
-  print_endline("MVU: go: starting");
-  print_endline("MVU: go: model: " ++ DHExp.show(context.model));
-  let result = eval(Ap(context.view, context.model));
-  //TODO(andrew): decide if actually should be stripping casts
+let go = (mvu: t) => {
+  //print_endline("MVU: go: starting");
+  //print_endline("MVU: go: model: " ++ DHExp.show(mvu.model));
+  //print_endline("MVU: go: view ap eval starting");
+  //TODO(andrew): casting in ap?
+  let result = eval(Ap(mvu.view, mvu.model));
+  //print_endline("MVU: go: view ap eval finished");
+  let d_view = DHExp.strip_casts(result);
   [
     Node.div(
       ~attr=Attr.classes(["mvu-render"]),
-      [
-        Node.text("Rendered Node: "),
-        render_div(context, DHExp.strip_casts(result)),
-      ],
+      [Node.text("Rendered MVU: "), render_div(mvu, d_view)],
     ),
   ];
 };
