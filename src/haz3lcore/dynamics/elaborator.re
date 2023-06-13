@@ -52,7 +52,11 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
-      | _ => d
+      | _ =>
+        //print_endline("elaborator: casting fn:");
+        //print_endline(DHExp.show(DHExp.cast(d, self_ty, ana_ty)));
+        //DHExp.cast(d, self_ty, ana_ty)
+        d
       }
     | Tuple(ds) =>
       switch (ana_ty) {
@@ -206,6 +210,34 @@ let rec dhexp_of_uexp =
         }
       | Tag(name) =>
         switch (err_status) {
+        | _ when name == "Render" =>
+          /* HACK(andrew): Expanding this tag to nexted fixes
+             purely so as to used their Typ fields to smuggle out the
+             model and action types for use in MVU casts. 'Fix' has no
+             semantic role here. */
+          switch (Ctx.lookup_alias(ctx, "Model")) {
+          | Some(model_ty) =>
+            switch (Ctx.lookup_alias(ctx, "Action")) {
+            | Some(action_ty) =>
+              switch (Ctx.lookup_alias(ctx, "Node")) {
+              | Some(node_ty) =>
+                let model_ty = Typ.normalize(ctx, model_ty);
+                let action_ty = Typ.normalize(ctx, action_ty);
+                let node_ty = Typ.normalize(ctx, node_ty);
+                Some(
+                  FixF(
+                    name,
+                    model_ty,
+                    FixF(name, action_ty, FixF(name, node_ty, Tag(name))),
+                  ),
+                );
+              | None => Some(Tag(name))
+              }
+            | None => Some(Tag(name))
+            }
+          | None => Some(Tag(name))
+          }
+
         | _ when Hyper.is_export(name) =>
           /*print_endline(
               "elaborating export: id:"
