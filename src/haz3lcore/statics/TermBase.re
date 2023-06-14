@@ -333,6 +333,7 @@ and UTyp: {
     | Module(UPat.t)
     | Ap(t, t)
     | USum(list(t))
+    | Dot(UExp.t, Token.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -356,6 +357,7 @@ and UTyp: {
     | Module(UPat.t)
     | Ap(t, t)
     | USum(list(t))
+    | Dot(UExp.t, Token.t)
   and t = {
     ids: list(Id.t),
     term,

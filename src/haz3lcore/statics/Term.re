@@ -38,7 +38,8 @@ module UTyp = {
     | Tag
     | Parens
     | Ap
-    | USum;
+    | USum
+    | Dot;
 
   include TermBase.UTyp;
 
@@ -70,7 +71,8 @@ module UTyp = {
     | Parens(_) => Parens
     | Module(_) => Module
     | Ap(_) => Ap
-    | USum(_) => USum;
+    | USum(_) => USum
+    | Dot(_) => Dot;
 
   let show_cls: cls => string =
     fun
@@ -90,7 +92,8 @@ module UTyp = {
     | Module => "Module Type"
     | Sum => "Sum Type"
     | Ap => "Sum Constructor Application"
-    | USum => "Sum Type";
+    | USum => "Sum Type"
+    | Dot => "Member Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -109,7 +112,8 @@ module UTyp = {
     | Module(_)
     | Tag(_)
     | Ap(_)
-    | USum(_) => false
+    | USum(_)
+    | Dot(_) => false
     };
   };
 
@@ -187,7 +191,7 @@ module UTyp = {
                     VarEntry({
                       name,
                       id: rep_id(upat),
-                      typ: Unknown(Internal),
+                      typ: Unknown(TypeHole),
                     }),
                     ...inner_ctx,
                   ]
@@ -195,7 +199,7 @@ module UTyp = {
                     TagEntry({
                       name,
                       id: rep_id(upat),
-                      typ: Unknown(Internal),
+                      typ: Unknown(TypeHole),
                     }),
                     ...inner_ctx,
                   ]
@@ -227,11 +231,11 @@ module UTyp = {
               }
             | Var(name) =>
               Module([
-                VarEntry({name, id: rep_id(u), typ: Unknown(Internal)}),
+                VarEntry({name, id: rep_id(u), typ: Unknown(TypeHole)}),
               ])
             | Tag(name) =>
               Module([
-                TagEntry({name, id: rep_id(u), typ: Unknown(Internal)}),
+                TagEntry({name, id: rep_id(u), typ: Unknown(TypeHole)}),
               ])
             | Invalid(_)
             | EmptyHole
@@ -248,6 +252,16 @@ module UTyp = {
             }
         );
         get_Tuple(u.term);
+      | Dot(exp, name) =>
+        switch (exp.term) {
+        | Tag(tagname) =>
+          switch (Ctx.lookup_tag(ctx, tagname)) {
+          | Some({typ: Module(inner_ctx), _}) =>
+            to_typ(inner_ctx, {term: Var(name), ids: []})
+          | _ => Unknown(TypeHole)
+          }
+        | _ => Unknown(TypeHole)
+        }
       }
   and to_variant = ctx =>
     fun

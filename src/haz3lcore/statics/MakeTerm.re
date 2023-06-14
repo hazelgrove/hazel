@@ -381,6 +381,12 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
+  | Post(Exp(e), tiles) as tm =>
+    switch (tiles) {
+    | ([(_, ([t], []))], []) when Form.is_dot_var(t) =>
+      ret(Dot(e, String.sub(t, 1, String.length(t) - 1)))
+    | _ => ret(hole(tm))
+    }
   | Pre(tiles, Typ({term: USum(t0), ids})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {

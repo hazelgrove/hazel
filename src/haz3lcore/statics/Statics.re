@@ -488,6 +488,9 @@ and utyp_to_info_map =
     let (_, m) =
       upat_to_info_map(~is_synswitch=true, ~ctx, ~ancestors, ~mode=Syn, p, m);
     add(m);
+  | Dot(exp, _) =>
+    let (_, m) = uexp_to_info_map(~ctx, ~ancestors, ~mode=Syn, exp, m);
+    add(m);
   };
 }
 and utpat_to_info_map =
@@ -661,6 +664,62 @@ and uexp_to_module =
       m,
       ty_module,
     );
+  | TyAlias(typat, utyp, body) =>
+    let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+    switch (typat.term) {
+    | Var(name)
+        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
+      /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
+         errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
+         for any type variable reference not in its ctx. So any free variables
+         in the definition would be oblierated. But we need to check for free
+         variables to decide whether to make a recursive type or not. So we
+         tentatively add an abtract type to the ctx, representing the
+         speculative rec parameter. */
+      let (ty_def, ctx_def, ctx_body, new_inner) = {
+        let ty_pre =
+          UTyp.to_typ(Ctx.add_abstract(ctx, name, Id.invalid), utyp);
+        switch (utyp.term) {
+        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+          (
+            ty_rec,
+            ctx_def,
+            ctx_def,
+            Ctx.add_alias(inner_ctx, name, UTPat.rep_id(typat), ty_rec),
+          );
+        | _ =>
+          let ty = UTyp.to_typ(ctx, utyp);
+          (
+            ty,
+            ctx,
+            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty),
+            Ctx.add_alias(inner_ctx, name, UTPat.rep_id(typat), ty),
+          );
+        };
+      };
+      let (ctx_body, new_inner) =
+        switch (Typ.get_sum_tags(ctx, ty_def)) {
+        | Some(sm) => (
+            Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm),
+            Ctx.add_tags(new_inner, name, UTyp.rep_id(utyp), sm),
+          )
+        | None => (ctx_body, new_inner)
+        };
+      let (ty_module, Info.{free, ty: ty_body, _}, m) =
+        go_module(~ctx=ctx_body, ~mode, body, m, new_inner);
+      /* Make sure types don't escape their scope */
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_escape), ~free, m, ty_module);
+    | _ =>
+      let (ty_module, Info.{free, ty: ty_body, _}, m) =
+        go_module(~ctx, ~mode, body, m, inner_ctx);
+      let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_body), ~free, m, ty_module);
+    };
 
   | Invalid(_)
   | EmptyHole
@@ -684,8 +743,7 @@ and uexp_to_module =
   | Cons(_)
   | UnOp(_)
   | BinOp(_)
-  | Match(_)
-  | TyAlias(_) =>
+  | Match(_) =>
     let (info, m) = go(~mode=Syn, uexp, m);
     (Module(inner_ctx), info, m);
   };

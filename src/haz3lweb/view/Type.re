@@ -67,11 +67,13 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
           text(n0),
           text(":"),
           view_ty(t0),
+          text(","),
         ]
       | TVarEntry({name: n0, _}) => [
           text(n0),
           text(":"),
           view_ty(Unknown(Internal)),
+          text(","),
         ]
       };
     };

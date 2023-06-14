@@ -2749,6 +2749,7 @@ let get_doc =
     | USum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
     | Module(_) // TODO
+    | Dot(_) // TODO
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default
     }
