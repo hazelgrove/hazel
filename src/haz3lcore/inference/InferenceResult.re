@@ -33,7 +33,7 @@ let get_suggestion_text_for_id =
       Solvable(ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string)
     | Some(Unsolved([potential_typ])) =>
       NestedInconsistency(
-        PotentialTypeSet.string_of_potential_typ(true, potential_typ),
+        PotentialTypeSet.string_of_potential_typ(false, potential_typ),
       )
     | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
     | None => NoSuggestion(NonTypeHoleId)

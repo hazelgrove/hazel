@@ -349,8 +349,12 @@ let rec eq = (t1, t2) =>
   | (Var(_), _) => false
   };
 
-let rec typ_to_string = (ty: t): string =>
+let rec typ_to_string = (ty: t): string => {
+  typ_to_string_with_parens(false, ty);
+}
+and typ_to_string_with_parens = (is_left_child: bool, ty: t): string => {
   //TODO: parens on ops when ambiguous
+  let parenthesize_if_left_child = s => is_left_child ? "(" ++ s ++ ")" : s;
   switch (ty) {
   | Unknown(_) => "?"
   | Int => "Int"
@@ -359,7 +363,11 @@ let rec typ_to_string = (ty: t): string =>
   | Bool => "Bool"
   | Var(name) => name
   | List(t) => "[" ++ typ_to_string(t) ++ "]"
-  | Arrow(t1, t2) => typ_to_string(t1) ++ " -> " ++ typ_to_string(t2)
+  | Arrow(t1, t2) =>
+    typ_to_string_with_parens(true, t1)
+    ++ " -> "
+    ++ typ_to_string(t2)
+    |> parenthesize_if_left_child
   | Prod([]) => "Unit"
   | Prod([_]) => "BadProduct"
   | Prod([t0, ...ts]) =>
@@ -370,5 +378,10 @@ let rec typ_to_string = (ty: t): string =>
          ts,
        )
     ++ ")"
-  | Sum(t1, t2) => typ_to_string(t1) ++ " + " ++ typ_to_string(t2)
+  | Sum(t1, t2) =>
+    typ_to_string_with_parens(true, t1)
+    ++ " + "
+    ++ typ_to_string(t2)
+    |> parenthesize_if_left_child
   };
+};

@@ -516,28 +516,29 @@ and potential_typ_to_ityp = (id: Id.t, ptyp: potential_typ): ITyp.t => {
 };
 
 let rec string_of_potential_typ_set_no_nesting =
-        (outermost, potential_typ_set: t): string =>
+        (is_left_child, potential_typ_set: t): string =>
   switch (potential_typ_set) {
   | [] => ""
-  | [hd] => string_of_potential_typ(outermost, hd)
+  | [hd] => string_of_potential_typ(is_left_child, hd)
   | [_hd, ..._tl] => "!"
   }
-and string_of_potential_typ = (outermost: bool, potential_typ: potential_typ) =>
+and string_of_potential_typ =
+    (is_left_child: bool, potential_typ: potential_typ) =>
   switch (potential_typ) {
   | Base(btyp) => string_of_btyp(btyp)
   | Binary(ctor, potential_typ_set_lt, potential_typ_set_rt) =>
     let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => outermost ? ("", " -> ", "") : ("(", " -> ", ")")
+      | CArrow => is_left_child ? ("(", " -> ", ")") : ("", " -> ", "")
       | CProd => ("(", ", ", ")")
-      | CSum => outermost ? ("", " + ", "") : ("(", " + ", ")")
+      | CSum => is_left_child ? ("(", " + ", ")") : ("", " + ", "")
       };
 
     String.concat(
       "",
       [
         ctor_start,
-        string_of_potential_typ_set_no_nesting(false, potential_typ_set_lt),
+        string_of_potential_typ_set_no_nesting(true, potential_typ_set_lt),
         ctor_string,
         string_of_potential_typ_set_no_nesting(false, potential_typ_set_rt),
         ctor_end,
@@ -560,4 +561,4 @@ and string_of_potential_typ = (outermost: bool, potential_typ: potential_typ) =>
   };
 
 let strings_of_potential_typ_set = (potential_typ_set: t): list(string) =>
-  List.map(string_of_potential_typ(true), potential_typ_set);
+  List.map(string_of_potential_typ(false), potential_typ_set);

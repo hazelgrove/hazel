@@ -41,7 +41,7 @@ let view =
         ~measurement,
         ~base_cls=["empty-hole"],
         ~path_cls=["unsolved-empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.58),
+        path(tip_l, tip_r, 0., 0.42),
       )
     : DecUtil.code_svg_sized(
         ~font_metrics,
@@ -67,7 +67,7 @@ let relative_view = (~font_metrics, is_unsolved, mold: Mold.t): Node.t => {
         ~font_metrics,
         ~base_cls=["empty-hole"],
         ~path_cls=["unsolved-empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.58),
+        path(tip_l, tip_r, 0., 0.42),
       )
     : DecUtil.code_svg_sized_relative(
         ~font_metrics,

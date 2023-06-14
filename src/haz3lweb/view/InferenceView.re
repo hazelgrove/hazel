@@ -26,7 +26,7 @@ let get_suggestion_ui_for_id =
         Type.view_of_potential_typ(
           ~font_metrics,
           ~with_cls=colored_ui,
-          true,
+          false,
           potential_typ,
         );
       NestedInconsistency(ptyp_node);

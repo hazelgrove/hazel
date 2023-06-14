@@ -571,17 +571,11 @@ body {
 }
 
 .unsolved-empty-hole-path {
-  /* fill: #f0d1d1;
-  stroke: var(--err-color);
-  stroke-width: 1.2px;
-  stroke-dasharray: 1, 1;
-  vector-effect: non-scaling-stroke; */
   fill: #d001;
-  stroke-dasharray: 1, 1;
+  stroke-dasharray: 2, 3;
   stroke: var(--err-color);
-  stroke-width: 1.2px;
+  stroke-width: 1.15px;
   vector-effect: non-scaling-stroke;
-  /* mix-blend-mode: color;*/
 }
 
 .selection {
