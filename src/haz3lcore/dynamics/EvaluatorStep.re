@@ -847,6 +847,10 @@ module Decompose = {
             exp: DHExp.t,
           )
           : Monad.t(Result.t) => {
+    exp
+    |> DHExp.sexp_of_t
+    |> Sexplib.Sexp.to_string_hum
+    |> (s => print_endline("decompose: exp = " ++ s));
     let act = FilterEnvironment.matches(exp, act, flt);
     let decompose = (~env=env, ~flt=flt, ~act=act, exp) =>
       decompose(env, flt, act, exp);
@@ -915,14 +919,20 @@ module Decompose = {
     | Filter(flt', d1) =>
       let flt = DHExp.FilterEnvironment.extends(flt', flt);
       decompose(~flt, d1) >>| Return.wrap(c => Filter(flt', c));
+    | Cast(d1, ty, ty') =>
+      decompose(d1) >>| Return.wrap(c => Cast(c, ty, ty'))
     | BoundVar(_) => Return.mark(act)
     | Sequence(d1, d2) =>
       decompose(d1) >>| Return.wrap(c => Sequence(c, d2))
     | Let(dp, d1, d2) =>
+      act
+      |> FilterAction.sexp_of_t
+      |> Sexplib.Sexp.to_string_hum
+      |> (s => print_endline("decompose: Let: act = " ++ s));
       let* r1 = decompose(d1);
       switch (r1) {
       | BoxedValue
-      | Eval(_) => Return.mark(Eval)
+      | Eval(_) => Return.mark(act)
       | _ => r1 |> Return.wrap(c => Let(dp, c, d2)) |> Monad.return
       };
     | FixF(_) => Return.mark(act)
@@ -930,7 +940,14 @@ module Decompose = {
     | Ap(d1, d2) =>
       let* r1 = decompose(d1);
       let* r2 = decompose(d2);
-      [(r1, (c => Ap1(c, d2))), (r2, (c => Ap2(d1, c)))] |> Return.merge;
+      switch (r1, r2) {
+      | (BoxedValue, BoxedValue)
+      | (BoxedValue, Eval(_))
+      | (Eval(_), BoxedValue)
+      | (Eval(_), Eval(_)) => Return.mark(act)
+      | _ =>
+        [(r1, (c => Ap1(c, d2))), (r2, (c => Ap2(d1, c)))] |> Return.merge
+      };
     | ApBuiltin(_) => Return.mark(act)
     | TestLit(_)
     | BoolLit(_)

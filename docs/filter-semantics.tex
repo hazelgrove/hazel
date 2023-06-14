@@ -5,178 +5,229 @@
 \usepackage{mathtools}
 \usepackage{amsmath}
 \usepackage{ebproof}
-\DeclareMathOperator{\FLength}{length}
-\newcommand{\entails}{\mathrel{\mathop\vdash}}
-\newcommand{\stepfor}{\mathrel{\mathop{\text{to step for}}}}
-\newcommand{\yields}{\mathrel{\mathop{\text{yields}}}}
-\newcommand{\val}{~\mathbf{val}}
-\DeclareMathOperator{\step}{step}
-\DeclareMathOperator{\eval}{eval}
-\newcommand{\fin}{\mathrel{\mathop{\text{in}}}}
-\DeclareMathOperator{\flet}{let}
-\DeclareMathOperator{\fclose}{close}
-\newcommand{\funder}{\mathrel{\mathop{\text{under}}}}
-\newcommand{\matches}{\mathrel{\mathop{\blacktriangleright}}}
+
+\newcommand{\evalsto}{\mathrel{\mathop{\Downarrow}}}
+\newcommand{\matches}{\mathrel{\mathop{\sim}}}
 \newcommand{\hooksto}{\mathrel{\mathop{\hookrightarrow}}}
+\newcommand{\steps}{\mathrel{\mathop{\vartriangleright}}}
+\newcommand{\skips}{\mathrel{\mathop{\blacktriangleright}}}
+\newcommand{\final}{~\mathbf{final}}
+\newcommand{\istep}{~\mathbf{step}}
+\newcommand{\iskip}{~\mathbf{skip}}
+\DeclareMathOperator{\Filter}{Filter}
+\DeclareMathOperator{\fskip}{skip}
+\DeclareMathOperator{\fstep}{step}
+\newcommand{\fin}{\mathrel{\mathop{\text{in}}}}
 
 \begin{document}
 
-\paragraph{Evaluation Filter Semantics}
+\section{Environment-based Evaluation Filter}
 
-\[
-  \begin{prooftree}
-    \hypo{v \val}
-    \infer1[(Val)]{\mathcal{F} \entails v \to_{f}^{0} v}
-  \end{prooftree}
-\]
+\begin{enumerate}
+  \item \fbox{\(f\)} Filter.
+    \[
+      \Filter f = \ast \mid f(f)
+    \]
+  \item \fbox{\(f \matches d\)} Filter \(f\) matches expression \(d\).
+    \[
+      \begin{prooftree}
+        \hypo{f_1 \matches d_1}
+        \hypo{f_2 \matches d_2}
+        \infer2{f_1(f_2) \matches d_1(d_2)}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \infer0{\ast \matches d}
+      \end{prooftree}
+    \]
+  \item \fbox{\(\mathcal{F}\)} Filter environment.
+    \[
+      \mathcal{F} = \varepsilon \mid \mathcal{F}, (f, step) \mid
+      \mathcal{F}, (f, skip)
+    \]
+  \item \fbox{\(\mathcal{F} \steps d\)} Expression \(d\) is marked to be stepped
+    through under filter \(\mathcal{F}\).
+    \[
+      \begin{prooftree}
+        \hypo{(f, step) \in \mathcal{F}}
+        \hypo{f \matches d}
+        \infer2[]{\mathcal{F} \steps d}
+      \end{prooftree}
+    \]
+  \item \fbox{\(\mathcal{F} \skips d\)} Expression \(d\) is marked to be
+    skipped over under filter \(\mathcal{F}\).
+    \[
+      \begin{prooftree}
+        \hypo{(f, skip) \in \mathcal{F}}
+        \hypo{f \matches d}
+        \infer2[]{\mathcal{F} \skips d}
+      \end{prooftree}
+    \]
+  \item \fbox{\(d =_\mathcal{F} \mathcal{E} \{ d' \}\)}: Expression \(d\) can be
+    obtained by placing \(d'\) at the marked position in
+    \(\mathcal{E}\).
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{F}' = \mathcal{F}, (f, step)}
+        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \iskip}
+        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \iskip}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{F}' = \mathcal{F}, (f, step)}
+        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \istep}
+        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \istep}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{F}' = \mathcal{F}, (f, skip)}
+        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \iskip}
+        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \iskip}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{F}' = \mathcal{F}, (f, skip)}
+        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \istep}
+        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \istep}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \final}
+        \hypo{d_2 \final}
+        \hypo{\mathcal{F} \skips d_1(d_2)}
+        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \final}
+        \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+        \hypo{\mathcal{F} \skips d_1(d_2)}
+        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+        \hypo{d_2 \final}
+        \hypo{\mathcal{F} \skips d_1(d_2)}
+        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+        \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+        \hypo{\mathcal{F} \skips d_1(d_2)}
+        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \final}
+        \hypo{d_2 \final}
+        \hypo{\mathcal{F} \steps d_1(d_2)}
+        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{d_1(d_2)\} \istep}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \final}
+        \hypo{d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
+        \infer2{d_1(d_2) =_\mathcal{F} d_1(\mathcal{E}_2)\{d_2'\} \istep}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+        \hypo{d_2 \final}
+        \infer2{d_1(d_2) =_\mathcal{F} \mathcal{E}_1(d_2)\{d_1'\} \istep}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+        \hypo{d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
+        \infer2{
+          d_1(d_2)
+          =_\mathcal{F}
+          \mathcal{E}_1 (d_2) {d_1'}, d_1(\mathcal{E}_2)\{d_2'\} \istep
+        }
+      \end{prooftree}
+    \]
+  \item \fbox{\(d \mapsto d'\)} Expression \(d\) steps to expression
+    \(d'\).
+    \[
+      \begin{prooftree}
+        \hypo{d =_\mathcal{F} \mathcal{E} \{ d_0 \} \istep}
+        \hypo{d_0 \to d_0'}
+        \hypo{d' = \mathcal{E} \{ d_0' \}}
+        \infer3{d \mapsto_\mathcal{F} d'}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d =_\mathcal{F} \mathcal{E} \{ d_0 \} \iskip}
+        \hypo{d_0 \evalsto d_0'}
+        \hypo{d' = \mathcal{E} \{ d_0' \}}
+        \infer3{d \mapsto_\mathcal{F} d'}
+      \end{prooftree}
+    \]
+\end{enumerate}
 
-\[
-  \begin{prooftree}
-    \infer0[(Closure-I)]{\mathcal{F} \entails (\lambda x .
-      d) \to_{f}^{0}
-  \fclose_{\mathcal{F}} (\lambda x . d)}
-  \end{prooftree}
-\]
+\section{Example Derivation}
 
+For \(\mathcal{F} = (\ast, step), (\ast \times \ast, skip)\),
 \[
-  \begin{prooftree}
-    \hypo{\mathcal{F}'' = \mathcal{F} \cup \mathcal{F}'}
-    \hypo{\mathcal{F}'' \entails d \to_{f}^{s} d'}
-    \infer2[(Closure-P)]{\mathcal{F} \entails
-      \fclose_{\mathcal{F}'} d \to_{f}^{s}
-    \fclose_{\mathcal{F}'} d'}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \hypo{\mathcal{F}'' = \mathcal{F} \cup \mathcal{F}'}
-    \hypo{\mathcal{F}'' \entails d \to_{f}^{s} d'}
-    \hypo{d' \val}
-    \infer3[(Closure-E)]{\mathcal{F} \entails
-    \fclose_{\mathcal{F}'} d \to_{f}^{s} d'}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \hypo{\mathcal{F} \entails \fclose_{\cdot,\{(f, 1)\}} d
-    \to_{f}^{s} d'}
-    \infer1[(Filter-I-1)]{\mathcal{F} \entails \step f \fin
-    d \to_{f}^{s} d'}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \hypo{\mathcal{F} \entails \fclose_{\cdot,\{(f,
-    \infty)\}} d \to_{f}^{s} d'}
-    \infer1[(Filter-I-\(\infty\))]{\mathcal{F} \entails
-    \eval f \fin d \to_{f}^{s} d'}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \hypo{\mathcal{F} \entails d_1 \to_{f_1}^{s_1} d_1'}
-    \hypo{\mathcal{F} \entails d_2 \to_{f_2}^{s_2} d_2'}
-    \infer2[(Ap-P)]{\mathcal{F} \entails d_1 (d_2)
-    \to_{f_1(f_2)}^{s_1 + s_2} d_1'(d_2')}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \hypo{
-      \mathcal{F}
-      \entails
-      d_1 \to_{f_1}^{s_1}
-        \fclose_{\mathcal{F}'} \lambda x . d_3
+  \mathcal{D}_1 = \begin{prooftree}
+    \hypo{1 \final}
+    \hypo{2 \final}
+    \hypo{\mathcal{F} \skips 1 \times 2}
+    \infer3{1 \times 2 =_\mathcal{F} \circ \{ 1 \times 2 \} \iskip}
+    \hypo{3 \final}
+    \hypo{\mathcal{F} \skips (1 \times 2) \times 3}
+    \infer3{
+      1 \times 2 \times 3
+      =_\mathcal{F}
+      \circ \{ 1 \times 2 \times 3 \} \iskip
     }
-    \hypo{\mathcal{F} \entails d_2 \to_{f_2}^{s_2} d_2'}
-    \hypo{d_3' = [d_2'/x]d_3}
-    \hypo{
-      \mathcal{F}
-      \entails
-      \fclose_{\mathcal{F}'} d_3' \to_{\ast}^{s_3} d_3''
+  \end{prooftree}
+\]
+\[
+  \begin{prooftree}
+    \hypo{\mathcal{D}_1}
+    \hypo{1 \times 2 \times 3 \evalsto 6}
+    \hypo{6 = \circ \{ 6 \}}
+    \infer3{
+      1 \times 2 \times 3 \mapsto_\mathcal{F} 6
     }
-    \infer4[(Ap-E)]{\mathcal{F} \entails d_1 (d_2) \to_{f_1(f_2)}^{s_1 +
-    s_2 + 1 + s_3} d_3''}
   \end{prooftree}
 \]
 
+For \(\mathcal{F} = (\ast, skip), (\ast + \ast, step)\),
 \[
-  \begin{prooftree}
-    \hypo{(f, 1) \in \mathcal{F} \cup \{ f_i \}}
-    \hypo{f \matches_d f'}
-    \hypo{\mathcal{F} \entails d \to_{f'}^{1} d'}
-    \infer3[(Match-1)]{\mathcal{F} \entails d \to_{f_i}^{1} d'}
+  \mathcal{D}_2 = \begin{prooftree}
+    \hypo{1 \final}
+    \hypo{2 \final}
+    \hypo{\mathcal{F} \steps 1 + 2}
+    \infer3{1 + 2 =_\mathcal{F} \circ \{ 1 + 2 \} \istep}
+    \hypo{3 \final}
+    \infer2{1 + 2 + 3 =_\mathcal{F} \circ + 3 \{ 1 + 2 \} \istep}
+    \hypo{4 \final}
+    \infer2{(1 + 2 + 3) \times 4 =_\mathcal{F} (\circ + 3) \times 4 \{ 1 + 2 \} \istep}
   \end{prooftree}
 \]
-
 \[
   \begin{prooftree}
-    \hypo{(f, \infty) \in \mathcal{F} \cup \{ f_i \}}
-    \hypo{f \matches_d f'}
-    \hypo{\mathcal{F} \entails d \to_{f'}^{s} d'}
-    \infer3[(Match-\(\infty\))]{\mathcal{F} \entails d
-    \to_{f_i}^{0} d'}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \hypo{f_1 \matches_{d_1} f_1'}
-    \hypo{f_2 \matches_{d_2} f_2'}
-    \infer2[(M-Ap)]{f_1(f_2) \matches_{d_1(d_2)} f_1'(f_2')}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \infer0[(M-\(\ast\)-Ap)]{\ast \matches_{d_1(d_2)} \ast(\ast)}
-  \end{prooftree}
-\]
-
-\[
-  \begin{prooftree}
-    \infer0[(M-\(\ast\))]{\ast \matches_{d} \ast}
-  \end{prooftree}
-\]
-
-\paragraph{Example Derivation}.
-
-\[
-  \begin{prooftree}
-    \hypo{
-      f
-      \matches_{1 \times 2 + 3 \times 4}
-      f
-    }
-    \hypo{
-      \mathcal{F}
-      \entails
-      1 \times 2 \to_{\ast \times \ast}^{1} 2
-    }
-    \hypo{
-      \mathcal{F}
-      \entails
-      3 \times 4 \to_{\ast \times \ast}^{0} 3 \times 4
-    }
-    \infer2{
-      \mathcal{F}
-      \entails
-      1 \times 2 + 3 \times 4
-      \to_{f}^{1}
-      2 + 3 \times 4
-    }
-    \infer2{
-      \mathcal{F} =
-      \{ (\ast, \infty), (\ast \times \ast + \ast \times \ast, 1) \}
-      \entails
-      1 \times 2 + 3 \times 4
-      \to_{\ast}^{1} 2 + 3 \times 4
-    }
+    \hypo{\mathcal{D}_2}
+    \hypo{1 + 2 \to 3}
+    \hypo{(3 + 3) \times 4 = (\circ + 3) \times 4 \{ 3 \}}
+    \infer3{(1 + 2 + 3) \times 4 \mapsto_\mathcal{F} (3 + 3) \times 4}
   \end{prooftree}
 \]
 
