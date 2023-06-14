@@ -63,8 +63,8 @@ let pos_str_relative =
     (~width, ~height, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
   Printf.sprintf(
     "position: relative; width: %fpx; height: %fpx;",
-    Float.of_int(width) *. (font_metrics.col_width +. fudge.width),
-    Float.of_int(height) *. (font_metrics.row_height +. fudge.height),
+    width *. (font_metrics.col_width +. fudge.width),
+    height *. (font_metrics.row_height +. fudge.height),
   );
 
 let code_svg_sized =
@@ -100,8 +100,7 @@ let code_svg_sized_relative =
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  // let (left, top) = (origin.col, origin.row);
-  let (width, height) = (1, 1);
+  let (width, height) = (1., 0.75);
   let style = pos_str_relative(~width, ~height, ~fudge, font_metrics);
   create_svg(
     "svg",
@@ -109,7 +108,7 @@ let code_svg_sized_relative =
       Attr.many([
         Attr.classes(base_cls),
         Attr.create("style", style),
-        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
+        Attr.create("viewBox", Printf.sprintf("0 0 %f %f", width, height)),
         Attr.create("preserveAspectRatio", "none"),
       ]),
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],

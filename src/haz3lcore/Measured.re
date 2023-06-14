@@ -386,7 +386,8 @@ let of_segment =
                 )
               ) {
               | Solvable(suggestion_string)
-              | NestedInconsistency(suggestion_string) => String.length(suggestion_string);
+              | NestedInconsistency(suggestion_string) =>
+                String.length(suggestion_string)
               | NoSuggestion(_) => 1
               };
 
