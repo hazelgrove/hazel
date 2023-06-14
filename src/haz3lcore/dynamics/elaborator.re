@@ -293,6 +293,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         };
       };
     wrap(id, mode, self, d);
+  | Some(Invalid(BadInt)) => Some(IntLit(0))
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
