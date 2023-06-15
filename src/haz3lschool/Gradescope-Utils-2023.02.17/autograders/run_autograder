@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# see
-# https://gradescope-autograders.readthedocs.io/en/latest/specs/
-
-cd /autograder/source
-perl run_test.fat.pl
