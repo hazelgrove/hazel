@@ -253,15 +253,21 @@ module UTyp = {
         );
         get_Tuple(u.term);
       | Dot(exp, name) =>
-        switch (exp.term) {
-        | Tag(tagname) =>
-          switch (Ctx.lookup_tag(ctx, tagname)) {
-          | Some({typ: Module(inner_ctx), _}) =>
-            to_typ(inner_ctx, {term: Var(name), ids: []})
+        /** Currently, the only possible way to introduce modules are through
+      a variable in Tag form.
+
+      Maybe better to put to_typ in Statics? */
+        (
+          switch (exp.term) {
+          | Tag(tagname) =>
+            switch (Ctx.lookup_tag(ctx, tagname)) {
+            | Some({typ: Module(inner_ctx), _}) =>
+              to_typ(inner_ctx, {term: Var(name), ids: []})
+            | _ => Unknown(TypeHole)
+            }
           | _ => Unknown(TypeHole)
           }
-        | _ => Unknown(TypeHole)
-        }
+        )
       }
   and to_variant = ctx =>
     fun

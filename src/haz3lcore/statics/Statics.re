@@ -189,6 +189,10 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~free=Ctx.union([e1.free, e2.free]), m);
   | Tag(tag) => atomic(Info.self_tag(ctx, tag))
+  /*
+   Now Tags are not only Constructors but also possibly modules,
+   don't know if necessary to add to free as Var.
+   */
   | Ap(fn, arg) =>
     let fn_mode = Typ.ap_mode(ctx, mode, UExp.tag_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -510,6 +514,17 @@ and utpat_to_info_map =
   | Var(_) => add(m)
   };
 }
+/**
+This function is used to generate Info for definition expressions as modules.
+
+For most case it simply calls uexp_to_info_map,
+But for Let, Module and Type, it not only does what uexp_to_info_map does,
+but also does additional work including extend the inner_ctx
+and sometimes switch to Ana mode according to the mode of the entire module.
+
+If those memtioned branches in uexp_to_info_map is updated,
+corresponding parts here should also be updated.
+ */
 and uexp_to_module =
     (
       ~ctx: Ctx.t,
@@ -537,6 +552,7 @@ and uexp_to_module =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go_pat' = upat_to_info_map(~ctx=inner_ctx, ~ancestors);
   let go_module = uexp_to_module(~ancestors);
+  /**generates mode for let/module patterns according to the outer module mode. */
   let rec out_moded = (out_mode: Typ.mode, pat: Term.UPat.t): Typ.mode => {
     switch (out_mode) {
     | Ana(Module(m)) =>
