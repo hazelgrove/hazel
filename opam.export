@@ -3,7 +3,7 @@ compiler: ["ocaml-base-compiler.4.14.0"]
 roots: [
   "async_js.v0.15.1"
   "camomile.1.0.2"
-  "incr_dom.v0.15.0"
+  "incr_dom.v0.15.1"
   "lwt.5.6.1"
   "lwt-dllist.1.0.1"
   "merlin.4.5-414"
@@ -61,7 +61,7 @@ installed: [
   "fmt.0.9.0"
   "gen_js_api.1.1.1"
   "hex.1.5.0"
-  "incr_dom.v0.15.0"
+  "incr_dom.v0.15.1"
   "incr_map.v0.15.0"
   "incr_select.v0.15.0"
   "incremental.v0.15.0"
@@ -171,7 +171,7 @@ installed: [
 ]
 pinned: [
   "async_js.v0.15.1"
-  "incr_dom.v0.15.0"
+  "incr_dom.v0.15.1"
   "sexplib.v0.15.1"
   "virtual_dom.v0.15.0"
 ]
