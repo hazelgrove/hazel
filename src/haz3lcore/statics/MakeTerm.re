@@ -330,6 +330,17 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
+  | Pre(tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["typem", "="], [TPat(arg)]) => TyAlias(arg, ty)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
   | Pre(_) as tm => ret(hole(tm))
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {

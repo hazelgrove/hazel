@@ -402,6 +402,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
+    | TyAlias(_, _) => None
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
   | None => None

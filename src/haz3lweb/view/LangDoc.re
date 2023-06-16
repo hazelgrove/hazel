@@ -1184,6 +1184,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | TyAlias(_) => default //TODO
         };
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
@@ -1851,6 +1852,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | TyAlias(_) => default // TODO
         };
       // TODO
       | Module(_) => default
@@ -2503,6 +2505,7 @@ let get_doc =
     | Parens(_) =>
       // Shouldn't be hit?
       default
+    | TyAlias(_) => default // TODO
     }
   | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {

@@ -417,6 +417,36 @@ and upat_to_info_map =
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
     add(~self=Just(ann.ty), ~ctx=p.ctx, m);
+  | TyAlias(typat, utyp) =>
+    let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+    switch (typat.term) {
+    | Var(name)
+        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre =
+          UTyp.to_typ(Ctx.add_abstract(ctx, name, Id.invalid), utyp);
+        switch (utyp.term) {
+        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+        | _ =>
+          let ty = UTyp.to_typ(ctx, utyp);
+          (ty, ctx, Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty));
+        };
+      };
+      let ctx_body =
+        switch (Typ.get_sum_tags(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
+        | None => ctx_body
+        };
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(unknown), ~ctx=ctx_body, m);
+    | _ =>
+      let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(unknown), ~ctx, m);
+    };
   };
 }
 and utyp_to_info_map =
@@ -567,6 +597,7 @@ and uexp_to_module =
       | String(_)
       | Triv
       | ListLit([])
+      | TyAlias(_)
       | Ap(_) => Syn
       | Var(name)
       | Tag(name) =>
@@ -685,13 +716,7 @@ and uexp_to_module =
     switch (typat.term) {
     | Var(name)
         when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
-      /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
-         errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
-         for any type variable reference not in its ctx. So any free variables
-         in the definition would be oblierated. But we need to check for free
-         variables to decide whether to make a recursive type or not. So we
-         tentatively add an abtract type to the ctx, representing the
-         speculative rec parameter. */
+      /* NOTE(andrew): See TyAlias in uexp_to_info_map */
       let (ty_def, ctx_def, ctx_body, new_inner) = {
         let ty_pre =
           UTyp.to_typ(Ctx.add_abstract(ctx, name, Id.invalid), utyp);

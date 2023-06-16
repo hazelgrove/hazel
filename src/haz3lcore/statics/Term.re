@@ -144,99 +144,128 @@ module UTyp = {
       | Tag(_)
       | Ap(_) => Unknown(Internal)
       | Module(u) =>
-        let rep_id = ({ids, _}: TermBase.UPat.t) => {
+        let rep_id_p = ({ids, _}: TermBase.UPat.t) => {
           assert(ids != []);
           List.hd(ids);
         };
-        let rec get_Tuple: TermBase.UPat.term => Typ.t = (
-          ut =>
-            switch (ut) {
-            | Tuple(us) =>
-              let rec upat_to_ctx = (inner_ctx: Ctx.t, upat: TermBase.UPat.t) => {
-                switch (upat.term) {
-                | Invalid(_)
-                | EmptyHole
-                | MultiHole(_)
-                | Wild
-                | Int(_)
-                | Float(_)
-                | Bool(_)
-                | String(_)
-                | Triv
-                | ListLit(_)
-                | Cons(_)
-                | Tuple(_)
-                | Ap(_) => inner_ctx
-                | TypeAnn(var, utyp1) =>
-                  switch (var.term, utyp1.term) {
-                  | (Var(name), _) => [
-                      VarEntry({
-                        name,
-                        id: rep_id(var),
-                        typ: to_typ(ctx, utyp1),
-                      }),
-                      ...inner_ctx,
-                    ]
-                  | (Tag(name), _) => [
-                      TagEntry({
-                        name,
-                        id: rep_id(var),
-                        typ: to_typ(ctx, utyp1),
-                      }),
-                      ...inner_ctx,
-                    ]
-                  | _ => inner_ctx
-                  }
-                | Var(name) => [
-                    VarEntry({
-                      name,
-                      id: rep_id(upat),
-                      typ: Unknown(TypeHole),
-                    }),
-                    ...inner_ctx,
-                  ]
-                | Tag(name) => [
-                    TagEntry({
-                      name,
-                      id: rep_id(upat),
-                      typ: Unknown(TypeHole),
-                    }),
-                    ...inner_ctx,
-                  ]
-                | Parens(p) => upat_to_ctx(inner_ctx, p)
-                };
-              };
-              let module_ctx = List.fold_left(upat_to_ctx, [], us);
-              Module(module_ctx);
-            | Parens(p) => get_Tuple(p.term)
-            | TypeAnn(var, utyp1) =>
-              switch (var.term, utyp1.term) {
-              | (Var(name), _) =>
-                Module([
+        let rep_id_t = ({ids, _}: TermBase.UTPat.t) => {
+          assert(ids != []);
+          List.hd(ids);
+        };
+        let rec upat_to_ctx =
+                ((outer_ctx: Ctx.t, inner_ctx: Ctx.t), upat: TermBase.UPat.t) => {
+          switch (upat.term) {
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | Wild
+          | Int(_)
+          | Float(_)
+          | Bool(_)
+          | String(_)
+          | Triv
+          | ListLit(_)
+          | Cons(_)
+          | Tuple(_)
+          | Ap(_) => (outer_ctx, inner_ctx)
+          | TypeAnn(var, utyp1) =>
+            switch (var.term, utyp1.term) {
+            | (Var(name), _) => (
+                outer_ctx,
+                [
                   VarEntry({
                     name,
-                    id: rep_id(var),
-                    typ: to_typ(ctx, utyp1),
+                    id: rep_id_p(var),
+                    typ: to_typ(outer_ctx, utyp1),
                   }),
-                ])
-              | (Tag(name), _) =>
-                Module([
+                  ...inner_ctx,
+                ],
+              )
+            | (Tag(name), _) => (
+                outer_ctx,
+                [
                   TagEntry({
                     name,
-                    id: rep_id(var),
-                    typ: to_typ(ctx, utyp1),
+                    id: rep_id_p(var),
+                    typ: to_typ(outer_ctx, utyp1),
                   }),
-                ])
-              | _ => Module([])
-              }
-            | Var(name) =>
-              Module([
-                VarEntry({name, id: rep_id(u), typ: Unknown(TypeHole)}),
-              ])
-            | Tag(name) =>
-              Module([
-                TagEntry({name, id: rep_id(u), typ: Unknown(TypeHole)}),
-              ])
+                  ...inner_ctx,
+                ],
+              )
+            | _ => (outer_ctx, inner_ctx)
+            }
+          | Var(name) => (
+              outer_ctx,
+              [
+                VarEntry({name, id: rep_id_p(upat), typ: Unknown(TypeHole)}),
+                ...inner_ctx,
+              ],
+            )
+          | Tag(name) => (
+              outer_ctx,
+              [
+                TagEntry({name, id: rep_id_p(upat), typ: Unknown(TypeHole)}),
+                ...inner_ctx,
+              ],
+            )
+          | TyAlias(typat, utyp) =>
+            switch (typat.term) {
+            | Var(name)
+                when
+                  !Form.is_base_typ(name)
+                  && Ctx.lookup_alias(outer_ctx, name) == None =>
+              /* NOTE(andrew):  See TyAlias in Statics.uexp_to_info_map  */
+              let (ty_def, ctx_body, new_inner) = {
+                let ty_pre =
+                  to_typ(
+                    Ctx.add_abstract(outer_ctx, name, Id.invalid),
+                    utyp,
+                  );
+                switch (utyp.term) {
+                | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+                  let ty_rec =
+                    Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+                  let ctx_def =
+                    Ctx.add_alias(outer_ctx, name, rep_id_t(typat), ty_rec);
+                  (
+                    ty_rec,
+                    ctx_def,
+                    Ctx.add_alias(inner_ctx, name, rep_id_t(typat), ty_rec),
+                  );
+                | _ =>
+                  let ty = to_typ(outer_ctx, utyp);
+                  (
+                    ty,
+                    Ctx.add_alias(outer_ctx, name, rep_id_t(typat), ty),
+                    Ctx.add_alias(inner_ctx, name, rep_id_t(typat), ty),
+                  );
+                };
+              };
+              switch (Typ.get_sum_tags(outer_ctx, ty_def)) {
+              | Some(sm) => (
+                  Ctx.add_tags(ctx_body, name, rep_id(utyp), sm),
+                  Ctx.add_tags(new_inner, name, rep_id(utyp), sm),
+                )
+              | None => (ctx_body, new_inner)
+              };
+
+            | _ => (outer_ctx, inner_ctx)
+            }
+          | Parens(p) => upat_to_ctx((outer_ctx, inner_ctx), p)
+          };
+        };
+        let rec get_Tuple: TermBase.UPat.t => Typ.t = (
+          ut =>
+            switch (ut.term) {
+            | Tuple(us) =>
+              let (_, module_ctx) =
+                List.fold_left(upat_to_ctx, (ctx, []), us);
+              Module(module_ctx);
+            | Parens(p) => get_Tuple(p)
+            | TypeAnn(_)
+            | Var(_)
+            | Tag(_)
+            | TyAlias(_)
             | Invalid(_)
             | EmptyHole
             | MultiHole(_)
@@ -248,10 +277,12 @@ module UTyp = {
             | Triv
             | ListLit(_)
             | Cons(_)
-            | Ap(_) => Module([])
+            | Ap(_) =>
+              let (_, module_ctx) = upat_to_ctx((ctx, []), ut);
+              Module(module_ctx);
             }
         );
-        get_Tuple(u.term);
+        get_Tuple(u);
       | Dot(exp, name) =>
         /** Currently, the only possible way to introduce modules are through
       a variable in Tag form.
@@ -347,7 +378,8 @@ module UPat = {
     | Tuple
     | Parens
     | Ap
-    | TypeAnn;
+    | TypeAnn
+    | TyAlias;
 
   include TermBase.UPat;
 
@@ -380,7 +412,8 @@ module UPat = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | TypeAnn(_) => TypeAnn;
+    | TypeAnn(_) => TypeAnn
+    | TyAlias(_) => TyAlias;
 
   let show_cls: cls => string =
     fun
@@ -400,13 +433,15 @@ module UPat = {
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
     | Ap => "Constructor Application Pattern"
-    | TypeAnn => "Type Annotation";
+    | TypeAnn => "Type Annotation"
+    | TyAlias => "Type Alias Definition Pattern";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_var(pat)
     | Var(_) => true
     | TypeAnn(_)
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -428,6 +463,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -465,6 +501,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | TyAlias(_)
       | Tag(_)
       | Ap(_) => false
       }
@@ -475,6 +512,7 @@ module UPat = {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
     | TypeAnn(_)
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -497,6 +535,7 @@ module UPat = {
     | Parens(pat) => get_tag(pat)
     | Tag(x) => Some(x)
     | TypeAnn(_)
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -523,6 +562,7 @@ module UPat = {
       } else {
         None;
       }
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -567,6 +607,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | TyAlias(_)
       | Tag(_)
       | Ap(_) => None
       }

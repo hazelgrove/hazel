@@ -285,6 +285,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | TyAlias(UTPat.t, UTyp.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -309,6 +310,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | TyAlias(UTPat.t, UTyp.t)
   and t = {
     ids: list(Id.t),
     term,

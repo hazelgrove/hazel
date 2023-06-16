@@ -244,6 +244,10 @@ let forms: list((string, t)) = [
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
+  (
+    "type_alias_pat",
+    mk(ds, ["typem", "="], mk_pre'(P.ap, Pat, Pat, [TPat], Typ)),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
