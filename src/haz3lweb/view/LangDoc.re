@@ -234,7 +234,7 @@ let deco =
     | (Some(expandable), _) => [
         Deco.term_decoration(
           ~id=expandable,
-          ((origin, path)) => {
+          ((origin, _, path)) => {
             let specificity_pos =
               Printf.sprintf(
                 "position: absolute; top: %fpx;",
@@ -488,7 +488,7 @@ type message_mode =
   | MessageContent(
       Update.t => Virtual_dom.Vdom.Effect.t(unit),
       FontMetrics.t,
-      Model.settings,
+      ModelSettings.t,
     )
   | Colorings;
 
@@ -2803,7 +2803,7 @@ let view =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Statics.map,
