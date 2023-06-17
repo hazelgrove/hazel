@@ -96,12 +96,13 @@ let destruct =
 };
 
 let merge =
-    ((l, r): (Token.t, Token.t), (z, id_gen): state): option(state) =>
+    ((l, r): (Token.t, Token.t), (z, id_gen): state): option(state) => {
   z
   |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
   |> Zipper.delete(Left)
   |> OptUtil.and_then(Zipper.delete(Right))
   |> Option.map(z => Zipper.construct_mono(Right, l ++ r, z, id_gen));
+};
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
 let parent_duomerges = (z: Zipper.t) => {
@@ -128,7 +129,8 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     |> Zipper.set_caret(Inner(List.length(lbl), 0))
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
     |> Option.some
-  | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
+  | (_, Outer, (Some(l), Some(r)))
+      when Form.is_valid_token(l ++ r) && l != "as" =>
     merge((l, r), (z_trimmed, id_gen))
   | _ => Some((z, id_gen))
   };
