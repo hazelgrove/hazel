@@ -100,6 +100,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         tagged_view(t0) @ ts_views;
       },
     )
+  | Member(name, _) => ty_view("Member", name)
   }
 and tagged_view = ((tag, typ)) =>
   switch (typ) {

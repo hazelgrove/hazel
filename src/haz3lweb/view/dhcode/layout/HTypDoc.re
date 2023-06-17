@@ -121,6 +121,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Sum(_) =>
       //TODO: hdocs for labelled sum types
       (text("(sum ...)"), parenthesize)
+    | Member(name, _) => (text(name), parenthesize)
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;

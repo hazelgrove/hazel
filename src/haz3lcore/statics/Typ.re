@@ -74,6 +74,7 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Module(_)
+  | Member(_)
   | Rec(_)
   | Sum(_)
   | List(_) => precedence_const
@@ -87,6 +88,7 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Float => Float
   | Bool => Bool
   | String => String
+  | Member(name, ty) => Member(name, subst(s, x, ty))
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(subst(s, x), tys))
@@ -119,6 +121,8 @@ let unroll = (ty: t): t =>
 let rec eq = (t1: t, t2: t): bool => {
   let eq' = eq;
   switch (t1, t2) {
+  | (Member(_, ty1), ty2) => eq(ty1, ty2)
+  | (ty1, Member(_, ty2)) => eq(ty1, ty2)
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
   | (Rec(_), _) => false
   | (Int, Int) => true
@@ -174,6 +178,7 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
       };
     };
     List.fold_left(ctx_entry_subst, [], inner_ctx);
+  | Member(_, ty) => free_vars(ty)
   };
 
 /* Lattice join on types. This is a LUB join in the hazel2
@@ -184,6 +189,8 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let join' = join(~resolve, ctx);
   switch (ty1, ty2) {
+  | (Member(_, ty1), ty2) => join'(ty1, ty2)
+  | (ty1, Member(_, ty2)) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
@@ -268,6 +275,7 @@ let rec normalize_shallow = (ctx: Ctx.t, ty: t): t =>
     | Some(ty) => normalize_shallow(ctx, ty)
     | None => ty
     }
+  | Member(_, ty) => ty
   | _ => ty
   };
 
@@ -301,6 +309,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
       };
     };
     Module(List.map(ctx_entry_subst, inner_ctx));
+  | Member(_, ty) => normalize(ctx, ty)
   };
 };
 

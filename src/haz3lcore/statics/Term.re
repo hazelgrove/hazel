@@ -288,17 +288,45 @@ module UTyp = {
       a variable in Tag form.
 
       Maybe better to put to_typ in Statics? */
-        (
-          switch (exp.term) {
-          | Tag(tagname) =>
-            switch (Ctx.lookup_tag(ctx, tagname)) {
-            | Some({typ: Module(inner_ctx), _}) =>
-              to_typ(inner_ctx, {term: Var(name), ids: []})
-            | _ => Unknown(TypeHole)
+        let rec inner_normalize =
+                (ctx: Ctx.t, ty: Typ.t, ty_default: Typ.t): Typ.t =>
+          switch (ty) {
+          | Var(x) =>
+            switch (Ctx.lookup_alias(ctx, x)) {
+            | Some(ty) => inner_normalize(ctx, ty, ty)
+            | None => ty_default
             }
-          | _ => Unknown(TypeHole)
-          }
-        )
+          | _ => ty_default
+          };
+        let rec get_module =
+                (name: string, ctx: Ctx.t, e: TermBase.UExp.term)
+                : option((string, Ctx.t)) => {
+          switch (e) {
+          | Tag(tag_name) =>
+            switch (Ctx.lookup_tag(ctx, tag_name)) {
+            | Some({typ: Module(inner_ctx), _}) =>
+              Some((name ++ tag_name ++ ".", inner_ctx))
+            | _ => None
+            }
+          | Dot({term, _}, tag_name) =>
+            switch (get_module(name, ctx, term)) {
+            | Some((name, ctx)) =>
+              switch (Ctx.lookup_tag(ctx, tag_name)) {
+              | Some({typ: Module(inner_ctx), _}) =>
+                Some((name ++ tag_name ++ ".", inner_ctx))
+              | _ => None
+              }
+            | _ => None
+            }
+          | _ => None
+          };
+        };
+        switch (get_module("", ctx, exp.term)) {
+        | Some((tag_name, inner_ctx)) =>
+          let ty = inner_normalize(inner_ctx, Var(name), Unknown(TypeHole));
+          Member(tag_name ++ name, ty);
+        | _ => Unknown(TypeHole)
+        };
       }
   and to_variant = ctx =>
     fun

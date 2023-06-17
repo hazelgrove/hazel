@@ -26,6 +26,7 @@ module rec Typ: {
     | Prod(list(t))
     | Rec(Token.t, t)
     | Module(Ctx.t)
+    | Member(Token.t, t)
   and sum_map = VarMap.t_(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -63,6 +64,7 @@ module rec Typ: {
     | Prod(list(t))
     | Rec(Token.t, t)
     | Module(Ctx.t)
+    | Member(Token.t, t)
   and sum_map = VarMap.t_(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]

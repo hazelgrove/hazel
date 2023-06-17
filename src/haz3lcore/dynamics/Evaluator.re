@@ -63,6 +63,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     sm |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
   | Arrow(_, _) => grounded_Arrow
   | List(_) => grounded_List
+  | Member(_, ty) => ground_cases_of(ty)
   };
 };
 
