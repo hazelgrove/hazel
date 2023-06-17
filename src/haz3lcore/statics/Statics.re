@@ -247,11 +247,19 @@ and uexp_to_info_map =
     let (info_modul, m) = go(~mode=Syn, modul, m);
     switch (info_modul.ty) {
     | Module(inner_ctx) =>
-      add'(
-        ~self=Info.self_var(inner_ctx, name),
-        ~free=[(name, [{id: UExp.rep_id(uexp), mode}])],
-        m,
-      )
+      if (Form.is_tag(name)) {
+        add(
+          ~self=Info.self_tag(inner_ctx, name),
+          ~free=[(name, [{id: UExp.rep_id(uexp), mode}])],
+          m,
+        );
+      } else {
+        add'(
+          ~self=Info.self_var(inner_ctx, name),
+          ~free=[(name, [{id: UExp.rep_id(uexp), mode}])],
+          m,
+        );
+      }
     | _ =>
       add'(
         ~self=FreeVar,

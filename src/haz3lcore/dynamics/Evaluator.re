@@ -694,7 +694,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           name
           |> Environment.lookup(inner_env)
           |> OptUtil.get(() => {
-               let res: DHExp.t = EmptyHole(u, i);
+               let res: DHExp.t =
+                 if (Form.is_tag(name)) {
+                   Tag(name);
+                 } else {
+                   EmptyHole(u, i);
+                 };
                res;
              });
         /* We need to call [evaluate] on [d] again since [env] does not store
