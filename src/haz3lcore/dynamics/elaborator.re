@@ -166,42 +166,28 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(EmptyHole(id, 0))
       | Deferral => Some(InvalidText(0, 0, "Unbound deferral"))
       | DeferredAp(fn, args) =>
-        let is_deferral = (e: Term.UExp.t) =>
-          switch (e.term) {
-          | Deferral => true
-          | _ => false
-          };
-        let n_ary_tuple = (tuple, xs) => {
+        let n_ary_tuple = (ctor, xs) => {
           assert(List.length(xs) > 0);
-          if (List.length(xs) == 1) {
-            List.hd(xs);
-          } else {
-            tuple(xs);
-          };
+          List.length(xs) == 1 ? List.hd(xs) : ctor(xs)
         };
         // substitute all deferrals for new variables
         let* (pats, d_args) =
           args
           |> List.fold_left(
                (acc, e: Term.UExp.t) => {
-                 switch (acc) {
-                 | None => None
-                 | Some((pats, args)) =>
-                   let name = "~defer" ++ string_of_int(List.length(pats));
-                   if (is_deferral(e)) {
-                     Some((
-                       pats @ [DHPat.Var(name)],
-                       args @ [DHExp.BoundVar(name)],
-                     ));
-                   } else {
-                     switch (dhexp_of_uexp(m, e)) {
-                     | Some(de) => Some((pats, args @ [de]))
-                     | None => None
-                     };
-                   };
-                 }
-               },
-               Some(([], [])),
+                let* (pats, args) = acc;
+                if (Term.UExp.is_deferral(e)) {
+                  // internal variable name for deferrals
+                  let name = "~defer" ++ string_of_int(List.length(pats));
+                  Some((
+                    pats @ [DHPat.Var(name)],
+                    args @ [DHExp.BoundVar(name)],
+                  ))
+                } else {
+                  let+ de = dhexp_of_uexp(m, e); (pats, args @ [de])
+                }
+              },
+              Some(([], [])),
              );
         let (pat', arg') = (
           n_ary_tuple(x => DHPat.Tuple(x), pats),
@@ -224,8 +210,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             n_ary_tuple(
               x => Typ.Prod(x),
               List.combine(arg_tys, args)
-              |> List.filter(((_ty, arg)) => is_deferral(arg))
-              |> List.map(((ty, _arg)) => ty),
+              |> List.filter(((_ty, arg)) => Term.UExp.is_deferral(arg))
+              |> List.map(fst),
             ),
             ty_ret,
           );

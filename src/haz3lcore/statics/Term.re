@@ -502,6 +502,13 @@ module UExp = {
       | Tag(_) => false
       }
     );
+  
+  let is_deferral = (e: t) => {
+    switch (e.term) {
+    | Deferral => true // Doesn't handle the case where deferral is parenthesized.
+    | _ => false
+    };
+  };
 };
 
 /* Converts a syntactic type into a semantic type */

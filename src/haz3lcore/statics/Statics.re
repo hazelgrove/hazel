@@ -324,11 +324,6 @@ and uexp_to_info_map =
   | Deferral => atomic(Just(Unknown(Internal))) // Deferral does not define a type
   | DeferredAp(fn, args) =>
     // ((a, b, c) -> d)(~, b, c) assumes type (a -> d)
-    let is_deferral = (e: Term.UExp.t) =>
-      switch (e.term) {
-      | Deferral => true
-      | _ => false
-      };
     let n_ary_tuple = (tuple, xs) => {
       assert(List.length(xs) > 0);
       if (List.length(xs) == 1) {
@@ -349,12 +344,12 @@ and uexp_to_info_map =
       };
     let ty_in' =
       List.combine(args, tys)
-      |> List.filter(((arg, _ty)) => is_deferral(arg))
+      |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
       |> List.map(((_arg, ty)) => ty)
       |> n_ary_tuple(tys => Typ.Prod(tys));
     let (_, free_arg, m_arg) =
       List.combine(args, tys)
-      |> List.filter(((arg, _ty)) => !is_deferral(arg))
+      |> List.filter(((arg, _ty)) => !Term.UExp.is_deferral(arg))
       |> List.map(((arg, ty)) =>
            uexp_to_info_map(~ctx, ~mode=Ana(ty), arg)
          )

@@ -215,7 +215,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["_"], []) => ret(Deferral)
+      | ([t], []) when Form.is_deferral(t) => ret(Deferral)
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
@@ -260,18 +260,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) =>
-          let is_deferral = (e: Term.UExp.t) =>
-            switch (e.term) {
-            | Deferral => true
-            | _ => false
-            };
           switch (arg.term) {
-          | Tuple(es) =>
-            if (List.exists(is_deferral, es)) {
-              DeferredAp(l, es);
-            } else {
-              Ap(l, arg);
-            }
+          | Tuple(arg) when List.exists(Term.UExp.is_deferral, arg) => DeferredAp(l, arg) // the application is deferred if some of the arguments are deferrals
           | _ => Ap(l, arg)
           };
         | _ => hole(tm)
