@@ -674,8 +674,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         EditorUtil.stitch([eds.your_impl])
       );
     let syntax_params: SyntaxTest.params = {
-      var_mention: ["xyz"],
-      recursive: ["odd"],
+      var_mention: [("xyz", 50.), ("ext", 50.)],
+      recursive: [("odd", 100.), ("dne", 0.)],
     };
     SyntaxTest.check(user_impl_term, syntax_params);
   };

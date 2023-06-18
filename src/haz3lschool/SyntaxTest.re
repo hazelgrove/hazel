@@ -3,12 +3,15 @@ open Haz3lcore;
 module StringMap = Map.Make(String);
 
 module SyntaxReport = {
-  type t = {hinted_results: list((bool, string))};
+  type t = {
+    hinted_results: list((bool, string)),
+    percentage: float,
+  };
 };
 
 type params = {
-  var_mention: list(string),
-  recursive: list(string),
+  var_mention: list((string, float)),
+  recursive: list((string, float)),
 };
 
 type hints = {
@@ -174,47 +177,79 @@ let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
 };
 
 let check = (uexp: Term.UExp.t, p: params): SyntaxReport.t => {
-  let m = StringMap.empty |> add_flist(p.recursive) |> mk_fmap(uexp);
-  StringMap.iter(
-    (k, l) => {
-      print_endline(k);
-      print_endline(string_of_int(List.length(l)));
-      List.iter(ue => {print_endline(Term.UExp.show(ue))}, l);
-    },
-    m,
-  );
+  let var_mention_names = List.map(((name, _)) => name, p.var_mention);
+  let var_mention_weights = List.map(((_, w)) => w, p.var_mention);
+
+  let recursive_names = List.map(((name, _)) => name, p.recursive);
+  let recursive_weights = List.map(((_, w)) => w, p.recursive);
+
+  let total =
+    List.fold_left((+.), 0., var_mention_weights @ recursive_weights);
+
+  let m = StringMap.empty |> add_flist(recursive_names) |> mk_fmap(uexp);
+  /*StringMap.iter(
+      (k, l) => {
+        print_endline(k);
+        print_endline(string_of_int(List.length(l)));
+        List.iter(ue => {print_endline(Term.UExp.show(ue))}, l);
+      },
+      m,
+    );*/
 
   let var_mention_res =
-    List.fold_left(
-      (acc, name) => {acc && find_var_uexp(uexp, name)},
-      true,
-      p.var_mention,
-    );
+    List.map(name => {find_var_uexp(uexp, name)}, var_mention_names);
 
   let recursive_res =
-    List.fold_left(
-      (acc1, name) => {
-        acc1
-        && List.fold_left(
-             (acc2, ufun) => {acc2 && is_recursive(ufun, name)},
-             true,
-             StringMap.find(name, m),
-           )
+    List.map(
+      name => {
+        let l = StringMap.find(name, m);
+        if (l == []) {
+          false;
+        } else {
+          List.fold_left(
+            (acc, ufun) => {acc && is_recursive(ufun, name)},
+            true,
+            StringMap.find(name, m),
+          );
+        };
       },
-      true,
-      p.recursive,
+      recursive_names,
     );
 
-  let var_mention_hint =
-    String.cat(String.concat(", ", p.var_mention), " mentioned anywhere");
+  let var_mention_passing =
+    List.fold_left2(
+      (acc, w, res) => {res ? acc +. w : acc},
+      0.,
+      var_mention_weights,
+      var_mention_res,
+    );
 
-  let recursive_hint =
-    String.cat(String.concat(", ", p.recursive), " recursive");
+  let recursive_passing =
+    List.fold_left2(
+      (acc, w, res) => {res ? acc +. w : acc},
+      0.,
+      recursive_weights,
+      recursive_res,
+    );
+
+  let passing = var_mention_passing +. recursive_passing;
+
+  let var_mention_hinted_results =
+    List.map2(
+      (r, name) => {(r, String.cat(name, " is mentioned anywhere"))},
+      var_mention_res,
+      var_mention_names,
+    );
+
+  let recursive_hinted_results =
+    List.map2(
+      (r, name) => {(r, String.cat(name, " is recursive"))},
+      recursive_res,
+      recursive_names,
+    );
 
   {
-    hinted_results: [
-      (var_mention_res, var_mention_hint),
-      (recursive_res, recursive_hint),
-    ],
+    hinted_results: var_mention_hinted_results @ recursive_hinted_results,
+    percentage: Float.equal(total, 0.) ? 1. : passing /. total,
   };
 };
