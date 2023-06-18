@@ -69,9 +69,17 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
           view_ty(t0),
           text(","),
         ]
-      | TVarEntry({name: n0, _}) => [
+      | TVarEntry({name: n0, kind: Singleton(t0), _}) => [
+          text("type "),
           text(n0),
-          text(":"),
+          text("="),
+          view_ty(t0),
+          text(","),
+        ]
+      | TVarEntry({name: n0, _}) => [
+          text("type "),
+          text(n0),
+          text("="),
           view_ty(Unknown(Internal)),
           text(","),
         ]

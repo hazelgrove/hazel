@@ -457,7 +457,7 @@ and upat_to_info_map =
         | None => ctx_body
         };
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-      add(~self=Just(unknown), ~ctx=ctx_body, m);
+      add(~self=Just(ty_def), ~ctx=ctx_body, m);
     | _ =>
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
       add(~self=Just(unknown), ~ctx, m);
