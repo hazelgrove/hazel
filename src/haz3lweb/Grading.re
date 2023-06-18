@@ -14,6 +14,17 @@ let score_view = ((earned: points, max: points)) => {
   );
 };
 
+let percentage_view = (p: percentage) => {
+  div(
+    ~attr=
+      Attr.classes([
+        "test-percent",
+        Float.equal(p, 1.) ? "all-pass" : "some-fail",
+      ]),
+    [text(Printf.sprintf("%.0f%%", 100. *. p))],
+  );
+};
+
 module TestValidationReport = {
   include TestValidationReport;
   let textual_summary = (report: t) => {
@@ -365,11 +376,12 @@ module ImplGradingReport = {
   };
 };
 
+//This may not belong in this file
 module SyntaxReport = {
   open Haz3lschool;
   include SyntaxTest.SyntaxReport;
   let individual_report = (i: int, hint: string, status: bool) => {
-    let result_string = if (status) {"Pass"} else {"Indet"};
+    let result_string = status ? "Pass" : "Indet";
 
     div(
       ~attr=Attr.classes(["test-report"]),
@@ -407,7 +419,23 @@ module SyntaxReport = {
         ),
         individual_reports(syntax_report.hinted_results),
       ],
-      ~footer=None,
+      ~footer=
+        Some(
+          Cell.report_footer_view([
+            div(
+              ~attr=Attr.classes(["test-summary"]),
+              [
+                div(
+                  ~attr=Attr.class_("test-text"),
+                  [
+                    percentage_view(syntax_report.percentage),
+                    text(" of the points will be earned"),
+                  ],
+                ),
+              ],
+            ),
+          ]),
+        ),
     );
   };
 };

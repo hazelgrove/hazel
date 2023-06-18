@@ -169,12 +169,14 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
       hints: list(string),
       test_results: option(TestResults.test_results),
       hinted_results: list((TestStatus.t, string)),
+      sr_percentage: percentage,
     };
 
     let mk =
         (
           ~hints: list(string),
           ~test_results: option(TestResults.test_results),
+          ~sr_percentage: percentage,
         )
         : t => {
       let hinted_results =
@@ -196,7 +198,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
             "Exercise configuration error: Hint without a test.",
           )
         };
-      {hints, test_results, hinted_results};
+      {hints, test_results, hinted_results, sr_percentage};
     };
 
     let total = (report: t) => List.length(report.hinted_results);
@@ -207,7 +209,8 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
     };
 
     let percentage = (report: t): percentage => {
-      float_of_int(num_passed(report)) /. float_of_int(total(report));
+      report.sr_percentage
+      *. (float_of_int(num_passed(report)) /. float_of_int(total(report)));
     };
 
     let test_summary_str = (test_results: TestResults.test_results) => {
@@ -232,7 +235,12 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
       impl_grading_report: ImplGradingReport.t,
     };
 
-    let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
+    let mk =
+        (
+          eds: eds,
+          ~stitched_dynamics: stitched(DynamicsItem.t),
+          ~sr_percentage: percentage,
+        ) => {
       point_distribution: eds.point_distribution,
       test_validation_report:
         TestValidationReport.mk(
@@ -254,6 +262,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
             TestResults.unwrap_test_results(
               stitched_dynamics.hidden_tests.simple_result,
             ),
+          ~sr_percentage,
         ),
     };
 

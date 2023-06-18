@@ -27,7 +27,12 @@ let mk =
     );
   let syntax_report = SchoolExercise.syntax_test(exercise);
 
-  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
+  let grading_report =
+    Grading.GradingReport.mk(
+      eds,
+      ~stitched_dynamics,
+      ~sr_percentage=syntax_report.percentage,
+    );
 
   {
     exercise,
