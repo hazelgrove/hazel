@@ -121,3 +121,42 @@ let get_vars = (ctx: t): list((string, Typ.t)) => {
     filter_duplicates(ctx),
   );
 };
+
+let rec modulize = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
+  switch (ty) {
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | Member(name, ty) => Member(x ++ "." ++ name, ty)
+  | Unknown(prov) => Unknown(prov)
+  | Arrow(ty1, ty2) => Arrow(modulize(ctx, x, ty1), modulize(ctx, x, ty2))
+  | Prod(tys) => Prod(List.map(modulize(ctx, x), tys))
+  | Sum(sm) => Sum(TagMap.map(Option.map(modulize(ctx, x)), sm))
+  | Rec(y, ty) => Rec(y, modulize(ctx, x, ty))
+  | List(ty) => List(modulize(ctx, x, ty))
+  | Var(n) => Member(x ++ "." ++ n, Typ.normalize_shallow(ctx, ty))
+  | Module(inner_ctx) =>
+    let ctx_entry_modulize = (e: entry): entry => {
+      switch (e) {
+      | VarEntry(t) => VarEntry({...t, typ: modulize(ctx, x, t.typ)})
+      | TagEntry(t) => TagEntry({...t, typ: modulize(ctx, x, t.typ)})
+      | TVarEntry(_) => e
+      };
+    };
+    Module(List.map(ctx_entry_modulize, inner_ctx));
+  };
+};
+
+let modulize_ctx = (ctx: t, x: string): t => {
+  List.map(
+    (e: entry): entry => {
+      switch (e) {
+      | VarEntry(t) => VarEntry({...t, typ: modulize(ctx, x, t.typ)})
+      | TagEntry(t) => TagEntry({...t, typ: modulize(ctx, x, t.typ)})
+      | TVarEntry(_) => e
+      }
+    },
+    ctx,
+  );
+};

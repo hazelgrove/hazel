@@ -288,15 +288,13 @@ module UTyp = {
       a variable in Tag form.
 
       Maybe better to put to_typ in Statics? */
-        let rec inner_normalize =
-                (ctx: Ctx.t, ty: Typ.t, ty_default: Typ.t): Typ.t =>
+        open Util.OptUtil.Syntax;
+        let rec inner_normalize = (ctx: Ctx.t, ty: Typ.t): option(Typ.t) =>
           switch (ty) {
           | Var(x) =>
-            switch (Ctx.lookup_alias(ctx, x)) {
-            | Some(ty) => inner_normalize(ctx, ty, ty)
-            | None => ty_default
-            }
-          | _ => ty_default
+            let* ty = Ctx.lookup_alias(ctx, x);
+            inner_normalize(ctx, ty);
+          | _ => Some(ty)
           };
         let rec get_module =
                 (name: string, ctx: Ctx.t, e: TermBase.UExp.term)
@@ -309,23 +307,23 @@ module UTyp = {
             | _ => None
             }
           | Dot({term, _}, tag_name) =>
-            switch (get_module(name, ctx, term)) {
-            | Some((name, ctx)) =>
-              switch (Ctx.lookup_tag(ctx, tag_name)) {
-              | Some({typ: Module(inner_ctx), _}) =>
-                Some((name ++ tag_name ++ ".", inner_ctx))
-              | _ => None
-              }
+            let* (name, ctx) = get_module(name, ctx, term);
+            switch (Ctx.lookup_tag(ctx, tag_name)) {
+            | Some({typ: Module(inner_ctx), _}) =>
+              Some((name ++ tag_name ++ ".", inner_ctx))
             | _ => None
-            }
+            };
           | _ => None
           };
         };
-        switch (get_module("", ctx, exp.term)) {
-        | Some((tag_name, inner_ctx)) =>
-          let ty = inner_normalize(inner_ctx, Var(name), Unknown(TypeHole));
-          Member(tag_name ++ name, ty);
-        | _ => Unknown(TypeHole)
+        let ty = {
+          let* (tag_name, inner_ctx) = get_module("", ctx, exp.term);
+          let+ ty = inner_normalize(inner_ctx, Var(name));
+          (Member(tag_name ++ name, ty): Typ.t);
+        };
+        switch (ty) {
+        | Some(ty) => ty
+        | None => Unknown(TypeHole)
         };
       }
   and to_variant = ctx =>

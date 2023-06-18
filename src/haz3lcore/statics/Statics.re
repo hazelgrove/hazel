@@ -234,7 +234,14 @@ and uexp_to_info_map =
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let mode1: Typ.mode = Ana(p_syn.ty);
-    let (typ_def, def, m) = go_module(~ctx=def_ctx, ~mode=mode1, def, m, []);
+    let module_name =
+      switch (p.term) {
+      | Tag(t) => t
+      | _ => ""
+      };
+    let (inner_ctx, def, m) =
+      go_module(~ctx=def_ctx, ~mode=mode1, def, m, []);
+    let typ_def: Typ.t = Module(Ctx.modulize_ctx(inner_ctx, module_name));
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(typ_def), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
@@ -572,7 +579,7 @@ and uexp_to_module =
       m: Map.t,
       inner_ctx: Ctx.t,
     )
-    : (Typ.t, Info.exp, Map.t) => {
+    : (Ctx.t, Info.exp, Map.t) => {
   let mode =
     switch (mode) {
     | Ana(Unknown(SynSwitch)) => Typ.Syn
@@ -699,7 +706,14 @@ and uexp_to_module =
       };
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let mode1: Typ.mode = Ana(ty_pat);
-    let (typ_def, def, m) = go_module(~ctx=def_ctx, ~mode=mode1, def, m, []);
+    let module_name =
+      switch (p.term) {
+      | Tag(t) => t
+      | _ => ""
+      };
+    let (inner_ctx, def, m) =
+      go_module(~ctx=def_ctx, ~mode=mode1, def, m, []);
+    let typ_def: Typ.t = Module(Ctx.modulize_ctx(inner_ctx, module_name));
     let ty_def =
       switch (mode_pat) {
       | Ana(t) => t
@@ -794,7 +808,7 @@ and uexp_to_module =
   | BinOp(_)
   | Match(_) =>
     let (info, m) = go(~mode=Syn, uexp, m);
-    (Module(inner_ctx), info, m);
+    (inner_ctx, info, m);
   };
 };
 

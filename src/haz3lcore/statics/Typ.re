@@ -189,8 +189,18 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let join' = join(~resolve, ctx);
   switch (ty1, ty2) {
-  | (Member(_, ty1), ty2) => join'(ty1, ty2)
-  | (ty1, Member(_, ty2)) => join'(ty1, ty2)
+  | (Member(n1, ty1), Member(n2, ty2)) =>
+    if (n1 == n2) {
+      let* ty = join'(ty1, ty2);
+      Some(Member(n1, ty));
+    } else {
+      let+ ty_join = join'(ty1, ty2);
+      resolve ? ty_join : Member(n1, ty_join);
+    }
+  | (Member(name, ty1), ty2)
+  | (ty2, Member(name, ty1)) =>
+    let+ ty_join = join'(ty1, ty2);
+    resolve ? ty_join : Member(name, ty_join);
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
