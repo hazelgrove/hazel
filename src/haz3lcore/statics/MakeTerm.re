@@ -335,7 +335,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["typem", "="], [TPat(arg)]) => TyAlias(arg, ty)
+        | (["Type", "="], [TPat(arg)]) => TyAlias(arg, ty)
         | _ => hole(tm)
         },
       )

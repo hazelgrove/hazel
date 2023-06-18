@@ -213,7 +213,7 @@ module UTyp = {
             | Var(name)
                 when
                   !Form.is_base_typ(name)
-                  && Ctx.lookup_alias(outer_ctx, name) == None =>
+                  && Ctx.lookup_alias(inner_ctx, name) == None =>
               /* NOTE(andrew):  See TyAlias in Statics.uexp_to_info_map  */
               let (ty_def, ctx_body, new_inner) = {
                 let ty_pre =
@@ -225,11 +225,9 @@ module UTyp = {
                 | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
                   let ty_rec =
                     Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-                  let ctx_def =
-                    Ctx.add_alias(outer_ctx, name, rep_id_t(typat), ty_rec);
                   (
                     ty_rec,
-                    ctx_def,
+                    Ctx.add_alias(outer_ctx, name, rep_id_t(typat), ty_rec),
                     Ctx.add_alias(inner_ctx, name, rep_id_t(typat), ty_rec),
                   );
                 | _ =>

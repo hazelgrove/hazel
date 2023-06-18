@@ -586,7 +586,8 @@ and uexp_to_module =
     | _ => mode
     };
   let add' = (~self, ~free, m, ty_module) => {
-    let info = Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~free);
+    let info =
+      Info.derived_exp(~uexp, ~ctx, ~mode=Syn, ~ancestors, ~self, ~free);
     (ty_module, info, add_info(ids, InfoExp(info), m));
   };
   let add = (~self, ~free, m, ty_module) =>
@@ -737,7 +738,9 @@ and uexp_to_module =
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
     | Var(name)
-        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
+        when
+          !Form.is_base_typ(name)
+          && Ctx.lookup_alias(inner_ctx, name) == None =>
       /* NOTE(andrew): See TyAlias in uexp_to_info_map */
       let (ty_def, ctx_def, ctx_body, new_inner) = {
         let ty_pre =
