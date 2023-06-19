@@ -95,10 +95,10 @@ let download_roc = state => {
   let zipper = ScratchSlide.editor_of_state(state).state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  // let info_map = Statics.mk_map(term);
+  let info_map = Statics.mk_map(term);
   let rocterm =
     Util.TimeUtil.measure_time("get term 1", true, () =>
-      Translation.get_roc_term(term)
+      Translation.get_roc_term(term, info_map)
     );
   let contents =
     Util.TimeUtil.measure_time("get term 2", true, () =>
