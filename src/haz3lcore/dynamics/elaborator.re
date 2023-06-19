@@ -170,52 +170,93 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           assert(List.length(xs) > 0);
           List.length(xs) == 1 ? List.hd(xs) : ctor(xs)
         };
-        // substitute all deferrals for new variables
-        let* (pats, d_args) =
-          args
-          |> List.fold_left(
-               (acc, e: Term.UExp.t) => {
-                let* (pats, args) = acc;
-                if (Term.UExp.is_deferral(e)) {
-                  // internal variable name for deferrals
-                  let name = "~defer" ++ string_of_int(List.length(pats));
-                  Some((
-                    pats @ [DHPat.Var(name)],
-                    args @ [DHExp.BoundVar(name)],
-                  ))
-                } else {
-                  let+ de = dhexp_of_uexp(m, e); (pats, args @ [de])
-                }
-              },
-              Some(([], [])),
-             );
-        let (pat', arg') = (
-          n_ary_tuple(x => DHPat.Tuple(x), pats),
-          n_ary_tuple(x => DHExp.Tuple(x), d_args),
-        );
-        let* d_fn = dhexp_of_uexp(m, fn);
+        // // substitute all deferrals for new variables
+        // let* (pats, d_args) =
+        //   args
+        //   |> List.fold_left(
+        //        (acc, e: Term.UExp.t) => {
+        //         let* (pats, args) = acc;
+        //         if (Term.UExp.is_deferral(e)) {
+        //           // internal variable name for deferrals
+        //           let name = "~defer" ++ string_of_int(List.length(pats));
+        //           Some((
+        //             pats @ [DHPat.Var(name)],
+        //             args @ [DHExp.BoundVar(name)],
+        //           ))
+        //         } else {
+        //           let+ de = dhexp_of_uexp(m, e); (pats, args @ [de])
+        //         }
+        //       },
+        //       Some(([], [])),
+        //      );
+        // let (pat', arg') = (
+        //   n_ary_tuple(x => DHPat.Tuple(x), pats),
+        //   n_ary_tuple(x => DHExp.Tuple(x), d_args),
+        // );
+        // let* d_fn = dhexp_of_uexp(m, fn);
+        // let ty_fn = Statics.exp_self_typ(m, fn);
+        // let+ (ty_arg, ty_ret) =
+        //   switch (ty_fn) {
+        //   | Arrow(a, b) => Some((a, b))
+        //   | _ => None
+        //   };
+        // let arg_tys =
+        //   switch (ty_arg) {
+        //   | Typ.Prod(tys) => tys
+        //   | _ => List.init(List.length(args), _ => Typ.Unknown(Internal))
+        //   };
+        // let ty_arg': Typ.t =
+        //   Arrow(
+        //     n_ary_tuple(
+        //       x => Typ.Prod(x),
+        //       List.combine(arg_tys, args)
+        //       |> List.filter(((_ty, arg)) => Term.UExp.is_deferral(arg))
+        //       |> List.map(fst),
+        //     ),
+        //     ty_ret,
+        //   );
+        // DHExp.Fun(pat', ty_arg', Ap(d_fn, arg'), None);
         let ty_fn = Statics.exp_self_typ(m, fn);
-        let+ (ty_arg, ty_ret) =
-          switch (ty_fn) {
-          | Arrow(a, b) => Some((a, b))
-          | _ => None
-          };
-        let arg_tys =
+        switch (ty_fn) {
+        | Arrow(ty_arg, ty_ret) =>
+          let arg_tys = // Argument types
           switch (ty_arg) {
-          | Typ.Prod(tys) => tys
-          | _ => List.init(List.length(args), _ => Typ.Unknown(Internal))
+          | Typ.Prod(arg_tys) => arg_tys
+          | _ => List.init(List.length(args), _ => Typ.Unknown(Internal)) // The input type is a hole
           };
-        let ty_arg': Typ.t =
-          Arrow(
-            n_ary_tuple(
-              x => Typ.Prod(x),
-              List.combine(arg_tys, args)
-              |> List.filter(((_ty, arg)) => Term.UExp.is_deferral(arg))
-              |> List.map(fst),
-            ),
-            ty_ret,
-          );
-        DHExp.Fun(pat', ty_arg', Ap(d_fn, arg'), None);
+          if (List.length(args) != List.length(arg_tys)) {
+            Some(InvalidText(0, 0, "Partial application with too many arguments"));
+          } else {
+            // Substitute all deferrals for new variables
+            let* (pats, args, arg_tys) =
+              List.combine(args, arg_tys)
+              |> List.fold_left(
+                  (acc, (e: Term.UExp.t, ty)) => {
+                    let* (pats, args, arg_tys) = acc;
+                    if (Term.UExp.is_deferral(e)) {
+                      // Internal variable name for deferrals
+                      let name = "~defer" ++ string_of_int(List.length(pats));
+                      Some((
+                        pats @ [DHPat.Var(name)],
+                        args @ [DHExp.BoundVar(name)],
+                        arg_tys @ [ty],
+                      ))
+                    } else {
+                      let+ de = dhexp_of_uexp(m, e); (pats, args @ [de], arg_tys)
+                    }
+                  },
+                  Some(([], [], [])),
+                );
+            let (pats, args, ty_arg) = (
+              n_ary_tuple(x => DHPat.Tuple(x), pats),
+              n_ary_tuple(x => DHExp.Tuple(x), args),
+              n_ary_tuple(x => Typ.Prod(x), arg_tys)
+            );
+            let+ d_fn = dhexp_of_uexp(m, fn);
+            DHExp.Fun(pats, Arrow(ty_arg, ty_ret), Ap(d_fn, args), None);
+          }
+        | _ => Some(InvalidText(0, 0, "A non-function is being partial applied"))
+        };
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
