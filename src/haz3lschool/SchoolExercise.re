@@ -681,10 +681,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   /* This function takes the current state and generates
      UExp information, using stitch_statics, for each editor
-     state and then performs elaboration on each UExp expression 
-     and returns a list which will be used to form a 
+     state and then performs elaboration on each UExp expression
+     and returns a list which will be used to form a
      ModelResults.t object.
-	
+
      It is used in haz3lweb/Editors.re */
 
   let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
