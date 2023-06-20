@@ -261,7 +261,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["(", ")"], [Exp(arg)]) =>
           switch (arg.term) {
-          | Tuple(arg) when List.exists(Term.UExp.is_deferral, arg) => DeferredAp(l, arg) // the application is deferred if some of the arguments are deferrals
+          | _ when Term.UExp.is_deferral(arg) => DeferredAp(l, [arg]) // Single argument partial application
+          | Tuple(args) when List.exists(Term.UExp.is_deferral, args) => DeferredAp(l, args) // The application is deferred if some of the arguments are deferrals
           | _ => Ap(l, arg)
           };
         | _ => hole(tm)
