@@ -589,8 +589,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type stitched_statics = stitched(StaticsItem.t);
 
   /* This function generates the UExp terms and corresponding Statics maps
-     from the given editor states and returns the stitched_statics object for each
-     component of school mode such as user tests and user implementation. */
+     from the given editor states.
+
+     It is used in spliced_elabs and stitch_dynamic*/
   let stitch_static = ({eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
@@ -680,9 +681,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   /* This function takes the current state and generates
      UExp information, using stitch_statics, for each editor
-     state such as user implementation and hidden tests. It then
-     performs elaboration on each UExp expression and returns a list
-     of pairs which will be used to form a ModelResults.t object.*/
+     state and then performs elaboration on each UExp expression 
+     and returns a list which will be used to form a 
+     ModelResults.t object.
+	
+     It is used in haz3lweb/Editors.re */
 
   let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
     state => {
