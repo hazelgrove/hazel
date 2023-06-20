@@ -216,6 +216,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         //     ty_ret,
         //   );
         // DHExp.Fun(pat', ty_arg', Ap(d_fn, arg'), None);
+        let* d_fn = dhexp_of_uexp(m, fn);
         let ty_fn = Statics.exp_self_typ(m, fn);
         switch (ty_fn) {
         | Arrow(ty_arg, ty_ret) =>
@@ -225,10 +226,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           | _ => List.init(List.length(args), _ => Typ.Unknown(Internal)) // The input type is a hole
           };
           if (List.length(args) != List.length(arg_tys)) {
-            Some(InvalidText(0, 0, "Partial application with too many arguments"));
+            Some(InvalidText(0, 0, "Partial application with too many arguments"): DHExp.t);
           } else {
             // Substitute all deferrals for new variables
-            let* (pats, args, arg_tys) =
+            let+ (pats, args, arg_tys) =
               List.combine(args, arg_tys)
               |> List.fold_left(
                   (acc, (e: Term.UExp.t, ty)) => {
@@ -252,10 +253,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               n_ary_tuple(x => DHExp.Tuple(x), args),
               n_ary_tuple(x => Typ.Prod(x), arg_tys)
             );
-            let+ d_fn = dhexp_of_uexp(m, fn);
             DHExp.Fun(pats, Arrow(ty_arg, ty_ret), Ap(d_fn, args), None);
           }
-        | _ => Some(InvalidText(0, 0, "A non-function is being partial applied"))
+        | _ => Some(DHExp.Ap(d_fn, InvalidText(0, 0, "partial application pattern")))
         };
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
