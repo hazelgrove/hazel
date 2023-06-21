@@ -148,6 +148,17 @@ let typ_err_view = (ok: Info.error_typ) =>
       Type.view(Var(name)),
       text("already used in this sum"),
     ]
+  | FreeTypeMember(name) => [
+      text("Member type variable"),
+      Type.view(Var(name)),
+      text("is not bound in module."),
+    ]
+  | InconsistentMember({ana, syn}) => [
+      text("Expecting"),
+      Type.view(ana),
+      text("but got"),
+      Type.view(syn),
+    ]
   };
 
 let exp_view: Info.status_exp => t =

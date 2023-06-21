@@ -114,7 +114,8 @@ type status_variant =
 type typ_expects =
   | TypeExpected
   | TagExpected(status_variant, Typ.t)
-  | VariantExpected(status_variant, Typ.t);
+  | VariantExpected(status_variant, Typ.t)
+  | AnaTypeExpected(Typ.t);
 
 /* Type term errors
    TODO: The three additional errors statuses
@@ -127,7 +128,12 @@ type error_typ =
   | DuplicateTag(Token.t) /* Duplicate tag in same sum */
   | WantTypeFoundAp
   | WantTagFoundType(Typ.t)
-  | WantTagFoundAp;
+  | WantTagFoundAp
+  | FreeTypeMember(Token.t)
+  | InconsistentMember({
+      ana: Typ.t,
+      syn: Typ.t,
+    });
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -316,6 +322,11 @@ let status_typ =
       | false => InHole(FreeTypeVar(name))
       | true => NotInHole(TypeAlias(name, Typ.normalize_shallow(ctx, ty)))
       }
+    | AnaTypeExpected(ana) =>
+      switch (Typ.join(ctx, ana, ty)) {
+      | None => InHole(InconsistentMember({ana, syn: ty}))
+      | Some(join) => NotInHole(Type(join))
+      }
     }
   | Ap(t1, t2) =>
     switch (expects) {
@@ -328,12 +339,29 @@ let status_typ =
       };
     | TagExpected(_) => InHole(WantTagFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
+    | AnaTypeExpected(ana) =>
+      switch (Typ.join(ctx, ana, ty)) {
+      | None => InHole(InconsistentMember({ana, syn: ty}))
+      | Some(join) => NotInHole(Type(join))
+      }
     }
+  | Dot(_) =>
+    switch (ty) {
+    | Member(name, Typ.Unknown(Internal)) => InHole(FreeTypeMember(name))
+    | Member(_, ty) => NotInHole(Type(ty))
+    | _ => InHole(BadToken("")) // Shouldn't reach
+    }
+
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
     | TagExpected(_)
     | VariantExpected(_) => InHole(WantTagFoundType(ty))
+    | AnaTypeExpected(ana) =>
+      switch (Typ.join(ctx, ana, ty)) {
+      | None => InHole(InconsistentMember({ana, syn: ty}))
+      | Some(join) => NotInHole(Type(join))
+      }
     }
   };
 

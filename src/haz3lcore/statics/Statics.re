@@ -778,7 +778,17 @@ and uexp_to_module =
         go_module(~ctx=ctx_body, ~mode, body, m, new_inner);
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
-      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      let expects: Info.typ_expects =
+        switch (mode) {
+        | Ana(Module(m)) =>
+          switch (Ctx.lookup_alias(m, name)) {
+          | Some(ty) => AnaTypeExpected(ty)
+          | None => TypeExpected
+          }
+        | _ => TypeExpected
+        };
+      let m =
+        utyp_to_info_map(~ctx=ctx_def, ~expects, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~free, m, ty_module);
     | _ =>
       let (ty_module, Info.{free, ty: ty_body, _}, m) =

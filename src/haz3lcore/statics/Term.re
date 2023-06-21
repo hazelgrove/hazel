@@ -296,32 +296,39 @@ module UTyp = {
           };
         let rec get_module =
                 (name: string, ctx: Ctx.t, e: TermBase.UExp.term)
-                : option((string, Ctx.t)) => {
+                : option((string, option(Ctx.t))) => {
           switch (e) {
           | Tag(tag_name) =>
             switch (Ctx.lookup_tag(ctx, tag_name)) {
             | Some({typ: Module(inner_ctx), _}) =>
-              Some((name ++ tag_name ++ ".", inner_ctx))
-            | _ => None
+              Some((name ++ tag_name ++ ".", Some(inner_ctx)))
+            | _ => Some((name ++ tag_name ++ ".", None))
             }
           | Dot({term, _}, tag_name) =>
-            let* (name, ctx) = get_module(name, ctx, term);
-            switch (Ctx.lookup_tag(ctx, tag_name)) {
-            | Some({typ: Module(inner_ctx), _}) =>
-              Some((name ++ tag_name ++ ".", inner_ctx))
-            | _ => None
+            let+ (name, ctx) = get_module(name, ctx, term);
+            let inner_ctx = {
+              let* ctx = ctx;
+              switch (Ctx.lookup_tag(ctx, tag_name)) {
+              | Some({typ: Module(inner_ctx), _}) => Some(inner_ctx)
+              | _ => None
+              };
             };
+            (name ++ tag_name ++ ".", inner_ctx);
           | _ => None
           };
         };
-        let ty = {
-          let* (tag_name, inner_ctx) = get_module("", ctx, exp.term);
-          let+ ty = inner_normalize(inner_ctx, Var(name));
-          (Member(tag_name ++ name, ty): Typ.t);
+        let res = {
+          let+ (tag_name, inner_ctx) = get_module("", ctx, exp.term);
+          let ty = {
+            let* inner_ctx = inner_ctx;
+            inner_normalize(inner_ctx, Var(name));
+          };
+          (tag_name ++ name, ty);
         };
-        switch (ty) {
-        | Some(ty) => ty
-        | None => Unknown(TypeHole)
+        switch (res) {
+        | Some((name, Some(ty))) => Member(name, ty)
+        | Some((name, None)) => Member(name, Unknown(Internal))
+        | None => Member("..." ++ name, Unknown(Internal))
         };
       }
   and to_variant = ctx =>

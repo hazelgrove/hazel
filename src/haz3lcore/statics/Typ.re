@@ -189,6 +189,11 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let join' = join(~resolve, ctx);
   switch (ty1, ty2) {
+  /*** Members with Unknown(Internal) are nonexistent members
+       or bad members, treated same as Unknown but not normal member
+        */
+  | (Member(_, Unknown(Internal)), ty)
+  | (ty, Member(_, Unknown(Internal))) => Some(ty)
   | (Member(n1, ty1), Member(n2, ty2)) =>
     if (n1 == n2) {
       let* ty = join'(ty1, ty2);
