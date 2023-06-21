@@ -340,7 +340,7 @@ module UExp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Deferral => Deferral
+    | Deferral(_) => Deferral
     | DeferredAp(_) => DeferredAp
     | Triv => Triv
     | Bool(_) => Bool
@@ -448,7 +448,7 @@ module UExp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | Deferral
+    | Deferral(_)
     | DeferredAp(_)
     | Triv
     | Bool(_)
@@ -480,7 +480,7 @@ module UExp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | Deferral
+      | Deferral(_)
       | DeferredAp(_)
       | Triv
       | Bool(_)
@@ -505,7 +505,7 @@ module UExp = {
   
   let is_deferral = (e: t) => {
     switch (e.term) {
-    | Deferral => true // Doesn't handle the case where deferral is parenthesized.
+    | Deferral(_) => true // Doesn't handle the case where deferral is parenthesized.
     | _ => false
     };
   };

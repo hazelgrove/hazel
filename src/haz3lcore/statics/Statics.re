@@ -321,42 +321,41 @@ and uexp_to_info_map =
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
-  | DeferredAp(fn, args) =>
-    // ((a, b, c) -> d)(~, b, c) assumes type (a -> d)
-    let n_ary_tuple = (ctor, xs) => {
-      assert(List.length(xs) > 0);
-      List.length(xs) == 1 ? List.hd(xs) : ctor(xs)
-    };
+  | DeferredAp(fn, arg) =>
+    let mk_tuple = (ctor, xs) => List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let args = 
+      switch (arg.term) {
+      | Tuple(args) => args
+      | _ => [arg]
+      };
     let ty_ins =
       switch (ty_in) {
       | Typ.Prod(ty_ins) => ty_ins
-      | Typ.Unknown(_) => List.init(List.length(args), _ => Typ.Unknown(Internal)) // The correct way to handle this?
+      | Typ.Unknown(_) => List.init(List.length(args), _ => Typ.Unknown(Internal))
       | _ => [ty_in]
       };
-    let ty_in' =
+    let self: Typ.self =
+    if (List.length(ty_ins) == List.length(args)) {
+      let ty_in =
       List.combine(args, ty_ins)
       |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
       |> List.map(((_arg, ty)) => ty)
-      |> n_ary_tuple(tys => Typ.Prod(tys));
+      |> mk_tuple(tys => Typ.Prod(tys));
+      Just(Arrow(ty_in, ty_out))
+    }
+    else Just(Unknown(Internal)); // Incorrect number of arguments supplied
     let (_, free_arg, m_arg) =
-      List.combine(args, ty_ins)
-      |> List.filter(((arg, _ty)) => !Term.UExp.is_deferral(arg))
-      |> List.map(((arg, ty)) =>
-           uexp_to_info_map(~ctx, ~mode=Ana(ty), arg)
-         )
-      |> List.fold_left(
-           ((xs, ys, zs), (x, y, z)) => (xs @ [x], ys @ [y], zs @ [z]),
-           ([], [], []),
-         );
+      uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
-      ~self=Just(Arrow(ty_in', ty_out)),
-      ~free=Ctx.union([free_fn] @ free_arg),
-      union_m([m_fn] @ m_arg),
+      ~self,
+      ~free=Ctx.union([free_fn, free_arg]),
+      union_m([m_fn, m_arg]),
     );
-  | Deferral => atomic(Free(Variable)) // Unbounded deferral; TODO: change the error type
+  | Deferral(true) => atomic(Just(Unknown(Internal)))
+  | Deferral(false) => atomic(Free(Variable)) // Unbounded deferral; TODO: change the error type
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))

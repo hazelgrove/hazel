@@ -164,69 +164,28 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd)
           };*/
         Some(EmptyHole(id, 0))
-      | Deferral => Some(InvalidText(0, 0, "Unbound deferral"))
-      | DeferredAp(fn, args) =>
-        let n_ary_tuple = (ctor, xs) => {
-          assert(List.length(xs) > 0);
-          List.length(xs) == 1 ? List.hd(xs) : ctor(xs)
-        };
-        // // substitute all deferrals for new variables
-        // let* (pats, d_args) =
-        //   args
-        //   |> List.fold_left(
-        //        (acc, e: Term.UExp.t) => {
-        //         let* (pats, args) = acc;
-        //         if (Term.UExp.is_deferral(e)) {
-        //           // internal variable name for deferrals
-        //           let name = "~defer" ++ string_of_int(List.length(pats));
-        //           Some((
-        //             pats @ [DHPat.Var(name)],
-        //             args @ [DHExp.BoundVar(name)],
-        //           ))
-        //         } else {
-        //           let+ de = dhexp_of_uexp(m, e); (pats, args @ [de])
-        //         }
-        //       },
-        //       Some(([], [])),
-        //      );
-        // let (pat', arg') = (
-        //   n_ary_tuple(x => DHPat.Tuple(x), pats),
-        //   n_ary_tuple(x => DHExp.Tuple(x), d_args),
-        // );
-        // let* d_fn = dhexp_of_uexp(m, fn);
-        // let ty_fn = Statics.exp_self_typ(m, fn);
-        // let+ (ty_arg, ty_ret) =
-        //   switch (ty_fn) {
-        //   | Arrow(a, b) => Some((a, b))
-        //   | _ => None
-        //   };
-        // let arg_tys =
-        //   switch (ty_arg) {
-        //   | Typ.Prod(tys) => tys
-        //   | _ => List.init(List.length(args), _ => Typ.Unknown(Internal))
-        //   };
-        // let ty_arg': Typ.t =
-        //   Arrow(
-        //     n_ary_tuple(
-        //       x => Typ.Prod(x),
-        //       List.combine(arg_tys, args)
-        //       |> List.filter(((_ty, arg)) => Term.UExp.is_deferral(arg))
-        //       |> List.map(fst),
-        //     ),
-        //     ty_ret,
-        //   );
-        // DHExp.Fun(pat', ty_arg', Ap(d_fn, arg'), None);
+      | Deferral(true) => Some(EmptyHole(id, 0))
+      | Deferral(false) => Some(InvalidText(0, 0, "_")) // Unbounded deferral
+      | DeferredAp(fn, arg) =>
+        let mk_tuple = (ctor, xs) => List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
         let* d_fn = dhexp_of_uexp(m, fn);
         let ty_fn = Statics.exp_self_typ(m, fn);
         switch (ty_fn) {
         | Arrow(ty_arg, ty_ret) =>
+          let args =
+            switch (arg.term) {
+            | Tuple(args) => args
+            | _ => [arg]
+            };
           let arg_tys = // Argument types
-          switch (ty_arg) {
-          | Typ.Prod(arg_tys) => arg_tys
-          | _ => List.init(List.length(args), _ => Typ.Unknown(Internal)) // The input type is a hole
-          };
+            switch (ty_arg) {
+            | Typ.Prod(arg_tys) => arg_tys
+            | Typ.Unknown(_) => List.init(List.length(args), _ => Typ.Unknown(Internal))
+            | _ => [ty_arg]
+            };
           if (List.length(args) != List.length(arg_tys)) {
-            Some(InvalidText(0, 0, "Partial application with too many arguments"): DHExp.t);
+            let+ d_arg = dhexp_of_uexp(m, arg);
+            DHExp.Ap(d_fn, d_arg)
           } else {
             // Substitute all deferrals for new variables
             let+ (pats, args, arg_tys) =
@@ -249,13 +208,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                   Some(([], [], [])),
                 );
             let (pats, args, ty_arg) = (
-              n_ary_tuple(x => DHPat.Tuple(x), pats),
-              n_ary_tuple(x => DHExp.Tuple(x), args),
-              n_ary_tuple(x => Typ.Prod(x), arg_tys)
+              mk_tuple(x => DHPat.Tuple(x), pats),
+              mk_tuple(x => DHExp.Tuple(x), args),
+              mk_tuple(x => Typ.Prod(x), arg_tys)
             );
             DHExp.Fun(pats, Arrow(ty_arg, ty_ret), Ap(d_fn, args), None);
           }
-        | _ => Some(DHExp.Ap(d_fn, InvalidText(0, 0, "partial application pattern")))
+        | _ => let+ d_arg = dhexp_of_uexp(m, arg); DHExp.Ap(d_fn, d_arg)
         };
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))

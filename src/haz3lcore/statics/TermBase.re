@@ -117,8 +117,8 @@ and UExp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Deferral
-    | DeferredAp(t, list(t))
+    | Deferral(bool)
+    | DeferredAp(t, t)
     | Triv
     | Bool(bool)
     | Int(int)
@@ -229,8 +229,8 @@ and UExp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Deferral
-    | DeferredAp(t, list(t)) // (fn_exp, arg_exps) where arg_exps is a destructured tuple
+    | Deferral(bool)
+    | DeferredAp(t, t)
     | Triv
     | Bool(bool)
     | Int(int)
