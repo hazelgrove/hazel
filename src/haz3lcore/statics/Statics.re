@@ -337,16 +337,14 @@ and uexp_to_info_map =
       | Typ.Unknown(_) => List.init(List.length(args), _ => Typ.Unknown(Internal))
       | _ => [ty_in]
       };
-    let self: Typ.self =
-    if (List.length(ty_ins) == List.length(args)) {
-      let ty_in =
-      List.combine(args, ty_ins)
-      |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
-      |> List.map(((_arg, ty)) => ty)
-      |> mk_tuple(tys => Typ.Prod(tys));
-      Just(Arrow(ty_in, ty_out))
-    }
-    else Just(Unknown(Internal)); // Incorrect number of arguments supplied
+    let self: Typ.self = Just(Arrow(
+      if (List.length(ty_ins) == List.length(args)) {
+        List.combine(args, ty_ins)
+        |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
+        |> List.map(((_arg, ty)) => ty)
+        |> mk_tuple(tys => Typ.Prod(tys));
+      }
+      else Unknown(Internal), ty_out))
     let (_, free_arg, m_arg) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
