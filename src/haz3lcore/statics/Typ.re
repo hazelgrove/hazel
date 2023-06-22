@@ -38,7 +38,8 @@ type source = {
 type free_errors =
   | Variable
   | Tag
-  | TypeVariable;
+  | TypeVariable
+  | Deferral;
 
 /* SELF: The (synthetic) type information derivable from a term
    in isolation, using the typing context but not the syntactic

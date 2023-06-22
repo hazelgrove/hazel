@@ -353,7 +353,7 @@ and uexp_to_info_map =
       union_m([m_fn, m_arg]),
     );
   | Deferral(true) => atomic(Just(Unknown(Internal)))
-  | Deferral(false) => atomic(Free(Variable)) // Unbounded deferral; TODO: change the error type
+  | Deferral(false) => atomic(Free(Deferral))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))

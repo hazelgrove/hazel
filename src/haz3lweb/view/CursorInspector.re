@@ -25,6 +25,11 @@ let error_view = (err: Haz3lcore.Statics.error) =>
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Variable is not bound")],
     )
+  | Free(Deferral) =>
+    div(
+      ~attr=clss([errorc, "err-free-deferral"]),
+      [text("Deferral is not bound")],
+    )
   | NoFun(typ) =>
     div(
       ~attr=clss([errorc, "err-not-function"]),
