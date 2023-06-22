@@ -419,7 +419,7 @@ module UExp = {
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
     | Deferral => "Deferral"
-    | DeferredAp => "Deferred Function Application"
+    | DeferredAp => "Partial Function Application"
     | Triv => "Trivial Literal. Pathetic, really."
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
@@ -505,7 +505,7 @@ module UExp = {
   
   let is_deferral = (e: t) => {
     switch (e.term) {
-    | Deferral(_) => true // Doesn't handle the case where deferral is parenthesized.
+    | Deferral(_) => true // The deferral is just a placeholder and shouldn't be parenthesized.
     | _ => false
     };
   };

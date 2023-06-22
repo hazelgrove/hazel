@@ -322,7 +322,6 @@ and uexp_to_info_map =
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | DeferredAp(fn, arg) =>
-    let mk_tuple = (ctor, xs) => List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
@@ -333,16 +332,18 @@ and uexp_to_info_map =
       };
     let ty_ins =
       switch (ty_in) {
-      | Typ.Prod(ty_ins) => ty_ins
-      | Typ.Unknown(_) => List.init(List.length(args), _ => Typ.Unknown(Internal))
+      | Prod(ty_ins) => ty_ins
+      | Unknown(_) as ty_unknown => List.init(List.length(args), _ => ty_unknown)
       | _ => [ty_in]
       };
     let self: Typ.self = Just(Arrow(
-      if (List.length(ty_ins) == List.length(args)) {
-        List.combine(args, ty_ins)
-        |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
-        |> List.map(((_arg, ty)) => ty)
-        |> mk_tuple(tys => Typ.Prod(tys));
+      if (ty_ins == [] && List.length(args) == 1) Prod([])
+      else if (List.length(ty_ins) == List.length(args)) {
+        let ty_ins = 
+          List.combine(args, ty_ins)
+          |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
+          |> List.map(((_arg, ty)) => ty);
+        List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
       }
       else Unknown(Internal), ty_out))
     let (_, free_arg, m_arg) =

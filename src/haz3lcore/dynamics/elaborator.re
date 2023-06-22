@@ -177,42 +177,43 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             | Tuple(args) => args
             | _ => [arg]
             };
-          let arg_tys = // Argument types
+          let ty_ins =
             switch (ty_arg) {
-            | Typ.Prod(arg_tys) => arg_tys
-            | Typ.Unknown(_) => List.init(List.length(args), _ => Typ.Unknown(Internal))
+            | Prod(ty_ins) => ty_ins
+            | Unknown(_) as ty_unknown => List.init(List.length(args), _ => ty_unknown)
             | _ => [ty_arg]
             };
-          if (List.length(args) != List.length(arg_tys)) {
+          if (ty_ins == [] && List.length(args) == 1) Some(d_fn)
+          else if (List.length(ty_ins) != List.length(args)) {
             let+ d_arg = dhexp_of_uexp(m, arg);
             DHExp.Ap(d_fn, d_arg)
           } else {
             // Substitute all deferrals for new variables
-            let+ (pats, args, arg_tys) =
-              List.combine(args, arg_tys)
+            let+ (pats, d_args, ty_args) =
+              List.combine(args, ty_ins)
               |> List.fold_left(
                   (acc, (e: Term.UExp.t, ty)) => {
-                    let* (pats, args, arg_tys) = acc;
+                    let* (pats, d_args, ty_args) = acc;
                     if (Term.UExp.is_deferral(e)) {
                       // Internal variable name for deferrals
-                      let name = "~defer" ++ string_of_int(List.length(pats));
+                      let name = "~deferred" ++ string_of_int(List.length(pats));
                       Some((
                         pats @ [DHPat.Var(name)],
-                        args @ [DHExp.BoundVar(name)],
-                        arg_tys @ [ty],
+                        d_args @ [DHExp.BoundVar(name)],
+                        ty_args @ [ty],
                       ))
                     } else {
-                      let+ de = dhexp_of_uexp(m, e); (pats, args @ [de], arg_tys)
+                      let+ de = dhexp_of_uexp(m, e); (pats, d_args @ [de], ty_args)
                     }
                   },
                   Some(([], [], [])),
                 );
-            let (pats, args, ty_arg) = (
+            let (pat, d_arg, ty_arg) = (
               mk_tuple(x => DHPat.Tuple(x), pats),
-              mk_tuple(x => DHExp.Tuple(x), args),
-              mk_tuple(x => Typ.Prod(x), arg_tys)
+              mk_tuple(x => DHExp.Tuple(x), d_args),
+              mk_tuple(x => Typ.Prod(x), ty_args)
             );
-            DHExp.Fun(pats, Arrow(ty_arg, ty_ret), Ap(d_fn, args), None);
+            DHExp.Fun(pat, Arrow(ty_arg, ty_ret), Ap(d_fn, d_arg), None);
           }
         | _ => let+ d_arg = dhexp_of_uexp(m, arg); DHExp.Ap(d_fn, d_arg)
         };
