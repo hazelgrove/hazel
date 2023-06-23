@@ -37,7 +37,7 @@
         &\mid& x & \text{(Variable)}\\
         &\mid& \lambda x . f & \text{(Function)}\\
         &\mid& f(f) & \text{(Application)}\\
-        % &\mid& \flet x = d_1 \fin d_2 & \text{(Let Expression)}\\
+        &\mid& \flet x = d_1 \fin d_2 & \text{(Let Expression)}\\
         &\mid& Y (\lambda x . d) & \text{(Fix Point)}\\
         &\mid& \class{Number} \underline{n} & \text{(Number)}\\
         &\mid& f + f & \text{(Addition)} \\
@@ -53,7 +53,7 @@
         &\mid& \lambda x . d & \text{(Function)} \\
         &\mid& [\sigma] d & \text{(Closure)} \\
         &\mid& d (d) & \text{(Application)} \\
-        % &\mid& \flet x = d_1 \fin d_2 & \text{(Let Expression)}\\
+        &\mid& \flet x = d_1 \fin d_2 & \text{(Let Expression)}\\
         &\mid& Y (\lambda x . d) & \text{(Fix Point)}\\
         &\mid& \class{Number} \underline{n} & \text{(Number)} \\
         &\mid& d + d & \text{(Addition)} \\
@@ -97,12 +97,12 @@
         \infer1[(FI-Ap-R)]{\sigma \entails d_1 (d_2) \indet}
       \end{prooftree}
     \]
-    % \[
-    %   \begin{prooftree}
-    %     \hypo{\sigma \entails d_1 \indet}
-    %     \infer1[(FI-Let)]{\sigma \entails \flet x = d_1 \fin d_2 \indet}
-    %   \end{prooftree}
-    % \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d_1 \indet}
+        \infer1[(FI-Let)]{\sigma \entails \flet x = d_1 \fin d_2 \indet}
+      \end{prooftree}
+    \]
     \[
       \begin{prooftree}
         \hypo{\sigma \entails d_1 \indet}
@@ -181,17 +181,17 @@
         \infer1[(EV-Fix)]{\sigma \entails Y (\lambda x . d) \evalsto v}
       \end{prooftree}
     \]
-    % \[
-    %   \begin{prooftree}
-    %     \hypo{d_1 \evalsto v_1}
-    %     \hypo{\sigma, x \hooksto v_1 \entails d_2 \evalsto v_2}
-    %     \infer2[(EV-Let)]{
-    %       \sigma \entails\flet x = d_1 \fin d_2
-    %       \evalsto
-    %       v_2
-    %     }
-    %   \end{prooftree}
-    % \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \evalsto v_1}
+        \hypo{\sigma, x \hooksto v_1 \entails d_2 \evalsto v_2}
+        \infer2[(EV-Let)]{
+          \sigma \entails\flet x = d_1 \fin d_2
+          \evalsto
+          v_2
+        }
+      \end{prooftree}
+    \]
     \[
       \begin{prooftree}
         \hypo{d_1 \evalsto \underline{n_1}}
@@ -232,16 +232,16 @@
         \infer0[(ET-Fix)]{\sigma \entails Y (\lambda x . d) \to [\sigma, x \hooksto Y (\lambda x . d)]d}
       \end{prooftree}
     \]
-    % \[
-    %   \begin{prooftree}
-    %     \infer0[(ET-Let)]{
-    %       \sigma \entails
-    %       \flet x = d_1 \fin d_2
-    %       \to
-    %       [\sigma, x \to d_1] d_2
-    %     }
-    %   \end{prooftree}
-    % \]
+    \[
+      \begin{prooftree}
+        \infer0[(ET-Let)]{
+          \sigma \entails
+          \flet x = d_1 \fin d_2
+          \to
+          [\sigma, x \to d_1] d_2
+        }
+      \end{prooftree}
+    \]
     \[
       \begin{prooftree}
         \hypo{\sigma' \entails d \to d'}
@@ -299,22 +299,22 @@
         }
       \end{prooftree}
     \]
-    % \[
-    %   \begin{prooftree}
-    %     \hypo{f_1 \matches d_1}
-    %     \hypo{f_2 \matches d_2}
-    %     \infer2[(FM-Let-Exact)]{\flet x = f_1 \fin f_2 \matches \flet x = d_1 \fin d_2}
-    %   \end{prooftree}
-    % \]
-    % \[
-    %   \begin{prooftree}
-    %     \hypo{f_1 \matches d_1}
-    %     \hypo{f_2 \matches d_2}
-    %     \infer2[(FM-Let-Wild)]{
-    %       \flet \ast = f_1 \fin f_2 \matches \flet x = d_1 \fin d_2
-    %     }
-    %   \end{prooftree}
-    % \]
+    \[
+      \begin{prooftree}
+        \hypo{f_1 \matches d_1}
+        \hypo{f_2 \matches d_2}
+        \infer2[(FM-Let-Exact)]{\flet x = f_1 \fin f_2 \matches \flet x = d_1 \fin d_2}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{f_1 \matches d_1}
+        \hypo{f_2 \matches d_2}
+        \infer2[(FM-Let-Wild)]{
+          \flet \ast = f_1 \fin f_2 \matches \flet x = d_1 \fin d_2
+        }
+      \end{prooftree}
+    \]
     \[
       \begin{prooftree}
         \hypo{f \matches d}
@@ -395,14 +395,14 @@
         &\mid& \fskip f \fin \mathcal{E} & \text{(Skip)}
       \end{array}
     \]
-  \item \fbox{\(\class{EvalOpt} \mathcal{O}\)}
-    \[
-      \begin{array}{rcl}
-        \class{EvalOpt} \mathcal{O}
-        &\coloneqq& \varnothing \\
-        &\mid& \mathcal{O}, \mathcal{E} \{ d \}
-      \end{array}
-    \]
+  % \item \fbox{\(\class{EvalOpt} \mathcal{O}\)}
+  %   \[
+  %     \begin{array}{rcl}
+  %       \class{EvalOpt} \mathcal{O}
+  %       &\coloneqq& \varnothing \\
+  %       &\mid& \mathcal{O}, \mathcal{E} \{ d \}
+  %     \end{array}
+  %   \]
   \item \fbox{\(d =_\mathcal{F} \mathcal{E} \{ d' \}\)} Expression \(d\) can be
     obtained by placing \(d'\) at the marked position in
     \(\mathcal{E}\).
@@ -652,99 +652,104 @@
           \end{prooftree}
         \]
 
-      % \item Let Expression
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 \final}
-      %       \hypo{d_2 \final}
-      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
-      %       \infer3[(FD-Let-Skip-Z)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
-      %       \hypo{d_2 \final}
-      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
-      %       \infer3[(FD-Let-Skip-L)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 \final}
-      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
-      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
-      %       \infer3[(FD-Let-Skip-R)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
-      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
-      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
-      %       \infer3[(FD-Let-Skip-A)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 \final}
-      %       \hypo{d_2 \final}
-      %       \infer2[(FD-Let-Step-Z)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
-      %       \hypo{d_2 \final}
-      %       \infer2[(FD-Let-Step-L)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 \final}
-      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
-      %       \infer2[(FD-Let-Step-R)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
-      %   \[
-      %     \begin{prooftree}
-      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \istep}
-      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \istep}
-      %       \infer2[(FD-Let-Step-A)]{
-      %         \flet x = d_1 + d_2
-      %         =_\mathcal{F}
-      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
-      %       }
-      %     \end{prooftree}
-      %   \]
+      \item Let Expression
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+            \infer3[(FD-Let-Skip-Z)]{
+              \sigma \entails
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+            \infer3[(FD-Let-Skip-L)]{
+              \sigma \entails
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+            \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+            \infer3[(FD-Let-Skip-R)]{
+              \sigma \entails
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+            \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+            \infer3[(FD-Let-Skip-A)]{
+              \sigma \entails
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \infer2[(FD-Let-Step-Z)]{
+              \sigma \entails
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+            \hypo{d_2 \final}
+            \infer2[(FD-Let-Step-L)]{
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{d_1 \final}
+            \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+            \infer2[(FD-Let-Step-R)]{
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \istep}
+            \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \istep}
+            \infer2[(FD-Let-Step-A)]{
+              \flet x = d_1 + d_2
+              =_\mathcal{F}
+              \circ \{ \flet x = d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
 
       \item Addition
         \[
