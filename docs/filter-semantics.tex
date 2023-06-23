@@ -9,15 +9,20 @@
 \newcommand{\evalsto}{\mathrel{\mathop{\Downarrow}}}
 \newcommand{\matches}{\mathrel{\mathop{\sim}}}
 \newcommand{\hooksto}{\mathrel{\mathop{\hookrightarrow}}}
+\newcommand{\entails}{\mathrel{\mathop{\vdash}}}
 \newcommand{\steps}{\mathrel{\mathop{\vartriangleright}}}
 \newcommand{\skips}{\mathrel{\mathop{\blacktriangleright}}}
 \newcommand{\final}{~\mathbf{final}}
+\newcommand{\ival}{~\mathbf{value}}
+\newcommand{\indet}{~\mathbf{indet}}
 \newcommand{\istep}{~\mathbf{step}}
 \newcommand{\iskip}{~\mathbf{skip}}
+\newcommand{\class}[1]{\operatorname{#1}}
 \DeclareMathOperator{\Filter}{Filter}
 \DeclareMathOperator{\fskip}{skip}
 \DeclareMathOperator{\fstep}{step}
 \newcommand{\fin}{\mathrel{\mathop{\text{in}}}}
+\newcommand{\flet}{\mathrm{let}~}
 
 \begin{document}
 
@@ -26,209 +31,1009 @@
 \begin{enumerate}
   \item \fbox{\(f\)} Filter.
     \[
-      \Filter f = \ast \mid f(f)
+      \begin{array}{rcll}
+        \class{Filter} f
+        &\coloneqq& \ast & \text{(Wildcard)}\\
+        &\mid& x & \text{(Variable)}\\
+        &\mid& \lambda x . f & \text{(Function)}\\
+        &\mid& f(f) & \text{(Application)}\\
+        % &\mid& \flet x = d_1 \fin d_2 & \text{(Let Expression)}\\
+        &\mid& Y (\lambda x . d) & \text{(Fix Point)}\\
+        &\mid& \class{Number} \underline{n} & \text{(Number)}\\
+        &\mid& f + f & \text{(Addition)} \\
+        &\mid& f \times f & \text{(Multiplication)}
+      \end{array}
+    \]
+  \item \fbox{\(d\)} Expression.
+    \[
+      \begin{array}{rcll}
+        \class{Expression} d
+        &\coloneqq& @ & \text{(Hole)} \\
+        &\mid& x & \text{(Variable)} \\
+        &\mid& \lambda x . d & \text{(Function)} \\
+        &\mid& [\sigma] d & \text{(Closure)} \\
+        &\mid& d (d) & \text{(Application)} \\
+        % &\mid& \flet x = d_1 \fin d_2 & \text{(Let Expression)}\\
+        &\mid& Y (\lambda x . d) & \text{(Fix Point)}\\
+        &\mid& \class{Number} \underline{n} & \text{(Number)} \\
+        &\mid& d + d & \text{(Addition)} \\
+        &\mid& d \times d & \text{(Multiplication)} \\
+        &\mid& \fskip f \fin d & \text{(Skip)}\\
+        &\mid& \fstep f \fin d & \text{(Step)}
+      \end{array}
+    \]
+  \item \fbox{\(d \final\)} Expression \(d\) is in its normal form. 
+
+    \fbox{\(d \indet\)} Expression \(d\) is incomplete, and in its normal form.
+
+    \fbox{\(d \ival\)} Expression \(d\) is a value.
+    \[
+      \begin{prooftree}
+        \infer0[(FV-Fun)]{[\sigma] \lambda x . d \ival}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \infer0[(FV-Num)]{\underline{n} \ival}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \infer0[(FI-Hole)]{@ \indet}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{x \notin \sigma}
+        \infer1[(FI-Var)]{\sigma \entails x \indet}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d_1 \indet}
+        \infer1[(FI-Ap-L)]{\sigma \entails d_1 (d_2) \indet}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{\sigma \entails d_2 \indet}
+        \infer1[(FI-Ap-R)]{\sigma \entails d_1 (d_2) \indet}
+      \end{prooftree}
+    \]
+    % \[
+    %   \begin{prooftree}
+    %     \hypo{\sigma \entails d_1 \indet}
+    %     \infer1[(FI-Let)]{\sigma \entails \flet x = d_1 \fin d_2 \indet}
+    %   \end{prooftree}
+    % \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d_1 \indet}
+        \infer1[(FI-Add-L)]{\sigma \entails d_1 + d_2 \indet}
+      \end{prooftree}
+      \begin{prooftree}
+        \hypo{\sigma \entails d_2 \indet}
+        \infer1[(FI-Add-R)]{\sigma \entails d_1 + d_2 \indet}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d_1 \indet}
+        \infer1[(FI-Mul-L)]{\sigma \entails d_1 \times d_2 \indet}
+      \end{prooftree}
+      \begin{prooftree}
+        \hypo{\sigma \entails d_2 \indet}
+        \infer1[(FI-Mul-R)]{\sigma \entails d_1 \times d_2 \indet}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d \indet}
+        \infer1[(FI-Skip)]{\sigma \entails \fskip f \fin d \indet}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{\sigma \entails d \indet}
+        \infer1[(FI-Step)]{\sigma \entails \fstep f \fin d \indet}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d \ival}
+        \infer1[(FV)]{\sigma \entails d \final}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{\sigma \entails d \indet}
+        \infer1[(FI)]{\sigma \entails d \final}
+      \end{prooftree}
+    \]
+  \item \fbox{\(d \evalsto v\)} Expression \(d\) evaluates to expression \(v\).
+    \[
+      \begin{prooftree}
+        \hypo{d \final}
+        \infer1[(EV-Final)]{d \evalsto d}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{x \hooksto d \in \sigma}
+        \infer1[(EV-Var)]{\sigma \entails x \evalsto d}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \infer0[(EV-Fun)]{\sigma \entails \lambda x . d \evalsto [\sigma] (\lambda x . d)}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma' \entails d \evalsto v}
+        \infer1[(EV-Closure)]{\sigma \entails [\sigma'] d \evalsto v}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \evalsto [\sigma'] (\lambda x . d_3)}
+        \hypo{d_2 \evalsto v_2 \ival}
+        \hypo{\sigma', x \hooksto v_2 \entails d_3 \evalsto d_3'}
+        \infer3[(EV-Ap)]{\sigma \entails d_1 (d_2) \evalsto d_3'}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma, x \hooksto Y (\lambda x . d) \entails d \evalsto v}
+        \infer1[(EV-Fix)]{\sigma \entails Y (\lambda x . d) \evalsto v}
+      \end{prooftree}
+    \]
+    % \[
+    %   \begin{prooftree}
+    %     \hypo{d_1 \evalsto v_1}
+    %     \hypo{\sigma, x \hooksto v_1 \entails d_2 \evalsto v_2}
+    %     \infer2[(EV-Let)]{
+    %       \sigma \entails\flet x = d_1 \fin d_2
+    %       \evalsto
+    %       v_2
+    %     }
+    %   \end{prooftree}
+    % \]
+    \[
+      \begin{prooftree}
+        \hypo{d_1 \evalsto \underline{n_1}}
+        \hypo{d_2 \evalsto \underline{n_2}}
+        \hypo{n_1 + n_2 = n}
+        \infer3[(EV-Add)]{d_1 + d_2 \evalsto \underline{n}}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d_1 \evalsto \underline{n_1}}
+        \hypo{\sigma \entails d_2 \evalsto \underline{n_2}}
+        \hypo{n_1 \times n_2 = n}
+        \infer3[(EV-Mul)]{\sigma \entails d_1 \times d_2 \evalsto \underline{n}}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma \entails d \evalsto v}
+        \infer1[(E-Skip)]{\sigma \entails \fstep f \fin d \evalsto v}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{\sigma \entails d \evalsto v}
+        \infer1[(E-Step)]{\sigma \entails \fskip f \fin d \evalsto v}
+      \end{prooftree}
+    \]
+  \item \fbox{\(d \to d'\)} Expression \(d\) is transition into \(d'\).
+    \[
+      \begin{prooftree}
+        \hypo{d_1 = [\sigma'] (\lambda x . d_3) \ival}
+        \hypo{d_2 \ival}
+        \infer2[(ET-Ap)]{[\sigma', x \hooksto d_2] d_3}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \infer0[(ET-Fix)]{\sigma \entails Y (\lambda x . d) \to [\sigma, x \hooksto Y (\lambda x . d)]d}
+      \end{prooftree}
+    \]
+    % \[
+    %   \begin{prooftree}
+    %     \infer0[(ET-Let)]{
+    %       \sigma \entails
+    %       \flet x = d_1 \fin d_2
+    %       \to
+    %       [\sigma, x \to d_1] d_2
+    %     }
+    %   \end{prooftree}
+    % \]
+    \[
+      \begin{prooftree}
+        \hypo{\sigma' \entails d \to d'}
+        \infer1[(ET-Closure)]{\sigma \entails [\sigma'] d \to [\sigma'] d'}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{\sigma' \entails d \to d'}
+        \hypo{d' \final}
+        \infer2[(ET-Closure-Opt)]{\sigma \entails [\sigma'] d \to d'}
+      \end{prooftree}
     \]
   \item \fbox{\(f \matches d\)} Filter \(f\) matches expression \(d\).
     \[
       \begin{prooftree}
-        \hypo{f_1 \matches d_1}
-        \hypo{f_2 \matches d_2}
-        \infer2{f_1(f_2) \matches d_1(d_2)}
+        \infer0[(FM-Hole)]{f \matches @}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \infer0[(FM-Wild)]{\ast \matches d}
       \end{prooftree}
     \]
     \[
       \begin{prooftree}
-        \infer0{\ast \matches d}
+        \hypo{f_1 \matches d}
+        \infer1[(FM-Skip)]{f_1 \matches \fskip f_2 \fin d}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{f_1 \matches d}
+        \infer1[(FM-Step)]{f_1 \matches \fstep f_2 \fin d}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \infer0[(FM-Var)]{x \matches x}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{f_1 \matches d_1}
+        \hypo{f_2 \matches d_2}
+        \infer2[(FM-Ap)]{f_1(f_2) \matches d_1(d_2)}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{f \matches d}
+        \infer1[(FM-Fun-Exact)]{\lambda x . f \matches \lambda x . d}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{f \matches d}
+        \infer1[(FM-Fun-Wild)]{
+          \lambda \ast . f \matches \lambda x . d
+        }
+      \end{prooftree}
+    \]
+    % \[
+    %   \begin{prooftree}
+    %     \hypo{f_1 \matches d_1}
+    %     \hypo{f_2 \matches d_2}
+    %     \infer2[(FM-Let-Exact)]{\flet x = f_1 \fin f_2 \matches \flet x = d_1 \fin d_2}
+    %   \end{prooftree}
+    % \]
+    % \[
+    %   \begin{prooftree}
+    %     \hypo{f_1 \matches d_1}
+    %     \hypo{f_2 \matches d_2}
+    %     \infer2[(FM-Let-Wild)]{
+    %       \flet \ast = f_1 \fin f_2 \matches \flet x = d_1 \fin d_2
+    %     }
+    %   \end{prooftree}
+    % \]
+    \[
+      \begin{prooftree}
+        \hypo{f \matches d}
+        \infer1[(FM-Fix-Exact)]{Y (\lambda x . f) \matches Y (\lambda x . d)}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{f \matches d}
+        \infer1[(FM-Fix-Wild)]{Y (\lambda \ast . f) \matches Y (\lambda x . d)}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \infer0[(FM-Num)]{\underline{n} \matches \underline{n}}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{f_1 \matches d_1}
+        \hypo{f_2 \matches d_2}
+        \infer2[(FM-Add)]{f_1 + f_2 \matches d_1 + d_2}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{f_1 \matches d_1}
+        \hypo{f_2 \matches d_2}
+        \infer2[(FM-Mul)]{f_1 \times f_2 \matches d_1 \times d_2}
       \end{prooftree}
     \]
   \item \fbox{\(\mathcal{F}\)} Filter environment.
     \[
-      \mathcal{F} = \varepsilon \mid \mathcal{F}, (f, step) \mid
+      \mathcal{F} \coloneqq \varnothing \mid \mathcal{F}, (f, step) \mid
       \mathcal{F}, (f, skip)
     \]
-  \item \fbox{\(\mathcal{F} \steps d\)} Expression \(d\) is marked to be stepped
-    through under filter \(\mathcal{F}\).
+  \item \fbox{\(\mathcal{F} \steps d, \mathcal{F} \skips d\)} Expression \(d\) is marked to be stepped
+    through \(\steps\) or skipped over \(\skips\) under filter \(\mathcal{F}\).
     \[
       \begin{prooftree}
         \hypo{(f, step) \in \mathcal{F}}
         \hypo{f \matches d}
-        \infer2[]{\mathcal{F} \steps d}
+        \infer2[(FE-Step)]{\mathcal{F} \steps d}
       \end{prooftree}
-    \]
-  \item \fbox{\(\mathcal{F} \skips d\)} Expression \(d\) is marked to be
-    skipped over under filter \(\mathcal{F}\).
-    \[
+      \quad
       \begin{prooftree}
         \hypo{(f, skip) \in \mathcal{F}}
         \hypo{f \matches d}
-        \infer2[]{\mathcal{F} \skips d}
+        \infer2[(FE-Skip)]{\mathcal{F} \skips d}
       \end{prooftree}
     \]
-  \item \fbox{\(d =_\mathcal{F} \mathcal{E} \{ d' \}\)}: Expression \(d\) can be
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{F} = \mathcal{F}_1,\mathcal{F}_2}
+        \hypo{\mathcal{F}_1 \skips d}
+        \hypo{\mathcal{F}_2 \steps d}
+        \infer3[(FE-Skip)]{\mathcal{F} \steps d}
+      \end{prooftree}
+      \quad
+      \begin{prooftree}
+        \hypo{\mathcal{F} = \mathcal{F}_1,\mathcal{F}_2}
+        \hypo{\mathcal{F}_1 \steps d}
+        \hypo{\mathcal{F}_2 \skips d}
+        \infer3[(FE-Step)]{\mathcal{F} \skips d}
+      \end{prooftree}
+    \]
+  \item \fbox{\(\class{EvalCtx} \mathcal{E}\)} Evaluation Context
+    \[
+      \begin{array}{rcll}
+        \class{EvalCtx} \mathcal{E}
+        &\coloneqq& \circ & \text{(Mark)}\\
+        &\mid& \mathcal{E} (d) & \text{(Application, Left)} \\
+        &\mid& d (\mathcal{E}) & \text{(Application, Right)} \\
+        &\mid& [\sigma] \mathcal{E} & \text{(Closure)} \\
+        % &\mid& \flet x = \mathcal{E} \fin d & \text{(Let Expression)} \\
+        &\mid& \mathcal{E} + d & \text{(Addition, Left)} \\
+        &\mid& d + \mathcal{E} & \text{(Addition, Right)} \\
+        &\mid& \mathcal{E} \times d & \text{(Multiplication, Left)} \\
+        &\mid& d \times \mathcal{E} & \text{(Multiplication, Right)} \\
+        &\mid& \fstep f \fin \mathcal{E} & \text{(Step)} \\
+        &\mid& \fskip f \fin \mathcal{E} & \text{(Skip)}
+      \end{array}
+    \]
+  \item \fbox{\(\class{EvalOpt} \mathcal{O}\)}
+    \[
+      \begin{array}{rcl}
+        \class{EvalOpt} \mathcal{O}
+        &\coloneqq& \varnothing \\
+        &\mid& \mathcal{O}, \mathcal{E} \{ d \}
+      \end{array}
+    \]
+  \item \fbox{\(d =_\mathcal{F} \mathcal{E} \{ d' \}\)} Expression \(d\) can be
     obtained by placing \(d'\) at the marked position in
     \(\mathcal{E}\).
-    \[
-      \begin{prooftree}
-        \hypo{\mathcal{F}' = \mathcal{F}, (f, step)}
-        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \iskip}
-        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \iskip}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{\mathcal{F}' = \mathcal{F}, (f, step)}
-        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \istep}
-        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \istep}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{\mathcal{F}' = \mathcal{F}, (f, skip)}
-        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \iskip}
-        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \iskip}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{\mathcal{F}' = \mathcal{F}, (f, skip)}
-        \hypo{d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \istep}
-        \infer2{\fstep f \fin d =_\mathcal{F} \mathcal{E} \{ d' \} \istep}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 \final}
-        \hypo{d_2 \final}
-        \hypo{\mathcal{F} \skips d_1(d_2)}
-        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 \final}
-        \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
-        \hypo{\mathcal{F} \skips d_1(d_2)}
-        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
-        \hypo{d_2 \final}
-        \hypo{\mathcal{F} \skips d_1(d_2)}
-        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
-        \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
-        \hypo{\mathcal{F} \skips d_1(d_2)}
-        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{ d_1(d_2) \} \iskip}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 \final}
-        \hypo{d_2 \final}
-        \hypo{\mathcal{F} \steps d_1(d_2)}
-        \infer3{d_1 (d_2) =_\mathcal{F} \circ \{d_1(d_2)\} \istep}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 \final}
-        \hypo{d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
-        \infer2{d_1(d_2) =_\mathcal{F} d_1(\mathcal{E}_2)\{d_2'\} \istep}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
-        \hypo{d_2 \final}
-        \infer2{d_1(d_2) =_\mathcal{F} \mathcal{E}_1(d_2)\{d_1'\} \istep}
-      \end{prooftree}
-    \]
-    \[
-      \begin{prooftree}
-        \hypo{d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
-        \hypo{d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
-        \infer2{
-          d_1(d_2)
-          =_\mathcal{F}
-          \mathcal{E}_1 (d_2) {d_1'}, d_1(\mathcal{E}_2)\{d_2'\} \istep
-        }
-      \end{prooftree}
-    \]
+    \begin{enumerate}
+      \item Filter Elimination. Add filters to the filter environment.
+        \[
+          \begin{prooftree}
+            \hypo{\mathcal{F}' = \mathcal{F}, (f, step)}
+            \hypo{
+              \sigma \entails
+              d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \iskip
+            }
+            \infer2[(FA-Step-Skip)]{
+              \sigma \entails
+              \fstep f \fin d
+              =_\mathcal{F}
+              \fstep f \fin \mathcal{E} \{ d' \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\mathcal{F}' = \mathcal{F}, (f, step)}
+            \hypo{
+              \sigma \entails
+              d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \istep
+            }
+            \infer2[(FA-Step-Step)]{
+              \sigma \entails
+              \fstep f \fin d
+              =_\mathcal{F}
+              \fstep f \fin \mathcal{E} \{ d' \} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\mathcal{F}' = \mathcal{F}, (f, skip)}
+            \hypo{\sigma \entails d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \iskip}
+            \infer2[(FA-Skip-Skip)]{
+              \sigma \entails
+              \fskip f \fin d
+              =_\mathcal{F}
+              \fskip f \fin \mathcal{E} \{ d' \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\mathcal{F}' = \mathcal{F}, (f, skip)}
+            \hypo{\sigma \entails d =_{\mathcal{F}'} \mathcal{E} \{ d' \} \istep}
+            \infer2[(FA-Skip-Step)]{
+              \sigma \entails
+              \fskip f \fin d
+              =_\mathcal{F}
+              \fskip f \fin \mathcal{E} \{ d' \} \istep
+            }
+          \end{prooftree}
+        \]
+
+      \item Closure.
+        \[
+          \begin{prooftree}
+            \hypo{
+              \sigma' \entails
+              d =_\mathcal{F} \mathcal{E} \{d'\} \iskip
+            }
+            \infer1{
+              \sigma \entails
+              [\sigma'] d
+              =_\mathcal{F}
+              [\sigma'] \mathcal{E} \{ d' \} \iskip
+            }
+          \end{prooftree}
+          \quad
+          \begin{prooftree}
+            \hypo{
+              \sigma' \entails
+              d =_\mathcal{F} \mathcal{E} \{d'\} \istep
+            }
+            \infer1{
+              \sigma \entails
+              [\sigma'] d
+              =_\mathcal{F}
+              [\sigma'] \mathcal{E} \{ d' \} \istep
+            }
+          \end{prooftree}
+        \]
+
+      \item Variable, Function Literal, Fix-point.
+        \[
+          \begin{prooftree}
+            \hypo{f \skips x}
+            \infer1[(FD-Var-Skip)]{\sigma \entails x =_\mathcal{F} \circ
+            \{ [\sigma]x \} \iskip}
+          \end{prooftree}
+          \quad
+          \begin{prooftree}
+            \hypo{f \steps x}
+            \infer1[(FD-Var-Step)]{
+              \sigma \entails
+              x =_\mathcal{F} \circ \{ [\sigma]x \} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{f \skips \lambda x . d}
+            \infer1[(FD-Fun-Skip)]{
+              \sigma \entails
+              \lambda x . d
+              =_\mathcal{F}
+              \circ \{[\sigma](\lambda x . d)\} \iskip
+            }
+          \end{prooftree}
+          \quad
+          \begin{prooftree}
+            \hypo{f \steps \lambda x . d}
+            \infer1[(FD-Fun-Step)]{
+              \sigma \entails
+              \lambda x . d
+              =_\mathcal{F}
+              \circ \{[\sigma](\lambda x . d)\} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{f \skips Y (\lambda x . d)}
+            \infer1[(FD-Fix-Skip)]{
+              \sigma \entails
+              Y (\lambda x . d)
+              =_\mathcal{F}
+              \circ \{ [\sigma] Y (\lambda x . d) \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{f \steps Y (\lambda x . d)}
+            \infer1[(FD-Fix-Step)]{
+              \sigma \entails
+              Y (\lambda x . d)
+              =_\mathcal{F}
+              \circ \{ [\sigma] (Y (\lambda x . d)) \} \istep
+            }
+          \end{prooftree}
+        \]
+      \item Function Application
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips d_1(d_2)}
+            \infer3[(FD-Ap-Skip-Z)]{
+              \sigma \entails
+              d_1 (d_2) =_\mathcal{F} \circ \{ [\sigma] d_1(d_2) \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{
+              \sigma \entails
+              d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip
+            }
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips d_1(d_2)}
+            \infer3[(FD-Ap-Skip-L)]{
+              \sigma \entails
+              d_1 (d_2) =_\mathcal{F} \circ \{ [\sigma] d_1(d_2) \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2 \}_{\sigma_2} \iskip}
+            \hypo{\mathcal{F} \skips d_1(d_2)}
+            \infer3[(FD-Ap-Skip-R)]{
+              \sigma \entails
+              d_1 (d_2) =_\mathcal{F} \circ \{ [\sigma] d_1(d_2) \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1 \}_{\sigma_1} \iskip}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2 \}_{\sigma_2} \iskip}
+            \hypo{\mathcal{F} \skips d_1(d_2)}
+            \infer3[(FD-Ap-Skip-A)]{
+              \sigma \entails
+              d_1 (d_2) =_\mathcal{F} \circ \{ [\sigma] d_1(d_2) \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \infer2[(FD-Ap-Step-Z)]{
+              \sigma \entails
+              d_1 (d_2) =_\mathcal{F} \circ \{ [\sigma] d_1(d_2)\} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{
+              \sigma \entails
+              d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep
+            }
+            \hypo{\sigma \entails d_2 \final}
+            \infer2[(FD-Ap-Step-L)]{
+              \sigma \entails
+              d_1(d_2)
+              =_\mathcal{F}
+              \mathcal{E}_1(d_2) \{ d_1' \} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{
+              \sigma \entails
+              d_2 =_\mathcal{F} \mathcal{E}_2 \{ d_2' \} \istep
+            }
+            \infer2[(FD-Ap-Step-R)]{
+              \sigma \entails
+              d_1(d_2)
+              =_\mathcal{F}
+              d_1(\mathcal{E}_2) \{d_2'\} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
+            \infer2[(FD-Ap-Step-A)]{
+              \sigma \entails
+              d_1(d_2)
+              =_\mathcal{F}
+              \mathcal{E}_1 (d_2) \{d_1'\}, d_1(\mathcal{E}_2)\{d_2'\} \istep
+            }
+          \end{prooftree}
+        \]
+
+      % \item Let Expression
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 \final}
+      %       \hypo{d_2 \final}
+      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+      %       \infer3[(FD-Let-Skip-Z)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+      %       \hypo{d_2 \final}
+      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+      %       \infer3[(FD-Let-Skip-L)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 \final}
+      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+      %       \infer3[(FD-Let-Skip-R)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+      %       \hypo{\mathcal{F} \skips \flet x = d_1 \fin d_2}
+      %       \infer3[(FD-Let-Skip-A)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 \final}
+      %       \hypo{d_2 \final}
+      %       \infer2[(FD-Let-Step-Z)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \iskip}
+      %       \hypo{d_2 \final}
+      %       \infer2[(FD-Let-Step-L)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 \final}
+      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \iskip}
+      %       \infer2[(FD-Let-Step-R)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+      %   \[
+      %     \begin{prooftree}
+      %       \hypo{d_1 =_\mathcal{F} \circ \{ d_1 \} \istep}
+      %       \hypo{d_2 =_\mathcal{F} \circ \{ d_2 \} \istep}
+      %       \infer2[(FD-Let-Step-A)]{
+      %         \flet x = d_1 + d_2
+      %         =_\mathcal{F}
+      %         \circ \{ \flet x = d_1 + d_2 \} \iskip
+      %       }
+      %     \end{prooftree}
+      %   \]
+
+      \item Addition
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips d_1 + d_2}
+            \infer3[(FD-Add-Skip-Z)]{
+              \sigma \entails d_1 + d_2 =_\mathcal{F} \circ \{ [\sigma] d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1' \} \iskip }
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips d_1 + d_2}
+            \infer3[(FD-Add-Skip-L)]{
+              \sigma \entails
+              d_1 + d_2 =_\mathcal{F} \circ \{ [\sigma] d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2' \} \iskip }
+            \hypo{\mathcal{F} \skips d_1 + d_2}
+            \infer3[(FD-Add-Skip-R)]{
+              \sigma \entails
+              d_1 + d_2 =_\mathcal{F} \circ \{ [\sigma] d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1' \} \iskip}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2' \} \iskip}
+            \hypo{\mathcal{F} \skips d_1 + d_2}
+            \infer3[(FD-Add-Skip-A)]{
+              \sigma \entails
+              d_1 + d_2 =_\mathcal{F} \circ \{ [\sigma] d_1 + d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \infer2[(FD-Add-Step-Z)]{
+              \sigma \entails
+              d_1 + d_2 =_\mathcal{F} \circ \{ [\sigma] d_1 + d_2\} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+            \hypo{\sigma \entails d_2 = \final}
+            \infer2[(FD-Add-Step-L)]{
+              \sigma \entails
+              d_1 + d_2
+              =_\mathcal{F}
+              \mathcal{E}_1 + d_2 \{ d_1' \} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \mathcal{E}_2 \{ d_2' \} \istep}
+            \infer2[(FD-Add-Step-R)]{\sigma \entails d_1 + d_2 =_\mathcal{F} d_1 + \mathcal{E}_2 \{ d_2'
+            \} \istep}
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
+            \infer2[(FD-Add-Step-A)]{
+              \sigma \entails
+              d_1 + d_2
+              =_\mathcal{F}
+              \mathcal{E}_1 + d_2 \{d_1'\}, d_1 + \mathcal{E}_2\{d_2'\} \istep
+            }
+          \end{prooftree}
+        \]
+      \item Multiplication
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips d_1 \times d_2}
+            \infer3[(FD-Mul-Skip-Z)]{
+              \sigma \entails d_1 \times d_2 =_\mathcal{F} \circ \{ [\sigma] d_1 \times d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1' \} \iskip }
+            \hypo{\sigma \entails d_2 \final}
+            \hypo{\mathcal{F} \skips d_1 \times d_2}
+            \infer3[(FD-Mul-Skip-L)]{
+              \sigma \entails
+              d_1 \times d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] d_1 \times d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2' \} \iskip }
+            \hypo{\mathcal{F} \skips d_1 \times d_2}
+            \infer3[(FD-Mul-Skip-R)]{
+              \sigma \entails
+              d_1 \times d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] d_1 \times d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \circ \{ d_1' \} \iskip}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \circ \{ d_2' \} \iskip}
+            \hypo{\mathcal{F} \skips d_1 \times d_2}
+            \infer3[(FD-Mul-Skip-A)]{
+              \sigma \entails
+              d_1 \times d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] d_1 \times d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 \final}
+            \infer2[(FD-Mul-Step-Z)]{
+              \sigma \entails
+              d_1 \times d_2
+              =_\mathcal{F}
+              \circ \{ [\sigma] d_1 \times d_2 \} \iskip
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+            \hypo{\sigma \entails d_2 = \final}
+            \infer2[(FD-Mul-Step-L)]{
+              \sigma \entails
+              d_1 \times d_2
+              =_\mathcal{F}
+              \mathcal{E}_1 \times d_2 \{ d_1' \} \istep
+            }
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 \final}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \mathcal{E}_2 \{ d_2' \} \istep}
+            \infer2[(FD-Mul-Step-R)]{\sigma \entails d_1 \times d_2 =_\mathcal{F} d_1 \times \mathcal{E}_2 \{ d_2'
+            \} \istep}
+          \end{prooftree}
+        \]
+        \[
+          \begin{prooftree}
+            \hypo{\sigma \entails d_1 =_\mathcal{F} \mathcal{E}_1 \{ d_1' \} \istep}
+            \hypo{\sigma \entails d_2 =_\mathcal{F} \mathcal{E}_2 \{d_2'\} \istep}
+            \infer2[(FD-Mul-Step-A)]{
+              \sigma \entails
+              d_1 \times d_2
+              =_\mathcal{F}
+              \mathcal{E}_1 \times d_2 \{d_1'\}, d_1 \times \mathcal{E}_2\{d_2'\} \istep
+            }
+          \end{prooftree}
+        \]
+    \end{enumerate}
   \item \fbox{\(d \mapsto d'\)} Expression \(d\) steps to expression
     \(d'\).
     \[
       \begin{prooftree}
-        \hypo{d =_\mathcal{F} \mathcal{E} \{ d_0 \} \istep}
+        \hypo{\sigma \entails d =_\mathcal{F} \mathcal{E} \{ d_0 \} \istep}
         \hypo{d_0 \to d_0'}
-        \hypo{d' = \mathcal{E} \{ d_0' \}}
-        \infer3{d \mapsto_\mathcal{F} d'}
+        \hypo{\sigma \entails d' = \mathcal{E} \{ d_0' \}}
+        \infer3[(FS-Step)]{\sigma \entails d \mapsto_\mathcal{F} d'}
       \end{prooftree}
     \]
     \[
       \begin{prooftree}
-        \hypo{d =_\mathcal{F} \mathcal{E} \{ d_0 \} \iskip}
+        \hypo{\sigma \entails d =_\mathcal{F} \mathcal{E} \{ d_0 \} \iskip}
         \hypo{d_0 \evalsto d_0'}
-        \hypo{d' = \mathcal{E} \{ d_0' \}}
-        \infer3{d \mapsto_\mathcal{F} d'}
+        \hypo{\sigma \entails d' = \mathcal{E} \{ d_0' \}}
+        \infer3[(FS-Skip)]{\sigma \entails d \mapsto_\mathcal{F} d'}
       \end{prooftree}
     \]
 \end{enumerate}
 
 \section{Example Derivation}
 
-For \(\mathcal{F} = (\ast, step), (\ast \times \ast, skip)\),
-\[
-  \mathcal{D}_1 = \begin{prooftree}
-    \hypo{1 \final}
-    \hypo{2 \final}
-    \hypo{\mathcal{F} \skips 1 \times 2}
-    \infer3{1 \times 2 =_\mathcal{F} \circ \{ 1 \times 2 \} \iskip}
-    \hypo{3 \final}
-    \hypo{\mathcal{F} \skips (1 \times 2) \times 3}
-    \infer3{
-      1 \times 2 \times 3
-      =_\mathcal{F}
-      \circ \{ 1 \times 2 \times 3 \} \iskip
-    }
-  \end{prooftree}
-\]
-\[
-  \begin{prooftree}
-    \hypo{\mathcal{D}_1}
-    \hypo{1 \times 2 \times 3 \evalsto 6}
-    \hypo{6 = \circ \{ 6 \}}
-    \infer3{
-      1 \times 2 \times 3 \mapsto_\mathcal{F} 6
-    }
-  \end{prooftree}
-\]
+\begin{enumerate}
+  \item Skip addition. For \(\mathcal{F} = (\ast, step), (\ast \times \ast, skip)\),
+    \[
+      \mathcal{D}_1 = \begin{prooftree}
+        \hypo{1 \final}
+        \hypo{2 \final}
+        \hypo{\mathcal{F} \skips 1 \times 2}
+        \infer3{1 \times 2 =_\mathcal{F} \circ \{ 1 \times 2 \} \iskip}
+        \hypo{3 \final}
+        \hypo{\mathcal{F} \skips (1 \times 2) \times 3}
+        \infer3{
+          1 \times 2 \times 3
+          =_\mathcal{F}
+          \circ \{ 1 \times 2 \times 3 \} \iskip
+        }
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{D}_1}
+        \hypo{1 \times 2 \times 3 \evalsto 6}
+        \hypo{6 = \circ \{ 6 \}}
+        \infer3{
+          1 \times 2 \times 3 \mapsto_\mathcal{F} 6
+        }
+      \end{prooftree}
+    \]
 
-For \(\mathcal{F} = (\ast, skip), (\ast + \ast, step)\),
-\[
-  \mathcal{D}_2 = \begin{prooftree}
-    \hypo{1 \final}
-    \hypo{2 \final}
-    \hypo{\mathcal{F} \steps 1 + 2}
-    \infer3{1 + 2 =_\mathcal{F} \circ \{ 1 + 2 \} \istep}
-    \hypo{3 \final}
-    \infer2{1 + 2 + 3 =_\mathcal{F} \circ + 3 \{ 1 + 2 \} \istep}
-    \hypo{4 \final}
-    \infer2{(1 + 2 + 3) \times 4 =_\mathcal{F} (\circ + 3) \times 4 \{ 1 + 2 \} \istep}
-  \end{prooftree}
-\]
-\[
-  \begin{prooftree}
-    \hypo{\mathcal{D}_2}
-    \hypo{1 + 2 \to 3}
-    \hypo{(3 + 3) \times 4 = (\circ + 3) \times 4 \{ 3 \}}
-    \infer3{(1 + 2 + 3) \times 4 \mapsto_\mathcal{F} (3 + 3) \times 4}
-  \end{prooftree}
-\]
+  \item Skip Multiplication. For \(\mathcal{F} = (\ast, skip), (\ast + \ast, step)\),
+    \[
+      \mathcal{D}_2 = \begin{prooftree}
+        \hypo{1 \final}
+        \hypo{2 \final}
+        \hypo{\mathcal{F} \steps 1 + 2}
+        \infer3{1 + 2 =_\mathcal{F} \circ \{ 1 + 2 \} \istep}
+        \hypo{3 \final}
+        \infer2{1 + 2 + 3 =_\mathcal{F} \circ + 3 \{ 1 + 2 \} \istep}
+        \hypo{4 \final}
+        \infer2{(1 + 2 + 3) \times 4 =_\mathcal{F} (\circ + 3) \times 4 \{ 1 + 2 \} \istep}
+      \end{prooftree}
+    \]
+    \[
+      \begin{prooftree}
+        \hypo{\mathcal{D}_2}
+        \hypo{1 + 2 \to 3}
+        \hypo{(3 + 3) \times 4 = (\circ + 3) \times 4 \{ 3 \}}
+        \infer3{(1 + 2 + 3) \times 4 \mapsto_\mathcal{F} (3 + 3) \times 4}
+      \end{prooftree}
+    \]
+
+  \item Skips multiplication, but steps through addition, i.e.
+    \[
+      \mathcal{F} = (\ast, skip), (\ast + \ast, step)
+    \]
+    \[
+      \begin{array}{lcrcl}
+        & & \varnothing &\entails& (1 + 2 + 3) \times 4 \times 5 \\
+        &\mapsto& \varnothing &\entails& (3 + 3) \times 4 \times 5 \\
+        &\mapsto& \varnothing &\entails& 6 \times 4 \times 5 \\
+        &\mapsto& \varnothing &\entails& 120
+      \end{array}
+    \]
+
+  \item Debug a recursive function.
+    \begin{align*}
+      \sigma_f &= f \hooksto Y (\lambda f . \lambda x . \fstep \ast \fin
+      f(x + 1)),\\
+      \sigma_{fx} &= \sigma_f, x \hooksto 0.
+    \end{align*}
+    \[
+      \begin{array}{lcrcl}
+        & & \varnothing &\entails& (Y (\lambda f . \lambda x . \fstep \ast \fin f(x + 1))) (0) \\
+        &\mapsto& \varnothing &\entails& ([\sigma_f] (\lambda x . \fstep \ast \fin f(x + 1))) (0) \\
+        &\mapsto& \sigma_{fx} &\entails& \fstep \ast \fin f(x + 1) \\
+        &\mapsto& \sigma_{fx} &\entails& \fstep \ast \fin f(0 + 1) \\
+        &\mapsto& \sigma_{fx} &\entails& \fstep \ast \fin f(1)\\
+        &\mapsto& \sigma_{fx} &\entails&
+        \fstep \ast \fin (Y (\lambda f . \lambda x . \fstep \ast \fin f(x + 1))) (1) \\
+        &\mapsto& \sigma_{fx} &\entails&
+        \fstep \ast \fin [\sigma_f] (\lambda x . \fstep \ast \fin f(x + 1)) (1) \\
+        &\mapsto& \sigma_{fx} &\entails&
+        \fstep \ast \fin [\sigma_{fx}] \fstep \ast \fin f(x + 1) \\
+        &\mapsto& \ldots
+      \end{array}
+    \]
+\end{enumerate}
 
 \end{document}
