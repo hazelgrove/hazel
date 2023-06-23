@@ -117,7 +117,7 @@ and UExp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Deferral(bool)
+    | Deferral(bool, bool) // (IsBounded, IsSingleton)
     | DeferredAp(t, t)
     | Triv
     | Bool(bool)
@@ -229,7 +229,7 @@ and UExp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Deferral(bool)
+    | Deferral(bool, bool)
     | DeferredAp(t, t)
     | Triv
     | Bool(bool)

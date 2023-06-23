@@ -152,6 +152,14 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | None =>
       NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
     }
+  | (Syn | SynFun, Deferral(_)) =>
+    NotInHole(SynConsistent(Unknown(Internal)))
+  | (Ana(ty_ana), Deferral(true)) =>
+    switch (ty_ana) {
+    | Typ.Prod(tys) when tys != [] => InHole(TypeInconsistent(Unknown(Internal), ty_ana))
+    | _ => NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
+    }
+  | (Ana(ty_ana), Deferral(false)) => NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
   };
 
 /* Determines whether any term is in an error hole. Currently types cannot
@@ -325,27 +333,32 @@ and uexp_to_info_map =
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-    let args = 
-      switch (arg.term) {
-      | Tuple(args) => args
-      | _ => [arg]
-      };
-    let ty_ins =
-      switch (ty_in) {
-      | Prod(ty_ins) => ty_ins
-      | Unknown(_) as ty_unknown => List.init(List.length(args), _ => ty_unknown)
-      | _ => [ty_in]
-      };
-    let self: Typ.self = Just(Arrow(
-      if (ty_ins == [] && List.length(args) == 1) Prod([])
-      else if (List.length(ty_ins) == List.length(args)) {
-        let ty_ins = 
-          List.combine(args, ty_ins)
-          |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
-          |> List.map(((_arg, ty)) => ty);
-        List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
-      }
-      else Unknown(Internal), ty_out))
+    let self: Typ.self = {
+      let ty_in': Typ.t = 
+        if (ty_in == Prod([]) && arg.term == Deferral(true, true)) Prod([])
+        else {
+          let args = 
+            switch (arg.term) {
+            | Tuple(args) => args
+            | _ => [arg]
+            };
+          let ty_ins =
+            switch (ty_in) {
+            | Prod(ty_ins) => ty_ins
+            | Unknown(_) as ty_unknown => List.init(List.length(args), _ => ty_unknown)
+            | _ => [ty_in]
+            };
+          if (List.length(ty_ins) == List.length(args)) {
+            let ty_ins = 
+              List.combine(args, ty_ins)
+              |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
+              |> List.map(((_arg, ty)) => ty);
+            List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
+          }
+          else Unknown(Internal);
+        };
+      Just(Arrow(ty_in', ty_out))
+    };
     let (_, free_arg, m_arg) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
@@ -353,8 +366,8 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
-  | Deferral(true) => atomic(Just(Unknown(Internal)))
-  | Deferral(false) => atomic(Free(Deferral))
+  | Deferral(true, is_singleton) => atomic(Deferral(is_singleton))
+  | Deferral(false, _) => atomic(Free(Deferral))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))

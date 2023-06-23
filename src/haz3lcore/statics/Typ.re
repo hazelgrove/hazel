@@ -53,7 +53,8 @@ type self =
   // TODO: make it so that joined applies only to inconsistent types; rename NoJoin
   | Joined(t => t, list(source))
   | Multi
-  | Free(free_errors);
+  | Free(free_errors)
+  | Deferral(bool); // is_singleton: bool
 
 /* MODE: The (analytic) type information derived from a term's
    syntactic context. This can either Syn (no type expectation),
@@ -152,7 +153,8 @@ let t_of_self =
     | Some(t) => wrap(t)
     }
   | Multi
-  | Free(_) => Unknown(Internal);
+  | Free(_)
+  | Deferral(_) => Unknown(Internal);
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
