@@ -143,19 +143,20 @@ let view_of_info =
   let is_err = Haz3lcore.Statics.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
-    if (msg == BadInt) {
+    switch (msg) {
+    | BadInt(_) =>
       div(
         ~attr=clss([infoc, "exp"]),
         [
           term_tag(~inject, ~show_lang_doc, is_err, "exp"),
           error_view(IntegerOutOfRange),
         ],
-      );
-    } else {
+      )
+    | _ =>
       div(
         ~attr=clss([infoc, "unknown"]),
         [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
-      );
+      )
     }
   | InfoExp({mode, self, _}) =>
     let error_status = Haz3lcore.Statics.error_status(mode, self);
