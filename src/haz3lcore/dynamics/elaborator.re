@@ -167,13 +167,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | Deferral(true, _) => Some(EmptyHole(id, 0))
       | Deferral(false, _) => Some(InvalidText(0, 0, "_")) // Unbounded deferral
       | DeferredAp(fn, arg) =>
-        let mk_tuple = (ctor, xs) => List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
+        let mk_tuple = (ctor, xs) =>
+          List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
         let* d_fn = dhexp_of_uexp(m, fn);
         let ty_fn = Statics.exp_self_typ(m, fn);
         switch (ty_fn) {
         | Arrow(ty_arg, ty_ret) =>
-          if (ty_arg == Prod([]) && arg.term == Deferral(true, true)) Some(d_fn)
-          else {
+          if (ty_arg == Prod([]) && arg.term == Deferral(true, true)) {
+            Some(d_fn);
+          } else {
             let args =
               switch (arg.term) {
               | Tuple(args) => args
@@ -182,43 +184,47 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             let ty_ins =
               switch (ty_arg) {
               | Prod(ty_ins) => ty_ins
-              | Unknown(_) as ty_unknown => List.init(List.length(args), _ => ty_unknown)
+              | Unknown(_) as ty_unknown =>
+                List.init(List.length(args), _ => ty_unknown)
               | _ => [ty_arg]
               };
             if (List.length(ty_ins) != List.length(args)) {
               let+ d_arg = dhexp_of_uexp(m, arg);
-              DHExp.Ap(d_fn, d_arg)
-            }
-            else {
+              DHExp.Ap(d_fn, d_arg);
+            } else {
               // Substitute all deferrals for new variables
               let+ (pats, d_args, ty_args) =
                 List.combine(args, ty_ins)
                 |> List.fold_left(
-                    (acc, (e: Term.UExp.t, ty)) => {
-                      let* (pats, d_args, ty_args) = acc;
-                      if (Term.UExp.is_deferral(e)) {
-                        // Internal variable name for deferrals
-                        let name = "~deferred" ++ string_of_int(List.length(pats));
-                        Some((
-                          pats @ [DHPat.Var(name)],
-                          d_args @ [DHExp.BoundVar(name)],
-                          ty_args @ [ty],
-                        ))
-                      } else {
-                        let+ de = dhexp_of_uexp(m, e); (pats, d_args @ [de], ty_args)
-                      }
-                    },
-                    Some(([], [], [])),
-                  );
+                     (acc, (e: Term.UExp.t, ty)) => {
+                       let* (pats, d_args, ty_args) = acc;
+                       if (Term.UExp.is_deferral(e)) {
+                         // Internal variable name for deferrals
+                         let name =
+                           "~deferred" ++ string_of_int(List.length(pats));
+                         Some((
+                           pats @ [DHPat.Var(name)],
+                           d_args @ [DHExp.BoundVar(name)],
+                           ty_args @ [ty],
+                         ));
+                       } else {
+                         let+ de = dhexp_of_uexp(m, e);
+                         (pats, d_args @ [de], ty_args);
+                       };
+                     },
+                     Some(([], [], [])),
+                   );
               let (pat, d_arg, ty_arg) = (
                 mk_tuple(x => DHPat.Tuple(x), pats),
                 mk_tuple(x => DHExp.Tuple(x), d_args),
-                mk_tuple(x => Typ.Prod(x), ty_args)
+                mk_tuple(x => Typ.Prod(x), ty_args),
               );
               DHExp.Fun(pat, Arrow(ty_arg, ty_ret), Ap(d_fn, d_arg), None);
-            }
+            };
           }
-        | _ => let+ d_arg = dhexp_of_uexp(m, arg); DHExp.Ap(d_fn, d_arg)
+        | _ =>
+          let+ d_arg = dhexp_of_uexp(m, arg);
+          DHExp.Ap(d_fn, d_arg);
         };
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))

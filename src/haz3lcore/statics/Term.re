@@ -502,7 +502,7 @@ module UExp = {
       | Tag(_) => false
       }
     );
-  
+
   let is_deferral = (e: t) => {
     switch (e.term) {
     | Deferral(_) => true // The deferral is just a placeholder and shouldn't be parenthesized.
