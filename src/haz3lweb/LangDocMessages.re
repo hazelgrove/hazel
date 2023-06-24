@@ -85,6 +85,7 @@ let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("[]");
+let deferral = () => exp("_");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
@@ -101,15 +102,6 @@ let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
   | None => []
   | Some((z, _)) => Zipper.zip(z)
-  };
-};
-
-let expect_opt = (err_msg, opt) => {
-  switch (opt) {
-  | Some(x) => x
-  | None =>
-    Printf.printf("Cannot unwrap option. Message: %s\n", err_msg);
-    raise(Not_found);
   };
 };
 
@@ -162,46 +154,6 @@ let deferral_exp: form = {
     expandable_id: None,
     explanation,
     examples: [deferral_exp_ex],
-  };
-};
-
-let _exp_fun = exp("e_fun");
-let _exp_arg = exp("e_arg");
-let deferred_ap_exp_coloring_ids =
-    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_fun), x_id),
-  (Piece.id(_exp_arg), arg_id),
-];
-let deferred_ap_exp_group = "deferred_ap_exp_group";
-let deferred_ap_exp: form = {
-  // TODO
-  /* let decrement = {
-       sub_id: "decrement",
-       term: mk_example("(fun (a, b) -> a - b)(~, 1)"),
-       message: "A decrement function which is constructed by deferring the first tuple argument to a subtraction function.",
-       feedback: Unselected,
-     };
-     let explanation = {
-       message: "Deferred application expression.",
-       feedback: Unselected,
-     };
-     let ap = mk_ap_pat([[_pat_arg]]);
-     let fn = mk_fun([[space(), _pat_con, ap, space()]]);
-     let comma = comma_exp();
-     {
-       id: "deferred_ap_exp",
-       syntactic_form: [fn, space(), exp("e1"), comma, space(), exp("...")],
-       expandable_id: Some(Piece.id(comma)),
-       explanation,
-       examples: [decrement],
-     }; */
-  let explanation = {message: "Deferral expression.", feedback: Unselected};
-  {
-    id: "deferral_exp",
-    syntactic_form: [exp("Deferral")],
-    expandable_id: None,
-    explanation,
-    examples: [],
   };
 };
 
@@ -1550,6 +1502,7 @@ let let_ap_exp: form = {
 
 let funapp_exp_group = "funapp_exp_group";
 let conapp_exp_group = "conapp_exp_group";
+let deferred_funapp_exp_group = "deferred_funapp_exp_group";
 let funapp_exp_ex = {
   sub_id: "funapp_exp_ex",
   term: mk_example("(fun x -> x)(1)"),
@@ -1561,6 +1514,12 @@ let conapp_exp_ex = {
   sub_id: "conapp_exp_ex",
   term: mk_example("Some(1)"),
   message: "The constructor Some is applied to 1, which evaluates to Some(1).",
+  feedback: Unselected,
+};
+let deferred_funapp_exp_ex = {
+  sub_id: "deferred_funapp_exp_ex",
+  term: mk_example("(fun (x, y) -> x + y)(_, 1)"),
+  message: "The plus function is partially applied to (_, 1). Part of the tuple pattern y is bound to 1 in the function body and the whole partial application evaluates to the new function plus1.",
   feedback: Unselected,
 };
 let _exp_fun = exp("e_fun");
@@ -1601,6 +1560,42 @@ let conapp_exp: form = {
     expandable_id: None,
     explanation,
     examples: [conapp_exp_ex],
+  };
+};
+let deferred_funapp_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_fun), x_id),
+  (Piece.id(_exp_arg), arg_id),
+];
+let deferred_funapp_exp: form = {
+  let explanation = {
+    message: "Partial function application. Bound part(s) of the [*function*](%i) input pattern to supplied values in the [*argument*](%i).",
+    feedback: Unselected,
+  };
+  let comma = comma_pat();
+  let or_pat = () =>
+    Example.mk_tile(Form.mk_infix("|", Pat, Precedence.or_), []);
+  let or_ = or_pat();
+  {
+    id: "deferred_funapp_exp",
+    syntactic_form: [
+      _exp_fun,
+      mk_ap_exp([
+        [
+          exp("e1"),
+          space(),
+          or_,
+          space(),
+          deferral(),
+          comma,
+          space(),
+          exp("..."),
+        ],
+      ]),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [deferred_funapp_exp_ex],
   };
 };
 
@@ -3253,11 +3248,10 @@ type t = {
 };
 
 let get_group = (group_id, doc: t) => {
-  let (_, form_group) =
-    List.find_opt(((id, _)) => id == group_id, doc.groups)
-    |> expect_opt(
-         Printf.sprintf("get_group Not_found. group_id=%s", group_id),
-       );
+  doc.groups
+  |> List.fold_left((acc, (id, _)) => acc ++ id ++ ", ", "")
+  |> print_endline;
+  let (_, form_group) = List.find(((id, _)) => id == group_id, doc.groups);
   form_group;
 };
 
@@ -3265,19 +3259,15 @@ let get_form_and_options = (group_id, doc: t) => {
   let form_group = get_group(group_id, doc);
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
-  let form =
-    List.find_opt(({id, _}) => id == selected_id, doc.forms)
-    |> expect_opt("get_form_and_options Not_found");
+  let form = List.find(({id, _}) => id == selected_id, doc.forms);
   (form, form_group.options);
 };
 
 let get_example = (example_sub_id, examples) =>
-  List.find_opt(({sub_id, _}) => sub_id == example_sub_id, examples)
-  |> expect_opt("get_example Not_found");
+  List.find(({sub_id, _}) => sub_id == example_sub_id, examples);
 
 let get_form = (form_id, docs) =>
-  List.find_opt(({id, _}) => id == form_id, docs)
-  |> expect_opt("get_form Not_found");
+  List.find(({id, _}) => id == form_id, docs);
 
 let rec update_form = (new_form, docs) => {
   switch (docs) {
@@ -3381,6 +3371,7 @@ let init = {
     let_ap_exp,
     funapp_exp,
     conapp_exp,
+    deferred_funapp_exp,
     if_exp,
     seq_exp,
     test_exp,
@@ -3735,6 +3726,10 @@ let init = {
     ),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
+    (
+      deferred_funapp_exp_group,
+      init_options([(deferred_funapp_exp.id, [])]),
+    ),
     (if_exp_group, init_options([(if_exp.id, [])])),
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),

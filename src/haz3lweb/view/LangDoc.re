@@ -101,16 +101,15 @@ let highlight =
     | None => classes
     };
   (Node.span(~attr, msg), mapping);
-};
-
-/*
+} /*
  Markdown like thing:
  highlighty thing : [thing to highlight](id)
  bulleted list: - list item
                 - list item
  code: `code`
  italics: *word*
- */
+ */;
+
 let mk_translation =
     (~inject, text: string, show_highlight: bool)
     : (list(Node.t), ColorSteps.t) => {
@@ -133,7 +132,10 @@ let mk_translation =
               ([], mapping),
               items,
             );
-          (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+          (
+            List.append(msg, [Node.ul(bullets)]),
+            mapping /* TODO Hannah - Should this be an ordered list instead of an unordered list? */,
+          );
         | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
         | Url(id, d, _title) =>
           let (d, mapping) = translate(d, mapping);
@@ -602,19 +604,24 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | DeferredAp(_) =>
-        // TODO
+      | DeferredAp(x, arg) =>
+        let x_id = List.nth(x.ids, 0);
+        let arg_id = List.nth(arg.ids, 0);
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.deferral_exp_group,
+            LangDocMessages.deferred_funapp_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.deferral_exp_group,
-          doc.explanation.message,
-          [],
+          LangDocMessages.deferred_funapp_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            x_id,
+            arg_id,
+          ),
+          LangDocMessages.deferred_funapp_exp_coloring_ids(~x_id, ~arg_id),
         );
       | Triv =>
         let (doc, options) =
