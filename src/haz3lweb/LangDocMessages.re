@@ -143,8 +143,7 @@ let deferral_exp: form = {
   };
   let deferral_exp_ex = {
     sub_id: "deferral_exp_ex",
-    term:
-      mk_example("let plus1 =\n(fun (x, y) -> x + y)(_, 1)\nin plus1(2)"),
+    term: mk_example("let plus1 =\n(fun (x, y) -> x + y)(_, 1)\nin plus1(2)"),
     message: "The plus function is partially applied to (_, 1). The deferral expression marks a placeholder for x whose value supply is deferred to the function application plus1(2).",
     feedback: Unselected,
   };
