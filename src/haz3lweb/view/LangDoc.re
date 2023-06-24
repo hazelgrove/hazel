@@ -604,24 +604,18 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | DeferredAp(x, arg) =>
-        let x_id = List.nth(x.ids, 0);
-        let arg_id = List.nth(arg.ids, 0);
+      | DeferredAp(_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.deferred_funapp_exp_group,
+            LangDocMessages.deferral_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.deferred_funapp_exp_group,
-          Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            x_id,
-            arg_id,
-          ),
-          LangDocMessages.deferred_funapp_exp_coloring_ids(~x_id, ~arg_id),
+          LangDocMessages.deferral_exp_group,
+          doc.explanation.message,
+          [],
         );
       | Triv =>
         let (doc, options) =
