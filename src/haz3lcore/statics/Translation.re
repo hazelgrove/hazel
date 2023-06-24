@@ -369,26 +369,26 @@ and get_typ_ann = (pat: TermBase.UPat.t, m: Statics.map) =>
   }
 
 and get_camel_case = (name: string) => {
-  // Printf.printf("get_camel_case here\n%!");
   let parts = String.split_on_char('_', name);
   let capitalizedParts = List.map(String.capitalize_ascii, List.tl(parts));
   List.hd(parts) ++ String.concat("", capitalizedParts);
 }
 and get_name = (map: Statics.map, name: string) =>
-  // Printf.printf("get name here\n%!");
   if (!String.contains(name, '_')) {
     name;
   } else {
     let count = ref(0);
     let new_name = ref(get_camel_case(name));
-    while (iterate_map(map, new_name)) {
+    let tmp_name = ref(name ++ string_of_int(count^));
+    while (iterate_map(map, new_name, tmp_name)) {
       new_name := get_camel_case(name) ++ string_of_int(count^);
+      tmp_name := name ++ string_of_int(count^);
       count := count^ + 1;
     };
     new_name^;
   }
 
-and iterate_map = (map: Statics.map, name: ref(string)) => {
+and iterate_map = (map: Statics.map, name: ref(string), tmp: ref(string)) => {
   let flag = ref(false);
   Id.Map.iter(
     (_, value) => {
@@ -396,16 +396,16 @@ and iterate_map = (map: Statics.map, name: ref(string)) => {
       | Statics.InfoExp(infoExp) =>
         switch (infoExp.term.term) {
         | Var(s) =>
-          if (String.equal(s, name^)) {
-            flag := String.equal(s, name^);
+          if (String.equal(s, name^) || String.equal(s, tmp^)) {
+            flag := true;
           }
         | _ => ()
         }
       | Statics.InfoPat(infoPat) =>
         switch (infoPat.term.term) {
         | Var(s) =>
-          if (String.equal(s, name^)) {
-            flag := String.equal(s, name^);
+          if (String.equal(s, name^) || String.equal(s, tmp^)) {
+            flag := true;
           }
 
         | _ => ()
