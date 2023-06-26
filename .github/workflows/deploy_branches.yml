@@ -42,7 +42,7 @@ jobs:
         working-directory: ./server
       - name: Copy in the newly built source # STEP 6
         run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/haz3lweb/www"/* "./server/${BRANCH_NAME}"
-      - name : Commit to the website aka deploy # STEP 7
+      - name : Commit to the website aka deploy # STEP 7 test
         run: |
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
