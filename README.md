@@ -9,7 +9,7 @@ You can try Hazel online: the
 moment. Every other branch that has been pushed to GitHub and successfully builds
 can also be accessed at:
 
-  https://hazel.org/build/<branch_name>
+  `https://hazel.org/build/<branch_name>`
 
 <!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
 
