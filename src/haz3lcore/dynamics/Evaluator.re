@@ -412,12 +412,12 @@ and matches_cast_Tuple =
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
   switch (d) {
-  | ListLit(_, _, _, _, []) =>
+  | ListLit(_, _, _, []) =>
     switch (dp) {
     | ListLit(_, []) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
-  | ListLit(u, i, err, ty, [dhd, ...dtl] as ds) =>
+  | ListLit(u, i, ty, [dhd, ...dtl] as ds) =>
     switch (dp) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
@@ -432,7 +432,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DHExp.ListLit(u, i, err, ty, dtl);
+        let d2 = DHExp.ListLit(u, i, ty, dtl);
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
@@ -909,8 +909,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
-        | ListLit(u, i, err, ty, ds) =>
-          BoxedValue(ListLit(u, i, err, ty, [d1, ...ds])) |> return
+        | ListLit(u, i, ty, ds) =>
+          BoxedValue(ListLit(u, i, ty, [d1, ...ds])) |> return
         | Cons(_)
         | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
@@ -919,7 +919,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | ListLit(u, i, err, ty, lst) =>
+    | ListLit(u, i, ty, lst) =>
       let+ lst = lst |> List.map(evaluate(env)) |> sequence;
       let (lst, indet) =
         List.fold_right(
@@ -931,7 +931,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           lst,
           ([], false),
         );
-      let d = DHExp.ListLit(u, i, err, ty, lst);
+      let d = DHExp.ListLit(u, i, ty, lst);
       if (indet) {
         Indet(d);
       } else {

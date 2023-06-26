@@ -177,8 +177,7 @@ let rec dhexp_of_uexp =
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
         let ty = Typ.matched_list(ty);
-        //TODO: why is there an err status on below?
-        DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
+        DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
