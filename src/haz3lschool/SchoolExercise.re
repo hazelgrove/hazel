@@ -679,11 +679,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  /* This function takes the current state and generates
-     UExp information, using stitch_statics, for each editor
-     state and then performs elaboration on each UExp expression
-     and returns a list which will be used to form a
-     ModelResults.t object.
+  /* This function generates the DHExp info of the editor state
+     and returns a list of key and dhexp paris which will be used
+     to form a ModelResults.t object.
 
      It is used in haz3lweb/Editors.re */
 

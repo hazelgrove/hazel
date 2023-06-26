@@ -1,5 +1,13 @@
 open Sexplib.Std;
 
+/* This module is a map used to store ModelResult.t objects
+      where the key is used to distiguish between editors on
+      a particular page.
+
+      It is used in haz3lweb/Update.re
+      The keys for school mode editors are in haz3lschool/SchoolExercise.re
+   */
+
 module Key = {
   include String;
   [@deriving (show({with_path: false}), sexp, yojson)]
