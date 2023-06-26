@@ -47,6 +47,7 @@ jobs:
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
           git add -A
+          git pull
           git status
           git diff-index --quiet HEAD || (git commit -m "github-deploy-action-${BRANCH_NAME}"; git push)
         working-directory: ./server
