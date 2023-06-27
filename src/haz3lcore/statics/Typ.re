@@ -56,7 +56,7 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-let rec subst = (s: t, x: Token.t, ty: t) => {
+let rec subst = (s: t, x: TypVar.t, ty: t) => {
   switch (ty) {
   | Int => Int
   | Float => Float
@@ -66,10 +66,10 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(subst(s, x), tys))
   | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
-  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
+  | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
   | List(ty) => List(subst(s, x, ty))
-  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
+  | Var(y) => TypVar.eq(x, y) ? s : Var(y)
   };
 };
 
@@ -108,7 +108,7 @@ let rec eq = (t1: t, t2: t): bool => {
   };
 };
 
-let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
+let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (ty) {
   | Unknown(_)
   | Int

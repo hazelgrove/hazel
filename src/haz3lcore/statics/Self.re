@@ -1,4 +1,4 @@
-//open Util.OptUtil.Syntax;
+open Util;
 open Sexplib.Std;
 
 /* The common (synthetic) type information derivable from pattern
@@ -11,7 +11,7 @@ type t =
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsTag({
-      name: Token.t,
+      name: Tag.t,
       syn_ty: option(Typ.t),
     }); /* Tags have special ana logic */
 
@@ -45,7 +45,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
 
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
-let of_exp_var = (ctx: Ctx.t, name: Token.t): exp =>
+let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
   | None => FreeVar
   | Some(var) => Common(Just(var.typ))
@@ -54,7 +54,7 @@ let of_exp_var = (ctx: Ctx.t, name: Token.t): exp =>
 /* The self of a tag depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_tag = (ctx: Ctx.t, name: Token.t): t =>
+let of_tag = (ctx: Ctx.t, name: Tag.t): t =>
   IsTag({
     name,
     syn_ty:

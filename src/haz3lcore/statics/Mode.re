@@ -1,4 +1,5 @@
-open Util.OptUtil.Syntax;
+open Util;
+open OptUtil.Syntax;
 
 /* MODE: The (analytic) type information derived from a term's
    syntactic context. This can either Syn (no type expectation),
@@ -43,7 +44,7 @@ let matched_list: t => t =
 let matched_list_lit = (mode: t, length): list(t) =>
   List.init(length, _ => matched_list(mode));
 
-let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Token.t): option(Typ.t) => {
+let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Tag.t): option(Typ.t) => {
   /* If a tag is being analyzed against (an arrow type returning)
      a sum type having that tag as a variant, we consider the
      tag's type to be determined by the sum type */
@@ -60,19 +61,19 @@ let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Token.t): option(Typ.t) => {
   };
 };
 
-let of_tag = (ctx: Ctx.t, mode: t, name: Token.t): option(t) =>
-  switch (tag_ana_typ(ctx, mode, name)) {
+let of_tag = (ctx: Ctx.t, mode: t, tag: Tag.t): option(t) =>
+  switch (tag_ana_typ(ctx, mode, tag)) {
   | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
   | Some(ty_ana) => Some(Ana(Arrow(Unknown(Internal), ty_ana)))
   | None => None
   };
 
-let of_ap = (ctx, mode, tag_name: option(Token.t)): t =>
+let of_ap = (ctx, mode, tag: option(Tag.t)): t =>
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
-  switch (tag_name) {
+  switch (tag) {
   | Some(name) =>
     switch (of_tag(ctx, mode, name)) {
     | Some(mode) => mode
