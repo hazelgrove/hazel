@@ -60,7 +60,6 @@ let matched_prod_modes = (mode: mode, length): list(mode) =>
 let matched_list_lit_modes = (mode: mode, length): list(mode) =>
   List.init(length, _ => matched_list_mode(mode));
 
-/* Legacy precedence code from HTyp */
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
@@ -107,7 +106,6 @@ let unroll = (ty: t): t =>
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
 let rec eq = (t1: t, t2: t): bool => {
-  let eq' = eq;
   switch (t1, t2) {
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
   | (Rec(_), _) => false
@@ -121,11 +119,11 @@ let rec eq = (t1: t, t2: t): bool => {
   | (String, _) => false
   | (Unknown(_), Unknown(_)) => true
   | (Unknown(_), _) => false
-  | (Arrow(t1, t2), Arrow(t1', t2')) => eq'(t1, t1') && eq'(t2, t2')
+  | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
   | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) => List.equal(eq', tys1, tys2)
+  | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
   | (Prod(_), _) => false
-  | (List(t1), List(t2)) => eq'(t1, t2)
+  | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
   | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
   | (Sum(_), _) => false
@@ -152,7 +150,7 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
       List.map(snd, sm),
     )
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
-  | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
+  | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
   };
 
 /* Lattice join on types. This is a LUB join in the hazel2
@@ -238,11 +236,11 @@ let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
-let rec normalize_shallow = (ctx: Ctx.t, ty: t): t =>
+let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (ty) {
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize_shallow(ctx, ty)
+    | Some(ty) => weak_head_normalize(ctx, ty)
     | None => ty
     }
   | _ => ty
@@ -264,24 +262,24 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
   | Prod(ts) => Prod(List.map(normalize(ctx), ts))
   | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
-  | Rec(x, ty) =>
-    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
+  | Rec(name, ty) =>
+    /* NOTE: Dummy tvar added has fake id but shouldn't matter
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
-    Rec(x, normalize(Ctx.add_abstract(ctx, x, -1), ty))
+    Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
   };
 };
 
 let sum_entry = (tag: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
-    | (t, typ) when t == tag => Some((t, typ))
+    | (t, typ) when TagMap.tag_equal(t, tag) => Some((t, typ))
     | _ => None,
     tags,
   );
 
 let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
-  let ty = normalize_shallow(ctx, ty);
+  let ty = weak_head_normalize(ctx, ty);
   switch (ty) {
   | Sum(sm) => Some(sm)
   | Rec(_) =>

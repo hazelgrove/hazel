@@ -27,9 +27,6 @@ let is_alias = (ctx: t, name: Token.t): bool =>
   | None => false
   };
 
-let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
-  extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
-
 let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
   List.map(
     ((tag, typ)) =>
