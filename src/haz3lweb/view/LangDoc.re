@@ -251,7 +251,7 @@ let deco =
             let get_clss = segment =>
               switch (List.nth(segment, 0)) {
               | Base.Tile({mold, _}) => [
-                  "term-tag-" ++ Sort.to_string(mold.out),
+                  "ci-header-" ++ Sort.to_string(mold.out),
                 ]
               | _ => []
               };
