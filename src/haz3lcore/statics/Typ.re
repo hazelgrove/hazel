@@ -34,32 +34,6 @@ let matched_list: t => t =
   | Unknown(_)
   | _ => Unknown(Internal);
 
-let matched_arrow_mode: mode => (mode, mode) =
-  fun
-  | SynFun
-  | Syn => (Syn, Syn)
-  | Ana(ty) => {
-      let (ty_in, ty_out) = matched_arrow(ty);
-      (Ana(ty_in), Ana(ty_out));
-    };
-
-let matched_list_mode: mode => mode =
-  fun
-  | SynFun
-  | Syn => Syn
-  | Ana(ty) => Ana(matched_list(ty));
-
-let matched_prod_modes = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-  | _ => List.init(length, _ => Syn)
-  };
-
-let matched_list_lit_modes = (mode: mode, length): list(mode) =>
-  List.init(length, _ => matched_list_mode(mode));
-
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
@@ -290,41 +264,3 @@ let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
   | _ => None
   };
 };
-
-let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
-  /* If a tag is being analyzed against (an arrow type returning)
-     a sum type having that tag as a variant, we consider the
-     tag's type to be determined by the sum type */
-  switch (mode) {
-  | Ana(Arrow(_, ty_ana))
-  | Ana(ty_ana) =>
-    let* tags = get_sum_tags(ctx, ty_ana);
-    let+ (_, ty_entry) = sum_entry(tag, tags);
-    switch (ty_entry) {
-    | None => ty_ana
-    | Some(ty_in) => Arrow(ty_in, ty_ana)
-    };
-  | _ => None
-  };
-};
-
-let tag_mode = (ctx: Ctx.t, mode: mode, name: Token.t): option(mode) =>
-  switch (tag_ana_typ(ctx, mode, name)) {
-  | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
-  | Some(ty_ana) => Some(Ana(Arrow(Unknown(Internal), ty_ana)))
-  | None => None
-  };
-
-let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
-  /* If a tag application is being analyzed against a sum type for
-     which that tag is a variant, then we consider the tag to be in
-     analytic mode against an arrow returning that sum type; otherwise
-     we use the typical mode for function applications */
-  switch (tag_name) {
-  | Some(name) =>
-    switch (tag_mode(ctx, mode, name)) {
-    | Some(mode) => mode
-    | _ => SynFun
-    }
-  | None => SynFun
-  };
