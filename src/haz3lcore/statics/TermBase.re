@@ -130,7 +130,7 @@ and UExp: {
     | Tag(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
-    | Var(Token.t)
+    | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
@@ -239,7 +239,7 @@ and UExp: {
     | Tag(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
-    | Var(Token.t)
+    | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
@@ -272,7 +272,7 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
-    | Var(Token.t)
+    | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -296,7 +296,7 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
-    | Var(Token.t)
+    | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -357,7 +357,7 @@ and UTPat: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Var(Token.t)
+    | Var(TypVar.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -368,7 +368,7 @@ and UTPat: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Var(Token.t)
+    | Var(TypVar.t)
   and t = {
     ids: list(Id.t),
     term,

@@ -16,6 +16,7 @@
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
+open Util;
 include TermBase.Any;
 
 type any = t;
@@ -416,7 +417,7 @@ module UPat = {
     };
   };
 
-  let tag_name = (p: t): option(Token.t) =>
+  let tag_name = (p: t): option(Tag.t) =>
     switch (p.term) {
     | Tag(name) => Some(name)
     | _ => None
@@ -601,7 +602,7 @@ module UExp = {
       }
     );
 
-  let tag_name = (e: t): option(Token.t) =>
+  let tag_name = (e: t): option(Tag.t) =>
     switch (e.term) {
     | Tag(name) => Some(name)
     | _ => None

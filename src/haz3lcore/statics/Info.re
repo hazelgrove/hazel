@@ -1,5 +1,6 @@
 open Sexplib.Std;
-open Util.OptUtil.Syntax;
+open Util;
+open OptUtil.Syntax;
 open Term;
 
 /* The ids of a term's ancestors in the AST */
@@ -89,8 +90,8 @@ type typ_expects =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
-  | FreeTypeVar(Token.t) /* Free type variable */
-  | DuplicateTag(Token.t) /* Duplicate tag in same sum */
+  | FreeTypeVar(TypVar.t) /* Free type variable */
+  | DuplicateTag(Tag.t) /* Duplicate tag in same sum */
   | WantTypeFoundAp
   | WantTagFoundType(Typ.t)
   | WantTagFoundAp;
@@ -98,9 +99,9 @@ type error_typ =
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_typ =
-  | Variant(Token.t, Typ.t)
+  | Variant(Tag.t, Typ.t)
   | VariantIncomplete(Typ.t)
-  | TypeAlias(Token.t, Typ.t)
+  | TypeAlias(TypVar.t, Typ.t)
   | Type(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -111,14 +112,14 @@ type status_typ =
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsType(Token.t)
+  | ShadowsType(TypVar.t)
   | NotAVar;
 
 /* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_tpat =
   | Empty
-  | Var(Token.t);
+  | Var(TypVar.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
