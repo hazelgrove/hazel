@@ -2,17 +2,6 @@ include TypBase.Typ;
 module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
-open Sexplib.Std;
-
-/* Hazel type annotated with a relevant source location.
-   Currently used to track match branches for inconsistent
-   branches errors, but could perhaps be used more broadly
-   for type debugging UI. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type source = {
-  id: int,
-  ty: t,
-};
 
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
@@ -112,7 +101,7 @@ let rec eq = (t1: t, t2: t): bool => {
   | (Prod(_), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
-  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
+  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal(eq), sm1, sm2)
   | (Sum(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
@@ -247,7 +236,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | List(t) => List(normalize(ctx, t))
   | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
   | Prod(ts) => Prod(List.map(normalize(ctx), ts))
-  | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
+  | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
   | Rec(name, ty) =>
     /* NOTE: Dummy tvar added has fake id but shouldn't matter
        as in current implementation Recs do not occur in the
@@ -256,10 +245,10 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let sum_entry = (tag: Token.t, tags: sum_map): option(sum_entry) =>
+let sum_entry = (tag: Tag.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
-    | (t, typ) when TagMap.tag_equal(t, tag) => Some((t, typ))
+    | (t, typ) when Tag.equal(t, tag) => Some((t, typ))
     | _ => None,
     tags,
   );
