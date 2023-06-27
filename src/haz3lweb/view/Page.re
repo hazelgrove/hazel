@@ -22,23 +22,25 @@ let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
 
 let slide_toggle_view = (~inject, ~model: Model.t, ~caption, ~control) => {
   let id = Attr.id("editor-mode");
-  let tooltip = Attr.title("Toggle Mode");
   let toggle_mode = Attr.on_mousedown(_ => inject(Update.ToggleMode));
   let cur_slide = Editors.cur_slide(model.editors);
   let num_slides = Editors.num_slides(model.editors);
   let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
-  div(
-    ~attr=id,
-    [
-      div(~attr=Attr.many([toggle_mode, tooltip]), [text(caption)]),
-      button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
-      span(
-        ~attr=Attr.style(Css_gen.white_space(`Nowrap)),
-        [text(cur_slide_text)],
-      ),
-      button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
-    ]
-    @ Option.to_list(control),
+  submenu(
+    div(
+      ~attr=id,
+      [
+        div(~attr=Attr.many([toggle_mode]), [text(caption)]),
+        button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
+        span(
+          ~attr=Attr.style(Css_gen.white_space(`Nowrap)),
+          [text(cur_slide_text)],
+        ),
+        button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
+      ]
+      @ Option.to_list(control),
+    ),
+    [submenu_label("Toggle Mode")],
   );
 };
 
@@ -164,7 +166,7 @@ let top_bar_view =
           button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
           [submenu_label("Redo")],
         ),
-        submenu(editor_mode_toggle_view(~inject, ~model), []),
+        editor_mode_toggle_view(~inject, ~model),
       ]
       @ toolbar_buttons,
     );

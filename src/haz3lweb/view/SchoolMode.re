@@ -394,42 +394,50 @@ let toolbar_buttons =
   let SchoolExercise.{pos: _, eds} = exercise;
 
   let reset_button =
-    Widgets.button(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-          );
-        if (confirmed) {
-          inject(Update.ResetSlide);
-        } else {
-          Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Exercise",
+    Widgets.submenu(
+      Widgets.button(
+        Icons.trash,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
+            );
+          if (confirmed) {
+            inject(Update.ResetSlide);
+          } else {
+            Virtual_dom.Vdom.Effect.Ignore;
+          };
+        },
+      ),
+      [Widgets.submenu_label("Reset Exercise")],
     );
 
   let instructor_export =
     settings.instructor_mode
       ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents =
-                SchoolExercise.export_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Exercise Module (Instructor Mode)",
+          Widgets.submenu(
+            Widgets.button(
+              Icons.export, // TODO(cyrus) distinct icon
+              _ => {
+                // .ml files because show uses OCaml syntax (dune handles seamlessly)
+                let module_name = eds.module_name;
+                let filename = eds.module_name ++ ".ml";
+                let content_type = "text/plain";
+                let contents =
+                  SchoolExercise.export_module(module_name, exercise);
+                JsUtil.download_string_file(
+                  ~filename,
+                  ~content_type,
+                  ~contents,
+                );
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
+            ),
+            [
+              Widgets.submenu_label(
+                "Export Exercise Module (Instructor Mode)",
+              ),
+            ],
           ),
         )
       : None;
@@ -437,26 +445,32 @@ let toolbar_buttons =
   let instructor_transitionary_export =
     settings.instructor_mode
       ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents =
-                SchoolExercise.export_transitionary_module(
-                  module_name,
-                  exercise,
+          Widgets.submenu(
+            Widgets.button(
+              Icons.export, // TODO(cyrus) distinct icon
+              _ => {
+                // .ml files because show uses OCaml syntax (dune handles seamlessly)
+                let module_name = eds.module_name;
+                let filename = eds.module_name ++ ".ml";
+                let content_type = "text/plain";
+                let contents =
+                  SchoolExercise.export_transitionary_module(
+                    module_name,
+                    exercise,
+                  );
+                JsUtil.download_string_file(
+                  ~filename,
+                  ~content_type,
+                  ~contents,
                 );
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Transitionary Exercise Module (Instructor Mode)",
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
+            ),
+            [
+              Widgets.submenu_label(
+                "Export Transitionary Exercise Module (Instructor Mode)",
+              ),
+            ],
           ),
         )
       : None;
@@ -464,23 +478,29 @@ let toolbar_buttons =
   let instructor_grading_export =
     settings.instructor_mode
       ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ "_grading.ml";
-              let content_type = "text/plain";
-              let contents =
-                SchoolExercise.export_grading_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Grading Exercise Module (Instructor Mode)",
+          Widgets.submenu(
+            Widgets.button(
+              Icons.export, // TODO(cyrus) distinct icon
+              _ => {
+                // .ml files because show uses OCaml syntax (dune handles seamlessly)
+                let module_name = eds.module_name;
+                let filename = eds.module_name ++ "_grading.ml";
+                let content_type = "text/plain";
+                let contents =
+                  SchoolExercise.export_grading_module(module_name, exercise);
+                JsUtil.download_string_file(
+                  ~filename,
+                  ~content_type,
+                  ~contents,
+                );
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
+            ),
+            [
+              Widgets.submenu_label(
+                "Export Grading Exercise Module (Instructor Mode)",
+              ),
+            ],
           ),
         )
       : None;

@@ -146,6 +146,8 @@
 
   --result-z: 30;
 
+  --top-bar-height: 2.75em;
+
   --shadow-color: 44deg 28% 59%;
   --shadow-elevation-low:
     0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
@@ -286,8 +288,8 @@ body {
   box-sizing: border-box;
   width: 100%;
   min-width: fit-content;
-  padding: 0.75em;
-  padding-left: 2.75em;
+  padding-left: var(--top-bar-height);
+  height: var(--top-bar-height);
   /* to accommodate Hazel icon */
   display: flex;
   background-color: var(--light-page-color);
@@ -312,8 +314,8 @@ body {
 }
 
 #top-bar .menu-icon {
-  width: 2.75em;
-  height: 2.75em;
+  width: var(--top-bar-height);
+  height: var(--top-bar-height);
   position: fixed;
   top: 0;
   left: 0;
@@ -337,9 +339,9 @@ body {
   transform: scaleY(0);
   transition: transform 0.07s ease;
   position: fixed;
-  top: 2.75em;
+  top: var(--top-bar-height);
   left: 0;
-  width: 2.75em;
+  width: var(--top-bar-height);
   /* padding-top: 1em; */
   /* padding-bottom: 1em; */
   /* gap: 1em; */
@@ -1898,7 +1900,7 @@ svg.expandable path {
 
 #top-bar .menu .submenu-content {
   position: absolute;
-  left: 2.75em;
+  left: var(--top-bar-height);
   height: fit-content;
   display: flex;
   flex-direction: column;
@@ -1985,13 +1987,13 @@ svg.expandable path {
 
 #top-bar .menu ~ .submenu .submenu-content {
   position: absolute;
-  top: 2em;
+  top: var(--top-bar-height);
   height: fit-content;
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  left: 0;
   transform-origin: top;
   transform: scaleY(0);
   transition: transform 0.07s ease, background-color 0.07s ease;
@@ -1999,12 +2001,18 @@ svg.expandable path {
 
 #top-bar .menu ~ .submenu:hover .submenu-content {
   transform: scaleY(1);
-  width: fit-content;
-  /* background: #7f7149; */
+  width: 100%;
+}
+
+#top-bar .menu ~ .submenu:hover .submenu-text,
+#top-bar .menu ~ .submenu:hover .submenu-button,
+#top-bar .menu ~ .submenu:hover .submenu-label,
+#top-bar .menu ~ .submenu:hover .submenu-switch {
+  background-color: var(--test-panel-bkg);
 }
 
 #top-bar .menu ~ .submenu:hover {
-  /* background: #7f7149; */
+  background-color: var(--light-page-color);
 }
 
 #top-bar .menu ~ .submenu .submenu-text:hover,
@@ -2026,7 +2034,7 @@ svg.expandable path {
 #top-bar .menu ~ .submenu .submenu-switch,
 #top-bar .menu ~ .submenu .submenu-button,
 #top-bar .menu ~ .submenu .submenu-label {
-  padding: 0em 0.75em;
+  padding: 0.5em 0.875em;
 }
 
 #top-bar .menu ~ .submenu .submenu-label {
