@@ -95,6 +95,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -107,6 +108,7 @@ and UExp: {
     | Let
     | TyAlias
     | Ap
+    | DeferredAp
     | If
     | Seq
     | Test
@@ -122,6 +124,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Deferral
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -134,6 +137,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | DeferredAp(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -204,6 +208,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -216,6 +221,7 @@ and UExp: {
     | Let
     | TyAlias
     | Ap
+    | DeferredAp
     | If
     | Seq
     | Test
@@ -231,6 +237,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Deferral
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -243,6 +250,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | DeferredAp(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
