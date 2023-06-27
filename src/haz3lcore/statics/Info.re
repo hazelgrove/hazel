@@ -132,7 +132,7 @@ type exp = {
   ctx: Ctx.t,
   mode: Mode.t,
   self: Self.exp,
-  free: Ctx.co, /* _Locally_ unbound variables */
+  co_ctx: CoCtx.t, /* _Locally_ unbound variables */
   cls: UExp.cls, /* derived */
   status: status_exp, /* derived: cursor inspector */
   ty: Typ.t /* derived: type after hole fixing */
@@ -185,7 +185,7 @@ let ctx_of: t => Ctx.t =
   | InfoTyp({ctx, _}) => ctx
   | InfoTPat({ctx, _}) => ctx;
 
-let exp_free: exp => Ctx.co = ({free, _}) => free;
+let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
@@ -358,11 +358,12 @@ let ty_after_fix_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   };
 
 /* Add derivable attributes for expression terms */
-let derived_exp = (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~free): exp => {
+let derived_exp =
+    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
   let cls = UExp.cls_of_term(uexp.term);
   let status = status_exp(ctx, mode, self);
   let ty = ty_after_fix_exp(ctx, mode, self);
-  {cls, self, ty, mode, status, ctx, free, ancestors, term: uexp};
+  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
 };
 
 /* Add derivable attributes for pattern terms */
