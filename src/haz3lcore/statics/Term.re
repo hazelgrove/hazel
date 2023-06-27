@@ -443,6 +443,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Deferral => Deferral
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -455,6 +456,7 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | DeferredAp(_) => DeferredAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -520,6 +522,7 @@ module UExp = {
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
     | Triv => "Trivial Literal. Pathetic, really."
+    | Deferral => "Deferral"
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -531,7 +534,8 @@ module UExp = {
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | TyAlias => "Type Alias Definition"
-    | Ap => "Function/Contructor Application"
+    | Ap => "Function/Constructor Application"
+    | DeferredAp => "Partial Function Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -549,6 +553,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Deferral
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -559,6 +564,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | DeferredAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -580,6 +586,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Deferral
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -590,6 +597,7 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | DeferredAp(_)
       | If(_)
       | Seq(_)
       | Test(_)
@@ -605,6 +613,12 @@ module UExp = {
     switch (e.term) {
     | Tag(name) => Some(name)
     | _ => None
+    };
+
+  let is_deferral = (e: t) =>
+    switch (e.term) {
+    | Deferral => true
+    | _ => false
     };
 };
 
