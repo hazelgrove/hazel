@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 module rec Typ: {
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
@@ -25,10 +26,20 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(Token.t, t)
-  and sum_map = VarMap.t_(option(t));
+  and sum_map = TagMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = (Token.t, option(t));
+  type sum_entry = TagMap.binding(option(t));
+
+  /* Hazel type annotated with a relevant source location.
+     Currently used to track match branches for inconsistent
+     branches errors, but could perhaps be used more broadly
+     for type debugging UI. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type source = {
+    id: int,
+    ty: t,
+  };
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -50,10 +61,16 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(Token.t, t)
-  and sum_map = VarMap.t_(option(t));
+  and sum_map = TagMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = (Token.t, option(t));
+  type sum_entry = TagMap.binding(option(t));
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type source = {
+    id: int,
+    ty: t,
+  };
 }
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
