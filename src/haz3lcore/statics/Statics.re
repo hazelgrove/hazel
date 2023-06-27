@@ -146,7 +146,7 @@ and uexp_to_info_map =
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
-      ~self=Info.join(ty => List(ty), tys, ids, ctx),
+      ~self=Self.join(ty => List(ty), tys, ids, ctx),
       ~free=Ctx.union(List.map(Info.exp_free, es)),
       m,
     );
@@ -156,7 +156,7 @@ and uexp_to_info_map =
     add(~self=Just(List(e1.ty)), ~free=Ctx.union([e1.free, e2.free]), m);
   | Var(name) =>
     add'(
-      ~self=Info.self_var(ctx, name),
+      ~self=Self.of_exp_var(ctx, name),
       ~free=[
         (
           name,
@@ -192,7 +192,7 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~free=Ctx.union([e1.free, e2.free]), m);
-  | Tag(tag) => atomic(Info.self_tag(ctx, tag))
+  | Tag(tag) => atomic(Self.of_tag(ctx, tag))
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -226,7 +226,7 @@ and uexp_to_info_map =
     let (cons, m) = go(~mode, e1, m);
     let (alt, m) = go(~mode, e2, m);
     add(
-      ~self=Info.join(Fun.id, [cons.ty, alt.ty], branch_ids, ctx),
+      ~self=Self.join(Fun.id, [cons.ty, alt.ty], branch_ids, ctx),
       ~free=Ctx.union([cond.free, cons.free, alt.free]),
       m,
     );
@@ -249,7 +249,7 @@ and uexp_to_info_map =
     let e_frees =
       List.map2(Ctx.free_in(ctx), p_ctxs, List.map(Info.exp_free, es));
     add(
-      ~self=Info.join(Fun.id, e_tys, branch_ids, ctx),
+      ~self=Self.join(Fun.id, e_tys, branch_ids, ctx),
       ~free=Ctx.union([scrut.free] @ e_frees),
       m,
     );
@@ -340,7 +340,7 @@ and upat_to_info_map =
     let modes = Mode.matched_list_lit(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(
-      ~self=Info.join(ty => List(ty), tys, List.map(UPat.rep_id, ps), ctx),
+      ~self=Self.join(ty => List(ty), tys, List.map(UPat.rep_id, ps), ctx),
       ~ctx,
       m,
     );
@@ -364,7 +364,7 @@ and upat_to_info_map =
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
-  | Tag(tag) => atomic(Info.self_tag(ctx, tag))
+  | Tag(tag) => atomic(Self.of_tag(ctx, tag))
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.tag_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);

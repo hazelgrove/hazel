@@ -6,40 +6,6 @@ open Term;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
-/* Hazel type annotated with a relevant source location.
-   Currently used to track match branches for inconsistent
-   branches errors, but could perhaps be used more broadly
-   for type debugging UI. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type source = {
-  id: int,
-  ty: Typ.t,
-};
-
-/* The common (synthetic) type information derivable from pattern
-   or expression terms in isolation, using the typing context but
-   not the syntactic context i.e. typing mode */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type self_common =
-  | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(source)) /* Inconsistent types for e.g match, listlits */
-  | BadToken(Token.t) /* Invalid expression token, treated as hole */
-  | IsMulti /* Multihole, treated as hole */
-  | IsTag({
-      name: Token.t,
-      syn_ty: option(Typ.t),
-    }); /* Tags have special ana logic */
-
-/* The self for expressions could also be a free variable */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type self_exp =
-  | FreeVar
-  | Common(self_common);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type self_pat =
-  | Common(self_common);
-
 /* Common errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
@@ -165,7 +131,7 @@ type exp = {
   ancestors,
   ctx: Ctx.t,
   mode: Mode.t,
-  self: self_exp,
+  self: Self.exp,
   free: Ctx.co, /* _Locally_ unbound variables */
   cls: UExp.cls, /* derived */
   status: status_exp, /* derived: cursor inspector */
@@ -178,7 +144,7 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   mode: Mode.t,
-  self: self_pat,
+  self: Self.pat,
   cls: UPat.cls, /* derived */
   status: status_pat, /* derived: cursor inspector */
   ty: Typ.t /* derived: type after hole fixing */
@@ -224,11 +190,8 @@ let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 
-/* Strip location information from a list of sources */
-let source_tys = List.map((source: source) => source.ty);
-
 let rec status_common =
-        (ctx: Ctx.t, mode: Mode.t, self: self_common): status_common =>
+        (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
   | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
   | (IsMulti, Syn | SynFun | Ana(_)) =>
@@ -255,12 +218,12 @@ let rec status_common =
     | _ => InHole(FreeTag)
     }
   | (NoJoin(tys), Syn | SynFun) =>
-    InHole(SynInconsistentBranches(source_tys(tys)))
+    InHole(SynInconsistentBranches(Typ.of_source(tys)))
   | (NoJoin(tys), Ana(ana)) =>
-    NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
+    NotInHole(AnaInternalInconsistent({ana, nojoin: Typ.of_source(tys)}))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: self_pat): status_pat =>
+let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsTag(_) as self_pat)) =>
@@ -281,7 +244,7 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: self_pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let status_exp = (ctx: Ctx.t, mode: Mode.t, self: self_exp): status_exp =>
+let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (FreeVar, _) => InHole(FreeVariable)
   | (Common(self_pat), _) =>
@@ -383,12 +346,12 @@ let typ_ok: ok_pat => Typ.t =
   | AnaConsistent({join, _}) => join
   | AnaInternalInconsistent({ana, _}) => ana;
 
-let ty_after_fix_pat = (ctx, mode: Mode.t, self: self_pat): Typ.t =>
+let ty_after_fix_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
   };
-let ty_after_fix_exp = (ctx, mode: Mode.t, self: self_exp): Typ.t =>
+let ty_after_fix_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
@@ -429,55 +392,6 @@ let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
   let status = status_tpat(ctx, utpat);
   {cls, ancestors, status, ctx, term: utpat};
 };
-
-/* The self of a var depends on the ctx; if the
-   lookup fails, it is a free variable */
-let self_var = (ctx: Ctx.t, name: Token.t): self_exp =>
-  switch (Ctx.lookup_var(ctx, name)) {
-  | None => FreeVar
-  | Some(var) => Common(Just(var.typ))
-  };
-
-/* The self of a tag depends on the ctx, but a
-   lookup failure doesn't necessarily means its
-   free; it may be given a type analytically */
-let self_tag = (ctx: Ctx.t, name: Token.t): self_common =>
-  IsTag({
-    name,
-    syn_ty:
-      switch (Ctx.lookup_tag(ctx, name)) {
-      | None => None
-      | Some({typ, _}) => Some(typ)
-      },
-  });
-
-/* The self assigned to things like cases and list literals
-   which can have internal type inconsistencies. */
-let join =
-    (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t)
-    : self_common =>
-  switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => {id, ty}, ids, tys))
-  | Some(ty) => Just(wrap(ty))
-  };
-
-/* What the type would be if the position had been
-   synthetic, so no hole fixing. Returns none if
-   there's no applicable synthetic rule. */
-let typ_of_self_common: (Ctx.t, self_common) => option(Typ.t) =
-  _ctx =>
-    fun
-    | Just(typ) => Some(typ)
-    | IsTag({syn_ty, _}) => syn_ty
-    | BadToken(_)
-    | IsMulti
-    | NoJoin(_) => None;
-
-let typ_of_self_exp: (Ctx.t, self_exp) => option(Typ.t) =
-  ctx =>
-    fun
-    | FreeVar => None
-    | Common(self) => typ_of_self_common(ctx, self);
 
 /* If the info represents some kind of name binding which
    exists in the context, return the id where the binding occurs */

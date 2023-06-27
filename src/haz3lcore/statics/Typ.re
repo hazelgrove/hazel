@@ -2,6 +2,20 @@ include TypBase.Typ;
 module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
+open Sexplib.Std;
+
+/* Hazel type annotated with a relevant source location.
+   Currently used to track match branches for inconsistent
+   branches errors, but could perhaps be used more broadly
+   for type debugging UI. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type source = {
+  id: int,
+  ty: t,
+};
+
+/* Strip location information from a list of sources */
+let of_source = List.map((source: source) => source.ty);
 
 /* How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
