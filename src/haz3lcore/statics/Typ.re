@@ -10,10 +10,10 @@ open OptUtil.Syntax;
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
   switch (p1, p2) {
-  | (TypeHole, TypeHole | Internal | SynSwitch)
-  | (Internal | SynSwitch, TypeHole) => TypeHole
-  | (Internal, Internal | SynSwitch)
-  | (SynSwitch, Internal) => Internal
+  | (Internal, _)
+  | (_, Internal) => Internal
+  | (TypeHole, TypeHole | SynSwitch)
+  | (SynSwitch, TypeHole) => TypeHole
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
@@ -25,13 +25,13 @@ let join_type_provenance =
 let matched_arrow: t => (t, t) =
   fun
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(prov) => (Unknown(prov), Unknown(prov))
+  | Unknown(_)
   | _ => (Unknown(Internal), Unknown(Internal));
 
 let matched_list: t => t =
   fun
   | List(ty) => ty
-  | Unknown(prov) => Unknown(prov)
+  | Unknown(_)
   | _ => Unknown(Internal);
 
 let matched_arrow_mode: mode => (mode, mode) =
@@ -102,8 +102,7 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* equality
-   At the moment, this coincides with default equality,
+/* Type Equality: At the moment, this coincides with alpha equivalence,
    but this will change when polymorphic types are implemented */
 let rec eq = (t1: t, t2: t): bool => {
   switch (t1, t2) {
