@@ -232,7 +232,32 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | (["(", ")"], [Exp(arg)]) => 
+          let is_deferral = (e: UExp.t) => e.term == Invalid("_");
+          let bound_deferral = (arg: UExp.t, is_singleton): UExp.t => {
+            ids: arg.ids,
+            term: Deferral(is_singleton),
+          };
+          switch (arg.term) {
+          | _ when is_deferral(arg) =>
+            DeferredAp(l, bound_deferral(arg, true))
+          | Tuple(args) when List.exists(is_deferral, args) =>
+            DeferredAp(
+              l,
+              {
+                ids: arg.ids,
+                term:
+                  Tuple(
+                    List.map(
+                      arg =>
+                        is_deferral(arg) ? bound_deferral(arg, false) : arg,
+                      args,
+                    ),
+                  ),
+              },
+            )
+          | _ => Ap(l, arg)
+          };
         | _ => hole(tm)
         },
       )
