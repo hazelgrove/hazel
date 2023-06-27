@@ -55,6 +55,10 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
+             | OperationError(InvalidIntOfString) => (
+                 [with_cls("InvalidIntOfString", txt)],
+                 ds,
+               )
              | OperationError(DivideByZero) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
@@ -191,6 +195,10 @@ let view_of_layout_tylr =
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(DivideByZero) => (
                  [with_cls("DivideByZero", txt)],
+                 ds,
+               )
+             | OperationError(InvalidIntOfString) => (
+                 [with_cls("InvalidIntOfString", txt)],
                  ds,
                )
              | OperationError(NegativeExponent) => (
