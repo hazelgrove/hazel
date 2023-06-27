@@ -154,14 +154,8 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     }
   | (Syn | SynFun, Deferral(_)) =>
     NotInHole(SynConsistent(Unknown(Internal)))
-  | (Ana(ty_ana), Deferral(true)) =>
-    switch (ty_ana) {
-    | Typ.Prod(tys) when tys != [] =>
-      InHole(TypeInconsistent(Unknown(Internal), ty_ana))
-    | _ => NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
-    }
-  | (Ana(ty_ana), Deferral(false)) =>
-    NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
+  | (Ana(Prod([_, ..._]) as ty_ana), Deferral(true)) => InHole(TypeInconsistent(Unknown(Internal), ty_ana))
+  | (Ana(ty_ana), Deferral(_)) => NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
   };
 
 /* Determines whether any term is in an error hole. Currently types cannot
@@ -345,18 +339,12 @@ and uexp_to_info_map =
             | Tuple(args) => args
             | _ => [arg]
             };
-          let ty_ins =
-            switch (ty_in) {
-            | Prod(ty_ins) => ty_ins
-            | Unknown(_) as ty_unknown =>
-              List.init(List.length(args), _ => ty_unknown)
-            | _ => [ty_in]
-            };
+          let ty_ins = Typ.try_destruct_tuple(ty_in, List.length(args));
           if (List.length(ty_ins) == List.length(args)) {
             let ty_ins =
               List.combine(args, ty_ins)
               |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
-              |> List.map(((_arg, ty)) => ty);
+              |> List.map(snd);
             List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
           } else {
             Unknown(Internal);

@@ -184,6 +184,13 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   | _ => List.init(length, _ => Syn)
   };
 
+let try_destruct_tuple = (ty: t, default_dim: int): list(t) =>
+  switch (ty) {
+  | Prod(tys) => tys
+  | Unknown(_) as ty_unknown => List.init(default_dim, _ => ty_unknown)
+  | _ => [ty]
+  };
+
 let matched_list: t => t =
   fun
   | List(ty) => ty

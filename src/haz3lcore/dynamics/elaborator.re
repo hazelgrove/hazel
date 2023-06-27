@@ -181,13 +181,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               | Tuple(args) => args
               | _ => [arg]
               };
-            let ty_ins =
-              switch (ty_arg) {
-              | Prod(ty_ins) => ty_ins
-              | Unknown(_) as ty_unknown =>
-                List.init(List.length(args), _ => ty_unknown)
-              | _ => [ty_arg]
-              };
+            let ty_ins = Typ.try_destruct_tuple(ty_arg, List.length(args));
             if (List.length(ty_ins) != List.length(args)) {
               let+ d_arg = dhexp_of_uexp(m, arg);
               DHExp.Ap(d_fn, d_arg);
