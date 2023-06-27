@@ -145,7 +145,7 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   switch (Info.status_exp(ctx, mode, self)) {
   | NotInHole(_) =>
     let self_ty =
-      switch (Statics.Info.typ_of_self_exp(ctx, self)) {
+      switch (Self.typ_of_exp(ctx, self)) {
       | Some(self_ty) => Typ.normalize(ctx, self_ty)
       | None => Unknown(Internal)
       };
