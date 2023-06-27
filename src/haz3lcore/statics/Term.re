@@ -120,11 +120,9 @@ module UTyp = {
       | Float => Float
       | String => String
       | Var(name) =>
-        //Var(name)
-        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
-        | None => Unknown(TypeHole)
+        | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))

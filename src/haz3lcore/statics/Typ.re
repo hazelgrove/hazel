@@ -13,8 +13,9 @@ let of_source = List.map((source: source) => source.ty);
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
   switch (p1, p2) {
-  | (Internal, _)
-  | (_, Internal) => Internal
+  | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
+  | (Internal | Free(_), _)
+  | (_, Internal | Free(_)) => Internal
   | (TypeHole, TypeHole | SynSwitch)
   | (SynSwitch, TypeHole) => TypeHole
   | (SynSwitch, SynSwitch) => SynSwitch

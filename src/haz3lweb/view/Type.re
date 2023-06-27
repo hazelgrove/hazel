@@ -11,6 +11,8 @@ let alias_view = (s: string): Node.t =>
 let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
+  | Free(name) =>
+    div(~attr=clss(["typ-mod", "free-type-var"]), [text(name)])
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
