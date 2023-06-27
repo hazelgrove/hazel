@@ -107,9 +107,11 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(co_entry));
 
-  let extend: (entry, t) => t;
+  let extend: (t, entry) => t;
+  let extend_tvar: (t, tvar_entry) => t;
+  let extend_alias: (t, Token.t, Id.t, Typ.t) => t;
+  let extend_dummy_tvar: (t, Token.t) => t;
   let lookup: (t, Token.t) => option(entry);
-  let add_abstract: (t, Token.t, Id.t) => t;
   let lookup_tvar: (t, Token.t) => option(tvar_entry);
   let lookup_alias: (t, Token.t) => option(Typ.t);
 } = {
@@ -145,7 +147,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(co_entry));
 
-  let extend = List.cons;
+  let extend = (ctx, entry) => List.cons(entry, ctx);
 
   let lookup = (ctx, name) =>
     List.find_map(
@@ -157,8 +159,14 @@ and Ctx: {
       ctx,
     );
 
-  let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
-    extend(TVarEntry({name, id, kind: Abstract}), ctx);
+  let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
+    extend(ctx, TVarEntry(tvar_entry));
+
+  let extend_alias = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
+    extend_tvar(ctx, {name, id, kind: Singleton(ty)});
+
+  let extend_dummy_tvar = (ctx: t, name: Token.t) =>
+    extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
 
   let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
     switch (lookup(ctx, name)) {

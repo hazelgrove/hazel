@@ -253,25 +253,23 @@ and uexp_to_info_map =
     switch (typat.term) {
     | Var(name)
         when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
-      /* NOTE(andrew): This is a slightly dicey piece of logic, debatably
-         errors cancelling out. Right now, to_typ returns Unknown(TypeHole)
+      /* NOTE(andrew): Currently, UTyp.to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
-         in the definition would be oblierated. But we need to check for free
+         in the definition won't be noticed. But we need to check for free
          variables to decide whether to make a recursive type or not. So we
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
       let (ty_def, ctx_def, ctx_body) = {
-        let ty_pre =
-          UTyp.to_typ(Ctx.add_abstract(ctx, name, Id.invalid), utyp);
+        let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
         switch (utyp.term) {
         | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ctx_def =
-            Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.add_alias(ctx, name, UTPat.rep_id(typat), ty));
+          (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
         };
       };
       let ctx_body =
@@ -285,7 +283,10 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~free, m);
-    | _ =>
+    | Var(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) =>
       let (Info.{free, ty: ty_body, _}, m) = go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_body), ~free, m);
@@ -344,13 +345,13 @@ and upat_to_info_map =
     add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    /* Note the self type assigned to pattern variables (unknown)
-       may be SynSwitch, but the type we add to the context is
-       always Unknown Internal */
+    /* NOTE: The self type assigned to pattern variables (Unknown)
+       may be SynSwitch, but SynSwitch is never added to the context;
+       Unknown(Internal) is used in this case */
     let ctx_typ =
       Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), m);
+    add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
     let modes = Typ.matched_prod_modes(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);

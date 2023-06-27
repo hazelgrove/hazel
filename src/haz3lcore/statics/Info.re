@@ -314,7 +314,7 @@ let status_typ =
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false => InHole(FreeTypeVar(name))
-      | true => NotInHole(TypeAlias(name, Typ.normalize_shallow(ctx, ty)))
+      | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
   | Ap(t1, t2) =>

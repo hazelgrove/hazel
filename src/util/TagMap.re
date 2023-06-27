@@ -10,7 +10,7 @@ type binding('a) = (key, 'a);
 [@deriving sexp]
 type t('a) = list(binding('a));
 
-let tag_equal = (==);
+let tag_equal = String.equal;
 let compare = compare;
 
 let empty: t('a) = [];
