@@ -65,7 +65,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
+let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
   | SynFun =>
@@ -141,7 +141,7 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t =>
+let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   switch (Info.status_exp(ctx, mode, self)) {
   | NotInHole(_) =>
     let self_ty =

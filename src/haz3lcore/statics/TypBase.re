@@ -29,17 +29,6 @@ module rec Typ: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = (Token.t, option(t));
-
-  /* MODE: The (analytic) type information derived from a term's
-     syntactic context. This can either Syn (no type expectation),
-     or Ana (a type expectation). It is conjectured [citation needed]
-     that the Syn mode is functionally indistinguishable from
-     Ana(Unknown(SynSwitch)), and that this type is thus vestigial. */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
-    | SynFun
-    | Syn
-    | Ana(t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -65,12 +54,6 @@ module rec Typ: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = (Token.t, option(t));
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
-    | SynFun
-    | Syn
-    | Ana(t);
 }
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -99,7 +82,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co_entry = {
     id: Id.t,
-    mode: Typ.mode,
+    expected_ty: Typ.t,
   };
 
   /* Each co-context entry is a list of the uses of a variable
@@ -141,7 +124,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co_entry = {
     id: Id.t,
-    mode: Typ.mode,
+    expected_ty: Typ.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

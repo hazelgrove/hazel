@@ -164,7 +164,7 @@ type exp = {
   term: UExp.t,
   ancestors,
   ctx: Ctx.t,
-  mode: Typ.mode,
+  mode: Mode.t,
   self: self_exp,
   free: Ctx.co, /* _Locally_ unbound variables */
   cls: UExp.cls, /* derived */
@@ -177,7 +177,7 @@ type pat = {
   term: UPat.t,
   ancestors,
   ctx: Ctx.t,
-  mode: Typ.mode,
+  mode: Mode.t,
   self: self_pat,
   cls: UPat.cls, /* derived */
   status: status_pat, /* derived: cursor inspector */
@@ -228,7 +228,7 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let source_tys = List.map((source: source) => source.ty);
 
 let rec status_common =
-        (ctx: Ctx.t, mode: Typ.mode, self: self_common): status_common =>
+        (ctx: Ctx.t, mode: Mode.t, self: self_common): status_common =>
   switch (self, mode) {
   | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
   | (IsMulti, Syn | SynFun | Ana(_)) =>
@@ -249,7 +249,7 @@ let rec status_common =
        a sum type having that tag as a variant, its self type is
        considered to be determined by the sum type; otherwise,
        check the context for the tag's type */
-    switch (Typ.tag_ana_typ(ctx, mode, name), syn_ty) {
+    switch (Mode.tag_ana_typ(ctx, mode, name), syn_ty) {
     | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
@@ -260,7 +260,7 @@ let rec status_common =
     NotInHole(AnaInternalInconsistent({ana, nojoin: source_tys(tys)}))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
+let status_pat = (ctx: Ctx.t, mode: Mode.t, self: self_pat): status_pat =>
   switch (mode, self) {
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsTag(_) as self_pat)) =>
@@ -281,7 +281,7 @@ let status_pat = (ctx: Ctx.t, mode: Typ.mode, self: self_pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let status_exp = (ctx: Ctx.t, mode: Typ.mode, self: self_exp): status_exp =>
+let status_exp = (ctx: Ctx.t, mode: Mode.t, self: self_exp): status_exp =>
   switch (self, mode) {
   | (FreeVar, _) => InHole(FreeVariable)
   | (Common(self_pat), _) =>
@@ -383,12 +383,12 @@ let typ_ok: ok_pat => Typ.t =
   | AnaConsistent({join, _}) => join
   | AnaInternalInconsistent({ana, _}) => ana;
 
-let ty_after_fix_pat = (ctx, mode: Typ.mode, self: self_pat): Typ.t =>
+let ty_after_fix_pat = (ctx, mode: Mode.t, self: self_pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
   };
-let ty_after_fix_exp = (ctx, mode: Typ.mode, self: self_exp): Typ.t =>
+let ty_after_fix_exp = (ctx, mode: Mode.t, self: self_exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => typ_ok(ok)
