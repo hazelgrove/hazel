@@ -43,27 +43,6 @@ let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
   )
   @ ctx;
 
-let added_bindings = (ctx_after: t, ctx_before: t): t => {
-  /* Precondition: new_ctx is old_ctx plus some new bindings */
-  let new_count = List.length(ctx_after) - List.length(ctx_before);
-  switch (ListUtil.split_n_opt(new_count, ctx_after)) {
-  | Some((ctx, _)) => ctx
-  | _ => []
-  };
-};
-
-let free_in = (ctx_before: t, ctx_after, free: co): co => {
-  let added_bindings = added_bindings(ctx_after, ctx_before);
-  VarMap.filter(
-    ((k, _)) =>
-      switch (lookup_var(added_bindings, k)) {
-      | None => true
-      | Some(_) => false
-      },
-    free,
-  );
-};
-
 let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   // NOTE: does not check that the prefix is an actual prefix
   let prefix_length = List.length(prefix_ctx);
@@ -79,9 +58,14 @@ let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   };
 };
 
-/* Note: this currently shadows in the case of duplicates */
-let union: list(co) => co =
-  List.fold_left((free1, free2) => free1 @ free2, []);
+let added_bindings = (ctx_after: t, ctx_before: t): t => {
+  /* Precondition: new_ctx is old_ctx plus some new bindings */
+  let new_count = List.length(ctx_after) - List.length(ctx_before);
+  switch (ListUtil.split_n_opt(new_count, ctx_after)) {
+  | Some((ctx, _)) => ctx
+  | _ => []
+  };
+};
 
 module VarSet = Set.Make(Token);
 

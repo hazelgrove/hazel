@@ -79,17 +79,6 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = {
-    id: Id.t,
-    expected_ty: Typ.t,
-  };
-
-  /* Each co-context entry is a list of the uses of a variable
-     within some scope, including their type demands */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(list(co_entry));
-
   let extend: (t, entry) => t;
   let extend_tvar: (t, tvar_entry) => t;
   let extend_alias: (t, Token.t, Id.t, Typ.t) => t;
@@ -120,15 +109,6 @@ and Ctx: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = {
-    id: Id.t,
-    expected_ty: Typ.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(list(co_entry));
 
   let extend = (ctx, entry) => List.cons(entry, ctx);
 
