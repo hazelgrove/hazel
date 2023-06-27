@@ -105,75 +105,50 @@ let top_bar_view =
           ~attr=clss(["menu"]),
           [
             submenu(
-              toggle(
-                "τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
+              toggle("τ", model.settings.statics, _ =>
                 inject(Set(Statics))
               ),
               [submenu_label("Toggle Statics")],
             ),
             submenu(
-              toggle(
-                "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
+              toggle("𝛿", model.settings.dynamics, _ =>
                 inject(Set(Dynamics))
               ),
               [submenu_label("Toggle Dynamics")],
             ),
             submenu(
-              toggle(
-                "b",
-                ~tooltip="Toggle Performance Benchmark",
-                model.settings.benchmark,
-                _ =>
+              toggle("b", model.settings.benchmark, _ =>
                 inject(Set(Benchmark))
               ),
               [submenu_label("Toggle Performance Benchmark")],
             ),
             submenu(
-              div(
-                ~attr=
-                  Attr.many([
-                    clss(["icon"]),
-                    Attr.title("Export Submission"),
-                  ]),
-                [Icons.export],
-              ),
-              [
-                submenu_button("Export Submission", _ => {
+              button(
+                Icons.export,
+                _ => {
                   download_editor_state(
                     ~instructor_mode=model.settings.instructor_mode,
                   );
                   Virtual_dom.Vdom.Effect.Ignore;
-                }),
-              ],
+                },
+              ),
+              [submenu_label("Export Submission")],
             ),
             submenu(
-              file_select_button(
-                "import-submission",
-                Icons.import,
-                file => {
-                  switch (file) {
-                  | None => Virtual_dom.Vdom.Effect.Ignore
-                  | Some(file) => inject(InitImportAll(file))
-                  }
-                },
-                ~tooltip="Import Submission",
-              ),
+              file_select_button("import-submission", Icons.import, file => {
+                switch (file) {
+                | None => Virtual_dom.Vdom.Effect.Ignore
+                | Some(file) => inject(InitImportAll(file))
+                }
+              }),
               [submenu_label("Import Submission")],
             ),
             submenu(
-              button(
-                Icons.eye,
-                _ => inject(Set(SecondaryIcons)),
-                ~tooltip="Toggle Visible Secondary",
-              ),
+              button(Icons.eye, _ => inject(Set(SecondaryIcons))),
               [submenu_label("Toggle Visible Secondary")],
             ),
             submenu(
-              link(
-                Icons.github,
-                "https://github.com/hazelgrove/hazel",
-                ~tooltip="Hazel on GitHub",
-              ),
+              link(Icons.github, "https://github.com/hazelgrove/hazel"),
               [submenu_label("Hazel on GitHub")],
             ),
           ],

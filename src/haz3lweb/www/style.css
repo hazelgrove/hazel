@@ -291,6 +291,7 @@ body {
   /* to accommodate Hazel icon */
   display: flex;
   background-color: var(--light-page-color);
+  z-index: var(--top-bar-z);
 }
 
 #top-bar-content {
