@@ -41,9 +41,13 @@ module Pervasives = {
         let f = Re.Str.string_before(f, String.length(f) - 1);
         if (String.length(f) == 0) {
           BoxedValue(IntLit(0)) |> return;
-        } else {
+        } else if (Form.is_int(f)) {
           let i = int_of_string(f);
           BoxedValue(IntLit(i)) |> return;
+        } else {
+          raise(
+            EvaluatorError.Exception(InvalidBoxedStringLit(StringLit(f))),
+          );
         };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
