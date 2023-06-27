@@ -36,7 +36,7 @@ module Pervasives = {
     /* int_of_string implementation. */
     let int_of_string = (name, r1) =>
       switch (r1) {
-      | BoxedValue(StringLit(f)) =>
+      | BoxedValue(StringLit(f) as d1) =>
         let f = Re.Str.string_after(f, 1);
         let f = Re.Str.string_before(f, String.length(f) - 1);
         if (String.length(f) == 0) {
@@ -45,7 +45,10 @@ module Pervasives = {
           let i = int_of_string(f);
           BoxedValue(IntLit(i)) |> return;
         } else {
-          BoxedValue(InvalidText(0, 0, f)) |> return;
+          Indet(
+            InvalidOperation(ApBuiltin(name, [d1]), InvalidIntOfString),
+          )
+          |> return;
         };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
