@@ -323,7 +323,7 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | USum(list(t))
+    | Sum(list(t))
   and t = {
     ids: list(Id.t),
     term,
@@ -345,7 +345,7 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | USum(list(t))
+    | Sum(list(t))
   and t = {
     ids: list(Id.t),
     term,

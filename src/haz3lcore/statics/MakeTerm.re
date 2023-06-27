@@ -376,20 +376,20 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
-  | Pre(tiles, Typ({term: USum(t0), ids})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => (USum(t0), ids)
+    | ([(_, (["+"], []))], []) => (Sum(t0), ids)
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => ret(USum([t]))
+    | ([(_, (["+"], []))], []) => ret(Sum([t]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
-    | Some(between_kids) => ret(USum([t1] @ between_kids @ [t2]))
+    | Some(between_kids) => ret(Sum([t1] @ between_kids @ [t2]))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

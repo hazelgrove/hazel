@@ -277,7 +277,7 @@ and uexp_to_info_map =
       let (ty_def, ctx_def, ctx_body) = {
         let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
         switch (utyp.term) {
-        | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ctx_def =
             Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
@@ -437,7 +437,7 @@ and utyp_to_info_map =
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
     add(m);
-  | USum(ts) =>
+  | Sum(ts) =>
     let (m, _) =
       List.fold_left(
         ((m, tags), uty) => {
