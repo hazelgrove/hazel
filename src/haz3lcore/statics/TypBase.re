@@ -10,6 +10,7 @@ module rec Typ: {
   type type_provenance =
     | SynSwitch
     | TypeHole
+    | Free(TypVar.t)
     | Internal;
 
   /* TYP.T: Hazel types */
@@ -45,6 +46,7 @@ module rec Typ: {
   type type_provenance =
     | SynSwitch
     | TypeHole
+    | Free(TypVar.t)
     | Internal;
 
   /* TYP.T: Hazel types */
