@@ -124,7 +124,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral
+    | Deferral(bool)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -237,7 +237,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral
+    | Deferral(bool)
     | Bool(bool)
     | Int(int)
     | Float(float)
