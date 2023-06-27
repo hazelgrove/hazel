@@ -32,7 +32,10 @@ let slide_toggle_view = (~inject, ~model: Model.t, ~caption, ~control) => {
     [
       div(~attr=Attr.many([toggle_mode, tooltip]), [text(caption)]),
       button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
-      text(cur_slide_text),
+      span(
+        ~attr=Attr.style(Css_gen.white_space(`Nowrap)),
+        [text(cur_slide_text)],
+      ),
       button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
     ]
     @ Option.to_list(control),
@@ -153,19 +156,15 @@ let top_bar_view =
             ),
           ],
         ),
-        button_d(
-          Icons.undo,
-          inject(Undo),
-          ~disabled=!can_undo,
-          ~tooltip="Undo",
+        submenu(
+          button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
+          [submenu_label("Undo")],
         ),
-        button_d(
-          Icons.redo,
-          inject(Redo),
-          ~disabled=!can_redo,
-          ~tooltip="Redo",
+        submenu(
+          button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
+          [submenu_label("Redo")],
         ),
-        editor_mode_toggle_view(~inject, ~model),
+        submenu(editor_mode_toggle_view(~inject, ~model), []),
       ]
       @ toolbar_buttons,
     );

@@ -104,56 +104,61 @@ let download_slide_init_state = state => {
 
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
-    Widgets.button(
-      Icons.export,
-      _ => {
-        download_slide_state(state);
-        Virtual_dom.Vdom.Effect.Ignore;
-      },
-      ~tooltip="Export Scratchpad",
+    Widgets.submenu(
+      Widgets.button(
+        Icons.export,
+        _ => {
+          download_slide_state(state);
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+      ),
+      [Widgets.submenu_label("Export Scatchpad")],
     );
   let import_button =
-    Widgets.file_select_button(
-      "import-scratchpad",
-      Icons.import,
-      file => {
+    Widgets.submenu(
+      Widgets.file_select_button("import-scratchpad", Icons.import, file => {
         switch (file) {
         | None => Virtual_dom.Vdom.Effect.Ignore
         | Some(file) => inject(UpdateAction.InitImportScratchpad(file))
         }
-      },
-      ~tooltip="Import Scratchpad",
+      }),
+      [Widgets.submenu_label("Import Scratchpad")],
     );
 
   // for pasting into files like LanguageRefSlide.ml (note .ml extension)
   let export_init_button =
     SchoolSettings.show_instructor
       ? Some(
-          Widgets.button(
-            Icons.export,
-            _ => {
-              download_slide_init_state(state);
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Slide Persistent State Value",
+          Widgets.submenu(
+            Widgets.button(
+              Icons.export,
+              _ => {
+                download_slide_init_state(state);
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
+            ),
+            [Widgets.submenu_label("Export Slide Persistent State Value")],
           ),
         )
       : None;
   let reset_button =
-    Widgets.button(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
-          );
-        if (confirmed) {
-          inject(ResetSlide);
-        } else {
-          Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Scratchpad",
+    Widgets.submenu(
+      Widgets.button(
+        Icons.trash,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+            );
+          if (confirmed) {
+            inject(ResetSlide);
+          } else {
+            Virtual_dom.Vdom.Effect.Ignore;
+          };
+        },
+        ~tooltip="Reset Scratchpad",
+      ),
+      [Widgets.submenu_label("Reset Scratchpad")],
     );
   [export_button, import_button]
   @ Option.to_list(export_init_button)
