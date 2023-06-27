@@ -59,9 +59,14 @@ let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   };
 };
 
+let tags_of = (m: list((key, 'a))): list(key) => List.map(fst, m);
+
+let same_tags_same_order = (map1: t('a), map2: t('a)): bool =>
+  List.for_all2(tag_equal, tags_of(map1), tags_of(map2));
+
 let tags_equal = (map1: t('a), map2: t('a)): bool => {
-  let tags1 = map1 |> List.map(fst);
-  let tags2 = map2 |> List.map(fst);
+  let tags1 = tags_of(map1);
+  let tags2 = tags_of(map2);
   tags1 === tags2
   || List.fast_sort(compare, tags1) == List.fast_sort(compare, tags2);
 };

@@ -203,12 +203,11 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Prod(tys);
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let* ty =
-      ListUtil.map2_opt(
-        join_sum_entries(ctx),
-        TagMap.sort(sm1),
-        TagMap.sort(sm2),
-      );
+    let (sorted1, sorted2) =
+      /* If same order, retain order for UI */
+      TagMap.same_tags_same_order(sm1, sm2)
+        ? (sm1, sm2) : (TagMap.sort(sm1), TagMap.sort(sm2));
+    let* ty = ListUtil.map2_opt(join_sum_entries(ctx), sorted1, sorted2);
     let+ ty = OptUtil.sequence(ty);
     Sum(ty);
   | (Sum(_), _) => None
