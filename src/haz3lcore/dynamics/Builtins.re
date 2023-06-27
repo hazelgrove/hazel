@@ -45,9 +45,7 @@ module Pervasives = {
           let i = int_of_string(f);
           BoxedValue(IntLit(i)) |> return;
         } else {
-          raise(
-            EvaluatorError.Exception(InvalidBoxedStringLit(StringLit(f))),
-          );
+          BoxedValue(InvalidText(0, 0, f)) |> return;
         };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
