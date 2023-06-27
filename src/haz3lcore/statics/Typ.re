@@ -149,7 +149,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
-      resolve ? ty_join : Var(n1);
+      !resolve && eq(ty1, ty_join) ? Var(n1) : ty_join;
     }
   | (Var(name), ty)
   | (ty, Var(name)) =>

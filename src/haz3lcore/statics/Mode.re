@@ -31,7 +31,7 @@ let matched_prod = (mode: t, length): list(t) =>
   switch (mode) {
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
+  | Ana(Unknown(prov)) => List.init(length, _ => Ana(Unknown(prov)))
   | _ => List.init(length, _ => Syn)
   };
 
