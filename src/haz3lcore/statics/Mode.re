@@ -1,14 +1,25 @@
 open Util;
 open OptUtil.Syntax;
 
-/* MODE: The (analytic) type information derived from a term's
-   syntactic context. This can either Syn (no type expectation),
-   or Ana (a type expectation). It is conjectured [citation needed]
-   that the Syn mode is functionally indistinguishable from
-   Ana(Unknown(SynSwitch)), and that this type is thus vestigial. */
+/* MODE.re
+
+     This module defines the (analytic) type expectation imposed by a term's
+      syntactic context, in particular its immediate parent. The most common
+      cases are either Syn (no type expectation), or Ana (some type expectation).
+
+      A term's MODE is used in combination with that term's SELF (Self.re) by
+      to determine that term's STATUS (Info.re), which dictates whether or not
+      it is placed in a hole, and hence its FIXED TYPE (Info.re).
+
+      (It is conjectured [citation needed] that the Syn mode is functionally
+      indistinguishable from Ana(Unknown(SynSwitch)), and that this type is
+      thus vestigial.)
+
+   */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | SynFun
+  | SynFun /* Used only in function position of applications */
   | Syn
   | Ana(Typ.t);
 
