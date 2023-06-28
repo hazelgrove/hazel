@@ -1855,7 +1855,58 @@ let get_doc =
         | TyAlias(_) => default // TODO
         };
       // TODO
-      | Module(_) => default
+      | Module(pat, def, body) =>
+        let basic = (doc: LangDocMessages.form, group_id, options) => {
+          let pat_id = List.nth(pat.ids, 0);
+          let def_id = List.nth(def.ids, 0);
+          get_message(
+            doc,
+            options,
+            group_id,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              def_id,
+              pat_id,
+            ),
+            LangDocMessages.let_base_exp_coloring_ids(~pat_id, ~def_id),
+          );
+        };
+        let pat = bypass_parens_and_annot_pat(pat);
+        let v =
+          switch (pat.term) {
+          | Tag(v) => v
+          | _ => ""
+          };
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.let_tag_exp_group,
+            docs,
+          );
+        if (LangDocMessages.let_tag_exp.id == doc.id) {
+          let pat_id = List.nth(pat.ids, 0);
+          let def_id = List.nth(def.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.let_tag_exp_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%s%i%i"),
+              def_id,
+              pat_id,
+              v,
+              def_id,
+              body_id,
+            ),
+            LangDocMessages.let_tag_exp_coloring_ids(
+              ~pat_id,
+              ~def_id,
+              ~body_id,
+            ),
+          );
+        } else {
+          basic(doc, LangDocMessages.let_tag_exp_group, options);
+        };
       | Dot(_) => default
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2751,7 +2802,7 @@ let get_doc =
       );
     | USum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
-    | Module(_) // TODO
+    | Module(_)
     | Dot(_) // TODO
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default
