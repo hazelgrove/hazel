@@ -364,7 +364,7 @@ and upat_to_info_map =
        may be SynSwitch, but SynSwitch is never added to the context;
        Unknown(Internal) is used in this case */
     let ctx_typ =
-      Info.ty_after_fix_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>

@@ -3,6 +3,33 @@ open Util;
 open OptUtil.Syntax;
 open Term;
 
+/* INFO.re
+
+   This module defines the cursor INFO data structure, which is used
+   to represent the static information associated with a term in the
+   AST. This includes the term itself, and information related to
+   typing and syntax, included erroneous states.
+
+   Each term is assigned a STATUS, which is directly used to determine
+   the message displayed to the user in CursorInspector.re. Each sort
+   has its own status datatype, which is divided into OK states (not
+   in error holes) and ERROR states (in error holes).
+
+   Regardless of errors, every expression & pattern term is ultimately
+   assigned a FIXED TYPE, which is the type of the term after hole
+   fixing; that is, all otherwise ill-typed terms are considered to
+   be 'wrapped in non-empty holes', i.e. assigned an Unknown type.
+
+   Fixed types are determined by reconcilling two sources of type
+   information: the SELF (Self.re), representing the type information
+   derivable from a term in isolation, and the MODE (Mode.re),
+   representing the expected type information imposed by the surrounding
+   syntactic context. A successful reconcilliation results in an OK
+   status; otherwise, an ERROR status, but in both cases, a fixed type
+   is determined.
+
+   */
+
 /* The ids of a term's ancestors in the AST */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
@@ -128,14 +155,14 @@ type status_tpat =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
-  term: UExp.t,
-  ancestors,
-  ctx: Ctx.t,
-  mode: Mode.t,
-  self: Self.exp,
-  co_ctx: CoCtx.t, /* _Locally_ unbound variables */
+  term: UExp.t, /* The term under consideration */
+  ancestors, /* Ascending list of containing term ids */
+  ctx: Ctx.t, /* Typing context for the term */
+  mode: Mode.t, /* Parental type expectations; see Mode.re */
+  self: Self.exp, /* Expectation-independent type info; see Self.re */
+  co_ctx: CoCtx.t, /* Locally unbound variables; see CoCtx.re */
   cls: UExp.cls, /* derived */
-  status: status_exp, /* derived: cursor inspector */
+  status: status_exp, /* derived: cursor inspector display */
   ty: Typ.t /* derived: type after hole fixing */
 };
 
@@ -147,7 +174,7 @@ type pat = {
   mode: Mode.t,
   self: Self.pat,
   cls: UPat.cls, /* derived */
-  status: status_pat, /* derived: cursor inspector */
+  status: status_pat, /* derived: cursor inspector display */
   ty: Typ.t /* derived: type after hole fixing */
 };
 
@@ -158,7 +185,7 @@ type typ = {
   ctx: Ctx.t,
   expects: typ_expects,
   cls: UTyp.cls, /* derived */
-  status: status_typ, /* derived: cursor inspector */
+  status: status_typ, /* derived: cursor inspector display */
   ty: Typ.t /* derived: represented type */
 };
 
@@ -167,8 +194,8 @@ type tpat = {
   term: UTPat.t,
   ancestors,
   ctx: Ctx.t,
-  cls: UTPat.cls, /* derived: from term */
-  status: status_tpat /* derived : cursor inspector */
+  cls: UTPat.cls, /* derived */
+  status: status_tpat /* derived : cursor inspector display */
 };
 
 /* The static information collated for each term */
@@ -194,19 +221,18 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
-  | (BadToken(name), Syn | SynFun | Ana(_)) => InHole(BadToken(name))
-  | (IsMulti, Syn | SynFun | Ana(_)) =>
-    NotInHole(SynConsistent(Unknown(Internal)))
-  | (Just(ty), Syn) => NotInHole(SynConsistent(ty))
-  | (Just(ty), SynFun) =>
-    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
-    | Some(_) => NotInHole(SynConsistent(ty))
-    | None => InHole(InconsistentWithArrow(ty))
-    }
+  | (Just(syn), Syn) => NotInHole(SynConsistent(syn))
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
     | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
+    }
+  | (Just(syn), SynFun) =>
+    switch (
+      Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
+    ) {
+    | None => InHole(InconsistentWithArrow(syn))
+    | Some(_) => NotInHole(SynConsistent(syn))
     }
   | (IsTag({name, syn_ty}), _) =>
     /* If a tag is being analyzed against (an arrow type returning)
@@ -218,10 +244,12 @@ let rec status_common =
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(FreeTag)
     }
-  | (NoJoin(tys), Syn | SynFun) =>
-    InHole(SynInconsistentBranches(Typ.of_source(tys)))
+  | (BadToken(name), _) => InHole(BadToken(name))
+  | (IsMulti, _) => NotInHole(SynConsistent(Unknown(Internal)))
   | (NoJoin(tys), Ana(ana)) =>
     NotInHole(AnaInternalInconsistent({ana, nojoin: Typ.of_source(tys)}))
+  | (NoJoin(tys), Syn | SynFun) =>
+    InHole(SynInconsistentBranches(Typ.of_source(tys)))
   };
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
@@ -338,24 +366,25 @@ let is_error = (ci: t): bool => {
   };
 };
 
-/* Determined the type of an expression or pattern 'after hole wrapping';
+/* Determined the type of an expression or pattern 'after hole fixing';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
-let typ_ok: ok_pat => Typ.t =
+let fixed_typ_ok: ok_pat => Typ.t =
   fun
   | SynConsistent(syn) => syn
   | AnaConsistent({join, _}) => join
   | AnaInternalInconsistent({ana, _}) => ana;
 
-let ty_after_fix_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
+let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(ok) => typ_ok(ok)
+  | NotInHole(ok) => fixed_typ_ok(ok)
   };
-let ty_after_fix_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
+
+let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(ok) => typ_ok(ok)
+  | NotInHole(ok) => fixed_typ_ok(ok)
   };
 
 /* Add derivable attributes for expression terms */
@@ -363,7 +392,7 @@ let derived_exp =
     (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
   let cls = UExp.cls_of_term(uexp.term);
   let status = status_exp(ctx, mode, self);
-  let ty = ty_after_fix_exp(ctx, mode, self);
+  let ty = fixed_typ_exp(ctx, mode, self);
   {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
 };
 
@@ -371,7 +400,7 @@ let derived_exp =
 let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = UPat.cls_of_term(upat.term);
   let status = status_pat(ctx, mode, self);
-  let ty = ty_after_fix_pat(ctx, mode, self);
+  let ty = fixed_typ_pat(ctx, mode, self);
   {cls, self, mode, ty, status, ctx, ancestors, term: upat};
 };
 
