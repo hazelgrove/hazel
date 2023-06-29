@@ -159,7 +159,7 @@ and uexp_to_info_map =
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
-    let modes = Mode.matched_list_lit(mode, List.length(es));
+    let modes = Mode.of_list_lit(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
@@ -168,7 +168,7 @@ and uexp_to_info_map =
       m,
     );
   | Cons(e1, e2) =>
-    let (e1, m) = go(~mode=Mode.matched_list(mode), e1, m);
+    let (e1, m) = go(~mode=Mode.of_list(mode), e1, m);
     let (e2, m) = go(~mode=Ana(List(e1.ty)), e2, m);
     add(
       ~self=Just(List(e1.ty)),
@@ -178,12 +178,7 @@ and uexp_to_info_map =
   | Var(name) =>
     add'(
       ~self=Self.of_exp_var(ctx, name),
-      ~co_ctx=[
-        (
-          name,
-          [{id: UExp.rep_id(uexp), expected_ty: Mode.expected_ty(mode)}],
-        ),
-      ],
+      ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
       m,
     )
   | Parens(e) =>
@@ -199,7 +194,7 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Tuple(es) =>
-    let modes = Mode.matched_prod(mode, List.length(es));
+    let modes = Mode.of_prod(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
@@ -225,7 +220,7 @@ and uexp_to_info_map =
       m,
     );
   | Fun(p, e) =>
-    let (mode_pat, mode_body) = Mode.matched_arrow(mode);
+    let (mode_pat, mode_body) = Mode.of_arrow(mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
     let (e, m) = go'(~ctx=p.ctx, ~mode=mode_body, e, m);
     add(
@@ -282,8 +277,8 @@ and uexp_to_info_map =
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
-    | Var(name)
-        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
+    | Var(name) when !Ctx.shadows_typ(ctx, name) =>
+      /* Currently we disallow all type shadowing */
       /* NOTE(andrew): Currently, UTyp.to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
          in the definition won't be noticed. But we need to check for free
@@ -363,7 +358,7 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
-    let modes = Mode.matched_list_lit(mode, List.length(ps));
+    let modes = Mode.of_list_lit(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(
       ~self=Self.join(ty => List(ty), tys, List.map(UPat.rep_id, ps), ctx),
@@ -371,7 +366,7 @@ and upat_to_info_map =
       m,
     );
   | Cons(hd, tl) =>
-    let (hd, m) = go(~ctx, ~mode=Mode.matched_list(mode), hd, m);
+    let (hd, m) = go(~ctx, ~mode=Mode.of_list(mode), hd, m);
     let (tl, m) = go(~ctx=hd.ctx, ~mode=Ana(List(hd.ty)), tl, m);
     add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
   | Wild => atomic(Just(unknown))
@@ -384,7 +379,7 @@ and upat_to_info_map =
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
-    let modes = Mode.matched_prod(mode, List.length(ps));
+    let modes = Mode.of_prod(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>
