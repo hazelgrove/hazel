@@ -160,6 +160,14 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    /* TODO:
+         This code isn't fully correct, as we may be doing
+         substitution on open terms; if x1 occurs in ty2,
+         we should be substituting x1 for a fresh variable
+         in ty2. This is annoying, and should be obviated
+         by the forthcoming debruijn index implementation
+       */
+    let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
     Rec(x1, ty_body);
   | (Rec(_), _) => None
