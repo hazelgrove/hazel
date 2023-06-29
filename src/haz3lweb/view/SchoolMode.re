@@ -9,7 +9,6 @@ type t = {
   langDocMessages: LangDocMessages.t,
   stitched_dynamics: SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
-  syntax_report: Grading.SyntaxReport.t,
 };
 
 let mk =
@@ -25,14 +24,8 @@ let mk =
     Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
       SchoolExercise.stitch_dynamic(exercise, results)
     );
-  let syntax_report = SchoolExercise.syntax_test(exercise);
 
-  let grading_report =
-    Grading.GradingReport.mk(
-      eds,
-      ~stitched_dynamics,
-      ~sr_percentage=syntax_report.percentage,
-    );
+  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   {
     exercise,
@@ -41,7 +34,6 @@ let mk =
     langDocMessages,
     stitched_dynamics,
     grading_report,
-    syntax_report,
   };
 };
 
@@ -69,7 +61,6 @@ let view =
     stitched_dynamics,
     grading_report,
     langDocMessages,
-    syntax_report,
   } = self;
   let SchoolExercise.{pos, eds} = exercise;
   let SchoolExercise.{
@@ -283,7 +274,8 @@ let view =
       ),
     );
 
-  let syntax_grading_view = Always(Grading.SyntaxReport.view(syntax_report));
+  let syntax_grading_view =
+    Always(Grading.SyntaxReport.view(grading_report.syntax_report));
 
   let testing_results =
     ModelResult.unwrap_test_results(user_tests.simple_result);

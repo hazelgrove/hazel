@@ -67,13 +67,7 @@ module Main = {
     };
     let model_results = ModelResults.init(spliced_elabs(exercise));
     let stitched_dynamics = stitch_dynamic(exercise, Some(model_results));
-    let syntax_report = syntax_test(exercise);
-    let grading_report =
-      exercise.eds
-      |> GradingReport.mk(
-           ~stitched_dynamics,
-           ~sr_percentage=syntax_report.percentage,
-         );
+    let grading_report = exercise.eds |> GradingReport.mk(~stitched_dynamics);
     let details = grading_report;
     let point_distribution = details.point_distribution;
     let test_validation = {
