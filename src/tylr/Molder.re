@@ -73,11 +73,11 @@ let step_leq = (m: Mold.t): Stepped.t => {
     let last_kid =
       switch (z) {
       | (Tok(_), _) => Meld.empty()
-      | (Kid(s), _) => failwith("todo mk grout with s");
+      | (Kid(s), _) => failwith("todo mk grout with s")
       };
     Regex.step(R, z.zipper)
     |> List.map(stop_or_step(~lt, ~last_kid))
-    |> Stepped.concat
+    |> Stepped.concat;
   }
   and stop_or_step = (~lt, ~last_kid, z: GZipper.t(Atom.t)) =>
     switch (z.zipper) {
@@ -86,7 +86,7 @@ let step_leq = (m: Mold.t): Stepped.t => {
       Grammar.enter(~from=L, ~bound, s)
       |> List.map(stop_or_step(~lt=true, ~last_kid))
       |> Stepped.concat
-      |> Stepped.cat(step(~lt, z))
+      |> Stepped.cat(step(~lt, z));
     | (Tok(lbl), ctx) =>
       let m = failwith("todo of lbl ctx sort prec");
       let p = failwith("todo using m");
@@ -97,8 +97,7 @@ let step_leq = (m: Mold.t): Stepped.t => {
 };
 // todo: maybe incorporate kid sort to sort results
 let leq = (l: Mold.t, r: Mold.t): Stepped.t =>
-  step_leq(l)
-  |> Stepped.filter(t => Mold.eq(r, Terrace.R.face(t).mold));
+  step_leq(l) |> Stepped.filter(t => Mold.eq(r, Terrace.R.face(t).mold));
 
 let rec walk_leq = (~stepped_to=Mold.Set.empty, m: Mold.t): list(Slope.Dn.t) =>
   if (Mold.Set.mem(m, stepped_to)) {
@@ -122,5 +121,4 @@ let rec walk_leq = (~stepped_to=Mold.Set.empty, m: Mold.t): list(Slope.Dn.t) =>
   };
 // todo: maybe incorporate kid sort to sort results
 let leq_trans = (l: Mold.t, r: Mold.t): list(Slope.t) =>
-  walk_leq(l)
-  |> List.filter(s => Mold.eq(r, Slope.Dn.face(s).mold));
+  walk_leq(l) |> List.filter(s => Mold.eq(r, Slope.Dn.face(s).mold));
