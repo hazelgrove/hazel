@@ -157,7 +157,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ty, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
-    resolve ? ty_join : Var(name);
+    !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(x1, ty1), Rec(x2, ty2)) =>
     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
