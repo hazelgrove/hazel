@@ -146,6 +146,13 @@ let return_dark_hole = (~ids=[], s) => {
   hole;
 };
 
+let parse_sum_term: UTyp.t => UTyp.variant =
+  fun
+  | {term: Var(tag), ids} => Variant(tag, ids, None)
+  | {term: Ap({term: Var(tag), ids: ids_tag}, u), ids: ids_ap} =>
+    Variant(tag, ids_tag @ ids_ap, Some(u))
+  | t => BadEntry(t);
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -384,12 +391,13 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => ret(Sum([t]))
+    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
-    | Some(between_kids) => ret(Sum([t1] @ between_kids @ [t2]))
+    | Some(between_kids) =>
+      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

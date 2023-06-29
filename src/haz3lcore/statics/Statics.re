@@ -449,23 +449,13 @@ and utyp_to_info_map =
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
     add(m);
-  | Sum(ts) =>
+  | Sum(variants) =>
+    let ty_sum = UTyp.to_typ(ctx, utyp);
     let (m, _) =
       List.fold_left(
-        ((m, tags), uty) => {
-          let (status, tag) =
-            switch (UTyp.get_tag(ctx, uty)) {
-            | None => (Info.Unique, [])
-            | Some(tag) when !List.mem(tag, tags) => (Unique, [tag])
-            | Some(tag) => (Duplicate, [tag])
-            };
-          let ty_sum = UTyp.to_typ(ctx, utyp);
-          let m =
-            go'(~expects=VariantExpected(status, ty_sum), uty, m) |> snd;
-          (m, tags @ tag);
-        },
+        variant_to_info_map(~ctx, ~ancestors, ~ty_sum),
         (m, []),
-        ts,
+        variants,
       );
     add(m);
   };
@@ -485,6 +475,29 @@ and utpat_to_info_map =
   | Invalid(_)
   | EmptyHole
   | Var(_) => add(m)
+  };
+}
+and variant_to_info_map =
+    (~ctx, ~ancestors, ~ty_sum, (m, tags), uty: UTyp.variant) => {
+  let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
+  switch (uty) {
+  | BadEntry(uty) =>
+    let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
+    (m, tags);
+  | Variant(tag, ids, param) =>
+    let m =
+      go(
+        TagExpected(List.mem(tag, tags) ? Duplicate : Unique, ty_sum),
+        {term: Tag(tag), ids},
+        m,
+      )
+      |> snd;
+    let m =
+      switch (param) {
+      | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
+      | None => m
+      };
+    (m, [tag, ...tags]);
   };
 };
 
