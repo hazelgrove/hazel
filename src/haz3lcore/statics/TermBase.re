@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -323,7 +324,10 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Sum(list(t))
+    | Sum(list(variant))
+  and variant =
+    | Variant(Tag.t, list(Id.t), option(t))
+    | BadEntry(t)
   and t = {
     ids: list(Id.t),
     term,
@@ -345,7 +349,10 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Sum(list(t))
+    | Sum(list(variant))
+  and variant =
+    | Variant(Tag.t, list(Id.t), option(t))
+    | BadEntry(t)
   and t = {
     ids: list(Id.t),
     term,

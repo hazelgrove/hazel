@@ -133,25 +133,18 @@ module UTyp = {
       | Tag(_)
       | Ap(_) => Unknown(Internal)
       }
-  and to_variant = ctx =>
-    fun
-    | {term: Var(tag), _} => [(tag, None)]
-    | {term: Ap({term: Var(tag), _}, u), _} => [
-        (tag, Some(to_typ(ctx, u))),
-      ]
-    | _ => []
-  and get_tag = (ctx, ut) =>
-    switch (to_variant(ctx, ut)) {
-    | [(tag, _)] => Some(tag)
-    | _ => None
-    }
-  and to_tag_map = (ctx, uts: list(t)): Typ.sum_map => {
+  and to_variant: (Ctx.t, variant) => option(TagMap.binding(option(Typ.t))) =
+    ctx =>
+      fun
+      | Variant(tag, _, u) => Some((tag, Option.map(to_typ(ctx), u)))
+      | BadEntry(_) => None
+  and to_tag_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
     List.fold_left(
       (acc, ut) =>
         List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
           ? acc @ [ut] : acc,
       [],
-      Util.ListUtil.flat_map(to_variant(ctx), uts),
+      List.filter_map(to_variant(ctx), uts),
     );
   };
 };
