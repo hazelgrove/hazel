@@ -21,21 +21,23 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-/* MATCHED JUDGEMENTS: Note that matched judgements work
-   a bit different than hazel2 here since hole fixing is
-   implicit. Somebody should check that what I'm doing
-   here actually makes sense -Andrew */
-
 let matched_arrow: t => (t, t) =
   fun
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(_)
+  | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
   | _ => (Unknown(Internal), Unknown(Internal));
+
+let matched_prod: (int, t) => list(t) =
+  length =>
+    fun
+    | Prod(tys) when List.length(tys) == length => tys
+    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
+    | _ => List.init(length, _ => Unknown(Internal));
 
 let matched_list: t => t =
   fun
   | List(ty) => ty
-  | Unknown(_)
+  | Unknown(SynSwitch) => Unknown(SynSwitch)
   | _ => Unknown(Internal);
 
 let precedence_Prod = 1;
