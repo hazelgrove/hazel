@@ -46,13 +46,26 @@ let of_prod = (mode: t, length): list(t) =>
   | Ana(ty) => Typ.matched_prod(length, ty) |> List.map(ty => Ana(ty))
   };
 
+let of_cons_hd: t => t =
+  fun
+  | Syn
+  | SynFun => Syn
+  | Ana(ty) => Ana(Typ.matched_list(ty));
+
+let of_cons_tl = (mode: t, hd_ty: Typ.t): t =>
+  switch (mode) {
+  | Syn
+  | SynFun => Ana(List(hd_ty))
+  | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+  };
+
 let of_list: t => t =
   fun
   | Syn
   | SynFun => Syn
   | Ana(ty) => Ana(Typ.matched_list(ty));
 
-let of_list_lit = (mode: t, length): list(t) =>
+let of_list_lit = (length, mode: t): list(t) =>
   List.init(length, _ => of_list(mode));
 
 let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Tag.t): option(Typ.t) => {
