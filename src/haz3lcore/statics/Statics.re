@@ -167,12 +167,12 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
-  | Cons(e1, e2) =>
-    let (e1, m) = go(~mode=Mode.of_cons_hd(mode), e1, m);
-    let (e2, m) = go(~mode=Mode.of_cons_tl(mode, e1.ty), e2, m);
+  | Cons(hd, tl) =>
+    let (hd, m) = go(~mode=Mode.of_cons_hd(mode), hd, m);
+    let (tl, m) = go(~mode=Mode.of_cons_tl(mode, hd.ty), tl, m);
     add(
-      ~self=Just(List(e1.ty)),
-      ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+      ~self=Just(List(hd.ty)),
+      ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
       m,
     );
   | Var(name) =>
