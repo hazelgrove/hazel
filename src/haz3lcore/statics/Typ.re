@@ -34,6 +34,12 @@ let matched_prod: (int, t) => list(t) =
     | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
     | _ => List.init(length, _ => Unknown(Internal));
 
+let matched_cons: t => (t, t) =
+  fun
+  | List(ty) => (ty, List(ty))
+  | Unknown(SynSwitch) => (Unknown(SynSwitch), List(Unknown(SynSwitch)))
+  | _ => (Unknown(Internal), List(Unknown(SynSwitch)));
+
 let matched_list: t => t =
   fun
   | List(ty) => ty
