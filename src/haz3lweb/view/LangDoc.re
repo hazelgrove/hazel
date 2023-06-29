@@ -1856,21 +1856,6 @@ let get_doc =
         };
       // TODO
       | Module(pat, def, body) =>
-        let basic = (doc: LangDocMessages.form, group_id, options) => {
-          let pat_id = List.nth(pat.ids, 0);
-          let def_id = List.nth(def.ids, 0);
-          get_message(
-            doc,
-            options,
-            group_id,
-            Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i"),
-              def_id,
-              pat_id,
-            ),
-            LangDocMessages.let_base_exp_coloring_ids(~pat_id, ~def_id),
-          );
-        };
         let pat = bypass_parens_and_annot_pat(pat);
         let v =
           switch (pat.term) {
@@ -1879,34 +1864,25 @@ let get_doc =
           };
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.let_tag_exp_group,
+            LangDocMessages.module_exp_group,
             docs,
           );
-        if (LangDocMessages.let_tag_exp.id == doc.id) {
-          let pat_id = List.nth(pat.ids, 0);
-          let def_id = List.nth(def.ids, 0);
-          let body_id = List.nth(body.ids, 0);
-          get_message(
-            doc,
-            options,
-            LangDocMessages.let_tag_exp_group,
-            Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i%s%i%i"),
-              def_id,
-              pat_id,
-              v,
-              def_id,
-              body_id,
-            ),
-            LangDocMessages.let_tag_exp_coloring_ids(
-              ~pat_id,
-              ~def_id,
-              ~body_id,
-            ),
-          );
-        } else {
-          basic(doc, LangDocMessages.let_tag_exp_group, options);
-        };
+        let pat_id = List.nth(pat.ids, 0);
+        let def_id = List.nth(def.ids, 0);
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.module_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i%s%i"),
+            def_id,
+            pat_id,
+            v,
+            body_id,
+          ),
+          LangDocMessages.module_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+        );
       | Dot(_) => default
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);

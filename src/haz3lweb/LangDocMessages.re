@@ -93,6 +93,7 @@ let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
+let mk_module = Example.mk_tile(Form.get("module_"));
 let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
 
 let mk_if = Example.mk_tile(Form.get("if_"));
@@ -1497,6 +1498,62 @@ let let_ap_exp: form = {
     expandable_id: Some(Piece.id(ap)),
     explanation,
     examples: [let_ap_ex],
+  };
+};
+
+let module_ex = {
+  sub_id: "moduke_ex",
+  term: mk_example("module M = \nlet x = 1 in \n in \nM.x"),
+  message: "The variable M is bound to Module(x = 1), so the expression evaluates to 1.",
+  feedback: Unselected,
+};
+let module_exp_group = "module_exp_group";
+let _pat_def_body_module_exp_coloring_ids =
+    (
+      sf_pat_id: Id.t,
+      sf_def_id: Id.t,
+      sf_body_id: Id.t,
+      ~pat_id: Id.t,
+      ~def_id: Id.t,
+      ~body_id: Id.t,
+    )
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_def_id, def_id), (sf_body_id, body_id)];
+};
+let _pat_def_module_exp_coloring_ids =
+    (sf_pat_id: Id.t, sf_def_id: Id.t, ~pat_id: Id.t, ~def_id: Id.t)
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_def_id, def_id)];
+};
+let _pat = pat("p");
+let _exp_def = exp("e_def");
+let module_base_exp_coloring_ids =
+  _pat_def_module_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
+let _pat = pat("M");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let module_exp_coloring_ids =
+  _pat_def_body_module_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
+let module_exp: form = {
+  let explanation = {
+    message: "Module definition expression.  The [*definition*](%i) is packaged as a module and bound to the [*variable*](%i) `%s` in the [*body*](%i).",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_module([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: "module_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [module_ex],
   };
 };
 
@@ -3436,6 +3493,7 @@ let init = {
     let_tuple3_exp,
     let_tag_exp,
     let_ap_exp,
+    module_exp,
     tyalias_base_exp,
     funapp_exp,
     conapp_exp,
@@ -3796,6 +3854,7 @@ let init = {
         (let_ap_exp.id, [pat("p_con"), mk_ap_pat([[pat("p_arg")]])]),
       ]),
     ),
+    (module_exp_group, init_options([(module_exp.id, [])])),
     (tyalias_exp_group, init_options([(tyalias_base_exp.id, [])])),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
