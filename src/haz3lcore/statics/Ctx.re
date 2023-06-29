@@ -21,16 +21,13 @@ let lookup_tag = (ctx: t, name: string): option(var_entry) =>
   | _ => None
   };
 
-let is_alias = (ctx: t, name: Token.t): bool =>
+let is_alias = (ctx: t, name: TypVar.t): bool =>
   switch (lookup_alias(ctx, name)) {
   | Some(_) => true
   | None => false
   };
 
-let add_alias = (ctx: t, name: Token.t, id: Id.t, ty: Typ.t): t =>
-  extend(TVarEntry({name, id, kind: Singleton(ty)}), ctx);
-
-let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
+let add_tags = (ctx: t, name: TypVar.t, id: Id.t, tags: Typ.sum_map): t =>
   List.map(
     ((tag, typ)) =>
       TagEntry({
@@ -45,27 +42,6 @@ let add_tags = (ctx: t, name: Token.t, id: Id.t, tags: Typ.sum_map): t =>
     tags,
   )
   @ ctx;
-
-let added_bindings = (ctx_after: t, ctx_before: t): t => {
-  /* Precondition: new_ctx is old_ctx plus some new bindings */
-  let new_count = List.length(ctx_after) - List.length(ctx_before);
-  switch (ListUtil.split_n_opt(new_count, ctx_after)) {
-  | Some((ctx, _)) => ctx
-  | _ => []
-  };
-};
-
-let free_in = (ctx_before: t, ctx_after, free: co): co => {
-  let added_bindings = added_bindings(ctx_after, ctx_before);
-  VarMap.filter(
-    ((k, _)) =>
-      switch (lookup_var(added_bindings, k)) {
-      | None => true
-      | Some(_) => false
-      },
-    free,
-  );
-};
 
 let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   // NOTE: does not check that the prefix is an actual prefix
@@ -82,11 +58,16 @@ let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   };
 };
 
-/* Note: this currently shadows in the case of duplicates */
-let union: list(co) => co =
-  List.fold_left((free1, free2) => free1 @ free2, []);
+let added_bindings = (ctx_after: t, ctx_before: t): t => {
+  /* Precondition: new_ctx is old_ctx plus some new bindings */
+  let new_count = List.length(ctx_after) - List.length(ctx_before);
+  switch (ListUtil.split_n_opt(new_count, ctx_after)) {
+  | Some((ctx, _)) => ctx
+  | _ => []
+  };
+};
 
-module VarSet = Set.Make(Token);
+module VarSet = Set.Make(Var);
 
 // Note: filter out duplicates when rendering
 let filter_duplicates = (ctx: t): t =>
@@ -135,7 +116,7 @@ let rec modulize = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
   | Sum(sm) => Sum(TagMap.map(Option.map(modulize(ctx, x)), sm))
   | Rec(y, ty) => Rec(y, modulize(ctx, x, ty))
   | List(ty) => List(modulize(ctx, x, ty))
-  | Var(n) => Member(x ++ "." ++ n, Typ.normalize_shallow(ctx, ty))
+  | Var(n) => Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
   | Module(inner_ctx) =>
     let ctx_entry_modulize = (e: entry): entry => {
       switch (e) {
@@ -160,3 +141,5 @@ let modulize_ctx = (ctx: t, x: string): t => {
     ctx,
   );
 };
+let shadows_typ = (ctx: t, name: TypVar.t): bool =>
+  Form.is_base_typ(name) || lookup_alias(ctx, name) != None;

@@ -174,7 +174,7 @@ module Stacks = {
         try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
         | _ =>
           print_endline(show(stacks));
-          failwith("blah");
+          failwith("Skel.push_output: split_kids: index out of bounds");
         };
       let output =
         switch (l, r) {

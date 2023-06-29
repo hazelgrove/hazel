@@ -87,9 +87,8 @@ let is_tag = is_capitalized_name;
 let is_dot_var = str =>
   regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str) || str == ".";
 let is_dot_typ = str => regexp("^\\.[A-Z][A-Za-z0-9_]*$", str) || str == ".";
-let is_base_typ = str =>
-  str == "String" || str == "Int" || str == "Float" || str == "Bool";
-let is_typ_var = t => is_capitalized_name(t) /*&& !is_base_typ(t)*/;
+let is_base_typ = regexp("^(String|Int|Float|Bool)$");
+let is_typ_var = is_capitalized_name;
 let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
 

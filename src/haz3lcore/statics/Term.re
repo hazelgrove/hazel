@@ -16,6 +16,7 @@
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
+open Util;
 include TermBase.Any;
 
 type any = t;
@@ -37,9 +38,8 @@ module UTyp = {
     | Module
     | Tag
     | Parens
-    | Ap
-    | USum
-    | Dot;
+    | Dot
+    | Ap;
 
   include TermBase.UTyp;
 
@@ -71,8 +71,8 @@ module UTyp = {
     | Parens(_) => Parens
     | Module(_) => Module
     | Ap(_) => Ap
-    | USum(_) => USum
-    | Dot(_) => Dot;
+    | Dot(_) => Dot
+    | Sum(_) => Sum;
 
   let show_cls: cls => string =
     fun
@@ -88,12 +88,11 @@ module UTyp = {
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
+    | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
     | Module => "Module Type"
-    | Sum => "Sum Type"
-    | Ap => "Sum Constructor Application"
-    | USum => "Sum Type"
-    | Dot => "Member Type";
+    | Dot => "Member Type"
+    | Ap => "Sum Constructor Application";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -112,8 +111,8 @@ module UTyp = {
     | Module(_)
     | Tag(_)
     | Ap(_)
-    | USum(_)
-    | Dot(_) => false
+    | Dot(_)
+    | Sum(_) => false
     };
   };
 
@@ -129,15 +128,13 @@ module UTyp = {
       | Float => Float
       | String => String
       | Var(name) =>
-        //Var(name)
-        //Ctx.is_alias(ctx, name) ? Var(name) : Unknown(TypeHole)
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
-        | None => Unknown(TypeHole)
+        | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | USum(uts) => Sum(to_tag_map(ctx, uts))
+      | Sum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
@@ -217,25 +214,32 @@ module UTyp = {
               /* NOTE(andrew):  See TyAlias in Statics.uexp_to_info_map  */
               let (ty_def, ctx_body, new_inner) = {
                 let ty_pre =
-                  to_typ(
-                    Ctx.add_abstract(outer_ctx, name, Id.invalid),
-                    utyp,
-                  );
+                  to_typ(Ctx.extend_dummy_tvar(outer_ctx, name), utyp);
                 switch (utyp.term) {
-                | USum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+                | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
                   let ty_rec =
                     Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
                   (
                     ty_rec,
-                    Ctx.add_alias(outer_ctx, name, rep_id_t(typat), ty_rec),
-                    Ctx.add_alias(inner_ctx, name, rep_id_t(typat), ty_rec),
+                    Ctx.extend_alias(
+                      outer_ctx,
+                      name,
+                      rep_id_t(typat),
+                      ty_rec,
+                    ),
+                    Ctx.extend_alias(
+                      inner_ctx,
+                      name,
+                      rep_id_t(typat),
+                      ty_rec,
+                    ),
                   );
                 | _ =>
                   let ty = to_typ(outer_ctx, utyp);
                   (
                     ty,
-                    Ctx.add_alias(outer_ctx, name, rep_id_t(typat), ty),
-                    Ctx.add_alias(inner_ctx, name, rep_id_t(typat), ty),
+                    Ctx.extend_alias(outer_ctx, name, rep_id_t(typat), ty),
+                    Ctx.extend_alias(inner_ctx, name, rep_id_t(typat), ty),
                   );
                 };
               };
@@ -331,25 +335,18 @@ module UTyp = {
         | None => Member("..." ++ name, Unknown(Internal))
         };
       }
-  and to_variant = ctx =>
-    fun
-    | {term: Var(tag), _} => [(tag, None)]
-    | {term: Ap({term: Var(tag), _}, u), _} => [
-        (tag, Some(to_typ(ctx, u))),
-      ]
-    | _ => []
-  and get_tag = (ctx, ut) =>
-    switch (to_variant(ctx, ut)) {
-    | [(tag, _)] => Some(tag)
-    | _ => None
-    }
-  and to_tag_map = (ctx, uts: list(t)): Typ.sum_map => {
+  and to_variant: (Ctx.t, variant) => option(TagMap.binding(option(Typ.t))) =
+    ctx =>
+      fun
+      | Variant(tag, _, u) => Some((tag, Option.map(to_typ(ctx), u)))
+      | BadEntry(_) => None
+  and to_tag_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
     List.fold_left(
       (acc, ut) =>
         List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
           ? acc @ [ut] : acc,
       [],
-      Util.ListUtil.flat_map(to_variant(ctx), uts),
+      List.filter_map(to_variant(ctx), uts),
     );
   };
 };
@@ -645,7 +642,7 @@ module UPat = {
     };
   };
 
-  let tag_name = (p: t): option(Token.t) =>
+  let tag_name = (p: t): option(Tag.t) =>
     switch (p.term) {
     | Tag(name) => Some(name)
     | _ => None
@@ -838,7 +835,7 @@ module UExp = {
       }
     );
 
-  let tag_name = (e: t): option(Token.t) =>
+  let tag_name = (e: t): option(Tag.t) =>
     switch (e.term) {
     | Tag(name) => Some(name)
     | _ => None
