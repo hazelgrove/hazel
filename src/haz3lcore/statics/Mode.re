@@ -23,13 +23,14 @@ type t =
   | Syn
   | Ana(Typ.t);
 
-let expected_ty: t => Typ.t =
+/* The expected type imposed by a mode */
+let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
-  | Syn => Unknown(Internal)
-  | SynFun => Arrow(Unknown(Internal), Unknown(Internal));
+  | Syn => Unknown(SynSwitch)
+  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
 
-let matched_arrow: t => (t, t) =
+let of_arrow: t => (t, t) =
   fun
   | Syn
   | SynFun => (Syn, Syn)
@@ -38,21 +39,21 @@ let matched_arrow: t => (t, t) =
       (Ana(ty_in), Ana(ty_out));
     };
 
-let matched_prod = (mode: t, length): list(t) =>
+let of_prod = (mode: t, length): list(t) =>
   switch (mode) {
   | Syn
   | SynFun => List.init(length, _ => Syn)
   | Ana(ty) => Typ.matched_prod(length, ty) |> List.map(ty => Ana(ty))
   };
 
-let matched_list: t => t =
+let of_list: t => t =
   fun
   | Syn
   | SynFun => Syn
   | Ana(ty) => Ana(Typ.matched_list(ty));
 
-let matched_list_lit = (mode: t, length): list(t) =>
-  List.init(length, _ => matched_list(mode));
+let of_list_lit = (mode: t, length): list(t) =>
+  List.init(length, _ => of_list(mode));
 
 let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Tag.t): option(Typ.t) => {
   /* If a tag is being analyzed against (an arrow type returning)
@@ -71,10 +72,16 @@ let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Tag.t): option(Typ.t) => {
   };
 };
 
-let of_tag = (ctx: Ctx.t, mode: t, tag: Tag.t): option(t) =>
+let of_tag_in_ap = (ctx: Ctx.t, mode: t, tag: Tag.t): option(t) =>
   switch (tag_ana_typ(ctx, mode, tag)) {
   | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
-  | Some(ty_ana) => Some(Ana(Arrow(Unknown(Internal), ty_ana)))
+  | Some(ty_ana) =>
+    /* Consider for example "let _ : +Yo = Yo("lol") in..."
+       Here, the 'Yo' constructor should be in a hole, as it
+       is nullary but used as unary; we reflect this by analyzing
+       against an arrow type. Since we can't guess at what the
+       parameter type might have be, we use Unknown. */
+    Some(Ana(Arrow(Unknown(Internal), ty_ana)))
   | None => None
   };
 
@@ -85,7 +92,7 @@ let of_ap = (ctx, mode, tag: option(Tag.t)): t =>
      we use the typical mode for function applications */
   switch (tag) {
   | Some(name) =>
-    switch (of_tag(ctx, mode, name)) {
+    switch (of_tag_in_ap(ctx, mode, name)) {
     | Some(mode) => mode
     | _ => SynFun
     }
