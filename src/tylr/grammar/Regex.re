@@ -3,15 +3,19 @@ open Util;
 
 module Atom = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t('s) =
-    | Tok(Label.t)
-    | Kid('s);
+  type t('tok) =
+    | Tok('tok)
+    | Kid(Sort.t);
 
   let get_tok =
     fun
     | Kid(_) => None
     | Tok(t) => Some(t);
   let is_tok = a => Option.is_some(get_tok(a));
+  let map_tok = f =>
+    fun
+    | Tok(t) => Tok(f(t))
+    | Kid(_) as a => a;
 
   let is_kid =
     fun
@@ -20,14 +24,14 @@ module Atom = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t('s) =
-  | Atom(Atom.t('s))
-  | Star(t('s))
-  | Seq(s('s))
-  | Alt(s('s))
-and s('s) = list(t('s));
+type t('tok) =
+  | Atom(Atom.t('tok))
+  | Star(t('tok))
+  | Seq(s('tok))
+  | Alt(s('tok))
+and s('tok) = list(t('tok));
 // for internal use in modules below
-type regex('s) = t('s);
+type regex('tok) = t('tok);
 
 let seq = rs => Seq(rs);
 let alt = rs => Alt(rs);

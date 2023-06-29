@@ -1,6 +1,13 @@
 open Util;
 
+include Proto.Map;
 type t = Proto.Map.t(list(Walk.t));
+
+let get = map =>
+  switch (find_opt(map)) {
+  | None => []
+  | Some(ws) => ws
+  };
 
 // todo: use List.merge to keep walks ordered by whatever metric
 let union2 = Proto.Map.union(

@@ -16,8 +16,7 @@ let lt = (~a=None, l, r) =>
   compare(l, r) < 0 || compare(l, r) == 0 && a == Some(Dir.R);
 let gt = (~a=None, l, r) =>
   compare(l, r) > 0 || compare(l, r) == 0 && a == Some(Dir.L);
-let eq = (~a=None, l, r) =>
-  compare(l, r) == 0 && Option.is_none(a);
+let eq = (~a=None, l, r) => compare(l, r) == 0 && Option.is_none(a);
 
 let leq = (~a=None, l, r) => lt(~a, l, r) || eq(~a, l, r);
 let geq = (~a=None, l, r) => gt(~a, l, r) || eq(~a, l, r);
@@ -28,27 +27,30 @@ let lower_bounded = (~a=None, ~side: Dir.t, p, bound) =>
   | R => geq(~a?, p, bound)
   };
 
-module Map = Map.Make({
-  let nonrec t = t;
-  let compare = compare;
-});
-
 module Table = {
-  include Map;
-  type t('v) = Map.t(('v, Assoc.t));
-  let of_list = failwith("todo of_list");
+  type t('v) = list((option(Dir.t), 'v));
+  let map = f => List.mapi((p, (a, v)) => f(p, a, v));
+  let filter = f => List.filteri((p, (a, v)) => f(p, a, v));
 };
 
-module Frame = {
-  type t = (option(p), option(p));
+module Bound = {
+  type t =
+    | Min
+    | Mid(p)
+    | Max;
+  type s = (t, t);
 };
 
-module Framed = {
-  type t('x) = {
-    frame: Frame.t,
-    subj: 'x,
-  };
-};
+// module Frame = {
+//   type t = (option(p), option(p));
+// };
+
+// module Framed = {
+//   type t('x) = {
+//     frame: Frame.t,
+//     subj: 'x,
+//   };
+// };
 
 module Bounds = {
   type t = (p, p);

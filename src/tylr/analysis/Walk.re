@@ -7,9 +7,14 @@ open Util;
   * and its contents specify how to error-correct if the two bounds appear
   * on either side of some bottom-up-accumulated middle term (possibly empty)
   * while parsing.
+  *
+  * todo: update below
   * The slot between a pair of consecutive prototiles indicates how the two
   * are precedence-related and what possible edit state content may appear
   * there; this info is used to determine where to place the middle term
   * relative to the error-correction-inserted prototiles.
   */
-type t = Chain.t(Prec.Framed.t(Sort.t), Proto.t);
+type t = Chain.t(Precex.t, Proto.t)
+
+
+let connect = (l: Proto.t, r: )

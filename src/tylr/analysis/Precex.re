@@ -1,56 +1,65 @@
 open Util;
 
-module Table = {
-  type t = Prec.Table.t(Regex.t(Atom.t(Label.t)));
-};
-
-module Bounding_label = {
-  type t = (Label.t, Prec.Bounds.t);
-};
-module Atom = {
-  type t = Atom.t(Bounding_label.t);
-};
-type t = Regex.t(Atom.t);
-
-module Ctx = {
-  type t = Regex.Ctx.t(Atom.t);
-
-  let bounds = (p: Prec.t, ctx: t) =>
-    (bound(L, p, ctx), bound(R, p, ctx));
-};
-
-let bound = (p: Prec.t, side: Dir.t, ctx: Regex.Ctx.t(_)) =>
-  // might want to review whether nullability can safely
-  // guarantee max prec tip
-  if (nullable(side, ctx)) {
-    Max
-  } else if (nullable_tok(side, ctx)) {
-    Mid(p)
-  } else {
-    Min
+module Bounding_lbl = {
+  type t = (Label.t, Prec.Bound.s);
+  let mk_bound = (p: Prec.t, ctx: Regex.Ctx.t(_), side: Dir.t) =>
+    // might want to review whether nullability can safely
+    // guarantee max prec tip
+    switch () {
+    | () when nullable(side, ctx) => Prec.Bound.Max
+    | () when nullable_tok(side, ctx) => Mid(p)
+    | () => Min
+    };
+  let mk = (p: Prec.t, ctx: Regex.Ctx.t(_), lbl: Label.t) => {
+    let bound = mk_bound(p, ctx);
+    let bounds = (bound(L), bound(R));
+    (lbl, bounds);
   };
+};
+
+type t = Regex.t(Bounding_lbl.t);
+
+// module Ctx = {
+//   type t = Regex.Ctx.t(Atom.t);
+
+//   let bounds = (p: Prec.t, ctx: t) =>
+//     (bound(L, p, ctx), bound(R, p, ctx));
+// };
 
 let of_table = (tbl: Table.t) =>
   tbl
   |> List.mapi((p, (r, _)) =>
     r
     |> Regex.fold_zipper(
-      ~atom=(ctx, atom: Atom.t) =>
-        switch (atom) {
-        | Kid(_) => Regex.Atom(atom)
-        | Tok(lbl) =>
-          let bounds = (bound(p, L, ctx), bound(p, R, ctx));
-          Tok((lbl, bounds));
-        },
+      ~atom=ctx => Regex.Atom.map_tok(Bounding_lbl.mk(p, ctx)),
       ~star=(_ => Regex.star),
       ~seq=(_ => Regex.seq),
       ~alt=(_ => Regex.alt),
     )
   )
-  |> Regex.alt;
+  |> Regex.alt;12
 
 let get = (s: Sort.t) =>
   of_table(Sort.Map.find(s, Grammar.v));
+
+module Ctx = {
+  type t = Regex.Ctx.t(Bounding_lbl.t);
+  let bounds = ((l, r): Prec.Bound.s, ctx: t): Prec.Bound.s => {
+    open OptUtil.Syntax;
+    switch (Regex.Ctx.nearest_toks(ctx)) {
+    | ([])
+    }
+
+
+    let l =
+      Regex.Ctx.nearest_toks(ctx)
+      |> List.map(())
+
+
+
+    let+ (_, (_, ))
+  }
+}
 
 // type t = Prec.Table.t(Regex.t(Sort.t));
 // precex + prec.ctx ==> regex

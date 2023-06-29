@@ -33,8 +33,8 @@ let v: t =
      )
   |> Label.Map.of_seq;
 
-let of_ = token =>
-  switch (find_opt(token, v)) {
+let get = lbl =>
+  switch (find_opt(lbl, v)) {
   | None => []
   | Some(ms) => ms
   };
