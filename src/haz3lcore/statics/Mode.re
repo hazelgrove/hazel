@@ -31,8 +31,8 @@ let expected_ty: t => Typ.t =
 
 let matched_arrow: t => (t, t) =
   fun
-  | SynFun
-  | Syn => (Syn, Syn)
+  | Syn
+  | SynFun => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = Typ.matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
@@ -40,16 +40,15 @@ let matched_arrow: t => (t, t) =
 
 let matched_prod = (mode: t, length): list(t) =>
   switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prov)) => List.init(length, _ => Ana(Unknown(prov)))
-  | _ => List.init(length, _ => Syn)
+  | Syn
+  | SynFun => List.init(length, _ => Syn)
+  | Ana(ty) => Typ.matched_prod(length, ty) |> List.map(ty => Ana(ty))
   };
 
 let matched_list: t => t =
   fun
-  | SynFun
-  | Syn => Syn
+  | Syn
+  | SynFun => Syn
   | Ana(ty) => Ana(Typ.matched_list(ty));
 
 let matched_list_lit = (mode: t, length): list(t) =>
