@@ -2,16 +2,14 @@ open Haz3lcore;
 
 module StringMap = Map.Make(String);
 
-module SyntaxReport = {
-  type t = {
-    hinted_results: list((bool, string)),
-    percentage: float,
-  };
-};
-
 type params = {
   var_mention: list((string, float)),
   recursive: list((string, float)),
+};
+
+type res = {
+  hinted_results: list((bool, string)),
+  percentage: float,
 };
 
 type hints = {
@@ -20,10 +18,6 @@ type hints = {
 };
 
 type fmap = StringMap.t(list(Term.UExp.t));
-
-type vmap = StringMap.t(bool);
-
-type hmap = StringMap.t(list(string));
 
 let add_flist = (l: list(string), m: fmap): fmap => {
   List.fold_left((m, name) => {StringMap.add(name, [], m)}, m, l);
@@ -176,7 +170,7 @@ let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
   };
 };
 
-let check = (uexp: Term.UExp.t, p: params): SyntaxReport.t => {
+let check = (uexp: Term.UExp.t, p: params): res => {
   let var_mention_names = List.map(((name, _)) => name, p.var_mention);
   let var_mention_weights = List.map(((_, w)) => w, p.var_mention);
 
@@ -216,23 +210,13 @@ let check = (uexp: Term.UExp.t, p: params): SyntaxReport.t => {
       recursive_names,
     );
 
-  let var_mention_passing =
+  let passing =
     List.fold_left2(
       (acc, w, res) => {res ? acc +. w : acc},
       0.,
-      var_mention_weights,
-      var_mention_res,
+      var_mention_weights @ recursive_weights,
+      var_mention_res @ recursive_res,
     );
-
-  let recursive_passing =
-    List.fold_left2(
-      (acc, w, res) => {res ? acc +. w : acc},
-      0.,
-      recursive_weights,
-      recursive_res,
-    );
-
-  let passing = var_mention_passing +. recursive_passing;
 
   let var_mention_hinted_results =
     List.map2(

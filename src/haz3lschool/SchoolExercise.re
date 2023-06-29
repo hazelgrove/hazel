@@ -668,18 +668,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let syntax_test = ({eds, _}: state): SyntaxTest.SyntaxReport.t => {
-    let user_impl_term =
-      Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
-        EditorUtil.stitch([eds.your_impl])
-      );
-    let syntax_params: SyntaxTest.params = {
-      var_mention: [("xyz", 50.), ("ext", 50.)],
-      recursive: [("odd", 100.), ("dne", 0.)],
-    };
-    SyntaxTest.check(user_impl_term, syntax_params);
-  };
-
   let test_validation_key = "test_validation";
   let user_impl_key = "user_impl";
   let user_tests_key = "user_tests";

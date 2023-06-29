@@ -376,10 +376,8 @@ module ImplGradingReport = {
   };
 };
 
-//This may not belong in this file
 module SyntaxReport = {
-  open Haz3lschool;
-  include SyntaxTest.SyntaxReport;
+  include SyntaxReport;
   let individual_report = (i: int, hint: string, status: bool) => {
     let result_string = status ? "Pass" : "Indet";
 
