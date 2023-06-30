@@ -1883,7 +1883,24 @@ let get_doc =
           ),
           LangDocMessages.module_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
         );
-      | Dot(_) => default
+      | Dot(exp, name) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.dot_exp_group,
+            docs,
+          );
+        let exp_id = List.nth(exp.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.dot_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%i"),
+            name,
+            exp_id,
+          ),
+          LangDocMessages.dot_exp_coloring_ids(~exp_id),
+        );
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);

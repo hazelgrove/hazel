@@ -875,6 +875,30 @@ let tag_exp: form = {
   };
 };
 
+let dot_ex = {
+  sub_id: "dot_ex",
+  term: mk_example("module M = \nlet x = 1 in \n in \nM.x"),
+  message: "The module M has a member x which is bound to 1, so the expression evaluates to 1.",
+  feedback: Unselected,
+};
+let _exp = exp("e");
+let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp), exp_id),
+];
+let dot_exp_group = "dot_exp_group";
+let dot_exp: form = {
+  let explanation = {
+    message: "Dot access. Retrieves the value of the member `%s` of the [*module*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "dot_exp",
+    syntactic_form: [_exp, exp(".x")],
+    expandable_id: None,
+    explanation,
+    examples: [dot_ex],
+  };
+};
 let let_base_exp_group = "let_base_exp_group";
 let let_empty_hole_exp_group = "let_empty_hole_exp_group";
 let let_empty_hole_tpat_group = "let_empty_hole_tpat_group";
@@ -1503,7 +1527,7 @@ let let_ap_exp: form = {
 };
 
 let module_ex = {
-  sub_id: "moduke_ex",
+  sub_id: "module_ex",
   term: mk_example("module M = \nlet x = 1 in \n in \nM.x"),
   message: "The variable M is bound to Module(x = 1), so the expression evaluates to 1.",
   feedback: Unselected,
@@ -3496,6 +3520,7 @@ let init = {
     tuple_exp_size3,
     var_exp,
     tag_exp,
+    dot_exp,
     let_base_exp,
     let_empty_hole_exp,
     let_multi_hole_exp,
@@ -3751,6 +3776,7 @@ let init = {
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
     (tag_exp_group, init_options([(tag_exp.id, [])])),
+    (dot_exp_group, init_options([(dot_exp.id, [])])),
     (let_base_exp_group, init_options([(let_base_exp.id, [])])),
     (
       let_empty_hole_exp_group,
