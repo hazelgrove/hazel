@@ -22,6 +22,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type hidden_tests('code) = {
     tests: 'code,
     hints: list(string),
+    syntax_tests: SyntaxTest.syntax_tests,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -114,6 +115,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests: {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
+        syntax_tests: p.hidden_tests.syntax_tests,
       },
     };
   };
@@ -327,9 +329,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           hidden_bugs,
         );
       let (id, hidden_tests) = {
-        let {tests, hints} = hidden_tests;
+        let {tests, hints, syntax_tests} = hidden_tests;
         let (id, tests) = zipper_of_code(id, tests);
-        (id, {tests, hints});
+        (id, {tests, hints, syntax_tests});
       };
       let next_id = id;
       {
@@ -380,9 +382,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
              {impl, hint};
            });
       let hidden_tests = {
-        let {tests, hints} = hidden_tests;
+        let {tests, hints, syntax_tests} = hidden_tests;
         let tests = editor_of_serialization(tests);
-        {tests, hints};
+        {tests, hints, syntax_tests};
       };
       {
         next_id,
@@ -560,6 +562,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           hidden_tests: {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
+            syntax_tests: spec.hidden_tests.syntax_tests,
           },
         },
       },
@@ -931,6 +934,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests: {
         tests: hidden_tests_tests,
         hints: [],
+        syntax_tests: {
+          var_mention: [],
+          recursive: [],
+        },
       },
     };
   };

@@ -1,20 +1,18 @@
 open Haz3lcore;
+open Sexplib.Std;
 
 module StringMap = Map.Make(String);
 
-type params = {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax_tests = {
   var_mention: list((string, float)),
   recursive: list((string, float)),
 };
 
-type res = {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax_result = {
   hinted_results: list((bool, string)),
   percentage: float,
-};
-
-type hints = {
-  var_mention_hint: string,
-  recursive_hint: string,
 };
 
 type fmap = StringMap.t(list(Term.UExp.t));
@@ -170,7 +168,7 @@ let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
   };
 };
 
-let check = (uexp: Term.UExp.t, p: params): res => {
+let check = (uexp: Term.UExp.t, p: syntax_tests): syntax_result => {
   let var_mention_names = List.map(((name, _)) => name, p.var_mention);
   let var_mention_weights = List.map(((_, w)) => w, p.var_mention);
 
@@ -234,6 +232,6 @@ let check = (uexp: Term.UExp.t, p: params): res => {
 
   {
     hinted_results: var_mention_hinted_results @ recursive_hinted_results,
-    percentage: Float.equal(total, 0.) ? 1. : passing /. total,
+    percentage: passing /. total,
   };
 };

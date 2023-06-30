@@ -3079,5 +3079,6 @@ let exercise : SchoolExercise.spec =
             caret = Outer;
           };
         hints = [];
+        syntax_tests = { var_mention = []; recursive = [] };
       };
   }
