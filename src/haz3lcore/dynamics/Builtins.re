@@ -80,7 +80,7 @@ module Pervasives = {
       switch (r1) {
       | BoxedValue(IntLit(i)) =>
         let s = string_of_int(i);
-        BoxedValue(StringLit(s)) |> return;
+        BoxedValue(StringLit("\"" ++ s ++ "\"")) |> return;
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
