@@ -451,6 +451,7 @@ let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
   switch (pat.term) {
   | Parens(p)
   | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
+  | TyAlias(_) => {...pat, term: EmptyHole}
   | _ => pat
   };
 };
@@ -712,6 +713,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_empty_hole_group, options);
           };
+        | TyAlias(_) // TyAlias should be a invalid form in func
         | MultiHole(_) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1184,7 +1186,6 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
-        | TyAlias(_) => default //TODO
         };
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
@@ -1320,6 +1321,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.let_empty_hole_exp_group, options);
           };
+        | TyAlias(_) // TyAlias should be a invalid form in let
         | MultiHole(_) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1852,9 +1854,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
-        | TyAlias(_) => default // TODO
         };
-      // TODO
       | Module(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
         let v =
@@ -2205,6 +2205,19 @@ let get_doc =
         doc.explanation.message,
         [],
       );
+    | TyAlias(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.tyalias_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.tyalias_pat_group,
+        doc.explanation.message,
+        [],
+      );
     | Wild =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2532,7 +2545,6 @@ let get_doc =
     | Parens(_) =>
       // Shouldn't be hit?
       default
-    | TyAlias(_) => default // TODO
     }
   | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {

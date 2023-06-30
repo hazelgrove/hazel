@@ -95,6 +95,7 @@ let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_module = Example.mk_tile(Form.get("module_"));
 let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
+let mk_tyalias_pat = Example.mk_tile(Form.get("type_alias_pat"));
 
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
@@ -2717,6 +2718,26 @@ let multi_hole_pat: form = {
     examples: [],
   };
 };
+let tyalias_pat_group = "tyalias_pat_group";
+let _tpat = tpat("p");
+let _typ_def = typ("ty_def");
+let tyalias_pat: form = {
+  let explanation = {
+    message: "Type alias pattern. This pattern should only exists as part of module's type annotation. Expressions are not matched against this pattern.",
+    feedback: Unselected,
+  };
+  {
+    id: "tyalias_pat",
+    syntactic_form: [
+      mk_tyalias_pat([[space(), _tpat, space()]]),
+      space(),
+      _typ_def,
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 
 let wild_pat_group = "wild_pat_group";
 let wild_pat: form = {
@@ -3530,6 +3551,7 @@ let init = {
     // Patterns
     empty_hole_pat,
     multi_hole_pat,
+    tyalias_pat,
     wild_pat,
     intlit_pat,
     floatlit_pat,
@@ -3891,6 +3913,7 @@ let init = {
     // Patterns
     (empty_hole_pat_group, init_options([(empty_hole_pat.id, [])])),
     (multi_hole_pat_group, init_options([(multi_hole_pat.id, [])])),
+    (tyalias_pat_group, init_options([(tyalias_pat.id, [])])),
     (wild_pat_group, init_options([(wild_pat.id, [])])),
     (intlit_pat_group, init_options([(intlit_pat.id, [])])),
     (floatlit_pat_group, init_options([(floatlit_pat.id, [])])),
