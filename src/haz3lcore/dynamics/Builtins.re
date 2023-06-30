@@ -85,9 +85,10 @@ module Pervasives = {
           |> return;
         };
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
+
     /* int_of_float implementation. */
     let int_of_float = (name, r1) =>
       switch (r1) {
@@ -126,7 +127,7 @@ module Pervasives = {
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
-  
+
     /* string_of_int implementation. */
     let string_of_int = (name, r1) =>
       switch (r1) {
@@ -134,7 +135,7 @@ module Pervasives = {
         let s = string_of_int(i);
         BoxedValue(StringLit(s)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -210,10 +211,10 @@ module Pervasives = {
     |> using("is_infinite", is_infinite)
     |> using("is_nan", is_nan)
     |> using("int_of_float", int_of_float)
+    |> using("int_of_string", int_of_string)
     |> using("float_of_int", float_of_int)
     |> using("float_of_string", float_of_string)
-    |> using("string_of_float", string_of_float)
-    |> using("int_of_string", int_of_string)
     |> using("string_of_int", string_of_int)
+    |> using("string_of_float", string_of_float)
     |> using("mod", modulo);
 };
