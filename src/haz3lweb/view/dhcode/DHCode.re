@@ -59,6 +59,10 @@ let view_of_layout =
                  [with_cls("InvalidIntOfString", txt)],
                  ds,
                )
+             | OperationError(InvalidFloatOfString) => (
+                 [with_cls("InvalidFloatOfString", txt)],
+                 ds,
+               )
              | OperationError(DivideByZero) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
@@ -199,6 +203,10 @@ let view_of_layout_tylr =
                )
              | OperationError(InvalidIntOfString) => (
                  [with_cls("InvalidIntOfString", txt)],
+                 ds,
+               )
+             | OperationError(InvalidFloatOfString) => (
+                 [with_cls("InvalidFloatOfString", txt)],
                  ds,
                )
              | OperationError(NegativeExponent) => (
