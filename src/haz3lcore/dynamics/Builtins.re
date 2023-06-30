@@ -114,14 +114,19 @@ module Pervasives = {
     /* float_of_string implementation. */
     let float_of_string = (name, r1) =>
       switch (r1) {
-      | BoxedValue(StringLit(s)) =>
+      | BoxedValue(StringLit(s) as d1) =>
         let s = Re.Str.string_after(s, 1);
         let s = Re.Str.string_before(s, String.length(s) - 1);
         if (String.length(s) == 0) {
           BoxedValue(FloatLit(0.)) |> return;
-        } else {
+        } else if (Form.is_float(s)) {
           let f = float_of_string(s);
           BoxedValue(FloatLit(f)) |> return;
+        } else {
+          Indet(
+            InvalidOperation(ApBuiltin(name, [d1]), InvalidFloatOfString),
+          )
+          |> return;
         };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
