@@ -233,17 +233,13 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
       percentage: float,
     };
 
-    let mk = (your_impl: Editor.t): t => {
+    let mk = (your_impl: Editor.t, tests: SyntaxTest.syntax_tests): t => {
       let user_impl_term =
         Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
           EditorUtil.stitch([your_impl])
         );
 
-      let syntax_params: SyntaxTest.params = {
-        var_mention: [("xyz", 50.), ("ext", 50.)],
-        recursive: [("odd", 100.), ("dne", 0.)],
-      };
-      let syntax_results = SyntaxTest.check(user_impl_term, syntax_params);
+      let syntax_results = SyntaxTest.check(user_impl_term, tests);
       {
         hinted_results: syntax_results.hinted_results,
         percentage: syntax_results.percentage,
@@ -261,7 +257,8 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
     };
 
     let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
-      let syntax_report = SyntaxReport.mk(eds.your_impl);
+      let syntax_report =
+        SyntaxReport.mk(eds.your_impl, eds.hidden_tests.syntax_tests);
       {
         point_distribution: eds.point_distribution,
         syntax_report,
