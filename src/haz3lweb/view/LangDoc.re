@@ -2807,7 +2807,19 @@ let get_doc =
       );
     | Sum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
-    | Module(_)
+    | Module(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.module_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.module_typ_group,
+        doc.explanation.message,
+        [],
+      );
     | Dot(_) // TODO
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default

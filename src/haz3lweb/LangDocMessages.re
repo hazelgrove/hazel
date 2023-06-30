@@ -882,7 +882,7 @@ let dot_ex = {
   feedback: Unselected,
 };
 let _exp = exp("e");
-let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
+let dot_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp), exp_id),
 ];
 let dot_exp_group = "dot_exp_group";
@@ -893,7 +893,7 @@ let dot_exp: form = {
   };
   {
     id: "dot_exp",
-    syntactic_form: [_exp, exp(".x")],
+    syntactic_form: [_exp, exp(".name")],
     expandable_id: None,
     explanation,
     examples: [dot_ex],
@@ -3183,6 +3183,30 @@ let list_typ: form = {
   };
 };
 
+let module_typ_ex = {
+  sub_id: "module_typ_ex",
+  term:
+    mk_example(
+      "module M : { Type T = Int, x : T } = \ntype T = Int\nlet x:T = 1 in \n in \nM.x",
+    ),
+  message: "The module M has type member `T` which is alias of `Int`, and member `x` of type `T`.",
+  feedback: Unselected,
+};
+let module_typ_group = "module_typ_group";
+let module_typ: form = {
+  let explanation = {
+    message: "Module type. The module type classifies floating-point values. The inside patterns should be Type alias or Type annotation, specifying the type of member types or members variables",
+    feedback: Unselected,
+  };
+  {
+    id: "module_typ",
+    syntactic_form: [typ("{ "), exp("x1"), typ(" : ty1, ... }")],
+    expandable_id: None,
+    explanation,
+    examples: [module_typ_ex],
+  };
+};
+
 let arrow_typ_group = "arrow_typ_group";
 let arrow3_typ_group = "arrow3_typ_group";
 let _typ_arg = typ("ty_arg");
@@ -3602,6 +3626,7 @@ let init = {
     bool_typ,
     str_typ,
     list_typ,
+    module_typ,
     arrow_typ,
     arrow3_typ,
     labelled_sum_typ,
@@ -3986,6 +4011,7 @@ let init = {
     (bool_typ_group, init_options([(bool_typ.id, [])])),
     (str_typ_group, init_options([(str_typ.id, [])])),
     (list_typ_group, init_options([(list_typ.id, [])])),
+    (module_typ_group, init_options([(module_typ.id, [])])),
     (arrow_typ_group, init_options([(arrow_typ.id, [])])),
     (
       arrow3_typ_group,
