@@ -3187,9 +3187,9 @@ let module_typ_ex = {
   sub_id: "module_typ_ex",
   term:
     mk_example(
-      "module M : { Type T = Int, x : T } = \ntype T = Int\nlet x:T = 1 in \n in \nM.x",
+      "module M : { \nType T = Int, \nx : T \n} = \ntype T = Int in\nlet x:T = 1 in \n in \nM.x",
     ),
-  message: "The module M has type member `T` which is alias of `Int`, and member `x` of type `T`.",
+  message: "The module M has type member T which is alias of Int, and member x of type T.",
   feedback: Unselected,
 };
 let module_typ_group = "module_typ_group";
@@ -3398,6 +3398,32 @@ let var_typ: form = {
     expandable_id: None,
     explanation,
     examples: [],
+  };
+};
+
+let dot_typ_ex = {
+  sub_id: "dot_typ_ex",
+  term:
+    mk_example("module M = \ntype T = Int in \nin \nlet x : M.T = 1 in \nx"),
+  message: "The module M has type member T which is alias of Int, so type M.T is consistent with type Int.",
+  feedback: Unselected,
+};
+let _exp = exp("e");
+let dot_typ_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp), exp_id),
+];
+let dot_typ_group = "dot_typ_group";
+let dot_typ: form = {
+  let explanation = {
+    message: "`%s` is a type member of the [*module*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "dot_typ",
+    syntactic_form: [_exp, typ(".name")],
+    expandable_id: None,
+    explanation,
+    examples: [dot_typ_ex],
   };
 };
 
@@ -3636,6 +3662,7 @@ let init = {
     tuple2_typ,
     tuple3_typ,
     var_typ,
+    dot_typ,
     var_typ_pat,
   ],
   groups: [
@@ -4048,6 +4075,7 @@ let init = {
       ]),
     ),
     (var_typ_group, init_options([(var_typ.id, [])])),
+    (dot_typ_group, init_options([(dot_typ.id, [])])),
     (var_typ_pat_group, init_options([(var_typ_pat.id, [])])),
   ],
 };

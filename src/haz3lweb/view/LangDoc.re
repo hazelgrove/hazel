@@ -2820,7 +2820,24 @@ let get_doc =
         doc.explanation.message,
         [],
       );
-    | Dot(_) // TODO
+    | Dot(exp, name) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.dot_typ_group,
+          docs,
+        );
+      let exp_id = List.nth(exp.ids, 0);
+      get_message(
+        doc,
+        options,
+        LangDocMessages.dot_typ_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s%i"),
+          name,
+          exp_id,
+        ),
+        LangDocMessages.dot_typ_coloring_ids(~exp_id),
+      );
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default
     }
