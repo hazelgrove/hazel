@@ -69,21 +69,18 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
           text(n0),
           text(":"),
           view_ty(t0),
-          text(","),
         ]
       | TVarEntry({name: n0, kind: Singleton(t0), _}) => [
           text("type "),
           text(n0),
           text("="),
           view_ty(t0),
-          text(","),
         ]
       | TVarEntry({name: n0, _}) => [
           text("type "),
           text(n0),
           text("="),
           view_ty(Unknown(Internal)),
-          text(","),
         ]
       };
     };
@@ -93,7 +90,13 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         text("Module("),
         div(
           ~attr=clss(["typ-view", "Module"]),
-          view_entry(e) @ (List.map(view_entry, es) |> List.flatten),
+          // let the earlier definitions to be displayed first
+          (
+            List.map(t => view_entry(t) @ [text(", ")], es)
+            |> List.rev
+            |> List.flatten
+          )
+          @ view_entry(e),
         ),
         text(")"),
       ],
