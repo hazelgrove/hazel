@@ -5,6 +5,9 @@ module M = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     space: Space.t,
+    // Dn and Up slopes named based on left-to-right order of terraces
+    // as they appear in edit state, but terraces are always maintained
+    // internally low-to-high
     terrs: list(Terrace.t),
   };
 
