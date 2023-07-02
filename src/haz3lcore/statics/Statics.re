@@ -259,17 +259,11 @@ and uexp_to_info_map =
   | Module(p, def, body) =>
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let mode1: Mode.t = Ana(p_syn.ty);
-    let module_name =
-      switch (p.term) {
-      | Tag(t) => t
-      | _ => ""
-      };
     let (inner_ctx, def, m) =
-      go_module(~ctx=def_ctx, ~mode=mode1, def, m, []);
-    let typ_def: Typ.t = Module(Ctx.modulize_ctx(inner_ctx, module_name));
+      go_module(~ctx=def_ctx, ~mode=Mode.Ana(p_syn.ty), def, m, []);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(typ_def), p, m);
+    let (p_ana, m) =
+      go_pat(~is_synswitch=false, ~mode=Ana(Module(inner_ctx)), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),
@@ -447,6 +441,7 @@ and upat_to_info_map =
     if (Mode.is_module_ana(mode)) {
       let ctx_typ =
         Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      let ctx_typ = Ctx.modulize(ctx_typ, tag);
       let entry =
         Ctx.TagEntry({name: tag, id: UPat.rep_id(upat), typ: ctx_typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
@@ -727,15 +722,9 @@ and uexp_to_module =
       | SynFun => p_syn.ty
       };
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let mode1: Mode.t = Ana(ty_pat);
-    let module_name =
-      switch (p.term) {
-      | Tag(t) => t
-      | _ => ""
-      };
     let (inner_ctx, def, m) =
-      go_module(~ctx=def_ctx, ~mode=mode1, def, m, []);
-    let typ_def: Typ.t = Module(Ctx.modulize_ctx(inner_ctx, module_name));
+      go_module(~ctx=def_ctx, ~mode=Mode.Ana(ty_pat), def, m, []);
+    let typ_def: Typ.t = Module(inner_ctx);
     let ty_def =
       switch (mode_pat) {
       | Ana(t) => t

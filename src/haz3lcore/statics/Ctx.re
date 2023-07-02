@@ -103,7 +103,7 @@ let get_vars = (ctx: t): list((string, Typ.t)) => {
   );
 };
 
-let rec modulize = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
+let rec modulize_item = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
   switch (ty) {
   | Int => Int
   | Float => Float
@@ -111,17 +111,18 @@ let rec modulize = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
   | String => String
   | Member(name, ty) => Member(x ++ "." ++ name, ty)
   | Unknown(prov) => Unknown(prov)
-  | Arrow(ty1, ty2) => Arrow(modulize(ctx, x, ty1), modulize(ctx, x, ty2))
-  | Prod(tys) => Prod(List.map(modulize(ctx, x), tys))
-  | Sum(sm) => Sum(TagMap.map(Option.map(modulize(ctx, x)), sm))
-  | Rec(y, ty) => Rec(y, modulize(ctx, x, ty))
-  | List(ty) => List(modulize(ctx, x, ty))
+  | Arrow(ty1, ty2) =>
+    Arrow(modulize_item(ctx, x, ty1), modulize_item(ctx, x, ty2))
+  | Prod(tys) => Prod(List.map(modulize_item(ctx, x), tys))
+  | Sum(sm) => Sum(TagMap.map(Option.map(modulize_item(ctx, x)), sm))
+  | Rec(y, ty) => Rec(y, modulize_item(ctx, x, ty))
+  | List(ty) => List(modulize_item(ctx, x, ty))
   | Var(n) => Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
   | Module(inner_ctx) =>
     let ctx_entry_modulize = (e: entry): entry => {
       switch (e) {
-      | VarEntry(t) => VarEntry({...t, typ: modulize(ctx, x, t.typ)})
-      | TagEntry(t) => TagEntry({...t, typ: modulize(ctx, x, t.typ)})
+      | VarEntry(t) => VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+      | TagEntry(t) => TagEntry({...t, typ: modulize_item(ctx, x, t.typ)})
       | TVarEntry(_) => e
       };
     };
@@ -129,17 +130,25 @@ let rec modulize = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
   };
 };
 
-let modulize_ctx = (ctx: t, x: string): t => {
-  List.map(
-    (e: entry): entry => {
-      switch (e) {
-      | VarEntry(t) => VarEntry({...t, typ: modulize(ctx, x, t.typ)})
-      | TagEntry(t) => TagEntry({...t, typ: modulize(ctx, x, t.typ)})
-      | TVarEntry(_) => e
-      }
-    },
-    ctx,
-  );
+let modulize = (ty: Typ.t, x: string): Typ.t => {
+  switch (ty) {
+  | Module(ctx) =>
+    Module(
+      List.map(
+        (e: entry): entry => {
+          switch (e) {
+          | VarEntry(t) =>
+            VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+          | TagEntry(t) =>
+            TagEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+          | TVarEntry(_) => e
+          }
+        },
+        ctx,
+      ),
+    )
+  | _ => ty
+  };
 };
 let shadows_typ = (ctx: t, name: TypVar.t): bool =>
   Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
