@@ -442,6 +442,26 @@ and upat_to_info_map =
       let ctx_typ =
         Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
       let ctx_typ = Ctx.modulize(ctx_typ, tag);
+      /** If module has a type member with same name,
+      add the type alias to the current context */
+      let ctx = {
+        switch (ctx_typ) {
+        | Module(inner_ctx) =>
+          switch (Ctx.lookup_tvar(inner_ctx, tag)) {
+          | Some({kind: Singleton(ty), _}) =>
+            /** Currently all type shadowing are disallowed. See TyAlias */
+            (
+              if (!Ctx.shadows_typ(ctx, tag)) {
+                Ctx.extend_alias(ctx, tag, UPat.rep_id(upat), ty);
+              } else {
+                ctx;
+              }
+            )
+          | _ => ctx
+          }
+        | _ => ctx
+        };
+      };
       let entry =
         Ctx.TagEntry({name: tag, id: UPat.rep_id(upat), typ: ctx_typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
