@@ -50,6 +50,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable
+  | InconsistentWithDeferrableArrow(Typ.t) /* Bad partial applicable function position */
   | Common(error_common);
 
 /* Pattern term errors */
