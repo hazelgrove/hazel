@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,7 +134,7 @@ and UExp: {
     | Tag(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
-    | Var(Token.t)
+    | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
@@ -246,7 +247,7 @@ and UExp: {
     | Tag(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
-    | Var(Token.t)
+    | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
@@ -280,7 +281,7 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
-    | Var(Token.t)
+    | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -304,7 +305,7 @@ and UPat: {
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
-    | Var(Token.t)
+    | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -331,7 +332,10 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Sum(list(t))
+    | Sum(list(variant))
+  and variant =
+    | Variant(Tag.t, list(Id.t), option(t))
+    | BadEntry(t)
   and t = {
     ids: list(Id.t),
     term,
@@ -353,7 +357,10 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Sum(list(t))
+    | Sum(list(variant))
+  and variant =
+    | Variant(Tag.t, list(Id.t), option(t))
+    | BadEntry(t)
   and t = {
     ids: list(Id.t),
     term,
@@ -365,7 +372,7 @@ and UTPat: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Var(Token.t)
+    | Var(TypVar.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -376,7 +383,7 @@ and UTPat: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Var(Token.t)
+    | Var(TypVar.t)
   and t = {
     ids: list(Id.t),
     term,
