@@ -135,9 +135,6 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
   };
 
-/*
- 	Core elaboration functions
- */
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
@@ -375,9 +372,6 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
     Builtins.forms(Builtins.Pervasives.builtins),
   );
 
-/*
- 	Function used by external modules to perform elaboration
- */
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate

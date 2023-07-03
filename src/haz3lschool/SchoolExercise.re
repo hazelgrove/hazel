@@ -588,7 +588,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
-  /* This function generates the UExp terms and corresponding Statics maps
+  /* Generates the UExp terms and corresponding Statics maps
      from the given editor states.
 
      It is used in spliced_elabs and stitch_dynamic*/
@@ -740,7 +740,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  /* This function takes the state and ModelResults object to extract and
+  /* Takes the state and ModelResults object to extract and
      return the DHExp expressions corresponding to the editors in school mode
      along with the evaluation result of each expression.*/
   let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
