@@ -91,6 +91,11 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type status_deferral = 
+    | IsSingleton
+    | IsNotSingleton;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -125,7 +130,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral(bool)
+    | Deferral(status_deferral)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -204,6 +209,11 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type status_deferral = 
+    | IsSingleton
+    | IsNotSingleton;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -238,7 +248,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral(bool)
+    | Deferral(status_deferral)
     | Bool(bool)
     | Int(int)
     | Float(float)
