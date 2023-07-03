@@ -1,49 +1,74 @@
-open Util.OptUtil.Syntax;
+open Util;
+open OptUtil.Syntax;
 
-/* MODE: The (analytic) type information derived from a term's
-   syntactic context. This can either Syn (no type expectation),
-   or Ana (a type expectation). It is conjectured [citation needed]
-   that the Syn mode is functionally indistinguishable from
-   Ana(Unknown(SynSwitch)), and that this type is thus vestigial. */
+/* MODE.re
+
+     This module defines the (analytic) type expectation imposed by a term's
+      syntactic context, in particular its immediate parent. The most common
+      cases are either Syn (no type expectation), or Ana (some type expectation).
+
+      A term's MODE is used in combination with that term's SELF (Self.re) by
+      to determine that term's STATUS (Info.re), which dictates whether or not
+      it is placed in a hole, and hence its FIXED TYPE (Info.re).
+
+      (It is conjectured [citation needed] that the Syn mode is functionally
+      indistinguishable from Ana(Unknown(SynSwitch)), and that this type is
+      thus vestigial.)
+
+   */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | SynFun
+  | SynFun /* Used only in function position of applications */
   | Syn
   | Ana(Typ.t);
 
-let expected_ty: t => Typ.t =
+/* The expected type imposed by a mode */
+let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
-  | Syn => Unknown(Internal)
-  | SynFun => Arrow(Unknown(Internal), Unknown(Internal));
+  | Syn => Unknown(SynSwitch)
+  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
 
-let matched_arrow: t => (t, t) =
+let of_arrow: t => (t, t) =
   fun
-  | SynFun
-  | Syn => (Syn, Syn)
+  | Syn
+  | SynFun => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = Typ.matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
     };
 
-let matched_prod = (mode: t, length): list(t) =>
+let of_prod = (mode: t, length): list(t) =>
   switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-  | _ => List.init(length, _ => Syn)
+  | Syn
+  | SynFun => List.init(length, _ => Syn)
+  | Ana(ty) => Typ.matched_prod(length, ty) |> List.map(ty => Ana(ty))
   };
 
-let matched_list: t => t =
+let of_cons_hd: t => t =
   fun
-  | SynFun
-  | Syn => Syn
+  | Syn
+  | SynFun => Syn
   | Ana(ty) => Ana(Typ.matched_list(ty));
 
-let matched_list_lit = (mode: t, length): list(t) =>
-  List.init(length, _ => matched_list(mode));
+let of_cons_tl = (mode: t, hd_ty: Typ.t): t =>
+  switch (mode) {
+  | Syn
+  | SynFun => Ana(List(hd_ty))
+  | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+  };
 
-let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Token.t): option(Typ.t) => {
+let of_list: t => t =
+  fun
+  | Syn
+  | SynFun => Syn
+  | Ana(ty) => Ana(Typ.matched_list(ty));
+
+let of_list_lit = (length, mode: t): list(t) =>
+  List.init(length, _ => of_list(mode));
+
+let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Tag.t): option(Typ.t) => {
   /* If a tag is being analyzed against (an arrow type returning)
      a sum type having that tag as a variant, we consider the
      tag's type to be determined by the sum type */
@@ -60,21 +85,27 @@ let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Token.t): option(Typ.t) => {
   };
 };
 
-let of_tag = (ctx: Ctx.t, mode: t, name: Token.t): option(t) =>
-  switch (tag_ana_typ(ctx, mode, name)) {
+let of_tag_in_ap = (ctx: Ctx.t, mode: t, tag: Tag.t): option(t) =>
+  switch (tag_ana_typ(ctx, mode, tag)) {
   | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
-  | Some(ty_ana) => Some(Ana(Arrow(Unknown(Internal), ty_ana)))
+  | Some(ty_ana) =>
+    /* Consider for example "let _ : +Yo = Yo("lol") in..."
+       Here, the 'Yo' constructor should be in a hole, as it
+       is nullary but used as unary; we reflect this by analyzing
+       against an arrow type. Since we can't guess at what the
+       parameter type might have be, we use Unknown. */
+    Some(Ana(Arrow(Unknown(Internal), ty_ana)))
   | None => None
   };
 
-let of_ap = (ctx, mode, tag_name: option(Token.t)): t =>
+let of_ap = (ctx, mode, tag: option(Tag.t)): t =>
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
-  switch (tag_name) {
+  switch (tag) {
   | Some(name) =>
-    switch (of_tag(ctx, mode, name)) {
+    switch (of_tag_in_ap(ctx, mode, name)) {
     | Some(mode) => mode
     | _ => SynFun
     }

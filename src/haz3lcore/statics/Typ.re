@@ -13,28 +13,37 @@ let of_source = List.map((source: source) => source.ty);
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
   switch (p1, p2) {
-  | (Internal, _)
-  | (_, Internal) => Internal
+  | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
+  | (Internal | Free(_), _)
+  | (_, Internal | Free(_)) => Internal
   | (TypeHole, TypeHole | SynSwitch)
   | (SynSwitch, TypeHole) => TypeHole
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-/* MATCHED JUDGEMENTS: Note that matched judgements work
-   a bit different than hazel2 here since hole fixing is
-   implicit. Somebody should check that what I'm doing
-   here actually makes sense -Andrew */
-
 let matched_arrow: t => (t, t) =
   fun
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(_)
+  | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
   | _ => (Unknown(Internal), Unknown(Internal));
+
+let matched_prod: (int, t) => list(t) =
+  length =>
+    fun
+    | Prod(tys) when List.length(tys) == length => tys
+    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
+    | _ => List.init(length, _ => Unknown(Internal));
+
+let matched_cons: t => (t, t) =
+  fun
+  | List(ty) => (ty, List(ty))
+  | Unknown(SynSwitch) => (Unknown(SynSwitch), List(Unknown(SynSwitch)))
+  | _ => (Unknown(Internal), List(Unknown(SynSwitch)));
 
 let matched_list: t => t =
   fun
   | List(ty) => ty
-  | Unknown(_)
+  | Unknown(SynSwitch) => Unknown(SynSwitch)
   | _ => Unknown(Internal);
 
 let precedence_Prod = 1;
@@ -56,7 +65,7 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-let rec subst = (s: t, x: Token.t, ty: t) => {
+let rec subst = (s: t, x: TypVar.t, ty: t) => {
   switch (ty) {
   | Int => Int
   | Float => Float
@@ -66,10 +75,10 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(subst(s, x), tys))
   | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
-  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
+  | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
   | List(ty) => List(subst(s, x, ty))
-  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
+  | Var(y) => TypVar.eq(x, y) ? s : Var(y)
   };
 };
 
@@ -108,7 +117,7 @@ let rec eq = (t1: t, t2: t): bool => {
   };
 };
 
-let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
+let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (ty) {
   | Unknown(_)
   | Int
@@ -148,15 +157,23 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
-      resolve ? ty_join : Var(n1);
+      !resolve && eq(ty1, ty_join) ? Var(n1) : ty_join;
     }
   | (Var(name), ty)
   | (ty, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
-    resolve ? ty_join : Var(name);
+    !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    /* TODO:
+         This code isn't fully correct, as we may be doing
+         substitution on open terms; if x1 occurs in ty2,
+         we should be substituting x1 for a fresh variable
+         in ty2. This is annoying, and should be obviated
+         by the forthcoming debruijn index implementation
+       */
+    let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
     Rec(x1, ty_body);
   | (Rec(_), _) => None

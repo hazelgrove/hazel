@@ -1,9 +1,26 @@
-//open Util.OptUtil.Syntax;
+open Util;
 open Sexplib.Std;
 
-/* The common (synthetic) type information derivable from pattern
-   or expression terms in isolation, using the typing context but
-   not the syntactic context i.e. typing mode */
+/* SELF.re
+
+   This module defines the SELF data structure, which represents
+   the synthetic type information derivable from a term independent
+   of the type expectation (i.e. MODE) of its syntactic context. This
+   synethetic information is not entirely independent, in that it still
+   uses the typing context passed down from the syntactic context.
+
+   A term which from which a type can be derived in isolation, that is,
+   that has a valid synthetic typing judgement, will generally have a SELF
+   of Just(some_type). (The one current exception are the tags of labelled
+   sum types, which are handled specially as their synthetic type
+   may be 'overwritten' by the analytic expectation)
+
+   The other cases all represent states for which no single type can be
+   derived, such as syntactic errors, or branching constructs which may
+   have inconsistent types.
+
+   */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
@@ -11,11 +28,11 @@ type t =
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsTag({
-      name: Token.t,
+      name: Tag.t,
       syn_ty: option(Typ.t),
     }); /* Tags have special ana logic */
 
-/* The self for expressions could also be a free variable */
+/* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | FreeVar
@@ -45,7 +62,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
 
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
-let of_exp_var = (ctx: Ctx.t, name: Token.t): exp =>
+let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
   | None => FreeVar
   | Some(var) => Common(Just(var.typ))
@@ -54,7 +71,7 @@ let of_exp_var = (ctx: Ctx.t, name: Token.t): exp =>
 /* The self of a tag depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_tag = (ctx: Ctx.t, name: Token.t): t =>
+let of_tag = (ctx: Ctx.t, name: Tag.t): t =>
   IsTag({
     name,
     syn_ty:

@@ -55,3 +55,7 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
 /* Note: this currently shadows in the case of duplicates */
 let union: list(t) => t =
   List.fold_left((co_ctx1, co_ctx2) => co_ctx1 @ co_ctx2, []);
+
+let singleton = (name, id, expected_ty): t => [
+  (name, [{id, expected_ty}]),
+];
