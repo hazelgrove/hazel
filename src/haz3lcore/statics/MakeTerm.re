@@ -243,7 +243,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           let is_deferral = (e: UExp.t) => e.term == Invalid("_");
           let bound_deferral = (arg: UExp.t, is_singleton): UExp.t => {
             ids: arg.ids,
-            term: Deferral(is_singleton),
+            term: Deferral(is_singleton ? IsSingleton : IsNotSingleton),
           };
           switch (arg.term) {
           | _ when is_deferral(arg) =>
