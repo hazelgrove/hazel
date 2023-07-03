@@ -63,7 +63,7 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-/* Perform static analysis and elaboration on the given editor
+/* Generate UExp and DHExp on the given editors
 
    It is used in Update.re */
 let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {

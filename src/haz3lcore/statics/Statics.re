@@ -634,8 +634,6 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   };
 };
 
-/* This function generates the corresponding
-   Statics map object of a given UExp object as an argument */
 let mk_map =
   Core.Memo.general(
     ~cache_size_bound=1000,
