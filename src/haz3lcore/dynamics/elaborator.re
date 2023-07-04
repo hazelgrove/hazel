@@ -169,6 +169,7 @@ let rec dhexp_of_uexp =
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
       | Triv => Some(Tuple([]))
+      | Deferral => Some(DHExp.InvalidText(id, 0, "_"))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
       | Float(n) => Some(FloatLit(n))

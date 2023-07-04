@@ -545,7 +545,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
-    | Deferral(_)
+    | Deferral
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -578,7 +578,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
-      | Deferral(_)
+      | Deferral
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -607,11 +607,7 @@ module UExp = {
     | _ => None
     };
 
-  let is_deferral = (e: t) =>
-    switch (e.term) {
-    | Deferral(_) => true
-    | _ => false
-    };
+  let is_deferral = (e: t) => e.term == Deferral;
 };
 
 // TODO(d): consider just folding this into UExp
