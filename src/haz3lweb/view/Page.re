@@ -180,13 +180,14 @@ let main_ui_view =
       ~inject,
       {
         editors,
-        font_metrics,
-        show_backpack_targets,
         settings,
-        mousedown,
-        results,
         langDocMessages,
-        mvu_states,
+        meta: {
+          ui_state: {font_metrics, show_backpack_targets, mousedown, _},
+          results,
+          mvu_states,
+          _,
+        },
         _,
       } as model: Model.t,
     ) => {
@@ -259,7 +260,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
         Attr.[
           id(page_id),
           // safety handler in case mousedown overlay doesn't catch it
-          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
           on_blur(_ => {
             JsUtil.focus_clipboard_shim();
             Virtual_dom.Vdom.Effect.Ignore;

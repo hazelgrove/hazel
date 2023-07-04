@@ -20,7 +20,7 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
       Attr.many(
         Attr.[
           id("mousedown-overlay"),
-          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
             inject(
@@ -39,7 +39,7 @@ let mousedown_handler =
     List.map(
       inject,
       Update.(
-        [Mousedown]
+        [SetMeta(Mousedown)]
         @ additional_updates
         @ [PerformAction(Move(Goal(Point(goal))))]
       ),

@@ -105,25 +105,16 @@ let load_model = (model: Model.t): Model.t => {
     };
   {
     ...model,
-    results:
-      ModelResults.init(
-        model.settings.dynamics
-          ? Editors.get_spliced_elabs(model.editors) : [],
-      ),
+    meta: {
+      ...model.meta,
+      results:
+        ModelResults.init(
+          model.settings.dynamics
+            ? Editors.get_spliced_elabs(model.editors) : [],
+        ),
+    },
   };
 };
-
-let load_default_editor = (model: Model.t): Model.t =>
-  switch (model.editors) {
-  | DebugLoad => model
-  | Scratch(_) =>
-    let (idx, editors) = LocalStorage.Scratch.init();
-    {...model, editors: Scratch(idx, editors)};
-  | School(_) =>
-    let instructor_mode = model.settings.instructor_mode;
-    let (n, specs, exercise) = LocalStorage.School.init(~instructor_mode);
-    {...model, editors: School(n, specs, exercise)};
-  };
 
 let reevaluate_post_update =
   fun
@@ -138,6 +129,17 @@ let reevaluate_post_update =
     | ContextInspector
     | Mode(_) => true
     }
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | DoubleTap(_)
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_)
+    | FontMetrics(_)
+    | Result(_) => false
+    | MVU(_)
+    | Auto(_) => true
+    }
   | PerformAction(
       Move(_) | Select(_) | Unselect(_) | RotateBackpack |
       MoveToBackpackTarget(_) |
@@ -145,18 +147,10 @@ let reevaluate_post_update =
       SetSelectionFocus(_),
     )
   | MoveToNextHole(_)
-  | UpdateDoubleTap(_)
-  | Mousedown
-  | Mouseup
   | Save
-  | SetShowBackpackTargets(_)
-  | SetFontMetrics(_)
-  | SetLogoFontMetrics(_)
   | Copy
-  | UpdateResult(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | FailedInput(_)
   | UpdateLangDocMessages(_)
   | StoreKey(_)
   | DebugAction(_) => false
@@ -176,8 +170,6 @@ let reevaluate_post_update =
   | Paste(_)
   | Agent(_)
   | Execute(_)
-  | MVUSet(_)
-  | Script(_)
   | Undo
   | Redo => true;
 
@@ -185,14 +177,17 @@ let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
   let model = {
     ...model,
-    results:
-      Util.TimeUtil.measure_time(
-        "ModelResults.init", model.settings.benchmark, () =>
-        ModelResults.init(
-          model.settings.dynamics
-            ? Editors.get_spliced_elabs(model.editors) : [],
-        )
-      ),
+    meta: {
+      ...model.meta,
+      results:
+        Util.TimeUtil.measure_time(
+          "ModelResults.init", model.settings.benchmark, () =>
+          ModelResults.init(
+            model.settings.dynamics
+              ? Editors.get_spliced_elabs(model.editors) : [],
+          )
+        ),
+    },
   };
 
   // if (model.settings.dynamics) {
@@ -233,9 +228,9 @@ let rec apply =
   let m: Result.t(Model.t) =
     switch (update) {
     | Set(s_action) => Ok(update_settings(s_action, model))
-    | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
-    | Mousedown => Ok({...model, mousedown: true})
-    | Mouseup => Ok({...model, mousedown: false})
+    | SetMeta(action) =>
+      Ok({...model, meta: meta_update(model, action, ~schedule_action)})
+
     | Save =>
       save_editors(model);
       Ok(model);
@@ -337,10 +332,6 @@ let rec apply =
       let new_mode = Editors.rotate_mode(model.editors);
       let model = update_settings(Mode(new_mode), model);
       Ok(load_model(model));
-    | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
-    | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
-    | SetLogoFontMetrics(logo_font_metrics) =>
-      Ok({...model, logo_font_metrics})
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
       let ctx_init = Editors.get_ctx_init(model.editors);
@@ -359,7 +350,6 @@ let rec apply =
       };
       let model = AgentUpdate.reset_buffer(model);
       perform_action(model, a);
-    | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
       perform_action(model, Destruct(Left))
@@ -367,11 +357,6 @@ let rec apply =
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
-    | MVUSet(name, dh) =>
-      Ok({
-        ...model,
-        mvu_states: VarMap.extend(model.mvu_states, (name, dh)),
-      })
     | Execute(fake_str) =>
       print_endline("fake: " ++ fake_str);
       let editor = model.editors |> Editors.get_editor;
@@ -446,137 +431,74 @@ let rec apply =
         LangDocMessages.set_update(model.langDocMessages, u);
       LocalStorage.LangDocMessages.save(langDocMessages);
       Ok({...model, langDocMessages});
-    | UpdateResult(key, res) =>
-      /* If error, print a message. */
-      switch (res) {
-      | ResultFail(Program_EvalError(reason)) =>
-        let serialized =
-          reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-        print_endline(
-          "[Program.EvalError(EvaluatorError.Exception(" ++ serialized ++ "))]",
-        );
-      | ResultFail(Program_DoesNotElaborate) =>
-        print_endline("[Program.DoesNotElaborate]")
-      | _ => ()
-      };
-      let r =
-        model.results
-        |> ModelResults.find(key)
-        |> ModelResult.update_current(res);
-      let results = model.results |> ModelResults.add(key, r);
-      Ok({...model, results});
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
-    | Script(StartRun ()) =>
-      print_endline("RUN: starting");
-      switch (model.script) {
-      | {current_script: Some(_), _}
-      | {to_run: [_, ..._], _} =>
-        print_endline("RUN: Error: run already in progress");
-        Ok(model);
-      | _ =>
-        schedule_action(Script(StartTest())); //TODO: which test?
-        let ctx_init = Editors.get_ctx_init(model.editors);
-        let script: Model.script = {
-          current_script: None,
-          to_run: Scripter.test_scripts(~ctx_init),
-          results: VarMap.empty,
-        };
-        Ok({...model, script});
-      };
-    | Script(StartTest ()) =>
-      switch (model.script) {
-      | {current_script: Some(_), _} =>
-        print_endline("SCRIPT: Error: previous test still in progress");
-        Ok(model);
-      | {to_run: [], results, _} =>
-        print_endline("SCRIPT: Error: no tests left to run. Results:");
-        print_endline(Model.show_results(results));
-        Ok(model);
-      | {to_run: [(name, s1), ...to_run], results, _} =>
-        print_endline("SCRIPT: Starting script: " ++ name);
-        List.iter(schedule_action, s1);
-        let script: Model.script = {
-          current_script: Some(name),
-          to_run,
-          results,
-        };
-        schedule_action(
-          Script(UpdateResult(name, UpdateAction.initialize_results)),
-        );
-        Ok({...model, script});
-      }
-    | Script(EndTest ()) =>
-      switch (model.script) {
-      | {current_script: None, _} =>
-        print_endline("SCRIPT: EndTest: Error: no test in progress");
-        Ok(model);
-      | {current_script: Some(name), to_run: _, results: _, _} =>
-        print_endline("SCRIPT: Ending script: " ++ name);
-        //TODO(andrew): abstract this script into cleanup function
-        schedule_action(Agent(AcceptSuggestion));
-        schedule_action(Script(LogTest()));
-        Ok(model);
-      }
-    | Script(UpdateResult(name, updater)) =>
-      let results =
-        switch (VarMap.lookup(model.script.results, name)) {
-        | None =>
-          print_endline(
-            "Script: UpdateResult: Creating new result entry for: " ++ name,
-          );
-          VarMap.extend(
-            model.script.results,
-            (name, updater(UpdateAction.empty_script_result)),
-          );
-        | Some(_) =>
-          print_endline(
-            "Script: UpdateResult: Updating existing result entry for: "
-            ++ name,
-          );
-          VarMap.update(model.script.results, name, updater);
-        };
-      Ok({
-        ...model,
-        script: {
-          ...model.script,
-          results,
-        },
-      });
-    | Script(LogTest ()) =>
-      switch (model.script) {
-      | {current_script: Some(name), to_run, results, _} =>
-        let editor = Editors.get_editor(model.editors);
-        let ctx_init = Editors.get_ctx_init(model.editors);
-        print_endline("SCRIPT: LogTest: Logging script: " ++ name);
-        let info_map =
-          ChatLSP.get_info_from_zipper(~ctx_init, editor.state.zipper);
-        let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
-        let static_errors = Statics.collect_errors(info_map);
-        let completed_sketch = Printer.to_string_editor(editor);
-        //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
-        let script: Model.script = {current_script: None, to_run, results};
-        let model = {...model, script};
-        schedule_action(
-          Script(
-            UpdateResult(
-              name,
-              UpdateAction.finalize_results(
-                syntax_errors,
-                static_errors,
-                completed_sketch,
-              ),
-            ),
-          ),
-        );
-        schedule_action(Script(StartTest()));
-        Ok(model);
-      | {current_script: None, _} =>
-        print_endline("SCRIPT: LogTest: Error: no test in progress");
-        Ok(model);
-      }
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
+}
+and meta_update =
+    (model: Model.t, update: set_meta, ~schedule_action): Model.meta => {
+  switch (update) {
+  | DoubleTap(double_tap) => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        double_tap,
+      },
+    }
+  | Mousedown => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        mousedown: true,
+      },
+    }
+  | Mouseup => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        mousedown: false,
+      },
+    }
+  | ShowBackpackTargets(b) => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        show_backpack_targets: b,
+      },
+    }
+  | FontMetrics(font_metrics) => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        font_metrics,
+      },
+    }
+  | MVU(name, dh) => {
+      ...model.meta,
+      mvu_states: VarMap.extend(model.meta.mvu_states, (name, dh)),
+    }
+  | Result(key, res) =>
+    /* If error, print a message. */
+    switch (res) {
+    | ResultFail(Program_EvalError(reason)) =>
+      let serialized =
+        reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+      print_endline(
+        "[Program.EvalError(EvaluatorError.Exception(" ++ serialized ++ "))]",
+      );
+    | ResultFail(Program_DoesNotElaborate) =>
+      print_endline("[Program.DoesNotElaborate]")
+    | _ => ()
+    };
+    let r =
+      model.meta.results
+      |> ModelResults.find(key)
+      |> ModelResult.update_current(res);
+    let results = model.meta.results |> ModelResults.add(key, r);
+    {...model.meta, results};
+  | Auto(action) => UpdateAuto.go(model, action, ~schedule_action)
+  };
 };

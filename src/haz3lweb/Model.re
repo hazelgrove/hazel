@@ -1,54 +1,69 @@
 open Sexplib.Std;
 open Haz3lcore;
 
+/* MODEL.re
+
+   The model consists of three broad categories. EDITORS is the 'meat',
+   containing the code content and cursor/selection/buffer state for all
+   active editors. SETTINGS are user-selectable preferences. Together,
+   these two comprise the 'persistant' state of the application which is
+   saved to localstore.
+
+   META on the other hand consists of everything which is not
+   peristant, including transitory UI_STATE such as whether the mouse
+   is held down, and cached evaluation RESULTS.
+
+    */
+
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
+/* Non-persistant UI state */
 [@deriving (show({with_path: false}), yojson, sexp)]
-type results = VarMap.t_(UpdateAction.script_result);
-
-[@deriving (show({with_path: false}), yojson, sexp)]
-type script = {
-  current_script: option(string),
-  to_run: list((string, list(UpdateAction.t))),
-  results,
+type ui_state = {
+  font_metrics: FontMetrics.t,
+  show_backpack_targets: bool,
+  double_tap: option(timestamp),
+  mousedown: bool,
 };
 
-let script_init: script = {
-  current_script: None,
-  to_run: [],
-  results: VarMap.empty,
+let ui_state_init = {
+  font_metrics: FontMetrics.init,
+  show_backpack_targets: false,
+  double_tap: None,
+  mousedown: false,
+};
+
+/* Non-persistant application state */
+[@deriving (show({with_path: false}), yojson, sexp)]
+type meta = {
+  ui_state,
+  results: ModelResults.t,
+  auto: UpdateAction.auto_llm,
+  mvu_states: VarMap.t_(DHExp.t),
+};
+
+let meta_init = {
+  ui_state: ui_state_init,
+  results: ModelResults.empty,
+  mvu_states: VarMap.empty,
+  auto: Auto.init,
 };
 
 type t = {
   editors: Editors.t,
-  results: ModelResults.t,
-  mvu_states: VarMap.t_(DHExp.t),
   settings: ModelSettings.t,
-  font_metrics: FontMetrics.t,
-  logo_font_metrics: FontMetrics.t,
-  show_backpack_targets: bool,
-  double_tap: option(timestamp),
-  mousedown: bool,
   langDocMessages: LangDocMessages.t,
-  script,
+  meta,
 };
 
 let cutoff = (===);
 
 let mk = editors => {
   editors,
-  results: ModelResults.empty,
-  mvu_states: VarMap.empty,
   settings: ModelSettings.init,
-  // TODO: move below to 'io_state'?
-  font_metrics: FontMetrics.init,
-  logo_font_metrics: FontMetrics.init,
-  show_backpack_targets: false,
-  double_tap: None,
-  mousedown: false,
   langDocMessages: LangDocMessages.init,
-  script: script_init,
+  meta: meta_init,
 };
 
 let blank = mk(Editors.Scratch(0, []));

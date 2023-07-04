@@ -6,16 +6,16 @@ let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
 let update_double_tap = (model: Model.t): list(Update.t) => {
   let cur_time = JsUtil.timestamp();
-  switch (model.double_tap) {
-  | None => [UpdateDoubleTap(Some(cur_time))]
+  switch (model.meta.ui_state.double_tap) {
+  | None => [SetMeta(DoubleTap(Some(cur_time)))]
   | Some(prev_time) =>
     if (cur_time -. prev_time < 400.) {
       [
-        UpdateDoubleTap(None),
+        SetMeta(DoubleTap(None)),
         // PerformAction(RotateBackpack) // TODO(cyrus) disabling double tab here, but would be good to give it a different hotkey
       ];
     } else {
-      [UpdateDoubleTap(Some(cur_time))];
+      [SetMeta(DoubleTap(Some(cur_time)))];
     }
   };
 };
@@ -32,8 +32,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: U(key), _} =>
     switch (key) {
     | "Shift" => [] // NOTE: don't update double_tap here
-    | "Alt" => [SetShowBackpackTargets(false)]
-    | _ => [UpdateDoubleTap(None)]
+    | "Alt" => [SetMeta(ShowBackpackTargets(false))]
+    | _ => [SetMeta(DoubleTap(None))]
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
@@ -75,8 +75,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
-    | "F7" => [Update.Script(StartTest())]
-    | "F8" => [Update.Script(StartRun())]
+    | "F7" => [SetMeta(Auto(StartTest()))]
+    | "F8" => [SetMeta(Auto(StartRun()))]
     | "F9" =>
       print_endline(
         "DEBUG: F9: Zipper with dump_backpack=true, erase_buffer=false",
@@ -218,7 +218,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       now(MoveToBackpackTarget(Right(ByToken)))
     | (Mac, "ArrowLeft") => now(Move(Local(Left(ByToken))))
     | (Mac, "ArrowRight") => now(Move(Local(Right(ByToken))))
-    | (_, "Alt") => [SetShowBackpackTargets(true), UpdateDoubleTap(None)]
+    | (_, "Alt") => [
+        SetMeta(ShowBackpackTargets(true)),
+        SetMeta(DoubleTap(None)),
+      ]
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
     | _ => []
