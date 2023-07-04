@@ -51,10 +51,6 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(FailedToPerform(err)));
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
-  | Error(UnrecognizedInput(reason)) =>
-    // TODO(andrew): reinstate this history functionality
-    print_endline(Update.Failure.show(UnrecognizedInput(reason)));
-    model;
   //{...model, history: ActionHistory.just_failed(reason, model.history)};
   | Error(err) =>
     print_endline(Update.Failure.show(err));
@@ -91,7 +87,7 @@ module App = {
   let on_startup = (~schedule_action, _) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
-        schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
+        schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
       );
 
     JsUtil.focus_clipboard_shim();
@@ -110,7 +106,7 @@ module App = {
             | Some(EvaluationFail(reason)) => ResultFail(reason)
             | None => ResultTimeout
             };
-          schedule_action(Update.UpdateResult(key, cr));
+          schedule_action(Update.SetMeta(Result(key, cr)));
         },
         () => (),
       );

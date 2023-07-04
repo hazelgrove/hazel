@@ -31,7 +31,7 @@ let view =
   let code_id = "code-container";
   let editor_view =
     Cell.editor_with_result_view(
-      ~mvu_states=model.mvu_states,
+      ~mvu_states=model.meta.mvu_states,
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,

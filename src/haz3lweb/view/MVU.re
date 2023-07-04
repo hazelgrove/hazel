@@ -266,7 +266,7 @@ let render_attr = ({name, inject, update, model, _}: t, d: DHExp.t): Attr.t => {
     Virtual_dom.Vdom.Effect.Many([
       Virtual_dom.Vdom.Effect.Stop_propagation,
       //Virtual_dom.Vdom.Effect.Prevent_default,
-      inject(MVUSet(name, maybe_model)) //DHExp.strip_casts(maybe_model),
+      inject(SetMeta(MVU(name, maybe_model))) //DHExp.strip_casts(maybe_model),
     ]);
   };
   /* TODO: Handlers to implement:

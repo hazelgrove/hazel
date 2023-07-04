@@ -118,7 +118,7 @@ let apply =
               );
               let trimmed_response = trim_indentation(response);
               schedule_action(Agent(SetBuffer(trimmed_response)));
-              schedule_action(Script(EndTest()));
+              schedule_action(SetMeta(Auto(EndTest())));
             | Some(reply) =>
               print_endline("react_error: errors:" ++ reply);
               OpenAI.reply_chat(prompt, response, reply, req =>
@@ -130,7 +130,7 @@ let apply =
                   );
                   let trimmed_response = trim_indentation(response);
                   schedule_action(Agent(SetBuffer(trimmed_response)));
-                  schedule_action(Script(EndTest()));
+                  schedule_action(SetMeta(Auto(EndTest())));
                 | None => print_endline("Filler: handler failed")
                 //schedule_action(Script(EndTest()));
                 }
@@ -139,7 +139,7 @@ let apply =
           | _ =>
             print_endline("react_error: no CI");
             schedule_action(Agent(SetBuffer(response)));
-            schedule_action(Script(EndTest()));
+            schedule_action(SetMeta(Auto(EndTest())));
           };
         | None => print_endline("Filler: handler failed")
         //schedule_action(Script(EndTest()));

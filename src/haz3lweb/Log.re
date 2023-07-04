@@ -10,20 +10,12 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | UpdateDoubleTap(_)
-  | Mousedown
-  | Mouseup
+  | SetMeta(_)
   | Save
-  | SetFontMetrics(_)
-  | SetLogoFontMetrics(_)
-  | SetShowBackpackTargets(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateResult(_)
   | StoreKey(_)
-  | MVUSet(_)
-  | DebugAction(_)
-  | Script(_) => false
+  | DebugAction(_) => false
   | Execute(_)
   | ResetCurrentEditor
   | Set(_)
@@ -34,7 +26,6 @@ let is_action_logged: UpdateAction.t => bool =
   | SwitchSlide(_)
   | SwitchEditor(_)
   | PerformAction(_)
-  | FailedInput(_)
   | Cut
   | Copy
   | Paste(_)
