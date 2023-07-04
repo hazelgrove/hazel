@@ -154,6 +154,7 @@ let typ_err_view = (ok: Info.error_typ) =>
 let exp_view: Info.status_exp => t =
   fun
   | InHole(FreeVariable) => div_err([text("Variable is not bound")])
+  | InHole(FreeDeferral) => div_err([text("Deferral is not bound")])
   | InHole(InconsistentWithDeferrableArrow(typ)) => div_err([
       Type.view(typ),
       text("is not consistent with partial applicable arrow type"),

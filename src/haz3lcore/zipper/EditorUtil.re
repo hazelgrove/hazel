@@ -59,6 +59,7 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Invalid(_)
   | MultiHole(_)
   | Triv
+  | Deferral
   | Bool(_)
   | Int(_)
   | Float(_)
@@ -69,6 +70,7 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Tuple(_)
   | Var(_)
   | Ap(_)
+  | DeferredAp(_)
   | If(_)
   | Test(_)
   | Parens(_)

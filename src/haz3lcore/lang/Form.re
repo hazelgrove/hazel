@@ -168,6 +168,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "empty_tuple",
     (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
   ),
+  ("deferral", (is_wild, [mk_op(Exp, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),

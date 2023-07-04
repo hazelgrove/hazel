@@ -194,6 +194,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
+      | ([t], []) when Form.is_wild(t) => ret(Deferral)
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
@@ -240,29 +241,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => 
-          let is_deferral = (e: UExp.t) => e.term == Invalid("_");
-          let bound_deferral = (arg: UExp.t, is_singleton): UExp.t => {
-            ids: arg.ids,
-            term: Deferral(is_singleton ? IsSingleton : IsNotSingleton),
-          };
           switch (arg.term) {
-          | _ when is_deferral(arg) =>
-            DeferredAp(l, bound_deferral(arg, true))
-          | Tuple(args) when List.exists(is_deferral, args) =>
-            DeferredAp(
-              l,
-              {
-                ids: arg.ids,
-                term:
-                  Tuple(
-                    List.map(
-                      arg =>
-                        is_deferral(arg) ? bound_deferral(arg, false) : arg,
-                      args,
-                    ),
-                  ),
-              },
-            )
+          | _ when UExp.is_deferral(arg) =>
+          | Tuple(es) when List.exists(UExp.is_deferral, es) => DeferredAp(l, arg)
           | _ => Ap(l, arg)
           };
         | _ => hole(tm)
