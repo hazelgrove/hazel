@@ -1,16 +1,12 @@
 open OptUtil.Syntax;
 open Sexplib.Std;
 
-[@deriving sexp]
-type key = string;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type binding('a) = (Tag.t, 'a);
 
-[@deriving sexp]
-type binding('a) = (key, 'a);
-
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(binding('a));
 
-let tag_equal = (==);
 let compare = compare;
 
 let empty: t('a) = [];
@@ -20,11 +16,11 @@ let is_empty: t('a) => bool =
   | [] => true
   | _ => false;
 
-let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>
+let rec add = (tag: Tag.t, value: 'a, map: t('a)): t('a) =>
   switch (map) {
   | [] => [(tag, value)]
   | [(tag', value') as head, ...tail] =>
-    if (tag_equal(tag, tag')) {
+    if (Tag.equal(tag, tag')) {
       if (value === value') {
         map;
       } else {
@@ -35,7 +31,7 @@ let rec add = (tag: key, value: 'a, map: t('a)): t('a) =>
     }
   };
 
-let singleton = (tag: key, value: 'a): t('a) => [(tag, value)];
+let singleton = (tag: Tag.t, value: 'a): t('a) => [(tag, value)];
 
 let compare_bindings =
     ((tag1, _): binding('a), (tag2, _): binding('a)): int =>
@@ -50,7 +46,7 @@ let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
         (tag2, val2): binding('a),
       )
       : bool =>
-    tag_equal(tag1, tag2) && val_equal(val1, val2);
+    Tag.equal(tag1, tag2) && val_equal(val1, val2);
   map1 === map2
   || {
     let map1 = List.fast_sort(compare_bindings, map1);
@@ -59,9 +55,14 @@ let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   };
 };
 
+let tags_of = (m: list((Tag.t, 'a))): list(Tag.t) => List.map(fst, m);
+
+let same_tags_same_order = (map1: t('a), map2: t('a)): bool =>
+  List.for_all2(Tag.equal, tags_of(map1), tags_of(map2));
+
 let tags_equal = (map1: t('a), map2: t('a)): bool => {
-  let tags1 = map1 |> List.map(fst);
-  let tags2 = map2 |> List.map(fst);
+  let tags1 = tags_of(map1);
+  let tags2 = tags_of(map2);
   tags1 === tags2
   || List.fast_sort(compare, tags1) == List.fast_sort(compare, tags2);
 };
@@ -72,15 +73,15 @@ let cardinal: t('a) => int = List.length;
 
 let bindings: t('a) => list(binding('a)) = x => x;
 
-let find_opt = (key: key, map: t('a)): option('a) => {
-  let+ binding = List.find_opt(((k, _)) => tag_equal(key, k), map);
+let find_opt = (tag: Tag.t, map: t('a)): option('a) => {
+  let+ binding = List.find_opt(((k, _)) => Tag.equal(tag, k), map);
   snd(binding);
 };
 
 let map = (f: 'a => 'b, m: t('a)): t('b) => {
-  let (keys, vals) = List.split(m);
+  let (tags, vals) = List.split(m);
   let vals = List.map(f, vals);
-  List.combine(keys, vals);
+  List.combine(tags, vals);
 };
 
 /* sorts on tags only */

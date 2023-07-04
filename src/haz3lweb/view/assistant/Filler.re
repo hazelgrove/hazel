@@ -191,7 +191,7 @@ actual_completion:
 };
 
 let error_reply =
-    (response: string, id: Id.t, ~init_ctx: Ctx.t, ~mode: Typ.mode) => {
+    (response: string, id: Id.t, ~init_ctx: Ctx.t, ~mode: Mode.t) => {
   //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
     Some(
@@ -209,9 +209,9 @@ let error_reply =
   | Some((response_z, _id)) =>
     let (top_ci, map) =
       response_z |> ChatLSP.get_info_and_top_ci_from_zipper(~ctx=init_ctx);
-    let self =
+    let self: Self.t =
       switch (top_ci.self) {
-      | FreeVar => Info.Just(Unknown(Internal))
+      | FreeVar => Just(Unknown(Internal))
       | Common(self) => self
       };
     let status = Info.status_common(init_ctx, mode, self);

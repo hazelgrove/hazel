@@ -41,7 +41,8 @@ let term_tag =
       ci,
     ) =>
   div(
-    ~attr=clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errc] : [])),
+    ~attr=
+      clss(["ci-header", "ci-header-" ++ sort] @ (is_err ? [errc] : [])),
     [
       div(
         ~attr=
@@ -54,7 +55,7 @@ let term_tag =
         [text("Γ")],
       ),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
-      text(sort),
+      div(~attr=clss(["term-tag"]), [text(sort)]),
       lang_doc_toggle(~inject, ~show_lang_doc),
     ],
   );

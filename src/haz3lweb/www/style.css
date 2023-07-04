@@ -801,31 +801,31 @@ svg.tile-selected {
 
 /* OTHER SORT COLORS */
 
-.term-tag-nul {
+.ci-header-nul {
   background-color: var(--nul-bg-color);
   color: var(--nul-off-color);
 }
-.term-tag-any {
+.ci-header-any {
   background-color: var(--any-bg-color);
   color: var(--any-off-color);
 }
-.term-tag-exp {
+.ci-header-exp {
   background-color: var(--exp-bg-color);
   color: var(--exp-off-color);
 }
-.term-tag-pat {
+.ci-header-pat {
   background-color: var(--pat-bg-color);
   color: var(--pat-off-color);
 }
-.term-tag-typ {
+.ci-header-typ {
   background-color: var(--typ-bg-color);
   color: var(--typ-off-color);
 }
-.term-tag-rul {
+.ci-header-rul {
   background-color: var(--rul-bg-color);
   color: var(--rul-off-color);
 }
-.term-tag-tpat {
+.ci-header-tpat {
   background-color: var(--tpat-bg-color);
   color: var(--tpat-off-color);
 }
@@ -1004,7 +1004,7 @@ svg.tile-selected {
   font-size: 0.7em;
 }
 
-.term-tag {
+.ci-header {
   padding: 0em 0.6em 0em 0em;
   border-radius: 0 1.1em 0 0;
   display: flex;
@@ -1015,10 +1015,16 @@ svg.tile-selected {
   align-items: center;
 }
 
-.term-tag.error {
+.ci-header.error {
   background-color: var(--err-color);
   color: #830000 !important;
   /* HACK(andrew) */
+}
+
+.term-tag {
+  color: #0006;
+  font-weight: bolder;
+  text-transform: uppercase;
 }
 
 /* CURSOR INSPECTOR */

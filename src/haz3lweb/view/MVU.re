@@ -283,7 +283,7 @@ let render_attr = ({name, inject, update, model, _}: t, d: DHExp.t): Attr.t => {
   switch (d) {
   | Ap(Tag("Create"), Tuple([StringLit(name), StringLit(value)])) =>
     Attr.create(name, value)
-  | Ap(Tag("Style"), ListLit(_, _, _, _, styles)) => render_styles(styles)
+  | Ap(Tag("Style"), ListLit(_, _, _, styles)) => render_styles(styles)
   | Ap(Tag("OnClick"), handler) =>
     Attr.on_click(_evt => on_(handler, Tuple([])))
   | Ap(Tag("OnMouseDown"), handler) =>
@@ -343,7 +343,7 @@ and input_of = (input_type, context, body) => {
 and attrs_and_divs =
     (context: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
   switch (body) {
-  | Tuple([ListLit(_, _, _, _, attrs), ListLit(_, _, _, _, divs)]) =>
+  | Tuple([ListLit(_, _, _, attrs), ListLit(_, _, _, divs)]) =>
     let attrs = attrs |> List.map(render_attr(context));
     let divs = divs |> List.map(render_div(context));
     (attrs, divs);

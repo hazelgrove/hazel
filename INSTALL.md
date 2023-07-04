@@ -231,12 +231,12 @@ If the build fails, it sometimes helps to do a `make clean`.
     - `make win-chrome`
 
 You can also launch Hazel directly by opening
-`_build/default/src/hazelweb/www/index.html` in your browser.  The command `make
+`_build/default/src/haz3lweb/www/index.html` in your browser.  The command `make
 echo-html` echos that path to the terminal, so that you don't have to remember
 it.
 
 You can also run `make repl` to get a REPL in which you can play with the definitions
-in `hazelcore`. The definitions in `hazelweb` cannot be used in the REPL because that
+in `haz3lcore`. The definitions in `haz3lweb` cannot be used in the REPL because that
 package needs a browser environment to run.
 
 
