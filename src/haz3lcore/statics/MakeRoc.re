@@ -20,7 +20,7 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ "\n"
     ++ String.make(i + 1, ' ')
     ++ generate_code(body, i + 1)
-  | Record(t) => get_record_term(t, i)
+  | Record(t) => get_record_exp(t, i)
   | Var(token) => token
   | Assign(p, def) => get_code_pat(p, i) ++ " = " ++ generate_code(def, i)
   | Ap(fn, arg) =>
@@ -57,7 +57,6 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     "when " ++ generate_code(t, i) ++ " is\n" ++ get_match_body(l, i + 1)
   | TypeAnn(v, typ) => v ++ " : " ++ get_code_typ(typ)
   }
-
 and get_code_pat = (t: TermRoc.UPat.t, i: int): string =>
   switch (t) {
   | Wild => "_"
@@ -72,7 +71,6 @@ and get_code_pat = (t: TermRoc.UPat.t, i: int): string =>
   | Record(pat) => get_record_pat(pat, i)
   | Parens(expr) => "(" ++ get_code_pat(expr, i) ++ ")"
   }
-
 and get_code_typ = (t: TermRoc.UTyp.t): string =>
   switch (t) {
   | Int => "I64"
@@ -110,7 +108,6 @@ and seqlist_to_string = (lst: list(TermRoc.UExp.t), i: int) => {
     ++ seqlist_to_string(xs, i)
   };
 }
-
 and seqnobreak_to_string = (lst: list(TermRoc.UExp.t), i: int) => {
   switch (lst) {
   | [] => ""
@@ -118,7 +115,7 @@ and seqnobreak_to_string = (lst: list(TermRoc.UExp.t), i: int) => {
   | [x, ...xs] => generate_code(x, i) ++ " " ++ seqnobreak_to_string(xs, i)
   };
 }
-and get_record_term = (terms: list(TermRoc.UExp.t), indent: int): string => {
+and get_record_exp = (terms: list(TermRoc.UExp.t), indent: int): string => {
   let termi =
     List.mapi(
       (i, t) => {
@@ -149,7 +146,6 @@ and get_record_typ = (typs: list(TermRoc.UTyp.t)): string => {
   let r = String.concat(", ", typi);
   "{" ++ r ++ "}";
 }
-
 and get_match_body =
     (branches: list((TermRoc.UPat.t, TermRoc.UExp.t)), i: int): string => {
   let branchi =
@@ -166,12 +162,10 @@ and get_match_body =
     );
   String.concat("\n", branchi);
 }
-
 and get_code_un = (op: TermRoc.UExp.op_un): string =>
   switch (op) {
   | Int(Minus) => "-"
   }
-
 and get_code_bin = (op: TermRoc.UExp.op_bin): string =>
   switch (op) {
   | Int_Float(op_bin_int_float) =>

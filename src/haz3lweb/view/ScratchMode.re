@@ -97,21 +97,13 @@ let download_roc = state => {
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
   let rocterm =
-    Util.TimeUtil.measure_time("get term 1", true, () =>
-      Translation.get_roc_term(term, info_map)
+    Util.TimeUtil.measure_time("Time to generate Roc AST", true, () =>
+      Translation.get_roc_exp(term, info_map)
     );
   let contents =
-    Util.TimeUtil.measure_time("get term 2", true, () =>
+    Util.TimeUtil.measure_time("Time to generate Roc code", true, () =>
       MakeRoc.generate_code(rocterm, 0)
     );
-  // let rocterm = Translation.get_roc_term(term, 0);
-  // let contents = MakeRoc.generate_code(rocterm);
-  // let contents =
-  //   "app \"hello\"
-  //   packages { pf: \"https://github.com/roc-lang/basic-cli/releases/download/0.2.0/8tCohJeXMBUnjo_zdMq0jSaqdYoCWJkWazBd4wa8cQU.tar.br\" }
-  //   imports [pf.Stdout]
-  //   provides [main] to pf \n\n"
-  //   ++ MakeRoc.generate_code(rocterm);
   JsUtil.download_string_file(
     ~filename="exported_ast.txt",
     ~content_type="text/plain",
