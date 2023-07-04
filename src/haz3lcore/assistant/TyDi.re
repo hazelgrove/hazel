@@ -49,7 +49,7 @@ let unk: Typ.t = Unknown(Internal);
 let expected_ty: Info.t => Typ.t =
   fun
   | InfoExp({mode, _})
-  | InfoPat({mode, _}) => Typ.of_mode(mode)
+  | InfoPat({mode, _}) => Mode.ty_of(mode)
   | _ => unk;
 
 let const_mono_delim_tys: list((Token.t, Typ.t)) = [
@@ -111,9 +111,9 @@ let ctx_candidates = (ci: Info.t): list(string) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
   | InfoExp({mode, _}) =>
-    ctx |> Ctx.filtered_entries(~return_ty=true, Typ.of_mode(mode))
+    ctx |> Ctx.filtered_entries(~return_ty=true, Mode.ty_of(mode))
   | InfoPat({mode, _}) =>
-    ctx |> Ctx.filtered_tag_entries(~return_ty=true, Typ.of_mode(mode))
+    ctx |> Ctx.filtered_tag_entries(~return_ty=true, Mode.ty_of(mode))
   | InfoTyp(_) => Ctx.get_alias_names(ctx)
   | _ => []
   };

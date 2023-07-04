@@ -21,7 +21,7 @@ let get_ci = (~ctx_init, editor: Editor.t): option(Info.t) => {
 };
 
 module Type = {
-  let mode = (~ctx_init, editor: Editor.t): option(Typ.mode) =>
+  let mode = (~ctx_init, editor: Editor.t): option(Mode.t) =>
     switch (get_ci(~ctx_init, editor)) {
     | Some(InfoExp({mode, _})) => Some(mode)
     | Some(InfoPat({mode, _})) => Some(mode)
@@ -34,7 +34,7 @@ module Type = {
     | _ => None
     };
 
-  let expected_ty = (~ctx=Ctx.empty, mode: option(Typ.mode)): Typ.t => {
+  let expected_ty = (~ctx=Ctx.empty, mode: option(Mode.t)): Typ.t => {
     switch (mode) {
     | Some(Ana(Var(name) as _ty)) when Ctx.lookup_alias(ctx, name) != None =>
       let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
@@ -47,7 +47,7 @@ module Type = {
     };
   };
 
-  let expected = (~ctx=Ctx.empty, mode: option(Typ.mode)): string => {
+  let expected = (~ctx=Ctx.empty, mode: option(Mode.t)): string => {
     let prefix = "Hole ?? can be filled by an expression with ";
     switch (mode) {
     | Some(Ana(Var(name) as ty)) when Ctx.lookup_alias(ctx, name) != None =>

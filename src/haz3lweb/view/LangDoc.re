@@ -251,7 +251,7 @@ let deco =
             let get_clss = segment =>
               switch (List.nth(segment, 0)) {
               | Base.Tile({mold, _}) => [
-                  "term-tag-" ++ Sort.to_string(mold.out),
+                  "ci-header-" ++ Sort.to_string(mold.out),
                 ]
               | _ => []
               };
@@ -2745,7 +2745,7 @@ let get_doc =
         ),
         [],
       );
-    | USum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
+    | Sum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default

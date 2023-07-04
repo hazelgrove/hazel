@@ -3,13 +3,6 @@ module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
 
-let of_mode = (mode: mode): t =>
-  switch (mode) {
-  | Syn => Unknown(SynSwitch)
-  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch))
-  | Ana(ty) => ty
-  };
-
 let rec to_string = (~holes=_ => "?", t: t): string => {
   let s = to_string(~holes);
   switch (t) {
@@ -33,6 +26,9 @@ let rec to_string = (~holes=_ => "?", t: t): string => {
   };
 };
 
+/* Strip location information from a list of sources */
+let of_source = List.map((source: source) => source.ty);
+
 /* How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
@@ -40,57 +36,39 @@ let rec to_string = (~holes=_ => "?", t: t): string => {
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
   switch (p1, p2) {
-  | (TypeHole, TypeHole | Internal | SynSwitch)
-  | (Internal | SynSwitch, TypeHole) => TypeHole
-  | (Internal, Internal | SynSwitch)
-  | (SynSwitch, Internal) => Internal
+  | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
+  | (Internal | Free(_), _)
+  | (_, Internal | Free(_)) => Internal
+  | (TypeHole, TypeHole | SynSwitch)
+  | (SynSwitch, TypeHole) => TypeHole
   | (SynSwitch, SynSwitch) => SynSwitch
   };
-
-/* MATCHED JUDGEMENTS: Note that matched judgements work
-   a bit different than hazel2 here since hole fixing is
-   implicit. Somebody should check that what I'm doing
-   here actually makes sense -Andrew */
 
 let matched_arrow: t => (t, t) =
   fun
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(prov) => (Unknown(prov), Unknown(prov))
+  | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
   | _ => (Unknown(Internal), Unknown(Internal));
+
+let matched_prod: (int, t) => list(t) =
+  length =>
+    fun
+    | Prod(tys) when List.length(tys) == length => tys
+    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
+    | _ => List.init(length, _ => Unknown(Internal));
+
+let matched_cons: t => (t, t) =
+  fun
+  | List(ty) => (ty, List(ty))
+  | Unknown(SynSwitch) => (Unknown(SynSwitch), List(Unknown(SynSwitch)))
+  | _ => (Unknown(Internal), List(Unknown(SynSwitch)));
 
 let matched_list: t => t =
   fun
   | List(ty) => ty
-  | Unknown(prov) => Unknown(prov)
+  | Unknown(SynSwitch) => Unknown(SynSwitch)
   | _ => Unknown(Internal);
 
-let matched_arrow_mode: mode => (mode, mode) =
-  fun
-  | SynFun
-  | Syn => (Syn, Syn)
-  | Ana(ty) => {
-      let (ty_in, ty_out) = matched_arrow(ty);
-      (Ana(ty_in), Ana(ty_out));
-    };
-
-let matched_list_mode: mode => mode =
-  fun
-  | SynFun
-  | Syn => Syn
-  | Ana(ty) => Ana(matched_list(ty));
-
-let matched_prod_modes = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
-  | _ => List.init(length, _ => Syn)
-  };
-
-let matched_list_lit_modes = (mode: mode, length): list(mode) =>
-  List.init(length, _ => matched_list_mode(mode));
-
-/* Legacy precedence code from HTyp */
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
@@ -110,7 +88,7 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-let rec subst = (s: t, x: Token.t, ty: t) => {
+let rec subst = (s: t, x: TypVar.t, ty: t) => {
   switch (ty) {
   | Int => Int
   | Float => Float
@@ -120,10 +98,10 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(subst(s, x), tys))
   | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
-  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
+  | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
   | List(ty) => List(subst(s, x, ty))
-  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
+  | Var(y) => TypVar.eq(x, y) ? s : Var(y)
   };
 };
 
@@ -133,11 +111,9 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* equality
-   At the moment, this coincides with default equality,
+/* Type Equality: At the moment, this coincides with alpha equivalence,
    but this will change when polymorphic types are implemented */
 let rec eq = (t1: t, t2: t): bool => {
-  let eq' = eq;
   switch (t1, t2) {
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
   | (Rec(_), _) => false
@@ -151,20 +127,20 @@ let rec eq = (t1: t, t2: t): bool => {
   | (String, _) => false
   | (Unknown(_), Unknown(_)) => true
   | (Unknown(_), _) => false
-  | (Arrow(t1, t2), Arrow(t1', t2')) => eq'(t1, t1') && eq'(t2, t2')
+  | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
   | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) => List.equal(eq', tys1, tys2)
+  | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
   | (Prod(_), _) => false
-  | (List(t1), List(t2)) => eq'(t1, t2)
+  | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
-  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal((==)), sm1, sm2)
+  | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal(eq), sm1, sm2)
   | (Sum(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
   };
 };
 
-let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
+let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (ty) {
   | Unknown(_)
   | Int
@@ -182,7 +158,7 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
       List.map(snd, sm),
     )
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
-  | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
+  | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
   };
 
 /* Lattice join on types. This is a LUB join in the hazel2
@@ -204,15 +180,23 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
       let+ ty_join = join'(ty1, ty2);
-      resolve ? ty_join : Var(n1);
+      !resolve && eq(ty1, ty_join) ? Var(n1) : ty_join;
     }
   | (Var(name), ty)
   | (ty, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty);
-    resolve ? ty_join : Var(name);
+    !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    /* TODO:
+         This code isn't fully correct, as we may be doing
+         substitution on open terms; if x1 occurs in ty2,
+         we should be substituting x1 for a fresh variable
+         in ty2. This is annoying, and should be obviated
+         by the forthcoming debruijn index implementation
+       */
+    let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
     Rec(x1, ty_body);
   | (Rec(_), _) => None
@@ -235,12 +219,11 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Prod(tys);
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let* ty =
-      ListUtil.map2_opt(
-        join_sum_entries(ctx),
-        TagMap.sort(sm1),
-        TagMap.sort(sm2),
-      );
+    let (sorted1, sorted2) =
+      /* If same order, retain order for UI */
+      TagMap.same_tags_same_order(sm1, sm2)
+        ? (sm1, sm2) : (TagMap.sort(sm1), TagMap.sort(sm2));
+    let* ty = ListUtil.map2_opt(join_sum_entries(ctx), sorted1, sorted2);
     let+ ty = OptUtil.sequence(ty);
     Sum(ty);
   | (Sum(_), _) => None
@@ -268,11 +251,11 @@ let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
-let rec normalize_shallow = (ctx: Ctx.t, ty: t): t =>
+let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   switch (ty) {
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize_shallow(ctx, ty)
+    | Some(ty) => weak_head_normalize(ctx, ty)
     | None => ty
     }
   | _ => ty
@@ -293,25 +276,25 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | List(t) => List(normalize(ctx, t))
   | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
   | Prod(ts) => Prod(List.map(normalize(ctx), ts))
-  | Sum(ts) => Sum(Util.TagMap.map(Option.map(normalize(ctx)), ts))
-  | Rec(x, ty) =>
-    /* NOTE: Fake -1 id below is a hack, but shouldn't matter
+  | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
+  | Rec(name, ty) =>
+    /* NOTE: Dummy tvar added has fake id but shouldn't matter
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
-    Rec(x, normalize(Ctx.add_abstract(ctx, x, -1), ty))
+    Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
   };
 };
 
-let sum_entry = (tag: Token.t, tags: sum_map): option(sum_entry) =>
+let sum_entry = (tag: Tag.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
-    | (t, typ) when t == tag => Some((t, typ))
+    | (t, typ) when Tag.equal(t, tag) => Some((t, typ))
     | _ => None,
     tags,
   );
 
 let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
-  let ty = normalize_shallow(ctx, ty);
+  let ty = weak_head_normalize(ctx, ty);
   switch (ty) {
   | Sum(sm) => Some(sm)
   | Rec(_) =>
@@ -324,41 +307,3 @@ let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
   | _ => None
   };
 };
-
-let tag_ana_typ = (ctx: Ctx.t, mode: mode, tag: Token.t): option(t) => {
-  /* If a tag is being analyzed against (an arrow type returning)
-     a sum type having that tag as a variant, we consider the
-     tag's type to be determined by the sum type */
-  switch (mode) {
-  | Ana(Arrow(_, ty_ana))
-  | Ana(ty_ana) =>
-    let* tags = get_sum_tags(ctx, ty_ana);
-    let+ (_, ty_entry) = sum_entry(tag, tags);
-    switch (ty_entry) {
-    | None => ty_ana
-    | Some(ty_in) => Arrow(ty_in, ty_ana)
-    };
-  | _ => None
-  };
-};
-
-let tag_mode = (ctx: Ctx.t, mode: mode, name: Token.t): option(mode) =>
-  switch (tag_ana_typ(ctx, mode, name)) {
-  | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
-  | Some(ty_ana) => Some(Ana(Arrow(Unknown(Internal), ty_ana)))
-  | None => None
-  };
-
-let ap_mode = (ctx, mode, tag_name: option(Token.t)): mode =>
-  /* If a tag application is being analyzed against a sum type for
-     which that tag is a variant, then we consider the tag to be in
-     analytic mode against an arrow returning that sum type; otherwise
-     we use the typical mode for function applications */
-  switch (tag_name) {
-  | Some(name) =>
-    switch (tag_mode(ctx, mode, name)) {
-    | Some(mode) => mode
-    | _ => SynFun
-    }
-  | None => SynFun
-  };

@@ -27,7 +27,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
+let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
   | SynFun =>
@@ -108,11 +108,11 @@ let cast = (ctx: Ctx.t, mode: Typ.mode, self_ty: Typ.t, d: DHExp.t) =>
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx: Ctx.t, u: Id.t, mode: Typ.mode, self, d: DHExp.t): DHExp.t =>
+let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   switch (Info.status_exp(ctx, mode, self)) {
   | NotInHole(_) =>
     let self_ty =
-      switch (Statics.Info.typ_of_self_exp(ctx, self)) {
+      switch (Self.typ_of_exp(ctx, self)) {
       | Some(self_ty) => Typ.normalize(ctx, self_ty)
       | None => Unknown(Internal)
       };
@@ -154,8 +154,7 @@ let rec dhexp_of_uexp =
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
         let ty = Typ.matched_list(ty);
-        //TODO: why is there an err status on below?
-        DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
+        DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);

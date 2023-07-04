@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 module rec Typ: {
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
@@ -9,6 +10,7 @@ module rec Typ: {
   type type_provenance =
     | SynSwitch
     | TypeHole
+    | Free(TypVar.t)
     | Internal;
 
   /* TYP.T: Hazel types */
@@ -19,32 +21,32 @@ module rec Typ: {
     | Float
     | Bool
     | String
-    | Var(Token.t)
+    | Var(TypVar.t)
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(Token.t, t)
-  and sum_map = VarMap.t_(option(t));
+    | Rec(TypVar.t, t)
+  and sum_map = TagMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = (Token.t, option(t));
+  type sum_entry = TagMap.binding(option(t));
 
-  /* MODE: The (analytic) type information derived from a term's
-     syntactic context. This can either Syn (no type expectation),
-     or Ana (a type expectation). It is conjectured [citation needed]
-     that the Syn mode is functionally indistinguishable from
-     Ana(Unknown(SynSwitch)), and that this type is thus vestigial. */
+  /* Hazel type annotated with a relevant source location.
+     Currently used to track match branches for inconsistent
+     branches errors, but could perhaps be used more broadly
+     for type debugging UI. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
-    | SynFun
-    | Syn
-    | Ana(t);
+  type source = {
+    id: int,
+    ty: t,
+  };
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | SynSwitch
     | TypeHole
+    | Free(TypVar.t)
     | Internal;
 
   /* TYP.T: Hazel types */
@@ -55,34 +57,34 @@ module rec Typ: {
     | Float
     | Bool
     | String
-    | Var(Token.t)
+    | Var(TypVar.t)
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(Token.t, t)
-  and sum_map = VarMap.t_(option(t));
+    | Rec(TypVar.t, t)
+  and sum_map = TagMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = (Token.t, option(t));
+  type sum_entry = TagMap.binding(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
-    | SynFun
-    | Syn
-    | Ana(t);
+  type source = {
+    id: int,
+    ty: t,
+  };
 }
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
-    name: Token.t,
+    name: Var.t,
     id: Id.t,
     typ: Typ.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type tvar_entry = {
-    name: Token.t,
+    name: TypVar.t,
     id: Id.t,
     kind: Kind.t,
   };
@@ -96,32 +98,24 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = {
-    id: Id.t,
-    mode: Typ.mode,
-  };
-
-  /* Each co-context entry is a list of the uses of a variable
-     within some scope, including their type demands */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(list(co_entry));
-
-  let extend: (entry, t) => t;
-  let add_abstract: (t, Token.t, Id.t) => t;
-  let lookup_tvar: (t, Token.t) => option(tvar_entry);
-  let lookup_alias: (t, Token.t) => option(Typ.t);
+  let extend: (t, entry) => t;
+  let extend_tvar: (t, tvar_entry) => t;
+  let extend_alias: (t, TypVar.t, Id.t, Typ.t) => t;
+  let extend_dummy_tvar: (t, TypVar.t) => t;
+  let lookup: (t, Var.t) => option(entry);
+  let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
+  let lookup_alias: (t, TypVar.t) => option(Typ.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
-    name: Token.t,
+    name: Var.t,
     id: Id.t,
     typ: Typ.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type tvar_entry = {
-    name: Token.t,
+    name: TypVar.t,
     id: Id.t,
     kind: Kind.t,
   };
@@ -135,21 +129,28 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = {
-    id: Id.t,
-    mode: Typ.mode,
-  };
+  let extend = (ctx, entry) => List.cons(entry, ctx);
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(list(co_entry));
+  let lookup = (ctx: t, name) =>
+    List.find_map(
+      fun
+      | VarEntry(v) when v.name == name => Some(VarEntry(v))
+      | TagEntry(v) when v.name == name => Some(TagEntry(v))
+      | TVarEntry(v) when v.name == name => Some(TVarEntry(v))
+      | _ => None,
+      ctx,
+    );
 
-  let extend = List.cons;
+  let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
+    extend(ctx, TVarEntry(tvar_entry));
 
-  let add_abstract = (ctx: t, name: Token.t, id: Id.t): t =>
-    extend(TVarEntry({name, id, kind: Abstract}), ctx);
+  let extend_alias = (ctx: t, name: TypVar.t, id: Id.t, ty: Typ.t): t =>
+    extend_tvar(ctx, {name, id, kind: Singleton(ty)});
 
-  let lookup_tvar = (ctx: t, name: Token.t): option(tvar_entry) =>
+  let extend_dummy_tvar = (ctx: t, name: TypVar.t) =>
+    extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
+
+  let lookup_tvar = (ctx: t, name: TypVar.t): option(tvar_entry) =>
     List.find_map(
       fun
       | TVarEntry(v) when v.name == name => Some(v)
@@ -157,8 +158,8 @@ and Ctx: {
       ctx,
     );
 
-  let lookup_alias = (ctx: t, name: Token.t): option(Typ.t) =>
-    switch (lookup_tvar(ctx, name)) {
+  let lookup_alias = (ctx: t, t: TypVar.t): option(Typ.t) =>
+    switch (lookup_tvar(ctx, t)) {
     | Some({kind: Singleton(ty), _}) => Some(ty)
     | Some({kind: Abstract, _})
     | None => None

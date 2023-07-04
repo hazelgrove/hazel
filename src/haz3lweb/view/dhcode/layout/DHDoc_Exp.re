@@ -157,40 +157,23 @@ let rec mk =
       };
     let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
       switch (d) {
-      /* A closure may only exist around hole expressions in
-         the postprocessed result */
-      | Closure(_, d') =>
-        switch (d') {
-        | EmptyHole(u, i) =>
-          let selected =
-            switch (selected_hole_instance) {
-            | None => false
-            | Some((u', i')) => u == u' && i == i'
-            };
-          DHDoc_common.mk_EmptyHole(~selected, (u, i));
-        | NonEmptyHole(reason, u, i, d') =>
-          go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-        | ExpandingKeyword(u, i, k) =>
-          DHDoc_common.mk_ExpandingKeyword((u, i), k)
-        | FreeVar(u, i, x) =>
-          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-        | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
-        | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-          go_case(dscrut, drs)
-          |> annot(DHAnnot.InconsistentBranches((u, i)))
-        | _ => fdoc(~enforce_inline, ~d=d')
-        // DHDoc_common.mk_StringLit("Help:PostprocessedNonHoleInClosure")
-        }
-
-      /* Hole expressions must appear within a closure in
-         the postprocessed result */
-      | EmptyHole(_)
-      | NonEmptyHole(_)
-      | ExpandingKeyword(_)
-      | FreeVar(_)
-      | InvalidText(_)
-      | InconsistentBranches(_) =>
-        DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure")
+      | Closure(_, d') => fdoc(~enforce_inline, ~d=d')
+      | EmptyHole(u, i) =>
+        let selected =
+          switch (selected_hole_instance) {
+          | None => false
+          | Some((u', i')) => u == u' && i == i'
+          };
+        DHDoc_common.mk_EmptyHole(~selected, (u, i));
+      | NonEmptyHole(reason, u, i, d') =>
+        go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+      | ExpandingKeyword(u, i, k) =>
+        DHDoc_common.mk_ExpandingKeyword((u, i), k)
+      | FreeVar(u, i, x) =>
+        text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+      | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+      | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
+        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | BoundVar(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -201,13 +184,9 @@ let rec mk =
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
-      | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
+      | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol);
-      | ListLit(u, i, InconsistentBranches(_, _), _, d_list) =>
-        let ol = d_list |> List.map(go') |> List.map(mk_cast);
-        DHDoc_common.mk_ListLit(ol)
-        |> annot(DHAnnot.InconsistentBranches((u, i)));
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
           go'(~parenthesize=precedence(d1) > DHDoc_common.precedence_Ap, d1),

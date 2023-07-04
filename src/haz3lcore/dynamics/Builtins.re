@@ -195,7 +195,7 @@ module Pervasives = {
     let string_concat =
       unary(
         fun
-        | Tuple([StringLit(s1), ListLit(_, _, _, _, xs)]) =>
+        | Tuple([StringLit(s1), ListLit(_, _, _, xs)]) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
           | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
