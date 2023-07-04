@@ -232,6 +232,6 @@ let check = (uexp: Term.UExp.t, p: syntax_tests): syntax_result => {
 
   {
     hinted_results: var_mention_hinted_results @ recursive_hinted_results,
-    percentage: passing /. total,
+    percentage: Float.equal(total, 0.) ? 1. : passing /. total,
   };
 };
