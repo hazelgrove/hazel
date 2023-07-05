@@ -144,7 +144,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
             "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
           );
         if (confirmed) {
-          inject(ResetSlide);
+          inject(ResetCurrentEditor);
         } else {
           Virtual_dom.Vdom.Effect.Ignore;
         };

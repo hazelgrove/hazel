@@ -45,30 +45,33 @@ type set_meta =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  /* meta */
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
   | Execute(string)
-  | Agent(agent_action)
+  /* editors */
+  | Save
   | ToggleMode
-  | StoreKey(LocalStorage.Generic.t, string)
+  | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
+  | SwitchEditor(SchoolExercise.pos) //schoolmode only
+  // editors: scratchmode only
+  | SwitchSlide(int) // scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
-  | ResetSlide
-  | ResetCurrentEditor
-  | Save
-  | SwitchSlide(int)
-  | SwitchEditor(SchoolExercise.pos)
+  /* editor */
   | PerformAction(Action.t)
+  | ReparseCurrentEditor
   | Cut
   | Copy
   | Paste(string)
   | Undo
   | Redo
-  | MoveToNextHole(Direction.t);
+  | MoveToNextHole(Direction.t)
+  | Agent(agent_action);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type auto_llm = Auto.t(t, Auto.llm_report);

@@ -31,6 +31,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Move(move)
+  | MoveToNextHole(Direction.t)
   | Jump(jump_target)
   | RemoteAction(move, (Zipper.t, Id.t) => option((Zipper.t, Id.t)))
   | Select(select)

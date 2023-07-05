@@ -14,14 +14,13 @@ let is_action_logged: UpdateAction.t => bool =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | StoreKey(_)
   | DebugAction(_) => false
   | Execute(_)
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
+  | ResetCurrentEditor
   | ToggleMode
   | SwitchSlide(_)
   | SwitchEditor(_)

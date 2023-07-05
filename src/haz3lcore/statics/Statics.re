@@ -94,23 +94,32 @@ let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
   | Exp(e) =>
-    let (Info.{co_ctx, _}, m) = uexp_to_info_map(~ctx, ~ancestors, e, m);
+    let ({co_ctx, _}: Info.exp, m) =
+      uexp_to_info_map(~ctx, ~ancestors, e, m);
     (co_ctx, m);
   | Pat(p) =>
     let m =
-      upat_to_info_map(~is_synswitch=false, ~ancestors, ~ctx, p, m) |> snd;
-    (VarMap.empty, m);
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors,
+        ~ctx,
+        p,
+        m,
+      )
+      |> snd;
+    (CoCtx.empty, m);
   | TPat(tp) => (
-      VarMap.empty,
+      CoCtx.empty,
       utpat_to_info_map(~ctx, ~ancestors, tp, m) |> snd,
     )
   | Typ(ty) => (
-      VarMap.empty,
+      CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
   | Rul(_)
   | Nul ()
-  | Any () => (VarMap.empty, m)
+  | Any () => (CoCtx.empty, m)
   }
 and multi = (~ctx, ~ancestors, m, tms) =>
   List.fold_left(
@@ -246,20 +255,41 @@ and uexp_to_info_map =
     );
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(mode);
-    let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
-    let (e, m) = go'(~ctx=p.ctx, ~mode=mode_body, e, m);
+    let (p', _) =
+      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
+    let (e, m) = go'(~ctx=p'.ctx, ~mode=mode_body, e, m);
+    /* add co_ctx to pattern */
+    let (p, m) =
+      go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
   | Let(p, def, body) =>
-    let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
+    let (p_syn, _) =
+      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
-    let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
+    let (p_ana', _) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Ana(def.ty),
+        p,
+        m,
+      );
+    let (body, m) = go'(~ctx=p_ana'.ctx, ~mode, body, m);
+    /* add co_ctx to pattern */
+    let (p_ana, m) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=body.co_ctx,
+        ~mode=Ana(def.ty),
+        p,
+        m,
+      );
     add(
       ~self=Just(body.ty),
       ~co_ctx=
@@ -280,9 +310,17 @@ and uexp_to_info_map =
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
-    let (ps, m) =
-      map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
-    let p_ctxs = List.map(Info.pat_ctx, ps);
+    let (ps', _) =
+      map_m(
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~mode=Mode.Ana(scrut.ty),
+        ),
+        ps,
+        m,
+      );
+    let p_ctxs = List.map(Info.pat_ctx, ps');
     let (es, m) =
       List.fold_left2(
         ((es, m), e, ctx) =>
@@ -294,6 +332,14 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+    /* Add co-ctxs to patterns */
+    let (_, m) =
+      map_m(
+        ((p, co_ctx)) =>
+          go_pat(~is_synswitch=false, ~co_ctx, ~mode=Mode.Ana(scrut.ty), p),
+        List.combine(ps, e_co_ctxs),
+        m,
+      );
     add(
       ~self=Self.join(Fun.id, e_tys, branch_ids, ctx),
       ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
@@ -328,7 +374,7 @@ and uexp_to_info_map =
         | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
-      let (Info.{co_ctx, ty: ty_body, _}, m) =
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
@@ -338,7 +384,8 @@ and uexp_to_info_map =
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) =>
-      let (Info.{co_ctx, ty: ty_body, _}, m) = go'(~ctx, ~mode, body, m);
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_body), ~co_ctx, m);
     };
@@ -348,6 +395,7 @@ and upat_to_info_map =
     (
       ~is_synswitch,
       ~ctx,
+      ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
       {ids, term} as upat: UPat.t,
@@ -356,12 +404,19 @@ and upat_to_info_map =
     : (Info.pat, Map.t) => {
   let add = (~self, ~ctx, m) => {
     let info =
-      Info.derived_pat(~upat, ~ctx, ~mode, ~ancestors, ~self=Common(self));
+      Info.derived_pat(
+        ~upat,
+        ~ctx,
+        ~co_ctx,
+        ~mode,
+        ~ancestors,
+        ~self=Common(self),
+      );
     (info, add_info(ids, InfoPat(info), m));
   };
   let atomic = self => add(~self, ~ctx, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors);
+  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
