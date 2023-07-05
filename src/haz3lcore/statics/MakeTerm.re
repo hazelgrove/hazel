@@ -238,17 +238,26 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => 
-          switch (arg.term) {
-          | _ when UExp.is_deferral(arg) =>
-          | Tuple(es) when List.exists(UExp.is_deferral, es) => DeferredAp(l, arg)
-          | _ => Ap(l, arg)
-          };
-        | _ => hole(tm)
-        },
-      )
+      switch (t) {
+      | (["(", ")"], [Exp(arg)]) =>
+        switch (arg.term) {
+        | _ when UExp.is_deferral(arg) => (DeferredAp(l, arg), arg.ids)
+        | Tuple(es) when List.exists(UExp.is_deferral, es) => (
+            DeferredAp(l, arg),
+            {
+              let deferral_ids =
+                es
+                |> List.filter(UExp.is_deferral)
+                |> List.map((e: UExp.t) => e.ids)
+                |> List.concat;
+              let comma_ids = arg.ids;
+              deferral_ids @ comma_ids;
+            },
+          )
+        | _ => ret(Ap(l, arg))
+        }
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
