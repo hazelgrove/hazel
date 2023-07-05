@@ -262,6 +262,10 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | DeferredAp(fn, arg) =>
+        let* c_fn = dhexp_of_uexp(m, fn);
+        let+ c_arg = dhexp_of_uexp(m, arg);
+        DHExp.Ap(c_fn, c_arg);
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);

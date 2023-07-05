@@ -599,6 +599,19 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | Deferral =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.triv_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.triv_exp_group,
+          doc.explanation.message,
+          [],
+        );
       | Bool(_bool_lit) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -1902,6 +1915,28 @@ let get_doc =
             LangDocMessages.funapp_exp_coloring_ids,
           );
         };
+      | DeferredAp(x, arg) =>
+        let x_id = List.nth(x.ids, 0);
+        let arg_id = List.nth(arg.ids, 0);
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            // LangDocMessages.deferred_funapp_exp_group,
+            LangDocMessages.funapp_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          // LangDocMessages.deferred_funapp_exp_group,
+          LangDocMessages.funapp_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            x_id,
+            arg_id,
+          ),
+          // LangDocMessages.deferred_funapp_exp_coloring_ids(~x_id, ~arg_id),
+          LangDocMessages.funapp_exp_coloring_ids(~x_id, ~arg_id),
+        );
       | If(cond, then_, else_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
