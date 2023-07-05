@@ -154,8 +154,10 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     }
   | (Syn | SynFun, Deferral(_)) =>
     NotInHole(SynConsistent(Unknown(Internal)))
-  | (Ana(Prod([_, ..._]) as ty_ana), Deferral(true)) => InHole(TypeInconsistent(Unknown(Internal), ty_ana))
-  | (Ana(ty_ana), Deferral(_)) => NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
+  | (Ana(Prod([_, ..._]) as ty_ana), Deferral(true)) =>
+    InHole(TypeInconsistent(Unknown(Internal), ty_ana))
+  | (Ana(ty_ana), Deferral(_)) =>
+    NotInHole(AnaConsistent(ty_ana, ty_ana, ty_ana))
   };
 
 /* Determines whether any term is in an error hole. Currently types cannot
