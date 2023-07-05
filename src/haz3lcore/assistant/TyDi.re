@@ -107,13 +107,30 @@ let filter_by_type =
     delim;
   });
 
+let co_ctx_candidates = (ctx: Ctx.t, co_ctx: CoCtx.t): list(string) => {
+  List.filter_map(
+    ((name, _)) =>
+      switch (Ctx.lookup(ctx, name)) {
+      | None => Some(name)
+      | Some(_) => None
+      },
+    co_ctx,
+  );
+};
+
 let ctx_candidates = (ci: Info.t): list(string) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
   | InfoExp({mode, _}) =>
     ctx |> Ctx.filtered_entries(~return_ty=true, Mode.ty_of(mode))
-  | InfoPat({mode, _}) =>
-    ctx |> Ctx.filtered_tag_entries(~return_ty=true, Mode.ty_of(mode))
+  | InfoPat({mode, co_ctx, _}) =>
+    print_endline("CTX CANDIDATES: pat case");
+    print_endline(
+      "CO-CTX CANDS: "
+      ++ (co_ctx_candidates(ctx, co_ctx) |> String.concat(", ")),
+    );
+    (ctx |> Ctx.filtered_tag_entries(~return_ty=true, Mode.ty_of(mode)))
+    @ co_ctx_candidates(ctx, co_ctx);
   | InfoTyp(_) => Ctx.get_alias_names(ctx)
   | _ => []
   };

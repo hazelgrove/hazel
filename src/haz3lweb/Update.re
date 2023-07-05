@@ -141,7 +141,7 @@ let reevaluate_post_update =
     | Auto(_) => true
     }
   | PerformAction(
-      Move(_) | Select(_) | Unselect(_) | RotateBackpack |
+      Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
       MoveToBackpackTarget(_) |
       Jump(_) |
       SetSelectionFocus(_),
@@ -152,17 +152,16 @@ let reevaluate_post_update =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | StoreKey(_)
   | DebugAction(_) => false
   // may not be necessary on all of these
   // TODO review and prune
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | PerformAction(
       Destruct(_) | Insert(_) | Pick_up | Put_down | RemoteAction(_),
     )
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
+  | ResetCurrentEditor
   | SwitchEditor(_)
   | SwitchSlide(_)
   | ToggleMode
@@ -230,10 +229,33 @@ let rec apply =
     | Set(s_action) => Ok(update_settings(s_action, model))
     | SetMeta(action) =>
       Ok({...model, meta: meta_update(model, action, ~schedule_action)})
-
+    | UpdateLangDocMessages(u) =>
+      let langDocMessages =
+        LangDocMessages.set_update(model.langDocMessages, u);
+      LocalStorage.LangDocMessages.save(langDocMessages);
+      Ok({...model, langDocMessages});
+    | DebugAction(a) =>
+      DebugAction.perform(a);
+      Ok(model);
+    | Execute(fake_str) =>
+      print_endline("fake: " ++ fake_str);
+      let editor = model.editors |> Editors.get_editor;
+      let str = Printer.to_string_selection(editor);
+      print_endline("EXECUTE: " ++ str);
+      let update: UpdateAction.t =
+        try(str |> Sexplib.Sexp.of_string |> t_of_sexp) {
+        | _ =>
+          print_endline("execute parse failes, saving instead lol");
+          Save; //TODO
+        };
+      apply(model, update, state, ~schedule_action);
     | Save =>
       save_editors(model);
       Ok(model);
+    | ToggleMode =>
+      let new_mode = Editors.rotate_mode(model.editors);
+      let model = update_settings(Mode(new_mode), model);
+      Ok(load_model(model));
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
       Ok(model);
@@ -265,7 +287,7 @@ let rec apply =
           Ok({...model, editors: Scratch(idx, slides)});
         }
       }
-    | ResetSlide =>
+    | ResetCurrentEditor =>
       let model =
         switch (model.editors) {
         | DebugLoad => failwith("impossible")
@@ -328,10 +350,6 @@ let rec apply =
         );
         Ok({...model, editors: School(m, specs, exercise)});
       }
-    | ToggleMode =>
-      let new_mode = Editors.rotate_mode(model.editors);
-      let model = update_settings(Mode(new_mode), model);
-      Ok(load_model(model));
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
       let ctx_init = Editors.get_ctx_init(model.editors);
@@ -350,41 +368,7 @@ let rec apply =
       };
       let model = AgentUpdate.reset_buffer(model);
       perform_action(model, a);
-    | Cut =>
-      // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left))
-    | Copy =>
-      // system clipboard handling itself is done in Page.view handlers
-      // doesn't change the state but including as an action for logging purposes
-      Ok(model)
-    | Execute(fake_str) =>
-      print_endline("fake: " ++ fake_str);
-      let editor = model.editors |> Editors.get_editor;
-      let str = Printer.to_string_selection(editor);
-      print_endline("EXECUTE: " ++ str);
-      let update: UpdateAction.t =
-        try(str |> Sexplib.Sexp.of_string |> t_of_sexp) {
-        | _ =>
-          print_endline("execute parse failes, saving instead lol");
-          Save; //TODO
-        };
-      apply(model, update, state, ~schedule_action);
-    | StoreKey(key, str) =>
-      LocalStorage.Generic.save(key, str);
-      Ok(model);
-    | Agent(action) =>
-      AgentUpdate.apply(model, action, ~schedule_action, ~state, ~main=apply)
-    | Paste(clipboard) =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
-      switch (Printer.paste_into_zip(ed.state.zipper, id, clipboard)) {
-      | None => Error(CantPaste)
-      | Some((z, id)) =>
-        //HACK(andrew): below is not strictly a insert action...
-        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
-        let editors = Editors.put_editor_and_id(id, ed, model.editors);
-        Ok({...model, editors});
-      };
-    | ResetCurrentEditor =>
+    | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
@@ -399,6 +383,24 @@ let rec apply =
         let editors = Editors.put_editor_and_id(id, editor, model.editors);
         Ok({...model, editors});
       };
+    | Cut =>
+      // system clipboard handling itself is done in Page.view handlers
+      perform_action(model, Destruct(Left))
+    | Copy =>
+      // system clipboard handling itself is done in Page.view handlers
+      // doesn't change the state but including as an action for logging purposes
+      Ok(model)
+    | Paste(clipboard) =>
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      switch (Printer.paste_into_zip(ed.state.zipper, id, clipboard)) {
+      | None => Error(CantPaste)
+      | Some((z, id)) =>
+        //HACK(andrew): below is not strictly a insert action...
+        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
+        let editors = Editors.put_editor_and_id(id, ed, model.editors);
+        Ok({...model, editors});
+      };
+
     | Undo =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
@@ -426,14 +428,8 @@ let rec apply =
         | _ => false
       );
       perform_action(model, Move(Goal(Piece(p, d))));
-    | UpdateLangDocMessages(u) =>
-      let langDocMessages =
-        LangDocMessages.set_update(model.langDocMessages, u);
-      LocalStorage.LangDocMessages.save(langDocMessages);
-      Ok({...model, langDocMessages});
-    | DebugAction(a) =>
-      DebugAction.perform(a);
-      Ok(model);
+    | Agent(action) =>
+      AgentUpdate.apply(model, action, ~schedule_action, ~state, ~main=apply)
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

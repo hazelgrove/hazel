@@ -172,6 +172,7 @@ type pat = {
   term: UPat.t,
   ancestors,
   ctx: Ctx.t,
+  co_ctx: CoCtx.t, /* Locally unbound variables in this pattern's scope */
   mode: Mode.t,
   self: Self.pat,
   cls: UPat.cls, /* derived */
@@ -431,11 +432,12 @@ let derived_exp =
 };
 
 /* Add derivable attributes for pattern terms */
-let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
+let derived_pat =
+    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = UPat.cls_of_term(upat.term);
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  {cls, self, mode, ty, status, ctx, ancestors, term: upat};
+  {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat};
 };
 
 /* Add derivable attributes for types */
