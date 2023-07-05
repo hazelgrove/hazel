@@ -127,7 +127,7 @@ let typ_ok_view = (ok: Info.ok_typ) =>
       Type.view(ty_lookup),
     ]
   | Module(name, inner_ctx) => [
-      Type.view(Var(name)),
+      Type.view(Var(String.sub(name, 0, String.length(name) - 1))),
       text("is a module of type"),
       Type.view(Module(inner_ctx)),
     ]
