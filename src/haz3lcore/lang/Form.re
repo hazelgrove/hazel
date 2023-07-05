@@ -175,7 +175,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("dot_var", (is_dot_var, [mk_post(P.ap, Exp, [])])),
-  ("dot_typ", (is_dot_typ, [mk_post'(P.ap, Typ, Exp, [], Typ)])),
+  ("dot_typ", (is_dot_typ, [mk_post(P.ap, Typ, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];

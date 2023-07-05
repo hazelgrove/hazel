@@ -397,12 +397,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
-    | _ => ret(hole(tm))
-    }
-  | Post(Exp(e), tiles) as tm =>
-    switch (tiles) {
-    | ([(_, ([t], []))], []) when Form.is_dot_var(t) =>
-      ret(Dot(e, String.sub(t, 1, String.length(t) - 1)))
+    | ([(_, ([s], []))], []) when Form.is_dot_var(s) =>
+      ret(Dot(t, String.sub(s, 1, String.length(s) - 1)))
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>

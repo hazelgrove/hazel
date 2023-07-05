@@ -335,7 +335,7 @@ and UTyp: {
     | Parens(t)
     | Module(UPat.t)
     | Ap(t, t)
-    | Dot(UExp.t, Token.t)
+    | Dot(t, Token.t)
     | Sum(list(variant))
   and variant =
     | Variant(Tag.t, list(Id.t), option(t))
@@ -362,7 +362,7 @@ and UTyp: {
     | Parens(t)
     | Module(UPat.t)
     | Ap(t, t)
-    | Dot(UExp.t, Token.t)
+    | Dot(t, Token.t)
     | Sum(list(variant))
   and variant =
     | Variant(Tag.t, list(Id.t), option(t))

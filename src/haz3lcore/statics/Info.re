@@ -109,6 +109,7 @@ type typ_expects =
   | TypeExpected
   | TagExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t)
+  | ModuleExpected
   | AnaTypeExpected(Typ.t);
 
 /* Type term errors
@@ -124,6 +125,7 @@ type error_typ =
   | WantTagFoundType(Typ.t)
   | WantTagFoundAp
   | FreeTypeMember(Token.t)
+  | WantModule
   | InconsistentMember({
       ana: Typ.t,
       syn: Typ.t,
@@ -135,6 +137,7 @@ type ok_typ =
   | Variant(Tag.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(TypVar.t, Typ.t)
+  | Module(Tag.t, Ctx.t)
   | Type(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -309,6 +312,12 @@ let status_typ =
     | TagExpected(Unique, sum_ty) => NotInHole(Variant(name, sum_ty))
     | VariantExpected(Duplicate, _)
     | TagExpected(Duplicate, _) => InHole(DuplicateTag(name))
+    | ModuleExpected =>
+      switch (Module.get_module("", ctx, term)) {
+      | Some((name, Some(inner_ctx))) => NotInHole(Module(name, inner_ctx))
+      | _ => InHole(WantModule)
+      }
+
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false => InHole(FreeTypeVar(name))
@@ -330,6 +339,7 @@ let status_typ =
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
     | TagExpected(_) => InHole(WantTagFoundAp)
+    | ModuleExpected => InHole(WantModule)
     | TypeExpected => InHole(WantTypeFoundAp)
     | AnaTypeExpected(ana) =>
       switch (Typ.join(ctx, ana, ty)) {
@@ -337,10 +347,16 @@ let status_typ =
       | Some(join) => NotInHole(Type(join))
       }
     }
-  | Dot(_) =>
-    switch (ty) {
-    | Member(name, Typ.Unknown(Internal)) => InHole(FreeTypeMember(name))
-    | Member(_, ty) => NotInHole(Type(ty))
+  | Dot(_, _) =>
+    switch (expects, ty) {
+    | (ModuleExpected, _) =>
+      switch (Module.get_module("", ctx, term)) {
+      | Some((name, Some(inner_ctx))) => NotInHole(Module(name, inner_ctx))
+      | _ => InHole(WantModule)
+      }
+    | (_, Member(name, Typ.Unknown(Internal))) =>
+      InHole(FreeTypeMember(name))
+    | (_, Member(name, ty)) => NotInHole(TypeAlias(name, ty))
     | _ => InHole(BadToken("")) // Shouldn't reach
     }
 
@@ -349,6 +365,7 @@ let status_typ =
     | TypeExpected => NotInHole(Type(ty))
     | TagExpected(_)
     | VariantExpected(_) => InHole(WantTagFoundType(ty))
+    | ModuleExpected => InHole(WantModule)
     | AnaTypeExpected(ana) =>
       switch (Typ.join(ctx, ana, ty)) {
       | None => InHole(InconsistentMember({ana, syn: ty}))

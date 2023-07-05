@@ -126,6 +126,11 @@ let typ_ok_view = (ok: Info.ok_typ) =>
       text("is a type alias for"),
       Type.view(ty_lookup),
     ]
+  | Module(name, inner_ctx) => [
+      Type.view(Var(name)),
+      text("is a module of type"),
+      Type.view(Module(inner_ctx)),
+    ]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
@@ -144,6 +149,7 @@ let typ_err_view = (ok: Info.error_typ) =>
       Type.view(ty),
     ]
   | WantTypeFoundAp => [text("Constructor application must be in sum")]
+  | WantModule => [text("Expect a valid module")]
   | DuplicateTag(name) => [
       text("Constructor"),
       Type.view(Var(name)),

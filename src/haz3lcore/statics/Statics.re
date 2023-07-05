@@ -573,7 +573,8 @@ and utyp_to_info_map =
       upat_to_info_map(~is_synswitch=true, ~ctx, ~ancestors, ~mode=Syn, p, m);
     add(m);
   | Dot(exp, _) =>
-    let (_, m) = uexp_to_info_map(~ctx, ~ancestors, ~mode=Syn, exp, m);
+    let (_, m) =
+      utyp_to_info_map(~ctx, ~expects=ModuleExpected, ~ancestors, exp, m);
     add(m);
   };
 }

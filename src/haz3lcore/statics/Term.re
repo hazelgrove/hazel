@@ -285,7 +285,7 @@ module UTyp = {
             }
         );
         get_Tuple(u);
-      | Dot(exp, name) =>
+      | Dot(typ, name) =>
         /** Currently, the only possible way to introduce modules are through
       a variable in Tag form.
 
@@ -298,31 +298,8 @@ module UTyp = {
             inner_normalize(ctx, ty);
           | _ => Some(ty)
           };
-        let rec get_module =
-                (name: string, ctx: Ctx.t, e: TermBase.UExp.term)
-                : option((string, option(Ctx.t))) => {
-          switch (e) {
-          | Tag(tag_name) =>
-            switch (Ctx.lookup_tag(ctx, tag_name)) {
-            | Some({typ: Module(inner_ctx), _}) =>
-              Some((name ++ tag_name ++ ".", Some(inner_ctx)))
-            | _ => Some((name ++ tag_name ++ ".", None))
-            }
-          | Dot({term, _}, tag_name) =>
-            let+ (name, ctx) = get_module(name, ctx, term);
-            let inner_ctx = {
-              let* ctx = ctx;
-              switch (Ctx.lookup_tag(ctx, tag_name)) {
-              | Some({typ: Module(inner_ctx), _}) => Some(inner_ctx)
-              | _ => None
-              };
-            };
-            (name ++ tag_name ++ ".", inner_ctx);
-          | _ => None
-          };
-        };
         let res = {
-          let+ (tag_name, inner_ctx) = get_module("", ctx, exp.term);
+          let+ (tag_name, inner_ctx) = Module.get_module("", ctx, typ);
           let ty = {
             let* inner_ctx = inner_ctx;
             inner_normalize(inner_ctx, Var(name));
