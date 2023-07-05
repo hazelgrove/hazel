@@ -152,7 +152,7 @@ and uexp_to_info_map =
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
-  | Deferral => add'(~self=FreeDef, ~co_ctx=CoCtx.empty, m);
+  | Deferral => add'(~self=FreeDef, ~co_ctx=CoCtx.empty, m)
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
