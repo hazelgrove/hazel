@@ -220,6 +220,16 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
       m,
     );
+  | DeferredAp(fn, arg) =>
+    let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
+    let (fn, m) = go(~mode=fn_mode, fn, m);
+    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (arg, m) = go(~mode=Ana(ty_in), arg, m);
+    add(
+      ~self=Just(ty_out),
+      ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+      m,
+    );
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
