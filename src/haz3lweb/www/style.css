@@ -2000,6 +2000,7 @@ svg.expandable path {
 }
 
 #top-bar .menu ~ .submenu:hover .submenu-content {
+  transition-delay: 500ms;
   transform: scaleY(1);
   width: 100%;
 }
