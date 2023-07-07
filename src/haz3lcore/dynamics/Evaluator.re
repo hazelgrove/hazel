@@ -722,7 +722,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
-      | BoxedValue(Tag(_)) =>
+      // Now Tags are also introduced by accessing from a module.
+      // So I'm using the evaluated result as d1 in final result.
+      | BoxedValue(Tag(_) as d1) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
