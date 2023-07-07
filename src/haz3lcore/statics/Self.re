@@ -37,6 +37,7 @@ type t =
 type exp =
   | FreeVar
   | FreeDef
+  | IsInconsistentPartialApArg(Typ.t, list(option(Typ.t))) /* Inconsistent partial application argument, in which deferrals don't synthesize types */
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,7 +60,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
     | FreeVar
-    | FreeDef => None
+    | FreeDef
+    | IsInconsistentPartialApArg(_) => None
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the

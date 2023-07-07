@@ -52,6 +52,7 @@ type error_exp =
   | FreeVariable
   | FreeDeferral
   | InconsistentWithDeferrableArrow(Typ.t) /* Bad partial applicable function position */
+  | InconsistentPartialApArg(Typ.t, list(option(Typ.t)))
   | Common(error_common);
 
 /* Pattern term errors */
@@ -279,6 +280,8 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (FreeVar, _) => InHole(FreeVariable)
   | (FreeDef, _) => InHole(FreeDeferral)
+  | (IsInconsistentPartialApArg(ana, syn), _) =>
+    InHole(InconsistentPartialApArg(ana, syn))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)

@@ -160,6 +160,26 @@ let exp_view: Info.status_exp => t =
       Type.view(typ),
       text("is not consistent with partial applicable arrow type"),
     ])
+  | InHole(InconsistentPartialApArg(ana, syn)) => {
+      let view_opt_ty = (
+        fun
+        | Some(ty) => Type.view(ty)
+        | None => text("_")
+      );
+      let view_syn =
+        switch (syn) {
+        | [t0, ...ts] =>
+          [text("("), view_opt_ty(t0)]
+          @ (
+            List.map(t => [text(", "), view_opt_ty(t)], ts) |> List.flatten
+          )
+          @ [text(")")]
+        | _ => [view_opt_ty(None)]
+        };
+      div_err(
+        [text("Expecting"), Type.view(ana), text("but got")] @ view_syn,
+      );
+    }
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));
 

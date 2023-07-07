@@ -224,7 +224,88 @@ and uexp_to_info_map =
     let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
-    let (arg, m) = go(~mode=Ana(ty_in), arg, m);
+    let (arg, m) = {
+      open Util;
+      open OptUtil.Syntax;
+      let es =
+        switch (arg.term) {
+        | Tuple(es) => es
+        | _ => [arg]
+        };
+      let ty_ins =
+        switch (ty_in) {
+        | Prod(ty_ins) => ty_ins
+        | Unknown(_) as ty_unknown =>
+          List.init(List.length(es), _ => ty_unknown)
+        | _ => [ty_in]
+        };
+      let modes = Mode.of_prod(Ana(ty_in), List.length(es));
+      let (es, m) =
+        List.fold_left2(
+          ((es, m), mode, e) => {
+            let info_map =
+              UExp.is_deferral(e) ? None : Some(go(~mode, e, m));
+            switch (info_map) {
+            | Some((e, m)) => (es @ [Some(e)], m)
+            | None => (es @ [None], m)
+            };
+          },
+          ([], m),
+          modes,
+          es,
+        );
+      let exp_tys =
+        List.map(
+          e => {
+            let+ e = e;
+            Info.exp_ty(e);
+          },
+          es,
+        );
+      let consistent_self =
+        if (List.length(ty_ins) != List.length(exp_tys)) {
+          None;
+        } else {
+          List.fold_left2(
+            (acc: option(list(Typ.t)), ty_in: Typ.t, exp_ty: option(Typ.t)) => {
+              let* exp_tys = acc;
+              switch (exp_ty) {
+              | Some(exp_ty) =>
+                Typ.join(ctx, ty_in, exp_ty) != None
+                  ? Some(exp_tys @ [exp_ty]) : None
+              | None => Some(exp_tys @ [ty_in])
+              };
+            },
+            Some([]),
+            ty_ins,
+            exp_tys,
+            /* For unknown reasons this piece of code is not usable
+                 let exp_ty_opt = (ty_in: Typ.t, exp_ty: option(Typ.t)) =>
+                   switch (exp_ty) {
+                   | Some(exp_ty) =>
+                     Typ.join(ctx, ty_in, exp_ty) != None ? Some(exp_ty) : None
+                   | None => Some(ty_in)
+                   };
+                 List.combine(ty_ins, exp_tys) |> exp_ty_opt |> OptUtil.sequence;
+               */
+          );
+        };
+      let self: Self.exp =
+        switch (consistent_self) {
+        | Some([exp_ty]) => Common(Just(exp_ty))
+        | Some(exp_tys) => Common(Just(Prod(exp_tys)))
+        | None => IsInconsistentPartialApArg(ty_in, exp_tys)
+        };
+      let exp_co_ctxs =
+        es
+        |> List.map(
+             fun
+             | Some(e) => [Info.exp_co_ctx(e)]
+             | None => [],
+           )
+        |> List.concat;
+      add'(~self, ~co_ctx=CoCtx.union(exp_co_ctxs), m);
+    };
     add(
       ~self=Just(ty_out),
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
