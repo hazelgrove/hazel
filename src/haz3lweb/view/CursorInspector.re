@@ -154,31 +154,31 @@ let typ_err_view = (ok: Info.error_typ) =>
 let exp_view: Info.status_exp => t =
   fun
   | InHole(FreeVariable) => div_err([text("Variable is not bound")])
-  | InHole(FreeDeferral) => div_err([text("Deferral is not bound")])
-  | InHole(InconsistentWithDeferrableArrow(typ)) =>
+  | InHole(FreeDeferral) =>
     div_err([
-      Type.view(typ),
-      text("is not consistent with partial applicable arrow type"),
+      text(
+        "Deferral does not appear in a partial application as a placeholder",
+      ),
     ])
-  | InHole(InconsistentPartialApArg(ana, syn)) => {
-      let view_opt_ty = (
-        fun
-        | Some(ty) => Type.view(ty)
-        | None => text("_")
-      );
-      let view_syn =
-        switch (syn) {
-        | [t0, ...ts] =>
-          [text("("), view_opt_ty(t0)]
-          @ (
-            List.map(t => [text(", "), view_opt_ty(t)], ts) |> List.flatten
-          )
-          @ [text(")")]
-        | _ => [view_opt_ty(None)]
-        };
-      div_err(
-        [text("Expecting"), Type.view(ana), text("but got")] @ view_syn,
-      );
+  // | InHole(InconsistentWithDeferrableArrow(typ)) =>
+  //   div_err([
+  //     Type.view(typ),
+  //     text("is not consistent with partial applicable arrow type"),
+  //   ])
+  | InHole(MeaninglessPartialAp) =>
+    div_err([
+      text(
+        "Meaningless partial application: expected at least one non-deferral expression",
+      ),
+    ])
+  // | InHole(InconsistentPartialApArg(ana, syn)) => {
+  | InHole(InconsistentPartialAp(ana, syn)) => {
+      div_err([
+        text("Expecting"),
+        Type.view(ana),
+        text("but got"),
+        Type.view_inconsistent_partial_ap_arg(syn),
+      ]);
     }
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));

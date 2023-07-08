@@ -152,7 +152,7 @@ and uexp_to_info_map =
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
-  | Deferral => add'(~self=FreeDef, ~co_ctx=CoCtx.empty, m)
+  | Deferral => add'(~self=FreeDeferral, ~co_ctx=CoCtx.empty, m)
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -224,93 +224,188 @@ and uexp_to_info_map =
     let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
-    let (arg, m) = {
-      open Util;
-      open OptUtil.Syntax;
+    let (self: Self.exp, m, arg_co_ctx) = {
+      // Argument mode
+      let mode: Mode.t = Ana(ty_in);
+      let deferral_to_info_map = (~mode, ~uexp: UExp.t, m) => {
+        let info =
+          Info.derived_exp(
+            ~uexp,
+            ~ctx,
+            ~mode,
+            ~ancestors,
+            ~self=Common(Just(Unknown(Internal))),
+            ~co_ctx=CoCtx.empty,
+          );
+        (info, add_info(uexp.ids, InfoExp(info), m));
+      };
       let es =
         switch (arg.term) {
-        | Tuple(es) => es
+        | Tuple(es) => es // empty tuple is not possible
         | _ => [arg]
         };
-      let ty_ins =
-        switch (ty_in) {
-        | Prod(ty_ins) => ty_ins
-        | Unknown(_) as ty_unknown =>
-          List.init(List.length(es), _ => ty_unknown)
-        | _ => [ty_in]
-        };
-      let modes = Mode.of_prod(Ana(ty_in), List.length(es));
-      let (es, m) =
+      let (es', m) = {
+        let modes = Mode.of_prod(mode, List.length(es));
         List.fold_left2(
-          ((es, m), mode, e) => {
-            let info_map =
-              UExp.is_deferral(e) ? None : Some(go(~mode, e, m));
-            switch (info_map) {
-            | Some((e, m)) => (es @ [Some(e)], m)
-            | None => (es @ [None], m)
-            };
-          },
+          ((es, m), mode, e) =>
+            (
+              UExp.is_deferral(e)
+                ? deferral_to_info_map(~mode, ~uexp=e, m) : go(~mode, e, m)
+            )
+            |> (((e, m)) => (es @ [e], m)),
           ([], m),
           modes,
           es,
         );
-      let exp_tys =
-        List.map(
-          e => {
-            let+ e = e;
-            Info.exp_ty(e);
-          },
-          es,
-        );
-      let consistent_self =
-        if (List.length(ty_ins) != List.length(exp_tys)) {
-          None;
-        } else {
-          List.fold_left2(
-            (acc: option(list(Typ.t)), ty_in: Typ.t, exp_ty: option(Typ.t)) => {
-              let* exp_tys = acc;
-              switch (exp_ty) {
-              | Some(exp_ty) =>
-                Typ.join(ctx, ty_in, exp_ty) != None
-                  ? Some(exp_tys @ [exp_ty]) : None
-              | None => Some(exp_tys @ [ty_in])
-              };
-            },
-            Some([]),
-            ty_ins,
-            exp_tys,
-            /* For unknown reasons this piece of code is not usable
-                 let exp_ty_opt = (ty_in: Typ.t, exp_ty: option(Typ.t)) =>
-                   switch (exp_ty) {
-                   | Some(exp_ty) =>
-                     Typ.join(ctx, ty_in, exp_ty) != None ? Some(exp_ty) : None
-                   | None => Some(ty_in)
-                   };
-                 List.combine(ty_ins, exp_tys) |> exp_ty_opt |> OptUtil.sequence;
-               */
-          );
-        };
+      };
       let self: Self.exp =
-        switch (consistent_self) {
-        | Some([exp_ty]) => Common(Just(exp_ty))
-        | Some(exp_tys) => Common(Just(Prod(exp_tys)))
-        | None => IsInconsistentPartialApArg(ty_in, exp_tys)
+        if (!List.exists(e => !UExp.is_deferral(e), es)) {
+          IsMeaninglessPartialAp;
+        } else {
+          let ty_ins =
+            switch (ty_in) {
+            | Prod(ty_ins) => ty_ins
+            | Unknown(_) as ty_unknown =>
+              List.init(List.length(es), _ => ty_unknown)
+            | _ => [ty_in]
+            };
+          let exp_tys =
+            List.map(
+              ((e, e')) =>
+                UExp.is_deferral(e) ? None : Some(Info.exp_ty(e')),
+              List.combine(es, es'),
+            );
+          if (List.length(ty_ins) != List.length(exp_tys)) {
+            IsInconsistentPartialAp(ty_in, exp_tys);
+          } else {
+            open Util;
+            open OptUtil.Syntax;
+            let consistent_ty_ins =
+              List.fold_left(
+                (acc, (ty_in, (e, e'))) => {
+                  let* ty_ins = acc;
+                  if (UExp.is_deferral(e)) {
+                    Some(ty_ins @ [Info.exp_ty(e')]);
+                  } else {
+                    switch (Info.status_exp(ctx, Ana(ty_in), e'.self)) {
+                    | InHole(_) => None
+                    | NotInHole(_) => Some(ty_ins)
+                    };
+                  };
+                },
+                Some([]),
+                List.combine(ty_ins, List.combine(es, es')),
+              );
+            switch (consistent_ty_ins) {
+            | Some(ty_ins) =>
+              let ty_in =
+                List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
+              Common(Just(Arrow(ty_in, ty_out)));
+            | None => IsInconsistentPartialAp(ty_in, exp_tys)
+            };
+          };
         };
-      let exp_co_ctxs =
-        es
-        |> List.map(
-             fun
-             | Some(e) => [Info.exp_co_ctx(e)]
-             | None => [],
-           )
-        |> List.concat;
-      add'(~self, ~co_ctx=CoCtx.union(exp_co_ctxs), m);
+      (self, m, CoCtx.union(List.map(Info.exp_co_ctx, es')));
     };
-    add(
-      ~self=Just(ty_out),
-      ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-      m,
-    );
+    add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
+  // let (arg_co_ctx, m, ids) = {
+  //   open Util;
+  //   open OptUtil.Syntax;
+  //   let mode: Mode.t = Ana(ty_in);
+  //   let es =
+  //     switch (arg.term) {
+  //     | Tuple(es) => es
+  //     | _ => [arg]
+  //     };
+  //   let ty_ins =
+  //     switch (ty_in) {
+  //     | Prod(ty_ins) => ty_ins
+  //     | Unknown(_) as ty_unknown =>
+  //       List.init(List.length(es), _ => ty_unknown)
+  //     | _ => [ty_in]
+  //     };
+  //   let modes = Mode.of_prod(mode, List.length(es));
+  //   let (es, m) =
+  //     List.fold_left2(
+  //       ((es, m), mode, e) => {
+  //         let info_map =
+  //           UExp.is_deferral(e) ? None : Some(go(~mode, e, m));
+  //         switch (info_map) {
+  //         | Some((e, m)) => (es @ [Some(e)], m)
+  //         | None => (es @ [None], m)
+  //         };
+  //       },
+  //       ([], m),
+  //       modes,
+  //       es,
+  //     );
+  //   ======================================================================
+  //   let exp_tys =
+  //     List.map(
+  //       e => {
+  //         let+ e = e;
+  //         Info.exp_ty(e);
+  //       },
+  //       es,
+  //     );
+  //   let consistent_self =
+  //     if (List.length(ty_ins) != List.length(exp_tys)) {
+  //       None;
+  //     } else {
+  //       List.fold_left2(
+  //         (acc: option(list(Typ.t)), ty_in: Typ.t, exp_ty: option(Typ.t)) => {
+  //           let* exp_tys = acc;
+  //           switch (exp_ty) {
+  //           | Some(exp_ty) =>
+  //             Typ.join(ctx, ty_in, exp_ty) != None
+  //               ? Some(exp_tys @ [exp_ty]) : None
+  //           | None => Some(exp_tys @ [ty_in])
+  //           };
+  //         },
+  //         Some([]),
+  //         ty_ins,
+  //         exp_tys,
+  //       );
+  //     };
+  //   let (self: Self.exp, ancestor_ids) =
+  //     switch (consistent_self) {
+  //     | Some([exp_ty]) => (Common(Just(exp_ty)), ids)
+  //     | Some(exp_tys) => (Common(Just(Prod(exp_tys))), ids)
+  //     | None => (
+  //         IsInconsistentPartialApArg(ty_in, exp_tys),
+  //         ids |> List.filter(id => !List.exists(id' => id == id', arg.ids)),
+  //       )
+  //     };
+  //   ======================================================================
+  //   let exp_co_ctxs =
+  //     es
+  //     |> List.map(
+  //          fun
+  //          | Some(e) => [Info.exp_co_ctx(e)]
+  //          | None => [],
+  //        )
+  //     |> List.concat;
+  //   let info =
+  //     Info.derived_exp(
+  //       ~uexp, //=arg,
+  //       ~ctx,
+  //       ~mode,
+  //       ~ancestors,
+  //       ~self,
+  //       ~co_ctx=CoCtx.union(exp_co_ctxs),
+  //     );
+  //   (info.co_ctx, add_info(arg.ids, InfoExp(info), m), ancestor_ids);
+  // };
+  // let info =
+  //   Info.derived_exp(
+  //     ~uexp,
+  //     ~ctx,
+  //     ~mode,
+  //     ~ancestors,
+  //     ~self=Common(Just(ty_out)),
+  //     ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+  //   );
+  // (info, add_info(ids, InfoExp(info), m));
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
@@ -323,8 +418,7 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
-    /* Analyze pattern to incorporate def type into ctx */
+    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
     let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
@@ -396,8 +490,7 @@ and uexp_to_info_map =
         | None => ctx_body
         };
       let (Info.{co_ctx, ty: ty_body, _}, m) =
-        go'(~ctx=ctx_body, ~mode, body, m);
-      /* Make sure types don't escape their scope */
+        go'(~ctx=ctx_body, ~mode, body, m) /* Make sure types don't escape their scope */;
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
