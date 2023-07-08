@@ -244,8 +244,24 @@ and uexp_to_info_map =
         | Tuple(es) => es // empty tuple is not possible
         | _ => [arg]
         };
+      let modes = Mode.of_prod(mode, List.length(es));
+      let (ty_ins, modes) =
+        switch (ty_in) {
+        | Prod([_, ..._] as ty_ins) => (ty_ins, modes)
+        | Unknown(_) as ty_unknown =>
+          List.split(
+            List.init(List.length(es), _ =>
+              (ty_unknown, Mode.Ana(ty_unknown))
+            ),
+          )
+        | _ => (
+            [ty_in],
+            List.length(es) == 1
+              ? [mode]
+              : modes /* for input-type-is-non-prod functions, deferral singleton argument satisfies expected type */,
+          )
+        };
       let (es', m) = {
-        let modes = Mode.of_prod(mode, List.length(es));
         List.fold_left2(
           ((es, m), mode, e) =>
             (
@@ -262,13 +278,6 @@ and uexp_to_info_map =
         if (!List.exists(e => !UExp.is_deferral(e), es)) {
           IsMeaninglessPartialAp;
         } else {
-          let ty_ins =
-            switch (ty_in) {
-            | Prod(ty_ins) => ty_ins
-            | Unknown(_) as ty_unknown =>
-              List.init(List.length(es), _ => ty_unknown)
-            | _ => [ty_in]
-            };
           let exp_tys =
             List.map(
               ((e, e')) =>
