@@ -88,6 +88,7 @@ let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("[]");
+let deferral = () => exp("_");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
@@ -161,6 +162,27 @@ let triv_exp: form = {
     expandable_id: None,
     explanation,
     examples: [],
+  };
+};
+
+let deferral_exp_group = "deferral_exp_group";
+let deferral_exp: form = {
+  let explanation = {
+    message: "Deferral expression. This marks a placeholder for some part of the argument expression in a partial application whose value supply is deferred to future applications.",
+    feedback: Unselected,
+  };
+  let deferral_exp_ex = {
+    sub_id: "deferral_exp_ex",
+    term: mk_example("let plus1 =\n(fun (x, y) -> x + y)(_, 1)\nin plus1(2)"),
+    message: "The plus function is partially applied to (_, 1). The deferral expression marks a placeholder for x whose value supply is deferred to the function application plus1(2).",
+    feedback: Unselected,
+  };
+  {
+    id: "deferral_exp",
+    syntactic_form: [exp("_")],
+    expandable_id: None,
+    explanation,
+    examples: [deferral_exp_ex],
   };
 };
 
@@ -1528,6 +1550,7 @@ let tyalias_base_exp: form = {
 
 let funapp_exp_group = "funapp_exp_group";
 let conapp_exp_group = "conapp_exp_group";
+let deferred_funapp_exp_group = "deferred_funapp_exp_group";
 let funapp_exp_ex = {
   sub_id: "funapp_exp_ex",
   term: mk_example("(fun x -> x)(1)"),
@@ -1539,6 +1562,12 @@ let conapp_exp_ex = {
   sub_id: "conapp_exp_ex",
   term: mk_example("Some(1)"),
   message: "The constructor Some is applied to 1, which evaluates to Some(1).",
+  feedback: Unselected,
+};
+let deferred_funapp_exp_ex = {
+  sub_id: "deferred_funapp_exp_ex",
+  term: mk_example("(fun (x, y) -> x + y)(_, 1)"),
+  message: "The plus function is partially applied to (_, 1). Part of the tuple pattern y is bound to 1 in the function body and the whole partial application evaluates to the new function plus1.",
   feedback: Unselected,
 };
 let _exp_fun = exp("e_fun");
@@ -1579,6 +1608,44 @@ let conapp_exp: form = {
     expandable_id: None,
     explanation,
     examples: [conapp_exp_ex],
+  };
+};
+let _exp_fun = exp("e_fun");
+let _exp_arg = exp("e_arg");
+let deferred_funapp_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_fun), x_id),
+  (Piece.id(_exp_arg), arg_id),
+];
+let deferred_funapp_exp: form = {
+  let explanation = {
+    message: "Partial function application. Bound part(s) of the [*function*](%i) input pattern to supplied values in the [*argument*](%i).",
+    feedback: Unselected,
+  };
+  let comma = comma_pat();
+  let or_pat = () =>
+    Example.mk_tile(Form.mk_infix("|", Pat, Precedence.or_), []);
+  let or_ = or_pat();
+  {
+    id: "deferred_funapp_exp",
+    syntactic_form: [
+      _exp_fun,
+      mk_ap_exp([
+        [
+          exp("e1"),
+          space(),
+          or_,
+          space(),
+          deferral(),
+          comma,
+          space(),
+          exp("..."),
+        ],
+      ]),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [deferred_funapp_exp_ex],
   };
 };
 
@@ -3390,6 +3457,7 @@ let init = {
     multi_hole_exp,
     multi_hole_tpat,
     triv_exp,
+    deferral_exp,
     bool_exp,
     int_exp,
     float_exp,
@@ -3439,6 +3507,7 @@ let init = {
     tyalias_base_exp,
     funapp_exp,
     conapp_exp,
+    deferred_funapp_exp,
     if_exp,
     seq_exp,
     test_exp,
@@ -3515,6 +3584,7 @@ let init = {
     (multi_hole_exp_group, init_options([(multi_hole_exp.id, [])])),
     (multi_hole_tpat_group, init_options([(multi_hole_tpat.id, [])])),
     (triv_exp_group, init_options([(triv_exp.id, [])])),
+    (deferral_exp_group, init_options([(deferral_exp.id, [])])),
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),
     (float_exp_group, init_options([(float_exp.id, [])])),
@@ -3799,6 +3869,10 @@ let init = {
     (tyalias_exp_group, init_options([(tyalias_base_exp.id, [])])),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
+    (
+      deferred_funapp_exp_group,
+      init_options([(deferred_funapp_exp.id, [])]),
+    ),
     (if_exp_group, init_options([(if_exp.id, [])])),
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),
