@@ -241,19 +241,19 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       switch (t) {
       | (["(", ")"], [Exp(arg)]) =>
         switch (arg.term) {
-        | _ when UExp.is_deferral(arg) => (DeferredAp(l, arg), arg.ids)
+        | _ when UExp.is_deferral(arg) => ret(DeferredAp(l, arg)) //(DeferredAp(l, arg), arg.ids)
         | Tuple(es) when List.exists(UExp.is_deferral, es) => (
             DeferredAp(l, arg),
-            {
-              let deferral_ids =
-                es
-                |> List.filter(UExp.is_deferral)
-                |> List.map((e: UExp.t) => e.ids)
-                |> List.concat;
-              let comma_ids = arg.ids;
-              deferral_ids @ comma_ids;
-            },
+            arg.ids,
           )
+        // let deferral_ids =
+        //   es
+        //   |> List.filter(UExp.is_deferral)
+        //   |> List.map((e: UExp.t) => e.ids)
+        //   |> List.concat;
+        // let ids = arg.ids @ deferral_ids;
+        // let term = arg.term;
+        // (DeferredAp(l, {ids, term}), ids);
         | _ => ret(Ap(l, arg))
         }
       | _ => ret(hole(tm))
