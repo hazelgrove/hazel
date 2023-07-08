@@ -43,6 +43,7 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      | Error(error) => Error(error) |> return
       };
 
     /* float_of_int implementation. */
@@ -54,6 +55,7 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      | Error(error) => Error(error) |> return
       };
 
     /* mod implementation */
@@ -69,6 +71,7 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
       | Indet(d1) => return(Indet(ApBuiltin(name, [d1])))
+      | Error(error) => Error(error) |> return
       };
 
     /* PI implementation. */

@@ -66,6 +66,7 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
   | (es, Indet(_d) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
     (r, es, HoleInstanceInfo.empty)
+  | (_, Error(_reason))
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     print_endline("Interface.evaluate EXCEPTION:");
@@ -95,6 +96,7 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   switch (d) {
   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
   | Indet(d) => (Indet(d), es, HoleInstanceInfo.empty)
+  | Error(_reason)
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
