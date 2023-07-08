@@ -183,16 +183,12 @@ module EvalObj = {
 };
 
 module Transition = {
+  // [@deriving show({with_path: false})]
   type t =
+    | Error(EvaluatorError.t)
     | Indet(DHExp.t)
     | BoxedValue(DHExp.t)
     | Step(DHExp.t);
-
-  // let unbox =
-  //   fun
-  //   | Indet(d)
-  //   | BoxedValue(d)
-  //   | Step(d) => d;
 
   let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
     open Evaluator;
@@ -226,6 +222,7 @@ module Transition = {
         /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
         /* }; */
         Step(d2) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | Let(dp, d1, d2) =>
@@ -241,6 +238,7 @@ module Transition = {
           let* env = Evaluator.evaluate_extend_env(env', env);
           Step(Closure(env, d2)) |> return;
         }
+      | Error(error) => Error(error) |> return
       };
 
     | FixF(f, _, d') =>
@@ -259,6 +257,7 @@ module Transition = {
         switch (r2) {
         | Indet(r2) => Indet(r2) |> return
         | BoxedValue(r2) => Step(r2) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Tag(_)) =>
         let* r2 = transition(env, d2);
@@ -266,6 +265,7 @@ module Transition = {
         | Step(d2) => Step(Ap(d1, d2)) |> return
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
         let* r2 = transition(env, d2);
@@ -282,6 +282,7 @@ module Transition = {
             let* env = Evaluator.evaluate_extend_env(env', closure_env);
             Step(Closure(env, d3)) |> return;
           }
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
@@ -295,6 +296,7 @@ module Transition = {
             Closure(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2')),
           )
           |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
@@ -305,7 +307,9 @@ module Transition = {
         | Step(d2') => Step(Ap(d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(Ap(d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | ApBuiltin(ident, args) =>
@@ -313,6 +317,7 @@ module Transition = {
       switch (r) {
       | BoxedValue(d) => Step(d) |> return
       | Indet(d) => Indet(d) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | TestLit(_)
@@ -339,6 +344,7 @@ module Transition = {
             print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
+          | Error(error) => Error(error) |> return
           };
         }
       | BoxedValue(d1') =>
@@ -350,7 +356,9 @@ module Transition = {
         | Step(d2') => Step(BinBoolOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | BinIntOp(op, d1, d2) =>
@@ -385,6 +393,7 @@ module Transition = {
           print_endline("InvalidBoxedIntLit1");
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
@@ -395,7 +404,9 @@ module Transition = {
         | Step(d2') => Step(BinIntOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | BinFloatOp(op, d1, d2) =>
@@ -412,6 +423,7 @@ module Transition = {
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFloatLit");
@@ -422,7 +434,9 @@ module Transition = {
         | Step(d2') => Step(BinFloatOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | BinStringOp(op, d1, d2) =>
@@ -439,6 +453,7 @@ module Transition = {
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedStringLit");
@@ -449,7 +464,9 @@ module Transition = {
         | Step(d2') => Step(BinStringOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | Inj(ty, side, d1) =>
@@ -458,6 +475,7 @@ module Transition = {
       | Step(d1') => Step(Inj(ty, side, d1')) |> return
       | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1')) |> return
       | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | Tuple(ds) =>
@@ -477,18 +495,20 @@ module Transition = {
                 BoxedValue(empty),
                 [el', ...dst],
               )
+            | (Error(error), _) => (Error(error), [])
+            | (_, Error(error)) => (Error(error), [])
             }
           },
           drs,
           (BoxedValue(empty), []),
         );
-
       let d' = DHExp.Tuple(ds');
 
       switch (tag) {
       | Step(_) => Step(d')
       | Indet(_) => Indet(d')
       | BoxedValue(_) => BoxedValue(d')
+      | Error(error) => Error(error)
       };
 
     | Prj(targ, n) =>
@@ -570,6 +590,8 @@ module Transition = {
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
+      | (Error(error), _) => Error(error) |> return
+      | (_, Error(error)) => Error(error) |> return
       };
 
     | ListLit(u, i, err, ty, ds) =>
@@ -589,6 +611,8 @@ module Transition = {
                 BoxedValue(empty),
                 [el', ...dst],
               )
+            | (Error(error), _) => (Error(error), [])
+            | (_, Error(error)) => (Error(error), [])
             }
           },
           drs,
@@ -601,6 +625,7 @@ module Transition = {
       | Step(_) => Step(d')
       | Indet(_) => Indet(d')
       | BoxedValue(_) => BoxedValue(d')
+      | Error(error) => Error(error)
       };
 
     | ConsistentCase(Case(d1, rules, n)) =>
@@ -618,10 +643,25 @@ module Transition = {
         | Step(d) => Step(Closure(env, d)) |> return
         | BoxedValue(d) => BoxedValue(d) |> return
         | Indet(d) => Indet(d) |> return
+        | Error(error) => Error(error) |> return
         };
       }
 
-    | Filter(_) => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | Filter(fenv', d') =>
+      let* r' = transition(env, d');
+      switch (r') {
+      | BoxedValue(_)
+      | Indet(_) => r' |> return
+      | Step(d'') =>
+        let* r'' = transition(env, d'');
+        switch (r'') {
+        | BoxedValue(_)
+        | Indet(_) => Step(d'') |> return
+        | Step(_) => Step(Filter(fenv', d'')) |> return
+        | Error(error) => Error(error) |> return
+        };
+      | Error(error) => Error(error) |> return
+      };
 
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
@@ -639,6 +679,7 @@ module Transition = {
       | BoxedValue(d1')
       | Indet(d1') =>
         Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | FreeVar(u, i, x) => Indet(Closure(env, FreeVar(u, i, x))) |> return
@@ -740,6 +781,7 @@ module Transition = {
             Indet(Cast(d1', ty, ty')) |> return;
           }
         }
+      | Error(error) => Error(error) |> return
       };
 
     | FailedCast(d1, ty, ty') =>
@@ -748,6 +790,7 @@ module Transition = {
       | Step(d1') => Step(FailedCast(d1', ty, ty')) |> return
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
@@ -768,6 +811,7 @@ module Transition = {
     | Step(scrut) =>
       Step(ConsistentCase(Case(scrut, rules, current_rule_index)))
       |> Monad.return
+    | Error(error) => Error(error) |> return
     };
   }
   and eval_rule =
@@ -806,7 +850,7 @@ module Decompose = {
       | Eval
       | Step;
 
-    [@deriving sexp]
+    [@deriving show({with_path: false})]
     type t =
       | Indet
       | BoxedValue
@@ -847,10 +891,6 @@ module Decompose = {
             exp: DHExp.t,
           )
           : Monad.t(Result.t) => {
-    exp
-    |> DHExp.sexp_of_t
-    |> Sexplib.Sexp.to_string_hum
-    |> (s => print_endline("decompose: exp = " ++ s));
     let act = FilterEnvironment.matches(exp, act, flt);
     let decompose = (~env=env, ~flt=flt, ~act=act, exp) =>
       decompose(env, flt, act, exp);
@@ -912,6 +952,8 @@ module Decompose = {
     | FreeVar(_) => Return.indet
     | InvalidText(_) => Return.indet
     | InconsistentBranches(_) => Return.indet
+    | FailedCast(_) => Return.indet
+    | InvalidOperation(_) => Return.indet
     | Closure(_, Fun(_)) => Return.boxed
     | Closure(env', d1) =>
       let* env = ClosureEnvironment.union(env', env) |> with_eig;
@@ -925,10 +967,6 @@ module Decompose = {
     | Sequence(d1, d2) =>
       decompose(d1) >>| Return.wrap(c => Sequence(c, d2))
     | Let(dp, d1, d2) =>
-      act
-      |> FilterAction.sexp_of_t
-      |> Sexplib.Sexp.to_string_hum
-      |> (s => print_endline("decompose: Let: act = " ++ s));
       let* r1 = decompose(d1);
       switch (r1) {
       | BoxedValue
@@ -1002,12 +1040,37 @@ module Decompose = {
       };
       let* rs = walk([], ds, return([]));
       rs |> Return.merge;
+    | Prj(targ, n) => decompose(targ) >>| Return.wrap(c => Prj(c, n))
+    | Cons(d1, d2) =>
+      let* r1 = decompose(d1);
+      let* r2 = decompose(d2);
+      [(r1, (c => Cons1(c, d2))), (r2, (c => Cons2(d1, c)))]
+      |> Return.merge;
+    | ListLit(u, i, err, ty, lst) =>
+      let rec walk = (ld, rd, rs) => {
+        switch (rd) {
+        | [] => rs
+        | [d, ...rd] =>
+          let* r = decompose(d);
+          let* rs = rs;
+          let rs = [
+            (r, (c => EvalCtx.ListLit(u, i, err, ty, c, (ld, rd)))),
+            ...rs,
+          ];
+          walk([d, ...ld], rd, return(rs));
+        };
+      };
+      let* rs = walk([], lst, return([]));
+      rs |> Return.merge;
     | _ => Return.mark(act)
     };
   };
 };
 
-let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
+let rec compose =
+        (env: ClosureEnvironment.t, ctx: EvalCtx.t, d: DHExp.t): m(DHExp.t) => {
+  open DHExp;
+  let return: DHExp.t => m(DHExp.t) = return;
   let rec rev_concat = (ls: list('a), rs: list('a)) => {
     switch (ls) {
     | [] => rs
@@ -1015,38 +1078,92 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     };
   };
   switch (ctx) {
-  | Mark => d
-  | Closure(env, ctx) => Closure(env, compose(ctx, d))
-  | Filter(f, ctx) => Filter(f, compose(ctx, d))
-  | Sequence(ctx, d2) => Sequence(compose(ctx, d), d2)
-  | Ap1(ctx1, d1) => Ap(compose(ctx1, d), d1)
-  | Ap2(d1, ctx1) => Ap(d1, compose(ctx1, d))
-  | BinBoolOp1(op, ctx1, d1) => BinBoolOp(op, compose(ctx1, d), d1)
-  | BinBoolOp2(op, d1, ctx1) => BinBoolOp(op, d1, compose(ctx1, d))
-  | BinIntOp1(op, ctx1, d1) => BinIntOp(op, compose(ctx1, d), d1)
-  | BinIntOp2(op, d1, ctx1) => BinIntOp(op, d1, compose(ctx1, d))
-  | BinFloatOp1(op, ctx1, d1) => BinFloatOp(op, compose(ctx1, d), d1)
-  | BinFloatOp2(op, d1, ctx1) => BinFloatOp(op, d1, compose(ctx1, d))
-  | BinStringOp1(op, ctx1, d1) => BinStringOp(op, compose(ctx1, d), d1)
-  | BinStringOp2(op, d1, ctx1) => BinStringOp(op, d1, compose(ctx1, d))
-  | Cons1(ctx1, d1) => Cons(compose(ctx1, d), d1)
-  | Cons2(d1, ctx1) => Cons(d1, compose(ctx1, d))
+  | Mark => d |> return
+  | Closure(env, ctx) =>
+    let* d = compose(env, ctx, d);
+    let* empty =
+      Environment.empty |> ClosureEnvironment.of_environment |> with_eig;
+    let* r = Evaluator.evaluate_closure(empty, d);
+    switch (r) {
+    | Indet(_)
+    | Error(EvaluatorError.FreeInvalidVar(_)) => Closure(env, d) |> return
+    | _ => d |> return
+    };
+  | Filter(f, ctx) =>
+    let+ d = compose(env, ctx, d);
+    Filter(f, d);
+  | Sequence(ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    Sequence(d1, d2);
+  | Ap1(ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    Ap(d1, d2);
+  | Ap2(d1, ctx) =>
+    let+ d2 = compose(env, ctx, d);
+    Ap(d1, d2);
+  | BinBoolOp1(op, ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    BinBoolOp(op, d1, d2);
+  | BinBoolOp2(op, d1, ctx) =>
+    let+ d2 = compose(env, ctx, d);
+    BinBoolOp(op, d1, d2);
+  | BinIntOp1(op, ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    BinIntOp(op, d1, d2);
+  | BinIntOp2(op, d1, ctx) =>
+    let+ d2 = compose(env, ctx, d);
+    BinIntOp(op, d1, d2);
+  | BinFloatOp1(op, ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    BinFloatOp(op, d1, d2);
+  | BinFloatOp2(op, d1, ctx) =>
+    let+ d2 = compose(env, ctx, d);
+    BinFloatOp(op, d1, d2);
+  | BinStringOp1(op, ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    BinStringOp(op, d1, d2);
+  | BinStringOp2(op, d1, ctx) =>
+    let+ d2 = compose(env, ctx, d);
+    BinStringOp(op, d1, d2);
+  | Cons1(ctx, d2) =>
+    let+ d1 = compose(env, ctx, d);
+    Cons(d1, d2);
+  | Cons2(d1, ctx) =>
+    let+ d2 = compose(env, ctx, d);
+    Cons(d1, d2);
   | Tuple(ctx, (ld, rd)) =>
-    Tuple(rev_concat(ld, [compose(ctx, d), ...rd]))
+    let+ d = compose(env, ctx, d);
+    Tuple(rev_concat(ld, [d, ...rd]));
   | ListLit(m, i, e, t, ctx, (ld, rd)) =>
-    ListLit(m, i, e, t, rev_concat(ld, [compose(ctx, d), ...rd]))
-  | Let(dp, ctx1, d1) => Let(dp, compose(ctx1, d), d1)
-  | Prj(ctx, n) => Prj(compose(ctx, d), n)
-  | Inj(ty, side, ctx1) => Inj(ty, side, compose(ctx1, d))
-  | Cast(ctx1, ty1, ty2) => Cast(compose(ctx1, d), ty1, ty2)
-  | FailedCast(ctx1, ty1, ty2) => FailedCast(compose(ctx1, d), ty1, ty2)
-  | InvalidOperation(ctx1, err) => InvalidOperation(compose(ctx1, d), err)
-  | NonEmptyHole(reason, u, i, ctx1) =>
-    NonEmptyHole(reason, u, i, compose(ctx1, d))
-  | ConsistentCase(Case(ctx1, rule, n)) =>
-    ConsistentCase(Case(compose(ctx1, d), rule, n))
-  | InconsistentBranches(u, i, Case(ctx1, rule, n)) =>
-    InconsistentBranches(u, i, Case(compose(ctx1, d), rule, n))
+    let+ d = compose(env, ctx, d);
+    ListLit(m, i, e, t, rev_concat(ld, [d, ...rd]));
+  | Let(dp, ctx, d1) =>
+    let+ d = compose(env, ctx, d);
+    Let(dp, d, d1);
+  | Prj(ctx, n) =>
+    let+ d = compose(env, ctx, d);
+    Prj(d, n);
+  | Inj(ty, side, ctx) =>
+    let+ d = compose(env, ctx, d);
+    Inj(ty, side, d);
+  | Cast(ctx, ty1, ty2) =>
+    let+ d = compose(env, ctx, d);
+    Cast(d, ty1, ty2);
+  | FailedCast(ctx, ty1, ty2) =>
+    let+ d = compose(env, ctx, d);
+    FailedCast(d, ty1, ty2);
+  | InvalidOperation(ctx, err) =>
+    let+ d = compose(env, ctx, d);
+    InvalidOperation(d, err);
+  | NonEmptyHole(reason, u, i, ctx) =>
+    let+ d = compose(env, ctx, d);
+    NonEmptyHole(reason, u, i, d);
+  | ConsistentCase(Case(ctx, rule, n)) =>
+    let+ d = compose(env, ctx, d);
+    ConsistentCase(Case(d, rule, n));
+  | InconsistentBranches(u, i, Case(ctx, rule, n)) =>
+    let+ d = compose(env, ctx, d);
+    InconsistentBranches(u, i, Case(d, rule, n));
   };
 };
 
@@ -1060,12 +1177,16 @@ let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
       | Step(d)
       | BoxedValue(d) => EvaluatorResult.BoxedValue(d) |> return
       | Indet(d) => EvaluatorResult.Indet(d) |> return
+      | Error(error) => EvaluatorResult.Error(error) |> return
       };
     };
-  let d = compose(obj.ctx, EvaluatorResult.unbox(r));
+  let* env =
+    Environment.empty |> ClosureEnvironment.of_environment |> with_eig;
+  let* d = compose(env, obj.ctx, EvaluatorResult.unbox(r));
   switch (r) {
   | BoxedValue(_) => EvaluatorResult.BoxedValue(d) |> return
   | Indet(_) => EvaluatorResult.Indet(d) |> return
+  | Error(error) => EvaluatorResult.Error(error) |> return
   };
 };
 
@@ -1079,10 +1200,6 @@ let decompose = (d: DHExp.t) => {
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
   let (es, rs) = Decompose.decompose(env, [], Step, d, es);
-  rs
-  |> Decompose.Result.sexp_of_t
-  |> Sexplib.Sexp.to_string_hum
-  |> (s => print_endline("decomposed: r = " ++ s));
-  print_endline("======== decompose END =========");
+  rs |> Decompose.Result.show |> (s => print_endline("decompose => " ++ s));
   (es, Decompose.Result.unbox(rs));
 };

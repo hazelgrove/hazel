@@ -595,16 +595,14 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     switch (d) {
     | BoundVar(x) =>
-      let d =
-        x
-        |> ClosureEnvironment.lookup(env)
-        |> OptUtil.get(() => {
-             print_endline("FreeInvalidVar");
-             raise(EvaluatorError.Exception(FreeInvalidVar(x)));
-           });
-      /* We need to call [evaluate] on [d] again since [env] does not store
-       * final expressions. */
-      evaluate(env, d);
+      let d = x |> ClosureEnvironment.lookup(env);
+      switch (d) {
+      | Some(d) =>
+        /* We need to call [evaluate] on [d] again since [env] does not store
+         * final expressions. */
+        evaluate(env, d)
+      | None => Error(EvaluatorError.FreeInvalidVar(x)) |> return
+      };
 
     | Sequence(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -619,6 +617,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
         /* }; */
         evaluate(env, d2)
+      | Error(error) => Error(error) |> return
       };
 
     | Let(dp, d1, d2) =>
@@ -633,6 +632,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           let* env = evaluate_extend_env(env', env);
           evaluate(env, d2);
         }
+      | Error(error) => Error(error) |> return
       };
 
     | FixF(f, _, d') =>
@@ -650,6 +650,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
         let* r2 = evaluate(env, d2);
@@ -665,6 +666,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             let* env = evaluate_extend_env(env', closure_env);
             evaluate(env, d3);
           }
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
@@ -674,6 +676,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Indet(d2') =>
           /* ap cast rule */
           evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
@@ -683,7 +686,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(Ap(d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
@@ -710,6 +715,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
+          | Error(error) => Error(error) |> return
           };
         }
       | BoxedValue(d1') =>
@@ -720,7 +726,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | BinIntOp(op, d1, d2) =>
@@ -753,6 +761,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           print_endline("InvalidBoxedIntLit1");
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
@@ -762,7 +771,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | BinFloatOp(op, d1, d2) =>
@@ -777,6 +788,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFloatLit");
@@ -786,7 +798,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | BinStringOp(op, d1, d2) =>
@@ -801,6 +815,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedStringLit");
@@ -810,7 +825,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        | Error(error) => Error(error) |> return
         };
+      | Error(error) => Error(error) |> return
       };
 
     | Inj(ty, side, d1) =>
@@ -818,26 +835,31 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       switch (r1) {
       | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1')) |> return
       | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | Tuple(ds) =>
       let+ lst = ds |> List.map(evaluate(env)) |> sequence;
-      let (ds', indet) =
+      switch (
         List.fold_right(
           (el, (lst, indet)) =>
             switch (el) {
             | BoxedValue(el) => ([el, ...lst], false || indet)
             | Indet(el) => ([el, ...lst], true)
+            | Error(error) => raise(EvaluatorError.Exception(error))
             },
           lst,
           ([], false),
-        );
-
-      let d = DHExp.Tuple(ds');
-      if (indet) {
-        Indet(d);
-      } else {
-        BoxedValue(d);
+        )
+      ) {
+      | exception (EvaluatorError.Exception(error)) => Error(error)
+      | (ds', indet) =>
+        let d = DHExp.Tuple(ds');
+        if (indet) {
+          Indet(d);
+        } else {
+          BoxedValue(d);
+        };
       };
 
     | Prj(targ, n) =>
@@ -904,27 +926,34 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
+      | (Error(error), _) => Error(error) |> return
+      | (_, Error(error)) => Error(error) |> return
       };
 
     | ListLit(u, i, err, ty, lst) =>
       let+ lst = lst |> List.map(evaluate(env)) |> sequence;
-      let (lst, indet) =
+
+      switch (
         List.fold_right(
           (el, (lst, indet)) =>
             switch (el) {
             | BoxedValue(el) => ([el, ...lst], false || indet)
             | Indet(el) => ([el, ...lst], true)
+            | Error(error) => raise(EvaluatorError.Exception(error))
             },
           lst,
           ([], false),
-        );
-      let d = DHExp.ListLit(u, i, err, ty, lst);
-      if (indet) {
-        Indet(d);
-      } else {
-        BoxedValue(d);
+        )
+      ) {
+      | exception (EvaluatorError.Exception(error)) => Error(error)
+      | (lst, indet) =>
+        let d = DHExp.ListLit(u, i, err, ty, lst);
+        if (indet) {
+          Indet(d);
+        } else {
+          BoxedValue(d);
+        };
       };
-
     | ConsistentCase(Case(d1, rules, n)) =>
       evaluate_case(env, None, d1, rules, n)
 
@@ -933,7 +962,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Closure(_, d') =>
       switch (d') {
       | Fun(_) => BoxedValue(d) |> return
-      | _ => Indet(d) |> return
+      | d => evaluate(env, d)
       }
 
     | Filter(_, d') => evaluate(env, d')
@@ -952,6 +981,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | BoxedValue(d1')
       | Indet(d1') =>
         Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | FreeVar(u, i, x) => Indet(Closure(env, FreeVar(u, i, x))) |> return
@@ -1049,6 +1079,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             Indet(Cast(d1', ty, ty')) |> return;
           }
         }
+      | Error(error) => Error(error) |> return
       };
 
     | FailedCast(d1, ty, ty') =>
@@ -1056,6 +1087,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       switch (r1) {
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
+      | Error(error) => Error(error) |> return
       };
 
     | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
@@ -1080,6 +1112,7 @@ and evaluate_case =
   | BoxedValue(scrut)
   | Indet(scrut) =>
     eval_rule(env, inconsistent_info, scrut, rules, current_rule_index)
+  | Error(error) => Error(error) |> return
   };
 }
 and eval_rule =
@@ -1200,6 +1233,7 @@ and evaluate_test =
     | BoxedValue(BoolLit(_)) => BoxedValue(Tuple([]))
     | BoxedValue(arg)
     | Indet(arg) => Indet(Ap(TestLit(n), arg))
+    | Error(error) => Error(error)
     };
   r |> return;
 }
