@@ -7,6 +7,7 @@ module StringMap = Map.Make(String);
 type syntax_tests = {
   var_mention: list((string, float)),
   recursive: list((string, float)),
+  tail_recursive: list((string, float)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -16,6 +17,8 @@ type syntax_result = {
 };
 
 type fmap = StringMap.t(list(Term.UExp.t));
+
+let syntax_tests_empty = {var_mention: [], recursive: [], tail_recursive: []};
 
 let add_flist = (l: list(string), m: fmap): fmap => {
   List.fold_left((m, name) => {StringMap.add(name, [], m)}, m, l);
@@ -117,8 +120,7 @@ let rec find_var_uexp = (uexp: Term.UExp.t, name: string): bool => {
 };
 
 //This function checks if the expression uexp
-//uses the variable with name "name" and is never
-//replaced with another variable with the same name
+//uses the variable with name "name" and is never shadowed
 let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
@@ -150,13 +152,8 @@ let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
   | Match(g, l) =>
     is_recursive(g, name)
     || List.fold_left(
-         (acc, pe) => {
-           let (p, e) = pe;
-           if (find_var_upat(p, name)) {
-             false;
-           } else {
-             acc || is_recursive(e, name);
-           };
+         (acc, (p, e)) => {
+           find_var_upat(p, name) ? false : acc || is_recursive(e, name)
          },
          false,
          l,
@@ -168,6 +165,46 @@ let rec is_recursive = (uexp: Term.UExp.t, name: string): bool => {
   };
 };
 
+let rec is_tail_recursive = (uexp: Term.UExp.t, name: string): bool => {
+  switch (uexp.term) {
+  | Fun(args, body) =>
+    find_var_upat(args, name) ? false : is_tail_recursive(body, name)
+  | Let(p, def, body) =>
+    find_var_upat(p, name) || is_recursive(def, name)
+      ? false : is_tail_recursive(body, name)
+  | Tuple(l) =>
+    //If l has no recursive calls then true
+    !List.fold_left((acc, ue) => {acc || is_recursive(ue, name)}, false, l)
+  | Ap(u1, u2) =>
+    is_recursive(u2, name) ? false : is_tail_recursive(u1, name)
+  | If(u1, u2, u3) =>
+    is_recursive(u1, name)
+      ? false : is_tail_recursive(u2, name) && is_tail_recursive(u3, name)
+  | Seq(u1, u2) =>
+    is_recursive(u1, name) ? false : is_tail_recursive(u2, name)
+  | Test(_) => false
+  | Parens(u) => is_tail_recursive(u, name)
+  | Cons(u1, u2) => !(is_recursive(u1, name) || is_recursive(u2, name))
+  | UnOp(_, u) => !is_recursive(u, name)
+  | BinOp(_, u1, u2) => !(is_recursive(u1, name) || is_recursive(u2, name))
+  | Match(g, l) =>
+    is_recursive(g, name)
+      ? false
+      : List.fold_left(
+          (acc, (p, e)) => {
+            find_var_upat(p, name)
+              ? false : acc && is_tail_recursive(e, name)
+          },
+          false,
+          l,
+        )
+  | ListLit(l) =>
+    !List.fold_left((acc, ue) => {acc || is_recursive(ue, name)}, false, l)
+
+  | _ => true
+  };
+};
+
 let check = (uexp: Term.UExp.t, p: syntax_tests): syntax_result => {
   let var_mention_names = List.map(((name, _)) => name, p.var_mention);
   let var_mention_weights = List.map(((_, w)) => w, p.var_mention);
@@ -175,18 +212,22 @@ let check = (uexp: Term.UExp.t, p: syntax_tests): syntax_result => {
   let recursive_names = List.map(((name, _)) => name, p.recursive);
   let recursive_weights = List.map(((_, w)) => w, p.recursive);
 
-  let total =
-    List.fold_left((+.), 0., var_mention_weights @ recursive_weights);
+  let tail_recursive_names =
+    List.map(((name, _)) => name, p.tail_recursive);
+  let tail_recursive_weights = List.map(((_, w)) => w, p.tail_recursive);
 
-  let m = StringMap.empty |> add_flist(recursive_names) |> mk_fmap(uexp);
-  /*StringMap.iter(
-      (k, l) => {
-        print_endline(k);
-        print_endline(string_of_int(List.length(l)));
-        List.iter(ue => {print_endline(Term.UExp.show(ue))}, l);
-      },
-      m,
-    );*/
+  let total =
+    List.fold_left(
+      (+.),
+      0.,
+      var_mention_weights @ recursive_weights @ tail_recursive_weights,
+    );
+
+  let m =
+    StringMap.empty
+    |> add_flist(tail_recursive_names)
+    |> add_flist(recursive_names)
+    |> mk_fmap(uexp);
 
   let var_mention_res =
     List.map(name => {find_var_uexp(uexp, name)}, var_mention_names);
@@ -208,30 +249,61 @@ let check = (uexp: Term.UExp.t, p: syntax_tests): syntax_result => {
       recursive_names,
     );
 
+  let tail_recursive_res =
+    List.map(
+      name => {
+        let l = StringMap.find(name, m);
+        if (l == []) {
+          false;
+        } else {
+          List.fold_left(
+            (acc, ufun) => {
+              acc
+              && is_recursive(ufun, name)
+              && is_tail_recursive(ufun, name)
+            },
+            true,
+            StringMap.find(name, m),
+          );
+        };
+      },
+      tail_recursive_names,
+    );
+
   let passing =
     List.fold_left2(
       (acc, w, res) => {res ? acc +. w : acc},
       0.,
-      var_mention_weights @ recursive_weights,
-      var_mention_res @ recursive_res,
+      var_mention_weights @ recursive_weights @ tail_recursive_weights,
+      var_mention_res @ recursive_res @ tail_recursive_res,
     );
 
   let var_mention_hinted_results =
     List.map2(
-      (r, name) => {(r, String.cat(name, " is mentioned anywhere"))},
+      (r, name) => {(r, name ++ " is mentioned anywhere")},
       var_mention_res,
       var_mention_names,
     );
 
   let recursive_hinted_results =
     List.map2(
-      (r, name) => {(r, String.cat(name, " is recursive"))},
+      (r, name) => {(r, name ++ " is recursive")},
       recursive_res,
       recursive_names,
     );
 
+  let tail_recursive_hinted_results =
+    List.map2(
+      (r, name) => {(r, name ++ " is tail recursive")},
+      tail_recursive_res,
+      tail_recursive_names,
+    );
+
   {
-    hinted_results: var_mention_hinted_results @ recursive_hinted_results,
+    hinted_results:
+      var_mention_hinted_results
+      @ recursive_hinted_results
+      @ tail_recursive_hinted_results,
     percentage: Float.equal(total, 0.) ? 1. : passing /. total,
   };
 };

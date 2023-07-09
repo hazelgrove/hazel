@@ -934,10 +934,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests: {
         tests: hidden_tests_tests,
         hints: [],
-        syntax_tests: {
-          var_mention: [],
-          recursive: [],
-        },
+        syntax_tests: SyntaxTest.syntax_tests_empty,
       },
     };
   };

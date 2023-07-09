@@ -3093,6 +3093,7 @@ let exercise : SchoolExercise.spec =
           {
             var_mention = [ ("xyz", 50.); ("ext", 0.) ];
             recursive = [ ("odd", 100.); ("dne", 0.) ];
+            tail_recursive = [ ("odd_tail", 20.) ];
           };
       };
   }
