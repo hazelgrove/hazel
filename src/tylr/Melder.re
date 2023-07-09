@@ -9,46 +9,20 @@ module Terrace = {
   };
   module R = {
     include Terrace.R;
-    let connect = (terr: t, ~kid=Meld.empty(), w: Wald.t) => {
-      // step to nearest mold
-      let rec step = (z: GZipper.t(Atom.t)) => {
-        let last_kid =
-          switch (z) {
-          | (Tok(_), _) => Meld.empty()
-          | (Kid(s), _) => failwith("todo mk grout with s")
-          };
-        Regex.step(R, z.zipper)
-        |> List.map(stop_or_step(~last_kid))
-        |> Result.union_all;
-      }
-      and stop_or_step = (~last_kid, z: GZipper.t(Atom.t)) =>
-        switch (z.zipper) {
-        // stop
-        | (Tok(lbl), ctx) =>
-          let m = failwith("todo of lbl ctx sort prec");
-          Result.singleton(m, Path.init(last_kid));
-        // keep going
-        | (Kid(s), _) =>
-          let bound = Sort.eq(l.sort, s) ? bound : Prec.min;
-          let stepped_lt =
-            Grammar.enter(~from=L, ~bound, s)
-            |> List.map(stop_or_step(~last_kid))
-            |> List.map(Result.newline);
-          let stepped_eq =
-            step(z)
-        };
-      step(Mold.to_atom(face(terr).mold));
-    };
-
-
-    // let connect = (terr: t, ~kid=Meld.empty(), w: Wald.t) =>
-    //   Walker.step_leq(face(terr).mold)
-    //   |> Walker.Result.pick(
-    //     ~over=?Meld.sort(kid),
-    //     ~dest=Wald.fst(w).mold,
-    //   )
-    //   |> Option.map(plug(kid))
-    //   |>
+    let connect = (terr: t, ~kid=Meld.empty(), w: Wald.t): Result.t() =>
+      Walker.step(face(terr))
+      // intended functionality here is
+      // 1. to filter slopes based on destination
+      //    and replace final dummy piece with actual wald
+      // 2. pick best sort given kid
+      // 3. stick on terr at the front depending on lt/eq slope
+      // may need additional function args if gonna remain polymorphic
+      |> Walker.Result.pick(
+        ~from=terr,
+        ~over=kid,
+        ~to_=w,
+      )
+      |> Result.to_option(~error=unmk(terr, kid));
   };
 };
 

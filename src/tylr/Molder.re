@@ -71,9 +71,8 @@ let wrap = (_terr, _kid) => failwith("todo");
 
 module Terrace = {
   let mold = (terr: Terrace.R.t, ~kid=Meld.empty(), t: Token.t): Result.t =>
-    Molds.of_token(t)
-    |> Result.merge_all(wrap(terr, kid))
-}
+    Molds.of_token(t) |> Result.merge_all(wrap(terr, kid));
+};
 
 module Slope = {
   let rec mold = (slope: Slope.Dn.t, ~kid=Meld.empty(), t: Token.t): Result.t =>
@@ -91,4 +90,4 @@ module Slope = {
         }
       };
     };
-}
+};
