@@ -218,14 +218,14 @@ let check = (uexp: Term.UExp.t, p: syntax_tests): syntax_result => {
 
   let var_mention_hinted_results =
     List.map2(
-      (r, name) => {(r, String.cat(name, " is mentioned anywhere"))},
+      (r, name) => {(r, name ++ " is mentioned anywhere")},
       var_mention_res,
       var_mention_names,
     );
 
   let recursive_hinted_results =
     List.map2(
-      (r, name) => {(r, String.cat(name, " is recursive"))},
+      (r, name) => {(r, name ++ " is recursive")},
       recursive_res,
       recursive_names,
     );
