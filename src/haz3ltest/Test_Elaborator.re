@@ -51,7 +51,7 @@ let () =
       0,
       (
         ExpressionHole,
-        Unknown(TypeHole),
+        Unknown(Internal),
         Builtins.ctx(Builtins.Pervasives.builtins),
       ),
       Delta.empty,
@@ -72,7 +72,7 @@ let () =
       0,
       (
         ExpressionHole,
-        Unknown(TypeHole),
+        Unknown(Internal),
         Builtins.ctx(Builtins.Pervasives.builtins),
       ),
       Delta.empty,
@@ -272,7 +272,7 @@ let dl8: Delta.t =
     0,
     (
       ExpressionHole,
-      Unknown(TypeHole),
+      Unknown(Internal),
       Builtins.ctx(Builtins.Pervasives.builtins),
     ),
     Delta.empty,

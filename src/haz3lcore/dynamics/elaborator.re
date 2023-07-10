@@ -160,7 +160,7 @@ let rec dhexp_of_uexp =
     let delta_ty: Typ.t =
       switch (mode) {
       | Syn
-      | SynFun => Unknown(TypeHole)
+      | SynFun => Unknown(Internal)
       | Ana(ana_ty) => ana_ty
       };
     let* (d, dl): (DHExp.t, Delta.t) =
