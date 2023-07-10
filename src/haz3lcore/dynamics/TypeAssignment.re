@@ -79,6 +79,13 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
   | FixF(name, ty1, d) =>
     let entry = Ctx.VarEntry({name, id: 0, typ: ty1});
     typ_of_dhexp(Ctx.extend(entry, ctx), dl, d);
+  | Ap(TestLit(_), dtest) =>
+    let* ty = typ_of_dhexp(ctx, dl, dtest);
+    if (ty == Bool) {
+      Some(Typ.Prod([]));
+    } else {
+      None;
+    };
   | Ap(d1, d2) =>
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
     let* ty = typ_of_dhexp(ctx, dl, d1);
@@ -211,7 +218,7 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
       | FPlus
       | FTimes
       | FPower
-      | FDivide => Some(Typ.Int)
+      | FDivide => Some(Typ.Float)
       | FLessThan
       | FLessThanOrEqual
       | FGreaterThan
