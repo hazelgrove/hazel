@@ -441,6 +441,7 @@ and upat_to_info_map =
     if (Mode.is_module_ana(mode)) {
       let ctx_typ =
         Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      /* Change type var to be type member of module. */
       let ctx_typ = Ctx.modulize(ctx_typ, tag);
       /** If module has a type member with same name,
       add the type alias to the current context */
@@ -634,10 +635,12 @@ and uexp_to_module =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go_pat' = upat_to_info_map(~ctx=inner_ctx, ~ancestors);
   let go_module = uexp_to_module(~ancestors);
-  /**generates mode for let/module patterns according to the outer module mode. */
-  let rec out_moded = (out_mode: Mode.t, pat: Term.UPat.t): Mode.t => {
-    switch (out_mode) {
+  /**generates mode for let/module patterns according to the mode of module. */
+  let rec module_to_member_mode =
+          (module_mode: Mode.t, pat: Term.UPat.t): Mode.t => {
+    switch (module_mode) {
     | Ana(Module(m)) =>
+      // Basic patterns won't change mode
       switch (pat.term) {
       | Invalid(_)
       | EmptyHole
@@ -651,17 +654,19 @@ and uexp_to_module =
       | ListLit([])
       | TyAlias(_)
       | Ap(_) => Syn
+      // Var like patterns are looked up in the module context.
       | Var(name)
       | Tag(name) =>
         switch (Ctx.lookup_var(m, name)) {
         | Some(t) => Ana(t.typ)
         | None => Syn
         }
-      | Parens(pat) => out_moded(out_mode, pat)
+      // Composit patterns goes recursively.
+      | Parens(pat) => module_to_member_mode(module_mode, pat)
       | Tuple(pats) =>
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {
-            switch (mode, out_moded(out_mode, p)) {
+            switch (mode, module_to_member_mode(module_mode, p)) {
             | (Ana(Prod(ps)), Ana(t)) => Ana(Prod(ps @ [t]))
             | _ => Syn
             }
@@ -672,7 +677,7 @@ and uexp_to_module =
       | ListLit(pats) =>
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {
-            switch (mode, out_moded(out_mode, p)) {
+            switch (mode, module_to_member_mode(module_mode, p)) {
             | (Ana(List(t1)), Ana(t2)) =>
               switch (Typ.join(ctx, t1, t2)) {
               | Some(t) => Ana(List(t))
@@ -684,9 +689,12 @@ and uexp_to_module =
           Ana(Prod([])),
           pats,
         )
-      | TypeAnn(pat, _) => out_moded(out_mode, pat)
+      | TypeAnn(pat, _) => module_to_member_mode(module_mode, pat)
       | Cons(p1, p2) =>
-        switch (out_moded(out_mode, p1), out_moded(out_mode, p2)) {
+        switch (
+          module_to_member_mode(module_mode, p1),
+          module_to_member_mode(module_mode, p2),
+        ) {
         | (Ana(t1), Ana(List(t2))) =>
           switch (Typ.join(ctx, t1, t2)) {
           | Some(t) => Ana(List(t))
@@ -695,6 +703,7 @@ and uexp_to_module =
         | _ => Syn
         }
       }
+    // Modes that are not analyzing to a module type won't change member mode.
     | Ana(_)
     | SynFun
     | Syn => Syn
@@ -702,8 +711,9 @@ and uexp_to_module =
   };
   switch (uexp.term) {
   | Let(p, def, body) =>
-    let mode_pat = out_moded(mode, p);
+    let mode_pat = module_to_member_mode(mode, p);
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=mode_pat, p, m);
+    // The type specified in the module type overrides the type of pattern.
     let ty_pat =
       switch (mode_pat) {
       | Ana(t) => t
@@ -718,6 +728,8 @@ and uexp_to_module =
       | Syn
       | SynFun => def.ty
       };
+    // Need to update both context. This is a stopgap measure, given that
+    // upat_to_info_map no longer provides a single ctx entry but an updated ctx as a whole
     let (p_ana1, m1) = go_pat(~is_synswitch=false, ~mode=Ana(ty_def), p, m);
     let (p_ana2, _m) =
       go_pat'(~is_synswitch=false, ~mode=Ana(ty_def), p, m);
@@ -734,8 +746,9 @@ and uexp_to_module =
     );
 
   | Module(p, def, body) =>
-    let mode_pat = out_moded(mode, p);
+    let mode_pat = module_to_member_mode(mode, p);
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=mode_pat, p, m);
+    // The type specified in the module type overrides the type of pattern.
     let ty_pat =
       switch (mode_pat) {
       | Ana(t) => t
@@ -752,6 +765,8 @@ and uexp_to_module =
       | Syn
       | SynFun => typ_def
       };
+    // Need to update both context. This is a stopgap measure, given that
+    // upat_to_info_map no longer provides a single ctx entry but an updated ctx as a whole
     let (p_ana1, m1) = go_pat(~is_synswitch=false, ~mode=Ana(ty_def), p, m);
     let (p_ana2, _m) =
       go_pat'(~is_synswitch=false, ~mode=Ana(ty_def), p, m);
@@ -809,6 +824,7 @@ and uexp_to_module =
         go_module(~ctx=ctx_body, ~mode, body, m, new_inner);
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
+      /* Mark type member inconsistency. */
       let expects: Info.typ_expects =
         switch (mode) {
         | Ana(Module(m)) =>
