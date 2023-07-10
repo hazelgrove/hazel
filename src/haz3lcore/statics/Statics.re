@@ -475,26 +475,6 @@ and upat_to_info_map =
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-    /*
-     Attempted intervention for casting bug. If the annotated type is
-     consistent with the expected type, we analyze the pattern with the
-     joined type instead of the annotated type.
-     (fixes immediate issue; causes others)
-     */
-    /*switch (mode) {
-      | Ana(ana_ty) =>
-        switch (Typ.join(ctx, ann.ty, ana_ty)) {
-        | Some(ty_join) =>
-          let (p, m) = go(~ctx, ~mode=Ana(ty_join), p, m);
-          add(~self=Just(ty_join), ~ctx=p.ctx, m);
-        | None =>
-          let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
-          add(~self=Just(ann.ty), ~ctx=p.ctx, m);
-        }
-      | _ =>
-        let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
-        add(~self=Just(ann.ty), ~ctx=p.ctx, m);
-      };*/
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
     add(~self=Just(ann.ty), ~ctx=p.ctx, m);
   };
