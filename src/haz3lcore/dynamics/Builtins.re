@@ -71,18 +71,14 @@ module Pervasives = {
     let int_of_string = (name, r1) =>
       switch (r1) {
       | BoxedValue(StringLit(f) as d1) =>
-        let f = Re.Str.string_after(f, 1);
-        let f = Re.Str.string_before(f, String.length(f) - 1);
-        if (String.length(f) == 0) {
-          BoxedValue(IntLit(0)) |> return;
-        } else if (Form.is_int(f)) {
-          let i = int_of_string(f);
-          BoxedValue(IntLit(i)) |> return;
-        } else {
+        let i = int_of_string_opt(f);
+        switch (i) {
+        | Some(x) => BoxedValue(IntLit(x)) |> return
+        | None =>
           Indet(
             InvalidOperation(ApBuiltin(name, [d1]), InvalidIntOfString),
           )
-          |> return;
+          |> return
         };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
@@ -115,18 +111,14 @@ module Pervasives = {
     let float_of_string = (name, r1) =>
       switch (r1) {
       | BoxedValue(StringLit(s) as d1) =>
-        let s = Re.Str.string_after(s, 1);
-        let s = Re.Str.string_before(s, String.length(s) - 1);
-        if (String.length(s) == 0) {
-          BoxedValue(FloatLit(0.)) |> return;
-        } else if (Form.is_float(s)) {
-          let f = float_of_string(s);
-          BoxedValue(FloatLit(f)) |> return;
-        } else {
+        let f = float_of_string_opt(s);
+        switch (f) {
+        | Some(x) => BoxedValue(FloatLit(x)) |> return
+        | None =>
           Indet(
             InvalidOperation(ApBuiltin(name, [d1]), InvalidFloatOfString),
           )
-          |> return;
+          |> return
         };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
