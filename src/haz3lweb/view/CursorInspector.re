@@ -177,6 +177,15 @@ let exp_view: Info.status_exp => t =
 let pat_view: Info.status_pat => t =
   fun
   | InHole(ExpectedTag) => div_err([text("Expected a constructor")])
+  | InHole(ExpectedModule(token)) =>
+    div_err([
+      text(
+        Printf.sprintf(
+          "\"%s\" isn't a valid module name (module names must be capitalized)",
+          token,
+        ),
+      ),
+    ])
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));
 

@@ -56,6 +56,7 @@ type error_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | ExpectedTag
+  | ExpectedModule(string)
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -263,6 +264,8 @@ let rec status_common =
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
+  | (Ana(Module(_)), Common(BadToken(name))) =>
+    InHole(ExpectedModule(name))
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsTag(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound tag will, in
