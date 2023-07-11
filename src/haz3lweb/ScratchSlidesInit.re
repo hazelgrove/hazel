@@ -1,9 +1,4 @@
-let filled_slides = [
-  LanguageRefSlide.lang_ref,
-  LanguageRefSlide.basic_type_egs,
-  LanguageRefSlide.adt_egs,
-  LanguageRefSlide.adt_dynamics_tests,
-];
+let filled_slides = [LanguageRefSlide.lang_ref];
 
 let empty: ScratchSlide.persistent_state = (
   1,

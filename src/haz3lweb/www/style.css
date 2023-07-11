@@ -443,13 +443,21 @@ body,
   transform: scale(110%);
 }
 
-#editor-mode .toggle-switch.active .toggle-knob {
+#top-bar #editor-mode .toggle-switch.active .toggle-knob {
   filter: grayscale(1) sepia(1);
 }
 
-#editor-mode .toggle-switch .toggle-knob {
+#top-bar #editor-mode .toggle-switch .toggle-knob {
   filter: grayscale(1) sepia(1) opacity(0.3);
 }
+
+#top-bar #editor-mode select {
+  background-color: #0000;
+  border: none;
+  /*border-bottom: 1px solid white;*/
+  border-radius: 0.6em;
+  font-size: 1em;
+};
 
 /* END TOP BAR */
 
