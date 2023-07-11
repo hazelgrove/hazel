@@ -65,7 +65,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Sum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
-      | [t0] => [text("Singleton Sum {")] @ tagged_view(t0) @ [text("}")]
+      | [t0] => [text("+")] @ tagged_view(t0)
       | [t0, ...ts] =>
         let ts_views =
           List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
