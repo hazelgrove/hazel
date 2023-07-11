@@ -268,6 +268,22 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                );
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
+      | LetStar(pat, def, body) =>
+        let* dpat = dhpat_of_upat(m, pat);
+        let* ddef = dhexp_of_uexp(m, def);
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Ap(
+          BoundVar("let*"),
+          Tuple([ddef, Fun(dpat, Statics.pat_typ(m, pat), dbody, None)]),
+        );
+      | LetOp(op, pat, def, body) =>
+        let* dpat = dhpat_of_upat(m, pat);
+        let* ddef = dhexp_of_uexp(m, def);
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Ap(
+          BoundVar(op),
+          Tuple([ddef, Fun(dpat, Statics.pat_typ(m, pat), dbody, None)]),
+        );
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);

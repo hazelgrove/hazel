@@ -411,6 +411,28 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
+  | LetOp(op, pat, def, body) =>
+    let (ty_fn, free_fn, m_fn) =
+      uexp_to_info_map(
+        ~ctx,
+        ~mode=Typ.ap_mode,
+        {term: Var(op), ids: [(-1)]},
+      );
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let (_, free_arg, m_arg) =
+      uexp_to_info_map(
+        ~ctx,
+        ~mode=Ana(ty_in),
+        {
+          term: Tuple([def, {term: Fun(pat, body), ids: [(-1)]}]),
+          ids: [(-1)],
+        },
+      );
+    add(
+      ~self=Just(ty_out),
+      ~free=Ctx.union([free_fn, free_arg]),
+      union_m([m_fn, m_arg]),
+    );
   | UserOp(op, e1, e2) =>
     let op_var = Ctx.lookup_var(ctx, op);
     let ty_all =
@@ -503,6 +525,7 @@ and uexp_to_info_map =
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
+  | LetStar(pat, def, body)
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
@@ -628,17 +651,22 @@ and upat_to_info_map =
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    if (Form.is_op_in_let(name)
-        && List.mem(
-             String.sub(name, 1, String.length(name) - 2),
-             Form.delims,
-           )) {
+    Printf.printf("upat_to_info_map: Var(%s)\n%!", name);
+    if (Form.is_let_op_in_let(name)) {
+      let typ = typ_after_fix(mode, Just(Unknown(Internal)));
+      let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
+    } else if (Form.is_op_in_let(name)
+               && List.mem(
+                    String.sub(name, 1, String.length(name) - 2),
+                    Form.delims,
+                  )) {
       atomic(Free(BuiltinOpExists));
     } else {
       let typ = typ_after_fix(mode, Just(Unknown(Internal)));
       let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
-    }
+    };
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =

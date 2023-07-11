@@ -60,13 +60,34 @@ let _complete_root =
     | ([(id, tile)], []) =>
       switch (tile) {
       | (["("], []) => Op(single(id, (["(", ")"], [r])))
+      | ([t], []) when Form.is_let_op(t) =>
+        Printf.printf("case1: %s", t);
+        Pre(
+          single(id, (Labels.letOp, [r, dark_hole(Exp)])),
+          dark_hole(Exp),
+        );
+      | (["let*"], []) =>
+        Printf.printf("case1: let*");
+        Pre(
+          single(id, (Labels.letStar, [r, dark_hole(Exp)])),
+          dark_hole(Exp),
+        );
+
       | (["let"], []) =>
+        Printf.printf("case1: let");
         Pre(
           single(id, (Labels.let_, [r, dark_hole(Exp)])),
           dark_hole(Exp),
-        )
+        );
+      | ([t, "="], [pat]) when Form.is_let_op(t) =>
+        Printf.printf("case2: %s", t);
+        Pre(single(id, (Labels.letOp, [pat, r])), dark_hole(Exp));
+      | (["let*", "="], [pat]) =>
+        Printf.printf("case2: let*");
+        Pre(single(id, (Labels.letStar, [pat, r])), dark_hole(Exp));
       | (["let", "="], [pat]) =>
-        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
+        Printf.printf("case2: let");
+        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp));
       | _ => root
       }
     | _ => root
@@ -245,7 +266,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
-        | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["let", "=", "in"], [Pat(pat), Exp(def)]) =>
+          Printf.printf("let = in \n");
+          Let(pat, def, r);
+        | (["let*", "=", "in"], [Pat(pat), Exp(def)]) =>
+          Printf.printf("let = in \n");
+          LetStar(pat, def, r);
+        | ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
+          Printf.printf("let op: %s\n", t);
+          LetOp(t, pat, def, r);
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

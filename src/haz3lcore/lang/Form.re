@@ -153,12 +153,19 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
-let is_op_in_let_precursor = regexp("^_[~?!$%&*+\\-./:<=>@^]*$");
-let is_op_in_let = regexp("^_[~?!$%&*+\\-./:<=>@^]+_$");
-let is_op = regexp("^[~?!$%&*+\\-./:<=>@^]+$");
+let is_op_in_let_precursor = regexp("^_[let]*[~?!$%&*+\\-./:<=>@^]*$");
+let is_let_op_in_let = regexp("^_let[~?!$%&*+\\-./:<=>@^]+_$");
+let is_op_in_let = str =>
+  regexp("^_[~?!$%&*+\\-./:<=>@^]+_$", str) || is_let_op_in_let(str);
+let is_let_op = regexp("^let[~?!$%&*+\\-./:<=>@^]+$");
+let is_op = str => regexp("^[~?!$%&*+\\-./:<=>@^]+$", str) || is_let_op(str);
 let is_var = str =>
   !is_reserved(str)
-  && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op_in_let(str));
+  && (
+    regexp("^[a-z][A-Za-z0-9_]*$", str)
+    || is_op_in_let(str)
+    || is_let_op(str)
+  );
 
 /* B. Operands:
    Order in this list determines relative remolding
@@ -234,6 +241,10 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  (
+    "letStar",
+    mk(ds, ["let*", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (

@@ -360,6 +360,8 @@ module UExp = {
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | UserOp(op, _, _) => UserOp(op)
+    | LetOp(op, _, _, _) => LetOp(op)
+    | LetStar(_) => LetStar
     | Match(_) => Match;
 
   let show_op_un_int: op_un_int => string =
@@ -427,6 +429,7 @@ module UExp = {
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
+    | LetStar => "Let* Expression"
     | Let => "Let Expression"
     | Ap => "Function/Contructor Application"
     | If => "If Expression"
@@ -437,6 +440,7 @@ module UExp = {
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | UserOp(op) => "User Operator: " ++ Var.show(op)
+    | LetOp(op) => "Let" ++ Var.show(op) ++ " Operator: "
     | Match => "Match Expression";
 
   let rec is_fun = (e: t) => {
@@ -464,6 +468,8 @@ module UExp = {
     | BinOp(_)
     | UserOp(_)
     | Match(_)
+    | LetOp(_)
+    | LetStar(_)
     | Tag(_) => false
     };
   };
@@ -495,6 +501,8 @@ module UExp = {
       | BinOp(_)
       | UserOp(_)
       | Match(_)
+      | LetOp(_)
+      | LetStar(_)
       | Tag(_) => false
       }
     );
