@@ -1069,7 +1069,7 @@ let lang_ref : ScratchSlide.persistent_state =
     } )
 
 let basic_type_egs : ScratchSlide.persistent_state =
-  ( 13588,
+  ( 13702,
     {
       zipper =
         "((selection((focus \
@@ -1088,6 +1088,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          2154)(content(Whitespace\" \")))))))))(Secondary((id \
+         3823)(content(Whitespace\" \"))))(Secondary((id 3827)(content(Comment \
+         #err#))))(Secondary((id \
          2872)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          2877)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
@@ -1101,6 +1103,9 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          2898)(content(Whitespace\" \")))))))))(Secondary((id \
+         3830)(content(Whitespace\" \"))))(Secondary((id \
+         3840)(content(Comment\"# 2x err#\"))))(Secondary((id \
+         3829)(content(Whitespace\" \"))))(Secondary((id \
          2132)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          1143)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
@@ -1112,7 +1117,10 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1155)(content(Whitespace\" \"))))(Tile((id 2168)(label(2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1163)(content(Whitespace\" \"))))))))))((Secondary((id \
+         1163)(content(Whitespace\" \")))))))))(Secondary((id \
+         3935)(content(Whitespace\" \"))))(Secondary((id 3942)(content(Comment \
+         #err#))))(Secondary((id 3889)(content(Whitespace\" \
+         \"))))(Secondary((id \
          2739)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3287)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3292)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
@@ -1136,12 +1144,14 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          3332)(content(Whitespace\" \")))))))))(Secondary((id \
-         3334)(content(Whitespace\" \"))))(Secondary((id \
+         3877)(content(Whitespace\" \"))))(Secondary((id 3881)(content(Comment \
+         #err#))))(Secondary((id 3334)(content(Whitespace\" \
+         \"))))(Secondary((id \
          3336)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3341)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3342)(content(Whitespace\" \
-         \"))))(Tile((id 3343)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3589)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          3345)(content(Whitespace\" \")))))((Secondary((id \
@@ -1161,11 +1171,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          3381)(content(Whitespace\" \")))))))))(Secondary((id \
+         3883)(content(Whitespace\" \"))))(Secondary((id 3887)(content(Comment \
+         #err#))))(Secondary((id \
          3551)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3389)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3390)(content(Whitespace\" \
-         \"))))(Tile((id 3391)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3591)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3394)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1192,7 +1204,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          2174)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2175)(content(Whitespace\" \
-         \"))))(Tile((id 2176)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3593)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 2179)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1218,11 +1230,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          2221)(content(Whitespace\" \")))))))))(Secondary((id \
+         3865)(content(Whitespace\" \"))))(Secondary((id 3869)(content(Comment \
+         #err#))))(Secondary((id \
          2223)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3441)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3442)(content(Whitespace\" \
-         \"))))(Tile((id 3443)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3595)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3446)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1249,11 +1263,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          3489)(content(Whitespace\" \")))))))))(Secondary((id \
+         3871)(content(Whitespace\" \"))))(Secondary((id 3875)(content(Comment \
+         #err#))))(Secondary((id \
          3492)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          2228)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2229)(content(Whitespace\" \
-         \"))))(Tile((id 2231)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3597)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 2233)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 14))(sort Pat))((shape(Concave \
@@ -1278,11 +1294,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          2273)(content(Whitespace\" \")))))))))(Secondary((id \
+         3926)(content(Whitespace\" \"))))(Secondary((id \
+         3934)(content(Comment\"#2x err#\"))))(Secondary((id \
          1165)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          2642)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2643)(content(Whitespace\" \
-         \"))))(Tile((id 2644)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3599)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 2646)(label(,))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 14))(sort Pat))((shape(Concave \
@@ -1314,12 +1332,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))))))(shards(0))(children())))(Secondary((id \
          2694)(content(Whitespace\" \"))))(Grout((id 2693)(shape \
          Convex)))(Secondary((id 2686)(content(Whitespace\" \
-         \")))))))))(Secondary((id \
+         \")))))))))(Secondary((id 3859)(content(Whitespace\" \
+         \"))))(Secondary((id 3863)(content(Comment #err#))))(Secondary((id \
          3494)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3559)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3560)(content(Whitespace\" \
-         \"))))(Tile((id 3561)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3601)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3611)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1360,9 +1379,9 @@ let basic_type_egs : ScratchSlide.persistent_state =
          2430)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2431)(content(Whitespace\" \
-         \"))))(Tile((id 2482)(label([ ]))(mold((out \
+         \"))))(Tile((id 3603)(label([ ]))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0 1))(children(((Tile((id 2432)(label(a))(mold((out \
+         Pat))))))(shards(0 1))(children(((Tile((id 3604)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          2438)(content(Whitespace\" \")))))((Secondary((id \
@@ -1392,9 +1411,9 @@ let basic_type_egs : ScratchSlide.persistent_state =
          2589)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2590)(content(Whitespace\" \
-         \"))))(Tile((id 2591)(label([ ]))(mold((out \
+         \"))))(Tile((id 3608)(label([ ]))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0 1))(children(((Tile((id 2592)(label(a))(mold((out \
+         Pat))))))(shards(0 1))(children(((Tile((id 3609)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          2594)(content(Whitespace\" \")))))((Secondary((id \
@@ -1417,6 +1436,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          2634)(content(Whitespace\" \")))))))))(Secondary((id \
+         3917)(content(Whitespace\" \"))))(Secondary((id \
+         3925)(content(Comment\"#2x err#\"))))(Secondary((id \
          2636)(content(Whitespace\" \"))))(Secondary((id \
          1267)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          1422)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
@@ -1466,6 +1487,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1745)(label(\";\"))(mold((out Exp)(in_())(nibs(((shape(Concave \
          10))(sort Exp))((shape(Concave 10))(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
+         3853)(content(Whitespace\" \"))))(Secondary((id 3857)(content(Comment \
+         #err#))))(Secondary((id \
          1748)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          1749)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
          Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
@@ -1492,6 +1515,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1780)(label(\";\"))(mold((out Exp)(in_())(nibs(((shape(Concave \
          10))(sort Exp))((shape(Concave 10))(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
+         3847)(content(Whitespace\" \"))))(Secondary((id 3851)(content(Comment \
+         #err#))))(Secondary((id \
          2751)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          2752)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
          Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
@@ -1528,7 +1553,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1))(children(((Tile((id 1467)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          13))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         1468)(content(Whitespace\" \"))))(Tile((id 1470)(label(x))(mold((out \
+         1468)(content(Whitespace\" \"))))(Tile((id 3613)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          1471)(content(Whitespace\" \")))))))))(Secondary((id \
@@ -1559,7 +1584,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1))(children(((Tile((id 1518)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          13))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         1519)(content(Whitespace\" \"))))(Tile((id 1521)(label(x))(mold((out \
+         1519)(content(Whitespace\" \"))))(Tile((id 3617)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 1522)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1594,7 +1619,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1))(children(((Tile((id 2800)(label(fun ->))(mold((out \
          Exp)(in_(Pat))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          13))(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-         2801)(content(Whitespace\" \"))))(Tile((id 2803)(label(x))(mold((out \
+         2801)(content(Whitespace\" \"))))(Tile((id 3619)(label(_))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 2804)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1625,12 +1650,14 @@ let basic_type_egs : ScratchSlide.persistent_state =
          2847)(label(\";\"))(mold((out Exp)(in_())(nibs(((shape(Concave \
          10))(sort Exp))((shape(Concave 10))(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
+         3841)(content(Whitespace\" \"))))(Secondary((id 3845)(content(Comment \
+         #err#))))(Secondary((id \
          3637)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3638)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3642)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3643)(content(Whitespace\" \
-         \"))))(Tile((id 3645)(label(f))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3621)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          3704)(content(Whitespace\" \")))))((Secondary((id \
@@ -1658,11 +1685,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          3700)(content(Whitespace\" \")))))))))(Secondary((id \
+         3911)(content(Whitespace\" \"))))(Secondary((id 3915)(content(Comment \
+         #err#))))(Secondary((id \
          3702)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3708)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3709)(content(Whitespace\" \
-         \"))))(Tile((id 3711)(label(f))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3623)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3712)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1697,7 +1726,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          3776)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3777)(content(Whitespace\" \
-         \"))))(Tile((id 3779)(label(f))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3625)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3780)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1737,7 +1766,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          3844)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3845)(content(Whitespace\" \
-         \"))))(Tile((id 3847)(label(f))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3627)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3848)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1776,11 +1805,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          3905)(content(Whitespace\" \")))))))))(Secondary((id \
+         3905)(content(Whitespace\" \"))))(Secondary((id 3909)(content(Comment \
+         #err#))))(Secondary((id \
          3907)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          4059)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 4060)(content(Whitespace\" \
-         \"))))(Tile((id 4061)(label(f))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3629)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 4062)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1818,6 +1849,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          4115)(content(Whitespace\" \")))))))))(Secondary((id \
+         3896)(content(Whitespace\" \"))))(Secondary((id \
+         3904)(content(Comment\"#2x err#\"))))(Secondary((id \
          4118)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3912)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3910)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
@@ -1876,6 +1909,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          1642)(label(\";\"))(mold((out Exp)(in_())(nibs(((shape(Concave \
          10))(sort Exp))((shape(Concave 10))(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
+         3774)(content(Whitespace\" \"))))(Secondary((id 3778)(content(Comment \
+         #err#))))(Secondary((id \
          2031)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          2734)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
          Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
@@ -1912,6 +1947,8 @@ let basic_type_egs : ScratchSlide.persistent_state =
          2733)(label(\";\"))(mold((out Exp)(in_())(nibs(((shape(Concave \
          10))(sort Exp))((shape(Concave 10))(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
+         3766)(content(Whitespace\" \"))))(Secondary((id \
+         3773)(content(Comment\"#2x err#\"))))(Secondary((id \
          2738)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3078)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3083)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
@@ -1937,11 +1974,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          3109)(content(Whitespace\" \")))))))))(Secondary((id \
+         3719)(content(Whitespace\" \"))))(Secondary((id \
+         3737)(content(Comment\"#err: inconsistent#\"))))(Secondary((id \
          2899)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          2904)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2905)(content(Whitespace\" \
-         \"))))(Tile((id 3926)(label(s))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3631)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          2908)(content(Whitespace\" \")))))((Secondary((id \
@@ -1963,11 +2002,13 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          2923)(content(Whitespace\" \")))))))))(Secondary((id \
+         3738)(content(Whitespace\" \"))))(Secondary((id \
+         3756)(content(Comment\"#err: inconsistent#\"))))(Secondary((id \
          3003)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3008)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3009)(content(Whitespace\" \
-         \"))))(Tile((id 3928)(label(s))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3633)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3041)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -1996,7 +2037,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
          2930)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 2931)(content(Whitespace\" \
-         \"))))(Tile((id 3930)(label(s))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3635)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 2934)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -2022,13 +2063,11 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          2954)(content(Whitespace\" \")))))))))(Secondary((id \
-         3115)(content(Whitespace\" \"))))(Secondary((id \
-         3148)(content(Comment\"#interesting: ana not unk#\"))))(Secondary((id \
          2956)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
          3046)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
          Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
          2))(children(((Secondary((id 3047)(content(Whitespace\" \
-         \"))))(Tile((id 3932)(label(s))(mold((out Pat)(in_())(nibs(((shape \
+         \"))))(Tile((id 3637)(label(_))(mold((out Pat)(in_())(nibs(((shape \
          Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id 3049)(label(:))(mold((out \
          Pat)(in_())(nibs(((shape(Concave 11))(sort Pat))((shape(Concave \
@@ -2057,48 +2096,145 @@ let basic_type_egs : ScratchSlide.persistent_state =
          Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          3072)(content(Whitespace\" \")))))))))(Secondary((id \
-         3074)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-         4297)(label(0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         3758)(content(Whitespace\" \"))))(Secondary((id \
+         3765)(content(Comment\"#2x err#\"))))(Secondary((id \
+         3644)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3779)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         13592)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 13593)(content(Whitespace\" \
+         \"))))(Tile((id 13595)(label(_))(mold((out Pat)(in_())(nibs(((shape \
+         Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id \
+         13596)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave 11))(sort \
+         Pat))((shape(Concave 11))(sort \
+         Typ))))))(shards(0))(children())))(Secondary((id \
+         13598)(content(Whitespace\" \"))))(Tile((id 13599)(label([ \
+         ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+         Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+         13602)(label(Int))(mold((out Typ)(in_())(nibs(((shape Convex)(sort \
+         Typ))((shape Convex)(sort \
+         Typ))))))(shards(0))(children()))))))))(Secondary((id \
+         13603)(content(Whitespace\" \")))))((Secondary((id \
+         13605)(content(Whitespace\" \"))))(Tile((id \
+         13606)(label(1))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+         13609)(label(::))(mold((out Exp)(in_())(nibs(((shape(Concave 6))(sort \
+         Exp))((shape(Concave 6))(sort \
+         Exp))))))(shards(0))(children())))(Tile((id 13610)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+         13611)(label(2))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
          Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         13614)(content(Whitespace\" \")))))))))(Secondary((id \
+         13616)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         13620)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 13621)(content(Whitespace\" \
+         \"))))(Tile((id 13623)(label(_))(mold((out Pat)(in_())(nibs(((shape \
+         Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id \
+         13624)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave 11))(sort \
+         Pat))((shape(Concave 11))(sort \
+         Typ))))))(shards(0))(children())))(Secondary((id \
+         13626)(content(Whitespace\" \"))))(Tile((id 13627)(label([ \
+         ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+         Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+         13630)(label(Int))(mold((out Typ)(in_())(nibs(((shape Convex)(sort \
+         Typ))((shape Convex)(sort \
+         Typ))))))(shards(0))(children()))))))))(Secondary((id \
+         13631)(content(Whitespace\" \")))))((Secondary((id \
+         13633)(content(Whitespace\" \"))))(Tile((id \
+         13636)(label(1.0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+         13639)(label(::))(mold((out Exp)(in_())(nibs(((shape(Concave 6))(sort \
+         Exp))((shape(Concave 6))(sort \
+         Exp))))))(shards(0))(children())))(Tile((id 13640)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+         13641)(label(2))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         13644)(content(Whitespace\" \")))))))))(Secondary((id \
+         13680)(content(Whitespace\" \"))))(Secondary((id \
+         13684)(content(Comment #err#))))(Secondary((id \
+         13646)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         13650)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 13651)(content(Whitespace\" \
+         \"))))(Tile((id 13653)(label(_))(mold((out Pat)(in_())(nibs(((shape \
+         Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id \
+         13654)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave 11))(sort \
+         Pat))((shape(Concave 11))(sort \
+         Typ))))))(shards(0))(children())))(Secondary((id \
+         13656)(content(Whitespace\" \"))))(Tile((id 13657)(label([ \
+         ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+         Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+         13660)(label(Int))(mold((out Typ)(in_())(nibs(((shape Convex)(sort \
+         Typ))((shape Convex)(sort \
+         Typ))))))(shards(0))(children()))))))))(Secondary((id \
+         13661)(content(Whitespace\" \")))))((Secondary((id \
+         13663)(content(Whitespace\" \"))))(Tile((id \
+         13664)(label(1))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+         13667)(label(::))(mold((out Exp)(in_())(nibs(((shape(Concave 6))(sort \
+         Exp))((shape(Concave 6))(sort \
+         Exp))))))(shards(0))(children())))(Tile((id 13668)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+         13671)(label(2.0))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         13674)(content(Whitespace\" \")))))))))(Secondary((id \
+         13676)(content(Whitespace\" \"))))(Secondary((id \
+         13688)(content(Comment #err#))))(Secondary((id \
+         13677)(content(Whitespace\"\\226\\143\\142\")))))((Tile((id \
+         13701)(label(\"\\\"BYE\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+         Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
-         1825)(content(Whitespace\"\\226\\143\\142\")))))))(ancestors())))(caret \
-         Outer))";
+         1825)(content(Whitespace\"\\226\\143\\142\")))))))(ancestors())))(caret(Inner \
+         0 3)))";
       backup_text =
         "#Types and type error examples#\n\n\
-         let   = unbound in\n\
-         let Undefined = Undefined in\n\
-         let true = 2 in\n\n\
-         let   = if true then 1 else 1. in \n\
-         let a = if true then 1 else 1. in\n\
-         let a:   = if true then 1 else 1. in\n\
-         let a: Int = if true then 1 else 1. in\n\
-         let a: Fake = if true then 1 else true in\n\
-         let a, _ = if true then 1 else 1. in\n\
-         let a, _ = (if true then 1 else 1.),   in\n\
-         let a: , _ = (if true then 1 else 1.),   in \n\
-         let [a] = [(if true then 1 else 1.)] in \n\
-         let [a] = (if true then 1 else 1.) in \n\n\
+         let   = unbound in #err#\n\
+         let Undefined = Undefined in # 2x err# \n\
+         let true = 2 in #err# \n\n\
+         let   = if true then 1 else 1. in #err# \n\
+         let _ = if true then 1 else 1. in #err#\n\
+         let _:   = if true then 1 else 1. in\n\
+         let _: Int = if true then 1 else 1. in #err#\n\
+         let _: Fake = if true then 1 else true in #err#\n\
+         let _, _ = if true then 1 else 1. in #2x err#\n\
+         let _, _ = (if true then 1 else 1.),   in #err#\n\
+         let _: , _ = (if true then 1 else 1.),   in \n\
+         let [_] = [(if true then 1 else 1.)] in \n\
+         let [_] = (if true then 1 else 1.) in #2x err# \n\n\
          ( )(if true then 1 else 1.);\n\
-         1(if true then 1 else 1.);\n\
-         (1)(if true then 1 else 1.);\n\
+         1(if true then 1 else 1.); #err#\n\
+         (1)(if true then 1 else 1.); #err#\n\
          (fun   ->  )(if true then 1 else 1.);\n\
-         (fun x ->  )(if true then 1 else 1.);\n\
-         (fun x:   ->  )(if true then 1 else 1.);\n\
-         (fun x: Int ->  )(if true then 1 else 1.);\n\n\
-         let f = fun x -> if true then 1 else 1. in\n\
-         let f:   = fun x -> if true then 1 else 1. in\n\
-         let f:   ->   = fun x -> if true then 1 else 1. in\n\
-         let f:   -> Int = fun x -> if true then 1 else 1. in\n\
-         let f:   -> [ ] = fun x -> if true then 1 else 1. in\n\n\
+         (fun _ ->  )(if true then 1 else 1.);\n\
+         (fun _:   ->  )(if true then 1 else 1.);\n\
+         (fun _: Int ->  )(if true then 1 else 1.); #err#\n\n\
+         let _ = fun x -> if true then 1 else 1. in #err#\n\
+         let _:   = fun x -> if true then 1 else 1. in\n\
+         let _:   ->   = fun x -> if true then 1 else 1. in\n\
+         let _:   -> Int = fun x -> if true then 1 else 1. in #err#\n\
+         let _:   -> [ ] = fun x -> if true then 1 else 1. in #2x err#\n\n\
          ( )::[(if true then 1 else 1.)];\n\
-         1::[(if true then 1 else 1.)];\n\
-         (1,1)::[(if true then 1 else 1.)];\n\n\
-         let   = [1, 1., true] in\n\
-         let s = [1, 1., true] in\n\
-         let s:  = [1, 1., true] in \n\
-         let s:[ ] = [1, 1., true] in #interesting: ana not unk#\n\
-         let s:[Int] = [1, 1., true] in\n\
-         0\n";
+         1::[(if true then 1 else 1.)]; #err#\n\
+         (1,1)::[(if true then 1 else 1.)]; #2x err#\n\n\
+         let   = [1, 1., true] in #err: inconsistent#\n\
+         let _ = [1, 1., true] in #err: inconsistent#\n\
+         let _:  = [1, 1., true] in \n\
+         let _:[ ] = [1, 1., true] in\n\
+         let _:[Int] = [1, 1., true] in #2x err#\n\n\
+         let _: [Int] = 1::[2] in\n\
+         let _: [Int] = 1.0::[2] in #err#\n\
+         let _: [Int] = 1::[2.0] in #err#\n\
+         \"BYE\"\n";
     } )
 
 let adt_egs : ScratchSlide.persistent_state =
