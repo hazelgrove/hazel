@@ -1069,7 +1069,7 @@ let lang_ref : ScratchSlide.persistent_state =
     } )
 
 let basic_type_egs : ScratchSlide.persistent_state =
-  ( 3588,
+  ( 13588,
     {
       zipper =
         "((selection((focus \
@@ -2102,7 +2102,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
     } )
 
 let adt_egs : ScratchSlide.persistent_state =
-  ( 9384,
+  ( 19384,
     {
       zipper =
         "((selection((focus \

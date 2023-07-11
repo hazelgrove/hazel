@@ -136,11 +136,16 @@ type status_typ =
   | InHole(error_typ)
   | NotInHole(ok_typ);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_var_err =
+  | Other
+  | NotCapitalized;
+
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
   | ShadowsType(TypVar.t)
-  | NotAVar;
+  | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -336,8 +341,8 @@ let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
       when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
     InHole(ShadowsType(name))
   | Var(name) => NotInHole(Var(name))
-  | Invalid(_)
-  | MultiHole(_) => InHole(NotAVar)
+  | Invalid(_) => InHole(NotAVar(NotCapitalized))
+  | MultiHole(_) => InHole(NotAVar(Other))
   };
 
 /* Determines whether any term is in an error hole. */
