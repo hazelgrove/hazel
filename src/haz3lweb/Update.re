@@ -6,10 +6,32 @@ let save_editors = (model: Model.t): unit =>
   switch (model.editors) {
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) => LocalStorage.Scratch.save((n, slides))
+  | Examples(name, slides) => LocalStorage.Examples.save((name, slides))
   | School(n, specs, exercise) =>
     LocalStorage.School.save(
       (n, specs, exercise),
       ~instructor_mode=model.settings.instructor_mode,
+    )
+  };
+
+let reset_editor = (editors: Editors.t, ~instructor_mode): Editors.t =>
+  switch (editors) {
+  | DebugLoad => failwith("impossible")
+  | Scratch(n, slides) =>
+    let slides =
+      Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
+    Scratch(n, slides);
+  | Examples(name, slides) =>
+    let slides =
+      slides
+      |> List.remove_assoc(name)
+      |> List.cons((name, Examples.init_name(name)));
+    Examples(name, slides);
+  | School(n, specs, _) =>
+    School(
+      n,
+      specs,
+      List.nth(specs, n) |> SchoolExercise.state_of_spec(~instructor_mode),
     )
   };
 
@@ -96,6 +118,9 @@ let load_model = (model: Model.t): Model.t => {
     | Scratch =>
       let (idx, slides) = LocalStorage.Scratch.load();
       {...model, editors: Scratch(idx, slides)};
+    | Examples =>
+      let (name, slides) = LocalStorage.Examples.load();
+      {...model, editors: Examples(name, slides)};
     | School =>
       let instructor_mode = model.settings.instructor_mode;
       let specs = School.exercises;
@@ -112,18 +137,6 @@ let load_model = (model: Model.t): Model.t => {
       ),
   };
 };
-
-let load_default_editor = (model: Model.t): Model.t =>
-  switch (model.editors) {
-  | DebugLoad => model
-  | Scratch(_) =>
-    let (idx, editors) = LocalStorage.Scratch.init();
-    {...model, editors: Scratch(idx, editors)};
-  | School(_) =>
-    let instructor_mode = model.settings.instructor_mode;
-    let (n, specs, exercise) = LocalStorage.School.init(~instructor_mode);
-    {...model, editors: School(n, specs, exercise)};
-  };
 
 let reevaluate_post_update =
   fun
@@ -165,7 +178,8 @@ let reevaluate_post_update =
   | FinishImportScratchpad(_)
   | ResetSlide
   | SwitchEditor(_)
-  | SwitchSlide(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
   | ToggleMode
   | Cut
   | Paste(_)
@@ -248,7 +262,8 @@ let apply =
       Ok(model);
     | FinishImportScratchpad(data) =>
       switch (model.editors) {
-      | DebugLoad => failwith("impossible")
+      | DebugLoad
+      | Examples(_)
       | School(_) => failwith("impossible")
       | Scratch(idx, slides) =>
         switch (data) {
@@ -257,36 +272,24 @@ let apply =
           let state = ScratchSlide.import(data);
           let slides = Util.ListUtil.put_nth(idx, state, slides);
           LocalStorage.Scratch.save((idx, slides));
-
           Ok({...model, editors: Scratch(idx, slides)});
         }
       }
     | ResetSlide =>
-      let model =
-        switch (model.editors) {
-        | DebugLoad => failwith("impossible")
-        | Scratch(n, slides) =>
-          let slides =
-            Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
-          {...model, editors: Scratch(n, slides)};
-        | School(n, specs, _) =>
-          let instructor_mode = model.settings.instructor_mode;
-          {
-            ...model,
-            editors:
-              School(
-                n,
-                specs,
-                List.nth(specs, n)
-                |> SchoolExercise.state_of_spec(~instructor_mode),
-              ),
-          };
-        };
+      let model = {
+        ...model,
+        editors:
+          reset_editor(
+            model.editors: Editors.t,
+            ~instructor_mode=model.settings.instructor_mode,
+          ),
+      };
       save_editors(model);
       Ok(model);
-    | SwitchSlide(n) =>
+    | SwitchScratchSlide(n) =>
       switch (model.editors) {
-      | DebugLoad => failwith("impossible")
+      | DebugLoad
+      | Examples(_) => failwith("impossible")
       | Scratch(m, _) when m == n => Error(FailedToSwitch)
       | Scratch(_, slides) =>
         switch (n < List.length(slides)) {
@@ -307,10 +310,24 @@ let apply =
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }
+    | SwitchExampleSlide(name) =>
+      switch (model.editors) {
+      | DebugLoad
+      | Scratch(_)
+      | School(_) => Error(FailedToSwitch)
+      | Examples(cur, slides) =>
+        if (!List.mem_assoc(name, slides) || cur == name) {
+          Error(FailedToSwitch);
+        } else {
+          LocalStorage.Examples.save((name, slides));
+          Ok({...model, editors: Examples(name, slides)});
+        }
+      }
     | SwitchEditor(pos) =>
       switch (model.editors) {
-      | DebugLoad => failwith("impossible")
-      | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
+      | DebugLoad
+      | Examples(_)
+      | Scratch(_) => Error(FailedToSwitch)
       | School(m, specs, exercise) =>
         let exercise =
           SchoolExercise.switch_editor(

@@ -26,7 +26,8 @@ type t =
   | ResetSlide
   | Save
   | ToggleMode
-  | SwitchSlide(int)
+  | SwitchScratchSlide(int)
+  | SwitchExampleSlide(string)
   | SwitchEditor(SchoolExercise.pos)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)

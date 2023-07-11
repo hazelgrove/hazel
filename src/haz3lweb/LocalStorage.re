@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Haz3lcore;
 
 // Settings serialization
 module Settings = {
@@ -125,6 +126,64 @@ module Scratch = {
 
   let load = () =>
     switch (JsUtil.get_localstore(save_scratch_key)) {
+    | None => init()
+    | Some(data) =>
+      try(deserialize(data)) {
+      | _ => init()
+      }
+    };
+
+  let export = () => serialize(load());
+  let import = data => save(deserialize(data));
+};
+
+module Examples = {
+  let save_examples_key: string = "SAVE_EXAMPLES";
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = (string, list((string, (Id.t, PersistentZipper.t))));
+
+  let persist = ((name, (id, editor: Editor.t))) => {
+    (name, (id, PersistentZipper.persist(editor.state.zipper)));
+  };
+
+  let unpersist = ((name, (id, zipper))) => {
+    let (id, zipper) = PersistentZipper.unpersist(zipper, id);
+    (name, (id, Editor.init(zipper, ~read_only=false)));
+  };
+
+  let to_persistent = ((string, slides)): persistent => (
+    string,
+    List.map(persist, slides),
+  );
+
+  let of_persistent = ((string, slides): persistent) => {
+    (string, List.map(unpersist, slides));
+  };
+
+  let serialize = examples => {
+    examples |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
+  };
+
+  let deserialize = data => {
+    data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
+  };
+
+  let save = (examples): unit => {
+    JsUtil.set_localstore(save_examples_key, serialize(examples));
+  };
+
+  let init = () => {
+    let examples = (
+      Examples.init_data |> List.hd |> fst,
+      Examples.init_data |> List.map(unpersist),
+    );
+    save(examples);
+    examples;
+  };
+
+  let load = () =>
+    switch (JsUtil.get_localstore(save_examples_key)) {
     | None => init()
     | Some(data) =>
       try(deserialize(data)) {

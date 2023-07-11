@@ -27,7 +27,8 @@ let is_action_logged: UpdateAction.t => bool =
   | FinishImportScratchpad(_)
   | ResetSlide
   | ToggleMode
-  | SwitchSlide(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
   | SwitchEditor(_)
   | PerformAction(_)
   | FailedInput(_)
