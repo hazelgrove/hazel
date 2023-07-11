@@ -282,6 +282,16 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
+let livelit_padding = (t: Base.tile): abs_indent =>
+  switch (t.label) {
+  | [possible_livelit_name] =>
+    switch (Livelit.find_livelit(possible_livelit_name)) {
+    | Some(ll) => ll.width + 1 // Add one for margin
+    | None => 0
+    }
+  | _ => 0
+  };
+
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -377,10 +387,12 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
+              let lp = livelit_padding(t);
               let last =
                 Point.{
                   ...origin,
-                  col: origin.col + String.length(token(shard)),
+                  col:
+                    origin.col + (lp > 0 ? lp : String.length(token(shard))),
                 };
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);

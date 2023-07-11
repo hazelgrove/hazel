@@ -90,11 +90,22 @@ let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
+let is_livelit = t =>
+  switch (Livelit.find_livelit(t)) {
+  | Some(_) => true
+  | _ => false
+  };
+let is_unknown_livelit = str => {
+  regexp("^[\\^]([a-z][A-Za-z0-9_]*)?\t?$", str) && !is_livelit(str);
+};
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
+  is_bad_int(str)
+  || is_bad_float(str)
+  || is_partial_concrete_typ(str)
+  || is_unknown_livelit(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
@@ -174,6 +185,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("livelit", (is_livelit, [mk_op(Exp, [])])),
 ];
 
 /* C. Compound Forms:

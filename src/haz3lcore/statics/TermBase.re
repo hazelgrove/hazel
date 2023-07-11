@@ -108,7 +108,8 @@ and UExp: {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | LivelitAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -136,6 +137,7 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
+    | LivelitAp({livelit_name: string})
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -216,7 +218,8 @@ and UExp: {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | LivelitAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -244,6 +247,7 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
+    | LivelitAp({livelit_name: string})
   and t = {
     // invariant: nonempty
     ids: list(Id.t),

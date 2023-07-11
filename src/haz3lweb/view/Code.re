@@ -17,18 +17,31 @@ let of_delim' =
         | _ when !is_complete => "delim-incomplete"
         | _ => "delim"
         };
-      [
-        span(
-          ~attr=
-            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-          [Node.text(List.nth(label, i))],
-        ),
-      ];
+
+      switch (label) {
+      | [s] when Form.is_livelit(s) => []
+      | _ => [
+          span(
+            ~attr=
+              Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+            [Node.text(List.nth(label, i))],
+          ),
+        ]
+      };
     },
   );
+
 let of_delim =
-    (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
-  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
+    (
+      sort: Sort.t,
+      is_consistent,
+      t: Piece.tile,
+      livelit_nodes: list(t),
+      i: int,
+    )
+    : list(Node.t) =>
+  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i))
+  @ livelit_nodes;
 
 let of_grout = [Node.text(Unicode.nbsp)];
 
@@ -58,30 +71,52 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (~no_sorts=false, ~sort=Sort.root, seg: Segment.t): list(Node.t) => {
+          (
+            ~no_sorts=false,
+            ~sort=Sort.root,
+            seg: Segment.t,
+            ~inject,
+            ~font_metrics: FontMetrics.t,
+            ~livelits: Livelit.state,
+          )
+          : list(Node.t) => {
     //note: no_sorts flag is used for backback
-    let expected_sorts =
+    let expected_sorts: list((int, Sort.t)) =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
         : Segment.expected_sorts(sort, seg);
-    let sort_of_p_idx = idx =>
-      switch (List.assoc_opt(idx, expected_sorts)) {
-      | None => Sort.Any
-      | Some(sort) => sort
-      };
+    let sort_of_p_idx: int => Sort.t =
+      idx =>
+        switch (List.assoc_opt(idx, expected_sorts)) {
+        | None => Sort.Any
+        | Some(sort) => sort
+        };
     seg
     |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
+    |> List.concat_map(((i, p)) =>
+         of_piece(sort_of_p_idx(i), p, ~inject, ~font_metrics, ~livelits)
+       );
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (expected_sort: Sort.t, p: Piece.t, ~inject, ~font_metrics, ~livelits)
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t)
+    | Tile(t) => of_tile(expected_sort, t, ~inject, ~font_metrics, ~livelits)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (expected_sort: Sort.t, t: Tile.t, ~inject, ~font_metrics, ~livelits)
+      : list(Node.t) => {
+    let livelit_nodes: list(t) =
+      switch (t.label) {
+      | [name] =>
+        LivelitView.view(font_metrics, inject, name, livelits, t.id)
+      | _ => []
+      };
+
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -91,8 +126,10 @@ module Text = (M: {
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, seg)
+    |> Aba.join(
+         of_delim(t.mold.out, is_consistent, t, livelit_nodes),
+         ((seg, sort)) =>
+         of_segment(~sort, seg, ~inject, ~font_metrics, ~livelits)
        )
     |> List.concat;
   };
@@ -116,7 +153,9 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
+let simple_view =
+    (~unselected, ~map, ~settings: ModelSettings.t, ~inject, ~font_metrics)
+    : Node.t => {
   module Text =
     Text({
       let map = map;
@@ -124,7 +163,17 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(unselected))],
+    [
+      span_c(
+        "code-text",
+        Text.of_segment(
+          unselected,
+          ~inject,
+          ~font_metrics,
+          ~livelits=Id.Map.empty,
+        ),
+      ),
+    ],
   );
 };
 
@@ -135,6 +184,8 @@ let view =
       ~unselected,
       ~measured,
       ~settings: ModelSettings.t,
+      ~inject,
+      ~livelits: Livelit.state,
     )
     : Node.t => {
   module Text =
@@ -142,9 +193,9 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let unselected =
+  let unselected: list(t) =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected)
+      Text.of_segment(unselected, ~inject, ~font_metrics, ~livelits)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

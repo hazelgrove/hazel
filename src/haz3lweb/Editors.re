@@ -98,3 +98,8 @@ let cur_slide = (editors: t): int =>
   | Scratch(n, _)
   | School(n, _, _) => n
   };
+
+let update_editor = (f: Editor.t => Editor.t, editors: t): t => {
+  let (id, old_editor) = get_editor_and_id(editors);
+  put_editor_and_id(id, f(old_editor), editors);
+};

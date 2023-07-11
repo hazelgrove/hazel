@@ -287,7 +287,15 @@ let editor_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
   let code_base_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+    Code.view(
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings,
+      ~inject,
+      ~livelits=editor.state.meta.livelits,
+    );
   let deco_view =
     deco(
       ~zipper,
@@ -323,7 +331,7 @@ let get_elab = (editor: Editor.t): DHExp.t => {
   let seg = Editor.get_seg(editor);
   let (term, _) = MakeTerm.go(seg);
   let info_map = Statics.mk_map(term);
-  Interface.elaborate(info_map, term);
+  Interface.elaborate(info_map, term, ~livelits=editor.state.meta.livelits);
 };
 
 let editor_with_result_view =

@@ -36,7 +36,11 @@ let neighbor_movability =
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
   let l =
     switch (l_nhbr) {
-    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
+    | Some(Tile({label, _})) =>
+      switch (label) {
+      | [s] when Option.is_some(Livelit.find_livelit(s)) => CanPass
+      | _ => movability(label, List.length(label) - 1)
+      }
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
@@ -49,7 +53,11 @@ let neighbor_movability =
     };
   let r =
     switch (r_nhbr) {
-    | Some(Tile({label, _})) => movability(label, 0)
+    | Some(Tile({label, _})) =>
+      switch (label) {
+      | [s] when Option.is_some(Livelit.find_livelit(s)) => CanPass
+      | _ => movability(label, List.length(label) - 1)
+      }
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);

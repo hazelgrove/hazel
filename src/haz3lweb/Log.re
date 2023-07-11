@@ -37,6 +37,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | MoveToNextHole(_)
+  | LivelitStateChange(_)
   | UpdateLangDocMessages(_) => true;
 
 let storage_key = "LOG_" ++ SchoolSettings.log_key;

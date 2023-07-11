@@ -273,7 +273,13 @@ let deco =
                   (index, (id, segment)) => {
                     let map = Measured.of_segment(segment);
                     let code_view =
-                      Code.simple_view(~unselected=segment, ~map, ~settings);
+                      Code.simple_view(
+                        ~unselected=segment,
+                        ~map,
+                        ~settings,
+                        ~inject,
+                        ~font_metrics,
+                      );
                     let classes = get_clss(segment);
                     id == form_id
                       ? Node.div(
@@ -378,7 +384,8 @@ let syntactic_form_view =
       ~form_id,
     ) => {
   let map = Measured.of_segment(unselected);
-  let code_view = Code.simple_view(~unselected, ~map, ~settings);
+  let code_view =
+    Code.simple_view(~unselected, ~map, ~settings, ~inject, ~font_metrics);
   let deco_view =
     deco(
       ~doc,
@@ -415,7 +422,13 @@ let example_view =
           ({term, message, _} as example: LangDocMessages.example) => {
             let map_code = Measured.of_segment(term);
             let code_view =
-              Code.simple_view(~unselected=term, ~map=map_code, ~settings);
+              Code.simple_view(
+                ~unselected=term,
+                ~map=map_code,
+                ~settings,
+                ~inject,
+                ~font_metrics,
+              );
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Statics.mk_map(uhexp);
             let result_view =
@@ -2144,6 +2157,19 @@ let get_doc =
             Scanf.format_from_string(doc.explanation.message, "%s"),
             v,
           ),
+          [],
+        );
+      | LivelitAp(_) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.livelit_ap_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.livelit_ap_exp_group,
+          doc.explanation.message,
           [],
         );
       };
