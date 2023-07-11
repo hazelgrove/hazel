@@ -41,7 +41,7 @@ module Pervasives = {
         let b = Float.is_finite(f);
         BoxedValue(BoolLit(b)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -52,7 +52,7 @@ module Pervasives = {
         let b = Float.is_infinite(f);
         BoxedValue(BoolLit(b)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -63,7 +63,7 @@ module Pervasives = {
         let b = Float.is_nan(f);
         BoxedValue(BoolLit(b)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -85,7 +85,7 @@ module Pervasives = {
           |> return;
         };
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -96,7 +96,7 @@ module Pervasives = {
         let i = int_of_float(f);
         BoxedValue(IntLit(i)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -107,7 +107,7 @@ module Pervasives = {
         let f = float_of_int(i);
         BoxedValue(FloatLit(f)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -129,7 +129,7 @@ module Pervasives = {
           |> return;
         };
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -140,7 +140,7 @@ module Pervasives = {
         let s = string_of_int(i);
         BoxedValue(StringLit(s)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
@@ -151,7 +151,7 @@ module Pervasives = {
         let s = string_of_float(f);
         BoxedValue(StringLit(s)) |> return;
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
 
