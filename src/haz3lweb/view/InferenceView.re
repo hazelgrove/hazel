@@ -49,7 +49,7 @@ let svg_display_settings =
     | NestedInconsistency(_) => (false, true)
     | NoSuggestion(SuggestionsDisabled)
     | NoSuggestion(OnlyHoleSolutions) => (true, false)
-    | NoSuggestion(NonTypeHoleId) => (false, false)
+    | NoSuggestion(NonTypeHoleId) => (true, false)
     | NoSuggestion(InconsistentSet) => (true, true)
     };
   (show_svg, is_unsolved);

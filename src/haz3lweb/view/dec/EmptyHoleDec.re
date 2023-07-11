@@ -41,7 +41,7 @@ let view =
         ~measurement,
         ~base_cls=["empty-hole"],
         ~path_cls=["unsolved-empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.42),
+        path(tip_l, tip_r, 0., 0.6),
       )
     : DecUtil.code_svg_sized(
         ~font_metrics,
