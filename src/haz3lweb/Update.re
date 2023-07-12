@@ -15,11 +15,11 @@ let reset_editor = (editors: Editors.t, ~instructor_mode): Editors.t =>
       |> List.remove_assoc(name)
       |> List.cons((name, Examples.init_name(name)));
     Examples(name, slides);
-  | Exercises(n, specs, _) =>
-    Exercises(
+  | Exercise(n, specs, _) =>
+    Exercise(
       n,
       specs,
-      List.nth(specs, n) |> SchoolExercise.state_of_spec(~instructor_mode),
+      List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
     )
   };
 
@@ -208,8 +208,7 @@ let apply =
       switch (data) {
       | None => Ok(model)
       | Some(data) =>
-        let specs = School.exercises;
-        Export.import_all(data, ~specs);
+        Export.import_all(data, ~specs=ExerciseSettings.exercises);
         Ok(Store.load_model(model));
       }
     | InitImportScratchpad(file) =>
@@ -221,7 +220,7 @@ let apply =
       switch (model.editors) {
       | DebugLoad
       | Examples(_)
-      | Exercises(_) => failwith("impossible")
+      | Exercise(_) => failwith("impossible")
       | Scratch(idx, slides) =>
         switch (data) {
         | None => Ok(model)
@@ -257,16 +256,16 @@ let apply =
           Store.save_model(model);
           Ok(model);
         }
-      | Exercises(_, specs, _) =>
+      | Exercise(_, specs, _) =>
         switch (n < List.length(specs)) {
         | false => Error(FailedToSwitch)
         | true =>
           let instructor_mode = model.settings.instructor_mode;
           let spec = List.nth(specs, n);
-          let key = SchoolExercise.key_of(spec);
+          let key = Exercise.key_of(spec);
           let exercise =
-            Store.School.load_exercise(key, spec, ~instructor_mode);
-          let model = {...model, editors: Exercises(n, specs, exercise)};
+            Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+          let model = {...model, editors: Exercise(n, specs, exercise)};
           Store.save_model(model);
           Ok(model);
         }
@@ -275,7 +274,7 @@ let apply =
       switch (model.editors) {
       | DebugLoad
       | Scratch(_)
-      | Exercises(_) => Error(FailedToSwitch)
+      | Exercise(_) => Error(FailedToSwitch)
       | Examples(cur, slides) =>
         if (!List.mem_assoc(name, slides) || cur == name) {
           Error(FailedToSwitch);
@@ -290,18 +289,18 @@ let apply =
       | DebugLoad
       | Examples(_)
       | Scratch(_) => Error(FailedToSwitch)
-      | Exercises(m, specs, exercise) =>
+      | Exercise(m, specs, exercise) =>
         let exercise =
-          SchoolExercise.switch_editor(
+          Exercise.switch_editor(
             ~pos,
             model.settings.instructor_mode,
             ~exercise,
           );
-        Store.School.save_exercise(
+        Store.Exercise.save_exercise(
           exercise,
           ~instructor_mode=model.settings.instructor_mode,
         );
-        Ok({...model, editors: Exercises(m, specs, exercise)});
+        Ok({...model, editors: Exercise(m, specs, exercise)});
       }
     | SetMode(mode) =>
       let model = update_settings(Mode(mode), model);

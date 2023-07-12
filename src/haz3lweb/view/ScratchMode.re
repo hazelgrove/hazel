@@ -125,9 +125,9 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       ~tooltip="Import Scratchpad",
     );
 
-  // for pasting into files like LanguageRefSlide.ml (note .ml extension)
+  // for pasting into files like SerializedExamples.ml (note .ml extension)
   let export_init_button =
-    SchoolSettings.show_instructor
+    ExerciseSettings.show_instructor
       ? Some(
           Widgets.button(
             Icons.export,

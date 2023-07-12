@@ -19,7 +19,7 @@ let mode_menu = (~inject, ~mode: Editors.mode) =>
           ),
         List.map(
           option_view(Editors.show_mode(mode)),
-          ["Scratch", "Examples", "Exercises"],
+          ["Scratch", "Examples", "Exercise"],
         ),
       ),
     ],
@@ -49,7 +49,7 @@ let examples_view = (~inject, ~name, ~editors) => [
 ];
 
 let instructor_toggle = (~inject, ~instructor_mode) =>
-  SchoolSettings.show_instructor
+  ExerciseSettings.show_instructor
     ? [
       toggle("🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
         inject(Update.Set(InstructorMode))
@@ -58,7 +58,7 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     : [];
 
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
-  [mode_menu(~inject, ~mode=Exercises)]
+  [mode_menu(~inject, ~mode=Exercise)]
   @ instructor_toggle(~inject, ~instructor_mode)
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
@@ -70,7 +70,7 @@ let view = (~inject: Update.t => 'a, ~model: Model.t): Node.t => {
     | Scratch(cur_slide, slides) =>
       scratch_view(~inject, ~cur_slide, ~slides)
     | Examples(name, editors) => examples_view(~inject, ~name, ~editors)
-    | Exercises(cur_slide, specs, _) =>
+    | Exercise(cur_slide, specs, _) =>
       exercises_view(
         ~cur_slide,
         ~specs,

@@ -1,4 +1,4 @@
-let filled_slides = [LanguageRefSlide.lang_ref];
+let filled_slides = [SerializedExamples.lang_ref];
 
 let empty: ScratchSlide.persistent_state = (
   1,

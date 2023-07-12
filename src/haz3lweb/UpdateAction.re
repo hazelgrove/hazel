@@ -28,7 +28,7 @@ type t =
   | SetMode(Editors.mode)
   | SwitchScratchSlide(int)
   | SwitchExampleSlide(string)
-  | SwitchEditor(SchoolExercise.pos)
+  | SwitchEditor(Exercise.pos)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
