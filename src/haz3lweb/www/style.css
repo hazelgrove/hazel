@@ -331,6 +331,7 @@ body,
 #top-bar .menu-icon:hover+.menu {
   transform: scaleY(1);
   display: flex;
+  border-radius: 0 0 1.3em 0;
 }
 
 #top-bar .menu-icon {
@@ -433,7 +434,8 @@ body,
   color: #fdf6e3;
 }
 
-#top-bar #editor-mode .mode-name select:hover {
+#top-bar #editor-mode .mode-name select:hover,
+#top-bar #editor-mode select:hover {
   color: #fad56f;
 }
 
@@ -1748,6 +1750,8 @@ svg.expandable path {
   border-radius: 1em;
   background-color: #c7b480;
   align-items: center;
+  margin-left: auto;
+  margin-right: 1em;
 }
 
 .test-percent.all-pass {
