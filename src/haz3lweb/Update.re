@@ -2,14 +2,24 @@ open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
 
-let save_editors = (model: Model.t): unit =>
-  switch (model.editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch(n, slides) => LocalStorage.Scratch.save((n, slides))
-  | School(n, specs, exercise) =>
-    LocalStorage.School.save(
-      (n, specs, exercise),
-      ~instructor_mode=model.settings.instructor_mode,
+let reset_editor = (editors: Editors.t, ~instructor_mode): Editors.t =>
+  switch (editors) {
+  | DebugLoad => failwith("impossible")
+  | Scratch(n, slides) =>
+    let slides =
+      Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
+    Scratch(n, slides);
+  | Examples(name, slides) =>
+    let slides =
+      slides
+      |> List.remove_assoc(name)
+      |> List.cons((name, Examples.init_name(name)));
+    Examples(name, slides);
+  | Exercise(n, specs, _) =>
+    Exercise(
+      n,
+      specs,
+      List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
     )
   };
 
@@ -81,39 +91,8 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
         },
       }
     };
-  LocalStorage.Settings.save(model.settings);
-  save_editors(model);
+  Model.save(model);
   model;
-};
-
-let load_model = (model: Model.t): Model.t => {
-  let settings = LocalStorage.Settings.load();
-  let langDocMessages = LocalStorage.LangDocMessages.load();
-  let model = {...model, settings, langDocMessages};
-  let model =
-    switch (model.settings.mode) {
-    | DebugLoad => model
-    | Scratch =>
-      let (idx, slides) = LocalStorage.Scratch.load();
-      {...model, editors: Scratch(idx, slides)};
-    | School =>
-      let instructor_mode = model.settings.instructor_mode;
-      let specs = School.exercises;
-      let (n, specs, exercise) =
-        LocalStorage.School.load(~specs, ~instructor_mode);
-      {...model, editors: School(n, specs, exercise)};
-    };
-  {
-    ...model,
-    meta: {
-      ...model.meta,
-      results:
-        ModelResults.init(
-          model.settings.dynamics
-            ? Editors.get_spliced_elabs(model.editors) : [],
-        ),
-    },
-  };
 };
 
 let reevaluate_post_update =
@@ -163,8 +142,8 @@ let reevaluate_post_update =
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
   | SwitchEditor(_)
-  | SwitchSlide(_)
-  | ToggleMode
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
   | Cut
   | Paste(_)
   | Agent(_)
@@ -230,10 +209,12 @@ let rec apply =
     | SetMeta(action) =>
       Ok({...model, meta: meta_update(model, action, ~schedule_action)})
     | UpdateLangDocMessages(u) =>
-      let langDocMessages =
-        LangDocMessages.set_update(model.langDocMessages, u);
-      LocalStorage.LangDocMessages.save(langDocMessages);
-      Ok({...model, langDocMessages});
+      let model = {
+        ...model,
+        langDocMessages: LangDocMessages.set_update(model.langDocMessages, u),
+      };
+      Model.save(model);
+      Ok(model);
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
@@ -250,12 +231,8 @@ let rec apply =
         };
       apply(model, update, state, ~schedule_action);
     | Save =>
-      save_editors(model);
+      Model.save(model);
       Ok(model);
-    | ToggleMode =>
-      let new_mode = Editors.rotate_mode(model.editors);
-      let model = update_settings(Mode(new_mode), model);
-      Ok(load_model(model));
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
       Ok(model);
@@ -263,9 +240,8 @@ let rec apply =
       switch (data) {
       | None => Ok(model)
       | Some(data) =>
-        let specs = School.exercises;
-        Export.import_all(data, ~specs);
-        Ok(load_model(model));
+        Export.import_all(data, ~specs=ExerciseSettings.exercises);
+        Ok(Model.load(model));
       }
     | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
@@ -274,81 +250,89 @@ let rec apply =
       Ok(model);
     | FinishImportScratchpad(data) =>
       switch (model.editors) {
-      | DebugLoad => failwith("impossible")
-      | School(_) => failwith("impossible")
+      | DebugLoad
+      | Examples(_)
+      | Exercise(_) => failwith("impossible")
       | Scratch(idx, slides) =>
         switch (data) {
         | None => Ok(model)
         | Some(data) =>
           let state = ScratchSlide.import(data);
           let slides = Util.ListUtil.put_nth(idx, state, slides);
-          LocalStorage.Scratch.save((idx, slides));
-
-          Ok({...model, editors: Scratch(idx, slides)});
+          let model = {...model, editors: Scratch(idx, slides)};
+          Model.save(model);
+          Ok(model);
         }
       }
     | ResetCurrentEditor =>
-      let model =
-        switch (model.editors) {
-        | DebugLoad => failwith("impossible")
-        | Scratch(n, slides) =>
-          let slides =
-            Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
-          {...model, editors: Scratch(n, slides)};
-        | School(n, specs, _) =>
-          let instructor_mode = model.settings.instructor_mode;
-          {
-            ...model,
-            editors:
-              School(
-                n,
-                specs,
-                List.nth(specs, n)
-                |> SchoolExercise.state_of_spec(~instructor_mode),
-              ),
-          };
-        };
-      save_editors(model);
+      let model = {
+        ...model,
+        editors:
+          reset_editor(
+            model.editors: Editors.t,
+            ~instructor_mode=model.settings.instructor_mode,
+          ),
+      };
+      Model.save(model);
       Ok(model);
-    | SwitchSlide(n) =>
+    | SwitchScratchSlide(n) =>
       switch (model.editors) {
-      | DebugLoad => failwith("impossible")
+      | DebugLoad
+      | Examples(_) => failwith("impossible")
       | Scratch(m, _) when m == n => Error(FailedToSwitch)
       | Scratch(_, slides) =>
         switch (n < List.length(slides)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.Scratch.save((n, slides));
-          Ok({...model, editors: Scratch(n, slides)});
+          let model = {...model, editors: Scratch(n, slides)};
+          Model.save(model);
+          Ok(model);
         }
-      | School(_, specs, _) =>
+      | Exercise(_, specs, _) =>
         switch (n < List.length(specs)) {
         | false => Error(FailedToSwitch)
         | true =>
           let instructor_mode = model.settings.instructor_mode;
           let spec = List.nth(specs, n);
-          let key = SchoolExercise.key_of(spec);
+          let key = Exercise.key_of(spec);
           let exercise =
-            LocalStorage.School.load_exercise(key, spec, ~instructor_mode);
-          Ok({...model, editors: School(n, specs, exercise)});
+            Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+          let model = {...model, editors: Exercise(n, specs, exercise)};
+          Model.save(model);
+          Ok(model);
+        }
+      }
+    | SwitchExampleSlide(name) =>
+      switch (model.editors) {
+      | DebugLoad
+      | Scratch(_)
+      | Exercise(_) => Error(FailedToSwitch)
+      | Examples(cur, slides) =>
+        if (!List.mem_assoc(name, slides) || cur == name) {
+          Error(FailedToSwitch);
+        } else {
+          let model = {...model, editors: Examples(name, slides)};
+          Model.save(model);
+          Ok(model);
         }
       }
     | SwitchEditor(pos) =>
       switch (model.editors) {
-      | DebugLoad => failwith("impossible")
-      | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
-      | School(m, specs, exercise) =>
+      | DebugLoad
+      | Examples(_)
+      | Scratch(_) => Error(FailedToSwitch)
+      | Exercise(m, specs, exercise) =>
         let exercise =
-          SchoolExercise.switch_editor(
+          Exercise.switch_editor(
             ~pos,
             model.settings.instructor_mode,
             ~exercise,
           );
-        LocalStorage.School.save_exercise(
+        Store.Exercise.save_exercise(
           exercise,
           ~instructor_mode=model.settings.instructor_mode,
         );
-        Ok({...model, editors: School(m, specs, exercise)});
+        Ok({...model, editors: Exercise(m, specs, exercise)});
       }
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
@@ -368,6 +352,30 @@ let rec apply =
       };
       let model = AgentUpdate.reset_buffer(model);
       perform_action(model, a);
+    /*| Paste(clipboard) =>
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      switch (
+        Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
+      ) {
+      | None => Error(CantPaste)
+      | Some((z, id)) =>
+        /* NOTE(andrew): These two perform calls are a hack to
+           deal with the fact that pasting something like "let a = b in"
+           won't trigger the barfing of the "in"; to trigger this, we
+           insert a space, and then we immediately delete it. */
+        switch (Haz3lcore.Perform.go_z(Insert(" "), z, id)) {
+        | Error(_) => Error(CantPaste)
+        | Ok((z, id)) =>
+          switch (Haz3lcore.Perform.go_z(Destruct(Left), z, id)) {
+          | Error(_) => Error(CantPaste)
+          | Ok((z, id)) =>
+            let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+            //TODO: add correct action to history (Pick_up is wrong)
+            let editors = Editors.put_editor_and_id(id, ed, model.editors);
+            Ok({...model, editors});
+          }
+        }
+      };*/
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)

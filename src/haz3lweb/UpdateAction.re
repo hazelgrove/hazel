@@ -53,13 +53,13 @@ type t =
   | Execute(string)
   /* editors */
   | Save
-  | ToggleMode
   | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
-  | SwitchEditor(SchoolExercise.pos) //schoolmode only
+  | SwitchEditor(Exercise.pos) //schoolmode only
   // editors: scratchmode only
-  | SwitchSlide(int) // scratchmode only
+  | SwitchScratchSlide(int)
+  | SwitchExampleSlide(string) // scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
   /* editor */

@@ -7,20 +7,31 @@ type state = (Id.t, Editor.t);
 
 let view =
     (
-      ~model: Model.t,
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      ~editor: Editor.t,
-      ~settings: ModelSettings.t,
-      ~langDocMessages: LangDocMessages.t,
-      ~result: ModelResult.simple,
       ~ctx_init: Ctx.t,
+      ~model as
+        {
+          editors,
+          settings,
+          langDocMessages,
+          meta: {
+            results,
+            mvu_states,
+            ui_state: {font_metrics, show_backpack_targets, mousedown, _},
+            _,
+          },
+        }: Model.t,
     ) => {
+  let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
+  let result =
+    settings.dynamics
+      ? ModelResult.get_simple(
+          ModelResults.lookup(results, ScratchSlide.scratch_key),
+        )
+      : None;
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(LangDoc.get_color_map(~doc=langDocMessages, zipper));
@@ -31,7 +42,7 @@ let view =
   let code_id = "code-container";
   let editor_view =
     Cell.editor_with_result_view(
-      ~mvu_states=model.meta.mvu_states,
+      ~mvu_states,
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,
@@ -121,9 +132,9 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       ~tooltip="Import Scratchpad",
     );
 
-  // for pasting into files like LanguageRefSlide.ml (note .ml extension)
+  // for pasting into files like SerializedExamples.ml (note .ml extension)
   let export_init_button =
-    SchoolSettings.show_instructor
+    ExerciseSettings.show_instructor
       ? Some(
           Widgets.button(
             Icons.export,

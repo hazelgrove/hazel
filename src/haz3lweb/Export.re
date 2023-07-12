@@ -5,7 +5,7 @@ type all = {
   settings: string,
   langDocMessages: string,
   scratch: string,
-  school: string,
+  exercise: string,
   log: string,
 };
 
@@ -14,23 +14,26 @@ type all = {
 type all_f22 = {
   settings: string,
   scratch: string,
-  school: string,
+  exercise: string,
   log: string,
 };
 
 let mk_all = (~instructor_mode) => {
   print_endline("Mk all");
-  let settings = LocalStorage.Settings.export();
+  let settings = Store.Settings.export();
   print_endline("Settings OK");
-  let langDocMessages = LocalStorage.LangDocMessages.export();
+  let langDocMessages = Store.LangDocMessages.export();
   print_endline("LangDocMessages OK");
-  let scratch = LocalStorage.Scratch.export();
+  let scratch = Store.Scratch.export();
   print_endline("Scratch OK");
-  let specs = School.exercises;
-  let school = LocalStorage.School.export(~specs, ~instructor_mode);
-  print_endline("School OK");
+  let exercise =
+    Store.Exercise.export(
+      ~specs=ExerciseSettings.exercises,
+      ~instructor_mode,
+    );
+  print_endline("Exercise OK");
   let log = Log.export();
-  {settings, langDocMessages, scratch, school, log};
+  {settings, langDocMessages, scratch, exercise, log};
 };
 
 let export_all = (~instructor_mode) => {
@@ -45,15 +48,15 @@ let import_all = (data, ~specs) => {
       {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
-        school: all_f22.school,
+        exercise: all_f22.exercise,
         log: all_f22.log,
         langDocMessages: "",
       };
     };
-  let settings = LocalStorage.Settings.import(all.settings);
-  LocalStorage.LangDocMessages.import(all.langDocMessages);
+  let settings = Store.Settings.import(all.settings);
+  Store.LangDocMessages.import(all.langDocMessages);
   let instructor_mode = settings.instructor_mode;
-  LocalStorage.Scratch.import(all.scratch);
-  LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
+  Store.Scratch.import(all.scratch);
+  Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
   Log.import(all.log);
 };

@@ -68,3 +68,59 @@ let mk = editors => {
 
 let blank = mk(Editors.Scratch(0, []));
 let debug = mk(Editors.DebugLoad);
+
+let load_editors = (~mode: Editors.mode, ~instructor_mode: bool): Editors.t =>
+  switch (mode) {
+  | DebugLoad => DebugLoad
+  | Scratch =>
+    let (idx, slides) = Store.Scratch.load();
+    Scratch(idx, slides);
+  | Examples =>
+    let (name, slides) = Store.Examples.load();
+    Examples(name, slides);
+  | Exercise =>
+    let (n, specs, exercise) =
+      Store.Exercise.load(
+        ~specs=ExerciseSettings.exercises,
+        ~instructor_mode,
+      );
+    Exercise(n, specs, exercise);
+  };
+
+let save_editors = (editors: Editors.t, ~instructor_mode: bool): unit =>
+  switch (editors) {
+  | DebugLoad => failwith("no editors in debug load mode")
+  | Scratch(n, slides) => Store.Scratch.save((n, slides))
+  | Examples(name, slides) => Store.Examples.save((name, slides))
+  | Exercise(n, specs, exercise) =>
+    Store.Exercise.save((n, specs, exercise), ~instructor_mode)
+  };
+
+let load = (init_model: t): t => {
+  let settings = Store.Settings.load();
+  let langDocMessages = Store.LangDocMessages.load();
+  let editors =
+    load_editors(
+      ~mode=settings.mode,
+      ~instructor_mode=settings.instructor_mode,
+    );
+  let results =
+    ModelResults.init(
+      settings.dynamics ? Editors.get_spliced_elabs(editors) : [],
+    );
+  {
+    editors,
+    settings,
+    langDocMessages,
+    meta: {
+      ...init_model.meta,
+      results,
+    },
+  };
+};
+
+let save = ({editors, settings, langDocMessages, _}: t) => {
+  save_editors(editors, ~instructor_mode=settings.instructor_mode);
+  Store.LangDocMessages.save(langDocMessages);
+  Store.Settings.save(settings);
+};

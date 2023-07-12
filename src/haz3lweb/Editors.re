@@ -2,28 +2,34 @@ open Sexplib.Std;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t =
-  | DebugLoad
-  | Scratch(int, list(ScratchSlide.state))
-  | School(int, list(SchoolExercise.spec), SchoolExercise.state);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type scratch = (int, list(ScratchSlide.state));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school = (int, list(SchoolExercise.spec), SchoolExercise.state);
+type examples = (string, list((string, ScratchSlide.state)));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exercises = (int, list(Exercise.spec), Exercise.state);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | DebugLoad
+  | Scratch(int, list(ScratchSlide.state))
+  | Examples(string, list((string, ScratchSlide.state)))
+  | Exercise(int, list(Exercise.spec), Exercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | DebugLoad
   | Scratch
-  | School;
+  | Examples
+  | Exercise;
 
-let rotate_mode = (editors: t) =>
-  switch (editors) {
-  | DebugLoad => DebugLoad
-  | Scratch(_) => School
-  | School(_) => Scratch
+let mode_of_string = (s: string): mode =>
+  switch (s) {
+  | "Scratch" => Scratch
+  | "Examples" => Examples
+  | "Exercise" => Exercise
+  | _ => Scratch
   };
 
 let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
@@ -35,9 +41,15 @@ let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
     let id = ScratchSlide.id_of_state(slide);
     let ed = ScratchSlide.editor_of_state(slide);
     (id, ed);
-  | School(_, _, exercise) =>
-    let id = SchoolExercise.id_of_state(exercise);
-    let ed = SchoolExercise.editor_of_state(exercise);
+  | Examples(name, slides) =>
+    assert(List.mem_assoc(name, slides));
+    let slide = List.assoc(name, slides);
+    let id = ScratchSlide.id_of_state(slide);
+    let ed = ScratchSlide.editor_of_state(slide);
+    (id, ed);
+  | Exercise(_, _, exercise) =>
+    let id = Exercise.id_of_state(exercise);
+    let ed = Exercise.editor_of_state(exercise);
     (id, ed);
   };
 
@@ -57,8 +69,17 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
         slides,
       ),
     );
-  | School(n, specs, exercise) =>
-    School(n, specs, SchoolExercise.put_editor_and_id(exercise, id, ed))
+  | Examples(name, slides) =>
+    assert(List.mem_assoc(name, slides));
+    let slide = List.assoc(name, slides);
+    Examples(
+      name,
+      slides
+      |> List.remove_assoc(name)
+      |> List.cons((name, ScratchSlide.put_editor_and_id(slide, id, ed))),
+    );
+  | Exercise(n, specs, exercise) =>
+    Exercise(n, specs, Exercise.put_editor_and_id(exercise, id, ed))
   };
 
 let active_zipper = (editors: t): Zipper.t =>
@@ -70,11 +91,11 @@ let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
 
   switch (Id.Map.find_opt(Hyper.export_id + idx, info_map)) {
   | None =>
-    print_endline(
-      "export_ctx: NOT found info_map, id= "
-      ++ string_of_int(Hyper.export_id + idx),
-    );
-    Ctx.empty;
+    /*print_endline(
+        "export_ctx: NOT found info_map, id= "
+        ++ string_of_int(Hyper.export_id + idx),
+      );*/
+    Ctx.empty
   | Some(info) =>
     /*print_endline(
         "export_ctx: FOUND in info_map, id= "
@@ -136,17 +157,19 @@ let get_env_init_slides = ctx_init =>
 
 let get_ctx_init = (editors: t): Ctx.t =>
   switch (editors) {
-  | DebugLoad => Ctx.empty
   | Scratch(idx, slides) => get_ctx_init_slides(slides, idx)
-  | School(_, _, _) => Ctx.empty
+  | DebugLoad
+  | Exercise(_)
+  | Examples(_) => Ctx.empty
   };
 
 let get_env_init = (editors: t): Environment.t =>
   switch (editors) {
-  | DebugLoad => Environment.empty
   | Scratch(idx, slides) =>
     get_env_init_slides(get_ctx_init(editors), slides, idx)
-  | School(_, _, _) => Environment.empty
+  | DebugLoad
+  | Exercise(_)
+  | Examples(_) => Environment.empty
   };
 
 //TODO(andrew): cleanup
@@ -154,43 +177,34 @@ let get_env_init = (editors: t): Environment.t =>
 type blah = list((Var.t, DHExp.t));
 let get_spliced_elabs =
     (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
+  let ctx_init = get_ctx_init(editors);
   switch (editors) {
   | DebugLoad => []
   | Scratch(idx, slides) =>
     //print_endline("get_spliced_elabs: idx= " ++ string_of_int(idx));
     let current_slide = List.nth(slides, idx);
-    let ctx_init = get_ctx_init_slides(slides, idx);
     //print_endline("ctx=" ++ Ctx.show(ctx_init));
     let env_init = get_env_init_slides(ctx_init, slides, idx);
     //print_endline("env=" ++ Environment.show(env_init));
     let (key, d) = ScratchSlide.spliced_elab(~ctx_init, current_slide);
     [(key, d, env_init)];
-  | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
+  | Examples(name, slides) =>
+    let slide = List.assoc(name, slides);
+    let (key, d) = ScratchSlide.spliced_elab(~ctx_init, slide);
+    [(key, d, Environment.empty)];
+  | Exercise(_, _, exercise) => Exercise.spliced_elabs(exercise)
   };
 };
 
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch(_) => editors
-  | School(n, specs, exercise) =>
-    School(
+  | Scratch(_)
+  | Examples(_) => editors
+  | Exercise(n, specs, exercise) =>
+    Exercise(
       n,
       specs,
-      SchoolExercise.set_instructor_mode(exercise, instructor_mode),
+      Exercise.set_instructor_mode(exercise, instructor_mode),
     )
-  };
-
-let num_slides = (editors: t): int =>
-  switch (editors) {
-  | DebugLoad => 0
-  | Scratch(_, slides) => List.length(slides)
-  | School(_, specs, _) => List.length(specs)
-  };
-
-let cur_slide = (editors: t): int =>
-  switch (editors) {
-  | DebugLoad => 0
-  | Scratch(n, _)
-  | School(n, _, _) => n
   };

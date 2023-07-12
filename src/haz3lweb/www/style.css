@@ -302,52 +302,16 @@ body,
   box-sizing: border-box;
   width: 100%;
   min-width: fit-content;
-  padding: 0.75em;
-  padding-left: 3.5em;
-  /* to accommodate Hazel icon */
   display: flex;
   background-color: var(--light-page-color);
-}
-
-#top-bar-content {
+  border-bottom: 0.6px solid #c7b480;
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  max-width: 68vw;
-}
-
-#top-left-bar {
-  display: flex;
-  gap: 1em;
-}
-
-#top-right-bar {
-  display: flex;
-  justify-content: right;
-  gap: 1em;
-}
-
-#top-bar .menu-icon {
-  width: 2.75em;
-  height: 2.75em;
-  position: fixed;
-  top: 0;
-  left: 0;
-  display: flex;
-  justify-content: center;
   align-items: center;
-  background-color: var(--top_bar_icon_fill);
-  cursor: pointer;
-}
-
-#top-bar .menu:hover,
-#top-bar .menu-icon:hover+.menu {
-  transform: scaleY(1);
-  display: flex;
+  gap: 1em;
+  font-family: 'Helvetica Neue'
 }
 
 #top-bar .menu {
-  /*display: none;*/
   display: flex;
   transform-origin: top;
   transform: scaleY(0);
@@ -365,17 +329,43 @@ body,
   background-color: #a69461;
 }
 
-#top-bar .menu-icon:hover .menu-icon-inner {
+#top-bar .menu:hover,
+#top-bar .menu-icon:hover+.menu {
+  transform: scaleY(1);
+  display: flex;
+  border-radius: 0 0 1.3em 0;
+}
+
+#top-bar .menu-icon {
+  width: 2.75em;
+  height: 2.75em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--top_bar_icon_fill);
+  cursor: pointer;
+  color: white;
+  /*border-radius: 0 0 1.1em 0;*/
+  transition: all 0.1s ease-in;
+}
+
+#top-bar .menu-icon:hover {
+  border-radius: 0;
+}
+
+#top-bar .menu-icon svg {
+  fill: var(--light-page-color);
+}
+
+#top-bar .menu-icon:hover svg,
+#top-bar .menu-icon svg:hover {
+  height: 1.6em;
+  width: 1.6em;
   animation: jello 0.6s ease 0s 1 normal forwards;
 }
 
-#top-bar .icon:hover svg,
-.menu-icon:hover .menu-icon-inner svg {
+#top-bar .icon:hover svg {
   transform: scale(130%);
-}
-
-#top-bar .menu-icon-inner.icon svg {
-  fill: var(--light-page-color);
 }
 
 #top-bar .menu .icon:hover svg {
@@ -407,7 +397,6 @@ body,
 }
 
 #top-bar #editor-mode {
-  font-size: 0.7em;
   color: #fdf6e3;
   display: flex;
   align-items: center;
@@ -415,9 +404,9 @@ body,
   cursor: pointer;
   user-select: none;
   background-color: #c7b480;
-  border-radius: 1em;
-  padding: 0.2em 0.5em 0.2em 0.5em;
+  border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
+  font-size: 0.7em;
 }
 
 #top-bar #editor-mode .icon {
@@ -425,6 +414,10 @@ body,
   height: 15px;
   display: flex;
   align-items: center;
+}
+
+#top-bar #editor-mode .icon:hover {
+  filter: brightness(0.45) sepia(1) hue-rotate(15deg) saturate(50);
 }
 
 #top-bar #editor-mode .icon svg {
@@ -435,22 +428,43 @@ body,
   background-color: #99854a;
 }
 
+#top-bar #editor-mode .mode-name{
+  border-radius: 0.4em 1em 1em 0.4em;
+  padding: 0 0.5em 0 0.5em;
+  background-color: #a69460;
+  border-bottom: 0.7px solid #ebe0c2;
+  color: #fdf6e3;
+}
+
+#top-bar #editor-mode .mode-name select:hover,
+#top-bar #editor-mode select:hover {
+  color: #fad56f;
+}
 
 #top-bar #editor-mode .icon svg {
-  width: 15px;
   height: 15px;
 }
 
-#top-bar #editor-mode:hover {
-  transform: scale(110%);
-}
-
-#editor-mode .toggle-switch.active .toggle-knob {
+#top-bar #editor-mode .toggle-switch.active .toggle-knob {
   filter: grayscale(1) sepia(1);
 }
 
-#editor-mode .toggle-switch .toggle-knob {
+#top-bar #editor-mode .toggle-switch .toggle-knob {
   filter: grayscale(1) sepia(1) opacity(0.3);
+}
+
+#top-bar #editor-mode select {
+  background-color: #0000;
+  border: none;
+  color: white;
+  font-size: 1em;
+  height: 1.7em;
+}
+
+#top-bar #editor-mode select:focus-visible {
+  background-color: #0000 !important;
+  color: #fad56f !important;
+  outline: none;
 }
 
 /* END TOP BAR */
@@ -537,8 +551,6 @@ body,
   padding-left: 1.2em;
   border-left: 1px solid var(--top_bar_icon_fill);
 }
-
-.cell.school {}
 
 .cell.selected {
   border-left: 1px solid var(--cell-selected-accent);
@@ -1221,9 +1233,8 @@ svg.tile-selected {
 .lang-doc {
   z-index: 20;
   position: fixed;
-  right: 1em;
-  /* top: 3.8em; */
-  /* bottom: 1.8em; */
+  right: 0.6em;
+  top: 2.8em;
   width: 25vw;
   height: 100vh;
   overflow: auto;
@@ -1231,8 +1242,8 @@ svg.tile-selected {
   padding-bottom: 1.5em;
   white-space: nowrap;
   color: var(--light-text-color);
-  background-color: #f7ebc5;
-  /*#fbebaa;*/
+  background-color: #fdf6e3;
+  border-left: 0.6px solid #c7b480;
 }
 
 .comment {
@@ -1293,6 +1304,19 @@ svg.tile-selected {
 
 .lang-doc .top-bar .close {
   cursor: pointer;
+  font-family: 'Source Code Pro';
+  color: var(--top_bar_icon_fill);
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lang-doc .top-bar .close:hover {
+  color: var(--light-page-color);
+  background-color: #c7b480;
 }
 
 .lang-doc .section {
@@ -1308,6 +1332,9 @@ svg.tile-selected {
 .lang-doc .section .section-title {
   text-transform: uppercase;
   font-weight: bold;
+  color: #a69460;
+  font-size: 0.8em;
+  padding: 0 0 0.5em 0;
 }
 
 .lang-doc .section .explanation-contents {
@@ -1534,23 +1561,6 @@ svg.expandable path {
 
 /* DYNAMICS - test panel */
 
-.school-panel {
-  color: var(--light-text-color);
-  min-width: 50vw;
-  max-width: 70vw;
-  /*min-width: 15em;
-  max-height: 100%;
-  overflow-y: auto;
-  z-index: var(--test-panel-z);
-  position: fixed;
-  right: 0;
-  top: 0em;
-  max-width: 21em;*/
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-}
-
 .test-panel {
   z-index: var(--test-panel-z);
   display: flex;
@@ -1716,16 +1726,25 @@ svg.expandable path {
 }
 
 .test-percent {
-  font-weight: bold;
-  font-family: 'Helvetica Neue'
+  height: 1.7em;
+  display: flex;
+  padding: 0 1em 0 1em;
+  font-size: 0.7em;
+  border-radius: 1em;
+  background-color: #c7b480;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 1em;
 }
 
 .test-percent.all-pass {
-  color: #7cb;
+  background-color: #66ffcb;
+  color: #289f87;
+  animation: jello 1s ease 0s 1 normal none;
 }
 
 .test-percent.some-fail {
-  color: tan;
+  color: var(--light-page-color);
 }
 
 .test-bar .segment:first-child {
@@ -1834,7 +1853,7 @@ svg.expandable path {
 
 /* END TOGGLE */
 
-/* Exercises */
+/* Exercise */
 .exercise-code {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;

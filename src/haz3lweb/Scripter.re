@@ -41,7 +41,7 @@ let is_fill_marker: Piece.t => bool =
 let mk_script =
     (~llm, ~prompt_builder, ~sketch: string): list(UpdateAction.t) => {
   [
-    SwitchSlide(sketch_slide),
+    SwitchScratchSlide(sketch_slide),
     PerformAction(Move(Extreme(Up))),
     PerformAction(Select(Resize(Extreme(Down)))),
     Paste(sketch),
