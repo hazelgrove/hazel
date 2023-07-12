@@ -63,20 +63,21 @@ let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
 
-let view = (~inject: Update.t => 'a, ~model: Model.t): Node.t => {
+let view =
+    (
+      ~inject: Update.t => 'a,
+      ~editors: Editors.t,
+      ~settings as {instructor_mode, _}: ModelSettings.t,
+    )
+    : Node.t => {
   let contents =
-    switch (model.editors) {
+    switch (editors) {
     | DebugLoad => []
     | Scratch(cur_slide, slides) =>
       scratch_view(~inject, ~cur_slide, ~slides)
     | Examples(name, editors) => examples_view(~inject, ~name, ~editors)
     | Exercise(cur_slide, specs, _) =>
-      exercises_view(
-        ~cur_slide,
-        ~specs,
-        ~inject,
-        ~instructor_mode=model.settings.instructor_mode,
-      )
+      exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };
   div(~attr=Attr.id("editor-mode"), contents);
 };

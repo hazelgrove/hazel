@@ -37,30 +37,28 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
   ),
 ];
 
-let nut_menu = (~inject: Update.t => 'a, model: Model.t) => [
+let nut_menu =
+    (
+      ~inject: Update.t => 'a,
+      {statics, dynamics, benchmark, instructor_mode, _}: ModelSettings.t,
+    ) => [
   menu_icon,
   div(
     ~attr=clss(["menu"]),
     [
-      toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
+      toggle("τ", ~tooltip="Toggle Statics", statics, _ =>
         inject(Set(Statics))
       ),
-      toggle("𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
+      toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
         inject(Set(Dynamics))
       ),
-      toggle(
-        "b",
-        ~tooltip="Toggle Performance Benchmark",
-        model.settings.benchmark,
-        _ =>
+      toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))
       ),
       button(
         Icons.export,
         _ => {
-          download_editor_state(
-            ~instructor_mode=model.settings.instructor_mode,
-          );
+          download_editor_state(~instructor_mode);
           Virtual_dom.Vdom.Effect.Ignore;
         },
         ~tooltip="Export Submission",
@@ -94,46 +92,15 @@ let top_bar_view =
     (
       ~inject: Update.t => 'a,
       ~toolbar_buttons: list(Node.t),
-      ~model: Model.t,
+      ~model as {editors, settings, _}: Model.t,
     ) =>
   div(
     ~attr=Attr.id("top-bar"),
-    nut_menu(~inject, model)
-    @ [EditorModeView.view(~inject, ~model)]
-    @ history_bar(Editors.get_editor(model.editors), ~inject)
+    nut_menu(~inject, settings)
+    @ [EditorModeView.view(~inject, ~settings, ~editors)]
+    @ history_bar(Editors.get_editor(editors), ~inject)
     @ toolbar_buttons,
   );
-
-let simple_view =
-    (
-      ~inject,
-      {
-        editors,
-        font_metrics,
-        show_backpack_targets,
-        settings,
-        mousedown,
-        results,
-        langDocMessages,
-        _,
-      }: Model.t,
-    ) => {
-  ScratchMode.view(
-    ~inject,
-    ~font_metrics,
-    ~mousedown,
-    ~show_backpack_targets,
-    ~settings,
-    ~langDocMessages,
-    ~editor=Editors.get_editor(editors),
-    ~result=
-      settings.dynamics
-        ? ModelResult.get_simple(
-            ModelResults.lookup(results, ScratchSlide.scratch_key),
-          )
-        : None,
-  );
-};
 
 let exercises_view =
     (
@@ -172,26 +139,19 @@ let exercises_view =
     );
 };
 
-let scratch_view = (~inject, ~model, ~slide_idx, ~slides) => {
-  let toolbar_buttons =
-    ScratchMode.toolbar_buttons(~inject, List.nth(slides, slide_idx));
+let slide_view = (~inject, ~model, slide_state) => {
+  let toolbar_buttons = ScratchMode.toolbar_buttons(~inject, slide_state);
   [top_bar_view(~inject, ~toolbar_buttons, ~model)]
-  @ simple_view(~inject, model);
-};
-
-let examples_view = (~inject, ~model, ~name, ~slides) => {
-  let toolbar_buttons =
-    ScratchMode.toolbar_buttons(~inject, List.assoc(name, slides));
-  [top_bar_view(~inject, ~toolbar_buttons, ~model)]
-  @ simple_view(~inject, model);
+  @ ScratchMode.view(~inject, ~model);
 };
 
 let editors_view = (~inject, model: Model.t) => {
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(slide_idx, slides) =>
-    scratch_view(~inject, ~model, ~slide_idx, ~slides)
-  | Examples(name, slides) => examples_view(~inject, ~model, ~name, ~slides)
+    slide_view(~inject, ~model, List.nth(slides, slide_idx))
+  | Examples(name, slides) =>
+    slide_view(~inject, ~model, List.assoc(name, slides))
   | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
   };
 };
