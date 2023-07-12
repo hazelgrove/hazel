@@ -170,7 +170,10 @@ let view_of_global_inference_info =
   | Some((true, solution)) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [Type.view(~font_metrics, List.nth(solution, 0))],
+      [
+        text("consistent constraints"),
+        Type.view(~font_metrics, List.nth(solution, 0)),
+      ],
     )
   | Some((false, [typ_with_nested_conflict])) =>
     div(
