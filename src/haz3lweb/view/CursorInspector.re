@@ -175,33 +175,38 @@ let view_of_global_inference_info =
   | Some((false, conflicting_typs)) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      List.map(
-        typ =>
-          div(
-            ~attr=clss(["typ-view-conflict"]),
-            [
-              Widgets.hoverable_button(
-                [Type.view(~font_metrics, typ)],
-                _mouse_event => {
-                  State.set_considering_suggestion(false);
-                  inject(Update.Mouseup);
-                },
-                _mouse_event => {
-                  State.set_considering_suggestion(true);
-                  inject(Update.Paste(Haz3lcore.Typ.typ_to_string(typ)));
-                },
-                _mouse_event =>
-                  if (State.get_considering_suggestion()) {
-                    State.set_considering_suggestion(false);
-                    inject(Update.Undo);
-                  } else {
-                    inject(Update.Mouseup);
-                  },
-              ),
-            ],
-          ),
-        conflicting_typs,
-      ),
+      [
+        text("conflicting constraints"),
+        ...List.map(
+             typ =>
+               div(
+                 ~attr=clss(["typ-view-conflict"]),
+                 [
+                   Widgets.hoverable_button(
+                     [Type.view(~font_metrics, typ)],
+                     _mouse_event => {
+                       State.set_considering_suggestion(false);
+                       inject(Update.Mouseup);
+                     },
+                     _mouse_event => {
+                       State.set_considering_suggestion(true);
+                       inject(
+                         Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
+                       );
+                     },
+                     _mouse_event =>
+                       if (State.get_considering_suggestion()) {
+                         State.set_considering_suggestion(false);
+                         inject(Update.Undo);
+                       } else {
+                         inject(Update.Mouseup);
+                       },
+                   ),
+                 ],
+               ),
+             conflicting_typs,
+           ),
+      ],
     )
   | None => div([])
   };
