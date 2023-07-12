@@ -342,6 +342,12 @@ body,
   background-color: var(--top_bar_icon_fill);
   cursor: pointer;
   color: white;
+  /*border-radius: 0 0 1.1em 0;*/
+  transition: all 0.1s ease-in;
+}
+
+#top-bar .menu-icon:hover {
+  border-radius: 0;
 }
 
 #top-bar .menu-icon svg {
