@@ -219,7 +219,14 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | ModuleVal(_) => DHDoc_common.mk_StringLit("Module")
+      | ModuleVal(e) =>
+        let envlist =
+          Environment.to_listk(e)
+          |> List.map(((name, v)) =>
+               [text("  " ++ name ++ " = "), mk_cast(go'(v)), text(";\n")]
+             )
+          |> List.flatten;
+        Doc.(hcats([text("Module(\n")] @ envlist @ [text(")")]));
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
@@ -306,7 +313,7 @@ let rec mk =
           mk_cast(go(~enforce_inline, ddef));
         vseps([
           hcats([
-            DHDoc_common.Delim.mk("<module>"),
+            DHDoc_common.Delim.mk("module"),
             DHDoc_Pat.mk(dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
