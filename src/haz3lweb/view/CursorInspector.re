@@ -136,11 +136,13 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
 module State = {
   type t = {
     considering_suggestion: ref(bool),
+    suggestion_pasted: ref(bool),
     last_inspector: ref(Node.t),
   };
 
   let init = () => {
     considering_suggestion: ref(false),
+    suggestion_pasted: ref(false),
     last_inspector: ref(div([])),
   };
 
@@ -148,6 +150,9 @@ module State = {
 
   let get_considering_suggestion = () => curr_state.considering_suggestion^;
   let set_considering_suggestion = v => curr_state.considering_suggestion := v;
+
+  let get_suggestion_pasted = () => curr_state.suggestion_pasted^;
+  let set_suggestion_pasted = v => curr_state.suggestion_pasted := v;
 
   let get_last_inspector = () => curr_state.last_inspector^;
   let set_last_inspector = v => curr_state.last_inspector := v;
@@ -190,12 +195,18 @@ let view_of_global_inference_info =
                      },
                      _mouse_event => {
                        State.set_considering_suggestion(true);
-                       inject(
-                         Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
-                       );
+                       if (!State.get_suggestion_pasted()) {
+                         State.set_suggestion_pasted(true);
+                         inject(
+                           Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
+                         );
+                       } else {
+                         inject(Update.Mouseup);
+                       };
                      },
                      _mouse_event =>
                        if (State.get_considering_suggestion()) {
+                         State.set_suggestion_pasted(false);
                          State.set_considering_suggestion(false);
                          inject(Update.Undo);
                        } else {
