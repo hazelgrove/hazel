@@ -110,7 +110,6 @@ and UExp: {
     | BinOp(op_bin)
     | UserOp(Var.t)
     | LetOp(Var.t)
-    | LetStar
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -129,7 +128,6 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | LetStar(UPat.t, t, t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
@@ -224,7 +222,6 @@ and UExp: {
     | BinOp(op_bin)
     | UserOp(Var.t)
     | LetOp(Var.t)
-    | LetStar
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -243,7 +240,6 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | LetStar(UPat.t, t, t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)

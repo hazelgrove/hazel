@@ -1277,7 +1277,6 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | LetStar(pat, def, body)
       | LetOp(_, pat, def, body)
       | Let(pat, def, body) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {

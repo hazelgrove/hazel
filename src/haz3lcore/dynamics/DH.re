@@ -237,7 +237,7 @@ module rec DHExp: {
           (str: string, ty: Typ.t, x: DHExp.t): DHExp.t => {
     switch (x) {
     | Closure(ei, d) => Closure(ei, apply_cast_onBoundVar(str, ty, d))
-    | Cast(d, _, _) => apply_cast_onBoundVar(str, ty, d)
+    | Cast(d, ty1, ty2) => Cast(apply_cast_onBoundVar(str, ty, d), ty1, ty2)
     | FailedCast(d, _, _) => apply_cast_onBoundVar(str, ty, d)
     | Inj(ty, side, d) => Inj(ty, side, apply_cast_onBoundVar(str, ty, d))
     | Tuple(ds) => Tuple(ds |> List.map(apply_cast_onBoundVar(str, ty)))

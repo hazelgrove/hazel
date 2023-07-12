@@ -226,43 +226,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         | InHole(Free(Variable)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
-      | LetStar(pat, def, body) =>
-        let var = Ctx.lookup_var(ctx, "_let*_");
-        let var_term: DHExp.t =
-          switch (var) {
-          | Some(var) => BoundVar(var.name)
-          | None => FreeVar(id, 0, "_let_*")
-          };
-        let name: string =
-          switch (pat.term) {
-          | Var(s) => s
-          | _ => ""
-          };
-        let* dpat = dhpat_of_upat(m, pat);
-        let* ddef = dhexp_of_uexp(m, def);
-        //maybe cast here?
-        let+ dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.exp_typ(m, def);
-        DHExp.Ap(
-          var_term,
-          Tuple([
-            Cast(ddef, ty, Unknown(Internal)),
-            Cast(
-              Fun(
-                dpat,
-                Statics.pat_typ(m, pat),
-                Cast(
-                  DHExp.apply_cast_onBoundVar(name, ty, dbody),
-                  ty,
-                  Unknown(Internal),
-                ),
-                None,
-              ),
-              Arrow(Unknown(Internal), Unknown(Internal)),
-              Unknown(Internal),
-            ),
-          ]),
-        );
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
           name =>
@@ -305,13 +268,51 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
       | LetOp(op, pat, def, body) =>
+        let var = Ctx.lookup_var(ctx, op);
+        let var_term: DHExp.t =
+          switch (var) {
+          | Some(var) => BoundVar(var.name)
+          | None => FreeVar(id, 0, op)
+          };
+        let name: string =
+          switch (pat.term) {
+          | Var(s) => s
+          | _ => ""
+          };
         let* dpat = dhpat_of_upat(m, pat);
         let* ddef = dhexp_of_uexp(m, def);
         let+ dbody = dhexp_of_uexp(m, body);
-        DHExp.Ap(
-          BoundVar(op),
-          Tuple([ddef, Fun(dpat, Statics.pat_typ(m, pat), dbody, None)]),
-        );
+        let ty = Statics.exp_typ(m, def);
+        //Printf.printf(
+        //  "dpat: %s, ddef: %s, dbody: %s, ty: %s\n",
+        //  DHPat.show(dpat),
+        //  DHExp.show(ddef),
+        //  DHExp.show(dbody),
+        //  Typ.show(ty),
+        //);
+        //DHExp.Ap(var_term, Tuple([ddef, Fun(dpat, ty, dbody, None)]));
+        let d =
+          DHExp.Ap(
+            var_term,
+            Tuple([
+              Cast(ddef, ty, Unknown(Internal)),
+              Cast(
+                Fun(
+                  dpat,
+                  Statics.pat_typ(m, pat),
+                  Cast(
+                    DHExp.apply_cast_onBoundVar(name, ty, dbody),
+                    ty,
+                    Unknown(Internal),
+                  ),
+                  None,
+                ),
+                Arrow(Unknown(Internal), Unknown(Internal)),
+                Unknown(Internal),
+              ),
+            ]),
+          );
+        d;
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);

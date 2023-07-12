@@ -60,18 +60,11 @@ let _complete_root =
     | ([(id, tile)], []) =>
       switch (tile) {
       | (["("], []) => Op(single(id, (["(", ")"], [r])))
-      //| (["letStar"], []) =>
-      //  Pre(
-      //    single(id, (Labels.letStar, [r, dark_hole(Exp)])),
-      //    dark_hole(Exp),
-      //  )
       | (["let"], []) =>
         Pre(
           single(id, (Labels.let_, [r, dark_hole(Exp)])),
           dark_hole(Exp),
         )
-      //| (["letStar", "="], [pat]) =>
-      //  Pre(single(id, (Labels.letStar, [pat, r])), dark_hole(Exp))
       | (["let", "="], [pat]) =>
         Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
       | _ => root
@@ -253,10 +246,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["let*", "=", "in"], [Pat(pat), Exp(def)]) =>
-          LetStar(pat, def, r)
-        //| ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
-        //  LetOp(t, pat, def, r)
+        | ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
+          LetOp("_" ++ t ++ "_", pat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

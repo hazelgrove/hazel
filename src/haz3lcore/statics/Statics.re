@@ -411,28 +411,6 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | LetOp(op, pat, def, body) =>
-    let (ty_fn, free_fn, m_fn) =
-      uexp_to_info_map(
-        ~ctx,
-        ~mode=Typ.ap_mode,
-        {term: Var(op), ids: [(-1)]},
-      );
-    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-    let (_, free_arg, m_arg) =
-      uexp_to_info_map(
-        ~ctx,
-        ~mode=Ana(ty_in),
-        {
-          term: Tuple([def, {term: Fun(pat, body), ids: [(-1)]}]),
-          ids: [(-1)],
-        },
-      );
-    add(
-      ~self=Just(ty_out),
-      ~free=Ctx.union([free_fn, free_arg]),
-      union_m([m_fn, m_arg]),
-    );
   | UserOp(op, e1, e2) =>
     let op_var = Ctx.lookup_var(ctx, op);
     let ty_all =
@@ -525,7 +503,7 @@ and uexp_to_info_map =
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
-  | LetStar(pat, def, body)
+  | LetOp(_, pat, def, body)
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);

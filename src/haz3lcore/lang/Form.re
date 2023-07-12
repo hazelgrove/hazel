@@ -245,6 +245,14 @@ let forms: list((string, t)) = [
     "letStar",
     mk(ds, ["let*", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
   ),
+  (
+    "letPlus",
+    mk(ds, ["let+", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
+    "letMinus",
+    mk(ds, ["let-", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
