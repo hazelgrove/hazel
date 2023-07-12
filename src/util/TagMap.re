@@ -55,10 +55,13 @@ let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   };
 };
 
+let cardinal: t('a) => int = List.length;
+
 let tags_of = (m: list((Tag.t, 'a))): list(Tag.t) => List.map(fst, m);
 
 let same_tags_same_order = (map1: t('a), map2: t('a)): bool =>
-  List.for_all2(Tag.equal, tags_of(map1), tags_of(map2));
+  cardinal(map1) === cardinal(map2)
+  && List.for_all2(Tag.equal, tags_of(map1), tags_of(map2));
 
 let tags_equal = (map1: t('a), map2: t('a)): bool => {
   let tags1 = tags_of(map1);
@@ -68,8 +71,6 @@ let tags_equal = (map1: t('a), map2: t('a)): bool => {
 };
 
 let for_all: (binding('a) => bool, t('a)) => bool = List.for_all;
-
-let cardinal: t('a) => int = List.length;
 
 let bindings: t('a) => list(binding('a)) = x => x;
 

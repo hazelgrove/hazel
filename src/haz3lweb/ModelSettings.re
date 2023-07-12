@@ -20,7 +20,7 @@ let init = {
   dynamics: true,
   async_evaluation: false,
   context_inspector: false,
-  instructor_mode: SchoolSettings.show_instructor,
+  instructor_mode: ExerciseSettings.show_instructor,
   benchmark: false,
   mode: Editors.Scratch,
 };
@@ -28,7 +28,7 @@ let init = {
 let init_debug = {...init, mode: Editors.DebugLoad};
 
 let fix_instructor_mode = settings =>
-  if (settings.instructor_mode && !SchoolSettings.show_instructor) {
+  if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
     {...settings, instructor_mode: false};
   } else {
     settings;

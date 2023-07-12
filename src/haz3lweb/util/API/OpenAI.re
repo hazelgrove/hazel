@@ -59,7 +59,7 @@ let body = (~llm=GPT4, messages: list((role, string))): Json.t => {
 let body_simple = (~llm, prompt) => body(~llm, [(User, prompt)]);
 
 let additive_chat = (~body, ~handler): unit =>
-  switch (LocalStorage.Generic.load(OpenAI)) {
+  switch (Store.Generic.load(OpenAI)) {
   | None => print_endline("NO OPENAI API KEY FOUND")
   | Some(api_key) =>
     request(

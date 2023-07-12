@@ -697,25 +697,25 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-        print_endline("CastArrow Executing:  ");
-        print_endline("Ap(d1, d2):" ++ DHExp.show(Ap(d1, d2)));
-        print_endline("d1': " ++ DHExp.show(d1'));
-        print_endline("d2: " ++ DHExp.show(d2));
-        print_endline("ty1: " ++ Typ.show(ty1));
-        print_endline("ty2: " ++ Typ.show(ty2));
-        print_endline("ty1': " ++ Typ.show(ty1'));
-        print_endline("ty2': " ++ Typ.show(ty2'));
+        /*print_endline("CastArrow Executing:  ");
+          print_endline("Ap(d1, d2):" ++ DHExp.show(Ap(d1, d2)));
+          print_endline("d1': " ++ DHExp.show(d1'));
+          print_endline("d2: " ++ DHExp.show(d2));
+          print_endline("ty1: " ++ Typ.show(ty1));
+          print_endline("ty2: " ++ Typ.show(ty2));
+          print_endline("ty1': " ++ Typ.show(ty1'));
+          print_endline("ty2': " ++ Typ.show(ty2'));*/
 
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') =>
-          print_endline(
-            "final: "
-            ++ DHExp.show(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2')),
-          );
+          /*print_endline(
+              "final: "
+              ++ DHExp.show(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2')),
+            );*/
           /* ap cast rule */
-          evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'));
+          evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");

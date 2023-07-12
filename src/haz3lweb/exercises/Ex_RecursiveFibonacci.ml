@@ -1,6 +1,6 @@
 let prompt = Ex_RecursiveFibonacci_prompt.prompt
 
-let exercise : SchoolExercise.spec =
+let exercise : Exercise.spec =
   {
     next_id = 813;
     title = "Recursive Fibonacci";

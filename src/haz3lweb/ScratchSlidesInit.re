@@ -1,9 +1,4 @@
-let filled_slides = [
-  LanguageRefSlide.lang_ref,
-  LanguageRefSlide.basic_type_egs,
-  LanguageRefSlide.adt_egs,
-  LanguageRefSlide.adt_dynamics_tests,
-];
+let filled_slides = [SerializedExamples.intro];
 
 let empty: ScratchSlide.persistent_state = (
   1,
@@ -13,7 +8,7 @@ let empty: ScratchSlide.persistent_state = (
   },
 );
 
-let num_empty = 6;
+let num_empty = 8;
 
 let init_data = filled_slides @ List.init(num_empty, _ => empty);
 
