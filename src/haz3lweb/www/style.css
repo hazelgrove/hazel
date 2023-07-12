@@ -1335,7 +1335,7 @@ svg.tile-selected {
 }
 
 .lang-doc .top-bar .close:hover {
-  color: #ffeb00;
+  color: var(--light-page-color);
   background-color: #c7b480;
 }
 

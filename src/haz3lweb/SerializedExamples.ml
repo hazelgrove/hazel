@@ -1,3 +1,101 @@
+let intro : ScratchSlide.persistent_state =
+  ( 15704,
+    {
+      zipper =
+        "((selection((focus \
+         Left)(content())))(backpack())(relatives((siblings(((Secondary((id \
+         14750)(content(Comment\"# Welcome to Hazel! #\"))))(Secondary((id \
+         14838)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         14839)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15428)(content(Comment\"# This is a program cell, which consists of a \
+         structured editor  #\"))))(Secondary((id \
+         14911)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15500)(content(Comment\"# at the top and its evaluated result at the \
+         bottom. Right now,  #\"))))(Secondary((id \
+         14980)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
+         15703)(content(Comment\"# that result has a question mark, as the \
+         program is incomplete! #\"))))(Secondary((id \
+         13612)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15054)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         15059)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 15060)(content(Whitespace\" \
+         \"))))(Tile((id 15074)(label(your_function))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         15075)(content(Whitespace\" \")))))((Secondary((id \
+         15076)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15546)(content(Comment\"# Fill the hole below to see how the result \
+         changes #\"))))(Secondary((id \
+         15144)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         15149)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
+         1))(children(((Secondary((id 15150)(content(Whitespace\" \
+         \"))))(Tile((id 15229)(label(parameter))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         15160)(content(Whitespace\" \")))))))))(Secondary((id \
+         15171)(content(Whitespace\" \"))))(Grout((id 15697)(shape \
+         Convex)))(Secondary((id 15162)(content(Whitespace\" \
+         \"))))(Secondary((id 15163)(content(Whitespace\" \"))))(Secondary((id \
+         15164)(content(Whitespace\" \"))))(Secondary((id \
+         15165)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+         15170)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         13613)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15594)(content(Comment\"# Here in Scratch Mode, you can use the upper \
+         left arrows to     #\"))))(Secondary((id \
+         14337)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15607)(content(Comment\"# switch between blank cells where you can \
+         store programs.       #\"))))(Secondary((id \
+         14029)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         14084)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15695)(content(Comment\"# Select Examples Mode from the upper left \
+         dialog to pick from   #\"))))(Secondary((id \
+         15252)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15683)(content(Comment\"# a list of references for Hazel language and \
+         editor features.   #\"))))(Secondary((id \
+         14180)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         14181)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         15435)(content(Comment\"# Select Exercise for a small functional \
+         programming tutorial.   #\"))))(Secondary((id \
+         3020)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         14335)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         14498)(label(your_function))(mold((out Exp)(in_())(nibs(((shape \
+         Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Tile((id \
+         14514)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+         15220)(label(\"\\\"argument\\\"\"))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         15549)(content(Whitespace\" \"))))(Tile((id \
+         15550)(label(+))(mold((out Exp)(in_())(nibs(((shape(Concave 5))(sort \
+         Exp))((shape(Concave 5))(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         15552)(content(Whitespace\" \"))))(Tile((id \
+         15557)(label(1))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         2827)(content(Whitespace\"\\226\\143\\142\")))))))(ancestors())))(caret(Inner \
+         65 64)))";
+      backup_text =
+        "# Welcome to Hazel! #\n\n\
+         # This is a program cell, which consists of a structured editor  #\n\
+         # at the top and its evaluated result at the bottom. Right now,  #\n\
+         # that result has a question mark, as the program is incomplete! #\n\n\
+         let your_function =\n\
+         # Fill the hole below to see how the result changes #\n\
+         fun parameter ->     \n\
+         in\n\n\
+         # Here in Scratch Mode, you can use the upper left arrows to     #\n\
+         # switch between blank cells where you can store programs.       #\n\n\
+         # Select Examples Mode from the upper left dialog to pick from   #\n\
+         # a list of references for Hazel language and editor features.   #\n\n\
+         # Select Exercise for a small functional programming tutorial.   #\n\n\
+         your_function(\"argument\") + 1\n";
+    } )
+
 let lang_ref : ScratchSlide.persistent_state =
   ( 13588,
     {
