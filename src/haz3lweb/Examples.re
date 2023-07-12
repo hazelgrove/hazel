@@ -1,11 +1,8 @@
-let init_data = [
-  ("Basic Reference", LanguageRefSlide.lang_ref),
-  ("Basic types", LanguageRefSlide.basic_type_egs),
-  ("ADT Statics", LanguageRefSlide.adt_egs),
-  ("ADT Dynamics", LanguageRefSlide.adt_dynamics_tests),
+let init = [
+  ("Basic Reference", SerializedExamples.lang_ref),
+  ("Types & errors", SerializedExamples.basic_type_egs),
+  ("ADT Statics", SerializedExamples.adt_egs),
+  ("ADT Dynamics", SerializedExamples.adt_dynamics_tests),
 ];
 
-let init_name = name => {
-  let data = List.assoc(name, init_data);
-  ScratchSlide.unpersist(data);
-};
+let init_name = name => ScratchSlide.unpersist(List.assoc(name, init));

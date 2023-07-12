@@ -8,27 +8,27 @@ type scratch = (int, list(ScratchSlide.state));
 type examples = (string, list((string, ScratchSlide.state)));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school = (int, list(SchoolExercise.spec), SchoolExercise.state);
+type exercises = (int, list(Exercise.spec), Exercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | DebugLoad
   | Scratch(int, list(ScratchSlide.state))
   | Examples(string, list((string, ScratchSlide.state)))
-  | Exercises(int, list(SchoolExercise.spec), SchoolExercise.state);
+  | Exercise(int, list(Exercise.spec), Exercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | DebugLoad
   | Scratch
   | Examples
-  | Exercises;
+  | Exercise;
 
 let mode_of_string = (s: string): mode =>
   switch (s) {
   | "Scratch" => Scratch
   | "Examples" => Examples
-  | "Exercises" => Exercises
+  | "Exercise" => Exercise
   | _ => Scratch
   };
 
@@ -47,9 +47,9 @@ let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
     let id = ScratchSlide.id_of_state(slide);
     let ed = ScratchSlide.editor_of_state(slide);
     (id, ed);
-  | Exercises(_, _, exercise) =>
-    let id = SchoolExercise.id_of_state(exercise);
-    let ed = SchoolExercise.editor_of_state(exercise);
+  | Exercise(_, _, exercise) =>
+    let id = Exercise.id_of_state(exercise);
+    let ed = Exercise.editor_of_state(exercise);
     (id, ed);
   };
 
@@ -78,8 +78,8 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
       |> List.remove_assoc(name)
       |> List.cons((name, ScratchSlide.put_editor_and_id(slide, id, ed))),
     );
-  | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, SchoolExercise.put_editor_and_id(exercise, id, ed))
+  | Exercise(n, specs, exercise) =>
+    Exercise(n, specs, Exercise.put_editor_and_id(exercise, id, ed))
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
@@ -93,7 +93,7 @@ let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   | Examples(name, slides) =>
     let slide = List.assoc(name, slides);
     ScratchSlide.spliced_elabs(slide);
-  | Exercises(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
+  | Exercise(_, _, exercise) => Exercise.spliced_elabs(exercise)
   };
 };
 
@@ -102,10 +102,10 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(_)
   | Examples(_) => editors
-  | Exercises(n, specs, exercise) =>
-    Exercises(
+  | Exercise(n, specs, exercise) =>
+    Exercise(
       n,
       specs,
-      SchoolExercise.set_instructor_mode(exercise, instructor_mode),
+      Exercise.set_instructor_mode(exercise, instructor_mode),
     )
   };

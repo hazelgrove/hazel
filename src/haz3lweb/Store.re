@@ -175,8 +175,8 @@ module Examples = {
 
   let init = () => {
     let examples = (
-      Examples.init_data |> List.hd |> fst,
-      Examples.init_data |> List.map(unpersist),
+      Examples.init |> List.hd |> fst,
+      Examples.init |> List.map(unpersist),
     );
     save(examples);
     examples;
@@ -195,8 +195,8 @@ module Examples = {
   let import = data => save(deserialize(data));
 };
 
-module School = {
-  open SchoolExercise;
+module Exercise = {
+  open Exercise;
 
   let cur_exercise_key = "CUR_EXERCISE";
 
@@ -217,29 +217,27 @@ module School = {
   };
 
   let save_exercise = (exercise, ~instructor_mode) => {
-    let key = SchoolExercise.key_of_state(exercise);
+    let key = Exercise.key_of_state(exercise);
     let keystring = keystring_of_key(key);
-    let value = SchoolExercise.serialize_exercise(exercise, ~instructor_mode);
+    let value = Exercise.serialize_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(keystring, value);
   };
 
   let init_exercise = (spec, ~instructor_mode) => {
-    let key = SchoolExercise.key_of(spec);
+    let key = Exercise.key_of(spec);
     let keystring = keystring_of_key(key);
-    let exercise = SchoolExercise.state_of_spec(spec, ~instructor_mode);
+    let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
     exercise;
   };
 
-  let load_exercise = (key, spec, ~instructor_mode): SchoolExercise.state => {
+  let load_exercise = (key, spec, ~instructor_mode): Exercise.state => {
     let keystring = keystring_of_key(key);
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(
-          SchoolExercise.deserialize_exercise(data, ~spec, ~instructor_mode)
-        ) {
+        try(Exercise.deserialize_exercise(data, ~spec, ~instructor_mode)) {
         | _ => init_exercise(spec, ~instructor_mode)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -256,16 +254,23 @@ module School = {
   };
 
   let init = (~instructor_mode) => {
-    let school = School.init(~instructor_mode);
-    save(school, ~instructor_mode);
-    school;
+    let exercises = {
+      (
+        0,
+        ExerciseSettings.exercises,
+        List.nth(ExerciseSettings.exercises, 0)
+        |> Exercise.state_of_spec(~instructor_mode),
+      );
+    };
+    save(exercises, ~instructor_mode);
+    exercises;
   };
 
-  let load = (~specs, ~instructor_mode): Editors.school => {
+  let load = (~specs, ~instructor_mode): Editors.exercises => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       let key = key_of_keystring(keystring);
-      switch (SchoolExercise.find_key_opt(key, specs)) {
+      switch (Exercise.find_key_opt(key, specs)) {
       | Some((n, spec)) =>
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
@@ -276,23 +281,21 @@ module School = {
           (n, specs, exercise);
         | None =>
           // initialize exercise from spec
-          let exercise = SchoolExercise.state_of_spec(spec, ~instructor_mode);
+          let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
           save_exercise(exercise, ~instructor_mode);
           (n, specs, exercise);
         }
       | None =>
         // invalid current exercise key saved, load the first exercise
         let first_spec = List.nth(specs, 0);
-        let first_key = SchoolExercise.key_of(first_spec);
+        let first_key = Exercise.key_of(first_spec);
         (0, specs, load_exercise(first_key, first_spec, ~instructor_mode));
       };
     | None => init(~instructor_mode)
     };
   };
 
-  type school_export = SchoolExercise.school_export;
-
-  let prep_school_export = (~specs, ~instructor_mode) => {
+  let prep_exercise_export = (~specs, ~instructor_mode) => {
     {
       cur_exercise:
         key_of_keystring(
@@ -301,37 +304,37 @@ module School = {
       exercise_data:
         specs
         |> List.map(spec => {
-             let key = SchoolExercise.key_of(spec);
+             let key = Exercise.key_of(spec);
              let exercise =
                load_exercise(key, spec, ~instructor_mode)
-               |> SchoolExercise.persistent_state_of_state(~instructor_mode);
+               |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
            }),
     };
   };
 
-  let serialize_school_export = (~specs, ~instructor_mode) => {
-    prep_school_export(~specs, ~instructor_mode)
-    |> sexp_of_school_export
+  let serialize_exercise_export = (~specs, ~instructor_mode) => {
+    prep_exercise_export(~specs, ~instructor_mode)
+    |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
   };
 
   let export = (~specs, ~instructor_mode) => {
-    serialize_school_export(~specs, ~instructor_mode);
+    serialize_exercise_export(~specs, ~instructor_mode);
   };
 
   let import = (data, ~specs, ~instructor_mode) => {
-    let school_export = data |> deserialize_school_export;
-    save_exercise_key(school_export.cur_exercise);
-    school_export.exercise_data
+    let exercise_export = data |> deserialize_exercise_export;
+    save_exercise_key(exercise_export.cur_exercise);
+    exercise_export.exercise_data
     |> List.iter(((key, persistent_state)) => {
-         let spec = SchoolExercise.find_key_opt(key, specs);
+         let spec = Exercise.find_key_opt(key, specs);
          switch (spec) {
          | None =>
            print_endline("Warning: saved key does not correspond to exercise")
          | Some((_, spec)) =>
            save_exercise(
-             SchoolExercise.unpersist_state(
+             Exercise.unpersist_state(
                persistent_state,
                ~spec,
                ~instructor_mode,
@@ -352,10 +355,10 @@ let load_editors = (~mode: Editors.mode, ~instructor_mode: bool): Editors.t =>
   | Examples =>
     let (name, slides) = Examples.load();
     Examples(name, slides);
-  | Exercises =>
+  | Exercise =>
     let (n, specs, exercise) =
-      School.load(~specs=SchoolSettings.exercises, ~instructor_mode);
-    Exercises(n, specs, exercise);
+      Exercise.load(~specs=ExerciseSettings.exercises, ~instructor_mode);
+    Exercise(n, specs, exercise);
   };
 
 let save_editors = (model: Model.t): unit =>
@@ -363,8 +366,8 @@ let save_editors = (model: Model.t): unit =>
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) => Scratch.save((n, slides))
   | Examples(name, slides) => Examples.save((name, slides))
-  | Exercises(n, specs, exercise) =>
-    School.save(
+  | Exercise(n, specs, exercise) =>
+    Exercise.save(
       (n, specs, exercise),
       ~instructor_mode=model.settings.instructor_mode,
     )
