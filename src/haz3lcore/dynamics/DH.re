@@ -85,7 +85,7 @@ module rec DHExp: {
     | Rule(DHPat.t, t);
 
   let constructor_string: t => string;
-
+  let apply_cast_onBoundVar: (string, Typ.t, DHExp.t) => DHExp.t;
   let mk_tuple: list(t) => t;
 
   let cast: (t, Typ.t, Typ.t) => t;
@@ -233,7 +233,103 @@ module rec DHExp: {
 
   let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
     List.fold_left((d, (ty1, ty2)) => cast(d, ty1, ty2), d, casts);
-
+  let rec apply_cast_onBoundVar =
+          (str: string, ty: Typ.t, x: DHExp.t): DHExp.t => {
+    switch (x) {
+    | Closure(ei, d) => Closure(ei, apply_cast_onBoundVar(str, ty, d))
+    | Cast(d, _, _) => apply_cast_onBoundVar(str, ty, d)
+    | FailedCast(d, _, _) => apply_cast_onBoundVar(str, ty, d)
+    | Inj(ty, side, d) => Inj(ty, side, apply_cast_onBoundVar(str, ty, d))
+    | Tuple(ds) => Tuple(ds |> List.map(apply_cast_onBoundVar(str, ty)))
+    | Prj(d, n) => Prj(apply_cast_onBoundVar(str, ty, d), n)
+    | Cons(d1, d2) =>
+      Cons(
+        apply_cast_onBoundVar(str, ty, d1),
+        apply_cast_onBoundVar(str, ty, d2),
+      )
+    | ListLit(a, b, c, d, ds) =>
+      ListLit(a, b, c, d, List.map(apply_cast_onBoundVar(str, ty), ds))
+    | NonEmptyHole(err, u, i, d) =>
+      NonEmptyHole(err, u, i, apply_cast_onBoundVar(str, ty, d))
+    | Sequence(a, b) =>
+      Sequence(
+        apply_cast_onBoundVar(str, ty, a),
+        apply_cast_onBoundVar(str, ty, b),
+      )
+    | Let(dp, b, c) =>
+      Let(
+        dp,
+        apply_cast_onBoundVar(str, ty, b),
+        apply_cast_onBoundVar(str, ty, c),
+      )
+    | FixF(a, b, c) => FixF(a, b, apply_cast_onBoundVar(str, ty, c))
+    | Fun(a, b, c, d) => Fun(a, b, apply_cast_onBoundVar(str, ty, c), d)
+    | Ap(a, b) =>
+      Ap(
+        apply_cast_onBoundVar(str, ty, a),
+        apply_cast_onBoundVar(str, ty, b),
+      )
+    | ApBuiltin(fn, args) =>
+      ApBuiltin(fn, List.map(apply_cast_onBoundVar(str, ty), args))
+    | BinBoolOp(a, b, c) =>
+      BinBoolOp(
+        a,
+        apply_cast_onBoundVar(str, ty, b),
+        apply_cast_onBoundVar(str, ty, c),
+      )
+    | BinIntOp(a, b, c) =>
+      BinIntOp(
+        a,
+        apply_cast_onBoundVar(str, ty, b),
+        apply_cast_onBoundVar(str, ty, c),
+      )
+    | BinFloatOp(a, b, c) =>
+      BinFloatOp(
+        a,
+        apply_cast_onBoundVar(str, ty, b),
+        apply_cast_onBoundVar(str, ty, c),
+      )
+    | BinStringOp(a, b, c) =>
+      BinStringOp(
+        a,
+        apply_cast_onBoundVar(str, ty, b),
+        apply_cast_onBoundVar(str, ty, c),
+      )
+    | ConsistentCase(Case(a, rs, b)) =>
+      ConsistentCase(
+        Case(
+          apply_cast_onBoundVar(str, ty, a),
+          List.map(apply_cast_onBoundVar_rule(str, ty), rs),
+          b,
+        ),
+      )
+    | InconsistentBranches(u, i, Case(scrut, rules, n)) =>
+      InconsistentBranches(
+        u,
+        i,
+        Case(
+          apply_cast_onBoundVar(str, ty, scrut),
+          List.map(apply_cast_onBoundVar_rule(str, ty), rules),
+          n,
+        ),
+      )
+    | BoundVar(s) when s == str => Cast(x, Unknown(Internal), ty)
+    | BoundVar(_) as d
+    | EmptyHole(_) as d
+    | ExpandingKeyword(_) as d
+    | FreeVar(_) as d
+    | InvalidText(_) as d
+    | TestLit(_) as d
+    | BoolLit(_) as d
+    | IntLit(_) as d
+    | FloatLit(_) as d
+    | StringLit(_) as d
+    | Tag(_) as d
+    | InvalidOperation(_) as d => d
+    };
+  }
+  and apply_cast_onBoundVar_rule = (str, ty, Rule(a, d)) =>
+    Rule(a, apply_cast_onBoundVar(str, ty, d));
   let rec strip_casts =
     fun
     | Closure(ei, d) => Closure(ei, strip_casts(d))

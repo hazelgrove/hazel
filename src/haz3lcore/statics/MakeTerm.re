@@ -60,34 +60,20 @@ let _complete_root =
     | ([(id, tile)], []) =>
       switch (tile) {
       | (["("], []) => Op(single(id, (["(", ")"], [r])))
-      | ([t], []) when Form.is_let_op(t) =>
-        Printf.printf("case1: %s", t);
-        Pre(
-          single(id, (Labels.letOp, [r, dark_hole(Exp)])),
-          dark_hole(Exp),
-        );
-      | (["let*"], []) =>
-        Printf.printf("case1: let*");
-        Pre(
-          single(id, (Labels.letStar, [r, dark_hole(Exp)])),
-          dark_hole(Exp),
-        );
-
+      //| (["letStar"], []) =>
+      //  Pre(
+      //    single(id, (Labels.letStar, [r, dark_hole(Exp)])),
+      //    dark_hole(Exp),
+      //  )
       | (["let"], []) =>
-        Printf.printf("case1: let");
         Pre(
           single(id, (Labels.let_, [r, dark_hole(Exp)])),
           dark_hole(Exp),
-        );
-      | ([t, "="], [pat]) when Form.is_let_op(t) =>
-        Printf.printf("case2: %s", t);
-        Pre(single(id, (Labels.letOp, [pat, r])), dark_hole(Exp));
-      | (["let*", "="], [pat]) =>
-        Printf.printf("case2: let*");
-        Pre(single(id, (Labels.letStar, [pat, r])), dark_hole(Exp));
+        )
+      //| (["letStar", "="], [pat]) =>
+      //  Pre(single(id, (Labels.letStar, [pat, r])), dark_hole(Exp))
       | (["let", "="], [pat]) =>
-        Printf.printf("case2: let");
-        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp));
+        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
       | _ => root
       }
     | _ => root
@@ -266,15 +252,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
-        | (["let", "=", "in"], [Pat(pat), Exp(def)]) =>
-          Printf.printf("let = in \n");
-          Let(pat, def, r);
+        | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["let*", "=", "in"], [Pat(pat), Exp(def)]) =>
-          Printf.printf("let = in \n");
-          LetStar(pat, def, r);
-        | ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
-          Printf.printf("let op: %s\n", t);
-          LetOp(t, pat, def, r);
+          LetStar(pat, def, r)
+        //| ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
+        //  LetOp(t, pat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
@@ -293,45 +275,46 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Bin(Exp(l), tiles, Exp(r)) as tm =>
-    switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
-    | None =>
-      switch (tiles) {
-      | ([(_id, t)], []) =>
-        ret(
-          switch (t) {
-          | (["+"], []) => BinOp(Int(Plus), l, r)
-          | (["-"], []) => BinOp(Int(Minus), l, r)
-          | (["*"], []) => BinOp(Int(Times), l, r)
-          | (["**"], []) => BinOp(Int(Power), l, r)
-          | (["/"], []) => BinOp(Int(Divide), l, r)
-          | (["<"], []) => BinOp(Int(LessThan), l, r)
-          | ([">"], []) => BinOp(Int(GreaterThan), l, r)
-          | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
-          | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
-          | (["=="], []) => BinOp(Int(Equals), l, r)
-          | (["+."], []) => BinOp(Float(Plus), l, r)
-          | (["-."], []) => BinOp(Float(Minus), l, r)
-          | (["*."], []) => BinOp(Float(Times), l, r)
-          | (["/."], []) => BinOp(Float(Divide), l, r)
-          | (["**."], []) => BinOp(Float(Power), l, r)
-          | (["<."], []) => BinOp(Float(LessThan), l, r)
-          | ([">."], []) => BinOp(Float(GreaterThan), l, r)
-          | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
-          | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
-          | (["==."], []) => BinOp(Float(Equals), l, r)
-          | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
-          | (["::"], []) => Cons(l, r)
-          | ([";"], []) => Seq(l, r)
-          | (["$=="], []) => BinOp(String(Equals), l, r)
-          | ([t], []) when Form.is_op(t) => UserOp("_" ++ t ++ "_", l, r)
-          | _ => hole(tm)
-          },
-        )
-      | _ => ret(hole(tm))
-      }
+  | Bin(Exp(l), tiles, Exp(r)) as tm => {
+      switch (is_tuple_exp(tiles)) {
+      | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+      | None =>
+        switch (tiles) {
+        | ([(_id, t)], []) =>
+          ret(
+            switch (t) {
+            | (["+"], []) => BinOp(Int(Plus), l, r)
+            | (["-"], []) => BinOp(Int(Minus), l, r)
+            | (["*"], []) => BinOp(Int(Times), l, r)
+            | (["**"], []) => BinOp(Int(Power), l, r)
+            | (["/"], []) => BinOp(Int(Divide), l, r)
+            | (["<"], []) => BinOp(Int(LessThan), l, r)
+            | ([">"], []) => BinOp(Int(GreaterThan), l, r)
+            | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
+            | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
+            | (["=="], []) => BinOp(Int(Equals), l, r)
+            | (["+."], []) => BinOp(Float(Plus), l, r)
+            | (["-."], []) => BinOp(Float(Minus), l, r)
+            | (["*."], []) => BinOp(Float(Times), l, r)
+            | (["/."], []) => BinOp(Float(Divide), l, r)
+            | (["**."], []) => BinOp(Float(Power), l, r)
+            | (["<."], []) => BinOp(Float(LessThan), l, r)
+            | ([">."], []) => BinOp(Float(GreaterThan), l, r)
+            | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
+            | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
+            | (["==."], []) => BinOp(Float(Equals), l, r)
+            | (["&&"], []) => BinOp(Bool(And), l, r)
+            | (["||"], []) => BinOp(Bool(Or), l, r)
+            | (["::"], []) => Cons(l, r)
+            | ([";"], []) => Seq(l, r)
+            | (["$=="], []) => BinOp(String(Equals), l, r)
+            | ([t], []) when Form.is_op(t) => UserOp("_" ++ t ++ "_", l, r)
+            | _ => hole(tm)
+            },
+          )
+        | _ => ret(hole(tm))
+        }
+      };
     }
   | tm => ret(hole(tm));
 }

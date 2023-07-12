@@ -588,7 +588,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
-
     switch (d) {
     | BoundVar(x) =>
       let d =

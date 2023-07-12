@@ -56,8 +56,8 @@ let evaluate =
 // };
 
 let evaluate = (d: DHExp.t): ProgramResult.t => {
+  //Printf.printf("Evaluating: %s\n", DHExp.show(d));
   let result = evaluate(d);
-
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
   | (es, BoxedValue(_) as r) =>

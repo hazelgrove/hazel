@@ -83,10 +83,9 @@ module Pervasives = {
   let modulo = name =>
     Builtin.mk_one(name, Arrow(Prod([Int, Int]), Int), Impls.int_mod);
 
-  let builtins =
-    VarMap.empty
-    |> using("pi", pi)
-    |> using("int_of_float", int_of_float)
-    |> using("float_of_int", float_of_int)
-    |> using("mod", modulo);
+  let builtins = VarMap.empty;
+  //|> using("pi", pi)
+  //|> using("int_of_float", int_of_float)
+  //|> using("float_of_int", float_of_int)
+  //|> using("mod", modulo);
 };

@@ -67,7 +67,7 @@ type t =
 
 /* The InfoMap collating all info for a composite term */
 type map = Id.Map.t(t);
-
+let iter = (f: (Id.t, t) => unit, m: map): unit => Id.Map.iter(f, m);
 let terms = (map: map): Id.Map.t(Term.any) =>
   map
   |> Id.Map.filter_map(_ =>
@@ -651,7 +651,6 @@ and upat_to_info_map =
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    Printf.printf("upat_to_info_map: Var(%s)\n%!", name);
     if (Form.is_let_op_in_let(name)) {
       let typ = typ_after_fix(mode, Just(Unknown(Internal)));
       let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
@@ -666,7 +665,7 @@ and upat_to_info_map =
       let typ = typ_after_fix(mode, Just(Unknown(Internal)));
       let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
-    };
+    }
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =
