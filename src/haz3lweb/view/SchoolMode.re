@@ -388,7 +388,7 @@ let toolbar_buttons =
     (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
   let (_idx, _specs, exercise): Editors.school =
     switch (editors) {
-    | School(idx, specs, exercise) => (idx, specs, exercise)
+    | Exercises(idx, specs, exercise) => (idx, specs, exercise)
     | _ => assert(false)
     };
   let SchoolExercise.{pos: _, eds} = exercise;

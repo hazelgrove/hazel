@@ -20,14 +20,14 @@ type all_f22 = {
 
 let mk_all = (~instructor_mode) => {
   print_endline("Mk all");
-  let settings = LocalStorage.Settings.export();
+  let settings = Store.Settings.export();
   print_endline("Settings OK");
-  let langDocMessages = LocalStorage.LangDocMessages.export();
+  let langDocMessages = Store.LangDocMessages.export();
   print_endline("LangDocMessages OK");
-  let scratch = LocalStorage.Scratch.export();
+  let scratch = Store.Scratch.export();
   print_endline("Scratch OK");
   let specs = School.exercises;
-  let school = LocalStorage.School.export(~specs, ~instructor_mode);
+  let school = Store.School.export(~specs, ~instructor_mode);
   print_endline("School OK");
   let log = Log.export();
   {settings, langDocMessages, scratch, school, log};
@@ -50,10 +50,10 @@ let import_all = (data, ~specs) => {
         langDocMessages: "",
       };
     };
-  let settings = LocalStorage.Settings.import(all.settings);
-  LocalStorage.LangDocMessages.import(all.langDocMessages);
+  let settings = Store.Settings.import(all.settings);
+  Store.LangDocMessages.import(all.langDocMessages);
   let instructor_mode = settings.instructor_mode;
-  LocalStorage.Scratch.import(all.scratch);
-  LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
+  Store.Scratch.import(all.scratch);
+  Store.School.import(all.school, ~specs, ~instructor_mode);
   Log.import(all.log);
 };

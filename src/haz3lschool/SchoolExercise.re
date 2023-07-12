@@ -935,7 +935,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  // From LocalStorage
+  // From Store
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type school_export = {

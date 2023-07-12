@@ -342,3 +342,51 @@ module School = {
        });
   };
 };
+
+let load_editors = (~mode: Editors.mode, ~instructor_mode: bool): Editors.t =>
+  switch (mode) {
+  | DebugLoad => DebugLoad
+  | Scratch =>
+    let (idx, slides) = Scratch.load();
+    Scratch(idx, slides);
+  | Examples =>
+    let (name, slides) = Examples.load();
+    Examples(name, slides);
+  | Exercises =>
+    let (n, specs, exercise) =
+      School.load(~specs=SchoolSettings.exercises, ~instructor_mode);
+    Exercises(n, specs, exercise);
+  };
+
+let save_editors = (model: Model.t): unit =>
+  switch (model.editors) {
+  | DebugLoad => failwith("no editors in debug load mode")
+  | Scratch(n, slides) => Scratch.save((n, slides))
+  | Examples(name, slides) => Examples.save((name, slides))
+  | Exercises(n, specs, exercise) =>
+    School.save(
+      (n, specs, exercise),
+      ~instructor_mode=model.settings.instructor_mode,
+    )
+  };
+
+let load_model = (init_model: Model.t): Model.t => {
+  let settings = Settings.load();
+  let langDocMessages = LangDocMessages.load();
+  let editors =
+    load_editors(
+      ~mode=settings.mode,
+      ~instructor_mode=settings.instructor_mode,
+    );
+  let results =
+    ModelResults.init(
+      settings.dynamics ? Editors.get_spliced_elabs(editors) : [],
+    );
+  {...init_model, editors, settings, langDocMessages, results};
+};
+
+let save_model = (model: Model.t) => {
+  save_editors(model);
+  LangDocMessages.save(model.langDocMessages);
+  Settings.save(model.settings);
+};

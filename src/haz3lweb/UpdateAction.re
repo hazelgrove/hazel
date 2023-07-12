@@ -25,7 +25,7 @@ type t =
   | FinishImportScratchpad(option(string))
   | ResetSlide
   | Save
-  | ToggleMode
+  | SetMode(Editors.mode)
   | SwitchScratchSlide(int)
   | SwitchExampleSlide(string)
   | SwitchEditor(SchoolExercise.pos)

@@ -413,8 +413,7 @@ body,
   cursor: pointer;
   user-select: none;
   background-color: #c7b480;
-  border-radius: 1em;
-  padding: 0.2em 0.5em 0.2em 0.5em;
+  border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
 }
 
@@ -425,6 +424,10 @@ body,
   align-items: center;
 }
 
+#top-bar #editor-mode .icon:hover {
+  filter: brightness(0.45) sepia(1) hue-rotate(15deg) saturate(50);
+}
+
 #top-bar #editor-mode .icon svg {
   fill: var(--light-page-color);
 }
@@ -433,14 +436,20 @@ body,
   background-color: #99854a;
 }
 
-
-#top-bar #editor-mode .icon svg {
-  width: 15px;
-  height: 15px;
+#top-bar #editor-mode .mode-name{
+  border-radius: 0.4em 1em 1em 0.4em;
+  padding: 0 0.5em 0 0.5em;
+  background-color: #a69460;
+  border-bottom: 0.7px solid #ebe0c2;
+  color: #fdf6e3;
 }
 
-#top-bar #editor-mode:hover {
-  transform: scale(110%);
+#top-bar #editor-mode .mode-name select:hover {
+  color: #fad56f;
+}
+
+#top-bar #editor-mode .icon svg {
+  height: 15px;
 }
 
 #top-bar #editor-mode .toggle-switch.active .toggle-knob {
@@ -454,10 +463,16 @@ body,
 #top-bar #editor-mode select {
   background-color: #0000;
   border: none;
-  /*border-bottom: 1px solid white;*/
-  border-radius: 0.6em;
+  color: white;
   font-size: 1em;
-};
+  height: 1.7em;
+}
+
+#top-bar #editor-mode select:focus-visible {
+  background-color: #0000 !important;
+  color: #fad56f !important;
+  outline: none;
+}
 
 /* END TOP BAR */
 

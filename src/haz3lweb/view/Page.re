@@ -5,106 +5,10 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
-  let next_ed = (cur_slide + 1) mod num_slides;
-  inject(SwitchScratchSlide(next_ed));
-};
-
 let download_editor_state = (~instructor_mode) => {
   let data = Export.export_all(~instructor_mode);
   JsUtil.download_json(SchoolSettings.filename, data);
 };
-
-let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
-  let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
-  inject(SwitchScratchSlide(prev_ed));
-};
-
-let scratch_toggle_view = (~inject, ~cur_slide, ~num_slides) => {
-  let tooltip = Attr.title("Toggle Mode");
-  let toggle_mode = Attr.on_mousedown(_ => inject(Update.ToggleMode));
-  let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
-  div(
-    ~attr=Attr.id("editor-mode"),
-    [
-      div(~attr=Attr.many([toggle_mode, tooltip]), [text("Scratch")]),
-      button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
-      text(cur_slide_text),
-      button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
-    ],
-  );
-};
-
-let examples_toggle_view = (~inject, ~name, ~editors) => {
-  let tooltip = Attr.title("Toggle Mode");
-  let toggle_mode = Attr.on_mousedown(_ => inject(Update.ToggleMode));
-  div(
-    ~attr=Attr.id("editor-mode"),
-    [
-      div(~attr=Attr.many([toggle_mode, tooltip]), [text("Examples: ")]),
-      select(
-        ~attr=
-          Attr.on_change((_, name) =>
-            inject(Update.SwitchExampleSlide(name))
-          ),
-        List.map(
-          ((n, _)) =>
-            n == name
-              ? option(
-                  ~attr=Attr.create("selected", "selected"),
-                  [text(n)],
-                )
-              : option([text(n)]),
-          editors,
-        ),
-      ),
-    ],
-  );
-};
-
-let school_toggle_view = (~inject, ~cur_slide, ~num_slides, ~instructor_mode) => {
-  let control =
-    if (SchoolSettings.show_instructor) {
-      Some(
-        toggle("🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
-          inject(Update.Set(InstructorMode))
-        ),
-      );
-    } else {
-      None;
-    };
-  let id = Attr.id("editor-mode");
-  let tooltip = Attr.title("Toggle Mode");
-  let toggle_mode = Attr.on_mousedown(_ => inject(Update.ToggleMode));
-  let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
-  div(
-    ~attr=id,
-    [
-      div(~attr=Attr.many([toggle_mode, tooltip]), [text("Exercises")]),
-      button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
-      text(cur_slide_text),
-      button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
-    ]
-    @ Option.to_list(control),
-  );
-};
-
-let editor_mode_toggle_view = (~inject: Update.t => 'a, ~model: Model.t) => {
-  switch (model.editors) {
-  | DebugLoad => failwith("impossible")
-  | Scratch(cur_slide, slides) =>
-    scratch_toggle_view(~inject, ~cur_slide, ~num_slides=List.length(slides))
-  | Examples(name, editors) => examples_toggle_view(~inject, ~name, ~editors)
-  | School(cur_slide, specs, _) =>
-    school_toggle_view(
-      ~cur_slide,
-      ~num_slides=List.length(specs),
-      ~inject,
-      ~instructor_mode=model.settings.instructor_mode,
-    )
-  };
-};
-
 let menu_icon =
   div(
     ~attr=clss(["menu-icon"]),
@@ -193,6 +97,7 @@ let top_bar_view =
             ),
           ],
         ),
+        EditorModeView.view(~inject, ~model),
         button_d(
           Icons.undo,
           inject(Undo),
@@ -205,7 +110,6 @@ let top_bar_view =
           ~disabled=!can_redo,
           ~tooltip="Redo",
         ),
-        editor_mode_toggle_view(~inject, ~model),
       ]
       @ toolbar_buttons,
     );
@@ -277,7 +181,7 @@ let main_ui_view =
     let toolbar_buttons =
       ScratchMode.toolbar_buttons(~inject, List.assoc(name, slides));
     simple_view(~inject, ~toolbar_buttons, model);
-  | School(_, _, exercise) =>
+  | Exercises(_, _, exercise) =>
     let toolbar_buttons =
       SchoolMode.toolbar_buttons(~inject, ~settings, editors);
     let results = settings.dynamics ? Some(results) : None;

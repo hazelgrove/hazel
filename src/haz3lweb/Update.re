@@ -2,18 +2,6 @@ open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
 
-let save_editors = (model: Model.t): unit =>
-  switch (model.editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch(n, slides) => LocalStorage.Scratch.save((n, slides))
-  | Examples(name, slides) => LocalStorage.Examples.save((name, slides))
-  | School(n, specs, exercise) =>
-    LocalStorage.School.save(
-      (n, specs, exercise),
-      ~instructor_mode=model.settings.instructor_mode,
-    )
-  };
-
 let reset_editor = (editors: Editors.t, ~instructor_mode): Editors.t =>
   switch (editors) {
   | DebugLoad => failwith("impossible")
@@ -27,8 +15,8 @@ let reset_editor = (editors: Editors.t, ~instructor_mode): Editors.t =>
       |> List.remove_assoc(name)
       |> List.cons((name, Examples.init_name(name)));
     Examples(name, slides);
-  | School(n, specs, _) =>
-    School(
+  | Exercises(n, specs, _) =>
+    Exercises(
       n,
       specs,
       List.nth(specs, n) |> SchoolExercise.state_of_spec(~instructor_mode),
@@ -103,39 +91,8 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
         },
       }
     };
-  LocalStorage.Settings.save(model.settings);
-  save_editors(model);
+  Store.save_model(model);
   model;
-};
-
-let load_model = (model: Model.t): Model.t => {
-  let settings = LocalStorage.Settings.load();
-  let langDocMessages = LocalStorage.LangDocMessages.load();
-  let model = {...model, settings, langDocMessages};
-  let model =
-    switch (model.settings.mode) {
-    | DebugLoad => model
-    | Scratch =>
-      let (idx, slides) = LocalStorage.Scratch.load();
-      {...model, editors: Scratch(idx, slides)};
-    | Examples =>
-      let (name, slides) = LocalStorage.Examples.load();
-      {...model, editors: Examples(name, slides)};
-    | School =>
-      let instructor_mode = model.settings.instructor_mode;
-      let specs = School.exercises;
-      let (n, specs, exercise) =
-        LocalStorage.School.load(~specs, ~instructor_mode);
-      {...model, editors: School(n, specs, exercise)};
-    };
-  {
-    ...model,
-    results:
-      ModelResults.init(
-        model.settings.dynamics
-          ? Editors.get_spliced_elabs(model.editors) : [],
-      ),
-  };
 };
 
 let reevaluate_post_update =
@@ -180,7 +137,7 @@ let reevaluate_post_update =
   | SwitchEditor(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)
-  | ToggleMode
+  | SetMode(_)
   | Cut
   | Paste(_)
   | Undo
@@ -242,7 +199,7 @@ let apply =
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
     | Save =>
-      save_editors(model);
+      Store.save_model(model);
       Ok(model);
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
@@ -253,7 +210,7 @@ let apply =
       | Some(data) =>
         let specs = School.exercises;
         Export.import_all(data, ~specs);
-        Ok(load_model(model));
+        Ok(Store.load_model(model));
       }
     | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
@@ -264,15 +221,16 @@ let apply =
       switch (model.editors) {
       | DebugLoad
       | Examples(_)
-      | School(_) => failwith("impossible")
+      | Exercises(_) => failwith("impossible")
       | Scratch(idx, slides) =>
         switch (data) {
         | None => Ok(model)
         | Some(data) =>
           let state = ScratchSlide.import(data);
           let slides = Util.ListUtil.put_nth(idx, state, slides);
-          LocalStorage.Scratch.save((idx, slides));
-          Ok({...model, editors: Scratch(idx, slides)});
+          let model = {...model, editors: Scratch(idx, slides)};
+          Store.save_model(model);
+          Ok(model);
         }
       }
     | ResetSlide =>
@@ -284,7 +242,7 @@ let apply =
             ~instructor_mode=model.settings.instructor_mode,
           ),
       };
-      save_editors(model);
+      Store.save_model(model);
       Ok(model);
     | SwitchScratchSlide(n) =>
       switch (model.editors) {
@@ -295,10 +253,11 @@ let apply =
         switch (n < List.length(slides)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.Scratch.save((n, slides));
-          Ok({...model, editors: Scratch(n, slides)});
+          let model = {...model, editors: Scratch(n, slides)};
+          Store.save_model(model);
+          Ok(model);
         }
-      | School(_, specs, _) =>
+      | Exercises(_, specs, _) =>
         switch (n < List.length(specs)) {
         | false => Error(FailedToSwitch)
         | true =>
@@ -306,21 +265,24 @@ let apply =
           let spec = List.nth(specs, n);
           let key = SchoolExercise.key_of(spec);
           let exercise =
-            LocalStorage.School.load_exercise(key, spec, ~instructor_mode);
-          Ok({...model, editors: School(n, specs, exercise)});
+            Store.School.load_exercise(key, spec, ~instructor_mode);
+          let model = {...model, editors: Exercises(n, specs, exercise)};
+          Store.save_model(model);
+          Ok(model);
         }
       }
     | SwitchExampleSlide(name) =>
       switch (model.editors) {
       | DebugLoad
       | Scratch(_)
-      | School(_) => Error(FailedToSwitch)
+      | Exercises(_) => Error(FailedToSwitch)
       | Examples(cur, slides) =>
         if (!List.mem_assoc(name, slides) || cur == name) {
           Error(FailedToSwitch);
         } else {
-          LocalStorage.Examples.save((name, slides));
-          Ok({...model, editors: Examples(name, slides)});
+          let model = {...model, editors: Examples(name, slides)};
+          Store.save_model(model);
+          Ok(model);
         }
       }
     | SwitchEditor(pos) =>
@@ -328,23 +290,22 @@ let apply =
       | DebugLoad
       | Examples(_)
       | Scratch(_) => Error(FailedToSwitch)
-      | School(m, specs, exercise) =>
+      | Exercises(m, specs, exercise) =>
         let exercise =
           SchoolExercise.switch_editor(
             ~pos,
             model.settings.instructor_mode,
             ~exercise,
           );
-        LocalStorage.School.save_exercise(
+        Store.School.save_exercise(
           exercise,
           ~instructor_mode=model.settings.instructor_mode,
         );
-        Ok({...model, editors: School(m, specs, exercise)});
+        Ok({...model, editors: Exercises(m, specs, exercise)});
       }
-    | ToggleMode =>
-      let new_mode = Editors.rotate_mode(model.editors);
-      let model = update_settings(Mode(new_mode), model);
-      Ok(load_model(model));
+    | SetMode(mode) =>
+      let model = update_settings(Mode(mode), model);
+      Ok(Store.load_model(model));
     | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
@@ -421,10 +382,12 @@ let apply =
       // TODO restore
       Ok(model)
     | UpdateLangDocMessages(u) =>
-      let langDocMessages =
-        LangDocMessages.set_update(model.langDocMessages, u);
-      LocalStorage.LangDocMessages.save(langDocMessages);
-      Ok({...model, langDocMessages});
+      let model = {
+        ...model,
+        langDocMessages: LangDocMessages.set_update(model.langDocMessages, u),
+      };
+      Store.save_model(model);
+      Ok(model);
     | UpdateResult(key, res) =>
       /* If error, print a message. */
       switch (res) {
