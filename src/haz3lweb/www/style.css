@@ -1352,6 +1352,9 @@ svg.tile-selected {
 .lang-doc .section .section-title {
   text-transform: uppercase;
   font-weight: bold;
+  color: #a69460;
+  font-size: 0.8em;
+  padding: 0 0 0.5em 0;
 }
 
 .lang-doc .section .explanation-contents {
