@@ -8,7 +8,7 @@ let empty: ScratchSlide.persistent_state = (
   },
 );
 
-let num_empty = 6;
+let num_empty = 9;
 
 let init_data = filled_slides @ List.init(num_empty, _ => empty);
 

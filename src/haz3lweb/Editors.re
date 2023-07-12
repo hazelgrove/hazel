@@ -15,21 +15,21 @@ type t =
   | DebugLoad
   | Scratch(int, list(ScratchSlide.state))
   | Examples(string, list((string, ScratchSlide.state)))
-  | School(int, list(SchoolExercise.spec), SchoolExercise.state);
+  | Exercises(int, list(SchoolExercise.spec), SchoolExercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | DebugLoad
   | Scratch
   | Examples
-  | School;
+  | Exercises;
 
-let rotate_mode = (editors: t) =>
-  switch (editors) {
-  | DebugLoad => DebugLoad
-  | Scratch(_) => Examples
-  | Examples(_) => School
-  | School(_) => Scratch
+let mode_of_string = (s: string): mode =>
+  switch (s) {
+  | "Scratch" => Scratch
+  | "Examples" => Examples
+  | "Exercises" => Exercises
+  | _ => Scratch
   };
 
 let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
@@ -47,7 +47,7 @@ let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
     let id = ScratchSlide.id_of_state(slide);
     let ed = ScratchSlide.editor_of_state(slide);
     (id, ed);
-  | School(_, _, exercise) =>
+  | Exercises(_, _, exercise) =>
     let id = SchoolExercise.id_of_state(exercise);
     let ed = SchoolExercise.editor_of_state(exercise);
     (id, ed);
@@ -78,8 +78,8 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
       |> List.remove_assoc(name)
       |> List.cons((name, ScratchSlide.put_editor_and_id(slide, id, ed))),
     );
-  | School(n, specs, exercise) =>
-    School(n, specs, SchoolExercise.put_editor_and_id(exercise, id, ed))
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, SchoolExercise.put_editor_and_id(exercise, id, ed))
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
@@ -93,7 +93,7 @@ let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   | Examples(name, slides) =>
     let slide = List.assoc(name, slides);
     ScratchSlide.spliced_elabs(slide);
-  | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
+  | Exercises(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };
 };
 
@@ -102,8 +102,8 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(_)
   | Examples(_) => editors
-  | School(n, specs, exercise) =>
-    School(
+  | Exercises(n, specs, exercise) =>
+    Exercises(
       n,
       specs,
       SchoolExercise.set_instructor_mode(exercise, instructor_mode),
