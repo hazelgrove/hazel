@@ -208,3 +208,49 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
       Exercise.set_instructor_mode(exercise, instructor_mode),
     )
   };
+
+let reset_current = (editors: t, ~instructor_mode: bool): t =>
+  switch (editors) {
+  | DebugLoad => failwith("impossible")
+  | Scratch(n, slides) =>
+    let slides =
+      Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
+    Scratch(n, slides);
+  | Examples(name, slides) =>
+    let slides =
+      slides
+      |> List.remove_assoc(name)
+      |> List.cons((name, Examples.init_name(name)));
+    Examples(name, slides);
+  | Exercise(n, specs, _) =>
+    Exercise(
+      n,
+      specs,
+      List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
+    )
+  };
+
+let import_current = (editors: t, data: option(string)): t =>
+  switch (editors) {
+  | DebugLoad
+  | Examples(_)
+  | Exercise(_) => failwith("impossible")
+  | Scratch(idx, slides) =>
+    switch (data) {
+    | None => editors
+    | Some(data) =>
+      let state = ScratchSlide.import(data);
+      let slides = Util.ListUtil.put_nth(idx, state, slides);
+      Scratch(idx, slides);
+    }
+  };
+
+let switch_example_slide = (editors: t, name: string): option(t) =>
+  switch (editors) {
+  | DebugLoad
+  | Scratch(_)
+  | Exercise(_) => None
+  | Examples(cur, slides) when !List.mem_assoc(name, slides) || cur == name =>
+    None
+  | Examples(_, slides) => Some(Examples(name, slides))
+  };

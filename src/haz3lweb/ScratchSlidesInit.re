@@ -14,10 +14,7 @@ let init_data = filled_slides @ List.init(num_empty, _ => empty);
 
 assert(List.length(init_data) > 0);
 
-let init = (): Editors.scratch => (
-  0,
-  init_data |> List.map(ScratchSlide.unpersist),
-);
+let init = () => (0, init_data |> List.map(ScratchSlide.unpersist));
 
 let init_nth = n => {
   let data = List.nth(init_data, n);
