@@ -1883,23 +1883,24 @@ let get_doc =
           ),
           LangDocMessages.module_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
         );
-      | Dot(exp, name) =>
+      | Dot(e_mod, e_mem) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.dot_exp_group,
             docs,
           );
-        let exp_id = List.nth(exp.ids, 0);
+        let mod_id = List.nth(e_mod.ids, 0);
+        let mem_id = List.nth(e_mem.ids, 0);
         get_message(
           doc,
           options,
           LangDocMessages.dot_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%i"),
-            name,
-            exp_id,
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            mem_id,
+            mod_id,
           ),
-          LangDocMessages.dot_exp_coloring_ids(~exp_id),
+          LangDocMessages.dot_exp_coloring_ids(~mod_id, ~mem_id),
         );
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2820,23 +2821,24 @@ let get_doc =
         doc.explanation.message,
         [],
       );
-    | Dot(exp, name) =>
+    | Dot(e_mod, e_mem) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
           LangDocMessages.dot_typ_group,
           docs,
         );
-      let exp_id = List.nth(exp.ids, 0);
+      let mod_id = List.nth(e_mod.ids, 0);
+      let mem_id = List.nth(e_mem.ids, 0);
       get_message(
         doc,
         options,
         LangDocMessages.dot_typ_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%s%i"),
-          name,
-          exp_id,
+          Scanf.format_from_string(doc.explanation.message, "%i%i"),
+          mem_id,
+          mod_id,
         ),
-        LangDocMessages.dot_typ_coloring_ids(~exp_id),
+        LangDocMessages.dot_typ_coloring_ids(~mod_id, ~mem_id),
       );
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default

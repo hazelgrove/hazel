@@ -115,7 +115,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
     | FreeVar(_)
-    | FreeDot(_)
     | ExpandingKeyword(_)
     | EmptyHole(_)
     | NonEmptyHole(_) => d
@@ -302,12 +301,10 @@ let rec dhexp_of_uexp =
                );
           Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
-      | Dot(modul, name) =>
-        let* dmodul = dhexp_of_uexp(m, modul);
-        switch (err_status) {
-        | InHole(FreeVariable) => Some(DHExp.FreeDot(id, 0, dmodul, name))
-        | _ => Some(DHExp.Dot(id, 0, dmodul, name))
-        };
+      | Dot(e_mod, e_mem) =>
+        let* e_mod = dhexp_of_uexp(m, e_mod);
+        let+ e_mem = dhexp_of_uexp(m, e_mem);
+        DHExp.Dot(e_mod, e_mem);
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);

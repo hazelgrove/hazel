@@ -32,12 +32,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d4);
       };
     Module(dp, d3, d4);
-  | Dot(u, i, d, n) =>
-    let d = subst_var(d1, x, d);
-    Dot(u, i, d, n);
-  | FreeDot(u, i, d, n) =>
-    let d = subst_var(d1, x, d);
-    FreeDot(u, i, d, n);
+  | Dot(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Dot(d3, d4);
   | FixF(y, ty, d3) =>
     let d3 =
       if (Var.eq(x, y)) {

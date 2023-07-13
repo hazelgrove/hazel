@@ -242,8 +242,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | ([t], []) when Form.is_dot_var(t) =>
-          Dot(l, String.sub(t, 1, String.length(t) - 1))
         | _ => hole(tm)
         },
       )
@@ -282,6 +280,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["."], []) => Dot(l, r)
           | _ => hole(tm)
           },
         )
@@ -397,8 +396,6 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
-    | ([(_, ([s], []))], []) when Form.is_dot_var(s) =>
-      ret(Dot(t, String.sub(s, 1, String.length(s) - 1)))
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
@@ -424,6 +421,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | ([(_id, (["."], []))], []) => ret(Dot(l, r))
       | _ => ret(hole(tm))
       }
     }

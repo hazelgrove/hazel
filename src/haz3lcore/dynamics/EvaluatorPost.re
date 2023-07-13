@@ -71,9 +71,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
 
-  | Dot(u, i, d, name) =>
-    let* d' = pp_eval(d);
-    Dot(u, i, d', name) |> return;
+  | Dot(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Dot(d1', d2') |> return;
 
   | ApBuiltin(f, args) =>
     let* args' = args |> List.map(pp_eval) |> sequence;
@@ -156,7 +157,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | NonEmptyHole(_)
   | ExpandingKeyword(_)
   | FreeVar(_)
-  | FreeDot(_)
   | InvalidText(_)
   | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
 
@@ -223,7 +223,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | EmptyHole(_)
     | ExpandingKeyword(_)
     | FreeVar(_)
-    | FreeDot(_)
     | InvalidText(_) => pp_uneval(env, d)
 
     /* Other expression forms cannot be directly in a closure. */
@@ -299,9 +298,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Module(dp, d1', d2') |> return;
 
-  | Dot(u, i, d, name) =>
-    let* d' = pp_uneval(env, d);
-    Dot(u, i, d', name) |> return;
+  | Dot(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Dot(d1', d2') |> return;
 
   | FixF(f, ty, d1) =>
     let* d1' = pp_uneval(env, d1);
@@ -416,11 +416,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* i = hii_add_instance(u, env);
     Closure(env, FreeVar(u, i, x)) |> return;
 
-  | FreeDot(u, _, modul, x) =>
-    let* modul = pp_uneval(env, modul);
-    let* i = hii_add_instance(u, env);
-    Closure(env, FreeDot(u, i, modul, x)) |> return;
-
   | InvalidText(u, _, text) =>
     let* i = hii_add_instance(u, env);
     Closure(env, InvalidText(u, i, text)) |> return;
@@ -472,8 +467,7 @@ let rec track_children_of_hole =
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
-  | InvalidOperation(d, _)
-  | Dot(_, _, d, _) => track_children_of_hole(hii, parent, d)
+  | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
   | Module(_, d1, d2)
@@ -482,6 +476,7 @@ let rec track_children_of_hole =
   | BinIntOp(_, d1, d2)
   | BinFloatOp(_, d1, d2)
   | BinStringOp(_, d1, d2)
+  | Dot(d1, d2)
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
@@ -527,7 +522,6 @@ let rec track_children_of_hole =
   | EmptyHole(u, i)
   | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
-  | FreeDot(u, i, _, _)
   | InvalidText(u, i, _) =>
     hii |> HoleInstanceInfo.add_parent((u, i), parent)
 

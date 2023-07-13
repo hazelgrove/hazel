@@ -73,7 +73,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Dot(_) => DHDoc_common.precedence_Ap
-  | FreeDot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Tuple(_) => DHDoc_common.precedence_Comma
 
@@ -206,10 +205,6 @@ let rec mk =
         DHDoc_common.mk_ExpandingKeyword((u, i), k)
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | FreeDot(u, i, d', x) =>
-        let doc1 = go'(d');
-        Doc.(hcats([mk_cast(doc1), text("."), text(x)]))
-        |> annot(DHAnnot.VarHole(Free, (u, i)));
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
@@ -240,9 +235,10 @@ let rec mk =
           go'(~parenthesize=false, d2),
         );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
-      | Dot(_, _, d, name) =>
-        let doc1 = go(~enforce_inline, d);
-        Doc.(hcats([mk_cast(doc1), text("."), text(name)]));
+      | Dot(d1, d2) =>
+        let doc1 = go(~enforce_inline, d1);
+        let doc2 = go(~enforce_inline, d2);
+        Doc.(hcats([mk_cast(doc1), text("."), mk_cast(doc2)]));
       | ApBuiltin(ident, args) =>
         switch (args) {
         | [hd, ...tl] =>

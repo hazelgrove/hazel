@@ -271,31 +271,25 @@ and uexp_to_info_map =
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
       m,
     );
-  | Dot(modul, name) =>
-    let (info_modul, m) = go(~mode=Syn, modul, m);
+  | Dot(e_mod, e_mem) =>
+    let (info_modul, m) = go(~mode=Syn, e_mod, m);
     switch (info_modul.ty) {
     | Module(inner_ctx) =>
-      if (Form.is_tag(name)) {
-        add(
-          ~self=Self.of_tag(inner_ctx, name),
-          ~co_ctx=
-            CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
-          m,
-        );
-      } else {
-        add'(
-          ~self=Self.of_exp_var(inner_ctx, name),
-          ~co_ctx=
-            CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
-          m,
-        );
-      }
-    | _ =>
-      add'(
-        ~self=FreeVar,
-        ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
+      let (body, m) = go'(~ctx=inner_ctx, ~mode, e_mem, m);
+      add(
+        ~self=Just(body.ty),
+        // Accessing member variables in the module shouldn't change co_ctx
+        ~co_ctx=body.co_ctx,
         m,
-      )
+      );
+    | _ =>
+      let (body, m) = go'(~ctx=[], ~mode, e_mem, m);
+      add(
+        ~self=Just(body.ty),
+        // Accessing member variables in the module shouldn't change co_ctx
+        ~co_ctx=body.co_ctx,
+        m,
+      );
     };
 
   | Match(scrut, rules) =>
@@ -573,9 +567,10 @@ and utyp_to_info_map =
     let (_, m) =
       upat_to_info_map(~is_synswitch=true, ~ctx, ~ancestors, ~mode=Syn, p, m);
     add(m);
-  | Dot(exp, _) =>
+  | Dot(ty_mod, ty_mem) =>
     let (_, m) =
-      utyp_to_info_map(~ctx, ~expects=ModuleExpected, ~ancestors, exp, m);
+      utyp_to_info_map(~ctx, ~expects=ModuleExpected, ~ancestors, ty_mod, m);
+    let (_, m) = utyp_to_info_map(~ctx, ~expects, ~ancestors, ty_mem, m);
     add(m);
   };
 }

@@ -17,6 +17,13 @@ open Util.OptUtil.Syntax;
  input: get_module("T", ctx, Dot(Tag("M"), M1)) where M is of type Module(M1: Module(ctx1)) in ctx.
  output: Some("M.M1.T", Some(ctx1))
   */
+let get_tyname = (ty: UTyp.t) =>
+  switch (ty.term) {
+  | Var(name)
+  | Tag(name)
+  | Invalid(name) => Some(name)
+  | _ => None
+  };
 let rec get_module =
         (name: string, ctx: Ctx.t, ty: UTyp.t)
         : option((string, option(Ctx.t))) => {
@@ -28,8 +35,9 @@ let rec get_module =
       Some((name ++ tag_name ++ ".", Some(inner_ctx)))
     | _ => Some((name ++ tag_name ++ ".", None))
     }
-  | Dot(t, tag_name) =>
-    let+ (name, ctx) = get_module(name, ctx, t);
+  | Dot(t1, t2) =>
+    let* tag_name = get_tyname(t2);
+    let+ (name, ctx) = get_module(name, ctx, t1);
     let inner_ctx = {
       let* ctx = ctx;
       switch (Ctx.lookup_tag(ctx, tag_name)) {

@@ -174,8 +174,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("dot_var", (is_dot_var, [mk_post(P.ap, Exp, [])])),
-  ("dot_typ", (is_dot_typ, [mk_post(P.ap, Typ, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
@@ -219,7 +217,8 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
-  ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
+  ("dot_var", mk_infix(".", Exp, P.max)),
+  ("dot_typ", mk_infix(".", Typ, P.max)),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),

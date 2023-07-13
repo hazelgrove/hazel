@@ -87,6 +87,8 @@ let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
+let dot_exp = () => Example.mk_monotile(Form.get("dot_var"));
+let dot_typ = () => Example.mk_monotile(Form.get("dot_typ"));
 let nil = () => exp("[]");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
@@ -881,19 +883,22 @@ let dot_ex = {
   message: "The module M has a member x which is bound to 1, so the expression evaluates to 1.",
   feedback: Unselected,
 };
-let _exp = exp("e");
-let dot_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp), exp_id),
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let dot_exp_coloring_ids =
+    (~mod_id: Id.t, ~mem_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp1), mod_id),
+  (Piece.id(_exp2), mem_id),
 ];
 let dot_exp_group = "dot_exp_group";
 let dot_exp: form = {
   let explanation = {
-    message: "Dot access. Retrieves the value of the member `%s` of the [*module*](%i).",
+    message: "Dot access. Retrieves the value of the [*member*](%i) of the [*module*](%i).",
     feedback: Unselected,
   };
   {
     id: "dot_exp",
-    syntactic_form: [_exp, exp(".name")],
+    syntactic_form: [_exp1, dot_exp(), _exp2],
     expandable_id: None,
     explanation,
     examples: [dot_ex],
@@ -3408,19 +3413,22 @@ let dot_typ_ex = {
   message: "The module M has type member T which is alias of Int, so type M.T is consistent with type Int.",
   feedback: Unselected,
 };
-let _exp = exp("e");
-let dot_typ_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp), exp_id),
+let _typ1 = typ("e1");
+let _typ2 = typ("e2");
+let dot_typ_coloring_ids =
+    (~mod_id: Id.t, ~mem_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ1), mod_id),
+  (Piece.id(_typ2), mem_id),
 ];
 let dot_typ_group = "dot_typ_group";
 let dot_typ: form = {
   let explanation = {
-    message: "`%s` is a type member of the [*module*](%i).",
+    message: "Access [*type member*](%i) of the [*module*](%i).",
     feedback: Unselected,
   };
   {
     id: "dot_typ",
-    syntactic_form: [_exp, typ(".name")],
+    syntactic_form: [_typ1, dot_typ(), _typ2],
     expandable_id: None,
     explanation,
     examples: [dot_typ_ex],

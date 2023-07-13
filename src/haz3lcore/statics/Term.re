@@ -285,7 +285,7 @@ module UTyp = {
             }
         );
         get_Tuple(u);
-      | Dot(typ, name) =>
+      | Dot(typ1, typ2) =>
         /** Currently, the only possible way to introduce modules are through
       a variable in Tag form.
 
@@ -299,17 +299,18 @@ module UTyp = {
           | _ => Some(ty)
           };
         let res = {
-          let+ (tag_name, inner_ctx) = Module.get_module("", ctx, typ);
+          let* name = Module.get_tyname(typ2);
+          let+ (tag_name, inner_ctx) = Module.get_module("", ctx, typ1);
           let ty = {
             let* inner_ctx = inner_ctx;
-            inner_normalize(inner_ctx, Var(name));
+            inner_normalize(inner_ctx, to_typ(ctx, typ2));
           };
           (tag_name ++ name, ty);
         };
         switch (res) {
         | Some((name, Some(ty))) => Member(name, ty)
         | Some((name, None)) => Member(name, Unknown(Internal))
-        | None => Member("..." ++ name, Unknown(Internal))
+        | None => Member("?", Unknown(Internal))
         };
       }
   and to_variant: (Ctx.t, variant) => option(TagMap.binding(option(Typ.t))) =

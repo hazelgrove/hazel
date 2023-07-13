@@ -296,7 +296,6 @@ and matches_cast_Sum =
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
     matches_cast_Sum(tag, dp, d', castmaps)
   | FreeVar(_)
-  | FreeDot(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
   | Let(_)
@@ -389,12 +388,11 @@ and matches_cast_Tuple =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
-  | FreeDot(_) => IndetMatch
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | Module(_, _, _) => IndetMatch
-  | Dot(_, _, _, _) => IndetMatch
+  | Dot(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
@@ -529,12 +527,11 @@ and matches_cast_Cons =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
-  | FreeDot(_) => IndetMatch
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | Module(_, _, _) => IndetMatch
-  | Dot(_, _, _, _) => IndetMatch
+  | Dot(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
@@ -687,31 +684,27 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | Dot(u, i, d1, name) =>
+    | Dot(d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(ModuleVal(inner_env)) =>
-        let dx =
-          name
-          |> Environment.lookup(inner_env)
-          |> OptUtil.get(() => {
-               let res: DHExp.t =
-                 if (Form.is_tag(name)) {
-                   Tag(name);
-                 } else {
-                   EmptyHole(u, i);
-                 };
-               res;
-             });
-        /* We need to call [evaluate] on [d] again since [env] does not store
-         * final expressions. */
-        evaluate(env, dx);
+        let* inner_env =
+          inner_env |> ClosureEnvironment.of_environment |> with_eig;
+        let* r2 = evaluate(inner_env, d2);
+        switch (r2) {
+        | BoxedValue(_) => r2 |> return
+        | Indet(d2') => Indet(Dot(d1, d2')) |> return
+        };
       | BoxedValue(d1') =>
         print_endline("InvalidModule");
         raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
-      | Indet(d1') => Indet(Dot(u, i, d1', name)) |> return
+      | Indet(d1') =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(Dot(d1', d2')) |> return
+        };
       };
-    | FreeDot(_) => Indet(Closure(env, d)) |> return
     | FixF(f, _, d') =>
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d');
