@@ -1182,6 +1182,7 @@ svg.tile-selected {
   color: #fdf6e3;
   justify-content: space-between;
   align-items: stretch;
+  border-top: 0.7px solid #c7b480;
 }
 
 .bottom-bar .icon {
