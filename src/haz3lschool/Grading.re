@@ -170,15 +170,28 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
       percentage: float,
     };
 
-    let mk = (your_impl: Editor.t, tests: SyntaxTest.syntax_tests): t => {
+    let mk =
+        (
+          ~your_impl: Editor.t,
+          ~hints: list(string),
+          ~tests: list(Term.UExp.t => bool),
+        )
+        : t => {
       let user_impl_term =
         Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
           EditorUtil.stitch([your_impl])
         );
 
       let syntax_results = SyntaxTest.check(user_impl_term, tests);
+
       {
-        hinted_results: syntax_results.hinted_results,
+        hinted_results:
+          Util.ListUtil.zip_defaults(
+            syntax_results.results,
+            hints,
+            false,
+            "No hint available.",
+          ),
         percentage: syntax_results.percentage,
       };
     };
@@ -269,7 +282,12 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
           ~hidden_bugs_state=eds.hidden_bugs,
           ~hidden_bugs=stitched_dynamics.hidden_bugs,
         ),
-      syntax_report: SyntaxReport.mk(eds.your_impl, eds.syntax_tests),
+      syntax_report:
+        SyntaxReport.mk(
+          ~your_impl=eds.your_impl,
+          ~hints=eds.syntax_tests.hints,
+          ~tests=eds.syntax_tests.s_tests,
+        ),
       impl_grading_report:
         ImplGradingReport.mk(
           ~hints=eds.hidden_tests.hints,

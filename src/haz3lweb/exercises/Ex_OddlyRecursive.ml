@@ -3091,5 +3091,5 @@ let exercise : SchoolExercise.spec =
         hints = [ "zero" ];
       };
     syntax_tests =
-      { var_mention = [ ("not", 50.) ]; recursive = [ ("odd", 100.) ] };
+      { s_tests = [ (fun _u -> true); (fun _u -> false) ]; hints = [ "true" ] };
   }
