@@ -164,19 +164,37 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
     };
   };
 
+  module SyntaxReport = {
+    type t = {
+      hinted_results: list((bool, string)),
+      percentage: float,
+    };
+
+    let mk = (your_impl: Editor.t, tests: SyntaxTest.syntax_tests): t => {
+      let user_impl_term =
+        Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
+          EditorUtil.stitch([your_impl])
+        );
+
+      let syntax_results = SyntaxTest.check(user_impl_term, tests);
+      {
+        hinted_results: syntax_results.hinted_results,
+        percentage: syntax_results.percentage,
+      };
+    };
+  };
+
   module ImplGradingReport = {
     type t = {
       hints: list(string),
       test_results: option(TestResults.test_results),
       hinted_results: list((TestStatus.t, string)),
-      sr_percentage: float,
     };
 
     let mk =
         (
           ~hints: list(string),
           ~test_results: option(TestResults.test_results),
-          ~sr_percentage: float,
         )
         : t => {
       let hinted_results =
@@ -198,7 +216,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
             "Exercise configuration error: Hint without a test.",
           )
         };
-      {hints, test_results, hinted_results, sr_percentage};
+      {hints, test_results, hinted_results};
     };
 
     let total = (report: t) => List.length(report.hinted_results);
@@ -208,8 +226,8 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
       |> List.length;
     };
 
-    let percentage = (report: t): percentage => {
-      report.sr_percentage
+    let percentage = (report: t, syntax_report: SyntaxReport.t): percentage => {
+      syntax_report.percentage
       *. (float_of_int(num_passed(report)) /. float_of_int(total(report)));
     };
 
@@ -227,64 +245,39 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
     };
   };
 
-  module SyntaxReport = {
-    type t = {
-      hinted_results: list((bool, string)),
-      percentage: float,
-    };
-
-    let mk = (your_impl: Editor.t, tests: SyntaxTest.syntax_tests): t => {
-      let user_impl_term =
-        Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
-          EditorUtil.stitch([your_impl])
-        );
-
-      let syntax_results = SyntaxTest.check(user_impl_term, tests);
-      {
-        hinted_results: syntax_results.hinted_results,
-        percentage: syntax_results.percentage,
-      };
-    };
-  };
-
   module GradingReport = {
     type t = {
       point_distribution,
-      syntax_report: SyntaxReport.t,
       test_validation_report: TestValidationReport.t,
       mutation_testing_report: MutationTestingReport.t,
+      syntax_report: SyntaxReport.t,
       impl_grading_report: ImplGradingReport.t,
     };
 
     let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
-      let syntax_report =
-        SyntaxReport.mk(eds.your_impl, eds.hidden_tests.syntax_tests);
-      {
-        point_distribution: eds.point_distribution,
-        syntax_report,
-        test_validation_report:
-          TestValidationReport.mk(
-            eds,
+      point_distribution: eds.point_distribution,
+      test_validation_report:
+        TestValidationReport.mk(
+          eds,
+          TestResults.unwrap_test_results(
+            stitched_dynamics.test_validation.simple_result,
+          ),
+        ),
+      mutation_testing_report:
+        MutationTestingReport.mk(
+          ~test_validation=stitched_dynamics.test_validation,
+          ~hidden_bugs_state=eds.hidden_bugs,
+          ~hidden_bugs=stitched_dynamics.hidden_bugs,
+        ),
+      syntax_report: SyntaxReport.mk(eds.your_impl, eds.syntax_tests),
+      impl_grading_report:
+        ImplGradingReport.mk(
+          ~hints=eds.hidden_tests.hints,
+          ~test_results=
             TestResults.unwrap_test_results(
-              stitched_dynamics.test_validation.simple_result,
+              stitched_dynamics.hidden_tests.simple_result,
             ),
-          ),
-        mutation_testing_report:
-          MutationTestingReport.mk(
-            ~test_validation=stitched_dynamics.test_validation,
-            ~hidden_bugs_state=eds.hidden_bugs,
-            ~hidden_bugs=stitched_dynamics.hidden_bugs,
-          ),
-        impl_grading_report:
-          ImplGradingReport.mk(
-            ~hints=eds.hidden_tests.hints,
-            ~test_results=
-              TestResults.unwrap_test_results(
-                stitched_dynamics.hidden_tests.simple_result,
-              ),
-            ~sr_percentage=syntax_report.percentage,
-          ),
-      };
+        ),
     };
 
     let overall_score =
@@ -293,6 +286,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
             point_distribution,
             test_validation_report,
             mutation_testing_report,
+            syntax_report,
             impl_grading_report,
             _,
           }: t,
@@ -310,7 +304,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
         );
       let (ig_points, ig_max) =
         score_of_percent(
-          ImplGradingReport.percentage(impl_grading_report),
+          ImplGradingReport.percentage(impl_grading_report, syntax_report),
           point_distribution.impl_grading,
         );
       let total_points = tv_points +. mt_points +. ig_points;

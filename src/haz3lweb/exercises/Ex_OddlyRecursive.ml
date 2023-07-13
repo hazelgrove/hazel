@@ -3089,10 +3089,7 @@ let exercise : SchoolExercise.spec =
             caret = Outer;
           };
         hints = [ "zero" ];
-        syntax_tests =
-          {
-            var_mention = [ ("xyz", 50.); ("ext", 0.) ];
-            recursive = [ ("odd", 100.); ("dne", 0.) ];
-          };
       };
+    syntax_tests =
+      { var_mention = [ ("not", 50.) ]; recursive = [ ("odd", 100.) ] };
   }
