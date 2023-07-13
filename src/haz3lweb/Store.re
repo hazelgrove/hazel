@@ -117,12 +117,12 @@ module Scratch = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(ScratchSlide.persistent_state));
 
-  let to_persistent = ((idx, slides): Editors.scratch): persistent => (
+  let to_persistent = ((idx, slides)): persistent => (
     idx,
     List.map(ScratchSlide.persist, slides),
   );
 
-  let of_persistent = ((idx, slides): persistent): Editors.scratch => {
+  let of_persistent = ((idx, slides): persistent) => {
     (idx, List.map(ScratchSlide.unpersist, slides));
   };
 
@@ -134,7 +134,7 @@ module Scratch = {
     data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
   };
 
-  let save = (scratch: Editors.scratch): unit => {
+  let save = (scratch): unit => {
     JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
@@ -286,7 +286,7 @@ module Exercise = {
     exercises;
   };
 
-  let load = (~specs, ~instructor_mode): Editors.exercises => {
+  let load = (~specs, ~instructor_mode) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       let key = key_of_keystring(keystring);

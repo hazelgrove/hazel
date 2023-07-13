@@ -108,19 +108,17 @@ let load = (init_model: t): t => {
     ModelResults.init(
       settings.dynamics ? Editors.get_spliced_elabs(editors) : [],
     );
-  {
-    editors,
-    settings,
-    langDocMessages,
-    meta: {
-      ...init_model.meta,
-      results,
-    },
-  };
+  let meta = {...init_model.meta, results};
+  {editors, settings, langDocMessages, meta};
 };
 
 let save = ({editors, settings, langDocMessages, _}: t) => {
   save_editors(editors, ~instructor_mode=settings.instructor_mode);
   Store.LangDocMessages.save(langDocMessages);
   Store.Settings.save(settings);
+};
+
+let save_and_return = (model: t) => {
+  save(model);
+  Ok(model);
 };
