@@ -3090,6 +3090,5 @@ let exercise : SchoolExercise.spec =
           };
         hints = [ "zero" ];
       };
-    syntax_tests =
-      { s_tests = [ (fun _u -> true); (fun _u -> false) ]; hints = [ "true" ] };
+    syntax_tests = { s_tests = []; hints = [] };
   }
