@@ -311,7 +311,12 @@ body,
   display: flex;
   align-items: center;
   gap: 1em;
-  font-family: 'Helvetica Neue'
+  font-family: 'Helvetica Neue';
+}
+
+#top-bar #title {
+  font-family: 'Helvetica Neue';
+  color: #a69460;
 }
 
 #top-bar .menu {
