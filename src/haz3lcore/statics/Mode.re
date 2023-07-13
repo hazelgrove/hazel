@@ -23,6 +23,8 @@ type t =
   | Syn
   | Ana(Typ.t);
 
+let ana: Typ.t => t = ty => Ana(ty);
+
 /* The expected type imposed by a mode */
 let ty_of: t => Typ.t =
   fun
@@ -30,43 +32,54 @@ let ty_of: t => Typ.t =
   | Syn => Unknown(SynSwitch)
   | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
 
-let of_arrow: t => (t, t) =
-  fun
+let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
+  switch (mode) {
   | Syn
   | SynFun => (Syn, Syn)
-  | Ana(ty) => {
-      let (ty_in, ty_out) = Typ.matched_arrow(ty);
-      (Ana(ty_in), Ana(ty_out));
-    };
+  | Ana(ty) =>
+    ty
+    |> Typ.weak_head_normalize(ctx)
+    |> Typ.matched_arrow
+    |> TupleUtil.map2(ana)
+  };
 
-let of_prod = (mode: t, length): list(t) =>
+let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   switch (mode) {
   | Syn
   | SynFun => List.init(length, _ => Syn)
-  | Ana(ty) => Typ.matched_prod(length, ty) |> List.map(ty => Ana(ty))
+  | Ana(ty) =>
+    ty
+    |> Typ.weak_head_normalize(ctx)
+    |> Typ.matched_prod(length)
+    |> List.map(ana)
   };
 
-let of_cons_hd: t => t =
-  fun
+let matched_list_normalize = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
+  ty |> Typ.weak_head_normalize(ctx) |> Typ.matched_list;
+
+let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
+  switch (mode) {
   | Syn
   | SynFun => Syn
-  | Ana(ty) => Ana(Typ.matched_list(ty));
+  | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
+  };
 
-let of_cons_tl = (mode: t, hd_ty: Typ.t): t =>
+let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
   | SynFun => Ana(List(hd_ty))
-  | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+  | Ana(ty) => Ana(List(matched_list_normalize(ctx, ty)))
   };
 
-let of_list: t => t =
-  fun
+let of_list = (ctx: Ctx.t, mode: t): t =>
+  switch (mode) {
   | Syn
   | SynFun => Syn
-  | Ana(ty) => Ana(Typ.matched_list(ty));
+  | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
+  };
 
-let of_list_lit = (length, mode: t): list(t) =>
-  List.init(length, _ => of_list(mode));
+let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>
+  List.init(length, _ => of_list(ctx, mode));
 
 let tag_ana_typ = (ctx: Ctx.t, mode: t, tag: Tag.t): option(Typ.t) => {
   /* If a tag is being analyzed against (an arrow type returning)
