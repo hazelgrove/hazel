@@ -160,7 +160,7 @@ let fragment =
 let initial_model = {
   switch (fragment) {
   | "debug" => Model.debug
-  | _ => Store.load_model(Model.blank)
+  | _ => Model.load(Model.blank)
   };
 };
 

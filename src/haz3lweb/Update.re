@@ -2,98 +2,73 @@ open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
 
-let reset_editor = (editors: Editors.t, ~instructor_mode): Editors.t =>
-  switch (editors) {
-  | DebugLoad => failwith("impossible")
-  | Scratch(n, slides) =>
-    let slides =
-      Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
-    Scratch(n, slides);
-  | Examples(name, slides) =>
-    let slides =
-      slides
-      |> List.remove_assoc(name)
-      |> List.cons((name, Examples.init_name(name)));
-    Examples(name, slides);
-  | Exercise(n, specs, _) =>
-    Exercise(
-      n,
-      specs,
-      List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
-    )
-  };
-
-let update_settings = (a: settings_action, model: Model.t): Model.t => {
-  let settings = model.settings;
-  let model =
-    switch (a) {
-    | Statics =>
-      /* NOTE: dynamics depends on statics, so if dynamics is on and
-         we're turning statics off, turn dynamics off as well */
-      {
-        ...model,
-        settings: {
-          ...settings,
-          statics: !settings.statics,
-          dynamics: !settings.statics && settings.dynamics,
-        },
-      }
-    | Dynamics => {
-        ...model,
-        settings: {
-          ...settings,
-          dynamics: !settings.dynamics,
-        },
-      }
-    | Benchmark => {
-        ...model,
-        settings: {
-          ...settings,
-          benchmark: !settings.benchmark,
-        },
-      }
-    | Captions => {
-        ...model,
-        settings: {
-          ...settings,
-          captions: !settings.captions,
-        },
-      }
-    | SecondaryIcons => {
-        ...model,
-        settings: {
-          ...settings,
-          secondary_icons: !settings.secondary_icons,
-        },
-      }
-    | ContextInspector => {
-        ...model,
-        settings: {
-          ...settings,
-          context_inspector: !settings.context_inspector,
-        },
-      }
-    | InstructorMode =>
-      let new_mode = !settings.instructor_mode;
-      {
-        ...model,
-        editors: Editors.set_instructor_mode(model.editors, new_mode),
-        settings: {
-          ...settings,
-          instructor_mode: !settings.instructor_mode,
-        },
-      };
-    | Mode(mode) => {
-        ...model,
-        settings: {
-          ...settings,
-          mode,
-        },
-      }
+let update_settings =
+    (a: settings_action, {settings, _} as model: Model.t): Model.t =>
+  switch (a) {
+  | Statics =>
+    /* NOTE: dynamics depends on statics, so if dynamics is on and
+       we're turning statics off, turn dynamics off as well */
+    {
+      ...model,
+      settings: {
+        ...settings,
+        statics: !settings.statics,
+        dynamics: !settings.statics && settings.dynamics,
+      },
+    }
+  | Dynamics => {
+      ...model,
+      settings: {
+        ...settings,
+        dynamics: !settings.dynamics,
+      },
+    }
+  | Benchmark => {
+      ...model,
+      settings: {
+        ...settings,
+        benchmark: !settings.benchmark,
+      },
+    }
+  | Captions => {
+      ...model,
+      settings: {
+        ...settings,
+        captions: !settings.captions,
+      },
+    }
+  | SecondaryIcons => {
+      ...model,
+      settings: {
+        ...settings,
+        secondary_icons: !settings.secondary_icons,
+      },
+    }
+  | ContextInspector => {
+      ...model,
+      settings: {
+        ...settings,
+        context_inspector: !settings.context_inspector,
+      },
+    }
+  | InstructorMode =>
+    let new_mode = !settings.instructor_mode;
+    {
+      ...model,
+      editors: Editors.set_instructor_mode(model.editors, new_mode),
+      settings: {
+        ...settings,
+        instructor_mode: !settings.instructor_mode,
+      },
     };
-  Store.save_model(model);
-  model;
-};
+  | Mode(mode) => {
+      ...model,
+      settings: {
+        ...settings,
+        mode,
+      },
+    }
+  };
 
 let reevaluate_post_update =
   fun
@@ -189,18 +164,45 @@ let perform_action =
   };
 };
 
+let switch_scratch_slide =
+    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+  switch (editors) {
+  | DebugLoad
+  | Examples(_) => None
+  | Scratch(n, _) when n == idx => None
+  | Scratch(_, slides) when idx >= List.length(slides) => None
+  | Scratch(_, slides) => Some(Scratch(idx, slides))
+  | Exercise(_, specs, _) when idx >= List.length(specs) => None
+  | Exercise(_, specs, _) =>
+    let spec = List.nth(specs, idx);
+    let key = Exercise.key_of(spec);
+    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    Some(Exercise(idx, specs, exercise));
+  };
+
+let switch_exercise_editor =
+    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+  switch (editors) {
+  | DebugLoad
+  | Examples(_)
+  | Scratch(_) => None
+  | Exercise(m, specs, exercise) =>
+    let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
+    Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    Some(Exercise(m, specs, exercise));
+  };
+
 let apply =
     (model: Model.t, update: t, state: State.t, ~schedule_action)
     : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
-    | Set(s_action) => Ok(update_settings(s_action, model))
+    | Set(s_action) =>
+      Model.save_and_return(update_settings(s_action, model))
     | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
-    | Save =>
-      Store.save_model(model);
-      Ok(model);
+    | Save => Model.save_and_return(model)
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
       Ok(model);
@@ -209,7 +211,7 @@ let apply =
       | None => Ok(model)
       | Some(data) =>
         Export.import_all(data, ~specs=ExerciseSettings.exercises);
-        Ok(Store.load_model(model));
+        Ok(Model.load(model));
       }
     | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
@@ -217,94 +219,34 @@ let apply =
       );
       Ok(model);
     | FinishImportScratchpad(data) =>
-      switch (model.editors) {
-      | DebugLoad
-      | Examples(_)
-      | Exercise(_) => failwith("impossible")
-      | Scratch(idx, slides) =>
-        switch (data) {
-        | None => Ok(model)
-        | Some(data) =>
-          let state = ScratchSlide.import(data);
-          let slides = Util.ListUtil.put_nth(idx, state, slides);
-          let model = {...model, editors: Scratch(idx, slides)};
-          Store.save_model(model);
-          Ok(model);
-        }
-      }
+      let editors = Editors.import_current(model.editors, data);
+      Model.save_and_return({...model, editors});
     | ResetSlide =>
-      let model = {
-        ...model,
-        editors:
-          reset_editor(
-            model.editors: Editors.t,
-            ~instructor_mode=model.settings.instructor_mode,
-          ),
-      };
-      Store.save_model(model);
-      Ok(model);
+      let instructor_mode = model.settings.instructor_mode;
+      let editors = Editors.reset_current(model.editors, ~instructor_mode);
+      Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
-      switch (model.editors) {
-      | DebugLoad
-      | Examples(_) => failwith("impossible")
-      | Scratch(m, _) when m == n => Error(FailedToSwitch)
-      | Scratch(_, slides) =>
-        switch (n < List.length(slides)) {
-        | false => Error(FailedToSwitch)
-        | true =>
-          let model = {...model, editors: Scratch(n, slides)};
-          Store.save_model(model);
-          Ok(model);
-        }
-      | Exercise(_, specs, _) =>
-        switch (n < List.length(specs)) {
-        | false => Error(FailedToSwitch)
-        | true =>
-          let instructor_mode = model.settings.instructor_mode;
-          let spec = List.nth(specs, n);
-          let key = Exercise.key_of(spec);
-          let exercise =
-            Store.Exercise.load_exercise(key, spec, ~instructor_mode);
-          let model = {...model, editors: Exercise(n, specs, exercise)};
-          Store.save_model(model);
-          Ok(model);
-        }
-      }
+      let instructor_mode = model.settings.instructor_mode;
+      switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Model.save_and_return({...model, editors})
+      };
     | SwitchExampleSlide(name) =>
-      switch (model.editors) {
-      | DebugLoad
-      | Scratch(_)
-      | Exercise(_) => Error(FailedToSwitch)
-      | Examples(cur, slides) =>
-        if (!List.mem_assoc(name, slides) || cur == name) {
-          Error(FailedToSwitch);
-        } else {
-          let model = {...model, editors: Examples(name, slides)};
-          Store.save_model(model);
-          Ok(model);
-        }
+      switch (Editors.switch_example_slide(model.editors, name)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Model.save_and_return({...model, editors})
       }
     | SwitchEditor(pos) =>
-      switch (model.editors) {
-      | DebugLoad
-      | Examples(_)
-      | Scratch(_) => Error(FailedToSwitch)
-      | Exercise(m, specs, exercise) =>
-        let exercise =
-          Exercise.switch_editor(
-            ~pos,
-            model.settings.instructor_mode,
-            ~exercise,
-          );
-        Store.Exercise.save_exercise(
-          exercise,
-          ~instructor_mode=model.settings.instructor_mode,
-        );
-        Ok({...model, editors: Exercise(m, specs, exercise)});
-      }
+      let instructor_mode = model.settings.instructor_mode;
+      switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Model.save_and_return({...model, editors})
+      };
     | SetMode(mode) =>
       let model = update_settings(Mode(mode), model);
-      Ok(Store.load_model(model));
+      /* NOTE: Need to reload model for editors to load */
+      Model.save(model);
+      Ok(Model.load(model));
     | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
@@ -381,12 +323,9 @@ let apply =
       // TODO restore
       Ok(model)
     | UpdateLangDocMessages(u) =>
-      let model = {
-        ...model,
-        langDocMessages: LangDocMessages.set_update(model.langDocMessages, u),
-      };
-      Store.save_model(model);
-      Ok(model);
+      let langDocMessages =
+        LangDocMessages.set_update(model.langDocMessages, u);
+      Model.save_and_return({...model, langDocMessages});
     | UpdateResult(key, res) =>
       /* If error, print a message. */
       switch (res) {

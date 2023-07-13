@@ -97,12 +97,12 @@ module Scratch = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(ScratchSlide.persistent_state));
 
-  let to_persistent = ((idx, slides): Editors.scratch): persistent => (
+  let to_persistent = ((idx, slides)): persistent => (
     idx,
     List.map(ScratchSlide.persist, slides),
   );
 
-  let of_persistent = ((idx, slides): persistent): Editors.scratch => {
+  let of_persistent = ((idx, slides): persistent) => {
     (idx, List.map(ScratchSlide.unpersist, slides));
   };
 
@@ -114,7 +114,7 @@ module Scratch = {
     data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
   };
 
-  let save = (scratch: Editors.scratch): unit => {
+  let save = (scratch): unit => {
     JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
@@ -266,7 +266,7 @@ module Exercise = {
     exercises;
   };
 
-  let load = (~specs, ~instructor_mode): Editors.exercises => {
+  let load = (~specs, ~instructor_mode) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       let key = key_of_keystring(keystring);
@@ -344,52 +344,4 @@ module Exercise = {
          };
        });
   };
-};
-
-let load_editors = (~mode: Editors.mode, ~instructor_mode: bool): Editors.t =>
-  switch (mode) {
-  | DebugLoad => DebugLoad
-  | Scratch =>
-    let (idx, slides) = Scratch.load();
-    Scratch(idx, slides);
-  | Examples =>
-    let (name, slides) = Examples.load();
-    Examples(name, slides);
-  | Exercise =>
-    let (n, specs, exercise) =
-      Exercise.load(~specs=ExerciseSettings.exercises, ~instructor_mode);
-    Exercise(n, specs, exercise);
-  };
-
-let save_editors = (model: Model.t): unit =>
-  switch (model.editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch(n, slides) => Scratch.save((n, slides))
-  | Examples(name, slides) => Examples.save((name, slides))
-  | Exercise(n, specs, exercise) =>
-    Exercise.save(
-      (n, specs, exercise),
-      ~instructor_mode=model.settings.instructor_mode,
-    )
-  };
-
-let load_model = (init_model: Model.t): Model.t => {
-  let settings = Settings.load();
-  let langDocMessages = LangDocMessages.load();
-  let editors =
-    load_editors(
-      ~mode=settings.mode,
-      ~instructor_mode=settings.instructor_mode,
-    );
-  let results =
-    ModelResults.init(
-      settings.dynamics ? Editors.get_spliced_elabs(editors) : [],
-    );
-  {...init_model, editors, settings, langDocMessages, results};
-};
-
-let save_model = (model: Model.t) => {
-  save_editors(model);
-  LangDocMessages.save(model.langDocMessages);
-  Settings.save(model.settings);
 };
