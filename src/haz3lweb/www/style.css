@@ -259,6 +259,11 @@ svg {
   color: var(--light-text-color);
   display: flex;
   flex-direction: column;
+  cursor: default;
+}
+
+select {
+  cursor: pointer;
 }
 
 #font-specimen {
@@ -499,6 +504,10 @@ body,
 
 .code-container {
   position: relative;
+}
+
+.editor .code-container {
+  cursor: text;
 }
 
 .code {
@@ -1177,8 +1186,7 @@ svg.tile-selected {
   display: flex;
   align-items: center;
   gap: 1em;
-  background-color: var(--top_bar_icon_fill);
-  color: #fdf6e3;
+  background-color: #fbecaa;
   justify-content: space-between;
   align-items: stretch;
   border-top: 0.7px solid #c7b480;
@@ -1201,7 +1209,7 @@ svg.tile-selected {
 
 .bottom-bar .id-and-class .syntax-class {
   color: var(--top_bar_icon_fill);
-  color: #fdf6e3;
+  color: #392f10; /*#fdf6e3;*/
 }
 
 .bottom-bar .id-and-class .id {
@@ -1209,6 +1217,7 @@ svg.tile-selected {
 }
 
 .bottom-bar .cursor-inspector .gamma {
+  cursor: pointer;
   display: flex;
   align-items: center;
   font-family: math;
@@ -1223,7 +1232,7 @@ svg.tile-selected {
 
 .bottom-bar .cursor-inspector .gamma:hover,
 .bottom-bar .cursor-inspector .gamma.visible {
-  color: white;
+  color: gold;
   background-color: #907b5a;
   border-radius: 0;
 }
@@ -1275,8 +1284,20 @@ svg.tile-selected {
   font-weight: bold;
 }
 
+.lang-doc #examples {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
 .lang-doc .example {
-  border-bottom: 1px dotted #a69461;
+  display: flex;
+  flex-direction: column;
+}
+
+.lang-doc .example + .example {
+  border-top: 1px dotted #c7b480;
+  padding-top: 0.6em;
 }
 
 .lang-doc .example .code-text {
@@ -1286,6 +1307,7 @@ svg.tile-selected {
 .lang-doc .example .ex-result {
   display: flex;
   align-items: center;
+  gap: 0.5em;
   padding-top: 5px;
 }
 
@@ -1305,7 +1327,9 @@ svg.tile-selected {
   transform-origin: top;
   transform: scaleY(0);
   transition: transform 0.07s ease;
-  background-color: var(--top_bar_icon_fill);
+  background-color: #f1e5bf;
+  border: 0.7px solid #e1c475;
+  border-top: none;
 }
 
 .specificity-options-menu .selected {
@@ -1330,11 +1354,12 @@ svg.tile-selected {
   height: 1.2em;
   border-radius: 2em;
   display: flex;
-  align-items: center;
+  align-items: end;
   justify-content: center;
 }
 
 .lang-doc .top-bar .close:hover {
+  animation: wobble 0.4s ease 0s 1 normal none;
   color: var(--light-page-color);
   background-color: #c7b480;
 }
@@ -1362,30 +1387,27 @@ svg.tile-selected {
 }
 
 .highlight-blue {
-  background-color: rgb(180, 203, 240);
+  background-color: rgb(255 0 255 / 20%);
 }
 
 .highlight-code-blue {
-  fill: rgb(185 217 255);
-  /*mix-blend-mode: multiply;
-  z-index: var(--docs-highlight-z);
-  filter: url(#goo);*/
+  fill: rgb(255 0 255 / 20%);
 }
 
 .highlight-pink {
-  background-color: rgb(242, 177, 182);
+  background-color: rgb(0 255 255 / 40%);
 }
 
 .highlight-code-pink {
-  fill: rgb(242, 177, 182);
+  fill: rgb(0 255 255 / 40%);
 }
 
 .highlight-teal {
-  background-color: rgb(127, 243, 245);
+  background-color: rgb(0 255 0 / 20%);
 }
 
 .highlight-code-teal {
-  fill: rgb(127, 243, 245);
+  fill: rgb(0 255 0 / 20%);
 }
 
 .highlight-orange {
@@ -1432,10 +1454,9 @@ div.expandable-target {
 
 
 svg.expandable {
-  fill: rgba(19, 17, 17, 0.067);
-  stroke-dasharray: 4, 4;
-  stroke: var(--light-text-color);
-  stroke-width: 2px;
+  fill: rgb(199 180 128 / 0%);
+  stroke-dasharray: 3, 3;
+  stroke: #a69460;
   /* mix-blend-mode: color; */
   z-index: var(--err-hole-z);
 }
