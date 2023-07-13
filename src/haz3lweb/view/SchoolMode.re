@@ -326,6 +326,7 @@ let view =
       Grading.ImplGradingReport.view(
         ~inject,
         ~report=grading_report.impl_grading_report,
+        ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );

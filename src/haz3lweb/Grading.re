@@ -247,6 +247,68 @@ module MutationTestingReport = {
     };
 };
 
+module SyntaxReport = {
+  include SyntaxReport;
+  let individual_report = (i: int, hint: string, status: bool) => {
+    let result_string = status ? "Pass" : "Indet";
+
+    div(
+      ~attr=Attr.classes(["test-report"]),
+      [
+        div(
+          ~attr=Attr.classes(["test-id", "Test" ++ result_string]),
+          [text(string_of_int(i + 1))],
+        ),
+      ]
+      @ [
+        div(
+          ~attr=Attr.classes(["test-hint", "test-instance", result_string]),
+          [text(hint)],
+        ),
+      ],
+    );
+  };
+
+  let individual_reports = (hinted_results: list((bool, string))) => {
+    div(
+      hinted_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, hint, status)
+         ),
+    );
+  };
+
+  let view = (syntax_report: t) => {
+    Cell.panel(
+      ~classes=["test-panel"],
+      [
+        Cell.bolded_caption(
+          "Syntax Report",
+          ~rest=": Syntax of your implementation",
+        ),
+        individual_reports(syntax_report.hinted_results),
+      ],
+      ~footer=
+        Some(
+          Cell.report_footer_view([
+            div(
+              ~attr=Attr.classes(["test-summary"]),
+              [
+                div(
+                  ~attr=Attr.class_("test-text"),
+                  [
+                    percentage_view(syntax_report.percentage),
+                    text(" of the points will be earned"),
+                  ],
+                ),
+              ],
+            ),
+          ]),
+        ),
+    );
+  };
+};
+
 module ImplGradingReport = {
   open Haz3lcore;
   include ImplGradingReport;
@@ -337,7 +399,8 @@ module ImplGradingReport = {
     };
   };
 
-  let view = (~inject, ~report: t, ~max_points: int) => {
+  let view =
+      (~inject, ~report: t, ~syntax_report: SyntaxReport.t, ~max_points: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -357,7 +420,10 @@ module ImplGradingReport = {
                   ~attr=Attr.class_("test-text"),
                   [
                     score_view(
-                      score_of_percent(percentage(report), max_points),
+                      score_of_percent(
+                        percentage(report, syntax_report),
+                        max_points,
+                      ),
                     ),
                   ]
                   @ textual_summary(report),
@@ -369,68 +435,6 @@ module ImplGradingReport = {
                        TestView.test_bar(~inject, ~test_results, HiddenTests)
                      ),
                 ),
-            ),
-          ]),
-        ),
-    );
-  };
-};
-
-module SyntaxReport = {
-  include SyntaxReport;
-  let individual_report = (i: int, hint: string, status: bool) => {
-    let result_string = status ? "Pass" : "Indet";
-
-    div(
-      ~attr=Attr.classes(["test-report"]),
-      [
-        div(
-          ~attr=Attr.classes(["test-id", "Test" ++ result_string]),
-          [text(string_of_int(i + 1))],
-        ),
-      ]
-      @ [
-        div(
-          ~attr=Attr.classes(["test-hint", "test-instance", result_string]),
-          [text(hint)],
-        ),
-      ],
-    );
-  };
-
-  let individual_reports = (hinted_results: list((bool, string))) => {
-    div(
-      hinted_results
-      |> List.mapi((i, (status, hint)) =>
-           individual_report(i, hint, status)
-         ),
-    );
-  };
-
-  let view = (syntax_report: t) => {
-    Cell.panel(
-      ~classes=["test-panel"],
-      [
-        Cell.bolded_caption(
-          "Syntax Report",
-          ~rest=": Syntax of your implementation",
-        ),
-        individual_reports(syntax_report.hinted_results),
-      ],
-      ~footer=
-        Some(
-          Cell.report_footer_view([
-            div(
-              ~attr=Attr.classes(["test-summary"]),
-              [
-                div(
-                  ~attr=Attr.class_("test-text"),
-                  [
-                    percentage_view(syntax_report.percentage),
-                    text(" of the points will be earned"),
-                  ],
-                ),
-              ],
             ),
           ]),
         ),
