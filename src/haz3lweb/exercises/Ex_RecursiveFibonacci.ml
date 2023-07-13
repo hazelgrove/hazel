@@ -3080,5 +3080,5 @@ let exercise : SchoolExercise.spec =
           };
         hints = [];
       };
-    syntax_tests = { var_mention = []; recursive = [] };
+    syntax_tests = { s_tests = []; hints = [] };
   }

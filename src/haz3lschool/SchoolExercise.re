@@ -25,6 +25,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_tests = {
+    s_tests: list(Term.UExp.t => bool),
+    hints: list(string),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type your_tests('code) = {
     tests: 'code,
     required: int,
@@ -58,7 +64,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     your_impl: 'code,
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
-    syntax_tests: SyntaxTest.syntax_tests,
+    syntax_tests,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -940,8 +946,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: [],
       },
       syntax_tests: {
-        var_mention: [],
-        recursive: [],
+        s_tests: [],
+        hints: [],
       },
     };
   };
