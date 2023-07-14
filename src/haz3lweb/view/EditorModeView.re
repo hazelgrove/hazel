@@ -35,16 +35,16 @@ let slide_select = (~inject, ~idx, ~num_slides) => {
   ];
 };
 
-let scratch_view = (~inject, ~idx, ~slides) =>
+let scratch_view = (~inject, {idx, slides}: ScratchSlidesInit.t) =>
   [mode_menu(~inject, ~mode=Scratch)]
   @ slide_select(~inject, ~idx, ~num_slides=List.length(slides));
 
-let examples_view = (~inject, ~current, ~editors) => [
+let examples_view = (~inject, {current, slides}: Examples.t) => [
   mode_menu(~inject, ~mode=Examples),
   select(
     ~attr=
       Attr.on_change((_, name) => inject(Update.SwitchExampleSlide(name))),
-    List.map(option_view(current), List.map(fst, editors)),
+    List.map(option_view(current), List.map(fst, slides)),
   ),
 ];
 
@@ -57,27 +57,26 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     ]
     : [];
 
-let exercises_view = (~inject, ~idx, ~specs, ~instructor_mode) => {
+let exercises_view =
+    (~inject, ~instructor_mode, {idx, slides}: Editors.exercise) => {
   [mode_menu(~inject, ~mode=Exercise)]
   @ instructor_toggle(~inject, ~instructor_mode)
-  @ slide_select(~inject, ~idx, ~num_slides=List.length(specs));
+  @ slide_select(~inject, ~idx, ~num_slides=List.length(slides));
 };
 
 let view =
     (
       ~inject: Update.t => 'a,
       ~editors: Editors.t,
-      ~settings as {instructor_mode, _}: ModelSettings.t,
+      ~settings as {mode, instructor_mode, _}: ModelSettings.t,
     )
     : Node.t => {
   let contents =
-    switch (editors) {
+    switch (mode) {
     | DebugLoad => []
-    | Scratch({idx, slides}) => scratch_view(~inject, ~idx, ~slides)
-    | Examples({current, slides}) =>
-      examples_view(~inject, ~current, ~editors=slides)
-    | Exercise({idx, specs, _}) =>
-      exercises_view(~idx, ~specs, ~inject, ~instructor_mode)
+    | Scratch => scratch_view(~inject, editors.scratch)
+    | Examples => examples_view(~inject, editors.examples)
+    | Exercise => exercises_view(~inject, ~instructor_mode, editors.exercise)
     };
   div(~attr=Attr.id("editor-mode"), contents);
 };

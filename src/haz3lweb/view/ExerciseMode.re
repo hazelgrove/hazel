@@ -387,8 +387,11 @@ let view =
 let toolbar_buttons =
     (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
   let Exercise.{pos: _, eds} as exercise =
-    switch (editors) {
-    | Exercise({state, _}) => state
+    switch (settings.mode) {
+    | Exercise =>
+      let Editors.{slides, idx} = editors.exercise;
+      let slide = List.nth(slides, idx);
+      slide.state;
     | _ => assert(false)
     };
 
