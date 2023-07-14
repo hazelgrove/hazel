@@ -160,7 +160,7 @@ and uexp_to_info_map =
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
-    let modes = Mode.of_list_lit(List.length(es), mode);
+    let modes = Mode.of_list_lit(ctx, List.length(es), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
@@ -169,8 +169,8 @@ and uexp_to_info_map =
       m,
     );
   | Cons(hd, tl) =>
-    let (hd, m) = go(~mode=Mode.of_cons_hd(mode), hd, m);
-    let (tl, m) = go(~mode=Mode.of_cons_tl(mode, hd.ty), tl, m);
+    let (hd, m) = go(~mode=Mode.of_cons_hd(ctx, mode), hd, m);
+    let (tl, m) = go(~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
     add(
       ~self=Just(List(hd.ty)),
       ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
@@ -195,7 +195,7 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Tuple(es) =>
-    let modes = Mode.of_prod(mode, List.length(es));
+    let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
@@ -225,7 +225,7 @@ and uexp_to_info_map =
       m,
     );
   | Fun(p, e) =>
-    let (mode_pat, mode_body) = Mode.of_arrow(mode);
+    let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
     let (e, m) = go'(~ctx=p.ctx, ~mode=mode_body, e, m);
     add(
@@ -399,7 +399,7 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
-    let modes = Mode.of_list_lit(List.length(ps), mode);
+    let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(
       ~self=Self.join(ty => List(ty), tys, List.map(UPat.rep_id, ps), ctx),
@@ -407,9 +407,9 @@ and upat_to_info_map =
       m,
     );
   | Cons(hd, tl) =>
-    let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(mode), hd, m);
+    let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =
-      go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(mode, hd.ty), tl, m);
+      go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
     add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
   | Wild => atomic(Just(unknown))
   | Var(name) =>
@@ -425,7 +425,7 @@ and upat_to_info_map =
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
     }
   | Tuple(ps) =>
-    let modes = Mode.of_prod(mode, List.length(ps));
+    let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>

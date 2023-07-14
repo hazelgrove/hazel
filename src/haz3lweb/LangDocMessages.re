@@ -3541,7 +3541,7 @@ let init_options = options => {
 
 let init = {
   show: true,
-  highlight: true,
+  highlight: false,
   specificity_open: false,
   forms: [
     // Expressions

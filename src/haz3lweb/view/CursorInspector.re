@@ -141,7 +141,9 @@ let typ_err_view = (ok: Info.error_typ) =>
       text("is not bound"),
     ]
   | BadToken(token) => [
-      text(Printf.sprintf("\"%s\" isn't a valid type token", token)),
+      text(
+        Printf.sprintf("\"%s\" isn't a valid type or type operator", token),
+      ),
     ]
   | WantTagFoundAp => [text("Expected a constructor, found application")]
   | WantTagFoundType(ty) => [
@@ -199,7 +201,11 @@ let tpat_view: Info.status_tpat => t =
   | NotInHole(Empty) => div_ok([text("Enter a new type alias")])
   | NotInHole(Var(name)) =>
     div_ok([Type.alias_view(name), text("is a new type alias")])
-  | InHole(NotAVar) => div_err([text("Not a valid type name")])
+  | InHole(NotAVar(NotCapitalized)) =>
+    div_err([
+      text("Expected a type name (must begin with a capital letter)"),
+    ])
+  | InHole(NotAVar(_)) => div_err([text("Expected a type name")])
   | InHole(ShadowsType(name)) =>
     div_err([
       text("Can't shadow existing alias or base type"),
