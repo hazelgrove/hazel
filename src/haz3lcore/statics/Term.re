@@ -303,7 +303,7 @@ module UTyp = {
           let+ (tag_name, inner_ctx) = Module.get_module("", ctx, typ1);
           let ty = {
             let* inner_ctx = inner_ctx;
-            inner_normalize(inner_ctx, to_typ(ctx, typ2));
+            inner_normalize(inner_ctx, to_typ(inner_ctx, typ2));
           };
           (tag_name ++ name, ty);
         };

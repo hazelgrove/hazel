@@ -3413,8 +3413,8 @@ let dot_typ_ex = {
   message: "The module M has type member T which is alias of Int, so type M.T is consistent with type Int.",
   feedback: Unselected,
 };
-let _typ1 = typ("e1");
-let _typ2 = typ("e2");
+let _typ1 = typ("T1");
+let _typ2 = typ("T2");
 let dot_typ_coloring_ids =
     (~mod_id: Id.t, ~mem_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ1), mod_id),

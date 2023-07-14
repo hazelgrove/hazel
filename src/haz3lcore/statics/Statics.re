@@ -570,7 +570,15 @@ and utyp_to_info_map =
   | Dot(ty_mod, ty_mem) =>
     let (_, m) =
       utyp_to_info_map(~ctx, ~expects=ModuleExpected, ~ancestors, ty_mod, m);
-    let (_, m) = utyp_to_info_map(~ctx, ~expects, ~ancestors, ty_mem, m);
+    let inner_ctx = {
+      let res = Module.get_module("", ctx, ty_mod);
+      switch (res) {
+      | Some((_, Some(inner_ctx))) => inner_ctx
+      | _ => Ctx.empty
+      };
+    };
+    let (_, m) =
+      utyp_to_info_map(~ctx=inner_ctx, ~expects, ~ancestors, ty_mem, m);
     add(m);
   };
 }
