@@ -1,11 +1,3 @@
-open Sexplib.Std;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  idx: int,
-  slides: ScratchSlide.s,
-};
-
 let filled_slides = [SerializedExamples.intro];
 
 let empty: ScratchSlide.persistent_state = (
@@ -18,15 +10,13 @@ let empty: ScratchSlide.persistent_state = (
 
 let num_empty = 8;
 
-let init_slides = filled_slides @ List.init(num_empty, _ => empty);
-assert(List.length(init_slides) > 0);
+let init_data = filled_slides @ List.init(num_empty, _ => empty);
 
-let default: t = {
-  idx: 0,
-  slides: List.map(ScratchSlide.unpersist, init_slides),
-};
+assert(List.length(init_data) > 0);
+
+let init = () => (0, init_data |> List.map(ScratchSlide.unpersist));
 
 let init_nth = n => {
-  let data = List.nth(init_slides, n);
+  let data = List.nth(init_data, n);
   ScratchSlide.unpersist(data);
 };

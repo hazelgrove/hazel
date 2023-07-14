@@ -2,34 +2,61 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
-  editors: string,
   settings: string,
   langDocMessages: string,
+  scratch: string,
+  exercise: string,
   log: string,
 };
 
-let mk_all = (~instructor_mode as _) => {
-  //TODO(andrew): instructor_mode
+// fallback for saved state prior to release of lang doc in 490F22
+[@deriving (show({with_path: false}), sexp, yojson)]
+type all_f22 = {
+  settings: string,
+  scratch: string,
+  exercise: string,
+  log: string,
+};
+
+let mk_all = (~instructor_mode) => {
   print_endline("Mk all");
   let settings = Store.Settings.export();
   print_endline("Settings OK");
   let langDocMessages = Store.LangDocMessages.export();
   print_endline("LangDocMessages OK");
-  let editors = Store.Editors.export();
-  print_endline("Editors OK");
+  let scratch = Store.Scratch.export();
+  print_endline("Scratch OK");
+  let exercise =
+    Store.Exercise.export(
+      ~specs=ExerciseSettings.exercises,
+      ~instructor_mode,
+    );
+  print_endline("Exercise OK");
   let log = Log.export();
-  {settings, langDocMessages, editors, log};
+  {settings, langDocMessages, scratch, exercise, log};
 };
 
 let export_all = (~instructor_mode) => {
   mk_all(~instructor_mode) |> yojson_of_all;
 };
 
-let import_all = (data, ~specs as _) => {
-  let all = data |> Yojson.Safe.from_string |> all_of_yojson;
+let import_all = (data, ~specs) => {
+  let all =
+    try(data |> Yojson.Safe.from_string |> all_of_yojson) {
+    | _ =>
+      let all_f22 = data |> Yojson.Safe.from_string |> all_f22_of_yojson;
+      {
+        settings: all_f22.settings,
+        scratch: all_f22.scratch,
+        exercise: all_f22.exercise,
+        log: all_f22.log,
+        langDocMessages: "",
+      };
+    };
   let settings = Store.Settings.import(all.settings);
-  let _ = Store.LangDocMessages.import(all.langDocMessages);
-  let _instructor_mode = settings.instructor_mode; //TODO(andrew)
-  ignore(Store.Editors.import(all.editors));
+  Store.LangDocMessages.import(all.langDocMessages);
+  let instructor_mode = settings.instructor_mode;
+  Store.Scratch.import(all.scratch);
+  Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
   Log.import(all.log);
 };

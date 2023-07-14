@@ -3301,8 +3301,6 @@ type t = {
   groups: list((string, form_group)),
 };
 
-let key: string = "LANGDOCMESSAGES";
-
 let find = (p: 'a => bool, xs: list('a), err: string): 'a =>
   switch (List.find_opt(p, xs)) {
   | Some(x) => x
@@ -3381,7 +3379,7 @@ let init_options = options => {
   current_selection: List.length(options) - 1,
 };
 
-let default = {
+let init = {
   show: true,
   highlight: false,
   specificity_open: false,
@@ -4060,7 +4058,7 @@ let unpersist =
   let forms_unpersist =
     List.map(
       ({id, explanation_feedback, examples}: persistent_form) => {
-        let init_form = get_form(id, default.forms);
+        let init_form = get_form(id, init.forms);
         {
           id,
           syntactic_form: init_form.syntactic_form,
@@ -4077,7 +4075,7 @@ let unpersist =
   let groups_unpersist =
     List.map(
       ({id, current_selection}: persistent_form_group) => {
-        let init_group = get_group(id, default);
+        let init_group = get_group(id, init);
         (id, {options: init_group.options, current_selection});
       },
       groups,

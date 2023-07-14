@@ -139,11 +139,8 @@ module App = {
       Haz3lweb.Page.view(~inject, ~handlers, model),
       ~on_display=(_, ~schedule_action as _) =>
       if (action_applied.contents) {
-        let old_zipper =
-          Editors.get_editor(model.settings.mode, model.editors).state.zipper;
-        let new_zipper =
-          Editors.get_editor(model.settings.mode, old_model.editors).state.
-            zipper;
+        let old_zipper = Editors.get_editor(model.editors).state.zipper;
+        let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
 
         action_applied := false;
         if (old_zipper != new_zipper) {
@@ -163,7 +160,7 @@ let fragment =
 let initial_model = {
   switch (fragment) {
   | "debug" => Model.debug
-  | _ => Model.load(Model.default)
+  | _ => Model.load(Model.blank)
   };
 };
 

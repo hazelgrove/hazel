@@ -101,10 +101,6 @@ let init = (~read_only=false, z) => {
 };
 let empty = id => init(~read_only=false, Zipper.init(id));
 
-let sexp_of_t = ({state: {zipper, _}, _}: t): Sexplib.Sexp.t =>
-  Zipper.sexp_of_t(zipper);
-let t_of_sexp = (s: Sexplib.Sexp.t): t => s |> Zipper.t_of_sexp |> init;
-
 let get_seg = (ed: t) => Zipper.unselect_and_zip(ed.state.zipper);
 
 let update_z = (f: Zipper.t => Zipper.t, ed: t) => {

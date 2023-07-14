@@ -62,6 +62,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type key = (string, int);
 
+  let key_of = p => {
+    (p.title, p.version);
+  };
+
+  let find_key_opt = (key, specs: list(p('code))) => {
+    specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type pos =
     | Prelude
@@ -77,32 +85,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type transitionary_spec = p(CodeString.t);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type eds = p(Editor.t);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type state = {
-    pos,
-    eds,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    spec,
-    state,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type s = list(t);
-
-  let key_of = p => {
-    (p.title, p.version);
-  };
-
-  let find_key_opt = (key, specs: list(p('code))) => {
-    specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
-  };
 
   let map = (p: p('a), f: 'a => 'b): p('b) => {
     {
@@ -133,6 +115,15 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: p.hidden_tests.hints,
       },
     };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type eds = p(Editor.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type state = {
+    pos,
+    eds,
   };
 
   let key_of_state = ({eds, _}) => key_of(eds);
