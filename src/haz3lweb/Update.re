@@ -127,8 +127,7 @@ let evaluate_and_schedule =
         "ModelResults.init", model.settings.benchmark, () =>
         ModelResults.init(
           model.settings.dynamics
-            ? Editors.get_spliced_elabs(model.settings.mode, model.editors)
-            : [],
+            ? Editors.get_spliced_elabs(model.editors) : [],
         )
       ),
   };
@@ -157,18 +156,41 @@ let evaluate_and_schedule =
 let perform_action =
     (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
     : Result.t(Model.t) => {
-  let (id, ed_init) =
-    Editors.get_editor_and_id(model.settings.mode, model.editors);
+  let (id, ed_init) = Editors.get_editor_and_id(model.editors);
   switch (Haz3lcore.Perform.go(a, ed_init, id)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok((ed, id)) =>
-    Ok({
-      ...model,
-      editors:
-        Editors.put_editor_and_id(id, ed, model.settings.mode, model.editors),
-    })
+    Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
   };
 };
+
+let switch_scratch_slide =
+    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+  switch (editors) {
+  | DebugLoad
+  | Examples(_) => None
+  | Scratch(n, _) when n == idx => None
+  | Scratch(_, slides) when idx >= List.length(slides) => None
+  | Scratch(_, slides) => Some(Scratch(idx, slides))
+  | Exercise(_, specs, _) when idx >= List.length(specs) => None
+  | Exercise(_, specs, _) =>
+    let spec = List.nth(specs, idx);
+    let key = Exercise.key_of(spec);
+    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    Some(Exercise(idx, specs, exercise));
+  };
+
+let switch_exercise_editor =
+    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+  switch (editors) {
+  | DebugLoad
+  | Examples(_)
+  | Scratch(_) => None
+  | Exercise(m, specs, exercise) =>
+    let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
+    Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    Some(Exercise(m, specs, exercise));
+  };
 
 let apply =
     (model: Model.t, update: t, state: State.t, ~schedule_action)
@@ -201,20 +223,14 @@ let apply =
       Model.save_and_return({...model, editors});
     | ResetSlide =>
       let instructor_mode = model.settings.instructor_mode;
-      let editors =
-        Editors.reset_current(
-          model.settings.mode,
-          model.editors,
-          ~instructor_mode,
-        );
+      let editors = Editors.reset_current(model.editors, ~instructor_mode);
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
-      switch (
-        Editors.switch_scratch_slide(model.settings.mode, model.editors, n)
-      ) {
+      let instructor_mode = model.settings.instructor_mode;
+      switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
-      }
+      };
     | SwitchExampleSlide(name) =>
       switch (Editors.switch_example_slide(model.editors, name)) {
       | None => Error(FailedToSwitch)
@@ -222,17 +238,15 @@ let apply =
       }
     | SwitchEditor(pos) =>
       let instructor_mode = model.settings.instructor_mode;
-      switch (
-        Editors.switch_exercise_editor(model.editors, ~pos, ~instructor_mode)
-      ) {
+      switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
     | SetMode(mode) =>
       let model = update_settings(Mode(mode), model);
+      /* NOTE: Need to reload model for editors to load */
       Model.save(model);
-      Ok(model);
-    //Ok(Model.load(model));
+      Ok(Model.load(model));
     | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
@@ -247,8 +261,7 @@ let apply =
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
     | Paste(clipboard) =>
-      let (id, ed) =
-        Editors.get_editor_and_id(model.settings.mode, model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
         Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
       ) {
@@ -266,13 +279,7 @@ let apply =
           | Ok((z, id)) =>
             let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
             //TODO: add correct action to history (Pick_up is wrong)
-            let editors =
-              Editors.put_editor_and_id(
-                id,
-                ed,
-                model.settings.mode,
-                model.editors,
-              );
+            let editors = Editors.put_editor_and_id(id, ed, model.editors);
             Ok({...model, editors});
           }
         }
@@ -281,8 +288,7 @@ let apply =
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
-      let (id, ed) =
-        Editors.get_editor_and_id(model.settings.mode, model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       let zipper_init = Zipper.init(id);
       let ed_str = Printer.to_string_editor(ed);
       switch (Printer.zipper_of_string(~zipper_init, id + 1, ed_str)) {
@@ -290,47 +296,27 @@ let apply =
       | Some((z, id)) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        let editors =
-          Editors.put_editor_and_id(
-            id,
-            editor,
-            model.settings.mode,
-            model.editors,
-          );
+        let editors = Editors.put_editor_and_id(id, editor, model.editors);
         Ok({...model, editors});
       };
     | Undo =>
-      let (id, ed) =
-        Editors.get_editor_and_id(model.settings.mode, model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
         Ok({
           ...model,
-          editors:
-            Editors.put_editor_and_id(
-              id,
-              ed,
-              model.settings.mode,
-              model.editors,
-            ),
+          editors: Editors.put_editor_and_id(id, ed, model.editors),
         })
       };
     | Redo =>
-      let (id, ed) =
-        Editors.get_editor_and_id(model.settings.mode, model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
         Ok({
           ...model,
-          editors:
-            Editors.put_editor_and_id(
-              id,
-              ed,
-              model.settings.mode,
-              model.editors,
-            ),
+          editors: Editors.put_editor_and_id(id, ed, model.editors),
         })
       };
     | MoveToNextHole(_d) =>

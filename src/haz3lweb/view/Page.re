@@ -99,7 +99,7 @@ let top_bar_view =
     nut_menu(~inject, settings)
     @ [div(~attr=Attr.id("title"), [text("HAZEL")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)]
-    @ history_bar(Editors.get_editor(settings.mode, editors), ~inject)
+    @ history_bar(Editors.get_editor(editors), ~inject)
     @ toolbar_buttons,
   );
 
@@ -147,25 +147,18 @@ let slide_view = (~inject, ~model, slide_state) => {
 };
 
 let editors_view = (~inject, model: Model.t) => {
-  switch (model.settings.mode) {
+  switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
-  | Scratch
-  | Examples =>
-    slide_view(
-      ~inject,
-      ~model,
-      Editors.get_editor_and_id(model.settings.mode, model.editors),
-    )
-  | Exercise =>
-    let Editors.{idx, slides} = model.editors.exercise;
-    let slide = List.nth(slides, idx);
-    exercises_view(~inject, ~exercise=slide.state, model);
+  | Scratch(slide_idx, slides) =>
+    slide_view(~inject, ~model, List.nth(slides, slide_idx))
+  | Examples(name, slides) =>
+    slide_view(~inject, ~model, List.assoc(name, slides))
+  | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
   };
 };
 
 let get_selection = (model: Model.t): string =>
-  Editors.get_editor(model.settings.mode, model.editors)
-  |> Printer.to_string_selection;
+  model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
 let view = (~inject, ~handlers, model: Model.t) =>
   div(

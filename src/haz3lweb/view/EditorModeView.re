@@ -25,26 +25,26 @@ let mode_menu = (~inject, ~mode: Editors.mode) =>
     ],
   );
 
-let slide_select = (~inject, ~idx, ~num_slides) => {
-  let next_ed = (idx + 1) mod num_slides;
-  let prev_ed = Util.IntUtil.modulo(idx - 1, num_slides);
+let slide_select = (~inject, ~cur_slide, ~num_slides) => {
+  let next_ed = (cur_slide + 1) mod num_slides;
+  let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
   [
     button(Icons.back, _ => inject(Update.SwitchScratchSlide(prev_ed))),
-    text(Printf.sprintf("%d / %d", idx + 1, num_slides)),
+    text(Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
     button(Icons.forward, _ => inject(Update.SwitchScratchSlide(next_ed))),
   ];
 };
 
-let scratch_view = (~inject, {idx, slides}: ScratchSlidesInit.t) =>
+let scratch_view = (~inject, ~cur_slide, ~slides) =>
   [mode_menu(~inject, ~mode=Scratch)]
-  @ slide_select(~inject, ~idx, ~num_slides=List.length(slides));
+  @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
-let examples_view = (~inject, {current, slides}: Examples.t) => [
+let examples_view = (~inject, ~name, ~editors) => [
   mode_menu(~inject, ~mode=Examples),
   select(
     ~attr=
       Attr.on_change((_, name) => inject(Update.SwitchExampleSlide(name))),
-    List.map(option_view(current), List.map(fst, slides)),
+    List.map(option_view(name), List.map(fst, editors)),
   ),
 ];
 
@@ -57,26 +57,27 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     ]
     : [];
 
-let exercises_view =
-    (~inject, ~instructor_mode, {idx, slides}: Editors.exercise) => {
+let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
   [mode_menu(~inject, ~mode=Exercise)]
   @ instructor_toggle(~inject, ~instructor_mode)
-  @ slide_select(~inject, ~idx, ~num_slides=List.length(slides));
+  @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
 
 let view =
     (
       ~inject: Update.t => 'a,
       ~editors: Editors.t,
-      ~settings as {mode, instructor_mode, _}: ModelSettings.t,
+      ~settings as {instructor_mode, _}: ModelSettings.t,
     )
     : Node.t => {
   let contents =
-    switch (mode) {
+    switch (editors) {
     | DebugLoad => []
-    | Scratch => scratch_view(~inject, editors.scratch)
-    | Examples => examples_view(~inject, editors.examples)
-    | Exercise => exercises_view(~inject, ~instructor_mode, editors.exercise)
+    | Scratch(cur_slide, slides) =>
+      scratch_view(~inject, ~cur_slide, ~slides)
+    | Examples(name, editors) => examples_view(~inject, ~name, ~editors)
+    | Exercise(cur_slide, specs, _) =>
+      exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };
   div(~attr=Attr.id("editor-mode"), contents);
 };

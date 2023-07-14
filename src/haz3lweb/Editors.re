@@ -2,17 +2,20 @@ open Sexplib.Std;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exercise = {
-  idx: int,
-  slides: Exercise.s,
-};
+type scratch = (int, list(ScratchSlide.state));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  scratch: ScratchSlidesInit.t,
-  examples: Examples.t,
-  exercise,
-};
+type examples = (string, list((string, ScratchSlide.state)));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exercises = (int, list(Exercise.spec), Exercise.state);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | DebugLoad
+  | Scratch(int, list(ScratchSlide.state))
+  | Examples(string, list((string, ScratchSlide.state)))
+  | Exercise(int, list(Exercise.spec), Exercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -20,30 +23,6 @@ type mode =
   | Scratch
   | Examples
   | Exercise;
-
-let exercise_default = {
-  //TODO(andrew): instructor_mode, cleanup
-  let slides =
-    List.map(
-      spec =>
-        Exercise.{
-          spec,
-          state: Exercise.state_of_spec(spec, ~instructor_mode=false),
-        },
-      ExerciseSettings.exercises,
-    );
-  {idx: 0, slides};
-};
-
-let default: t = {
-  scratch: ScratchSlidesInit.default,
-  examples: Examples.default,
-  exercise: exercise_default,
-};
-
-let key: string = "EDITORS";
-let serialize = s => s |> sexp_of_t |> Sexplib.Sexp.to_string;
-let deserialize = s => s |> Sexplib.Sexp.of_string |> t_of_sexp;
 
 let mode_of_string = (s: string): mode =>
   switch (s) {
@@ -53,269 +32,126 @@ let mode_of_string = (s: string): mode =>
   | _ => Scratch
   };
 
-let get_editor_and_id = (mode: mode, editors: t): (Id.t, Editor.t) =>
-  switch (mode) {
+let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
+  switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch =>
-    let idx = editors.scratch.idx;
-    let slides = editors.scratch.slides;
-    assert(idx < List.length(slides));
-    let slide = List.nth(slides, idx);
+  | Scratch(n, slides) =>
+    assert(n < List.length(slides));
+    let slide = List.nth(slides, n);
     let id = ScratchSlide.id_of_state(slide);
     let ed = ScratchSlide.editor_of_state(slide);
     (id, ed);
-  | Examples =>
-    let current = editors.examples.current;
-    let slides = editors.examples.slides;
-    assert(List.mem_assoc(current, slides));
-    let slide = List.assoc(current, slides);
+  | Examples(name, slides) =>
+    assert(List.mem_assoc(name, slides));
+    let slide = List.assoc(name, slides);
     let id = ScratchSlide.id_of_state(slide);
     let ed = ScratchSlide.editor_of_state(slide);
     (id, ed);
-  | Exercise =>
-    let idx = editors.exercise.idx;
-    let slides = editors.exercise.slides;
-    assert(idx < List.length(slides));
-    let slide = List.nth(slides, idx);
-    let id = Exercise.id_of_state(slide.state);
-    let ed = Exercise.editor_of_state(slide.state);
+  | Exercise(_, _, exercise) =>
+    let id = Exercise.id_of_state(exercise);
+    let ed = Exercise.editor_of_state(exercise);
     (id, ed);
   };
 
-let get_editor = (mode: mode, editors: t): Editor.t =>
-  snd(get_editor_and_id(mode, editors));
+let get_editor = (editors: t): Editor.t => snd(get_editor_and_id(editors));
 
-let put_editor_and_id = (id: Id.t, ed: Editor.t, mode: mode, editors: t): t =>
-  switch (mode) {
+let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
+  switch (eds) {
   | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch =>
-    let idx = editors.scratch.idx;
-    let slides = editors.scratch.slides;
-    assert(idx < List.length(slides));
-    let slide = List.nth(slides, idx);
-    let slides =
+  | Scratch(n, slides) =>
+    assert(n < List.length(slides));
+    let slide = List.nth(slides, n);
+    Scratch(
+      n,
       Util.ListUtil.put_nth(
-        idx,
+        n,
         ScratchSlide.put_editor_and_id(slide, id, ed),
         slides,
-      );
-    {
-      ...editors,
-      scratch: {
-        idx,
-        slides,
-      },
-    };
-  | Examples =>
-    let Examples.{current, slides} = editors.examples;
-    assert(List.mem_assoc(current, slides));
-    let slide = List.assoc(current, slides);
-    let slides =
-      slides
-      |> List.remove_assoc(current)
-      |> List.cons((current, ScratchSlide.put_editor_and_id(slide, id, ed)));
-    {
-      ...editors,
-      examples: {
-        current,
-        slides,
-      },
-    };
-  | Exercise =>
-    let {idx, slides} = editors.exercise;
-    let slide = List.nth(slides, idx);
-    let slides =
-      Util.ListUtil.put_nth(
-        idx,
-        Exercise.{
-          spec: slide.spec,
-          state: Exercise.put_editor_and_id(slide.state, id, ed),
-        },
-        slides,
-      );
-    {
-      ...editors,
-      exercise: {
-        idx,
-        slides,
-      },
-    };
-  };
-
-let get_zipper = (mode: mode, editors: t): Zipper.t =>
-  get_editor(mode, editors).state.zipper;
-
-let get_spliced_elabs =
-    (mode: mode, editors: t): list((ModelResults.key, DHExp.t)) => {
-  switch (mode) {
-  | DebugLoad => []
-  | Scratch =>
-    let idx = editors.scratch.idx;
-    let slides = editors.scratch.slides;
-    let slide = List.nth(slides, idx);
-    ScratchSlide.spliced_elabs(slide);
-  | Examples =>
-    let Examples.{current, slides} = editors.examples;
-    let slide = List.assoc(current, slides);
-    ScratchSlide.spliced_elabs(slide);
-  | Exercise =>
-    let {idx, slides} = editors.exercise;
-    let slide = List.nth(slides, idx);
-    Exercise.spliced_elabs(slide.state);
-  };
-};
-
-let set_instructor_mode = (editors: t, instructor_mode: bool): t => {
-  let idx = editors.exercise.idx;
-  let slides = editors.exercise.slides;
-  let slide = List.nth(slides, idx);
-  let slides =
-    Util.ListUtil.put_nth(
-      idx,
-      Exercise.{
-        spec: slide.spec,
-        state: Exercise.set_instructor_mode(slide.state, instructor_mode),
-      },
-      slides,
+      ),
     );
-  {
-    ...editors,
-    exercise: {
-      idx,
-      slides,
-    },
+  | Examples(name, slides) =>
+    assert(List.mem_assoc(name, slides));
+    let slide = List.assoc(name, slides);
+    Examples(
+      name,
+      slides
+      |> List.remove_assoc(name)
+      |> List.cons((name, ScratchSlide.put_editor_and_id(slide, id, ed))),
+    );
+  | Exercise(n, specs, exercise) =>
+    Exercise(n, specs, Exercise.put_editor_and_id(exercise, id, ed))
+  };
+
+let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
+
+let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
+  switch (editors) {
+  | DebugLoad => []
+  | Scratch(n, slides) =>
+    let slide = List.nth(slides, n);
+    ScratchSlide.spliced_elabs(slide);
+  | Examples(name, slides) =>
+    let slide = List.assoc(name, slides);
+    ScratchSlide.spliced_elabs(slide);
+  | Exercise(_, _, exercise) => Exercise.spliced_elabs(exercise)
   };
 };
 
-let reset_current = (mode: mode, editors: t, ~instructor_mode: bool): t =>
-  switch (mode) {
+let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
+  switch (editors) {
+  | DebugLoad => failwith("no editors in debug load mode")
+  | Scratch(_)
+  | Examples(_) => editors
+  | Exercise(n, specs, exercise) =>
+    Exercise(
+      n,
+      specs,
+      Exercise.set_instructor_mode(exercise, instructor_mode),
+    )
+  };
+
+let reset_current = (editors: t, ~instructor_mode: bool): t =>
+  switch (editors) {
   | DebugLoad => failwith("impossible")
-  | Scratch =>
-    let idx = editors.scratch.idx;
-    let slides = editors.scratch.slides;
+  | Scratch(n, slides) =>
     let slides =
-      Util.ListUtil.put_nth(idx, ScratchSlidesInit.init_nth(idx), slides);
-    {
-      ...editors,
-      scratch: {
-        idx,
-        slides,
-      },
-    };
-  | Examples =>
-    let Examples.{current, slides} = editors.examples;
+      Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
+    Scratch(n, slides);
+  | Examples(name, slides) =>
     let slides =
       slides
-      |> List.remove_assoc(current)
-      |> List.cons((current, Examples.init_name(current)));
-    {
-      ...editors,
-      examples: {
-        current,
-        slides,
-      },
-    };
-  | Exercise =>
-    let {idx, slides} = editors.exercise;
-    let slide = List.nth(slides, idx);
-    let slides =
-      Util.ListUtil.put_nth(
-        idx,
-        Exercise.{
-          spec: slide.spec,
-          state: Exercise.state_of_spec(slide.spec, ~instructor_mode),
-        },
-        slides,
-      );
-    {
-      ...editors,
-      exercise: {
-        idx,
-        slides,
-      },
-    };
+      |> List.remove_assoc(name)
+      |> List.cons((name, Examples.init_name(name)));
+    Examples(name, slides);
+  | Exercise(n, specs, _) =>
+    Exercise(
+      n,
+      specs,
+      List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
+    )
   };
 
-//TODO(andrew): rename to import_current_scratch or generalize
-let import_current = (editors: t, data: option(string)): t => {
-  let idx = editors.scratch.idx;
-  let slides = editors.scratch.slides;
-  switch (data) {
-  | None => editors
-  | Some(data) =>
-    let state = ScratchSlide.import(data);
-    let slides = Util.ListUtil.put_nth(idx, state, slides);
-    {
-      ...editors,
-      scratch: {
-        idx,
-        slides,
-      },
-    };
-  };
-};
-
-let switch_example_slide = (editors: t, name: string): option(t) => {
-  let Examples.{current, slides} = editors.examples;
-  if (!List.mem_assoc(name, slides) || current == name) {
-    None;
-  } else {
-    Some({
-      ...editors,
-      examples: {
-        current: name,
-        slides,
-      },
-    });
-  };
-};
-
-let switch_scratch_slide = (mode: mode, editors: t, new_idx: int): option(t) =>
-  switch (mode) {
+let import_current = (editors: t, data: option(string)): t =>
+  switch (editors) {
   | DebugLoad
-  | Examples => None
-  | Scratch =>
-    let ScratchSlidesInit.{idx, slides} = editors.scratch;
-    if (idx == new_idx) {
-      None;
-    } else {
-      Some({
-        ...editors,
-        scratch: {
-          idx: new_idx,
-          slides,
-        },
-      });
-    };
-  | Exercise =>
-    let {idx, slides} = editors.exercise;
-    if (idx == new_idx) {
-      None;
-    } else {
-      Some({
-        ...editors,
-        exercise: {
-          idx: new_idx,
-          slides,
-        },
-      });
-    };
+  | Examples(_)
+  | Exercise(_) => failwith("impossible")
+  | Scratch(idx, slides) =>
+    switch (data) {
+    | None => editors
+    | Some(data) =>
+      let state = ScratchSlide.import(data);
+      let slides = Util.ListUtil.put_nth(idx, state, slides);
+      Scratch(idx, slides);
+    }
   };
 
-let switch_exercise_editor = (editors: t, ~pos, ~instructor_mode): option(t) => {
-  let {idx, slides} = editors.exercise;
-  assert(idx < List.length(slides));
-  let slide = List.nth(slides, idx);
-  let state =
-    Exercise.switch_editor(~pos, instructor_mode, ~exercise=slide.state);
-  //Store.Exercise.save_exercise(state, ~instructor_mode);
-  let slides =
-    Util.ListUtil.put_nth(idx, Exercise.{spec: slide.spec, state}, slides);
-  Some({
-    ...editors,
-    exercise: {
-      idx,
-      slides,
-    },
-  });
-};
+let switch_example_slide = (editors: t, name: string): option(t) =>
+  switch (editors) {
+  | DebugLoad
+  | Scratch(_)
+  | Exercise(_) => None
+  | Examples(cur, slides) when !List.mem_assoc(name, slides) || cur == name =>
+    None
+  | Examples(_, slides) => Some(Examples(name, slides))
+  };
