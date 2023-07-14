@@ -1,11 +1,12 @@
-open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Haz3lcore;
 
 type t = {
   exercise: Exercise.state,
   results: option(ModelResults.t),
   settings: ModelSettings.t,
+  instructor_mode: bool,
   langDocMessages: LangDocMessages.t,
   stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
@@ -16,6 +17,7 @@ let mk =
       ~exercise: Exercise.state,
       ~results: option(ModelResults.t),
       ~settings,
+      ~instructor_mode: bool,
       ~langDocMessages,
     )
     : t => {
@@ -30,6 +32,7 @@ let mk =
     exercise,
     results,
     settings,
+    instructor_mode,
     langDocMessages,
     stitched_dynamics,
     grading_report,
@@ -40,11 +43,11 @@ type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
 
-let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
+let render_cells = (instructor_mode: bool, v: list(vis_marked(Node.t))) => {
   List.filter_map(
     vis =>
       switch (vis) {
-      | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
+      | InstructorOnly(f) => instructor_mode ? Some(f()) : None
       | Always(node) => Some(node)
       },
     v,
@@ -60,6 +63,7 @@ let view =
     stitched_dynamics,
     grading_report,
     langDocMessages,
+    instructor_mode,
   } = self;
   let Exercise.{pos, eds} = exercise;
   let Exercise.{
@@ -117,7 +121,7 @@ let view =
         ~caption=
           Cell.bolded_caption(
             "Prelude",
-            ~rest=?settings.instructor_mode ? None : Some(" (Read-Only)"),
+            ~rest=?instructor_mode ? None : Some(" (Read-Only)"),
           ),
         ~code_id="prelude",
         ~info_map=prelude.info_map,
@@ -347,7 +351,7 @@ let view =
           ~attr=Attr.classes(["editor", "column"]),
           [title_view, prompt_view]
           @ render_cells(
-              settings,
+              instructor_mode,
               [
                 prelude_view,
                 correct_impl_view,
@@ -385,11 +389,16 @@ let view =
 };
 
 let toolbar_buttons =
-    (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
+    (
+      ~inject,
+      ~instructor_mode: bool,
+      editors: Editors.t,
+      ~settings: ModelSettings.t,
+    ) => {
   let Exercise.{pos: _, eds} as exercise =
     switch (settings.mode) {
     | Exercise =>
-      let Editors.{slides, idx} = editors.exercise;
+      let Editors.{slides, idx, _} = editors.exercise;
       let slide = List.nth(slides, idx);
       slide.state;
     | _ => assert(false)
@@ -413,7 +422,7 @@ let toolbar_buttons =
     );
 
   let instructor_export =
-    settings.instructor_mode
+    instructor_mode
       ? Some(
           Widgets.button(
             Icons.export, // TODO(cyrus) distinct icon
@@ -436,7 +445,7 @@ let toolbar_buttons =
       : None;
 
   let instructor_transitionary_export =
-    settings.instructor_mode
+    instructor_mode
       ? Some(
           Widgets.button(
             Icons.export, // TODO(cyrus) distinct icon
@@ -460,7 +469,7 @@ let toolbar_buttons =
       : None;
 
   let instructor_grading_export =
-    settings.instructor_mode
+    instructor_mode
       ? Some(
           Widgets.button(
             Icons.export, // TODO(cyrus) distinct icon

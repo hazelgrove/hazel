@@ -40,7 +40,8 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
 let nut_menu =
     (
       ~inject: Update.t => 'a,
-      {statics, dynamics, benchmark, instructor_mode, _}: ModelSettings.t,
+      ~instructor_mode: bool,
+      {statics, dynamics, benchmark, _}: ModelSettings.t,
     ) => [
   menu_icon,
   div(
@@ -96,7 +97,11 @@ let top_bar_view =
     ) =>
   div(
     ~attr=Attr.id("top-bar"),
-    nut_menu(~inject, settings)
+    nut_menu(
+      ~inject,
+      settings,
+      ~instructor_mode=editors.exercise.instructor_mode,
+    )
     @ [div(~attr=Attr.id("title"), [text("HAZEL")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)]
     @ history_bar(Editors.get_editor(settings.mode, editors), ~inject)
@@ -118,15 +123,22 @@ let exercises_view =
         _,
       } as model: Model.t,
     ) => {
+  let instructor_mode = editors.exercise.instructor_mode;
   let exercise_mode =
     ExerciseMode.mk(
       ~settings,
       ~exercise,
       ~results=settings.dynamics ? Some(results) : None,
+      ~instructor_mode,
       ~langDocMessages,
     );
   let toolbar_buttons =
-    ExerciseMode.toolbar_buttons(~inject, ~settings, editors)
+    ExerciseMode.toolbar_buttons(
+      ~inject,
+      ~instructor_mode,
+      ~settings,
+      editors,
+    )
     @ [
       Grading.GradingReport.view_overall_score(exercise_mode.grading_report),
     ];
@@ -157,7 +169,7 @@ let editors_view = (~inject, model: Model.t) => {
       Editors.get_editor_and_id(model.settings.mode, model.editors),
     )
   | Exercise =>
-    let Editors.{idx, slides} = model.editors.exercise;
+    let Editors.{idx, slides, _} = model.editors.exercise;
     let slide = List.nth(slides, idx);
     exercises_view(~inject, ~exercise=slide.state, model);
   };

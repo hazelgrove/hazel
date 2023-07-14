@@ -58,7 +58,7 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     : [];
 
 let exercises_view =
-    (~inject, ~instructor_mode, {idx, slides}: Editors.exercise) => {
+    (~inject, {idx, slides, instructor_mode}: Editors.exercise) => {
   [mode_menu(~inject, ~mode=Exercise)]
   @ instructor_toggle(~inject, ~instructor_mode)
   @ slide_select(~inject, ~idx, ~num_slides=List.length(slides));
@@ -68,7 +68,7 @@ let view =
     (
       ~inject: Update.t => 'a,
       ~editors: Editors.t,
-      ~settings as {mode, instructor_mode, _}: ModelSettings.t,
+      ~settings as {mode, _}: ModelSettings.t,
     )
     : Node.t => {
   let contents =
@@ -76,7 +76,7 @@ let view =
     | DebugLoad => []
     | Scratch => scratch_view(~inject, editors.scratch)
     | Examples => examples_view(~inject, editors.examples)
-    | Exercise => exercises_view(~inject, ~instructor_mode, editors.exercise)
+    | Exercise => exercises_view(~inject, editors.exercise)
     };
   div(~attr=Attr.id("editor-mode"), contents);
 };

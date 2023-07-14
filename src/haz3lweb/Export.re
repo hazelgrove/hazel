@@ -9,7 +9,7 @@ type all = {
 };
 
 let mk_all = (~instructor_mode as _) => {
-  //TODO(andrew): instructor_mode
+  //TODO(andrew): take into account instructor_mode
   print_endline("Mk all");
   let settings = Store.Settings.export();
   print_endline("Settings OK");
@@ -22,14 +22,15 @@ let mk_all = (~instructor_mode as _) => {
 };
 
 let export_all = (~instructor_mode) => {
+  //TODO(andrew): take into account instructor_mode
   mk_all(~instructor_mode) |> yojson_of_all;
 };
 
 let import_all = (data, ~specs as _) => {
+  //TODO(andrew): take into account instructor_mode
   let all = data |> Yojson.Safe.from_string |> all_of_yojson;
-  let settings = Store.Settings.import(all.settings);
+  let _settings = Store.Settings.import(all.settings);
+  let _editors = Store.Editors.import(all.editors);
   let _ = Store.LangDocMessages.import(all.langDocMessages);
-  let _instructor_mode = settings.instructor_mode; //TODO(andrew)
-  ignore(Store.Editors.import(all.editors));
   Log.import(all.log);
 };

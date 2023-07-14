@@ -51,16 +51,11 @@ let update_settings =
         context_inspector: !settings.context_inspector,
       },
     }
-  | InstructorMode =>
-    let new_mode = !settings.instructor_mode;
-    {
+  | InstructorMode => {
       ...model,
-      editors: Editors.set_instructor_mode(model.editors, new_mode),
-      settings: {
-        ...settings,
-        instructor_mode: !settings.instructor_mode,
-      },
-    };
+      editors: Editors.toggle_instructor_mode(model.editors),
+      settings,
+    }
   | Mode(mode) => {
       ...model,
       settings: {
@@ -200,13 +195,7 @@ let apply =
       let editors = Editors.import_current(model.editors, data);
       Model.save_and_return({...model, editors});
     | ResetSlide =>
-      let instructor_mode = model.settings.instructor_mode;
-      let editors =
-        Editors.reset_current(
-          model.settings.mode,
-          model.editors,
-          ~instructor_mode,
-        );
+      let editors = Editors.reset_current(model.settings.mode, model.editors);
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       switch (
@@ -221,13 +210,10 @@ let apply =
       | Some(editors) => Model.save_and_return({...model, editors})
       }
     | SwitchEditor(pos) =>
-      let instructor_mode = model.settings.instructor_mode;
-      switch (
-        Editors.switch_exercise_editor(model.editors, ~pos, ~instructor_mode)
-      ) {
+      switch (Editors.switch_exercise_editor(model.editors, ~pos)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
-      };
+      }
     | SetMode(mode) =>
       let model = update_settings(Mode(mode), model);
       Model.save(model);

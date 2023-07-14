@@ -364,11 +364,3 @@ let caret_point = (measured, z: t): Measured.Point.t => {
   let Measured.Point.{row, col} = base_point(measured, z);
   {row, col: col + Caret.offset(z.caret)};
 };
-
-let serialize = (z: t): string => {
-  sexp_of_t(z) |> Sexplib.Sexp.to_string;
-};
-
-let deserialize = (data: string): t => {
-  Sexplib.Sexp.of_string(data) |> t_of_sexp;
-};

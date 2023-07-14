@@ -5,7 +5,19 @@ open Haz3lcore;
 type exercise = {
   idx: int,
   slides: Exercise.s,
+  instructor_mode: bool,
 };
+//TODO(andrew): make sure something analogous to below gets integrated:
+/*
+ let deserialize = s => {
+   let settings = s |> Sexplib.Sexp.of_string |> t_of_sexp;
+   if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
+     {...settings, instructor_mode: false};
+   } else {
+     settings;
+   };
+ };
+ */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -32,7 +44,7 @@ let exercise_default = {
         },
       ExerciseSettings.exercises,
     );
-  {idx: 0, slides};
+  {idx: 0, slides, instructor_mode: ExerciseSettings.show_instructor};
 };
 
 let default: t = {
@@ -42,8 +54,8 @@ let default: t = {
 };
 
 let key: string = "EDITORS";
-let serialize = s => s |> sexp_of_t |> Sexplib.Sexp.to_string;
-let deserialize = s => s |> Sexplib.Sexp.of_string |> t_of_sexp;
+let serialize = s => s |> yojson_of_t |> Yojson.Safe.to_string;
+let deserialize = s => s |> Yojson.Safe.from_string |> t_of_yojson;
 
 let mode_of_string = (s: string): mode =>
   switch (s) {
@@ -122,7 +134,7 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, mode: mode, editors: t): t =>
       },
     };
   | Exercise =>
-    let {idx, slides} = editors.exercise;
+    let {idx, slides, instructor_mode} = editors.exercise;
     let slide = List.nth(slides, idx);
     let slides =
       Util.ListUtil.put_nth(
@@ -138,6 +150,7 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, mode: mode, editors: t): t =>
       exercise: {
         idx,
         slides,
+        instructor_mode,
       },
     };
   };
@@ -159,35 +172,29 @@ let get_spliced_elabs =
     let slide = List.assoc(current, slides);
     ScratchSlide.spliced_elabs(slide);
   | Exercise =>
-    let {idx, slides} = editors.exercise;
+    let {idx, slides, _} = editors.exercise;
     let slide = List.nth(slides, idx);
     Exercise.spliced_elabs(slide.state);
   };
 };
 
-let set_instructor_mode = (editors: t, instructor_mode: bool): t => {
+let toggle_instructor_mode = (editors: t): t => {
+  let instructor_mode = !editors.exercise.instructor_mode;
   let idx = editors.exercise.idx;
   let slides = editors.exercise.slides;
   let slide = List.nth(slides, idx);
-  let slides =
-    Util.ListUtil.put_nth(
-      idx,
-      Exercise.{
-        spec: slide.spec,
-        state: Exercise.set_instructor_mode(slide.state, instructor_mode),
-      },
-      slides,
-    );
-  {
-    ...editors,
-    exercise: {
-      idx,
-      slides,
-    },
-  };
+  /* Reset selected editor to prelude, set prelude to read-only */
+  let new_slide =
+    Exercise.{
+      spec: slide.spec,
+      state: Exercise.set_instructor_mode(slide.state, instructor_mode),
+    };
+  let slides = Util.ListUtil.put_nth(idx, new_slide, slides);
+  let exercise = {idx, slides, instructor_mode};
+  {...editors, exercise};
 };
 
-let reset_current = (mode: mode, editors: t, ~instructor_mode: bool): t =>
+let reset_current = (mode: mode, editors: t): t =>
   switch (mode) {
   | DebugLoad => failwith("impossible")
   | Scratch =>
@@ -216,7 +223,7 @@ let reset_current = (mode: mode, editors: t, ~instructor_mode: bool): t =>
       },
     };
   | Exercise =>
-    let {idx, slides} = editors.exercise;
+    let {idx, slides, instructor_mode} = editors.exercise;
     let slide = List.nth(slides, idx);
     let slides =
       Util.ListUtil.put_nth(
@@ -232,6 +239,7 @@ let reset_current = (mode: mode, editors: t, ~instructor_mode: bool): t =>
       exercise: {
         idx,
         slides,
+        instructor_mode,
       },
     };
   };
@@ -288,7 +296,7 @@ let switch_scratch_slide = (mode: mode, editors: t, new_idx: int): option(t) =>
       });
     };
   | Exercise =>
-    let {idx, slides} = editors.exercise;
+    let {idx, slides, instructor_mode} = editors.exercise;
     if (idx == new_idx) {
       None;
     } else {
@@ -297,18 +305,18 @@ let switch_scratch_slide = (mode: mode, editors: t, new_idx: int): option(t) =>
         exercise: {
           idx: new_idx,
           slides,
+          instructor_mode,
         },
       });
     };
   };
 
-let switch_exercise_editor = (editors: t, ~pos, ~instructor_mode): option(t) => {
-  let {idx, slides} = editors.exercise;
+let switch_exercise_editor = (editors: t, ~pos): option(t) => {
+  let {idx, slides, instructor_mode} = editors.exercise;
   assert(idx < List.length(slides));
   let slide = List.nth(slides, idx);
   let state =
     Exercise.switch_editor(~pos, instructor_mode, ~exercise=slide.state);
-  //Store.Exercise.save_exercise(state, ~instructor_mode);
   let slides =
     Util.ListUtil.put_nth(idx, Exercise.{spec: slide.spec, state}, slides);
   Some({
@@ -316,6 +324,7 @@ let switch_exercise_editor = (editors: t, ~pos, ~instructor_mode): option(t) => 
     exercise: {
       idx,
       slides,
+      instructor_mode,
     },
   });
 };

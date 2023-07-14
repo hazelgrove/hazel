@@ -1,6 +1,9 @@
 open Sexplib.Std;
 open Haz3lcore;
 
+//TODO(andrew):
+let global_show_instructor = true;
+
 module type ExerciseEnv = {
   type node;
   let default: node;
@@ -477,8 +480,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   //     };
   //   };
 
-  let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
-    ...state,
+  let set_instructor_mode = ({eds, _}: state, new_mode: bool) => {
+    pos: Prelude,
     eds: {
       ...eds,
       prelude: Editor.set_read_only(eds.prelude, !new_mode),
