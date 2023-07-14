@@ -3,8 +3,6 @@ open Node;
 open Haz3lcore;
 open Util.Web;
 
-type state = (Id.t, Editor.t);
-
 let view =
     (
       ~inject,
@@ -20,7 +18,7 @@ let view =
           _,
         }: Model.t,
     ) => {
-  let editor = Editors.get_editor(editors);
+  let editor = Editors.get_editor(settings.mode, editors);
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);

@@ -1,10 +1,17 @@
 open Haz3lcore;
+open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = (Id.t, Editor.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = (Id.t, PersistentZipper.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type s = list(state);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type assoc = list((string, state));
 
 let editor_of_state = ((_, editor): state) => editor;
 
