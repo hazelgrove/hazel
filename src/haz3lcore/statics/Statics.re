@@ -824,7 +824,13 @@ and uexp_to_module =
         switch (mode) {
         | Ana(Module(m)) =>
           switch (Ctx.lookup_alias(m, name)) {
-          | Some(ty) => AnaTypeExpected(ty)
+          | Some(ty) =>
+            /* This check is moved here because utyp_to_info_map
+               does not handle recursion. */
+            switch (Typ.join(ctx, ty, ty_def)) {
+            | Some(_) => TypeExpected
+            | None => AnaTypeExpected(ty)
+            }
           | None => TypeExpected
           }
         | _ => TypeExpected

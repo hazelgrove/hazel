@@ -331,11 +331,7 @@ let status_typ =
       | false => InHole(FreeTypeVar(name))
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
-    | AnaTypeExpected(ana) =>
-      switch (Typ.join(ctx, ana, ty)) {
-      | None => InHole(InconsistentMember({ana, syn: ty}))
-      | Some(join) => NotInHole(Type(join))
-      }
+    | AnaTypeExpected(ana) => InHole(InconsistentMember({ana, syn: ty}))
     }
   | Ap(t1, t2) =>
     switch (expects) {
@@ -349,11 +345,7 @@ let status_typ =
     | TagExpected(_) => InHole(WantTagFoundAp)
     | ModuleExpected => InHole(WantModule)
     | TypeExpected => InHole(WantTypeFoundAp)
-    | AnaTypeExpected(ana) =>
-      switch (Typ.join(ctx, ana, ty)) {
-      | None => InHole(InconsistentMember({ana, syn: ty}))
-      | Some(join) => NotInHole(Type(join))
-      }
+    | AnaTypeExpected(ana) => InHole(InconsistentMember({ana, syn: ty}))
     }
   | Dot(_, _) =>
     switch (expects, ty) {
@@ -374,11 +366,7 @@ let status_typ =
     | TagExpected(_)
     | VariantExpected(_) => InHole(WantTagFoundType(ty))
     | ModuleExpected => InHole(WantModule)
-    | AnaTypeExpected(ana) =>
-      switch (Typ.join(ctx, ana, ty)) {
-      | None => InHole(InconsistentMember({ana, syn: ty}))
-      | Some(join) => NotInHole(Type(join))
-      }
+    | AnaTypeExpected(ana) => InHole(InconsistentMember({ana, syn: ty}))
     }
   };
 
