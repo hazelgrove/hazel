@@ -386,12 +386,11 @@ let view =
 
 let toolbar_buttons =
     (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
-  let (_idx, _specs, exercise): Editors.exercises =
+  let Exercise.{pos: _, eds} as exercise =
     switch (editors) {
-    | Exercise(idx, specs, exercise) => (idx, specs, exercise)
+    | Exercise({state, _}) => state
     | _ => assert(false)
     };
-  let Exercise.{pos: _, eds} = exercise;
 
   let reset_button =
     Widgets.button(

@@ -54,7 +54,7 @@ let import_all = (data, ~specs) => {
       };
     };
   let settings = Store.Settings.import(all.settings);
-  Store.LangDocMessages.import(all.langDocMessages);
+  let _ = Store.LangDocMessages.import(all.langDocMessages);
   let instructor_mode = settings.instructor_mode;
   Store.Scratch.import(all.scratch);
   Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);

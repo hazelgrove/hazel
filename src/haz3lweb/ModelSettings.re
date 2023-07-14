@@ -13,7 +13,7 @@ type t = {
   mode: Editors.mode,
 };
 
-let init = {
+let default = {
   captions: true,
   secondary_icons: false,
   statics: true,
@@ -24,12 +24,15 @@ let init = {
   benchmark: false,
   mode: Editors.Scratch,
 };
+let init_debug = {...default, mode: Editors.DebugLoad};
 
-let init_debug = {...init, mode: Editors.DebugLoad};
-
-let fix_instructor_mode = settings =>
+let key: string = "SETTINGS";
+let serialize = s => s |> sexp_of_t |> Sexplib.Sexp.to_string;
+let deserialize = s => {
+  let settings = s |> Sexplib.Sexp.of_string |> t_of_sexp;
   if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
     {...settings, instructor_mode: false};
   } else {
     settings;
   };
+};
