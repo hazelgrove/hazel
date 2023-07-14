@@ -149,11 +149,12 @@ let slide_view = (~inject, ~model, slide_state) => {
 let editors_view = (~inject, model: Model.t) => {
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
-  | Scratch(slide_idx, slides) =>
-    slide_view(~inject, ~model, List.nth(slides, slide_idx))
-  | Examples(name, slides) =>
-    slide_view(~inject, ~model, List.assoc(name, slides))
-  | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
+  | Scratch({idx, slides}) =>
+    slide_view(~inject, ~model, List.nth(slides, idx))
+  | Examples({current, slides}) =>
+    slide_view(~inject, ~model, List.assoc(current, slides))
+  | Exercise({state: exercise, _}) =>
+    exercises_view(~inject, ~exercise, model)
   };
 };
 

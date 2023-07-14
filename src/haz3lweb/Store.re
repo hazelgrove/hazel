@@ -1,94 +1,141 @@
 open Sexplib.Std;
 open Haz3lcore;
 
-// Settings serialization
-module Settings = {
-  let save_settings_key: string = "SETTINGS";
-
-  let serialize = settings =>
-    settings |> ModelSettings.sexp_of_t |> Sexplib.Sexp.to_string;
-
-  let deserialize = data =>
-    try(
-      data
-      |> Sexplib.Sexp.of_string
-      |> ModelSettings.t_of_sexp
-      |> ModelSettings.fix_instructor_mode
-    ) {
-    | _ =>
-      print_endline("Could not deserialize settings.");
-      ModelSettings.init;
-    };
-
-  let save = (settings: ModelSettings.t): unit =>
-    JsUtil.set_localstore(save_settings_key, serialize(settings));
-
-  let init = () => {
-    JsUtil.set_localstore(save_settings_key, serialize(ModelSettings.init));
-    ModelSettings.init;
-  };
-
-  let load = (): ModelSettings.t =>
-    switch (JsUtil.get_localstore(save_settings_key)) {
-    | None => init()
-    | Some(data) => deserialize(data)
-    };
-
-  let export = () => Option.get(JsUtil.get_localstore(save_settings_key));
-  let import = data => {
-    let settings = deserialize(data);
-    save(settings);
-    settings;
-  };
+module type Storable = {
+  type t;
+  let key: string;
+  let default: t;
+  let serialize: t => string;
+  let deserialize: string => t;
 };
 
-// LangDocMessages serialization
-module LangDocMessages = {
-  let save_langDocMessages_key: string = "LANGDOCMESSAGES";
+module General = (M: Storable) => {
+  let init = () => {
+    JsUtil.set_localstore(M.key, M.serialize(M.default));
+    M.default;
+  };
+  let save = (m: M.t): unit => JsUtil.set_localstore(M.key, M.serialize(m));
 
-  let serialize = langDocMessages =>
-    LangDocMessages.serialize(langDocMessages);
-
-  let deserialize = data =>
-    try(LangDocMessages.deserialize(data)) {
+  let deserialize' = (s: string): M.t =>
+    try(M.deserialize(s)) {
     | _ =>
-      print_endline("Could not deserialize langDocMessages.");
-      LangDocMessages.init;
+      print_endline("WARNING: Could not deserialize " ++ M.key);
+      M.default;
     };
 
-  let save = (langDocMessages: LangDocMessages.t): unit =>
-    JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(langDocMessages),
-    );
+  let load = (): M.t =>
+    switch (JsUtil.get_localstore(M.key)) {
+    | None => init()
+    | Some(s) => deserialize'(s)
+    };
 
-  let init = () => {
-    JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(LangDocMessages.init),
-    );
-    LangDocMessages.init;
+  let import = (s: string): M.t => {
+    let m = deserialize'(s);
+    save(m);
+    m;
   };
 
-  let load = (): LangDocMessages.t =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
-    | None => init()
-    | Some(data) => deserialize(data)
-    };
-
-  let rec export = () =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+  let rec export = (): string =>
+    switch (JsUtil.get_localstore(M.key)) {
     | None =>
-      let _ = init();
+      ignore(init());
       export();
     | Some(data) => data
     };
-
-  let import = data => {
-    let langDocMessages = deserialize(data);
-    save(langDocMessages);
-  };
 };
+
+module Settings = General(ModelSettings);
+module LangDocMessages = General(LangDocMessages);
+
+// Settings serialization
+/*
+ module Settings = {
+   let save_settings_key: string = "SETTINGS";
+
+   let serialize = settings =>
+     settings |> ModelSettings.sexp_of_t |> Sexplib.Sexp.to_string;
+
+   let deserialize = data =>
+     try(
+       data
+       |> Sexplib.Sexp.of_string
+       |> ModelSettings.t_of_sexp
+       |> ModelSettings.fix_instructor_mode
+     ) {
+     | _ =>
+       print_endline("Could not deserialize settings.");
+       ModelSettings.default;
+     };
+
+   let save = (settings: ModelSettings.t): unit =>
+     JsUtil.set_localstore(save_settings_key, serialize(settings));
+
+   let init = () => {
+     JsUtil.set_localstore(save_settings_key, serialize(ModelSettings.default));
+     ModelSettings.default;
+   };
+
+   let load = (): ModelSettings.t =>
+     switch (JsUtil.get_localstore(save_settings_key)) {
+     | None => init()
+     | Some(data) => deserialize(data)
+     };
+
+   let export = () => Option.get(JsUtil.get_localstore(save_settings_key));
+   let import = data => {
+     let settings = deserialize(data);
+     save(settings);
+     settings;
+   };
+ };*/
+
+// LangDocMessages serialization
+/*module LangDocMessages = {
+    let save_langDocMessages_key: string = "LANGDOCMESSAGES";
+
+    let serialize = langDocMessages =>
+      LangDocMessages.serialize(langDocMessages);
+
+    let deserialize = data =>
+      try(LangDocMessages.deserialize(data)) {
+      | _ =>
+        print_endline("Could not deserialize langDocMessages.");
+        LangDocMessages.default;
+      };
+
+    let save = (langDocMessages: LangDocMessages.t): unit =>
+      JsUtil.set_localstore(
+        save_langDocMessages_key,
+        serialize(langDocMessages),
+      );
+
+    let init = () => {
+      JsUtil.set_localstore(
+        save_langDocMessages_key,
+        serialize(LangDocMessages.default),
+      );
+      LangDocMessages.default;
+    };
+
+    let load = (): LangDocMessages.t =>
+      switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+      | None => init()
+      | Some(data) => deserialize(data)
+      };
+
+    let rec export = () =>
+      switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+      | None =>
+        let _ = init();
+        export();
+      | Some(data) => data
+      };
+
+    let import = data => {
+      let langDocMessages = deserialize(data);
+      save(langDocMessages);
+    };
+  };*/
 
 // Scratch mode serialization
 module Scratch = {

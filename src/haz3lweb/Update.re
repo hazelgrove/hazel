@@ -165,19 +165,19 @@ let perform_action =
 };
 
 let switch_scratch_slide =
-    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+    (editors: Editors.t, ~instructor_mode, new_idx: int): option(Editors.t) =>
   switch (editors) {
   | DebugLoad
   | Examples(_) => None
-  | Scratch(n, _) when n == idx => None
-  | Scratch(_, slides) when idx >= List.length(slides) => None
-  | Scratch(_, slides) => Some(Scratch(idx, slides))
-  | Exercise(_, specs, _) when idx >= List.length(specs) => None
-  | Exercise(_, specs, _) =>
-    let spec = List.nth(specs, idx);
+  | Scratch({idx, _}) when idx == new_idx => None
+  | Scratch({slides, _}) when new_idx >= List.length(slides) => None
+  | Scratch({slides, _}) => Some(Scratch({idx: new_idx, slides}))
+  | Exercise({specs, _}) when new_idx >= List.length(specs) => None
+  | Exercise({specs, _}) =>
+    let spec = List.nth(specs, new_idx);
     let key = Exercise.key_of(spec);
-    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
-    Some(Exercise(idx, specs, exercise));
+    let state = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    Some(Exercise({idx: new_idx, specs, state}));
   };
 
 let switch_exercise_editor =
@@ -186,10 +186,11 @@ let switch_exercise_editor =
   | DebugLoad
   | Examples(_)
   | Scratch(_) => None
-  | Exercise(m, specs, exercise) =>
-    let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    Store.Exercise.save_exercise(exercise, ~instructor_mode);
-    Some(Exercise(m, specs, exercise));
+  | Exercise({idx, specs, state}) =>
+    let state =
+      Exercise.switch_editor(~pos, instructor_mode, ~exercise=state);
+    Store.Exercise.save_exercise(state, ~instructor_mode);
+    Some(Exercise({idx, specs, state}));
   };
 
 let apply =
