@@ -1,5 +1,17 @@
 open Sexplib.Std;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type lspAny =
+    | LspObject(list((string, lspAny)))
+    | LspArray(list(lspAny))
+    | LspString(string)
+    | LspInt(int)
+    | LspUint(int)
+    | LspDecimal(float)
+    | LspBool(bool)
+    | LspNull;
+
+
 module Position = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

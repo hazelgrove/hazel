@@ -1,19 +1,12 @@
 open Sexplib.Std;
+open Util;
 
 module Message = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {jsonrpc: string};
+  type t = {
+      jsonrpc: string
+  };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type lspAny =
-    | LspObject(list((string, lspAny)))
-    | LspArray(list(lspAny))
-    | LspString(string)
-    | LspInt(int)
-    | LspUint(int)
-    | LspDecimal(float)
-    | LspBool(bool)
-    | LspNull;
 };
 
 module RequestMessage = {
@@ -21,8 +14,8 @@ module RequestMessage = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type id_ty =
-    | Int
-    | String;
+    | Int(int)
+    | String(string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -46,8 +39,8 @@ module ResponseMessage = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type id_ty =
-    | Int
-    | String;
+    | Int(int)
+    | String(string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -72,7 +65,7 @@ module ProgressParams = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type progressToken = 
-      | Integer(int)
+      | Int(int)
       | String(string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
