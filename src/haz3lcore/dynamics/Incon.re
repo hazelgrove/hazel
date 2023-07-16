@@ -7,9 +7,34 @@ let rec matches = (e: DHExp.t, p: DHPat.t): bool =>
   | (FloatLit(x), FloatLit(y)) => x == y
   | (StringLit(x), StringLit(y)) => x == y
   | (Inj(_, side1, x), Inj(side2, y)) => side1 == side2 && matches(x, y)
-  // I don't know how to extend the algorithm for projection into that of list or tuples.
+  // I don't know if my algorithm is correct or not.
+  | (ListLit(_, _, _, _, []), ListLit(_, []))
+  | (Tuple([]), Tuple([])) => true
+  | (ListLit(_, _, _, _, [hd1, ...tl1]), ListLit(_, [hd2, ...tl2]))
+  | (Tuple([hd1, ...tl1]), Tuple([hd2, ...tl2])) =>
+    matches(hd1, hd2) && matches(Tuple(tl1), Tuple(tl2))
   | (_, _) => false
   };
+
+let rec does_not_match = (e: DHExp.t, p: DHPat.t): bool =>
+  switch (e, p) {
+  | (BoolLit(x), BoolLit(y)) => x != y
+  | (IntLit(x), IntLit(y)) => x != y
+  | (FloatLit(x), FloatLit(y)) => x != y
+  | (StringLit(x), StringLit(y)) => x != y
+  | (ListLit(_, _, _, _, []), ListLit(_, []))
+  | (Tuple([]), Tuple([])) => false
+  | (ListLit(_, _, _, _, [hd1, ...tl1]), ListLit(_, [hd2, ...tl2]))
+  | (Tuple([hd1, ...tl1]), Tuple([hd2, ...tl2])) =>
+    does_not_match(hd1, hd2) || does_not_match(Tuple(tl1), Tuple(tl2))
+  | (Inj(_, side1, x), Inj(side2, y)) =>
+    side1 != side2 || does_not_match(x, y)
+  | (_, _) => false
+  };
+
+// It is difficult to write indet_match, so I used the theorem to simplify it. Probably it will execute slower.
+let indet_match = (e: DHExp.t, p: DHPat.t): bool =>
+  !(matches(e, p) || does_not_match(e, p));
 
 let rec is_val = (e: DHExp.t): bool =>
   switch (e) {
