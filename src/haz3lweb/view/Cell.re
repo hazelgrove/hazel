@@ -253,43 +253,91 @@ let eval_result_footer_view =
         ),
       ]
     | Some({eval_results: [hd, ...tl], _}) =>
-      [
-        DHCode.view_tylr(
-          ~inject,
-          ~settings={...settings.dynamics, postprocess: false},
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          hd,
-        ),
-      ]
-      @ List.map(
+      if (settings.dynamics.show_record) {
+        [
           DHCode.view_tylr(
             ~inject,
-            ~settings={
-              ...settings.dynamics,
-              stepping: false,
-              postprocess: false,
-            },
+            ~settings={...settings.dynamics, postprocess: false},
             ~selected_hole_instance=None,
             ~font_metrics,
             ~width=80,
+            hd,
           ),
-          tl,
-        )
+        ]
+        @ List.map(
+            DHCode.view_tylr(
+              ~inject,
+              ~settings={
+                ...settings.dynamics,
+                stepping: false,
+                postprocess: false,
+              },
+              ~selected_hole_instance=None,
+              ~font_metrics,
+              ~width=80,
+            ),
+            tl,
+          );
+      } else {
+        [
+          DHCode.view_tylr(
+            ~inject,
+            ~settings={...settings.dynamics, postprocess: false},
+            ~selected_hole_instance=None,
+            ~font_metrics,
+            ~width=80,
+            hd,
+          ),
+        ];
+      }
     };
   switch (d_view) {
   | [] => failwith("empty d_view")
   | [hd] =>
-    Node.(
-      div(
-        ~attr=Attr.classes(["cell-item", "cell-result"]),
-        [
-          div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-          div(~attr=Attr.classes(["result"]), [hd]),
-        ],
-      )
-    )
+    if (settings.dynamics.stepping) {
+      let current =
+        Node.(
+          div(
+            ~attr=Attr.classes(["cell-result"]),
+            [
+              div(
+                ~attr=
+                  settings.dynamics.stepping
+                    ? Attr.many([
+                        Attr.title("Go back to previous step"),
+                        Attr.classes(["equiv", "step-back"]),
+                        Attr.on_click(_ => inject(UpdateAction.StepBackward)),
+                      ])
+                    : Attr.class_("equiv"),
+                [span([Node.text("≡")])],
+              ),
+              div(~attr=Attr.classes(["result"]), [hd]),
+            ],
+          )
+        );
+      let ellipsis =
+        Node.div(
+          ~attr=
+            Attr.many([
+              Attr.class_("cell-result"),
+              Attr.on_double_click(_ =>
+                inject(Set(Dynamics(Toggle_show_record)))
+              ),
+            ]),
+          [Node.text("...")],
+        );
+      Node.(div(~attr=Attr.class_("cell-item"), [ellipsis, current]));
+    } else {
+      Node.(
+        div(
+          ~attr=Attr.classes(["cell-item", "cell-result"]),
+          [
+            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            div(~attr=Attr.classes(["result"]), [hd]),
+          ],
+        )
+      );
+    }
   | [hd, ...tl] =>
     let current =
       Node.(
@@ -332,22 +380,7 @@ let eval_result_footer_view =
           ),
         tl,
       );
-    let ellipsis =
-      Node.div(
-        ~attr=
-          Attr.many([
-            Attr.class_("cell-result"),
-            Attr.on_double_click(_ =>
-              inject(Set(Dynamics(Toggle_show_record)))
-            ),
-          ]),
-        [Node.text("...")],
-      );
-    if (settings.dynamics.show_record) {
-      Node.(div(~attr=Attr.class_("cell-item"), previous @ [current]));
-    } else {
-      Node.(div(~attr=Attr.class_("cell-item"), [ellipsis, current]));
-    };
+    Node.(div(~attr=Attr.class_("cell-item"), previous @ [current]));
   };
 };
 
