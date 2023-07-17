@@ -172,11 +172,10 @@ let reevaluate_post_update =
   | Undo
   | Redo => true;
 
-/* This functions returns a new model with updated results.
-   Editors.get_spliced_elabs generates the DHExp of the editor
-   while ModelResults.init performs evaluation on the dhexp */
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
+  //Editors.get_spliced_elabs generates the DHExp.t of the editor.
+  //ModelResults.init performs evaluation on the DHExp value.
   let model = {
     ...model,
     results:

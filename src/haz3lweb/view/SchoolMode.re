@@ -11,10 +11,7 @@ type t = {
   grading_report: Grading.GradingReport.t,
 };
 
-/* Extracts and returns the results
-   and grades from the school exercises.
-
-   It is used in Page.re */
+/* Used in Page.re */
 let mk =
     (
       ~exercise: SchoolExercise.state,
@@ -55,11 +52,10 @@ let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
   );
 };
 
-/* Takes in the editor information (eds)
-   and generates the DOM objects for each component
+/* Generates the DOM objects for each component
    in school mode.
 
-   The function is used in Page.re */
+   Used in Page.re */
 
 let view =
     (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
