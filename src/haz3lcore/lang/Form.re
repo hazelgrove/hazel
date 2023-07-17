@@ -3,8 +3,8 @@ open Mold;
 module P = Precedence;
 
 /* NOTE:
-    Any time a form is changed in this file, the changes should be reflected in the Hazel tree-sitter grammar found in the tree-sitter-hazel repository (https://github.com/hazelgrove/tree-sitter-hazel). Changes that should be reflected in the tree-sitter grammar include any changes to the forms themselves that affect external syntax. Changes to Hazel's internal functioning (semantics) don't need to be updated in the tree-sitter grammar. 
-*/
+       Any time a form is changed in this file, the changes should be reflected in the Hazel tree-sitter grammar found in the tree-sitter-hazel repository (https://github.com/hazelgrove/tree-sitter-hazel). Changes that should be reflected in the tree-sitter grammar include any changes to the forms themselves that affect external syntax. Changes to Hazel's internal functioning (semantics) don't need to be updated in the tree-sitter grammar.
+   */
 
 /* FORM
    This module determines the syntactic extent of the language; the
@@ -147,7 +147,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
    approach to invalid text.*/
 let is_whitelisted_char = regexp("[!@]");
 
-//NOTE: Before changing any forms please see comment at the top about Hazel tree-sitter grammar. 
+//NOTE: Before changing any forms please see comment at the top about Hazel tree-sitter grammar.
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
 let space = " ";
