@@ -83,7 +83,7 @@ module Pervasives = {
         | ExpandingKeyword(_) => Tag("IP_ExpandingKeyword")
         | InvalidText(_) => Tag("IP_InvalidText")
         | BadTag(_) => Tag("IP_BadTag")
-        | Var(x) => Ap(Tag("IP_Var"), StringLit('\"' ++ x ++ '\"'))
+        | Var(x) => Ap(Tag("IP_Var"), StringLit(x))
         | IntLit(v) => Ap(Tag("IP_Int"), IntLit(v))
         | FloatLit(v) => Ap(Tag("IP_Float"), FloatLit(v))
         | BoolLit(v) => Ap(Tag("IP_Bool"), BoolLit(v))
@@ -140,12 +140,12 @@ module Pervasives = {
         | EmptyHole(_) => Tag("IE_EmptyHole")
         | NonEmptyHole(_, _, _, d) => generate(d)
         | ExpandingKeyword(_) => Tag("IE_ExpandingKeyword")
-        | FreeVar(_, _, name) => Ap(Tag("IE_Var"), StringLit('\"' ++ name ++ '\"'))
+        | FreeVar(_, _, name) => Ap(Tag("IE_Var"), StringLit(name))
         | InvalidText(_) => Tag("IE_InvalidText")
         | InconsistentBranches(_, _, case) =>
           Ap(Tag("IE_Match"), generate_case(case))
         | Closure(_, d) => generate(d)
-        | BoundVar(name) => Ap(Tag("IE_Var"), StringLit('\"' ++ name ++ '\"'))
+        | BoundVar(name) => Ap(Tag("IE_Var"), StringLit(name))
         | Sequence(d1, d2) =>
           Ap(Tag("IE_Sequence"), Tuple([generate(d1), generate(d2)]))
         | Let(dp, d1, d2) =>
@@ -198,7 +198,10 @@ module Pervasives = {
         };
       };
       switch (r1) {
-      | BoxedValue(d1) => BoxedValue(generate(d1)) |> return
+      | BoxedValue(d1) =>
+        let res = generate(d1);
+        print_endline(DHExp.show(res));
+        BoxedValue(res) |> return;
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
       };
     };
