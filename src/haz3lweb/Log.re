@@ -20,7 +20,9 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateResult(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | StepForward(_)
+  | StepBackward => false
   | ResetCurrentEditor
   | Set(_)
   | FinishImportAll(_)
@@ -37,9 +39,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | MoveToNextHole(_)
-  | UpdateLangDocMessages(_)
-  | StepForward(_)
-  | StepBackward => true;
+  | UpdateLangDocMessages(_) => true;
 
 let storage_key = "LOG_" ++ SchoolSettings.log_key;
 let max_log_string_length = 4_750_000; // based on 5MB limit on localstore in browser
