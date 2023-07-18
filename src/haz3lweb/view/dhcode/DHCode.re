@@ -194,15 +194,15 @@ let view_of_layout_tylr =
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(DivideByZero) => (
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(InvalidIntOfString) => (
-                 [with_cls("InvalidIntOfString", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(NegativeExponent) => (
-                 [with_cls("NegativeExponent", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(OutOfFuel) => (
