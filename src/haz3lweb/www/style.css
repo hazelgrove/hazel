@@ -1524,12 +1524,9 @@ svg.expandable path {
   display: inline-block;
 }
 
+.DHCode .OperationError,
 .DHCode .CastDecoration,
-.DHCode .FailedCastDecoration,
-.DHCode .InvalidIntOfString,
-.DHCode .InvalidFloatOfString,
-.DHCode .DivideByZero,
-.DHCode .NegativeExponent {
+.DHCode .FailedCastDecoration {
   display: inline-block;
   position: relative;
   font-size: 75%;
