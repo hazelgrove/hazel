@@ -3,7 +3,8 @@ type t =
   | DivideByZero
   | NegativeExponent
   | OutOfFuel
-  | InvalidProjection;
+  | InvalidProjection
+  | LetOperatorsNotDefined;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -11,4 +12,5 @@ let err_msg = (err: t): string =>
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"
   | InvalidProjection => "Error: Invalid Projection"
+  | LetOperatorsNotDefined => "Error: Let Operators Not Defined"
   };

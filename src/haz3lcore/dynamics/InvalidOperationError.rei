@@ -3,6 +3,7 @@ type t =
   | DivideByZero
   | NegativeExponent
   | OutOfFuel
-  | InvalidProjection;
+  | InvalidProjection
+  | LetOperatorsNotDefined;
 
 let err_msg: t => string;
