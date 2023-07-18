@@ -299,7 +299,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               Cast(
                 Fun(
                   dpat,
-                  Statics.pat_typ(m, pat),
+                  Unknown(Internal),
                   Cast(
                     DHExp.apply_cast_onBoundVar(name, ty, dbody),
                     ty,
