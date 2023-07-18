@@ -73,7 +73,7 @@ let view_of_layout =
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
-             | OperationError(LetOperatorsNotDefined) => (
+             | OperationError(LetOperatorsNotDefined(_)) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
@@ -211,7 +211,7 @@ let view_of_layout_tylr =
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
-             | OperationError(LetOperatorsNotDefined) => (
+             | OperationError(LetOperatorsNotDefined(_)) => (
                  //TODO: custom class
                  [with_cls("DivideByZero", txt)],
                  ds,

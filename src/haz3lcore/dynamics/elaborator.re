@@ -313,7 +313,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             ]),
           );
         if (var_term == FreeVar(id, 0, op)) {
-          DHExp.InvalidOperation(d, LetOperatorsNotDefined);
+          DHExp.InvalidOperation(d, LetOperatorsNotDefined(op));
         } else {
           d;
         };
