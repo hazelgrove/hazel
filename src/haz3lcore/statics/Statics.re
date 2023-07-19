@@ -255,12 +255,7 @@ and uexp_to_info_map =
             ),
           )
         /* For functions whose input types are not non-empty pruducts, deferral singleton argument satisfies expected type */
-        | _ => (
-            [ty_in],
-            arg.term == Deferral
-              ? [mode]
-              : modes,
-          )
+        | _ => ([ty_in], arg.term == Deferral ? [mode] : modes)
         };
       let (exp_co_ctxs, m) = {
         List.fold_left2(
@@ -279,9 +274,9 @@ and uexp_to_info_map =
         let expected = List.length(ty_ins);
         let actual = List.length(es);
         if (expected != actual) {
-          IsArityMismatchedPartialAp({expected, actual});
+          IsErroneousPartialAp(ArityMismatch({expected, actual}));
         } else if (!List.exists(e => !UExp.is_deferral(e), es)) {
-          IsMeaninglessPartialAp;
+          IsErroneousPartialAp(Meaningless);
         } else {
           let ty_ins =
             List.combine(es, ty_ins)

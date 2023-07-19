@@ -160,13 +160,13 @@ let exp_view: Info.status_exp => t =
         "Deferral does not appear in a partial application as a placeholder",
       ),
     ])
-  | InHole(MeaninglessPartialAp) =>
+  | InHole(ErroneousPartialAp(Meaningless)) =>
     div_err([
       text(
         "Meaningless partial application: expected at least one non-deferral expression",
       ),
     ])
-  | InHole(ArityMismatchedPartialAp({expected, actual})) =>
+  | InHole(ErroneousPartialAp(ArityMismatch({expected, actual}))) =>
     div_err([
       text(
         "Arity mismatched partial application: expected "

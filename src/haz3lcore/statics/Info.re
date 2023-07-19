@@ -51,11 +51,7 @@ type error_common =
 type error_exp =
   | FreeVariable
   | FreeDeferral
-  | MeaninglessPartialAp
-  | ArityMismatchedPartialAp({
-      expected: int,
-      actual: int,
-    })
+  | ErroneousPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
 /* Pattern term errors */
@@ -283,9 +279,8 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (FreeVar, _) => InHole(FreeVariable)
   | (FreeDeferral, _) => InHole(FreeDeferral)
-  | (IsMeaninglessPartialAp, _) => InHole(MeaninglessPartialAp)
-  | (IsArityMismatchedPartialAp({expected, actual}), _) =>
-    InHole(ArityMismatchedPartialAp({expected, actual}))
+  | (IsErroneousPartialAp(_ as info), _) =>
+    InHole(ErroneousPartialAp(info))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
