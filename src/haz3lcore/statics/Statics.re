@@ -503,7 +503,40 @@ and uexp_to_info_map =
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
-  | LetOp(_, pat, def, body)
+  | LetOp(op, pat, def, body) =>
+    let (ty_pat, ctx_pat, _m_pat) =
+      upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
+    let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    let e_mode =
+      switch (pat) {
+      | {term: TypeAnn({term: Var(x), _}, _), _}
+      | {term: Var(x), _} when Form.is_op_in_let(x) => Typ.AnaInfix(ty_pat)
+      | _ => Typ.Ana(ty_pat)
+      };
+    let (ty_def, free_def, m_def) =
+      uexp_to_info_map(~ctx=def_ctx, ~mode=e_mode, def);
+    /* Analyze pattern to incorporate def type into ctx */
+    let (_, ctx_pat_ana, m_pat) =
+      upat_to_info_map(~is_synswitch=false, ~mode=Ana(ty_def), pat);
+    let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
+    let op_var = Ctx.lookup_var(ctx, op);
+    if (op_var == None) {
+      add(
+        ~self=Free(Variable),
+        ~free=
+          Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+        union_m([m_pat, m_def, m_body]),
+      );
+    } else {
+      add(
+        ~self=Just(ty_body),
+        ~free=
+          Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+        union_m([m_pat, m_def, m_body]),
+      );
+    };
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) =
       upat_to_info_map(~is_synswitch=true, ~mode=Syn, pat);
