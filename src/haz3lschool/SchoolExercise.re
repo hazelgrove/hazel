@@ -25,10 +25,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type syntax_tests = {
-    s_tests: list(Term.UExp.t => bool),
-    hints: list(string),
-  };
+  type predicate = Term.UExp.t => bool;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type hint = string;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_test = (hint, predicate);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_tests = list(syntax_test);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type your_tests('code) = {
@@ -945,10 +951,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: hidden_tests_tests,
         hints: [],
       },
-      syntax_tests: {
-        s_tests: [],
-        hints: [],
-      },
+      syntax_tests: [],
     };
   };
 

@@ -3090,5 +3090,9 @@ let exercise : SchoolExercise.spec =
           };
         hints = [ "zero" ];
       };
-    syntax_tests = { s_tests = []; hints = [] };
+    syntax_tests =
+      [
+        ("not is used", Haz3lschool.SyntaxTest.var_mention "not");
+        ("odd is recursive", Haz3lschool.SyntaxTest.is_recursive "odd");
+      ];
   }
