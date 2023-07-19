@@ -283,17 +283,6 @@ module Deco =
       switch (Id.Map.find_opt(id, M.terms)) {
       | None => false
       | Some(term) => id == Term.rep_id(term)
-      // | Some(term) =>
-      //   let term_ = term;
-      //   switch (term) {
-      //   | Exp({term, _}) =>
-      //     switch (term) {
-      //     | DeferredAp(_, arg) when List.exists(id' => id' == id, arg.ids) =>
-      //       id == Term.UExp.rep_id(arg)
-      //     | _ => id == Term.rep_id(term_)
-      //     }
-      //   | _ => id == Term.rep_id(term)
-      //   };
       };
     let rec go_seg = (seg: Segment.t): list(Id.t) => {
       let rec go_skel = (skel: Skel.t): list(Id.t) => {

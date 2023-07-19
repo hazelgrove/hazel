@@ -160,26 +160,21 @@ let exp_view: Info.status_exp => t =
         "Deferral does not appear in a partial application as a placeholder",
       ),
     ])
-  // | InHole(InconsistentWithDeferrableArrow(typ)) =>
-  //   div_err([
-  //     Type.view(typ),
-  //     text("is not consistent with partial applicable arrow type"),
-  //   ])
   | InHole(MeaninglessPartialAp) =>
     div_err([
       text(
         "Meaningless partial application: expected at least one non-deferral expression",
       ),
     ])
-  // | InHole(InconsistentPartialApArg(ana, syn)) => {
-  | InHole(InconsistentPartialAp(ana, syn)) => {
-      div_err([
-        text("Expecting"),
-        Type.view(ana),
-        text("but got"),
-        Type.view_inconsistent_partial_ap_arg(syn),
-      ]);
-    }
+  | InHole(ArityMismatchedPartialAp({expected, actual})) =>
+    div_err([
+      text(
+        "Arity mismatched partial application: expected "
+        ++ string_of_int(expected)
+        ++ ", found "
+        ++ string_of_int(actual),
+      ),
+    ])
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));
 
