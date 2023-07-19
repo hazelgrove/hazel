@@ -225,7 +225,7 @@ and uexp_to_info_map =
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (self: Self.exp, m, arg_co_ctx) = {
-      /* Argument mode */
+      // Argument mode
       let mode: Mode.t = Ana(ty_in);
       let deferral_to_info_map = (~mode, ~uexp: UExp.t, m) => {
         let info =
@@ -254,7 +254,7 @@ and uexp_to_info_map =
               (ty_unknown, Mode.Ana(ty_unknown))
             ),
           )
-        /* For functions whose input types are not non-empty pruducts, deferral singleton argument satisfies expected type */
+        // For functions whose input types are not non-empty pruducts, deferral singleton argument satisfies expected type
         | _ => ([ty_in], arg.term == Deferral ? [mode] : modes)
         };
       let (exp_co_ctxs, m) = {

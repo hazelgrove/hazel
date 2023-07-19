@@ -171,6 +171,8 @@ let exp_view: Info.status_exp => t =
       text(
         "Arity mismatched partial application: expected "
         ++ string_of_int(expected)
+        ++ " expression"
+        ++ (expected == 1 ? "" : "s")
         ++ ", found "
         ++ string_of_int(actual),
       ),
