@@ -79,35 +79,5 @@ and tagged_view = ((tag, typ)) =>
   | Some(typ) => [text(tag ++ "("), view_ty(typ), text(")")]
   };
 
-let view_inconsistent_partial_ap_arg =
-    (opt_tys: list(option(Haz3lcore.Typ.t))): Node.t => {
-  let view_opt_ty =
-    fun
-    | Some(ty) => view_ty(ty)
-    | None => div(~attr=clss(["typ-view"]), [text("_")]);
-  let view_opt_tys = (opt_tys: list(option(Haz3lcore.Typ.t))): Node.t => {
-    switch (opt_tys) {
-    | [t0, ...ts] =>
-      div(
-        ~attr=clss(["typ-view", "atom", "Prod"]),
-        [
-          text("("),
-          div(
-            ~attr=clss(["typ-view", "Prod"]),
-            [view_opt_ty(t0)]
-            @ (
-              List.map(t => [text(", "), view_opt_ty(t)], ts)
-              |> List.flatten
-            ),
-          ),
-          text(")"),
-        ],
-      )
-    | _ => view_opt_ty(None)
-    };
-  };
-  div_c("typ-wrapper", [view_opt_tys(opt_tys)]);
-};
-
 let view = (ty: Haz3lcore.Typ.t): Node.t =>
   div_c("typ-wrapper", [view_ty(ty)]);

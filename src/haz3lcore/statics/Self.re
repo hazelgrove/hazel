@@ -38,8 +38,10 @@ type exp =
   | FreeVar
   | FreeDeferral
   | IsMeaninglessPartialAp
-  // | IsInconsistentPartialApArg(Typ.t, list(option(Typ.t))) /* Inconsistent partial application argument, in which deferrals don't synthesize types */
-  | IsInconsistentPartialAp(Typ.t, list(option(Typ.t))) /* Inconsistent partial application argument, in which deferrals don't synthesize types */
+  | IsArityMismatchedPartialAp({
+      expected: int,
+      actual: int,
+    })
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -64,8 +66,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | FreeVar
     | FreeDeferral
     | IsMeaninglessPartialAp
-    // | IsInconsistentPartialApArg(_) => None
-    | IsInconsistentPartialAp(_) => None
+    | IsArityMismatchedPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
