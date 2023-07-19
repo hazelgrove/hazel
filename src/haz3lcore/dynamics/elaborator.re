@@ -264,8 +264,54 @@ let rec dhexp_of_uexp =
         DHExp.Ap(c_fn, c_arg);
       | DeferredAp(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
-        let+ c_arg = dhexp_of_uexp(m, arg);
-        DHExp.Ap(c_fn, c_arg);
+        switch (err_status) {
+        | InHole(ErroneousPartialAp(Meaningless)) => Some(c_fn)
+        | InHole(ErroneousPartialAp(ArityMismatch(_))) =>
+          Some(DHExp.InvalidText(id, 0, "<inv partial ap>"))
+        | _ =>
+          let mk_tuple = (ctor, xs) =>
+            List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
+          let args =
+            switch (arg.term) {
+            | Tuple(args) => args // empty tuple is not possible
+            | _ => [arg]
+            };
+          let* ty_fn = fixed_exp_typ(m, fn);
+          let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
+          let ty_ins =
+            switch (ty_arg) {
+            | Prod(ty_ins) => ty_ins // empty tuple is not possible
+            | _ as ty_unknown => List.init(List.length(args), _ => ty_unknown)
+            };
+          /* Substitute all deferrals for new variables */
+          let+ (pats, c_args, ty_args) =
+            List.combine(args, ty_ins)
+            |> List.fold_left(
+                 (acc, (e: Term.UExp.t, ty)) => {
+                   let* (pats, c_args, ty_args) = acc;
+                   if (Term.UExp.is_deferral(e)) {
+                     // Internal variable name for deferrals
+                     let name =
+                       "~deferred" ++ string_of_int(List.length(pats));
+                     Some((
+                       pats @ [DHPat.Var(name)],
+                       c_args @ [DHExp.BoundVar(name)],
+                       ty_args @ [ty],
+                     ));
+                   } else {
+                     let+ c_arg = dhexp_of_uexp(m, e);
+                     (pats, c_args @ [c_arg], ty_args);
+                   };
+                 },
+                 Some(([], [], [])),
+               );
+          let (pat, c_arg, ty_arg) = (
+            mk_tuple(x => DHPat.Tuple(x), pats),
+            mk_tuple(x => DHExp.Tuple(x), c_args),
+            mk_tuple(x => Typ.Prod(x), ty_args),
+          );
+          DHExp.Fun(pat, Arrow(ty_arg, ty_ret), Ap(c_fn, c_arg), None);
+        };
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);
