@@ -166,32 +166,23 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
 
   module SyntaxReport = {
     type t = {
-      hinted_results: list((bool, string)),
+      hinted_results: list((bool, hint)),
       percentage: float,
     };
 
-    let mk =
-        (
-          ~your_impl: Editor.t,
-          ~hints: list(string),
-          ~tests: list(Term.UExp.t => bool),
-        )
-        : t => {
+    let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
       let user_impl_term =
         Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
           EditorUtil.stitch([your_impl])
         );
 
-      let syntax_results = SyntaxTest.check(user_impl_term, tests);
+      let predicates = List.map(((_, p)) => p, tests);
+      let hints = List.map(((h, _)) => h, tests);
+      let syntax_results = SyntaxTest.check(user_impl_term, predicates);
 
       {
         hinted_results:
-          Util.ListUtil.zip_defaults(
-            syntax_results.results,
-            hints,
-            false,
-            "No hint available.",
-          ),
+          List.map2((r, h) => (r, h), syntax_results.results, hints),
         percentage: syntax_results.percentage,
       };
     };
@@ -283,11 +274,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
           ~hidden_bugs=stitched_dynamics.hidden_bugs,
         ),
       syntax_report:
-        SyntaxReport.mk(
-          ~your_impl=eds.your_impl,
-          ~hints=eds.syntax_tests.hints,
-          ~tests=eds.syntax_tests.s_tests,
-        ),
+        SyntaxReport.mk(~your_impl=eds.your_impl, ~tests=eds.syntax_tests),
       impl_grading_report:
         ImplGradingReport.mk(
           ~hints=eds.hidden_tests.hints,
