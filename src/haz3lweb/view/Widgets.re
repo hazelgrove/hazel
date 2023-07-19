@@ -91,10 +91,7 @@ let submenu_switch = (title, label, active, action) =>
 let submenu = (anchor, items) =>
   div(
     ~attr=clss(["submenu"]),
-    [
-      div(~attr=clss(["submenu-anchor"]), [anchor]),
-      div(~attr=clss(["submenu-content"]), items),
-    ],
+    [anchor, div(~attr=clss(["submenu-content"]), items)],
   );
 
 let file_select_button = (~tooltip="", id, icon, on_input) => {

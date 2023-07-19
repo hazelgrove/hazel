@@ -1,4 +1,4 @@
-let slide0: ScratchSlide.persistent_state = LanguageRefSlide.slide;
+let filled_slides = [SerializedExamples.intro];
 
 let empty: ScratchSlide.persistent_state = (
   1,
@@ -8,16 +8,13 @@ let empty: ScratchSlide.persistent_state = (
   },
 );
 
-let num_empty = 7;
+let num_empty = 8;
 
-let init_data = [slide0, ...List.init(num_empty, _ => empty)];
+let init_data = filled_slides @ List.init(num_empty, _ => empty);
 
 assert(List.length(init_data) > 0);
 
-let init = (): Editors.scratch => (
-  0,
-  init_data |> List.map(ScratchSlide.unpersist),
-);
+let init = () => (0, init_data |> List.map(ScratchSlide.unpersist));
 
 let init_nth = n => {
   let data = List.nth(init_data, n);

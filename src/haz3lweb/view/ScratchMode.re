@@ -8,19 +8,29 @@ type state = (Id.t, Editor.t);
 let view =
     (
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      ~editor: Editor.t,
-      ~settings: ModelSettings.t,
-      ~langDocMessages: LangDocMessages.t,
-      ~result: ModelResult.simple,
+      ~model as
+        {
+          editors,
+          font_metrics,
+          show_backpack_targets,
+          settings,
+          mousedown,
+          langDocMessages,
+          results,
+          _,
+        }: Model.t,
     ) => {
+  let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
-
+  let result =
+    settings.dynamics
+      ? ModelResult.get_simple(
+          ModelResults.lookup(results, ScratchSlide.scratch_key),
+        )
+      : None;
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(
@@ -105,14 +115,23 @@ let download_slide_init_state = state => {
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
     Widgets.submenu(
-      Widgets.button(
-        Icons.export,
-        _ => {
+      Widgets.button(Icons.export, _ => {Virtual_dom.Vdom.Effect.Ignore}),
+      [
+        Widgets.submenu_button("Export Scratchpad", _ => {
           download_slide_state(state);
           Virtual_dom.Vdom.Effect.Ignore;
-        },
+        }),
+      ]
+      @ (
+        ExerciseSettings.show_instructor
+          ? [
+            Widgets.submenu_button("Export Slide Persistent State Value", _ => {
+              download_slide_init_state(state);
+              Virtual_dom.Vdom.Effect.Ignore;
+            }),
+          ]
+          : []
       ),
-      [Widgets.submenu_label("Export Scatchpad")],
     );
   let import_button =
     Widgets.submenu(
@@ -125,22 +144,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       [Widgets.submenu_label("Import Scratchpad")],
     );
 
-  // for pasting into files like LanguageRefSlide.ml (note .ml extension)
-  let export_init_button =
-    SchoolSettings.show_instructor
-      ? Some(
-          Widgets.submenu(
-            Widgets.button(
-              Icons.export,
-              _ => {
-                download_slide_init_state(state);
-                Virtual_dom.Vdom.Effect.Ignore;
-              },
-            ),
-            [Widgets.submenu_label("Export Slide Persistent State Value")],
-          ),
-        )
-      : None;
+  // for pasting into files like SerializedExamples.ml (note .ml extension)
   let reset_button =
     Widgets.submenu(
       Widgets.button(
@@ -156,11 +160,8 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
             Virtual_dom.Vdom.Effect.Ignore;
           };
         },
-        ~tooltip="Reset Scratchpad",
       ),
       [Widgets.submenu_label("Reset Scratchpad")],
     );
-  [export_button, import_button]
-  @ Option.to_list(export_init_button)
-  @ [reset_button];
+  [export_button, import_button] @ [reset_button];
 };
