@@ -205,7 +205,7 @@ let view_of_info =
 
 let cls_and_id_view = (id: Id.t, ci: Statics.Info.t): Node.t =>
   div(
-    ~attr=Attr.many([clss(["id-and-class"])]),
+    ~attr=clss(["id-and-class"]),
     [
       div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]),
       div(
