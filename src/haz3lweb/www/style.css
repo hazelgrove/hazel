@@ -1218,6 +1218,7 @@ svg.tile-selected {
 }
 
 .bottom-bar .id-and-class .id {
+  text-transform: uppercase;
   color: #a69461;
 }
 
