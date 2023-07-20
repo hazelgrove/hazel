@@ -52,7 +52,7 @@ let info_map = (editor: Editor.t) => {
   info_map;
 };
 
-let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
+let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
   | EmptyHole
   | Invalid(_)
@@ -74,22 +74,16 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Cons(_)
   | UnOp(_)
   | BinOp(_)
-  | Match(_) => (
-      id + 1,
-      TermBase.UExp.{
-        ids: [Id.mk()], //TODO(andrew): revisit
-        term: Seq(e1, e2),
-      },
-    )
+  | Match(_) => TermBase.UExp.{ids: [Id.mk()], term: Seq(e1, e2)}
   | Seq(e11, e12) =>
-    let (id, e12') = append_exp(id, e12, e2);
-    (id, TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')});
+    let e12' = append_exp(e12, e2);
+    TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')};
   | Let(p, edef, ebody) =>
-    let (id, ebody') = append_exp(id, ebody, e2);
-    (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
-    let (id, ebody') = append_exp(id, ebody, e2);
-    (id, TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')});
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};
   };
 };
 
@@ -119,12 +113,7 @@ let stitch = (editors: list(Editor.t)) => {
   | [] => failwith("cannot stitch zero expressions")
   | [e] => e
   | [e1, ...tl] =>
-    let (_, e) =
-      List.fold_left(
-        ((id, e1), e2) => append_exp(id, e1, e2),
-        (0, e1),
-        tl,
-      );
+    let e = List.fold_left(append_exp, e1, tl);
     e;
   };
 };

@@ -495,8 +495,7 @@ and regrout_affix =
     (d: Direction.t, affix: t, r: Nib.Shape.t): (Trim.t, Nib.Shape.t, t) => {
   let (trim, s, affix) =
     fold_right(
-      (p: Piece.t, id_gen) => {
-        let (trim, r, tl) = id_gen;
+      (p: Piece.t, (trim, r, tl)) => {
         switch (p) {
         | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
@@ -516,7 +515,7 @@ and regrout_affix =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
-        };
+        }
       },
       (d == Left ? List.rev : Fun.id)(affix),
       (Aba.mk([[]], []), r, empty),

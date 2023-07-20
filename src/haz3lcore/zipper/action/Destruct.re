@@ -67,7 +67,6 @@ let destruct =
 
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
-    //Option.map(IdGen.id(id_gen)
     Zipper.replace_mono(Left, Token.rm_last(t), z)
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Zipper.replace_mono(Right, Token.rm_first(t), z)
