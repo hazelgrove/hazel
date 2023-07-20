@@ -2826,7 +2826,7 @@ let adt_egs : ScratchSlide.persistent_state =
          app#\"))))(Secondary((id \
          1563)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3564)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-         8704)(content(Comment\"#sums in compound aliases dont add tags to \
+         8704)(content(Comment\"#sums in compound aliases dont add ctrs to \
          scope#\"))))(Secondary((id \
          8930)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          8985)(content(Comment\"#but compound alias types should propagate \
@@ -3878,7 +3878,7 @@ let adt_egs : ScratchSlide.persistent_state =
          + Int(Int) #err: expected cons found type#\n\
          + ( )(Int) #err: expected cons found type#\n\
          + A(Bool)(Int) in #err: expected cons found app#\n\n\
-         #sums in compound aliases dont add tags to scope#\n\
+         #sums in compound aliases dont add ctrs to scope#\n\
          #but compound alias types should propagate analytically#\n\
          type CompoundAlias = (Int, Anonymous + Sum) in \n\
          let _ = (1, Sum) in #err: not defined#\n\

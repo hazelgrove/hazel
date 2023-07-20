@@ -101,7 +101,7 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
     | Tuple
     | Var
@@ -128,7 +128,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
@@ -210,7 +210,7 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
     | Tuple
     | Var
@@ -237,7 +237,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
@@ -271,7 +271,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -295,7 +295,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -319,14 +319,14 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
-    | Tag(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
   and variant =
-    | Variant(Tag.t, list(Id.t), option(t))
+    | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
   and t = {
     ids: list(Id.t),
@@ -344,14 +344,14 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
-    | Tag(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
   and variant =
-    | Variant(Tag.t, list(Id.t), option(t))
+    | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
   and t = {
     ids: list(Id.t),

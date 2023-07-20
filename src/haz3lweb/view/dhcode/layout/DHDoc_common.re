@@ -116,7 +116,7 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-let mk_TagLit = Doc.text;
+let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 

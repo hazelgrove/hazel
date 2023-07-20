@@ -98,8 +98,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
-    | Ap(Tag(_), _)
-    | Tag(_) =>
+    | Ap(Constructor(_), _)
+    | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
       | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
@@ -211,10 +211,10 @@ let rec dhexp_of_uexp =
         | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
-      | Tag(name) =>
+      | Constructor(name) =>
         switch (err_status) {
-        | InHole(Common(FreeTag)) => Some(FreeVar(id, 0, name))
-        | _ => Some(Tag(name))
+        | InHole(Common(FreeConstructor)) => Some(FreeVar(id, 0, name))
+        | _ => Some(Constructor(name))
         }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -329,10 +329,10 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       let* ty = fixed_pat_typ(m, upat);
       wrap(ListLit(Typ.matched_list(ty), ds));
-    | Tag(name) =>
+    | Constructor(name) =>
       switch (err_status) {
-      | InHole(Common(FreeTag)) => Some(BadTag(u, 0, name))
-      | _ => wrap(Tag(name))
+      | InHole(Common(FreeConstructor)) => Some(BadConstructor(u, 0, name))
+      | _ => wrap(Constructor(name))
       }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
