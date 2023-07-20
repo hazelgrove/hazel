@@ -49,11 +49,9 @@ let put_editor = (ed: Editor.t, eds: t): t =>
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    //let slide = List.nth(slides, n);
     Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
   | Examples(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    //let slide = List.assoc(name, slides);
     Examples(
       name,
       slides |> List.remove_assoc(name) |> List.cons((name, ed)),

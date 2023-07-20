@@ -155,13 +155,11 @@ let evaluate_and_schedule =
 
 let perform_action =
     (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
-    : Result.t(Model.t) => {
-  let ed_init = Editors.get_editor(model.editors);
-  switch (Haz3lcore.Perform.go(a, ed_init)) {
+    : Result.t(Model.t) =>
+  switch (model.editors |> Editors.get_editor |> Haz3lcore.Perform.go(a)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
   };
-};
 
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>

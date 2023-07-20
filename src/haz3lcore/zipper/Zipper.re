@@ -294,7 +294,7 @@ let replace =
     (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
     : option(t) =>
   /* i.e. select and construct, overwriting the selection */
-  z |> delete(caret) |> Option.map(z => construct(~caret, ~backpack, l, z));
+  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
 let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
   replace(~caret=d, ~backpack=Left, [t], z);
