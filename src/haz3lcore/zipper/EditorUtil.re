@@ -1,30 +1,29 @@
-let editor_of_code = (~read_only=false, init_id, code: CodeString.t) => {
-  switch (Printer.zipper_of_string(init_id, code)) {
+let editor_of_code = (~read_only=false, code: CodeString.t) => {
+  switch (Printer.zipper_of_string(code)) {
   | None => None
-  | Some((z, new_id)) => Some((new_id, Editor.init(~read_only, z)))
+  | Some(z) => Some(Editor.init(~read_only, z))
   };
 };
 
 let editors_for =
     (~read_only=false, xs: list('a), f: 'a => option(string))
-    : (Id.t, int, list(('a, option(Editor.t)))) => {
-  let (id_gen, zs) =
+    : (int, list(('a, option(Editor.t)))) => {
+  let zs =
     List.fold_left(
-      ((acc_id, acc_zs), a) => {
+      (acc_zs, a) => {
         switch (f(a)) {
         | Some(str) =>
-          switch (Printer.zipper_of_string(acc_id, str)) {
-          | None => (acc_id, acc_zs @ [(a, Some(Zipper.init(0)))])
-          | Some((z, new_id)) => (new_id, acc_zs @ [(a, Some(z))])
+          switch (Printer.zipper_of_string(str)) {
+          | None => acc_zs @ [(a, Some(Zipper.init()))]
+          | Some(z) => acc_zs @ [(a, Some(z))]
           }
-        | None => (acc_id, acc_zs @ [(a, None)])
+        | None => acc_zs @ [(a, None)]
         }
       },
-      (0, []),
+      [],
       xs,
     );
   (
-    id_gen,
     0,
     List.map(
       ((a, sz)) =>
@@ -38,8 +37,8 @@ let editors_for =
 };
 
 let editors_of_strings = (~read_only=false, xs: list(string)) => {
-  let (id, i, aes) = editors_for(xs, x => Some(x), ~read_only);
-  (id, i, List.map(((_, oe)) => Option.get(oe), aes));
+  let (i, aes) = editors_for(xs, x => Some(x), ~read_only);
+  (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
 let info_map = (editor: Editor.t) => {
@@ -78,7 +77,7 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Match(_) => (
       id + 1,
       TermBase.UExp.{
-        ids: [id + 10_000_000 /* hack to get unique ID */],
+        ids: [Id.mk()], //TODO(andrew): revisit
         term: Seq(e1, e2),
       },
     )

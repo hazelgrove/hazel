@@ -23,9 +23,11 @@ let test_instance_view =
     ],
   );
 
-let jump_to_test = (~inject, pos, id, _) => {
+let jump_to_test = (~inject, pos, _id, _) => {
   let effect1 = inject(Update.SwitchEditor(pos));
-  let effect2 = inject(Update.PerformAction(Jump(TileId(id))));
+  //TODO(andrew): ids: proper id
+  let effect2 =
+    inject(Update.PerformAction(Jump(TileId(Haz3lcore.Id.invalid))));
   Effect.bind(effect1, ~f=_result1 => effect2);
 };
 
@@ -150,7 +152,8 @@ let view_of_main_title_bar = (title_text: string) =>
   );
 
 let inspector_view =
-    (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
+    (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: Haz3lcore.Id.t)
+    : option(t) => {
   switch (TestMap.lookup(id, test_map)) {
   | Some(instances) when TestMap.joint_status(instances) != Indet =>
     Some(

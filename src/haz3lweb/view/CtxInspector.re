@@ -54,12 +54,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
   |> List.map(context_entry_view(~inject));
 
 let inspector_view =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      _id: int,
-      ci: Haz3lcore.Statics.Info.t,
-    )
+    (~inject, ~settings: ModelSettings.t, ci: Haz3lcore.Statics.Info.t)
     : Node.t => {
   let clss =
     clss(
@@ -72,17 +67,17 @@ let view =
     (
       ~inject,
       ~settings: ModelSettings.t,
-      index': option(int),
+      index': option(Haz3lcore.Id.t),
       info_map: Haz3lcore.Statics.Map.t,
     ) => {
-  let (index, ci) =
+  let ci =
     switch (index') {
-    | Some(index) => (index, Haz3lcore.Id.Map.find_opt(index, info_map))
-    | None => ((-1), None)
+    | Some(index) => Haz3lcore.Id.Map.find_opt(index, info_map)
+    | None => None
     };
   switch (ci) {
   | None =>
     div(~attr=clss(["context-inspector"]), [text("No Static Data")])
-  | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+  | Some(ci) => inspector_view(~inject, ~settings, ci)
   };
 };

@@ -5,7 +5,7 @@ let elaborate = (map, term): DHExp.t =>
     print_endline("Interface.elaborate EXCEPTION");
     //HACK(andrew): supress exceptions for release
     //raise(DoesNotElaborate)
-    InvalidText(0, 0, "EXCEPTION");
+    InvalidText(Id.invalid, 0, "EXCEPTION");
   | Elaborates(d, _, _) => d
   };
 
@@ -73,7 +73,7 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
       Sexplib.Sexp.to_string_hum(EvaluatorError.sexp_of_t(_reason)),
     );
     (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
+      Indet(InvalidText(Id.invalid, 0, "EXCEPTION")),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
@@ -81,7 +81,7 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
     print_endline("Other evaluation exception raised (stack overflow?)");
     Printexc.to_string(exn) |> print_endline;
     (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
+      Indet(InvalidText(Id.invalid, 0, "EXCEPTION")),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );

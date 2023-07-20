@@ -2,26 +2,25 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let barf = (d: Direction.t, (z, id_gen): state): option(state) => {
+let barf = (d: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
   let* z = delete(d, z);
   let+ z = put_down(d, z);
-  (z, id_gen);
+  z;
 };
 
-let delayed_expand =
-    (t: Token.t, caret: Direction.t, (z, id_gen): state): option(state) => {
+let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
   let (new_label, backpack) = Molds.delayed_expansion(t);
   let+ z = delete(caret, z);
-  construct(~backpack, ~caret, new_label, z, id_gen);
+  construct(~backpack, ~caret, new_label, z);
 };
 
-let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
+let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
@@ -30,7 +29,7 @@ let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
   | _ => Some(s)
   };
 
-let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
+let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
@@ -64,23 +63,23 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t, id_gen): state =>
+let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
   Backpack.will_barf(t, z.backpack)
     ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
       | Some((lbl, d)) =>
-        Zipper.replace(~caret=d, ~backpack=d, lbl, (z, id_gen)) |> Option.get
-      | None => (put_down(caret, z) |> Option.get, id_gen)
+        Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
+      | None => put_down(caret, z) |> Option.get
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
-      construct(~caret, ~backpack, lbl, z, id_gen);
+      let z = construct(~caret, ~backpack, lbl, z);
+      z;
     };
 
-let expand_neighbors_and_make_new_tile =
-    (char: Token.t, state: state): option(state) => {
+let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
   /* Trigger a token boundary event and create a new tile.
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
@@ -93,19 +92,18 @@ let expand_neighbors_and_make_new_tile =
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* (z, id_gen) = expand_or_barf_left_neighbor(state);
-  //let (z, id_gen) = regrout(Left, z, id_gen);
+  let* z = expand_or_barf_left_neighbor(state);
+  //let (z) = regrout(Left, z);
   /* Note to david: I'm not sure why the above regrout is necessary.
      Without it, there is a Nonconvex segment error thrown in exactly
      one case, the double barf case: insert space on "if then|else" */
-  let+ (z, id_gen) = expand_or_barf_right_neighbor((z, id_gen));
-  make_new_tile(char, Left, z, id_gen);
+  let+ z = expand_or_barf_right_neighbor(z);
+  make_new_tile(char, Left, z);
 };
 
-let replace_tile =
-    (t: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
+let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
   let+ z = delete(d, z);
-  make_new_tile(t, d, z, id_gen);
+  make_new_tile(t, d, z);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -125,32 +123,28 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let insert_outer = (char: string, (z, _) as state: state): option(state) =>
+let insert_outer = (char: string, z as state: t): option(t) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
   | MakeNew => expand_neighbors_and_make_new_tile(char, state)
   | AppendLeft(t) => replace_tile(t, Left, state)
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
-let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
+let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z =>
-       Zipper.construct(~caret=Left, ~backpack=Left, lbl, z, id_gen)
-     )
-  |> OptUtil.and_then(((z, id_gen)) =>
+  |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
+  |> OptUtil.and_then(z =>
        Zipper.put_down(Left, z)  //TODO(andrew): direction?
        |> OptUtil.and_then(Zipper.move(Left))
-       |> Option.map(z => (z, id_gen))
+       |> Option.map(z => z)
      );
 
-let insert_monos =
-    (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
+let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))
-  |> Option.map(((z, id_gen)) => Zipper.construct_mono(Left, l, z, id_gen));
+  |> Option.map(z => Zipper.construct_mono(Right, r, z))
+  |> Option.map(z => Zipper.construct_mono(Left, l, z));
 
-let split =
-    ((z, id_gen): state, char: string, idx: int, t: Token.t): option(state) => {
+let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let (l, r) = Token.split_nth(idx, t);
   z
   |> Zipper.set_caret(Outer)
@@ -158,15 +152,14 @@ let split =
   |> (
     /* overwrite selection */
     switch (Form.duomerges([l, r])) {
-    | Some(_) => insert_duo(id_gen, [l, r])
-    | None => insert_monos(id_gen, l, r)
+    | Some(_) => insert_duo([l, r])
+    | None => insert_monos(l, r)
     }
   )
   |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
 };
 
-let opt_regrold = d =>
-  Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen));
+let opt_regrold = d => Option.map(z => remold_regrout(d, z));
 
 let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
@@ -182,11 +175,7 @@ let move_into_if_stringlit_or_comment = (char, z) =>
     : z;
 
 let go =
-    (
-      char: string,
-      ({caret, relatives: {siblings, _}, _} as z, id_gen): state,
-    )
-    : option(state) => {
+    (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
@@ -199,17 +188,14 @@ let go =
         && Form.is_string_delim(char)
         || Form.is_comment(t)
         && Form.is_comment_delim(char) =>
-    z
-    |> Zipper.set_caret(Outer)
-    |> Zipper.move(Right)
-    |> Option.map(z => (z, id_gen))
+    z |> Zipper.set_caret(Outer) |> Zipper.move(Right) |> Option.map(z => z)
   | (Outer, (Some(t), _))
       when
         Form.is_string(t)
         && Form.is_string_delim(char)
         || Form.is_comment(t)
         && Form.is_comment_delim(char) =>
-    Some((z, id_gen))
+    Some(z)
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
@@ -217,9 +203,9 @@ let go =
     Form.is_valid_token(new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
-        |> (z => Zipper.replace_mono(Right, new_t, (z, id_gen)))
+        |> (z => Zipper.replace_mono(Right, new_t, z))
         |> opt_regrold(Left)
-      : split((z, id_gen), char, idx, t) |> opt_regrold(Right);
+      : split(z, char, idx, t) |> opt_regrold(Right);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
@@ -230,18 +216,15 @@ let go =
       | MakeNew
       | AppendLeft(_) => Outer
       };
-    (z, id_gen)
+    z
     |> insert_outer(char)
-    |> Option.map(((z, id_gen)) => (Zipper.set_caret(caret, z), id_gen))
+    |> Option.map(z => Zipper.set_caret(caret, z))
     |> opt_regrold(Left)
-    |> Option.map(((z, id_gen)) =>
-         (move_into_if_stringlit_or_comment(char, z), id_gen)
-       );
+    |> Option.map(z => move_into_if_stringlit_or_comment(char, z));
   | (Outer, (_, None)) =>
-    insert_outer(char, (z, id_gen))
+    let z' = insert_outer(char, z);
+    z'
     |> opt_regrold(Left)
-    |> Option.map(((z, id_gen)) =>
-         (move_into_if_stringlit_or_comment(char, z), id_gen)
-       )
+    |> Option.map(z => move_into_if_stringlit_or_comment(char, z));
   };
 };

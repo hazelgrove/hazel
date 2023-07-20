@@ -141,15 +141,15 @@ module Examples = {
   let save_examples_key: string = "SAVE_EXAMPLES";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (string, list((string, (Id.t, PersistentZipper.t))));
+  type persistent = (string, list((string, PersistentZipper.t)));
 
-  let persist = ((name, (id, editor: Editor.t))) => {
-    (name, (id, PersistentZipper.persist(editor.state.zipper)));
+  let persist = ((name, editor: Editor.t)) => {
+    (name, PersistentZipper.persist(editor.state.zipper));
   };
 
-  let unpersist = ((name, (id, zipper))) => {
-    let (id, zipper) = PersistentZipper.unpersist(zipper, id);
-    (name, (id, Editor.init(zipper, ~read_only=false)));
+  let unpersist = ((name, zipper)) => {
+    let zipper = PersistentZipper.unpersist(zipper);
+    (name, Editor.init(zipper, ~read_only=false));
   };
 
   let to_persistent = ((string, slides)): persistent => (

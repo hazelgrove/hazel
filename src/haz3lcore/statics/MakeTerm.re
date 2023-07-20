@@ -34,15 +34,10 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
-type dark_id = int;
-let dark_gen = ref(-1);
-let dark_id = () => {
-  let id = dark_gen^;
-  dark_gen := id - 1;
-  id;
-};
+type dark_id = Id.t; //TODO(andrew): deprecate?
+
 let dark_hole = (~ids=[], s: Sort.t): t => {
-  let id = dark_id();
+  let id = Id.mk();
   switch (s) {
   // put dark id last to avoid messing with rep id
   | Exp => Exp({ids: ids @ [id], term: EmptyHole})
