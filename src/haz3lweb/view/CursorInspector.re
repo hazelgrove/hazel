@@ -31,15 +31,7 @@ let lang_doc_toggle = (~inject, ~show_lang_doc) => {
 };
 
 let term_tag =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      ~show_lang_doc,
-      is_err,
-      sort,
-      id,
-      ci,
-    ) =>
+    (~inject, ~settings: ModelSettings.t, ~show_lang_doc, is_err, sort, ci) =>
   div(
     ~attr=
       clss(["ci-header", "ci-header-" ++ sort] @ (is_err ? [errc] : [])),
@@ -54,7 +46,7 @@ let term_tag =
           ]),
         [text("Γ")],
       ),
-      CtxInspector.inspector_view(~inject, ~settings, id, ci),
+      CtxInspector.inspector_view(~inject, ~settings, ci),
       div(~attr=clss(["term-tag"]), [text(sort)]),
       lang_doc_toggle(~inject, ~show_lang_doc),
     ],
@@ -187,7 +179,7 @@ let tpat_view: Info.status_tpat => t =
     ]);
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, id, ci: Statics.Info.t): Node.t => {
+    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
   let wrapper = (sort, status_view) =>
     div(
       ~attr=clss(["info", sort]),
@@ -198,7 +190,6 @@ let view_of_info =
           ~show_lang_doc,
           Info.is_error(ci),
           sort,
-          id,
           ci,
         ),
         status_view,
@@ -212,19 +203,22 @@ let view_of_info =
   };
 };
 
-let cls_and_id_view = (id: int, ci: Statics.Info.t): Node.t =>
+let cls_and_id_view = (id: Id.t, ci: Statics.Info.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["id-and-class"])]),
     [
       div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]),
-      div(~attr=clss(["id"]), [text(string_of_int(id + 1))]),
+      div(
+        ~attr=Attr.many([clss(["id"]), Attr.title(Id.to_string(id))]),
+        [text(String.sub(Id.to_string(id), 0, 4))],
+      ),
     ],
   );
 
-let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
+let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~settings, ~show_lang_doc, id, ci)],
+    [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
   );
 
 let view =
@@ -251,7 +245,7 @@ let view =
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
       bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, id, ci),
+        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
         cls_and_id_view(id, ci),
       ])
     }

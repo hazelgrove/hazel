@@ -1,4 +1,4 @@
-open Sexplib.Std;
+//open Sexplib.Std;
 
 /* ID FAQ
 
@@ -38,7 +38,7 @@ open Sexplib.Std;
    IdGen along with the zipper state. Each editor mode is responsible
    for this tracking. Ultimately, each zipper action which can result in
    new Ids being created must be sandwiched by calls to
-   Editors.get_editor_and_id and Editors.put_editor_and_id, to ensure that
+   Editors.get_editor and Editors.put_editor_and_id, to ensure that
    IdGen state is tracked between actions and properly serialized to
    local storage.
 
@@ -68,11 +68,63 @@ open Sexplib.Std;
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = int;
-let compare = Int.compare;
-let invalid = (-1);
+let to_string = Uuidm.to_string;
+let of_string = Uuidm.of_string;
+let sexp_of_t: Uuidm.t => Sexplib.Sexp.t =
+  t => Sexplib.Sexp.Atom(Uuidm.to_string(t));
+let t_of_sexp: Sexplib.Sexp.t => Uuidm.t =
+  fun
+  | Sexplib.Sexp.Atom(s) =>
+    Uuidm.of_string(s)
+    |> Util.OptUtil.get(_ => failwith("Uuidm.t_of_sexp: not valid UUID"))
+  | _ => failwith("Uuidm.t_of_sexp: not valid UUID (2)");
 
-module Map = Util.IntMap;
+let yojson_of_t: Uuidm.t => Yojson.Safe.t = t => `String(Uuidm.to_string(t));
+let t_of_yojson: Yojson.Safe.t => Uuidm.t =
+  fun
+  | `String(s) =>
+    Uuidm.of_string(s)
+    |> Util.OptUtil.get(_ => failwith("Uuidm.t_of_yojson: not valid UUID"))
+  | _ => failwith("Uuidm.t_of_yojson: not valid UUID (2)");
+type t = Uuidm.t;
+[@deriving (sexp, yojson)]
+type binding('v) = (t, 'v);
+let compare = Uuidm.compare;
+let pp: (Format.formatter, t) => unit = Uuidm.pp;
+
+let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
+
+/*module Uuidm = {
+    type t = Uuidm.t;
+    let compare = Uuidm.compare;
+  };*/
+
+module Map = {
+  include Map.Make(Uuidm);
+
+  let sexp_of_t = (sexp_of_v, map) =>
+    map |> bindings |> Sexplib.Std.sexp_of_list(sexp_of_binding(sexp_of_v));
+  let t_of_sexp = (v_of_sexp, sexp) =>
+    sexp
+    |> Sexplib.Std.list_of_sexp(binding_of_sexp(v_of_sexp))
+    |> List.to_seq
+    |> of_seq;
+  let yojson_of_t = (yojson_of_v, map) =>
+    map |> bindings |> yojson_of_list(yojson_of_binding(yojson_of_v));
+  let t_of_yojson = (v_of_yojson, json) =>
+    json
+    |> list_of_yojson(binding_of_yojson(v_of_yojson))
+    |> List.to_seq
+    |> of_seq;
+  let pp = (pp_v, fmt, map) =>
+    bindings(map)
+    |> List.iter(((k, v)) =>
+         Format.fprintf(fmt, "%a -> %a\n", pp, k, pp_v, v)
+       );
+};
+
+let invalid: t =
+  Uuidm.of_string("00000000-0000-0000-0000-000000000000") |> Option.get;
 
 module Uf: {
   type store('a);

@@ -85,10 +85,9 @@ let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 let reassemble = TupleUtil.map2(Segment.reassemble);
 
 let regrout = ((pre, suf): t) => {
-  open IdGen.Syntax;
   let s = Nib.Shape.concave();
-  let* suf = Segment.regrout_affix(Right, suf, s);
-  let+ (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
+  let suf = Segment.regrout_affix(Right, suf, s);
+  let (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
   ((pre, s_l, trim_l), suf);
 };
 

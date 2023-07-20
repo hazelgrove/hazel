@@ -225,7 +225,7 @@ let eval_result_footer_view =
           elab,
         ),
       ]
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
+    | Some({eval_result: InvalidText(_, 0, "EXCEPTION"), _}) => [
         Node.text("No result available (exception). Elaboration follows:"),
         DHCode.view_tylr(
           ~settings={
