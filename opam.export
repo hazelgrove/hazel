@@ -16,7 +16,6 @@ roots: [
   "tezt.3.0.0"
   "unionFind.20220122"
   "utop.2.11.0"
-  "uuidm.0.9.8"
 ]
 installed: [
   "abstract_algebra.v0.15.0"
@@ -176,7 +175,6 @@ installed: [
   "uri-sexp.4.2.0"
   "utop.2.11.0"
   "uucp.15.0.0"
-  "uuidm.0.9.8"
   "uunf.15.0.0"
   "uuseg.15.0.0"
   "uutf.1.0.3"
