@@ -22,7 +22,7 @@ let init = {
   context_inspector: false,
   instructor_mode: ExerciseSettings.show_instructor,
   benchmark: false,
-  mode: Editors.Scratch,
+  mode: Editors.Examples,
 };
 
 let init_debug = {...init, mode: Editors.DebugLoad};

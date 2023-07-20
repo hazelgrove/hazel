@@ -110,7 +110,7 @@ let filter_by_type =
 let co_ctx_candidates = (ctx: Ctx.t, co_ctx: CoCtx.t): list(string) => {
   List.filter_map(
     ((name, _)) =>
-      switch (Ctx.lookup(ctx, name)) {
+      switch (Ctx.lookup_var(ctx, name)) {
       | None => Some(name)
       | Some(_) => None
       },
@@ -129,7 +129,7 @@ let ctx_candidates = (ci: Info.t): list(string) => {
       "CO-CTX CANDS: "
       ++ (co_ctx_candidates(ctx, co_ctx) |> String.concat(", ")),
     );
-    (ctx |> Ctx.filtered_tag_entries(~return_ty=true, Mode.ty_of(mode)))
+    (ctx |> Ctx.filtered_ctr_entries(~return_ty=true, Mode.ty_of(mode)))
     @ co_ctx_candidates(ctx, co_ctx);
   | InfoTyp(_) => Ctx.get_alias_names(ctx)
   | _ => []

@@ -90,7 +90,7 @@ let is_var = str =>
      );
 let is_bad_var = regexp({|(^\.$)|(^[A-Za-z_]*\.$)|(^\.[A-Za-z_]*$)|});
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_tag = is_capitalized_name;
+let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
@@ -218,11 +218,11 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (

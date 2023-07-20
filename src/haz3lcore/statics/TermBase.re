@@ -121,7 +121,7 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
     | Tuple
     | Var
@@ -149,7 +149,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
@@ -246,7 +246,7 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
     | Tuple
     | Var
@@ -274,7 +274,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
@@ -368,7 +368,7 @@ and UExp: {
     | Invalid(token)
     | String(token)
     | Var(token)
-    | Tag(token) => token
+    | Constructor(token) => token
     | Int(i) => string_of_int(i)
     | Float(f) => string_of_float(f)
     | ListLit(es) => es |> List.map(s) |> String.concat(", ")
@@ -425,7 +425,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -450,7 +450,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -470,7 +470,7 @@ and UPat: {
     | Wild => "_"
     | Triv => "()"
     | Invalid(token)
-    | Tag(token)
+    | Constructor(token)
     | Var(token) => token
     | String(token) => Form.string_quote(token)
     | Int(i) => string_of_int(i)
@@ -497,14 +497,14 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
-    | Tag(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
   and variant =
-    | Variant(Tag.t, list(Id.t), option(t))
+    | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
   and t = {
     ids: list(Id.t),
@@ -523,14 +523,14 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
-    | Tag(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
   and variant =
-    | Variant(Tag.t, list(Id.t), option(t))
+    | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
   and t = {
     ids: list(Id.t),
@@ -548,7 +548,7 @@ and UTyp: {
     | String => "String"
     | Invalid(token)
     | Var(token)
-    | Tag(token) => token
+    | Constructor(token) => token
     | Parens(t) => "(" ++ s(t) ++ ")"
     | List(t) => "[" ++ s(t) ++ "]"
     | Ap(t1, t2) => s(t1) ++ "(" ++ s(t2) ++ ")"
@@ -560,8 +560,8 @@ and UTyp: {
   }
   and to_string_variant = (v: variant): string => {
     switch (v) {
-    | Variant(tag, _, None) => tag
-    | Variant(tag, _, Some(t)) => tag ++ "(" ++ to_string(t) ++ ")"
+    | Variant(ctr, _, None) => ctr
+    | Variant(ctr, _, Some(t)) => ctr ++ "(" ++ to_string(t) ++ ")"
     | BadEntry(t) => to_string(t)
     };
   };

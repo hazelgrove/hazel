@@ -95,7 +95,7 @@ let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
         "export_ctx: NOT found info_map, id= "
         ++ string_of_int(Hyper.export_id + idx),
       );*/
-    Ctx.empty
+    Builtins.ctx(Builtins.Pervasives.builtins)
   | Some(info) =>
     /*print_endline(
         "export_ctx: FOUND in info_map, id= "
@@ -160,7 +160,7 @@ let get_ctx_init = (editors: t): Ctx.t =>
   | Scratch(idx, slides) => get_ctx_init_slides(slides, idx)
   | DebugLoad
   | Exercise(_)
-  | Examples(_) => Ctx.empty
+  | Examples(_) => Builtins.ctx(Builtins.Pervasives.builtins)
   };
 
 let get_env_init = (editors: t): Environment.t =>

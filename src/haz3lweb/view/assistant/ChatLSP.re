@@ -5,7 +5,7 @@ let get_info_from_zipper = (~ctx_init, z: Zipper.t): Statics.Map.t => {
   z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx_init);
 };
 let get_info_and_top_ci_from_zipper =
-    (~ctx=Ctx.empty, z: Zipper.t): (Info.exp, Statics.Map.t) => {
+    (~ctx, z: Zipper.t): (Info.exp, Statics.Map.t) => {
   z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_and_info_ctx(ctx);
 };
 
@@ -34,7 +34,7 @@ module Type = {
     | _ => None
     };
 
-  let expected_ty = (~ctx=Ctx.empty, mode: option(Mode.t)): Typ.t => {
+  let expected_ty = (~ctx, mode: option(Mode.t)): Typ.t => {
     switch (mode) {
     | Some(Ana(Var(name) as _ty)) when Ctx.lookup_alias(ctx, name) != None =>
       let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
@@ -47,7 +47,7 @@ module Type = {
     };
   };
 
-  let expected = (~ctx=Ctx.empty, mode: option(Mode.t)): string => {
+  let expected = (~ctx, mode: option(Mode.t)): string => {
     let prefix = "Hole ?? can be filled by an expression with ";
     switch (mode) {
     | Some(Ana(Var(name) as ty)) when Ctx.lookup_alias(ctx, name) != None =>
@@ -86,7 +86,7 @@ module Errors = {
     | BadToken(token) => prn("\"%s\" isn't a valid token", token)
     | InconsistentWithArrow(typ) =>
       prn("type %s is not consistent with arrow type", Typ.to_string(typ))
-    | FreeTag => prn("Constructor is not defined")
+    | FreeConstructor => prn("Constructor is not defined")
     | SynInconsistentBranches(tys) =>
       prn(
         "Expecting branches to have consistent types but got types: %s",
@@ -106,18 +106,18 @@ module Errors = {
 
   let pat_error: Info.error_pat => string =
     fun
-    | ExpectedTag => "Expected a constructor"
+    | ExpectedConstructor => "Expected a constructor"
     | Common(error) => common_error(error);
 
   let typ_error: Info.error_typ => string =
     fun
     | FreeTypeVar(name) => prn("Type variable %s is not bound", name)
     | BadToken(token) => prn("\"%s\" isn't a valid type token", token)
-    | WantTagFoundAp => "Expected a constructor, found application"
-    | WantTagFoundType(ty) =>
+    | WantConstructorFoundAp => "Expected a constructor, found application"
+    | WantConstructorFoundType(ty) =>
       prn("Expected a constructor, found type %s", Typ.to_string(ty))
     | WantTypeFoundAp => "Constructor application must be in sum"
-    | DuplicateTag(name) =>
+    | DuplicateConstructor(name) =>
       prn("Constructor %s already used in this sum", name);
 
   let tpat_error: Info.error_tpat => string =

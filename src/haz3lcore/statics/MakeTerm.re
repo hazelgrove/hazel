@@ -148,9 +148,9 @@ let return_dark_hole = (~ids=[], s) => {
 
 let parse_sum_term: UTyp.t => UTyp.variant =
   fun
-  | {term: Var(tag), ids} => Variant(tag, ids, None)
-  | {term: Ap({term: Var(tag), ids: ids_tag}, u), ids: ids_ap} =>
-    Variant(tag, ids_tag @ ids_ap, Some(u))
+  | {term: Var(ctr), ids} => Variant(ctr, ids, None)
+  | {term: Ap({term: Var(ctr), ids: ids_ctr}, u), ids: ids_ap} =>
+    Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
@@ -193,7 +193,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | ([t], []) when Hyper.is_export(t) => ret(Tag(t))
+      | ([t], []) when Hyper.is_export(t) => ret(Constructor(t))
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
@@ -202,7 +202,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t))
       | (["{", "}"], [Exp(body)]) => ret(Parens(body))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
@@ -320,7 +320,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           String(s);
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_tag(t) => Tag(t)
+        | ([t], []) when Form.is_ctr(t) => Constructor(t)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
