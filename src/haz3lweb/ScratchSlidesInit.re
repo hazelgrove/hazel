@@ -1,4 +1,4 @@
-let filled_slides = [SerializedExamples.intro];
+let filled_slides = [];
 
 let empty: ScratchSlide.persistent_state = (
   1,

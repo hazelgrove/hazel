@@ -1,4 +1,5 @@
 let init = [
+  ("Introduction", SerializedExamples.intro),
   ("Basic Reference", SerializedExamples.lang_ref),
   ("Types & errors", SerializedExamples.basic_type_egs),
   ("ADT Statics", SerializedExamples.adt_egs),

@@ -42,18 +42,18 @@ let intro : ScratchSlide.persistent_state =
          15165)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
          15170)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          13613)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-         15594)(content(Comment\"# Here in Scratch Mode, you can use the upper \
-         left arrows to     #\"))))(Secondary((id \
+         15594)(content(Comment\"# Here in Examples Mode, you can use the \
+         upper left dropdown to  #\"))))(Secondary((id \
          14337)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-         15607)(content(Comment\"# switch between blank cells where you can \
-         store programs.       #\"))))(Secondary((id \
+         15607)(content(Comment\"# browse references for Hazel language and \
+         editor features.      #\"))))(Secondary((id \
          14029)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          14084)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-         15695)(content(Comment\"# Select Examples Mode from the upper left \
-         dialog to pick from   #\"))))(Secondary((id \
+         15695)(content(Comment\"# Select Scratch Mode from the upper left \
+         dialog to access blank #\"))))(Secondary((id \
          15252)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-         15683)(content(Comment\"# a list of references for Hazel language and \
-         editor features.   #\"))))(Secondary((id \
+         15683)(content(Comment\"# cells where you can write code; use the \
+         arrows to navigate.    #\"))))(Secondary((id \
          14180)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          14181)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          15435)(content(Comment\"# Select Exercise for a small functional \
@@ -2826,7 +2826,7 @@ let adt_egs : ScratchSlide.persistent_state =
          app#\"))))(Secondary((id \
          1563)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3564)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-         8704)(content(Comment\"#sums in compound aliases dont add tags to \
+         8704)(content(Comment\"#sums in compound aliases dont add ctrs to \
          scope#\"))))(Secondary((id \
          8930)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          8985)(content(Comment\"#but compound alias types should propagate \
@@ -3878,7 +3878,7 @@ let adt_egs : ScratchSlide.persistent_state =
          + Int(Int) #err: expected cons found type#\n\
          + ( )(Int) #err: expected cons found type#\n\
          + A(Bool)(Int) in #err: expected cons found app#\n\n\
-         #sums in compound aliases dont add tags to scope#\n\
+         #sums in compound aliases dont add ctrs to scope#\n\
          #but compound alias types should propagate analytically#\n\
          type CompoundAlias = (Int, Anonymous + Sum) in \n\
          let _ = (1, Sum) in #err: not defined#\n\

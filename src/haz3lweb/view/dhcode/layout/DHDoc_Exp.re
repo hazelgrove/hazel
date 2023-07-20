@@ -56,7 +56,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ListLit(_)
   | Prj(_)
   | EmptyHole(_)
-  | Tag(_)
+  | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
@@ -175,7 +175,7 @@ let rec mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | BoundVar(x) => text(x)
-      | Tag(name) => DHDoc_common.mk_TagLit(name)
+      | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)

@@ -250,7 +250,7 @@ let eval_result_footer_view =
               FixF(
                 "Render",
                 action_ty,
-                FixF("Render", node_ty, Tag("Render")),
+                FixF("Render", node_ty, Constructor("Render")),
               ),
             ),
             Tuple([StringLit(name), init_model, view, update]),

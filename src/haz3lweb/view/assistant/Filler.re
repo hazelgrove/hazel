@@ -6,31 +6,39 @@ type samples = list((string, string, string));
 //TODO(andrew): include ctx in examples to get more precise expected_ty
 
 let samples = [
-  ("let a:Float = ??(5)", Type.expected(Some(SynFun)), "float_of_int"),
-  ("let f = ?? in f(5)", Type.expected(Some(Syn)), "fun x:Int -> ??"),
+  (
+    "let a:Float = ??(5)",
+    Type.expected(Some(SynFun), ~ctx=[]),
+    "float_of_int",
+  ),
+  (
+    "let f = ?? in f(5)",
+    Type.expected(Some(Syn), ~ctx=[]),
+    "fun x:Int -> ??",
+  ),
   (
     "let g =\nfun x:Int, y: Bool ->\n if y then x else 6 in g(5, ??)",
-    Type.expected(Some(Ana(Bool))),
+    Type.expected(Some(Ana(Bool)), ~ctx=[]),
     "true",
   ),
   (
     "case Foo(5) | Foo(x) => ?? | Bar => 6",
-    Type.expected(Some(Ana(Int))),
+    Type.expected(Some(Ana(Int)), ~ctx=[]),
     "x",
   ),
   (
     "let num_or_zero = fun maybe_num -> case maybe_num | Some(num) => ?? | None => 0",
-    Type.expected(Some(Syn)),
+    Type.expected(Some(Syn), ~ctx=[]),
     "num",
   ),
   (
     "let merge_sort: [Int]->[Int] =\n??\nin\nmerge_sort([4,1,3,7,2])",
-    Type.expected(Some(Ana(Arrow(Int, Int)))),
+    Type.expected(Some(Ana(Arrow(Int, Int))), ~ctx=[]),
     "fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet merge: ([Int],[Int])->[Int]= ?\nin\nlet merge_sort_helper: [Int]->[Int]= ?\nin\nmerge_sort_helper(list)",
   ),
   (
     "type MenuItem =\n+ Breakfast(Int, Int)\n+ Lunch(Float)\nin\nlet per_lunch_unit = 0.95 in\nlet price: MenuItem-> Float   = fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
-    Type.expected(Some(Ana(Var("MenuItem")))),
+    Type.expected(Some(Ana(Var("MenuItem"))), ~ctx=[]),
     "fun m ->\ncase m\n| Breakfast(x, y) => ??\n| Lunch(f) => f *. per_lunch_unit\nend",
   ),
   (
@@ -58,7 +66,7 @@ in merge_sort_helper(list)
 in
 test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
     |},
-    Type.expected(Some(Ana(List(Unknown(Internal))))),
+    Type.expected(Some(Ana(List(Unknown(Internal)))), ~ctx=[]),
     {|
 let mid = List.length(l) / 2 in
 let left, right = List.take(mid, l), List.drop(mid, l) in
@@ -134,11 +142,11 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
       List.filter_map(
         fun
         | Ctx.VarEntry({name, typ: Arrow(_, typ), _})
-        | Ctx.TagEntry({name, typ: Arrow(_, typ), _})
+        | Ctx.ConstructorEntry({name, typ: Arrow(_, typ), _})
             when Typ.join(ctx, expected_ty, typ) != None =>
           Some(name ++ ": " ++ Typ.to_string(typ))
         | Ctx.VarEntry({name, typ, _})
-        | Ctx.TagEntry({name, typ, _})
+        | Ctx.ConstructorEntry({name, typ, _})
             when Typ.join(ctx, expected_ty, typ) != None =>
           Some(name ++ ":" ++ Typ.to_string(typ))
         | _ => None,
@@ -154,7 +162,7 @@ let prompt = (~ctx_init, editor: Editor.t): option(string) => {
   let ctx =
     switch (ChatLSP.get_ci(~ctx_init, editor)) {
     | Some(ci) => Info.ctx_of(ci)
-    | None => Ctx.empty
+    | None => Builtins.ctx(Builtins.Pervasives.builtins)
     };
   let mode = ChatLSP.Type.mode(~ctx_init, editor);
   let expected_ty = mode |> ChatLSP.Type.expected(~ctx);
