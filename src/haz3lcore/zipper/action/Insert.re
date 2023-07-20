@@ -132,17 +132,16 @@ let insert_outer = (char: string, z as state: t): option(t) =>
 
 let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
+  |> Option.map(Zipper.construct(~caret=Left, ~backpack=Left, lbl))
   |> OptUtil.and_then(z =>
        Zipper.put_down(Left, z)  //TODO(andrew): direction?
        |> OptUtil.and_then(Zipper.move(Left))
-       |> Option.map(z => z)
      );
 
 let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z => Zipper.construct_mono(Right, r, z))
-  |> Option.map(z => Zipper.construct_mono(Left, l, z));
+  |> Option.map(Zipper.construct_mono(Right, r))
+  |> Option.map(Zipper.construct_mono(Left, l));
 
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let (l, r) = Token.split_nth(idx, t);
@@ -159,7 +158,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
 };
 
-let opt_regrold = d => Option.map(z => remold_regrout(d, z));
+let opt_regrold = d => Option.map(remold_regrout(d));
 
 let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
@@ -188,7 +187,7 @@ let go =
         && Form.is_string_delim(char)
         || Form.is_comment(t)
         && Form.is_comment_delim(char) =>
-    z |> Zipper.set_caret(Outer) |> Zipper.move(Right) |> Option.map(z => z)
+    z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _))
       when
         Form.is_string(t)
@@ -203,7 +202,7 @@ let go =
     Form.is_valid_token(new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
-        |> (z => Zipper.replace_mono(Right, new_t, z))
+        |> Zipper.replace_mono(Right, new_t)
         |> opt_regrold(Left)
       : split(z, char, idx, t) |> opt_regrold(Right);
   /* Can't insert inside delimiter */
@@ -218,13 +217,13 @@ let go =
       };
     z
     |> insert_outer(char)
-    |> Option.map(z => Zipper.set_caret(caret, z))
+    |> Option.map(Zipper.set_caret(caret))
     |> opt_regrold(Left)
-    |> Option.map(z => move_into_if_stringlit_or_comment(char, z));
+    |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     let z' = insert_outer(char, z);
     z'
     |> opt_regrold(Left)
-    |> Option.map(z => move_into_if_stringlit_or_comment(char, z));
+    |> Option.map(move_into_if_stringlit_or_comment(char));
   };
 };

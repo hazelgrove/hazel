@@ -12,14 +12,11 @@ let destruct =
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
     z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
-  let delete_left = z => z |> Zipper.delete(Left);
+  let delete_left = Zipper.delete(Left);
   let construct_right = (l, s) =>
-    Option.map(
-      z => Zipper.construct(~caret=Right, ~backpack=Right, l, z),
-      s,
-    );
+    Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
   let construct_left = (l, s) =>
-    Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, l, z), s);
+    Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
@@ -84,7 +81,7 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
   |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
   |> Zipper.delete(Left)
   |> OptUtil.and_then(Zipper.delete(Right))
-  |> Option.map(z => Zipper.construct_mono(Right, l ++ r, z));
+  |> Option.map(Zipper.construct_mono(Right, l ++ r));
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
 let parent_duomerges = (z: Zipper.t) => {
@@ -109,7 +106,7 @@ let go = (d: Direction.t, z: t): option(t) => {
     z
     |> Zipper.delete_parent
     |> Zipper.set_caret(Inner(List.length(lbl), 0))
-    |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z))
+    |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
     |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
     merge((l, r), z_trimmed)

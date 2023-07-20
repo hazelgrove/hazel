@@ -73,7 +73,7 @@ let go_z =
   | Destruct(d) =>
     z
     |> Destruct.go(d)
-    |> Option.map(z => remold_regrout(d, z))
+    |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     z
@@ -90,7 +90,7 @@ let go_z =
       | Outer => Zipper.put_down(Left, z)
       };
     z
-    |> Option.map(z => remold_regrout(Left, z))
+    |> Option.map(remold_regrout(Left))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
@@ -109,6 +109,5 @@ let go = (a: Action.t, ed: Editor.t): Action.Result.t(Editor.t) =>
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
     let+ z = go_z(~meta, a, zipper);
-    let ed = Editor.new_state(~effects=Effect.s^, a, z, ed);
-    ed;
+    Editor.new_state(~effects=Effect.s^, a, z, ed);
   };
