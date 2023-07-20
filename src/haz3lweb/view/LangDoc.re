@@ -1153,19 +1153,19 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_ap_group, options);
           };
-        | Tag(v) =>
+        | Constructor(v) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
-              LangDocMessages.function_tag_group,
+              LangDocMessages.function_ctr_group,
               docs,
             );
-          if (LangDocMessages.function_tag_exp.id == doc.id) {
+          if (LangDocMessages.function_ctr_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_tag_group,
+              LangDocMessages.function_ctr_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
                 pat_id,
@@ -1173,13 +1173,13 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_tag_exp_coloring_ids(
+              LangDocMessages.function_ctr_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_tag_group, options);
+            basic(doc, LangDocMessages.function_ctr_group, options);
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
@@ -1814,20 +1814,20 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.let_ap_exp_group, options);
           };
-        | Tag(v) =>
+        | Constructor(v) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
-              LangDocMessages.let_tag_exp_group,
+              LangDocMessages.let_ctr_exp_group,
               docs,
             );
-          if (LangDocMessages.let_tag_exp.id == doc.id) {
+          if (LangDocMessages.let_ctr_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_tag_exp_group,
+              LangDocMessages.let_ctr_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1839,14 +1839,14 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_tag_exp_coloring_ids(
+              LangDocMessages.let_ctr_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_tag_exp_group, options);
+            basic(doc, LangDocMessages.let_ctr_exp_group, options);
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
@@ -1866,7 +1866,7 @@ let get_doc =
           );
         };
         switch (x.term) {
-        | Tag(v) =>
+        | Constructor(v) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
               LangDocMessages.conapp_exp_group,
@@ -2127,16 +2127,16 @@ let get_doc =
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
-      | Tag(v) =>
+      | Constructor(v) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.tag_exp_group,
+            LangDocMessages.ctr_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.tag_exp_group,
+          LangDocMessages.ctr_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%s"),
             v,
@@ -2461,16 +2461,16 @@ let get_doc =
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
-    | Tag(con) =>
+    | Constructor(con) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
-          LangDocMessages.tag_pat_group,
+          LangDocMessages.ctr_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.tag_pat_group,
+        LangDocMessages.ctr_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%s"),
           con,
@@ -2723,9 +2723,9 @@ let get_doc =
           );
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
-    | Tag(_) =>
+    | Constructor(_) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
-    | Var(_) when cls == Tag =>
+    | Var(_) when cls == Constructor =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
       let (doc, options) =
