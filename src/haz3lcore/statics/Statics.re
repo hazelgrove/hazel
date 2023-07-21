@@ -227,30 +227,10 @@ and uexp_to_info_map =
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (self: Self.exp, m, arg_co_ctx) = {
       let es = UExp.matched_args(arg);
-      let ty_ins = Typ.matched_args(List.length(es), ty_in);
-      let expected = List.length(ty_ins);
-      let actual = List.length(es);
-      let modes =
-        (
-          expected == actual
-            ? ty_ins
-            : List.init(List.length(es), _ => (Unknown(Internal): Typ.t))
-        )
-        |> List.map((ty) => (Ana(ty): Mode.t));
-      let self: Self.exp =
-        if (expected != actual) {
-          IsErroneousPartialAp(ArityMismatch({expected, actual}));
-        } else if (!List.exists(e => !UExp.is_deferral(e), es)) {
-          IsErroneousPartialAp(Meaningless);
-        } else {
-          let ty_ins =
-            List.combine(es, ty_ins)
-            |> List.filter(((e, _ty)) => UExp.is_deferral(e))
-            |> List.map(snd);
-          let ty_in =
-            List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
-          Common(Just(Arrow(ty_in, ty_out)));
-        };
+      let length = List.length(es);
+      let ty_ins = Typ.matched_args(length, ty_in);
+      let self = Self.of_deferred_ap(es, ty_ins, ty_out);
+      let modes = Mode.of_deferred_ap_args(ty_ins, length);
       let (es, m) = map_m_go(m, modes, es);
       (self, m, CoCtx.union(List.map(Info.exp_co_ctx, es)));
     };

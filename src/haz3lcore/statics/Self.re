@@ -91,6 +91,23 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
       },
   });
 
+let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
+  let expected = List.length(ty_ins);
+  let actual = List.length(args);
+  if (expected != actual) {
+    IsErroneousPartialAp(ArityMismatch({expected, actual}));
+  } else if (!List.exists(arg => !Term.UExp.is_deferral(arg), args)) {
+    IsErroneousPartialAp(Meaningless);
+  } else {
+    let ty_ins =
+      List.combine(args, ty_ins)
+      |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
+      |> List.map(snd);
+    let ty_in = List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
+    Common(Just(Arrow(ty_in, ty_out)));
+  };
+};
+
 /* The self assigned to things like cases and list literals
    which can have internal type inconsistencies. */
 let join =
