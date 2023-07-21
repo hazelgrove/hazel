@@ -154,31 +154,25 @@ let typ_err_view = (ok: Info.error_typ) =>
 let exp_view: Info.status_exp => t =
   fun
   | InHole(FreeVariable) => div_err([text("Variable is not bound")])
-  | InHole(FreeDeferral) =>
-    div_err([
-      text(
-        "Deferral does not appear in a partial application as a placeholder",
-      ),
-    ])
+  | InHole(UnusedDeferral) =>
+    div_err([text("Deferral must appear as a function argument")])
   | InHole(ErroneousPartialAp(Meaningless)) =>
-    div_err([
-      text(
-        "Meaningless partial application: expected at least one non-deferral expression",
-      ),
-    ])
+    div_err([text("Expected at least one non-deferred argument")])
   | InHole(ErroneousPartialAp(ArityMismatch({expected, actual}))) =>
     div_err([
       text(
         "Arity mismatched partial application: expected "
         ++ string_of_int(expected)
-        ++ " expression"
+        ++ " argument"
         ++ (expected == 1 ? "" : "s")
-        ++ ", found "
+        ++ ", got "
         ++ string_of_int(actual),
       ),
     ])
   | InHole(Common(error)) => div_err(common_err_view(error))
-  | NotInHole(ok) => div_ok(common_ok_view(ok));
+  | NotInHole(AnaDeferralConsistent(ana)) =>
+    div_ok([text("satisfies expected type"), Type.view(ana)])
+  | NotInHole(Common(ok)) => div_ok(common_ok_view(ok));
 
 let pat_view: Info.status_pat => t =
   fun

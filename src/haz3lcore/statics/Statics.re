@@ -152,7 +152,8 @@ and uexp_to_info_map =
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
-  | Deferral => add'(~self=FreeDeferral, ~co_ctx=CoCtx.empty, m)
+  | Deferral(status_deferral) =>
+    add'(~self=IsDeferral(status_deferral), ~co_ctx=CoCtx.empty, m)
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -226,50 +227,45 @@ and uexp_to_info_map =
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (self: Self.exp, m, arg_co_ctx) = {
       // Argument mode
-      let mode: Mode.t = Ana(ty_in);
-      let deferral_to_info_map = (~mode, ~uexp: UExp.t, m) => {
-        let info =
-          Info.derived_exp(
-            ~uexp,
-            ~ctx,
-            ~mode,
-            ~ancestors,
-            ~self=Common(Just(Unknown(Internal))),
-            ~co_ctx=CoCtx.empty,
-          );
-        (info, add_info(uexp.ids, InfoExp(info), m));
-      };
+      // let deferral_to_info_map = (~mode, ~uexp: UExp.t, m) => {
+      //   let info =
+      //     Info.derived_exp(
+      //       ~uexp,
+      //       ~ctx,
+      //       ~mode,
+      //       ~ancestors,
+      //       ~self=Common(Just(Unknown(Internal))),
+      //       ~co_ctx=CoCtx.empty,
+      //     );
+      //   (info, add_info(uexp.ids, InfoExp(info), m));
+      // };
       let es =
         switch (arg.term) {
         | Tuple(es) => es // empty tuple is not possible
         | _ => [arg]
         };
-      let modes = Mode.of_prod(mode, List.length(es));
-      let (ty_ins, modes) =
-        switch (ty_in) {
-        | Prod([_, ..._] as ty_ins) => (ty_ins, modes)
-        | Unknown(_) as ty_unknown =>
-          List.split(
-            List.init(List.length(es), _ =>
-              (ty_unknown, Mode.Ana(ty_unknown))
-            ),
-          )
-        // For functions whose input types are not non-empty pruducts, deferral singleton argument satisfies expected type
-        | _ => ([ty_in], arg.term == Deferral ? [mode] : modes)
-        };
-      let (exp_co_ctxs, m) = {
-        List.fold_left2(
-          ((exp_co_ctxs, m), mode, e) =>
-            (
-              UExp.is_deferral(e)
-                ? deferral_to_info_map(~mode, ~uexp=e, m) : go(~mode, e, m)
-            )
-            |> (((e, m)) => (exp_co_ctxs @ [Info.exp_co_ctx(e)], m)),
-          ([], m),
-          modes,
-          es,
-        );
-      };
+      let ty_ins = Typ.matched_args(List.length(es), ty_in);
+      let modes =
+        (
+          List.length(ty_ins) == List.length(es)
+            ? ty_ins
+            : List.init(List.length(es), _ => (Unknown(Internal): Typ.t))
+        )
+        |> List.map((ty) => (Ana(ty): Mode.t));
+      let (es', m) = map_m_go(m, modes, es);
+      // let (exp_co_ctxs, m) = {
+      //   List.fold_left2(
+      //     ((exp_co_ctxs, m), mode, e) =>
+      //       (
+      //         UExp.is_deferral(e)
+      //           ? deferral_to_info_map(~mode, ~uexp=e, m) : go(~mode, e, m)
+      //       )
+      //       |> (((e, m)) => (exp_co_ctxs @ [Info.exp_co_ctx(e)], m)),
+      //     ([], m),
+      //     modes,
+      //     es,
+      //   );
+      // };
       let self: Self.exp = {
         let expected = List.length(ty_ins);
         let actual = List.length(es);
@@ -287,7 +283,7 @@ and uexp_to_info_map =
           Common(Just(Arrow(ty_in, ty_out)));
         };
       };
-      (self, m, CoCtx.union(exp_co_ctxs));
+      (self, m, CoCtx.union(List.map(Info.exp_co_ctx, es')));
     };
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e) =>
