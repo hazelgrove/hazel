@@ -168,13 +168,16 @@ let triv_exp: form = {
 let deferral_exp_group = "deferral_exp_group";
 let deferral_exp: form = {
   let explanation = {
-    message: "Deferral expression. This marks a placeholder for some part of the argument expression in a partial application whose value supply is deferred to future applications.",
+    message: "Deferral expression. This marks an argument that has not yet been applied in a partial application.",
     feedback: Unselected,
   };
   let deferral_exp_ex = {
     sub_id: "deferral_exp_ex",
-    term: mk_example("let plus1 =\n(fun (x, y) -> x + y)(_, 1)\nin plus1(2)"),
-    message: "The plus function is partially applied to (_, 1). The deferral expression marks a placeholder for x whose value supply is deferred to the function application plus1(2).",
+    term:
+      mk_example(
+        "let plus = fun (x, y) -> x + y in\nlet incr = plus(_, 1) in\nincr(5)",
+      ),
+    message: "In the partial application plus(_, 1), the deferral expression marks the first argument, which was not applied until in the full function application incr(5).",
     feedback: Unselected,
   };
   {
