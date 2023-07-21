@@ -50,6 +50,7 @@ module rec Typ: {
   let matched_prod: (int, t) => list(t);
   let matched_cons: t => (t, t);
   let matched_list: t => t;
+  let matched_args: (int, t) => list(t);
   let precedence_Prod: int;
   let precedence_Arrow: int;
   let precedence_Sum: int;
