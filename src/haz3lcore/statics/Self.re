@@ -11,7 +11,7 @@ open Sexplib.Std;
 
    A term which from which a type can be derived in isolation, that is,
    that has a valid synthetic typing judgement, will generally have a SELF
-   of Just(some_type). (The one current exception are the tags of labelled
+   of Just(some_type). (The one current exception are the constructors of labelled
    sum types, which are handled specially as their synthetic type
    may be 'overwritten' by the analytic expectation)
 
@@ -27,10 +27,10 @@ type t =
   | NoJoin(list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
-  | IsTag({
-      name: Tag.t,
+  | IsConstructor({
+      name: Constructor.t,
       syn_ty: option(Typ.t),
-    }); /* Tags have special ana logic */
+    }); /* Constructors have special ana logic */
 
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,7 +57,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ) => Some(typ)
-    | IsTag({syn_ty, _}) => syn_ty
+    | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | IsMulti
     | NoJoin(_) => None;
@@ -78,14 +78,14 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   | Some(var) => Common(Just(var.typ))
   };
 
-/* The self of a tag depends on the ctx, but a
+/* The self of a ctr depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_tag = (ctx: Ctx.t, name: Tag.t): t =>
-  IsTag({
+let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
+  IsConstructor({
     name,
     syn_ty:
-      switch (Ctx.lookup_tag(ctx, name)) {
+      switch (Ctx.lookup_ctr(ctx, name)) {
       | None => None
       | Some({typ, _}) => Some(typ)
       },

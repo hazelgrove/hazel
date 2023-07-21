@@ -65,18 +65,18 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Sum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
-      | [t0] => [text("Singleton Sum {")] @ tagged_view(t0) @ [text("}")]
+      | [t0] => [text("+")] @ ctr_view(t0)
       | [t0, ...ts] =>
         let ts_views =
-          List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
-        tagged_view(t0) @ ts_views;
+          List.map(t => [text(" + ")] @ ctr_view(t), ts) |> List.flatten;
+        ctr_view(t0) @ ts_views;
       },
     )
   }
-and tagged_view = ((tag, typ)) =>
+and ctr_view = ((ctr, typ)) =>
   switch (typ) {
-  | None => [text(tag)]
-  | Some(typ) => [text(tag ++ "("), view_ty(typ), text(")")]
+  | None => [text(ctr)]
+  | Some(typ) => [text(ctr ++ "("), view_ty(typ), text(")")]
   };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>

@@ -161,7 +161,7 @@ and uexp_to_info_map =
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
-    let modes = Mode.of_list_lit(List.length(es), mode);
+    let modes = Mode.of_list_lit(ctx, List.length(es), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
@@ -170,8 +170,8 @@ and uexp_to_info_map =
       m,
     );
   | Cons(hd, tl) =>
-    let (hd, m) = go(~mode=Mode.of_cons_hd(mode), hd, m);
-    let (tl, m) = go(~mode=Mode.of_cons_tl(mode, hd.ty), tl, m);
+    let (hd, m) = go(~mode=Mode.of_cons_hd(ctx, mode), hd, m);
+    let (tl, m) = go(~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
     add(
       ~self=Just(List(hd.ty)),
       ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
@@ -196,7 +196,7 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Tuple(es) =>
-    let modes = Mode.of_prod(mode, List.length(es));
+    let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
@@ -210,9 +210,9 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Tag(tag) => atomic(Self.of_tag(ctx, tag))
+  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(fn, arg) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
+    let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
@@ -287,7 +287,7 @@ and uexp_to_info_map =
     };
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e) =>
-    let (mode_pat, mode_body) = Mode.of_arrow(mode);
+    let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
     let (e, m) = go'(~ctx=p.ctx, ~mode=mode_body, e, m);
     add(
@@ -365,8 +365,8 @@ and uexp_to_info_map =
         };
       };
       let ctx_body =
-        switch (Typ.get_sum_tags(ctx, ty_def)) {
-        | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
       let (Info.{co_ctx, ty: ty_body, _}, m) =
@@ -423,7 +423,7 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
-    let modes = Mode.of_list_lit(List.length(ps), mode);
+    let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(
       ~self=Self.join(ty => List(ty), tys, List.map(UPat.rep_id, ps), ctx),
@@ -431,9 +431,9 @@ and upat_to_info_map =
       m,
     );
   | Cons(hd, tl) =>
-    let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(mode), hd, m);
+    let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =
-      go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(mode, hd.ty), tl, m);
+      go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
     add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
   | Wild => atomic(Just(unknown))
   | Var(name) =>
@@ -445,15 +445,15 @@ and upat_to_info_map =
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
-    let modes = Mode.of_prod(mode, List.length(ps));
+    let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
-  | Tag(tag) => atomic(Self.of_tag(ctx, tag))
+  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(fn, arg) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UPat.tag_name(fn));
+    let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
@@ -492,7 +492,7 @@ and utyp_to_info_map =
   | Bool
   | String => add(m)
   | Var(_)
-  | Tag(_) =>
+  | Constructor(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
@@ -508,8 +508,9 @@ and utyp_to_info_map =
     let ty_in = UTyp.to_typ(ctx, t2);
     let t1_mode: Info.typ_expects =
       switch (expects) {
-      | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_in, sum_ty))
-      | _ => TagExpected(Unique, Arrow(ty_in, Unknown(Internal)))
+      | VariantExpected(m, sum_ty) =>
+        ConstructorExpected(m, Arrow(ty_in, sum_ty))
+      | _ => ConstructorExpected(Unique, Arrow(ty_in, Unknown(Internal)))
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
@@ -543,17 +544,20 @@ and utpat_to_info_map =
   };
 }
 and variant_to_info_map =
-    (~ctx, ~ancestors, ~ty_sum, (m, tags), uty: UTyp.variant) => {
+    (~ctx, ~ancestors, ~ty_sum, (m, ctrs), uty: UTyp.variant) => {
   let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
   switch (uty) {
   | BadEntry(uty) =>
     let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
-    (m, tags);
-  | Variant(tag, ids, param) =>
+    (m, ctrs);
+  | Variant(ctr, ids, param) =>
     let m =
       go(
-        TagExpected(List.mem(tag, tags) ? Duplicate : Unique, ty_sum),
-        {term: Tag(tag), ids},
+        ConstructorExpected(
+          List.mem(ctr, ctrs) ? Duplicate : Unique,
+          ty_sum,
+        ),
+        {term: Constructor(ctr), ids},
         m,
       )
       |> snd;
@@ -562,7 +566,7 @@ and variant_to_info_map =
       | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
       | None => m
       };
-    (m, [tag, ...tags]);
+    (m, [ctr, ...ctrs]);
   };
 };
 

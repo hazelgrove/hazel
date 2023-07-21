@@ -1,9 +1,4 @@
-let filled_slides = [
-  LanguageRefSlide.lang_ref,
-  LanguageRefSlide.basic_type_egs,
-  LanguageRefSlide.adt_egs,
-  LanguageRefSlide.adt_dynamics_tests,
-];
+let filled_slides = [];
 
 let empty: ScratchSlide.persistent_state = (
   1,
@@ -13,16 +8,13 @@ let empty: ScratchSlide.persistent_state = (
   },
 );
 
-let num_empty = 6;
+let num_empty = 8;
 
 let init_data = filled_slides @ List.init(num_empty, _ => empty);
 
 assert(List.length(init_data) > 0);
 
-let init = (): Editors.scratch => (
-  0,
-  init_data |> List.map(ScratchSlide.unpersist),
-);
+let init = () => (0, init_data |> List.map(ScratchSlide.unpersist));
 
 let init_nth = n => {
   let data = List.nth(init_data, n);
