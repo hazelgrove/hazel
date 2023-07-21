@@ -222,7 +222,7 @@ and uexp_to_info_map =
       m,
     );
   | DeferredAp(fn, arg) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
+    let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (self: Self.exp, m, arg_co_ctx) = {

@@ -1625,10 +1625,10 @@ let deferred_funapp_exp: form = {
     message: "Partial function application. Bound part(s) of the [*function*](%i) input pattern to supplied values in the [*argument*](%i).",
     feedback: Unselected,
   };
-  let comma = comma_pat();
-  let or_pat = () =>
-    Example.mk_tile(Form.mk_infix("|", Pat, Precedence.or_), []);
-  let or_ = or_pat();
+  let comma = comma_exp();
+  let or_exp = () =>
+    Example.mk_tile(Form.mk_infix("|", Rul, Precedence.or_), []);
+  let or_ = or_exp();
   {
     id: "deferred_funapp_exp",
     syntactic_form: [
