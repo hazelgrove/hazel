@@ -36,7 +36,7 @@ type t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | FreeVar
-  | FreeDeferral
+  | IsDeferral(Term.UExp.status_deferral)
   | IsErroneousPartialAp(error_partial_ap)
   | Common(t)
 and error_partial_ap =
@@ -66,7 +66,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
     | FreeVar
-    | FreeDeferral
+    | IsDeferral(_)
     | IsErroneousPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 

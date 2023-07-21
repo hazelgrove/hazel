@@ -120,12 +120,17 @@ and UExp: {
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type status_deferral =
+    | Used
+    | Unused;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral
+    | Deferral(status_deferral)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -233,12 +238,17 @@ and UExp: {
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type status_deferral =
+    | Used
+    | Unused;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral
+    | Deferral(status_deferral)
     | Bool(bool)
     | Int(int)
     | Float(float)

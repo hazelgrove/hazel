@@ -169,7 +169,7 @@ let rec dhexp_of_uexp =
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
       | Triv => Some(Tuple([]))
-      | Deferral => Some(DHExp.InvalidText(id, 0, "_"))
+      | Deferral(_) => Some(DHExp.InvalidText(id, 0, "_"))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
       | Float(n) => Some(FloatLit(n))
@@ -278,11 +278,7 @@ let rec dhexp_of_uexp =
             };
           let* ty_fn = fixed_exp_typ(m, fn);
           let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
-          let ty_ins =
-            switch (ty_arg) {
-            | Prod(ty_ins) => ty_ins // empty tuple is not possible
-            | _ as ty_unknown => List.init(List.length(args), _ => ty_unknown)
-            };
+          let ty_ins = Typ.matched_args(List.length(args), ty_arg);
           /* Substitute all deferrals for new variables */
           let+ (pats, c_args, ty_args) =
             List.combine(args, ty_ins)

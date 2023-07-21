@@ -599,7 +599,7 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | Deferral =>
+      | Deferral(_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.deferral_exp_group,
