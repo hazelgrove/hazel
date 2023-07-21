@@ -94,10 +94,10 @@ let export_ctx = (init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
     |> Id.Map.find_opt(Hyper.export_id);
   switch (info) {
   | None =>
-    print_endline(
-      "WARN: export_ctx: NOT found id= " ++ string_of_int(Hyper.export_id),
-    );
-    init_ctx;
+    /* print_endline(
+         "WARN: export_ctx: NOT found id= " ++ string_of_int(Hyper.export_id),
+       );*/
+    init_ctx
   | Some(info) => Info.ctx_of(info)
   };
 };
@@ -111,10 +111,10 @@ let export_env = (ctx_init: Ctx.t, env_init: Environment.t, ed: Editor.t) => {
   switch (tests) {
   | None
   | Some([]) =>
-    print_endline(
-      "WARN: export_env: NOT found id= " ++ string_of_int(Hyper.export_id),
-    );
-    env_init;
+    /*print_endline(
+        "WARN: export_env: NOT found id= " ++ string_of_int(Hyper.export_id),
+      );*/
+    env_init
   | Some([(_, _, env), ..._]) => env
   };
 };

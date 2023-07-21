@@ -198,13 +198,14 @@ let rec dhexp_of_uexp =
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable) =>
-          print_endline(
-            "Elaborator: FreeVariable: "
-            ++ name
-            ++ " id: "
-            ++ string_of_int(id),
-          );
-          Some(FreeVar(id, 0, name));
+          /*print_endline(
+              "Elaborator: FreeVariable: "
+              ++ name
+              ++ " id: "
+              ++ string_of_int(id),
+            );*/
+          Some(FreeVar(id, 0, name))
+        //TODO(andrew): cleanup
         | _ => Some(BoundVar(name))
         }
       | Constructor(name) =>
