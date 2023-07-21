@@ -271,11 +271,7 @@ let rec dhexp_of_uexp =
         | _ =>
           let mk_tuple = (ctor, xs) =>
             List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
-          let args =
-            switch (arg.term) {
-            | Tuple(args) => args // empty tuple is not possible
-            | _ => [arg]
-            };
+          let args = Term.UExp.matched_args(arg);
           let* ty_fn = fixed_exp_typ(m, fn);
           let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
           let ty_ins = Typ.matched_args(List.length(args), ty_arg);

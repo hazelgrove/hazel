@@ -614,6 +614,13 @@ module UExp = {
     | _ => false
     };
   };
+
+  let matched_args = (e: t) => {
+    switch (e.term) {
+    | Tuple([_, ..._] as es) => es
+    | _ => [e]
+    };
+  };
 };
 
 // TODO(d): consider just folding this into UExp
