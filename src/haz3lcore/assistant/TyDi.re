@@ -126,9 +126,8 @@ let filtered_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
         when
           Typ.join(ctx, ty, ty_out) != None
           && Typ.join(ctx, ty, ty_arr) == None => {
-        Some(
-          name ++ "(" // TODO(andrew): this is a hack
-        );
+        Some
+          (name ++ "("); // TODO(andrew): this is a hack
       }
     | VarEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
       Some(name)
@@ -235,9 +234,6 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
 
 let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
   backpack_candidate(Info.sort_of(ci), z)
-  @ delim_candidates(leading_delim_tys, Molds.delayed_leading_delims, ci)
-  @ delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
-  @ delim_candidates(const_mono_delim_tys, Molds.const_mono_delims, ci)
   /* NOTE: Sorting here ensures that if we have an exact match already,
      we won't suggest extending it, but sorting may not be desirable in
      other ways, for example maybe we want recency bias in ctx?
@@ -245,7 +241,13 @@ let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
 
      I'm sorting here as opposed to after combination because I always
      want backpack candidates to show up first  */
-  @ (ctx_candidates(ci) |> List.sort(String.compare));
+  @ (
+    delim_candidates(leading_delim_tys, Molds.delayed_leading_delims, ci)
+    @ delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
+    @ delim_candidates(const_mono_delim_tys, Molds.const_mono_delims, ci)
+    @ ctx_candidates(ci)
+    |> List.sort(String.compare)
+  );
 };
 
 let set_buffer =
@@ -255,8 +257,6 @@ let set_buffer =
   let candidates = candidates(ci, z);
   let filtered_candidates =
     candidates |> List.filter(String.starts_with(~prefix=tok_to_left));
-  //|> List.sort(String.compare);
-  //|> List.filter((!=)(tok_to_left));
   let* top_candidate = filtered_candidates |> Util.ListUtil.hd_opt;
   let* candidate_suffix = suffix_of(top_candidate, tok_to_left);
   let (id, tile) =
