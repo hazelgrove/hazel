@@ -226,49 +226,18 @@ and uexp_to_info_map =
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (self: Self.exp, m, arg_co_ctx) = {
-      // Argument mode
-      // let deferral_to_info_map = (~mode, ~uexp: UExp.t, m) => {
-      //   let info =
-      //     Info.derived_exp(
-      //       ~uexp,
-      //       ~ctx,
-      //       ~mode,
-      //       ~ancestors,
-      //       ~self=Common(Just(Unknown(Internal))),
-      //       ~co_ctx=CoCtx.empty,
-      //     );
-      //   (info, add_info(uexp.ids, InfoExp(info), m));
-      // };
-      let es =
-        switch (arg.term) {
-        | Tuple(es) => es // empty tuple is not possible
-        | _ => [arg]
-        };
+      let es = UExp.matched_args(arg);
       let ty_ins = Typ.matched_args(List.length(es), ty_in);
+      let expected = List.length(ty_ins);
+      let actual = List.length(es);
       let modes =
         (
-          List.length(ty_ins) == List.length(es)
+          expected == actual
             ? ty_ins
             : List.init(List.length(es), _ => (Unknown(Internal): Typ.t))
         )
         |> List.map((ty) => (Ana(ty): Mode.t));
-      let (es', m) = map_m_go(m, modes, es);
-      // let (exp_co_ctxs, m) = {
-      //   List.fold_left2(
-      //     ((exp_co_ctxs, m), mode, e) =>
-      //       (
-      //         UExp.is_deferral(e)
-      //           ? deferral_to_info_map(~mode, ~uexp=e, m) : go(~mode, e, m)
-      //       )
-      //       |> (((e, m)) => (exp_co_ctxs @ [Info.exp_co_ctx(e)], m)),
-      //     ([], m),
-      //     modes,
-      //     es,
-      //   );
-      // };
-      let self: Self.exp = {
-        let expected = List.length(ty_ins);
-        let actual = List.length(es);
+      let self: Self.exp =
         if (expected != actual) {
           IsErroneousPartialAp(ArityMismatch({expected, actual}));
         } else if (!List.exists(e => !UExp.is_deferral(e), es)) {
@@ -282,8 +251,8 @@ and uexp_to_info_map =
             List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
           Common(Just(Arrow(ty_in, ty_out)));
         };
-      };
-      (self, m, CoCtx.union(List.map(Info.exp_co_ctx, es')));
+      let (es, m) = map_m_go(m, modes, es);
+      (self, m, CoCtx.union(List.map(Info.exp_co_ctx, es)));
     };
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e) =>
