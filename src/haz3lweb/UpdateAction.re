@@ -25,9 +25,10 @@ type t =
   | FinishImportScratchpad(option(string))
   | ResetSlide
   | Save
-  | ToggleMode
-  | SwitchSlide(int)
-  | SwitchEditor(SchoolExercise.pos)
+  | SetMode(Editors.mode)
+  | SwitchScratchSlide(int)
+  | SwitchExampleSlide(string)
+  | SwitchEditor(Exercise.pos)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)

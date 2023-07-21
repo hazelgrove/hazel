@@ -38,7 +38,7 @@ type ancestors = list(Id.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
-  | FreeTag /* Sum constructor neiter bound nor in ana type */
+  | FreeConstructor /* Sum constructor neiter bound nor in ana type */
   | InconsistentWithArrow(Typ.t) /* Bad function position */
   | SynInconsistentBranches(list(Typ.t)) /* Inconsistent match or listlit */
   | TypeInconsistent({
@@ -57,7 +57,7 @@ type error_exp =
 /* Pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
-  | ExpectedTag
+  | ExpectedConstructor
   | Common(error_common);
 
 /* Common ok statuses. The third represents the possibility of a
@@ -111,7 +111,7 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_expects =
   | TypeExpected
-  | TagExpected(status_variant, Typ.t)
+  | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
 /* Type term errors
@@ -122,15 +122,15 @@ type typ_expects =
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
   | FreeTypeVar(TypVar.t) /* Free type variable */
-  | DuplicateTag(Tag.t) /* Duplicate tag in same sum */
+  | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | WantTypeFoundAp
-  | WantTagFoundType(Typ.t)
-  | WantTagFoundAp;
+  | WantConstructorFoundType(Typ.t)
+  | WantConstructorFoundAp;
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_typ =
-  | Variant(Tag.t, Typ.t)
+  | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(TypVar.t, Typ.t)
   | Type(Typ.t);
@@ -140,11 +140,16 @@ type status_typ =
   | InHole(error_typ)
   | NotInHole(ok_typ);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_var_err =
+  | Other
+  | NotCapitalized;
+
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
   | ShadowsType(TypVar.t)
-  | NotAVar;
+  | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -238,15 +243,15 @@ let rec status_common =
     | None => InHole(InconsistentWithArrow(syn))
     | Some(_) => NotInHole(SynConsistent(syn))
     }
-  | (IsTag({name, syn_ty}), _) =>
-    /* If a tag is being analyzed against (an arrow type returning)
-       a sum type having that tag as a variant, its self type is
+  | (IsConstructor({name, syn_ty}), _) =>
+    /* If a ctr is being analyzed against (an arrow type returning)
+       a sum type having that ctr as a variant, its self type is
        considered to be determined by the sum type; otherwise,
-       check the context for the tag's type */
-    switch (Mode.tag_ana_typ(ctx, mode, name), syn_ty) {
+       check the context for the ctr's type */
+    switch (Mode.ctr_ana_typ(ctx, mode, name), syn_ty) {
     | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
-    | _ => InHole(FreeTag)
+    | _ => InHole(FreeConstructor)
     }
   | (BadToken(name), _) => InHole(BadToken(name))
   | (IsMulti, _) => NotInHole(SynConsistent(Unknown(Internal)))
@@ -259,18 +264,18 @@ let rec status_common =
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
   | (Syn | Ana(_), Common(self_pat))
-  | (SynFun, Common(IsTag(_) as self_pat)) =>
-    /* Little bit of a hack. Anything other than a bound tag will, in
+  | (SynFun, Common(IsConstructor(_) as self_pat)) =>
+    /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
-       are prohibiting non-tags in tag applications in patterns for now,
-       we catch them here, diverting to an ExpectedTag error. But we
+       are prohibiting non-ctrs in ctr applications in patterns for now,
+       we catch them here, diverting to an ExpectedConstructor error. But we
        avoid capturing the second case above, as these will ultimately
-       get a (more precise) unbound tag  via status_common */
+       get a (more precise) unbound ctr  via status_common */
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
-  | (SynFun, _) => InHole(ExpectedTag)
+  | (SynFun, _) => InHole(ExpectedConstructor)
   };
 
 /* Determines whether an expression or pattern is in an error hole,
@@ -293,11 +298,11 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
 
 /* This logic determines whether a type should be put
    in a hole or not. It's mostly syntactic, determining
-   the proper placement of sum type variants and tags;
+   the proper placement of sum type variants and ctrs;
    this should be reimplemented in the future as a
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
-   free, and whether a tag name is a dupe. */
+   free, and whether a ctr name is a dupe. */
 let status_typ =
     (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
     : status_typ =>
@@ -305,12 +310,14 @@ let status_typ =
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type(ty))
   | Var(name)
-  | Tag(name) =>
+  | Constructor(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
-    | TagExpected(Unique, sum_ty) => NotInHole(Variant(name, sum_ty))
+    | ConstructorExpected(Unique, sum_ty) =>
+      NotInHole(Variant(name, sum_ty))
     | VariantExpected(Duplicate, _)
-    | TagExpected(Duplicate, _) => InHole(DuplicateTag(name))
+    | ConstructorExpected(Duplicate, _) =>
+      InHole(DuplicateConstructor(name))
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false => InHole(FreeTypeVar(name))
@@ -322,18 +329,18 @@ let status_typ =
     | VariantExpected(status_variant, ty_variant) =>
       let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
-      | (Unique, Var(name) | Tag(name)) =>
+      | (Unique, Var(name) | Constructor(name)) =>
         NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
-    | TagExpected(_) => InHole(WantTagFoundAp)
+    | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
     }
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TagExpected(_)
-    | VariantExpected(_) => InHole(WantTagFoundType(ty))
+    | ConstructorExpected(_)
+    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
   };
 
@@ -344,8 +351,8 @@ let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
       when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
     InHole(ShadowsType(name))
   | Var(name) => NotInHole(Var(name))
-  | Invalid(_)
-  | MultiHole(_) => InHole(NotAVar)
+  | Invalid(_) => InHole(NotAVar(NotCapitalized))
+  | MultiHole(_) => InHole(NotAVar(Other))
   };
 
 /* Determines whether any term is in an error hole. */
@@ -418,7 +425,7 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
   let cls: UTyp.cls =
     /* Hack to improve CI display */
     switch (expects, UTyp.cls_of_term(utyp.term)) {
-    | (VariantExpected(_), Var) => Tag
+    | (VariantExpected(_), Var) => Constructor
     | (_, cls) => cls
     };
   let ty = UTyp.to_typ(ctx, utyp);
@@ -437,8 +444,8 @@ let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({term: {term: Var(name) | Tag(name), _}, ctx, _})
-  | InfoPat({term: {term: Tag(name), _}, ctx, _})
+  | InfoExp({term: {term: Var(name) | Constructor(name), _}, ctx, _})
+  | InfoPat({term: {term: Constructor(name), _}, ctx, _})
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
     let+ entry = Ctx.lookup(ctx, name);
     Ctx.get_id(entry);

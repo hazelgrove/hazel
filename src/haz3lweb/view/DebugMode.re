@@ -20,7 +20,7 @@ let view = (~inject) => {
       btn(
         ~inject,
         "clear local storage (LOSE ALL DATA!)",
-        UpdateAction.DebugAction(ClearLocalStorage),
+        UpdateAction.DebugAction(ClearStore),
       ),
     ])
   );

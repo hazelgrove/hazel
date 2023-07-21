@@ -2,7 +2,7 @@ open OptUtil.Syntax;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type binding('a) = (Tag.t, 'a);
+type binding('a) = (Constructor.t, 'a);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(binding('a));
@@ -16,37 +16,37 @@ let is_empty: t('a) => bool =
   | [] => true
   | _ => false;
 
-let rec add = (tag: Tag.t, value: 'a, map: t('a)): t('a) =>
+let rec add = (ctr: Constructor.t, value: 'a, map: t('a)): t('a) =>
   switch (map) {
-  | [] => [(tag, value)]
-  | [(tag', value') as head, ...tail] =>
-    if (Tag.equal(tag, tag')) {
+  | [] => [(ctr, value)]
+  | [(ctr', value') as head, ...tail] =>
+    if (Constructor.equal(ctr, ctr')) {
       if (value === value') {
         map;
       } else {
-        [(tag, value), ...tail];
+        [(ctr, value), ...tail];
       };
     } else {
-      [head, ...add(tag, value, tail)];
+      [head, ...add(ctr, value, tail)];
     }
   };
 
-let singleton = (tag: Tag.t, value: 'a): t('a) => [(tag, value)];
+let singleton = (ctr: Constructor.t, value: 'a): t('a) => [(ctr, value)];
 
 let compare_bindings =
-    ((tag1, _): binding('a), (tag2, _): binding('a)): int =>
-  compare(tag1, tag2);
+    ((ctr1, _): binding('a), (ctr2, _): binding('a)): int =>
+  compare(ctr1, ctr2);
 
-/* compares tags only */
+/* compares ctrs only */
 let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   let equal_bindings =
       (
         val_equal: ('a, 'a) => bool,
-        (tag1, val1): binding('a),
-        (tag2, val2): binding('a),
+        (ctr1, val1): binding('a),
+        (ctr2, val2): binding('a),
       )
       : bool =>
-    Tag.equal(tag1, tag2) && val_equal(val1, val2);
+    Constructor.equal(ctr1, ctr2) && val_equal(val1, val2);
   map1 === map2
   || {
     let map1 = List.fast_sort(compare_bindings, map1);
@@ -55,36 +55,38 @@ let equal = (val_equal: ('a, 'a) => bool, map1: t('a), map2: t('a)): bool => {
   };
 };
 
-let tags_of = (m: list((Tag.t, 'a))): list(Tag.t) => List.map(fst, m);
+let cardinal: t('a) => int = List.length;
 
-let same_tags_same_order = (map1: t('a), map2: t('a)): bool =>
-  List.for_all2(Tag.equal, tags_of(map1), tags_of(map2));
+let ctrs_of = (m: list((Constructor.t, 'a))): list(Constructor.t) =>
+  List.map(fst, m);
 
-let tags_equal = (map1: t('a), map2: t('a)): bool => {
-  let tags1 = tags_of(map1);
-  let tags2 = tags_of(map2);
-  tags1 === tags2
-  || List.fast_sort(compare, tags1) == List.fast_sort(compare, tags2);
+let same_constructors_same_order = (map1: t('a), map2: t('a)): bool =>
+  cardinal(map1) === cardinal(map2)
+  && List.for_all2(Constructor.equal, ctrs_of(map1), ctrs_of(map2));
+
+let ctrs_equal = (map1: t('a), map2: t('a)): bool => {
+  let ctrs1 = ctrs_of(map1);
+  let ctrs2 = ctrs_of(map2);
+  ctrs1 === ctrs2
+  || List.fast_sort(compare, ctrs1) == List.fast_sort(compare, ctrs2);
 };
 
 let for_all: (binding('a) => bool, t('a)) => bool = List.for_all;
 
-let cardinal: t('a) => int = List.length;
-
 let bindings: t('a) => list(binding('a)) = x => x;
 
-let find_opt = (tag: Tag.t, map: t('a)): option('a) => {
-  let+ binding = List.find_opt(((k, _)) => Tag.equal(tag, k), map);
+let find_opt = (ctr: Constructor.t, map: t('a)): option('a) => {
+  let+ binding = List.find_opt(((k, _)) => Constructor.equal(ctr, k), map);
   snd(binding);
 };
 
 let map = (f: 'a => 'b, m: t('a)): t('b) => {
-  let (tags, vals) = List.split(m);
+  let (ctrs, vals) = List.split(m);
   let vals = List.map(f, vals);
-  List.combine(tags, vals);
+  List.combine(ctrs, vals);
 };
 
-/* sorts on tags only */
+/* sorts on ctrs only */
 let sort = (map: t('a)): t('a) => {
   List.fast_sort(compare_bindings, map);
 };
