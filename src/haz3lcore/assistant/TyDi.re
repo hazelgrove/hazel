@@ -55,9 +55,9 @@ let expected_ty: Info.t => Typ.t =
 let const_mono_delim_tys: list((Token.t, Typ.t)) = [
   ("true", Bool),
   ("false", Bool),
-  //("[]", List(unk)), //NOTE: would need to refactor buffer for this to show up
-  //("()", Prod([])), //NOTE: would need to refactor buffer for this to show up
-  ("\"\"", String), //NOTE: irrelavent as second quote appears automatically
+  //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
+  //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
+  ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
   ("_", unk),
 ];
 
@@ -71,7 +71,7 @@ let leading_delim_tys: list((Token.t, Typ.t)) = [
 ];
 
 let infix_delim_tys: list((Token.t, Typ.t)) = [
-  (",", unk), //NOTE: current approach doesn't work for this, but irrelevant as 1-char
+  (",", unk), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
   ("::", List(unk)),
   (";", unk),
   ("&&", Bool),
@@ -118,35 +118,69 @@ let co_ctx_candidates = (ctx: Ctx.t, co_ctx: CoCtx.t): list(string) => {
   );
 };
 
+let filtered_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
+  /* get names of all var entries consistent with ty */
+  List.filter_map(
+    fun
+    | Ctx.VarEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
+        when
+          Typ.join(ctx, ty, ty_out) != None
+          && Typ.join(ctx, ty, ty_arr) == None => {
+        Some(
+          name ++ "(" // TODO(andrew): this is a hack
+        );
+      }
+    | VarEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
+      Some(name)
+    | _ => None,
+    ctx,
+  );
+
+let filtered_ctr_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
+  /* get names of all constructor entries consistent with ty */
+  List.filter_map(
+    fun
+    | Ctx.ConstructorEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
+        when
+          Typ.join(ctx, ty, ty_out) != None
+          && Typ.join(ctx, ty, ty_arr) == None =>
+      Some(name ++ "(") // TODO(andrew): this is a hack
+    | ConstructorEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
+      Some(name)
+    | _ => None,
+    ctx,
+  );
+
 let ctx_candidates = (ci: Info.t): list(string) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
   | InfoExp({mode, _}) =>
-    ctx |> Ctx.filtered_entries(~return_ty=true, Mode.ty_of(mode))
+    filtered_entries(Mode.ty_of(mode), ctx)
+    @ filtered_ctr_entries(Mode.ty_of(mode), ctx)
   | InfoPat({mode, co_ctx, _}) =>
-    print_endline("CTX CANDIDATES: pat case");
-    print_endline(
-      "CO-CTX CANDS: "
-      ++ (co_ctx_candidates(ctx, co_ctx) |> String.concat(", ")),
-    );
-    (ctx |> Ctx.filtered_ctr_entries(~return_ty=true, Mode.ty_of(mode)))
-    @ co_ctx_candidates(ctx, co_ctx);
+    filtered_ctr_entries(Mode.ty_of(mode), ctx)
+    @ co_ctx_candidates(ctx, co_ctx)
   | InfoTyp(_) => Ctx.get_alias_names(ctx)
   | _ => []
   };
 };
 
-let backpack_candidate = (sort: Sort.t, z: Zipper.t) =>
+let backpack_candidate = (_sort: Sort.t, z: Zipper.t) => {
+  /* NOTE: Disabled sort check for now. Needs to be more
+     subtle to get stuff like -> completion for "fun x -|"
+     (sort is Pat, mold.out is Exp).  */
   switch (z.backpack) {
   | [] => []
   | [{content, _}, ..._] =>
     switch (content) {
-    | [Tile({label, shards: [idx], mold, _})] when sort == mold.out => [
+    | [Tile({label, shards: [idx], mold: _, _})]
+        when Zipper.can_put_down(z) /*&& sort == mold.out*/ => [
         List.nth(label, idx),
       ]
     | _ => []
     }
   };
+};
 
 let delim_candidates = (ty_map, delims_of_sort, ci: Info.t): list(string) => {
   let sort = Info.sort_of(ci);
@@ -156,14 +190,6 @@ let delim_candidates = (ty_map, delims_of_sort, ci: Info.t): list(string) => {
   | Pat => filter_by_type(Info.ctx_of(ci), expected_ty(ci), ty_map, delims)
   | _ => delims
   };
-};
-
-let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
-  backpack_candidate(Info.sort_of(ci), z)
-  @ delim_candidates(leading_delim_tys, Molds.delayed_leading_delims, ci)
-  @ delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
-  @ delim_candidates(const_mono_delim_tys, Molds.const_mono_delims, ci)
-  @ ctx_candidates(ci);
 };
 
 let left_of_mono = (z: Zipper.t) =>
@@ -207,25 +233,39 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
+let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
+  backpack_candidate(Info.sort_of(ci), z)
+  @ delim_candidates(leading_delim_tys, Molds.delayed_leading_delims, ci)
+  @ delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
+  @ delim_candidates(const_mono_delim_tys, Molds.const_mono_delims, ci)
+  /* NOTE: Sorting here ensures that if we have an exact match already,
+     we won't suggest extending it, but sorting may not be desirable in
+     other ways, for example maybe we want recency bias in ctx?
+     Possibly revisit this.
+
+     I'm sorting here as opposed to after combination because I always
+     want backpack candidates to show up first  */
+  @ (ctx_candidates(ci) |> List.sort(String.compare));
+};
+
 let set_buffer =
     (~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
   let* ci = z_to_ci(~ctx, z);
   let candidates = candidates(ci, z);
-  //print_endline("CANDIDATES:\n" ++ (candidates |> String.concat("\n")));
-  //TODO(andrew): maybe dont suggest when current thing is already a type-correct variable ref?
-  // its kind of aggressive
   let filtered_candidates =
-    candidates
-    |> List.filter(String.starts_with(~prefix=tok_to_left))
-    |> List.filter((!=)(tok_to_left));
-  //print_endline("FILT:\n" ++ (filtered_candidates |> String.concat("\n")));
+    candidates |> List.filter(String.starts_with(~prefix=tok_to_left));
+  //|> List.sort(String.compare);
+  //|> List.filter((!=)(tok_to_left));
   let* top_candidate = filtered_candidates |> Util.ListUtil.hd_opt;
   let* candidate_suffix = suffix_of(top_candidate, tok_to_left);
-  //print_endline("CANDIDATE: " ++ candidate_suffix);
-  let sort = Info.sort_of(ci);
   let (id, tile) =
-    mk_amorphous_tile(~sort, id_gen, z.relatives.siblings, candidate_suffix);
+    mk_amorphous_tile(
+      ~sort=Info.sort_of(ci),
+      id_gen,
+      z.relatives.siblings,
+      candidate_suffix,
+    );
   let z = Zipper.set_buffer(z, ~content=[Tile(tile)], ~mode=Amorphous);
   Some((z, id));
 };

@@ -447,8 +447,6 @@ and Ctx: {
   let filter_duplicates: t => t;
   let shadows_typ: (t, TypVar.t) => bool;
   let get_alias_names: t => list(string);
-  let filtered_entries: (~return_ty: bool=?, Typ.t, t) => list(string);
-  let filtered_ctr_entries: (~return_ty: bool=?, Typ.t, t) => list(string);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -609,50 +607,6 @@ and Ctx: {
     List.filter_map(
       fun
       | TVarEntry({kind: Singleton(_), name, _}) => Some(name)
-      | _ => None,
-      ctx,
-    );
-
-  let filtered_entries = (~return_ty=false, ty: Typ.t, ctx: t): list(string) =>
-    /* get names of all var and tconstructor entries consistent with ty */
-    List.filter_map(
-      fun
-      | VarEntry({typ: Arrow(_ty_in, ty_out) as ty_arr, name, _})
-      | ConstructorEntry({typ: Arrow(_ty_in, ty_out) as ty_arr, name, _})
-          when
-            return_ty
-            && Typ.join(ctx, ty, ty_out) != None
-            && Typ.join(ctx, ty, ty_arr) == None => {
-          /*let pre =
-            switch (ty_in) {
-            | Prod(ts) =>
-              String.concat("", List.init(List.length(ts) - 1, _ => ","))
-            | _ => ""
-            };*/
-          Some(
-            name ++ "(" /*++ pre*/,
-          );
-        } // TODO(andrew): this is a hack
-      | VarEntry({typ, name, _})
-      | ConstructorEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
-        Some(name)
-      | _ => None,
-      ctx,
-    );
-
-  let filtered_ctr_entries =
-      (~return_ty=false, ty: Typ.t, ctx: t): list(string) =>
-    /* get names of all constructor entries consistent with ty */
-    List.filter_map(
-      fun
-      | ConstructorEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
-          when
-            return_ty
-            && Typ.join(ctx, ty, ty_out) != None
-            && Typ.join(ctx, ty, ty_arr) == None =>
-        Some(name ++ "(") // TODO(andrew): this is a hack
-      | ConstructorEntry({typ, name, _}) when Typ.join(ctx, ty, typ) != None =>
-        Some(name)
       | _ => None,
       ctx,
     );
