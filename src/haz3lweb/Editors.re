@@ -85,23 +85,21 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
-let export_ctx = (idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
+let export_ctx = (_idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
   let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
   let info_map = Statics.mk_map_ctx(init_ctx, term);
 
-  switch (Id.Map.find_opt(Hyper.export_id + idx, info_map)) {
+  switch (Id.Map.find_opt(Hyper.export_id, info_map)) {
   | None =>
-    /*print_endline(
-        "export_ctx: NOT found info_map, id= "
-        ++ string_of_int(Hyper.export_id + idx),
-      );*/
-    Builtins.ctx(Builtins.Pervasives.builtins)
+    print_endline(
+      "export_ctx: NOT found info_map, id= " ++ string_of_int(Hyper.export_id),
+    );
+    init_ctx;
   | Some(info) =>
-    /*print_endline(
-        "export_ctx: FOUND in info_map, id= "
-        ++ string_of_int(Hyper.export_id + idx),
-      );*/
-    Info.ctx_of(info)
+    print_endline(
+      "export_ctx: FOUND in info_map, id= " ++ string_of_int(Hyper.export_id),
+    );
+    Info.ctx_of(info);
   };
 };
 
@@ -138,14 +136,13 @@ let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
   let acc_5 = 5 |> get |> fn(4, acc_4);
   let acc_6 = 6 |> get |> fn(5, acc_5);
   switch (idx) {
-  | 0
+  | 0 => acc_0
   | 1 => acc_0
   | 2 => acc_1
   | 3 => acc_2
   | 4 => acc_3
   | 5 => acc_4
   | 6 => acc_5
-  | 7 => acc_6
   | _ => acc_6
   };
 };
