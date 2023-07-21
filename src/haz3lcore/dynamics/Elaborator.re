@@ -244,14 +244,9 @@ let rec dhexp_of_uexp =
         | _ when Hyper.is_export(name) =>
           /*print_endline(
               "elaborating export: id:"
-              ++ string_of_int(Hyper.export_id + Hyper.get_export_offset(name)),
+              ++ string_of_int(Hyper.export_id),
             );*/
-          Some(
-            DHExp.Ap(
-              TestLit(Hyper.export_id + Hyper.get_export_offset(name)),
-              Tuple([]),
-            ),
-          )
+          Some(DHExp.Ap(TestLit(Hyper.export_id), Tuple([])))
         | InHole(Common(FreeConstructor)) => Some(FreeVar(id, 0, name))
         | _ => Some(Constructor(name))
         }

@@ -85,56 +85,48 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
-let export_ctx = (_idx: int, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
-  let (term, _) = MakeTerm.from_zip_for_sem(ed.state.zipper);
-  let info_map = Statics.mk_map_ctx(init_ctx, term);
-
-  switch (Id.Map.find_opt(Hyper.export_id, info_map)) {
+let export_ctx = (init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
+  let info =
+    ed.state.zipper
+    |> MakeTerm.from_zip_for_sem
+    |> fst
+    |> Statics.mk_map_ctx(init_ctx)
+    |> Id.Map.find_opt(Hyper.export_id);
+  switch (info) {
   | None =>
     print_endline(
-      "export_ctx: NOT found info_map, id= " ++ string_of_int(Hyper.export_id),
+      "WARN: export_ctx: NOT found id= " ++ string_of_int(Hyper.export_id),
     );
     init_ctx;
-  | Some(info) =>
-    print_endline(
-      "export_ctx: FOUND in info_map, id= " ++ string_of_int(Hyper.export_id),
-    );
-    Info.ctx_of(info);
+  | Some(info) => Info.ctx_of(info)
   };
 };
 
-let export_env =
-    (ctx_init: Ctx.t, idx: int, env_init: Environment.t, ed: Editor.t) => {
+let export_env = (ctx_init: Ctx.t, env_init: Environment.t, ed: Editor.t) => {
   let tests =
     Interface.eval_editor(~env_init, ~ctx_init, ed)
     |> ProgramResult.get_state
     |> EvaluatorState.get_tests
-    |> TestMap.lookup(Hyper.export_id + idx);
+    |> TestMap.lookup(Hyper.export_id);
   switch (tests) {
-  | Some([(_, _, env), ..._]) => env
+  | None
   | Some([]) =>
     print_endline(
-      "WARNING: export_env: testmap lookup returned empty list for id: "
-      ++ string_of_int(Hyper.export_id + idx),
+      "WARN: export_env: NOT found id= " ++ string_of_int(Hyper.export_id),
     );
-    Environment.empty;
-  | None =>
-    print_endline(
-      "WARNING: export_env: testmap lookup failed for id: "
-      ++ string_of_int(Hyper.export_id + idx),
-    );
-    Environment.empty;
+    env_init;
+  | Some([(_, _, env), ..._]) => env
   };
 };
 
-let deps = (fn: (int, 'a, 'b) => 'a, acc_0: 'a, slides, idx) => {
+let deps = (fn: ('a, 'b) => 'a, acc_0: 'a, slides, idx) => {
   let get = idx => List.nth(slides, idx) |> snd;
-  let acc_1 = 1 |> get |> fn(0, acc_0);
-  let acc_2 = 2 |> get |> fn(1, acc_1);
-  let acc_3 = 3 |> get |> fn(2, acc_2);
-  let acc_4 = 4 |> get |> fn(3, acc_3);
-  let acc_5 = 5 |> get |> fn(4, acc_4);
-  let acc_6 = 6 |> get |> fn(5, acc_5);
+  let acc_1 = 1 |> get |> fn(acc_0);
+  let acc_2 = 2 |> get |> fn(acc_1);
+  let acc_3 = 3 |> get |> fn(acc_2);
+  let acc_4 = 4 |> get |> fn(acc_3);
+  let acc_5 = 5 |> get |> fn(acc_4);
+  let acc_6 = 6 |> get |> fn(acc_5);
   switch (idx) {
   | 0 => acc_0
   | 1 => acc_0
