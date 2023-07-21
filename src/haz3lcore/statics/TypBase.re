@@ -141,6 +141,13 @@ module rec Typ: {
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => Unknown(Internal);
 
+  let matched_args: (int, t) => list(t) =
+    default_arity =>
+      fun
+      | Prod([_, ..._] as tys) => tys
+      | Unknown(_) as ty_unknown => List.init(default_arity, _ => ty_unknown)
+      | _ as ty => [ty];
+
   let precedence_Prod = 1;
   let precedence_Arrow = 2;
   let precedence_Sum = 3;
