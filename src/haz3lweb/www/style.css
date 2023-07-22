@@ -1945,25 +1945,42 @@ svg.expandable path {
 
 #top-bar .menu .submenu-content {
   position: absolute;
+  top: -0.5em;
   height: fit-content;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
+  /* align-items: center; */
   transform-origin: left;
   transform: scaleX(0);
   transition: transform 0.07s ease, background-color 0.07s ease;
   background-color: #a69461;
-  padding-left: 2.75em;
   z-index: var(--submenu-content-z);
 }
 
+#top-bar .menu .submenu:hover::after {
+  position: absolute;
+  top: -0.5em;
+  height: 2.3em;
+  width: 2.75em;
+  content: " ";
+  background: #7f7149;
+}
+
 #top-bar .menu .toggle-switch ~ .submenu-content {
+  left: calc(+2.75em / 2 + 2em / 2);
+}
+
+#top-bar .menu .toggle-switch ~ .submenu:hover::after {
   left: calc(-2.75em / 2 + 2em / 2);
 }
 
 #top-bar .menu .icon ~ .submenu-content,
 #top-bar .menu label ~ .submenu-content {
+  left: calc(+2.75em / 2 + 20px / 2);
+}
+
+#top-bar .menu .icon ~ .submenu:hover::after {
   left: calc(-2.75em / 2 + 20px / 2);
 }
 
@@ -1984,7 +2001,6 @@ svg.expandable path {
 #top-bar .menu .submenu-button,
 #top-bar .menu .submenu-label {
   color: var(--top_bar_icon_fill);
-  width: fit-content;
   white-space: nowrap;
   height: 1.3em;
 }
@@ -1993,6 +2009,10 @@ svg.expandable path {
 #top-bar .menu .submenu-button,
 #top-bar .menu .submenu-label {
   padding: 0.5em 0.875em;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
 }
 
 #top-bar .menu .submenu-label {
@@ -2015,7 +2035,7 @@ svg.expandable path {
 #top-bar .menu .submenu-switch {
   display: flex;
   flex-direction: row;
-  justify-content: center;
+  /* justify-content: center; */
   align-items: center;
   gap: 0.5em;
 }
@@ -2037,7 +2057,7 @@ svg.expandable path {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
+  /* align-items: center; */
 
   height: fit-content;
 
@@ -2067,10 +2087,11 @@ svg.expandable path {
 #top-bar .menu ~ .submenu .icon ~ .submenu-content,
 #top-bar .menu ~ .submenu label ~ .submenu-content {
   top: calc(2.75em / 2 + 20px / 2);
+  left: -1em;
 }
 
 #top-bar .menu ~ .submenu:hover .submenu-content {
-  transition-delay: 1000ms;
+  /* transition-delay: 1000ms; */
   transition-property: all;
   transform: scaleY(1);
 }
@@ -2115,6 +2136,7 @@ svg.expandable path {
 }
 
 #top-bar .menu ~ .submenu .submenu-switch {
+  width: fit-content;
   display: flex;
   flex-direction: row;
   justify-content: center;
