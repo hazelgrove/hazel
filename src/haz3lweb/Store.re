@@ -1,9 +1,10 @@
-open Sexplib.Std;
 open Haz3lcore;
 
 // Settings serialization
 module Settings = {
   let save_settings_key: string = "SETTINGS";
+
+  let default = Init.startup.settings;
 
   let serialize = settings =>
     settings |> ModelSettings.sexp_of_t |> Sexplib.Sexp.to_string;
@@ -17,15 +18,15 @@ module Settings = {
     ) {
     | _ =>
       print_endline("Could not deserialize settings.");
-      ModelSettings.init;
+      default;
     };
 
   let save = (settings: ModelSettings.t): unit =>
     JsUtil.set_localstore(save_settings_key, serialize(settings));
 
   let init = () => {
-    JsUtil.set_localstore(save_settings_key, serialize(ModelSettings.init));
-    ModelSettings.init;
+    JsUtil.set_localstore(save_settings_key, serialize(default));
+    default;
   };
 
   let load = (): ModelSettings.t =>
@@ -95,7 +96,7 @@ module Scratch = {
   let save_scratch_key: string = "SAVE_SCRATCH";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list(ScratchSlide.persistent_state));
+  type persistent = PersistentData.scratch;
 
   let to_persistent = ((idx, slides)): persistent => (
     idx,
@@ -119,7 +120,7 @@ module Scratch = {
   };
 
   let init = () => {
-    let scratch = ScratchSlidesInit.init();
+    let scratch = of_persistent(Init.startup.scratch);
     save(scratch);
     scratch;
   };
@@ -141,7 +142,7 @@ module Examples = {
   let save_examples_key: string = "SAVE_EXAMPLES";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (string, list((string, (Id.t, PersistentZipper.t))));
+  type persistent = PersistentData.examples;
 
   let persist = ((name, (id, editor: Editor.t))) => {
     (name, (id, PersistentZipper.persist(editor.state.zipper)));
@@ -174,10 +175,7 @@ module Examples = {
   };
 
   let init = () => {
-    let examples = (
-      Examples.init |> List.hd |> fst,
-      Examples.init |> List.map(unpersist),
-    );
+    let examples = of_persistent(Init.startup.examples);
     save(examples);
     examples;
   };
