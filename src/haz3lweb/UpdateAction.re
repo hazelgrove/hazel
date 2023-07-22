@@ -11,7 +11,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(Editors.mode);
+  | Mode(ModelSettings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -23,9 +23,10 @@ type t =
   | FinishImportAll(option(string))
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
+  | ExportPersistentData
   | ResetSlide
   | Save
-  | SetMode(Editors.mode)
+  | SetMode(ModelSettings.mode)
   | SwitchScratchSlide(int)
   | SwitchExampleSlide(string)
   | SwitchEditor(Exercise.pos)

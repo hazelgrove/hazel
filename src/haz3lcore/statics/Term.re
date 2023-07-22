@@ -35,7 +35,7 @@ module UTyp = {
     | Sum
     | List
     | Var
-    | Tag
+    | Constructor
     | Parens
     | Ap;
 
@@ -64,7 +64,7 @@ module UTyp = {
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
-    | Tag(_) => Tag
+    | Constructor(_) => Constructor
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -80,7 +80,7 @@ module UTyp = {
     | String
     | Bool => "Base Type"
     | Var => "Type Variable"
-    | Tag => "Sum Constructor"
+    | Constructor => "Sum Constructor"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
@@ -102,7 +102,7 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Var(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_)
     | Sum(_) => false
     };
@@ -126,22 +126,23 @@ module UTyp = {
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | Sum(uts) => Sum(to_tag_map(ctx, uts))
+      | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
-      | Tag(_)
+      | Constructor(_)
       | Ap(_) => Unknown(Internal)
       }
-  and to_variant: (Ctx.t, variant) => option(TagMap.binding(option(Typ.t))) =
+  and to_variant:
+    (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
     ctx =>
       fun
-      | Variant(tag, _, u) => Some((tag, Option.map(to_typ(ctx), u)))
+      | Variant(ctr, _, u) => Some((ctr, Option.map(to_typ(ctx), u)))
       | BadEntry(_) => None
-  and to_tag_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
+  and to_ctr_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
     List.fold_left(
       (acc, ut) =>
-        List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
+        List.find_opt(((ctr, _)) => ctr == fst(ut), acc) == None
           ? acc @ [ut] : acc,
       [],
       List.filter_map(to_variant(ctx), uts),
@@ -198,7 +199,7 @@ module UPat = {
     | String
     | Triv
     | ListLit
-    | Tag
+    | Constructor
     | Cons
     | Var
     | Tuple
@@ -231,7 +232,7 @@ module UPat = {
     | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
-    | Tag(_) => Tag
+    | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
@@ -251,7 +252,7 @@ module UPat = {
     | String => "String Pattern Literal"
     | Triv => "Trivial Pattern Literal"
     | ListLit => "List Literal Pattern"
-    | Tag => "Constructor Pattern"
+    | Constructor => "Constructor Pattern"
     | Cons => "Cons Pattern"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
@@ -276,7 +277,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => false
     };
   };
@@ -298,7 +299,7 @@ module UPat = {
     | Cons(_, _)
     | Var(_)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => false
     };
   };
@@ -322,7 +323,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
-      | Tag(_)
+      | Constructor(_)
       | Ap(_) => false
       }
     );
@@ -344,7 +345,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => None
     };
   };
@@ -371,7 +372,7 @@ module UPat = {
     | Cons(_, _)
     | Var(_)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => None
     };
   };
@@ -402,15 +403,15 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
-      | Tag(_)
+      | Constructor(_)
       | Ap(_) => None
       }
     };
   };
 
-  let tag_name = (p: t): option(Tag.t) =>
+  let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
-    | Tag(name) => Some(name)
+    | Constructor(name) => Some(name)
     | _ => None
     };
 };
@@ -440,7 +441,7 @@ module UExp = {
     | Float(_) => Float
     | String(_) => String
     | ListLit(_) => ListLit
-    | Tag(_) => Tag
+    | Constructor(_) => Constructor
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
@@ -517,7 +518,7 @@ module UExp = {
     | Float => "Float Literal"
     | String => "String Literal"
     | ListLit => "List Literal"
-    | Tag => "Constructor"
+    | Constructor => "Constructor"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
@@ -558,7 +559,7 @@ module UExp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
-    | Tag(_) => false
+    | Constructor(_) => false
     };
   };
 
@@ -589,13 +590,13 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Tag(_) => false
+      | Constructor(_) => false
       }
     );
 
-  let tag_name = (e: t): option(Tag.t) =>
+  let ctr_name = (e: t): option(Constructor.t) =>
     switch (e.term) {
-    | Tag(name) => Some(name)
+    | Constructor(name) => Some(name)
     | _ => None
     };
 };

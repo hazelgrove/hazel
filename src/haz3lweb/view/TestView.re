@@ -23,11 +23,9 @@ let test_instance_view =
     ],
   );
 
-let jump_to_test = (~inject, pos, _id, _) => {
+let jump_to_test = (~inject, pos, id, _) => {
   let effect1 = inject(Update.SwitchEditor(pos));
-  //TODO(andrew): ids: proper id
-  let effect2 =
-    inject(Update.PerformAction(Jump(TileId(Haz3lcore.Id.invalid))));
+  let effect2 = inject(Update.PerformAction(Jump(TileId(id))));
   Effect.bind(effect1, ~f=_result1 => effect2);
 };
 

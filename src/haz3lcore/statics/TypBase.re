@@ -28,10 +28,10 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
-  and sum_map = TagMap.t(option(t));
+  and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = TagMap.binding(option(t));
+  type sum_entry = ConstructorMap.binding(option(t));
 
   /* Hazel type annotated with a relevant source location.
      Currently used to track match branches for inconsistent
@@ -63,8 +63,8 @@ module rec Typ: {
   let join_all: (Ctx.t, list(t)) => option(t);
   let weak_head_normalize: (Ctx.t, t) => t;
   let normalize: (Ctx.t, t) => t;
-  let sum_entry: (Tag.t, sum_map) => option(sum_entry);
-  let get_sum_tags: (Ctx.t, t) => option(sum_map);
+  let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
+  let get_sum_constructors: (Ctx.t, t) => option(sum_map);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -87,10 +87,10 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
-  and sum_map = TagMap.t(option(t));
+  and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = TagMap.binding(option(t));
+  type sum_entry = ConstructorMap.binding(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type source = {
@@ -169,7 +169,7 @@ module rec Typ: {
     | Unknown(prov) => Unknown(prov)
     | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
-    | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
+    | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
@@ -205,7 +205,8 @@ module rec Typ: {
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
     | (List(_), _) => false
-    | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal(eq), sm1, sm2)
+    | (Sum(sm1), Sum(sm2)) =>
+      ConstructorMap.equal(Option.equal(eq), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
@@ -293,8 +294,9 @@ module rec Typ: {
     | (Sum(sm1), Sum(sm2)) =>
       let (sorted1, sorted2) =
         /* If same order, retain order for UI */
-        TagMap.same_tags_same_order(sm1, sm2)
-          ? (sm1, sm2) : (TagMap.sort(sm1), TagMap.sort(sm2));
+        ConstructorMap.same_constructors_same_order(sm1, sm2)
+          ? (sm1, sm2)
+          : (ConstructorMap.sort(sm1), ConstructorMap.sort(sm2));
       let* ty = ListUtil.map2_opt(join_sum_entries(ctx), sorted1, sorted2);
       let+ ty = OptUtil.sequence(ty);
       Sum(ty);
@@ -306,13 +308,13 @@ module rec Typ: {
     };
   }
   and join_sum_entries =
-      (ctx: Ctx.t, (tag1, ty1): sum_entry, (tag2, ty2): sum_entry)
+      (ctx: Ctx.t, (ctr1, ty1): sum_entry, (ctr2, ty2): sum_entry)
       : option(sum_entry) =>
     switch (ty1, ty2) {
-    | (None, None) when tag1 == tag2 => Some((tag1, None))
-    | (Some(ty1), Some(ty2)) when tag1 == tag2 =>
+    | (None, None) when ctr1 == ctr2 => Some((ctr1, None))
+    | (Some(ty1), Some(ty2)) when ctr1 == ctr2 =>
       let+ ty_join = join(ctx, ty1, ty2);
-      (tag1, Some(ty_join));
+      (ctr1, Some(ty_join));
     | _ => None
     };
 
@@ -348,7 +350,7 @@ module rec Typ: {
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))
-    | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
+    | Sum(ts) => Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
          as in current implementation Recs do not occur in the
@@ -357,20 +359,20 @@ module rec Typ: {
     };
   };
 
-  let sum_entry = (tag: Tag.t, tags: sum_map): option(sum_entry) =>
+  let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
     List.find_map(
       fun
-      | (t, typ) when Tag.equal(t, tag) => Some((t, typ))
+      | (t, typ) when Constructor.equal(t, ctr) => Some((t, typ))
       | _ => None,
-      tags,
+      ctrs,
     );
 
-  let get_sum_tags = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
     switch (ty) {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
-      /* Note: We must unroll here to get right tag types;
+      /* Note: We must unroll here to get right ctr types;
          otherwise the rec parameter will leak */
       switch (unroll(ty)) {
       | Sum(sm) => Some(sm)
@@ -398,7 +400,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    | TagEntry(var_entry)
+    | ConstructorEntry(var_entry)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -413,9 +415,9 @@ and Ctx: {
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
   let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
-  let lookup_tag: (t, string) => option(var_entry);
+  let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
-  let add_tags: (t, TypVar.t, Id.t, Typ.sum_map) => t;
+  let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
@@ -438,7 +440,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    | TagEntry(var_entry)
+    | ConstructorEntry(var_entry)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -450,7 +452,7 @@ and Ctx: {
     List.find_map(
       fun
       | VarEntry(v) when v.name == name => Some(VarEntry(v))
-      | TagEntry(v) when v.name == name => Some(TagEntry(v))
+      | ConstructorEntry(v) when v.name == name => Some(ConstructorEntry(v))
       | TVarEntry(v) when v.name == name => Some(TVarEntry(v))
       | _ => None,
       ctx,
@@ -483,7 +485,7 @@ and Ctx: {
   let get_id: entry => Id.t =
     fun
     | VarEntry({id, _})
-    | TagEntry({id, _})
+    | ConstructorEntry({id, _})
     | TVarEntry({id, _}) => id;
 
   let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -492,9 +494,9 @@ and Ctx: {
     | _ => None
     };
 
-  let lookup_tag = (ctx: t, name: string): option(var_entry) =>
+  let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
     switch (lookup(ctx, name)) {
-    | Some(TagEntry(t)) => Some(t)
+    | Some(ConstructorEntry(t)) => Some(t)
     | _ => None
     };
 
@@ -504,11 +506,11 @@ and Ctx: {
     | None => false
     };
 
-  let add_tags = (ctx: t, name: TypVar.t, id: Id.t, tags: Typ.sum_map): t =>
+  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
     List.map(
-      ((tag, typ)) =>
-        TagEntry({
-          name: tag,
+      ((ctr, typ)) =>
+        ConstructorEntry({
+          name: ctr,
           id,
           typ:
             switch (typ) {
@@ -516,7 +518,7 @@ and Ctx: {
             | Some(typ) => Arrow(typ, Var(name))
             },
         }),
-      tags,
+      ctrs,
     )
     @ ctx;
 
@@ -553,7 +555,7 @@ and Ctx: {
          ((ctx, term_set, typ_set), entry) => {
            switch (entry) {
            | VarEntry({name, _})
-           | TagEntry({name, _}) =>
+           | ConstructorEntry({name, _}) =>
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
