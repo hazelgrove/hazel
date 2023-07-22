@@ -21,7 +21,7 @@ let cutoff = (===);
 let mk = editors => {
   editors,
   results: ModelResults.empty,
-  settings: ModelSettings.init,
+  settings: Init.startup.settings,
   // TODO: move below to 'io_state'?
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
@@ -34,7 +34,8 @@ let mk = editors => {
 let blank = mk(Editors.Scratch(0, []));
 let debug = mk(Editors.DebugLoad);
 
-let load_editors = (~mode: Editors.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors =
+    (~mode: ModelSettings.mode, ~instructor_mode: bool): Editors.t =>
   switch (mode) {
   | DebugLoad => DebugLoad
   | Scratch =>

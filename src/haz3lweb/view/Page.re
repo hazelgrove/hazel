@@ -79,6 +79,11 @@ let nut_menu =
         _ => inject(Set(SecondaryIcons)),
         ~tooltip="Toggle Visible Secondary",
       ),
+      button(
+        Icons.sprout,
+        _ => inject(ExportPersistentData),
+        ~tooltip="Export Persistent Data",
+      ),
       link(
         Icons.github,
         "https://github.com/hazelgrove/hazel",
