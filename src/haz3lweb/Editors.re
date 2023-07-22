@@ -17,21 +17,6 @@ type t =
   | Examples(string, list((string, ScratchSlide.state)))
   | Exercise(int, list(Exercise.spec), Exercise.state);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type mode =
-  | DebugLoad
-  | Scratch
-  | Examples
-  | Exercise;
-
-let mode_of_string = (s: string): mode =>
-  switch (s) {
-  | "Scratch" => Scratch
-  | "Examples" => Examples
-  | "Exercise" => Exercise
-  | _ => Scratch
-  };
-
 let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
@@ -110,19 +95,24 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
     )
   };
 
+let reset_nth_slide = (n, slides) => {
+  let data = List.nth(Init.startup.scratch |> snd, n);
+  let init_nth = ScratchSlide.unpersist(data);
+  Util.ListUtil.put_nth(n, init_nth, slides);
+};
+
+let reset_named_slide = (name, slides) => {
+  let data = List.assoc(name, Init.startup.examples |> snd);
+  let init_name = ScratchSlide.unpersist(data);
+  slides |> List.remove_assoc(name) |> List.cons((name, init_name));
+};
+
 let reset_current = (editors: t, ~instructor_mode: bool): t =>
   switch (editors) {
   | DebugLoad => failwith("impossible")
-  | Scratch(n, slides) =>
-    let slides =
-      Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
-    Scratch(n, slides);
+  | Scratch(n, slides) => Scratch(n, reset_nth_slide(n, slides))
   | Examples(name, slides) =>
-    let slides =
-      slides
-      |> List.remove_assoc(name)
-      |> List.cons((name, Examples.init_name(name)));
-    Examples(name, slides);
+    Examples(name, reset_named_slide(name, slides))
   | Exercise(n, specs, _) =>
     Exercise(
       n,
