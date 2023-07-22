@@ -1,5 +1,9 @@
 /* ID FAQ
 
+   WHATS AN ID?
+
+   IDs are random-generated 128bit UUIDs; use Id.mk() to generate one.
+
    WHAT ARE IDS USED FOR?
 
    Unique ids are assigned to tiles (and hence, indirectly, to terms)
@@ -17,11 +21,7 @@
    tuples; there are rep_id functions in Term to canonically extract
    single representative ids from this list where appropriate.
 
-   HOW ARE NEW IDS CREATED?
-
-   IDs are random-generated 128bit UUIDs; use Id.mk() to generate one.
-
-   IDS IN DYNAMICS:
+   CAN I USE IDS IN DYNAMICS?
 
    Currently, DHExps (as produced by the elaborator and produced/consumed
    by the evaluator) do not in general persist ids; the exceptions are
@@ -33,14 +33,6 @@
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-let compare = Uuidm.compare;
-
-let pp: (Format.formatter, Uuidm.t) => unit = Uuidm.pp;
-
-let to_string = Uuidm.to_string;
-
-let of_string = Uuidm.of_string;
-
 let sexp_of_t: Uuidm.t => Sexplib.Sexp.t =
   t => Sexplib.Sexp.Atom(Uuidm.to_string(t));
 
@@ -64,10 +56,15 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
 
 type t = Uuidm.t;
 
+let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
+
+let compare: (t, t) => int = Uuidm.compare;
+let pp: (Format.formatter, t) => unit = Uuidm.pp;
+let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
+let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
+
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
-
-let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
 
 module Map = {
   include Map.Make(Uuidm);
@@ -96,9 +93,8 @@ module Map = {
          Format.fprintf(fmt, "%a -> %a\n", pp, k, pp_v, v)
        );
 };
-
 let invalid: t =
-  Uuidm.of_string("00000000-0000-0000-0000-000000000000") |> Option.get;
+  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
 
 module Uf: {
   type store('a);

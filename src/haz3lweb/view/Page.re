@@ -79,6 +79,11 @@ let nut_menu =
         _ => inject(Set(SecondaryIcons)),
         ~tooltip="Toggle Visible Secondary",
       ),
+      button(
+        Icons.sprout,
+        _ => inject(ExportPersistentData),
+        ~tooltip="Export Persistent Data",
+      ),
       link(
         Icons.github,
         "https://github.com/hazelgrove/hazel",
@@ -97,7 +102,7 @@ let top_bar_view =
   div(
     ~attr=Attr.id("top-bar"),
     nut_menu(~inject, settings)
-    @ [div(~attr=Attr.id("title"), [text("HAZEL")])]
+    @ [div(~attr=Attr.id("title"), [text("hazel")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)]
     @ history_bar(Editors.get_editor(editors), ~inject)
     @ toolbar_buttons,

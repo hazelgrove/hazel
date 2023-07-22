@@ -26,7 +26,7 @@ let grounded_Arrow =
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
-  let sm' = sm |> TagMap.map(Option.map(const_unknown));
+  let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
   NotGroundOrHole(Sum(sm'));
 };
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
@@ -59,21 +59,25 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
       tys |> List.length |> grounded_Prod;
     }
   | Sum(sm) =>
-    sm |> TagMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
+    sm |> ConstructorMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
   | Arrow(_, _) => grounded_Arrow
   | List(_) => grounded_List
   };
 };
 
 let cast_sum_maps =
-    (sm1: Typ.sum_map, sm2: Typ.sum_map): option(TagMap.t((Typ.t, Typ.t))) => {
-  let (tags1, tys1) = sm1 |> TagMap.bindings |> List.split;
-  let (tags2, tys2) = sm2 |> TagMap.bindings |> List.split;
-  if (tags1 == tags2) {
+    (sm1: Typ.sum_map, sm2: Typ.sum_map)
+    : option(ConstructorMap.t((Typ.t, Typ.t))) => {
+  let (ctrs1, tys1) = sm1 |> ConstructorMap.bindings |> List.split;
+  let (ctrs2, tys2) = sm2 |> ConstructorMap.bindings |> List.split;
+  if (ctrs1 == ctrs2) {
     let tys1 = tys1 |> List.filter(Option.is_some) |> List.map(Option.get);
     let tys2 = tys2 |> List.filter(Option.is_some) |> List.map(Option.get);
     if (List.length(tys1) == List.length(tys2)) {
-      Some(List.(combine(tys1, tys2) |> combine(tags1)) |> TagMap.of_list);
+      Some(
+        List.(combine(tys1, tys2) |> combine(ctrs1))
+        |> ConstructorMap.of_list,
+      );
     } else {
       None;
     };
@@ -90,7 +94,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Wild, _) => Matches(Environment.empty)
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
-  | (BadTag(_), _) => IndetMatch
+  | (BadConstructor(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
@@ -165,11 +169,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       }
     }
   | (
-      Ap(Tag(tag), dp_opt),
+      Ap(Constructor(ctr), dp_opt),
       Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(tag, Some(dp_opt), d, [castmap])
+    | Some(castmap) => matches_cast_Sum(ctr, Some(dp_opt), d, [castmap])
     | None => DoesNotMatch
     }
 
@@ -178,21 +182,21 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
-  | (Tag(tag), Tag(tag')) =>
-    tag == tag' ? Matches(Environment.empty) : DoesNotMatch
+  | (Constructor(ctr), Constructor(ctr')) =>
+    ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
   | (
-      Tag(tag),
+      Constructor(ctr),
       Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(tag, None, d, [castmap])
+    | Some(castmap) => matches_cast_Sum(ctr, None, d, [castmap])
     | None => DoesNotMatch
     }
-  | (Tag(_), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_))) =>
+  | (Constructor(_), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_))) =>
     matches(dp, d)
-  | (Tag(_), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+  | (Constructor(_), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
     matches(dp, d)
-  | (Tag(_), _) => DoesNotMatch
+  | (Constructor(_), _) => DoesNotMatch
 
   | (Tuple(dps), Tuple(ds)) =>
     if (List.length(dps) != List.length(ds)) {
@@ -256,26 +260,26 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   }
 and matches_cast_Sum =
     (
-      tag: string,
+      ctr: string,
       dp: option(DHPat.t),
       d: DHExp.t,
-      castmaps: list(TagMap.t((Typ.t, Typ.t))),
+      castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
     )
     : match_result =>
   switch (d) {
-  | Tag(tag') =>
+  | Constructor(ctr') =>
     switch (
       dp,
-      castmaps |> List.map(TagMap.find_opt(tag')) |> OptUtil.sequence,
+      castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
     ) {
     | (None, Some(_)) =>
-      tag == tag' ? Matches(Environment.empty) : DoesNotMatch
+      ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
     | _ => DoesNotMatch
     }
-  | Ap(Tag(tag'), d') =>
+  | Ap(Constructor(ctr'), d') =>
     switch (
       dp,
-      castmaps |> List.map(TagMap.find_opt(tag')) |> OptUtil.sequence,
+      castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
     ) {
     | (Some(dp), Some(side_casts)) =>
       matches(dp, DHExp.apply_casts(d', side_casts))
@@ -283,12 +287,12 @@ and matches_cast_Sum =
     }
   | Cast(d', Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))) =>
     switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(tag, dp, d', [castmap, ...castmaps])
+    | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
     }
   | Cast(d', Sum(_) | Rec(_, Sum(_)), Unknown(_))
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
-    matches_cast_Sum(tag, dp, d', castmaps)
+    matches_cast_Sum(ctr, dp, d', castmaps)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
@@ -401,7 +405,7 @@ and matches_cast_Tuple =
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Prj(_) => DoesNotMatch
-  | Tag(_) => DoesNotMatch
+  | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -535,7 +539,7 @@ and matches_cast_Cons =
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
-  | Tag(_) => DoesNotMatch
+  | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -665,7 +669,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
-      | BoxedValue(Tag(_)) =>
+      | BoxedValue(Constructor(_)) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
@@ -713,7 +717,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Tag(_) => BoxedValue(d) |> return
+    | Constructor(_) => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = evaluate(env, d1);
