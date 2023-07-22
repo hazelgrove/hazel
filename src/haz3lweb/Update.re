@@ -101,7 +101,8 @@ let reevaluate_post_update =
   | InitImportScratchpad(_)
   | FailedInput(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | ExportPersistentData => false
   // may not be necessary on all of these
   // TODO review and prune
   | ResetCurrentEditor
@@ -192,6 +193,32 @@ let switch_exercise_editor =
     Some(Exercise(m, specs, exercise));
   };
 
+/* This action saves a file which serializes all current editor
+   settings, including the states of all Scratch and Example slides.
+   This saved file can directly replace Haz3lweb/Init.ml, allowing
+   you to make your current state the default startup state.
+
+   This does NOT save any Exercises mode state or any langdocs
+   state. The latter is intentional as we don't want to persist
+   this between users. The former is a TODO, currently difficult
+   due to the more complex architecture of Exercises. */
+let export_persistent_data = () => {
+  let data: PersistentData.t = {
+    examples: Store.Examples.load() |> Store.Examples.to_persistent,
+    scratch: Store.Scratch.load() |> Store.Scratch.to_persistent,
+    settings: Store.Settings.load(),
+  };
+  let contents =
+    "let startup : PersistentData.t = " ++ PersistentData.show(data);
+  JsUtil.copy(contents);
+  JsUtil.download_string_file(
+    ~filename="Init.ml",
+    ~content_type="text/plain",
+    ~contents,
+  );
+  print_endline("INFO: Persistent data exported to Init.ml");
+};
+
 let apply =
     (model: Model.t, update: t, state: State.t, ~schedule_action)
     : Result.t(Model.t) => {
@@ -221,6 +248,9 @@ let apply =
     | FinishImportScratchpad(data) =>
       let editors = Editors.import_current(model.editors, data);
       Model.save_and_return({...model, editors});
+    | ExportPersistentData =>
+      export_persistent_data();
+      Ok(model);
     | ResetSlide =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
