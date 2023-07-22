@@ -70,7 +70,15 @@ let nut_menu =
             Virtual_dom.Vdom.Effect.Ignore;
           },
         ),
-        [submenu_label("Export Submission")],
+        [
+          submenu_button("Export Submission", _ => {
+            download_editor_state(~instructor_mode);
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          submenu_button("Export Persistent Data", _ =>
+            inject(ExportPersistentData)
+          ),
+        ],
       ),
       submenu(
         file_select_button("import-submission", Icons.import, file => {
@@ -102,7 +110,7 @@ let top_bar_view =
   div(
     ~attr=Attr.id("top-bar"),
     nut_menu(~inject, settings)
-    @ [div(~attr=Attr.id("title"), [text("HAZEL")])]
+    @ [div(~attr=Attr.id("title"), [text("hazel")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)]
     @ history_bar(Editors.get_editor(editors), ~inject)
     @ toolbar_buttons,
