@@ -14,8 +14,10 @@ let is_action_logged: UpdateAction.t => bool =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | DebugAction(_) => false
-  | Execute(_)
+  | DebugAction(_)
+  | StoreKey(_) => false
+  | Reset
+  | Execute
   | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)

@@ -106,7 +106,8 @@ let reevaluate_post_update =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | StoreKey(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
@@ -122,9 +123,10 @@ let reevaluate_post_update =
   | Cut
   | Paste(_)
   | Agent(_)
-  | Execute(_)
+  | Execute
   | Undo
-  | Redo => true;
+  | Redo
+  | Reset => true;
 
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
@@ -208,6 +210,7 @@ let rec apply =
   //print_endline(update |> sexp_of_t |> Sexplib.Sexp.to_string);
   let m: Result.t(Model.t) =
     switch (update) {
+    | Reset => Ok(Model.reset())
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       /* NOTE: Need to reload model for editors to load */
@@ -222,16 +225,18 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
-    | Execute(fake_str) =>
-      print_endline("fake: " ++ fake_str);
+    | StoreKey(k, v) =>
+      Store.Generic.save(k, v);
+      Ok(model);
+    | Execute =>
       let editor = model.editors |> Editors.get_editor;
       let str = Printer.to_string_selection(editor);
-      print_endline("EXECUTE: " ++ str);
+      print_endline("Execute: Parsing action: " ++ str);
       let update: UpdateAction.t =
         try(str |> Sexplib.Sexp.of_string |> t_of_sexp) {
         | _ =>
-          print_endline("execute parse failes, saving instead lol");
-          Save; //TODO
+          print_endline("Execute: Action not recognized");
+          Save;
         };
       apply(model, update, state, ~schedule_action);
     | Save => Model.save_and_return(model)

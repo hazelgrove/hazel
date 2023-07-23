@@ -99,24 +99,26 @@ let collate_samples: samples => list(string) =
     )
   );
 
-let code_instructions = [
-  {|You are an experienced developer tasked with helping with code completions |},
-  "When you encounter an incomplete program sketch as a prompt, you come up with a reasonable replacement for the hole labelled ?? in the actual prompt",
-  "Your replacement suggestion doesn't have to be complete; it's okay to leave holes (marked '?') in your completion if there isn't enough information to fill them in",
-  "Respond only with a replacement for the symbol ?? in the actual prompt",
-  "Respond only with a single replacement expression; you do not need to provide replacements for the samples",
-  "Do not suggest replacements for other holes in the sketch (marked '?'), or implicit holes. Suggest a replacement only for the distinguished hole ('??')",
-  "Do not include the provided program sketch in your response",
-  "Include only code in your response",
-  "Use C-style function application syntax, with parenthesis around comma-separated arguments",
-  "Do not include a period at the end of your response",
-  "HAZEL SYNTACTIC DIFFERENCES",
+let main_prompt = [
+  "Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
+  //"Your replacement suggestion doesn't have to be complete; it's okay to leave holes (marked '?') in your completion if there isn't enough information to fill them in",
+  "Reply only with a single replacement term for the unqiue distinguished hole marked '??'",
+  "Reply only with code",
+  "DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
+  "DO NOT include the program sketch in your reply",
+  "DO NOT include a period at the end of your response and DO NOT use markdown",
+  //"DO NOT provide replacements for the samples",
+];
+
+let hazel_syntax_notes = [
+  "START HAZEL SYNTAX NOTES:",
+  "0. Hazel uses C-style function application syntax, with parenthesis around comma-separated arguments",
   "1. Function application is ALWAYS written using parentheses and commas: use 'function(arg1, arg2)'. DO NOT just use spaces between the function name and arguments.",
   "2. Function parameters are ALWAYS commas separated: 'fun arg1, arg2 -> <exp>'. DO NOT use spaces to separate function arguments.",
   "2. Pattern matching is ALWAYS written a 'case ... end' expression. Cases MUST END in an 'end' keyword. DO NOT USE any other keyword besides 'case' to do pattern matching.  DO NOT USE a 'with' or 'of' keyword with 'case', just start the list of rules. Pattern matching rules use syntax '| pattern => expression'. Note the '=>' arrow.",
   "3. The ONLY way to define a named function is by using a function expression nested in a let expression like 'let <pat> = fun <pat> -> <exp> in <exp'. There is no support for specifying the function arguments directly as part of the let. DO NOT write function arguments in the let pattern.",
   "4. No 'rec' keyword is necessary for 'let' to define a recursive function. DO NOT use the 'rec' keyword with 'let'.",
-  "END HAZEL SYNTACTIC DIFFERENCES",
+  "END HAZEL SYNTAX NOTES",
 ];
 
 /*
@@ -171,7 +173,8 @@ let prompt = (~ctx_init, editor: Editor.t): option(string) => {
   let prefix =
     ["Consider these examples:"]
     @ collate_samples(samples)
-    @ code_instructions;
+    @ main_prompt
+    @ hazel_syntax_notes;
   let body = Printer.to_string_editor(~holes=Some("?"), editor);
   switch (String.trim(body)) {
   | "" => None
