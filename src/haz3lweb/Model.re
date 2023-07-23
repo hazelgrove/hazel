@@ -122,3 +122,14 @@ let save_and_return = (model: t) => {
   save(model);
   Ok(model);
 };
+let reset = (): t => {
+  /* Reset model to default, including in localstorage,
+     but don't otherwise erase localstorage,, allowing
+     e.g. api keys to persist */
+  ignore(Store.Settings.init());
+  ignore(Store.LangDocMessages.init());
+  ignore(Store.Scratch.init());
+  ignore(Store.Examples.init());
+  ignore(Store.Exercise.init(~instructor_mode=true));
+  load(blank);
+};

@@ -46,20 +46,22 @@ type set_meta =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
+  | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | Execute(string)
+  | StoreKey(string, string)
+  | Execute /* Attempt to parse selection as sexp UpdateAction */
   /* editors */
   | Save
   | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
-  | SwitchEditor(Exercise.pos) //schoolmode only
+  | SwitchEditor(Exercise.pos) //exercisemode only
+  | SwitchExampleSlide(string) //examplemode only
   // editors: scratchmode only
   | SwitchScratchSlide(int)
-  | SwitchExampleSlide(string) // scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
   /* editor */

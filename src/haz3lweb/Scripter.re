@@ -1,7 +1,7 @@
 open Haz3lcore;
 open Sexplib.Std;
 
-let sketch_slide = 3;
+let sketch_slide = 7;
 let fill_marker = "FILL_ME";
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -41,6 +41,7 @@ let is_fill_marker: Piece.t => bool =
 let mk_script =
     (~llm, ~prompt_builder, ~sketch: string): list(UpdateAction.t) => {
   [
+    Reset,
     SwitchScratchSlide(sketch_slide),
     PerformAction(Move(Extreme(Up))),
     PerformAction(Select(Resize(Extreme(Down)))),

@@ -117,6 +117,13 @@ module App = {
       )
       >= 0;
 
+    switch (JsUtil.Fragment.get_current()) {
+    | Some("auto") =>
+      print_endline("AUTO: Starting script");
+      schedule_action(SetMeta(Auto(StartRun())));
+    | _ => ()
+    };
+
     Async_kernel.Deferred.return(state);
   };
 
