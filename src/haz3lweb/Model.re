@@ -61,7 +61,7 @@ let cutoff = (===);
 
 let mk = editors => {
   editors,
-  settings: ModelSettings.init,
+  settings: Init.startup.settings,
   langDocMessages: LangDocMessages.init,
   meta: meta_init,
 };
@@ -69,7 +69,8 @@ let mk = editors => {
 let blank = mk(Editors.Scratch(0, []));
 let debug = mk(Editors.DebugLoad);
 
-let load_editors = (~mode: Editors.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors =
+    (~mode: ModelSettings.mode, ~instructor_mode: bool): Editors.t =>
   switch (mode) {
   | DebugLoad => DebugLoad
   | Scratch =>

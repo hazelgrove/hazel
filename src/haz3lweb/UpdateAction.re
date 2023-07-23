@@ -11,7 +11,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(Editors.mode);
+  | Mode(ModelSettings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type filler_options = {
@@ -53,18 +53,19 @@ type t =
   | DebugAction(DebugAction.t)
   | StoreKey(string, string)
   | Execute /* Attempt to parse selection as sexp UpdateAction */
+  | ExportPersistentData
   /* editors */
-  | Save
   | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
   | SwitchEditor(Exercise.pos) //exercisemode only
   | SwitchExampleSlide(string) //examplemode only
   // editors: scratchmode only
-  | SwitchScratchSlide(int)
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
+  | SwitchScratchSlide(int)
   /* editor */
+  | Save
   | PerformAction(Action.t)
   | ReparseCurrentEditor
   | Cut
