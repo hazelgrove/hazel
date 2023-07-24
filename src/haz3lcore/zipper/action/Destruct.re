@@ -134,7 +134,7 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   | (_, Outer, (Some(l), Some(r)))
       //Below line is causing the issues with as patterns - they are the only infix operator with a word and thus are being treated as a valid form (word) which they are not
       when Form.is_valid_token(l ++ r) && l != "as" =>
-      //This long (sketchy) switch statement handles the case of deleting the "s" in the "as" pattern. If the pattern is an "as", the deletion is treated the same way as an equivalent infix operator (with a symbol instead of a keyword) inside deletion would be treated. In the case of all other infix operators, as the above comment states, the new form (l ++ r) would not be valid (because it contains a symbol), but the "as" operator l ++ r is valid, so this manual check of the infix being an "as" operator is necessary to work properly. 
+    //This long (sketchy) switch statement handles the case of deleting the "s" in the "as" pattern. If the pattern is an "as", the deletion is treated the same way as an equivalent infix operator (with a symbol instead of a keyword) inside deletion would be treated. In the case of all other infix operators, as the above comment states, the new form (l ++ r) would not be valid (because it contains a symbol), but the "as" operator l ++ r is valid, so this manual check of the infix being an "as" operator is necessary to work properly.
     switch (Zipper.select(d, original_zipper)) {
     | Some(zip) =>
       switch (List.hd(zip.selection.content)) {
