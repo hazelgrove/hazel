@@ -67,6 +67,7 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Tag(_) => Tag
+    | TupLabel(_) => Int //TODO
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Module(_) => Module
@@ -106,6 +107,7 @@ module UTyp = {
     | Bool
     | String
     | List(_)
+    | TupLabel(_)
     | Tuple(_)
     | Var(_)
     | Module(_)
@@ -133,6 +135,7 @@ module UTyp = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+      | TupLabel(_, e) => to_typ(ctx, e)
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
@@ -676,6 +679,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Fun(_) => Fun
+    | TupLabel(_) => Int //TODO
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
@@ -784,6 +788,7 @@ module UExp = {
     | Float(_)
     | String(_)
     | ListLit(_)
+    | TupLabel(_)
     | Tuple(_)
     | Var(_)
     | Let(_)
@@ -831,6 +836,7 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | TupLabel(_)
       | Tag(_) => false
       }
     );

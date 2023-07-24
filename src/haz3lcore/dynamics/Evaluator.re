@@ -323,6 +323,7 @@ and matches_cast_Sum =
   | FloatLit(_)
   | StringLit(_)
   | ListLit(_)
+  | TupLabel(_)
   | Tuple(_)
   | Prj(_)
   | ConsistentCase(_)
@@ -339,6 +340,7 @@ and matches_cast_Tuple =
     )
     : match_result =>
   switch (d) {
+  | TupLabel(_) => DoesNotMatch
   | Tuple(ds) =>
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
@@ -551,6 +553,7 @@ and matches_cast_Cons =
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | TupLabel(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Tag(_) => DoesNotMatch
@@ -894,6 +897,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
         };
       };
+
+    | TupLabel(_) => BoxedValue(d) |> return
 
     | Tuple(ds) =>
       let+ lst = ds |> List.map(evaluate(env)) |> sequence;

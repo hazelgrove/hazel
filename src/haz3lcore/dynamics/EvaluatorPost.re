@@ -117,6 +117,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
+  | TupLabel(_) => d |> return
+
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -357,6 +359,8 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
+  | TupLabel(_) => d |> return
+
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -492,6 +496,8 @@ let rec track_children_of_hole =
       ds,
       hii,
     )
+
+  | TupLabel(_) => hii
 
   | Tuple(ds) =>
     List.fold_right(

@@ -87,6 +87,26 @@ let is_tuple_pat = is_nary(TermBase.Any.is_pat, ",");
 let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
 let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
+// TODO: Clean this up
+/*
+ let convert_tuple_terms_exp_help =
+   fun
+   | (id, UExp.TupLabel(p, e)) => (Some(p), e)
+   //| e => (None, e)
+   | _ => raise(Not_found);
+
+ let convert_tuple_terms_exp = ts =>
+   List.map(convert_tuple_terms_exp_help, ts);
+
+ let convert_tuple_terms_typ_help =
+   fun
+   | UTyp.TupLabel(p, t) => (Some(p), t)
+   //| e => (None, e)
+   | _ => raise(Not_found);
+
+ let convert_tuple_terms_typ = ts =>
+   List.map(convert_tuple_terms_exp_help, ts);
+ */
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
@@ -247,6 +267,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | _ => hole(tm)
         },
       )
+    | _ => ret(hole(tm))
+    }
+  | Bin(Pat(p), tiles, Exp(e)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(TupLabel(p, e))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -421,6 +446,11 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | Some(between_kids) =>
       ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
+    }
+  | Bin(Pat(p), tiles, Typ(t)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(TupLabel(p, t))
+    | _ => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {

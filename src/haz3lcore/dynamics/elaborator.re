@@ -91,6 +91,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
       | _ => d
       }
+    | TupLabel(_) => DHExp.cast(d, self_ty, ana_ty)
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -187,6 +188,7 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TupLabel(_) => Some(Tuple([])) // TODO
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);

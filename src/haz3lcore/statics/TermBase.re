@@ -15,6 +15,8 @@ module rec Any: {
   let is_exp: t => option(UExp.t);
   let is_pat: t => option(UPat.t);
   let is_typ: t => option(UTyp.t);
+  /*let is_exp_tuple: (option(t), t) => option((option(UPat.t), UExp.t));
+    let is_typ_tuple: (option(t), t) => option((option(UPat.t), UTyp.t));*/
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -38,6 +40,17 @@ module rec Any: {
     fun
     | Typ(t) => Some(t)
     | _ => None;
+  /*
+   let is_exp_tuple: (option(t), t) => option((option(UPat.t), UExp.t)) =
+     fun
+     | (Some(Pat(p)), Exp(e)) => Some((Some(Pat(p)), Exp(e)))
+     | (None, Exp(e)) => Some((None, Exp(e)))
+     | _ => None;
+   let is_typ_tuple: (option(t), t) => option((option(UPat.t), UTyp.t)) =
+     fun
+     | (Some(Pat(p)), Exp(e)) => Some((Some(Pat(p)), Exp(e)))
+     | (None, Exp(e)) => Some((None, Exp(e)))
+     | _ => None;*/
 }
 and UExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -132,6 +145,7 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
+    | TupLabel(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
@@ -245,6 +259,7 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
+    | TupLabel(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
@@ -331,6 +346,7 @@ and UTyp: {
     | Var(string)
     | Tag(string)
     | Arrow(t, t)
+    | TupLabel(UPat.t, t)
     | Tuple(list(t))
     | Parens(t)
     | Module(UPat.t)
@@ -358,6 +374,7 @@ and UTyp: {
     | Var(string)
     | Tag(string)
     | Arrow(t, t)
+    | TupLabel(UPat.t, t)
     | Tuple(list(t))
     | Parens(t)
     | Module(UPat.t)

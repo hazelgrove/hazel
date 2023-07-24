@@ -1186,6 +1186,7 @@ let get_doc =
         | TypeAnn(_) => default // Shouldn't get hit?
         | TyAlias(_) => default //TODO
         };
+      | TupLabel(_) => basic_info(LangDocMessages.empty_hole_exp_group)
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
           get_message(
@@ -2683,6 +2684,19 @@ let get_doc =
           );
         basic(doc, LangDocMessages.arrow_typ_group, options);
       };
+    | TupLabel(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.bool_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.bool_typ_group,
+        doc.explanation.message,
+        [],
+      );
     | Tuple(elements) =>
       let basic = (doc, group, options) =>
         get_message(

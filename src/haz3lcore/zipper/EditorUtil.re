@@ -66,6 +66,7 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | ListLit(_)
   | Tag(_)
   | Fun(_)
+  | TupLabel(_)
   | Tuple(_)
   | Var(_)
   | Ap(_)

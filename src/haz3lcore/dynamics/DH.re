@@ -74,6 +74,7 @@ module rec DHExp: {
     | BinStringOp(BinStringOp.t, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
+    | TupLabel(DHPat.t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Tag(string)
@@ -174,6 +175,7 @@ module rec DHExp: {
     | BinStringOp(BinStringOp.t, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
+    | TupLabel(DHPat.t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Tag(string)
@@ -216,6 +218,7 @@ module rec DHExp: {
     | BinStringOp(_, _, _) => "BinStringOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
+    | TupLabel(_) => "Tuple Item Label"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Tag(_) => "Tag"
@@ -248,6 +251,7 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
+    | TupLabel(_, t) => strip_casts(t)
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
@@ -321,6 +325,7 @@ module rec DHExp: {
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (TupLabel(_), _) => true
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)

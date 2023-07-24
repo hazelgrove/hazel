@@ -248,6 +248,8 @@ let forms: list((string, t)) = [
     mk(ds, ["Type", "="], mk_pre'(P.if_, Pat, Pat, [TPat], Typ)),
   ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("tuple_label_exp", mk(ss, [":"], mk_bin'(P.ann, Exp, Pat, [], Exp))), // assigns exp to an existing pat in the ctx. TODO: Rename
+  ("tuple_label_typ", mk(ss, [":"], mk_bin'(P.ann, Typ, Pat, [], Typ))), // assigns typ to an existing pat in the ctx. TODO: Rename
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
     "rule",
