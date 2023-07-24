@@ -135,8 +135,10 @@ let remold = (z: t): t => {
   {...z, relatives: Relatives.remold(z.relatives)};
 };
 
-let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
+let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) => {
+  print_endline(show(z));
   z |> remold |> regrout(d);
+};
 
 let unselect = (z: t): t => {
   let relatives =

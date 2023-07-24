@@ -82,6 +82,10 @@ let go_z =
   | Destruct(d) =>
     (z, id_gen)
     |> Destruct.go(d)
+    |> (z) => {
+        print_endline("why #4: ");
+        z
+        }
     |> Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>

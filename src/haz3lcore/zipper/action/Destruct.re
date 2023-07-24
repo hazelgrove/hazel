@@ -112,8 +112,10 @@ let parent_duomerges = (z: Zipper.t) => {
 };
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
+  let original_zipper = z;
   let* (z, id_gen) = destruct(d, (z, id_gen));
   let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
+
   switch (
     parent_duomerges(z),
     z.caret,
@@ -130,8 +132,29 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
     |> Option.some
   | (_, Outer, (Some(l), Some(r)))
+      //Below line is causing the issues with as patterns - they are the only infix operator with a word and thus are being treated as a valid form (word) which they are not
       when Form.is_valid_token(l ++ r) && l != "as" =>
-    merge((l, r), (z_trimmed, id_gen))
+      // let* z_select = Zipper.select(d, original_zipper);
+      // print_endline(Selection.show(z_select.selection));
+    switch (Zipper.select(d, original_zipper)) {
+    | Some(zip) =>
+        print_endline("why");
+      switch (List.hd(zip.selection.content)) {
+      | Tile(tile) =>
+        print_endline("why #2");
+        print_endline("label: " ++ Label.show(tile.label))
+        switch (List.hd(tile.label)) {
+        | "as" => 
+        print_endline("why #3");
+        Some((zip, id_gen))
+        | _ => 
+        print_endline("why #3 (second option)");
+        merge((l, r), (z_trimmed, id_gen))
+        }
+      | _ => merge((l, r), (z_trimmed, id_gen))
+      }
+    | None => merge((l, r), (z_trimmed, id_gen))
+    }
   | _ => Some((z, id_gen))
   };
 };
