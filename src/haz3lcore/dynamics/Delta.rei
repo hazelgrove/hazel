@@ -7,11 +7,11 @@ type hole_sort =
 type val_ty = (hole_sort, Typ.t, Ctx.t);
 
 [@deriving sexp]
-type t = MetaVarMap.t((hole_sort, Typ.t, Ctx.t));
+type t = MetaVarMap.t(val_ty);
 
 let empty: t;
 
-let add: (MetaVar.t, (hole_sort, Typ.t, Ctx.t), t) => t;
+let add: (MetaVar.t, val_ty, t) => t;
 
 let union: (t, t) => t;
 
