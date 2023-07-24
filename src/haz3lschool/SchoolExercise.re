@@ -733,9 +733,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  /* Takes the state and ModelResults object to extract and
-     return the DHExp expressions corresponding to the editors in school mode
-     along with the evaluation result of each expression.*/
+  /* Extracts and returns the DHExp expression
+     and its evaluation result for each
+     top-level component in school mode.*/
   let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     let {
       test_validation,

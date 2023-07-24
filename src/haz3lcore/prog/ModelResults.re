@@ -1,11 +1,10 @@
 open Sexplib.Std;
 
-/* This module is a map used to store ModelResult.t objects
-      where the key is used to distiguish between editors on
-      a particular page.
+/* This module is a map storing ModelResult.t
+      values where the key distinguishes between
+      different evaluations of DHExps when inserted.
 
-      It is used in haz3lweb/Update.re
-      The keys for school mode editors are in haz3lschool/SchoolExercise.re
+      The keys for school mode are in haz3lschool/SchoolExercise.re
    */
 
 module Key = {
