@@ -19,18 +19,19 @@ let tests_raw = (~ctx_init): list(test) => [
     llm: GPT3_5Turbo,
     prompt_builder: Filler.prompt(~ctx_init),
   },
-  {
-    name: "two",
-    sketch: "let lol: Int = FILL_ME in lol + 1337",
-    llm: GPT3_5Turbo,
-    prompt_builder: Filler.prompt(~ctx_init),
-  },
-  {
-    name: "three",
-    sketch: "let lol: Int-> Bool = FILL_ME in lol(4) && lol(5)",
-    llm: GPT3_5Turbo,
-    prompt_builder: Filler.prompt(~ctx_init),
-  },
+  /*
+   {
+     name: "two",
+     sketch: "let lol: Int = FILL_ME in lol + 1337",
+     llm: GPT3_5Turbo,
+     prompt_builder: Filler.prompt(~ctx_init),
+   },
+    {
+        name: "three",
+        sketch: "let lol: Int-> Bool = FILL_ME in lol(4) && lol(5)",
+        llm: GPT3_5Turbo,
+        prompt_builder: Filler.prompt(~ctx_init),
+      },*/
 ];
 
 let is_fill_marker: Piece.t => bool =

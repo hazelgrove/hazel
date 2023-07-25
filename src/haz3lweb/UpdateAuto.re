@@ -8,11 +8,11 @@ let go =
     ) => {
   switch (action) {
   | StartRun () =>
-    print_endline("RUN: starting");
+    print_endline("AUTO: StartRun");
     switch (model.meta.auto) {
     | {current_script: Some(_), _}
     | {to_run: [_, ..._], _} =>
-      print_endline("RUN: Error: run already in progress");
+      print_endline("AUTO: StartRun: Error: run already in progress");
       model.meta;
     | _ =>
       schedule_action(SetMeta(Auto(StartTest()))); //TODO: which test?
@@ -22,19 +22,27 @@ let go =
         to_run: Scripter.test_scripts(~ctx_init),
         reports: VarMap.empty,
       };
+      print_endline(
+        "AUTO: StartRun: Number of scripts to run: "
+        ++ (auto.to_run |> List.length |> string_of_int),
+      );
       {...model.meta, auto};
     };
   | StartTest () =>
     switch (model.meta.auto) {
     | {current_script: Some(_), _} =>
-      print_endline("SCRIPT: Error: previous test still in progress");
+      print_endline(
+        "AUTO: StartTest: Error: previous test still in progress",
+      );
       model.meta;
     | {to_run: [], reports, _} =>
-      print_endline("SCRIPT: Error: no tests left to run. Results:");
+      print_endline("AUTO: StartTest: Finsihed all tests. Results:");
       print_endline(Auto.show_reports(Auto.pp_llm_report, reports));
+      let json_report = Auto.yojson_of_llm_reports(reports);
+      JsUtil.download_json("hazel-llm-auto-results", json_report);
       model.meta;
     | {to_run: [(name, s1), ...to_run], reports, _} =>
-      print_endline("SCRIPT: Starting script: " ++ name);
+      print_endline("AUTO: StartTest: Starting script: " ++ name);
       List.iter(schedule_action, s1);
       let auto: UpdateAction.auto_llm = {
         current_script: Some(name),
@@ -49,10 +57,10 @@ let go =
   | EndTest () =>
     switch (model.meta.auto) {
     | {current_script: None, _} =>
-      print_endline("SCRIPT: EndTest: Error: no test in progress");
+      print_endline("AUTO: EndTest: Error: no test in progress");
       model.meta;
     | {current_script: Some(name), to_run: _, reports: _, _} =>
-      print_endline("SCRIPT: Ending script: " ++ name);
+      print_endline("AUTO: EndTest: Ending script: " ++ name);
       //TODO(andrew): abstract this script into cleanup function
       schedule_action(Agent(AcceptSuggestion));
       schedule_action(SetMeta(Auto(LogTest())));
@@ -63,7 +71,7 @@ let go =
       switch (VarMap.lookup(model.meta.auto.reports, name)) {
       | None =>
         print_endline(
-          "Script: UpdateResult: Creating new report entry for: " ++ name,
+          "AUTO: UpdateResult: Creating new report entry for: " ++ name,
         );
         VarMap.extend(
           model.meta.auto.reports,
@@ -71,7 +79,7 @@ let go =
         );
       | Some(_) =>
         print_endline(
-          "Script: UpdateResult: Updating existing report entry for: " ++ name,
+          "AUTO: UpdateResult: Updating existing report entry for: " ++ name,
         );
         VarMap.update(model.meta.auto.reports, name, updater);
       };
@@ -87,7 +95,7 @@ let go =
     | {current_script: Some(name), to_run, reports, _} =>
       let editor = Editors.get_editor(model.editors);
       let ctx_init = Editors.get_ctx_init(model.editors);
-      print_endline("SCRIPT: LogTest: Logging script: " ++ name);
+      print_endline("AUTO: LogTest: Logging script: " ++ name);
       let info_map =
         ChatLSP.get_info_from_zipper(~ctx_init, editor.state.zipper);
       let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
@@ -118,7 +126,7 @@ let go =
         },
       };
     | {current_script: None, _} =>
-      print_endline("SCRIPT: LogTest: Error: no test in progress");
+      print_endline("AUTO: LogTest: Error: no test in progress");
       model.meta;
     }
   };

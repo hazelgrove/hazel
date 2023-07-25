@@ -235,7 +235,7 @@ let rec apply =
         : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
-    | Reset => Ok(Model.reset())
+    | Reset => Ok(Model.reset(model))
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       /* NOTE: Need to reload model for editors to load */

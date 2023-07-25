@@ -63,6 +63,9 @@ type llm_report = {
   syntax_errors: option(list(string)),
 };
 
+[@deriving (show({with_path: false}), yojson, sexp)]
+type llm_reports = VarMap.t_(llm_report);
+
 let blank_llm_report = {
   time_start: None,
   time_end: None,
