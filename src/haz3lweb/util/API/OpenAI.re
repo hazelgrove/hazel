@@ -4,7 +4,8 @@ open Util.OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat_models =
   | GPT4
-  | GPT3_5Turbo;
+  | GPT3_5Turbo
+  | Azure_GPT3_5Turbo;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
@@ -14,7 +15,8 @@ type role =
 let string_of_chat_model =
   fun
   | GPT4 => "gpt-4"
-  | GPT3_5Turbo => "gpt-3.5-turbo";
+  | GPT3_5Turbo => "gpt-3.5-turbo"
+  | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo";
 
 let string_of_role =
   fun
@@ -44,7 +46,7 @@ let string_of_role =
       ]
    }*/
 
-let body = (~llm=GPT4, messages: list((role, string))): Json.t => {
+let body = (~llm, messages: list((role, string))): Json.t => {
   let mk_msg = ((role, content)) =>
     `Assoc([
       ("role", `String(string_of_role(role))),
@@ -62,6 +64,7 @@ let additive_chat = (~body, ~handler): unit =>
   switch (Store.Generic.load("OpenAI")) {
   | None => print_endline("NO OPENAI API KEY FOUND")
   | Some(api_key) =>
+    print_endline("POSTing OpenAI API request");
     request(
       ~method=POST,
       ~url="https://api.openai.com/v1/chat/completions",
@@ -71,17 +74,45 @@ let additive_chat = (~body, ~handler): unit =>
       ],
       ~body,
       handler,
-    )
+    );
   };
 
-let start_chat = (~llm=GPT4, prompt, handler): unit =>
-  additive_chat(~body=body_simple(~llm, prompt), ~handler);
+module Azure = {
+  let additive_chat = (~body, ~handler): unit =>
+    switch (Store.Generic.load("AZURE")) {
+    | None => print_endline("NO AZURE API KEY FOUND")
+    | Some(api_key) =>
+      print_endline("POSTing Azure API request");
+      request(
+        ~method=POST,
+        ~url=
+          "https://hazel.openai.azure.com/openai/deployments/gpt35turbo/chat/completions?api-version=2023-05-15",
+        ~headers=[
+          ("Content-Type", "application/json"),
+          ("api-key", api_key),
+        ],
+        ~body,
+        handler,
+      );
+    };
+};
 
-let reply_chat = (prompt, response, reply, handler): unit =>
-  additive_chat(
-    ~body=body([(User, prompt), (Assistant, response), (User, reply)]),
-    ~handler,
-  );
+let start_chat = (~llm, prompt, handler): unit => {
+  let body = body_simple(~llm, prompt);
+  switch (llm) {
+  | Azure_GPT3_5Turbo => Azure.additive_chat(~body, ~handler)
+  | _ => additive_chat(~body=body_simple(~llm, prompt), ~handler)
+  };
+};
+
+let reply_chat = (~llm, prompt, response, reply, handler): unit => {
+  let body =
+    body(~llm, [(User, prompt), (Assistant, response), (User, reply)]);
+  switch (llm) {
+  | Azure_GPT3_5Turbo => Azure.additive_chat(~body, ~handler)
+  | _ => additive_chat(~body, ~handler)
+  };
+};
 
 let handle_chat = (request: request): option(string) =>
   switch (receive(request)) {
