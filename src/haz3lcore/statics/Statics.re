@@ -167,6 +167,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | Some(ty_syn) =>
       let ty_syn = wrap(ty_syn);
       switch (Typ.join(ty_ana, ty_syn)) {
+      | Some(Unknown(_) as ty_join)
       | Some(Arrow(Prod([_, _]), _) as ty_join) =>
         NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
       | Some(_)
