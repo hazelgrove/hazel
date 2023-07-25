@@ -37,6 +37,7 @@ type source = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type free_errors =
   | Variable
+  | UserOpVar
   | UserOp
   | BuiltinOpExists
   | Tag

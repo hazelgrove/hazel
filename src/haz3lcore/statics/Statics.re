@@ -377,6 +377,7 @@ and uexp_to_info_map =
     );
   | Var(name) =>
     switch (Ctx.lookup_var(ctx, name)) {
+    | None when Form.is_op_in_let(name) => atomic(Free(UserOpVar))
     | None => atomic(Free(Variable))
     | Some(var) when Form.is_op_in_let(name) =>
       switch (var.typ) {
@@ -434,11 +435,20 @@ and uexp_to_info_map =
     | None =>
       let (_, free1, m1) = go(~mode=Syn, e1);
       let (_, free2, m2) = go(~mode=Syn, e2);
-      add(
-        ~self=Free(UserOp),
-        ~free=Ctx.union([free1, free2]),
-        union_m([m1, m2]),
-      );
+      switch (op_var) {
+      | None =>
+        add(
+          ~self=Free(UserOpVar),
+          ~free=Ctx.union([free1, free2]),
+          union_m([m1, m2]),
+        )
+      | Some(_) =>
+        add(
+          ~self=Free(UserOp),
+          ~free=Ctx.union([free1, free2]),
+          union_m([m1, m2]),
+        )
+      };
     };
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
