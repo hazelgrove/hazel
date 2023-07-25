@@ -156,6 +156,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     }
   | (AnaInfix(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
+    | Some(Unknown(_) as ty_join)
     | Some(Arrow(Prod([_, _]), _) as ty_join) =>
       NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
     | Some(_)
@@ -442,12 +443,21 @@ and uexp_to_info_map =
           ~free=Ctx.union([free1, free2]),
           union_m([m1, m2]),
         )
-      | Some(_) =>
-        add(
-          ~self=Free(UserOp),
-          ~free=Ctx.union([free1, free2]),
-          union_m([m1, m2]),
-        )
+      | Some(var) =>
+        switch (var.typ) {
+        | Unknown(_) =>
+          add(
+            ~self=Just(var.typ),
+            ~free=Ctx.union([free1, free2]),
+            union_m([m1, m2]),
+          )
+        | _ =>
+          add(
+            ~self=Free(UserOp),
+            ~free=Ctx.union([free1, free2]),
+            union_m([m1, m2]),
+          )
+        }
       };
     };
   | Tuple(es) =>
