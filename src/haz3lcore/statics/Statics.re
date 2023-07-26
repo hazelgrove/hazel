@@ -419,14 +419,18 @@ and uexp_to_info_map =
     let ty_all =
       switch (op_var) {
       | None => None
-      | Some(var) =>
-        switch (var.typ) {
-        | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
-        | _ => None
-        }
+      | Some(var) => Some(Typ.matched_arrow(var.typ))
       };
     switch (ty_all) {
-    | Some((ty_out, ty1, ty2)) =>
+    | Some((Unknown(_) as ty_var, _)) =>
+      let (_, free1, m1) = go(~mode=Syn, e1);
+      let (_, free2, m2) = go(~mode=Syn, e2);
+      add(
+        ~self=Just(ty_var),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
+    | Some((Prod([ty1, ty2]), ty_out)) =>
       let (_, free1, m1) = go(~mode=Ana(ty1), e1);
       let (_, free2, m2) = go(~mode=Ana(ty2), e2);
       add(
@@ -434,32 +438,22 @@ and uexp_to_info_map =
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );
+    | Some(_) =>
+      let (_, free1, m1) = go(~mode=Syn, e1);
+      let (_, free2, m2) = go(~mode=Syn, e2);
+      add(
+        ~self=Free(UserOp),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
     | None =>
       let (_, free1, m1) = go(~mode=Syn, e1);
       let (_, free2, m2) = go(~mode=Syn, e2);
-      switch (op_var) {
-      | None =>
-        add(
-          ~self=Free(UserOpVar),
-          ~free=Ctx.union([free1, free2]),
-          union_m([m1, m2]),
-        )
-      | Some(var) =>
-        switch (var.typ) {
-        | Unknown(_) =>
-          add(
-            ~self=Just(var.typ),
-            ~free=Ctx.union([free1, free2]),
-            union_m([m1, m2]),
-          )
-        | _ =>
-          add(
-            ~self=Free(UserOp),
-            ~free=Ctx.union([free1, free2]),
-            union_m([m1, m2]),
-          )
-        }
-      };
+      add(
+        ~self=Free(UserOpVar),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
     };
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
