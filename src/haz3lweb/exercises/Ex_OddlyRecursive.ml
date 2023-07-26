@@ -3089,11 +3089,10 @@ let exercise : Exercise.spec =
             caret = Outer;
           };
         hints = [ "zero" ];
-        syntax_tests =
-          {
-            var_mention = [ ("xyz", 50.); ("ext", 0.) ];
-            recursive = [ ("odd", 100.); ("dne", 0.) ];
-            tail_recursive = [ ("odd_tail", 20.) ];
-          };
       };
+    syntax_tests =
+      [
+        ("not is used", Haz3lschool.SyntaxTest.var_mention "not");
+        ("odd is recursive", Haz3lschool.SyntaxTest.is_recursive "odd");
+      ];
   }

@@ -3079,6 +3079,7 @@ let exercise : Exercise.spec =
             caret = Outer;
           };
         hints = [];
-        syntax_tests = { var_mention = []; recursive = []; tail_recursive = [] };
       };
+    syntax_tests =
+      [ ("fib is recursive", Haz3lschool.SyntaxTest.is_recursive "fib") ];
   }
