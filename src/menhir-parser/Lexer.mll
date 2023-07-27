@@ -26,7 +26,7 @@ rule token =
     | whitespace {token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
     | int as i { INT (int_of_string i) }
-    | float as f { FlOAT (float_of_string f )}
+    | float as f { FLOAT (float_of_string f )}
     | "true" { TRUE }
     | "false" { FALSE }
     | "let" { LET }
@@ -43,6 +43,8 @@ rule token =
     | "=" { EQUALS }
     | "+" { PLUS }
     | "-" { MINUS } 
+    | "," { COMMA }
+    | ":" { COLON }
     | identifier as i { IDENT(i) }
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }
