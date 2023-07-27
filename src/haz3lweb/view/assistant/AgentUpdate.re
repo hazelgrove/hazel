@@ -33,7 +33,7 @@ let schedule_prompt =
         Prompt(
           Filler(
             Some({
-              llm: Azure_GPT3_5Turbo,
+              llm: GPT4, //Azure_GPT3_5Turbo,
               prompt_builder: Filler.prompt(~ctx_init),
             }),
           ),

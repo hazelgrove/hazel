@@ -66,6 +66,7 @@ module rec Typ: {
   let normalize: (Ctx.t, t) => t;
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
+  let is_unknown: t => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -405,6 +406,12 @@ module rec Typ: {
     | _ => None
     };
   };
+
+  let is_unknown = (ty: t): bool =>
+    switch (ty) {
+    | Unknown(_) => true
+    | _ => false
+    };
 }
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
