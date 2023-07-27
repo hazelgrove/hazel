@@ -48,17 +48,32 @@ module Type = {
   };
 
   let expected = (~ctx, mode: option(Mode.t)): string => {
+    /*
+     TODO(andrew): maybe include more than just the immediate type.
+     like for example, when inside a fn(s), include
+     argument types.
+     like basically to benefit maximally from included type info,
+     want to make sure we're including the full expansion of any type
+     we might want to either case on or construct.
+     expected type should mostly(?) give us the latter,
+     but not always the former
+     */
     let prefix = "Hole ?? can be filled by an expression with ";
     switch (mode) {
     | Some(Ana(Var(name) as ty)) when Ctx.lookup_alias(ctx, name) != None =>
-      let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
+      let ty_expanded = Typ.normalize(ctx, ty);
       prefix
       ++ "a type consistent with "
       ++ Typ.to_string(ty)
       ++ " which is a type alias for "
       ++ Typ.to_string(ty_expanded);
     | Some(Ana(ty)) =>
-      prefix ++ "a type consistent with " ++ Typ.to_string(ty)
+      let ty_expanded = Typ.normalize(ctx, ty);
+      prefix
+      ++ "a type consistent with "
+      ++ Typ.to_string(ty)
+      ++ " which expands to "
+      ++ Typ.to_string(ty_expanded);
     | Some(SynFun) =>
       prefix
       ++ "a type consistent with "

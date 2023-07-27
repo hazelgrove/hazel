@@ -75,7 +75,7 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
   ),
 ];
 
-let mk_prompt =
+let _mk_prompt =
     (prompt: string, expected_ty: string, completion: string): string =>
   Printf.sprintf(
     {|sample prompt: %s\nexpected type: %ssample completion: %s\n|},
@@ -145,11 +145,13 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
         fun
         | Ctx.VarEntry({name, typ: Arrow(_, typ), _})
         | Ctx.ConstructorEntry({name, typ: Arrow(_, typ), _})
-            when Typ.join(ctx, expected_ty, typ) != None =>
+            when
+              Typ.join(ctx, expected_ty, typ) != None && !Typ.is_unknown(typ) =>
           Some(name ++ ": " ++ Typ.to_string(typ))
         | Ctx.VarEntry({name, typ, _})
         | Ctx.ConstructorEntry({name, typ, _})
-            when Typ.join(ctx, expected_ty, typ) != None =>
+            when
+              Typ.join(ctx, expected_ty, typ) != None && !Typ.is_unknown(typ) =>
           Some(name ++ ":" ++ Typ.to_string(typ))
         | _ => None,
         ctx,
