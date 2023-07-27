@@ -1,0 +1,10 @@
+(library
+ (name hazel_menhir)
+ (libraries util re sexplib unionFind)
+ (preprocess
+  (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
+
+(ocamllex Lexer)
+(menhir
+ (modules Parser))
+
