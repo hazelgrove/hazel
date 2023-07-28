@@ -753,13 +753,17 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | BoxedValue(BoolLit(b2)) =>
             BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
           | BoxedValue(d2') =>
-            print_endline("InvalidBoxedBoolLit");
+            print_endline("InvalidBoxedBoolLit1");
+            print_endline("d: " ++ DHExp.show(d));
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
           };
         }
       | BoxedValue(d1') =>
-        print_endline("InvalidBoxedBoolLit");
+        print_endline("InvalidBoxedBoolLit2");
+        print_endline("d1: " ++ DHExp.show(d1));
+        print_endline("d1': " ++ DHExp.show(d1'));
+        print_endline("d: " ++ DHExp.show(d));
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -797,6 +801,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           }
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
+          print_endline("d: " ++ DHExp.show(d));
+          print_endline("d2: " ++ DHExp.show(d2));
+          print_endline("d2': " ++ DHExp.show(d2'));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
@@ -941,6 +948,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
+          print_endline("d:" ++ DHExp.show(d));
+          print_endline("Cons(d1,d2):" ++ DHExp.show(Cons(d1, d2)));
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
       };

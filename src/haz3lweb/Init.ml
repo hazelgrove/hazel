@@ -13,7 +13,7 @@ let startup : PersistentData.t =
         mode = Scratch;
       };
     scratch =
-      ( 6,
+      ( 3,
         [
           ( 33,
             {
@@ -23,11 +23,108 @@ let startup : PersistentData.t =
                  32)(shape Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-          ( 4329,
+          ( 4632,
             {
               zipper =
                 "((selection((focus Left)(content())(mode \
                  Normal)))(backpack())(relatives((siblings(((Tile((id \
+                 4582)(label(!))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 5))(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4583)(label(a))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4585)(content(Whitespace\" \"))))(Tile((id \
+                 4587)(label(&&))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 9))(sort Exp))((shape(Concave 9))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4588)(content(Whitespace\" \"))))(Tile((id \
+                 4589)(label(!))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 5))(sort \
+                 Exp))))))(shards(0))(children()))))((Tile((id \
+                 4590)(label(b))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))(ancestors((((id \
+                 4581)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
+                 4551)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 4556)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 4557)(content(Whitespace\" \"))))(Tile((id \
+                 4558)(label(\"(\"\")\"))(mold((out \
+                 Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0 1))(children(((Tile((id \
+                 4559)(label(a))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 4561)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 4562)(content(Whitespace\" \"))))(Tile((id \
+                 4563)(label(b))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children()))))))))(Secondary((id \
+                 4565)(content(Whitespace\" \")))))))))(Secondary((id \
+                 4567)(content(Whitespace\" \"))))(Tile((id \
+                 4568)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 4569)(label(a))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4571)(content(Whitespace\" \"))))(Tile((id \
+                 4573)(label(&&))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 9))(sort Exp))((shape(Concave 9))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4574)(content(Whitespace\" \"))))(Tile((id \
+                 4575)(label(b))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 4577)(content(Whitespace\" \"))))(Tile((id \
+                 4579)(label(\"\\\\/\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4580)(content(Whitespace\" \")))))((Secondary((id \
+                 4595)(content(Whitespace\" \"))))(Secondary((id \
+                 4592)(content(Whitespace\" \"))))(Secondary((id \
+                 4593)(content(Whitespace\"\\226\\143\\142\")))))))(((id \
+                 4516)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards((0 \
+                 1)(2)))(children((((Secondary((id 4517)(content(Whitespace\" \
+                 \"))))(Tile((id 4525)(label(bool_eq))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
+                 4526)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4527)(content(Whitespace\" \"))))(Tile((id \
+                 4528)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 4533)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 4534)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4535)(content(Whitespace\" \"))))(Tile((id \
+                 4540)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 4541)(content(Whitespace\" \"))))(Tile((id \
+                 4543)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4544)(content(Whitespace\" \"))))(Tile((id \
+                 4549)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4550)(content(Whitespace\" \"))))))())))(((Tile((id \
                  30)(label(type = in))(mold((out Exp)(in_(TPat \
                  Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
                  16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -55,6 +152,48 @@ let startup : PersistentData.t =
                  Typ))((shape Convex)(sort \
                  Typ))))))(shards(0))(children()))))))))(Secondary((id \
                  59)(content(Whitespace\" \")))))))))(Secondary((id \
+                 4464)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 4465)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 4470)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 4471)(content(Whitespace\" \"))))(Tile((id \
+                 4475)(label(not))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 4476)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4477)(content(Whitespace\" \"))))(Tile((id \
+                 4482)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4483)(content(Whitespace\" \"))))(Tile((id \
+                 4485)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4486)(content(Whitespace\" \"))))(Tile((id \
+                 4491)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4492)(content(Whitespace\" \")))))((Secondary((id \
+                 4493)(content(Whitespace\" \"))))(Tile((id 4498)(label(fun \
+                 ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
+                 Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 4499)(content(Whitespace\" \
+                 \"))))(Tile((id 4500)(label(b))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id \
+                 4502)(content(Whitespace\" \")))))))))(Secondary((id \
+                 4504)(content(Whitespace\" \"))))(Tile((id \
+                 4505)(label(!))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 5))(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4506)(label(b))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4510)(content(Whitespace\" \")))))))))(Secondary((id \
+                 4511)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
                  3040)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  61)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  66)(label(let = in))(mold((out Exp)(in_(Pat \
@@ -63,8 +202,33 @@ let startup : PersistentData.t =
                  67)(content(Whitespace\" \"))))(Tile((id \
                  71)(label(fst))(mold((out Pat)(in_())(nibs(((shape \
                  Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 72)(content(Whitespace\" \")))))((Secondary((id \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 4597)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4599)(content(Whitespace\" \"))))(Tile((id \
+                 4600)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 4602)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 4603)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4605)(content(Whitespace\" \"))))(Tile((id \
+                 4606)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 4607)(content(Whitespace\" \"))))(Tile((id \
+                 4611)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4612)(content(Whitespace\" \"))))(Tile((id \
+                 4613)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4614)(content(Whitespace\" \")))))((Secondary((id \
                  74)(content(Whitespace\" \"))))(Tile((id 78)(label(fun \
                  ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
                  Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
@@ -92,8 +256,33 @@ let startup : PersistentData.t =
                  99)(content(Whitespace\" \"))))(Tile((id \
                  103)(label(snd))(mold((out Pat)(in_())(nibs(((shape \
                  Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 104)(content(Whitespace\" \")))))((Secondary((id \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 4615)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4617)(content(Whitespace\" \"))))(Tile((id \
+                 4618)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 4619)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 4620)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4622)(content(Whitespace\" \"))))(Tile((id \
+                 4623)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 4624)(content(Whitespace\" \"))))(Tile((id \
+                 4627)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4628)(content(Whitespace\" \"))))(Tile((id \
+                 4629)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4630)(content(Whitespace\" \")))))((Secondary((id \
                  106)(content(Whitespace\" \"))))(Tile((id 110)(label(fun \
                  ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
                  Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
@@ -114,47 +303,7 @@ let startup : PersistentData.t =
                  Convex)(sort Exp))((shape Convex)(sort \
                  Exp))))))(shards(0))(children())))(Secondary((id \
                  124)(content(Whitespace\" \")))))))))(Secondary((id \
-                 2577)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 2585)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 2586)(content(Whitespace\" \"))))(Tile((id \
-                 2590)(label(not))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 2612)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 2632)(content(Whitespace\" \"))))(Tile((id \
-                 2618)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 2633)(content(Whitespace\" \"))))(Tile((id \
-                 2623)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 6))(sort Typ))((shape(Concave 6))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 2634)(content(Whitespace\" \"))))(Tile((id \
-                 2629)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 2631)(content(Whitespace\" \")))))((Secondary((id \
-                 2593)(content(Whitespace\" \"))))(Tile((id 2600)(label(fun \
-                 ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
-                 Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
-                 1))(children(((Secondary((id 2601)(content(Whitespace\" \
-                 \"))))(Tile((id 2603)(label(b))(mold((out \
-                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
-                 Convex)(sort Pat))))))(shards(0))(children())))(Secondary((id \
-                 2604)(content(Whitespace\" \")))))))))(Secondary((id \
-                 2608)(content(Whitespace\" \"))))(Tile((id \
-                 2609)(label(!))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 5))(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 2610)(label(b))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 2611)(content(Whitespace\" \")))))))))(Secondary((id \
-                 2856)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 2577)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  3105)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  3110)(label(let = in))(mold((out Exp)(in_(Pat \
                  Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -1095,12 +1244,26 @@ let startup : PersistentData.t =
                  147)(content(Whitespace\" \"))))(Tile((id \
                  148)(label(\"(\"\")\"))(mold((out Typ)(in_(Typ))(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort Typ))))))(shards(0 \
-                 1))(children(((Tile((id 149)(label([ ]))(mold((out \
-                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-                 150)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 1))(children(((Tile((id 4329)(label(?))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0))(children())))(Secondary((id \
+                 4367)(content(Whitespace\" \"))))(Tile((id \
+                 4333)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4368)(content(Whitespace\" \"))))(Tile((id \
+                 4339)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children()))))))))(Tile((id \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 4340)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4341)(content(Whitespace\" \"))))(Tile((id 149)(label([ \
+                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
+                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 150)(label(?))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0))(children()))))))))(Tile((id \
                  151)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
                  14))(sort Typ))((shape(Concave 14))(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
@@ -1118,23 +1281,44 @@ let startup : PersistentData.t =
                  2639)(content(Whitespace\" \"))))(Tile((id \
                  162)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children()))))((Secondary((id \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4342)(content(Whitespace\" \")))))((Secondary((id \
                  164)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  168)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
                  Convex)(sort Exp))((shape(Concave 13))(sort \
                  Exp))))))(shards(0 1))(children(((Secondary((id \
                  169)(content(Whitespace\" \"))))(Tile((id \
-                 173)(label(xxs))(mold((out Pat)(in_())(nibs(((shape \
+                 4345)(label(p))(mold((out Pat)(in_())(nibs(((shape \
                  Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 4346)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
                  Pat))))))(shards(0))(children())))(Secondary((id \
-                 174)(content(Whitespace\" \")))))))))(Secondary((id \
+                 4347)(content(Whitespace\" \"))))(Tile((id \
+                 4348)(label(xs))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 4349)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 4351)(content(Whitespace\" \"))))(Tile((id \
+                 4353)(label(ys))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children()))))))))(Secondary((id \
                  177)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  182)(label(case end))(mold((out Exp)(in_(Rul))(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
                  1))(children(((Secondary((id 183)(content(Whitespace\" \
-                 \"))))(Tile((id 187)(label(xxs))(mold((out \
+                 \"))))(Tile((id 4356)(label(xs))(mold((out \
                  Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 4357)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4361)(content(Whitespace\" \"))))(Tile((id \
+                 4360)(label(ys))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
                  188)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  189)(label(| =>))(mold((out \
                  Rul)(in_(Pat))(nibs(((shape(Concave 19))(sort \
@@ -1184,18 +1368,23 @@ let startup : PersistentData.t =
                  Pat))))))(shards(0))(children())))(Secondary((id \
                  226)(content(Whitespace\" \")))))))))(Secondary((id \
                  229)(content(Whitespace\" \"))))(Tile((id \
-                 230)(label(a))(mold((out Exp)(in_())(nibs(((shape \
+                 4371)(label(p))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4372)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 4370)(label(a))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4376)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
                  Exp))))))(shards(0))(children())))(Secondary((id \
-                 231)(content(Whitespace\" \"))))(Tile((id \
-                 234)(label(==))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 8))(sort Exp))((shape(Concave 8))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 235)(content(Whitespace\" \"))))(Tile((id \
+                 4377)(content(Whitespace\" \"))))(Tile((id \
                  236)(label(b))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 237)(content(Whitespace\" \"))))(Tile((id \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 4378)(content(Whitespace\" \"))))(Tile((id \
                  240)(label(&&))(mold((out Exp)(in_())(nibs(((shape(Concave \
                  9))(sort Exp))((shape(Concave 9))(sort \
                  Exp))))))(shards(0))(children())))(Secondary((id \
@@ -1206,7 +1395,14 @@ let startup : PersistentData.t =
                  252)(label(\"(\"\")\"))(mold((out \
                  Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
                  Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 255)(label(as))(mold((out Exp)(in_())(nibs(((shape \
+                 4364)(label(p))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4365)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4366)(content(Whitespace\" \"))))(Tile((id \
+                 4363)(label(as))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
                  Exp))))))(shards(0))(children())))(Tile((id \
                  256)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
@@ -2639,18 +2835,20 @@ let startup : PersistentData.t =
                  4327)(content(Whitespace\" \"))))(Secondary((id \
                  4323)(content(Whitespace\" \"))))(Secondary((id \
                  4324)(content(Whitespace\" \"))))(Secondary((id \
-                 4325)(content(Whitespace\"\\226\\143\\142\"))))))))))((Secondary((id \
+                 4325)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
                  2566)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  2567)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  2575)(label(%EXPORT))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))(ancestors())))(caret \
-                 Outer))";
+                 Exp))))))(shards(0))(children()))))))))))(caret Outer))";
               backup_text =
                 "type Option = None + Some(?) in\n\n\
-                 let fst = fun a, b -> a in\n\
-                 let snd = fun a, b -> b in\n\
-                 let not: Bool -> Bool = fun b -> !b in\n\n\
+                 let not: Bool -> Bool = fun b -> !b in\n\
+                 let bool_eq: (Bool, Bool) -> Bool =\n\
+                 fun (a, b) -> (a && b) \\/ (!a && !b)  \n\
+                 in\n\n\
+                 let fst: (?, ?) -> ? = fun a, b -> a in\n\
+                 let snd: (?, ?) -> ? = fun a, b -> b in\n\n\
                  let List.length: [?] -> Int =\n\
                  fun list ->\n\
                  case list\n\
@@ -2707,11 +2905,11 @@ let startup : PersistentData.t =
                  in\n\
                  go(0, [])\n\
                  in\n\n\
-                 let List.equal: ([?], [?]) -> Bool=\n\
-                 fun xxs ->\n\
-                 case xxs\n\
+                 let List.equal: (? -> Bool, [?], [?]) -> Bool =\n\
+                 fun p, xs, ys->\n\
+                 case xs, ys\n\
                  | [], [] => true\n\
-                 | a::as, b::bs => a == b && List.equal(as,bs)\n\
+                 | a::as, b::bs => p(a, b) && List.equal(p, as,bs)\n\
                  | _ => false    \n\
                  end    \n\
                  in\n\n\
@@ -2775,158 +2973,11 @@ let startup : PersistentData.t =
                  in\n\n\
                  %EXPORT";
             } );
-          ( 3285,
+          ( 4018,
             {
               zipper =
                 "((selection((focus Left)(content())(mode \
                  Normal)))(backpack())(relatives((siblings(((Tile((id \
-                 3217)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 3218)(content(Whitespace\" \"))))(Tile((id \
-                 3219)(label(i))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 3221)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 14))(sort Pat))((shape(Concave 14))(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 3222)(content(Whitespace\" \"))))(Tile((id \
-                 3223)(label(x))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 3225)(content(Whitespace\" \")))))))))(Secondary((id \
-                 3227)(content(Whitespace\" \")))))((Tile((id 3231)(label(if \
-                 then else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 12))(sort \
-                 Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 3232)(content(Whitespace\" \"))))(Tile((id \
-                 3233)(label(f))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 3235)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 3236)(label(i))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 3238)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 3239)(content(Whitespace\" \"))))(Tile((id \
-                 3240)(label(x))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 3244)(content(Whitespace\" \")))))((Secondary((id \
-                 3247)(content(Whitespace\" \"))))(Tile((id 3248)(label([ \
-                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
-                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 3249)(label(x))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 3253)(content(Whitespace\" \")))))))))(Secondary((id \
-                 3256)(content(Whitespace\" \"))))(Tile((id \
-                 3258)(label([]))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 3260)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 3261)(content(Whitespace\" \"))))(Tile((id \
-                 3264)(label(xs))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))(ancestors((((id \
-                 3212)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
-                 3201)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 3211)(label(List.mapi))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))()))(((id \
-                 3200)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
-                 3171)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 3176)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 3177)(content(Whitespace\" \"))))(Tile((id \
-                 3178)(label(f))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 3180)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 14))(sort Pat))((shape(Concave 14))(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 3181)(content(Whitespace\" \"))))(Tile((id \
-                 3184)(label(xs))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 3185)(content(Whitespace\" \")))))))))(Secondary((id \
-                 3187)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 3199)(label(List.concat))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))((Secondary((id \
-                 3267)(content(Whitespace\" \"))))(Secondary((id \
-                 3265)(content(Whitespace\"\\226\\143\\142\")))))))(((id \
-                 3122)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards((0 \
-                 1)(2)))(children((((Secondary((id 3123)(content(Whitespace\" \
-                 \"))))(Tile((id 3136)(label(List.filteri))(mold((out \
-                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
-                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
-                 3137)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 3138)(content(Whitespace\" \"))))(Tile((id \
-                 3139)(label(\"(\"\")\"))(mold((out \
-                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-                 3140)(label(\"(\"\")\"))(mold((out \
-                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
-                 3144)(label(Int))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Tile((id \
-                 3145)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 14))(sort Typ))((shape(Concave 14))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 3146)(content(Whitespace\" \"))))(Tile((id \
-                 3147)(label(?))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
-                 3149)(content(Whitespace\" \"))))(Tile((id \
-                 3151)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 6))(sort Typ))((shape(Concave 6))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 3152)(content(Whitespace\" \"))))(Tile((id \
-                 3157)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Tile((id \
-                 3158)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 14))(sort Typ))((shape(Concave 14))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 3159)(content(Whitespace\" \"))))(Tile((id 3160)(label([ \
-                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
-                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
-                 1))(children(((Tile((id 3161)(label(?))(mold((out \
-                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort \
-                 Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
-                 3163)(content(Whitespace\" \"))))(Tile((id \
-                 3165)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 6))(sort Typ))((shape(Concave 6))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 3166)(content(Whitespace\" \"))))(Tile((id 3167)(label([ \
-                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
-                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
-                 1))(children(((Tile((id 3168)(label(?))(mold((out \
-                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort \
-                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
-                 3170)(content(Whitespace\" \"))))))())))(((Tile((id \
                  2695)(label(let = in))(mold((out Exp)(in_(Pat \
                  Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
                  16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -2936,7 +2987,8 @@ let startup : PersistentData.t =
                  Pat))))))(shards(0))(children())))(Tile((id \
                  2709)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
                  11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Tile((id \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 4017)(content(Whitespace\" \"))))(Tile((id \
                  2710)(label(\"(\"\")\"))(mold((out \
                  Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
                  Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
@@ -3319,7 +3371,429 @@ let startup : PersistentData.t =
                  3112)(content(Whitespace\" \"))))(Secondary((id \
                  3113)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
                  3116)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 3117)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
+                 3117)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3122)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 3123)(content(Whitespace\" \"))))(Tile((id \
+                 3136)(label(List.filteri))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3137)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3138)(content(Whitespace\" \"))))(Tile((id \
+                 3139)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 3140)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 3144)(label(Int))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 3145)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3146)(content(Whitespace\" \"))))(Tile((id \
+                 3147)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 3149)(content(Whitespace\" \"))))(Tile((id \
+                 3151)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3152)(content(Whitespace\" \"))))(Tile((id \
+                 3157)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 3158)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3159)(content(Whitespace\" \"))))(Tile((id 3160)(label([ \
+                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
+                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 3161)(label(?))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort \
+                 Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 3163)(content(Whitespace\" \"))))(Tile((id \
+                 3165)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3166)(content(Whitespace\" \"))))(Tile((id 3167)(label([ \
+                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
+                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 3168)(label(?))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 3170)(content(Whitespace\" \")))))((Secondary((id \
+                 3171)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3176)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3177)(content(Whitespace\" \"))))(Tile((id \
+                 3178)(label(f))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3180)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3181)(content(Whitespace\" \"))))(Tile((id \
+                 3184)(label(xs))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3185)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3187)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3199)(label(List.concat))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3200)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3201)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3211)(label(List.mapi))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3212)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3217)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3218)(content(Whitespace\" \"))))(Tile((id \
+                 3219)(label(i))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3221)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3222)(content(Whitespace\" \"))))(Tile((id \
+                 3223)(label(x))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3225)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3227)(content(Whitespace\" \"))))(Tile((id 3231)(label(if \
+                 then else))(mold((out Exp)(in_(Exp Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 12))(sort \
+                 Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 3232)(content(Whitespace\" \"))))(Tile((id \
+                 3233)(label(f))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3235)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3236)(label(i))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3238)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3239)(content(Whitespace\" \"))))(Tile((id \
+                 3240)(label(x))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 3244)(content(Whitespace\" \")))))((Secondary((id \
+                 3247)(content(Whitespace\" \"))))(Tile((id 3248)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3249)(label(x))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 3253)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3256)(content(Whitespace\" \"))))(Tile((id \
+                 3258)(label([]))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3260)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3261)(content(Whitespace\" \"))))(Tile((id \
+                 3264)(label(xs))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 3267)(content(Whitespace\" \"))))(Secondary((id \
+                 3265)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 3715)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 3716)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3721)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 3722)(content(Whitespace\" \"))))(Tile((id \
+                 3734)(label(List.exists))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3735)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3736)(content(Whitespace\" \"))))(Tile((id \
+                 3737)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 3738)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3740)(content(Whitespace\" \"))))(Tile((id \
+                 3742)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3743)(content(Whitespace\" \"))))(Tile((id \
+                 3748)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 3749)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3750)(content(Whitespace\" \"))))(Tile((id 3751)(label([ \
+                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
+                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 3752)(label(?))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort \
+                 Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 3754)(content(Whitespace\" \"))))(Tile((id \
+                 3756)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3757)(content(Whitespace\" \"))))(Tile((id \
+                 3762)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3763)(content(Whitespace\" \")))))((Secondary((id \
+                 3764)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3769)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3770)(content(Whitespace\" \"))))(Tile((id \
+                 3771)(label(p))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3773)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3774)(content(Whitespace\" \"))))(Tile((id \
+                 3777)(label(xs))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3778)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3780)(content(Whitespace\" \"))))(Tile((id \
+                 3792)(label(List.exists))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3793)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3798)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3799)(content(Whitespace\" \"))))(Tile((id \
+                 3800)(label(x))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3802)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3804)(content(Whitespace\" \"))))(Tile((id \
+                 3805)(label(p))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3807)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3808)(label(x))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 3810)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3811)(content(Whitespace\" \"))))(Tile((id \
+                 3814)(label(xs))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 3818)(content(Whitespace\" \"))))(Secondary((id \
+                 3815)(content(Whitespace\" \"))))(Secondary((id \
+                 3816)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 4016)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 3819)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3824)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 3825)(content(Whitespace\" \"))))(Tile((id \
+                 3838)(label(List.for_all))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3839)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3840)(content(Whitespace\" \"))))(Tile((id \
+                 3841)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 3842)(label(?))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3844)(content(Whitespace\" \"))))(Tile((id \
+                 3846)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3847)(content(Whitespace\" \"))))(Tile((id \
+                 3852)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 3853)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3854)(content(Whitespace\" \"))))(Tile((id 3855)(label([ \
+                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
+                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 3856)(label(?))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort \
+                 Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 3858)(content(Whitespace\" \"))))(Tile((id \
+                 3860)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3861)(content(Whitespace\" \"))))(Tile((id \
+                 3866)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 3867)(content(Whitespace\" \")))))((Secondary((id \
+                 3868)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3873)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3874)(content(Whitespace\" \"))))(Tile((id \
+                 3875)(label(p))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3877)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3878)(content(Whitespace\" \"))))(Tile((id \
+                 3881)(label(xs))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3882)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3884)(content(Whitespace\" \"))))(Tile((id \
+                 3888)(label(not))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3889)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3901)(label(List.exists))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3902)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3907)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3908)(content(Whitespace\" \"))))(Tile((id \
+                 3909)(label(x))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3911)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3913)(content(Whitespace\" \"))))(Tile((id \
+                 3917)(label(not))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3918)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3919)(label(p))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3921)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3922)(label(x))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 3924)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3925)(content(Whitespace\" \"))))(Tile((id \
+                 3928)(label(xs))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 3931)(content(Whitespace\" \"))))(Secondary((id \
+                 3929)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 3933)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 3934)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3939)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 3940)(content(Whitespace\" \"))))(Tile((id \
+                 3949)(label(List.mem))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3950)(content(Whitespace\" \")))))((Secondary((id \
+                 3951)(content(Whitespace\" \"))))(Tile((id 3956)(label(fun \
+                 ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
+                 Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 3957)(content(Whitespace\" \
+                 \"))))(Tile((id 3960)(label(eq))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
+                 3961)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3962)(content(Whitespace\" \"))))(Tile((id \
+                 3965)(label(xs))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 3966)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3967)(content(Whitespace\" \"))))(Tile((id \
+                 3968)(label(y))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3970)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3972)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3984)(label(List.exists))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3985)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3990)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3991)(content(Whitespace\" \"))))(Tile((id \
+                 3992)(label(x))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 3994)(content(Whitespace\" \")))))))))(Secondary((id \
+                 3996)(content(Whitespace\" \"))))(Tile((id \
+                 3999)(label(eq))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4000)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 4001)(label(x))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 4003)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4004)(content(Whitespace\" \"))))(Tile((id \
+                 4005)(label(y))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 4007)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 4008)(content(Whitespace\" \"))))(Tile((id \
+                 4011)(label(xs))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 4014)(content(Whitespace\" \")))))))))(Secondary((id \
                  1833)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  1834)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  1840)(content(Comment #TODO:#))))(Secondary((id \
@@ -3351,35 +3825,7 @@ let startup : PersistentData.t =
                  Convex)(sort Exp))((shape Convex)(sort \
                  Exp))))))(shards(0))(children())))(Secondary((id \
                  1542)(content(Whitespace\" \")))))))))(Secondary((id \
-                 1563)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 1568)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 1569)(content(Whitespace\" \"))))(Tile((id \
-                 1610)(label(List.for_all))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 1586)(content(Whitespace\" \")))))((Secondary((id \
-                 1587)(content(Whitespace\" \"))))(Tile((id \
-                 1588)(label(?))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 1592)(content(Whitespace\" \")))))))))(Secondary((id \
-                 1611)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 1616)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 1617)(content(Whitespace\" \"))))(Tile((id \
-                 1719)(label(List.exists))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 1634)(content(Whitespace\" \")))))((Secondary((id \
-                 1635)(content(Whitespace\" \"))))(Tile((id \
-                 1636)(label(?))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 1640)(content(Whitespace\" \")))))))))(Secondary((id \
-                 1642)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3612)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  1647)(label(let = in))(mold((out Exp)(in_(Pat \
                  Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
                  16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -3408,20 +3854,6 @@ let startup : PersistentData.t =
                  Exp))))))(shards(0))(children())))(Secondary((id \
                  1702)(content(Whitespace\" \")))))))))(Secondary((id \
                  1755)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 1763)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 1764)(content(Whitespace\" \"))))(Tile((id \
-                 1773)(label(List.mem))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 1774)(content(Whitespace\" \")))))((Secondary((id \
-                 1775)(content(Whitespace\" \"))))(Tile((id \
-                 1776)(label(?))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 1778)(content(Whitespace\" \")))))))))(Secondary((id \
-                 1779)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  1785)(label(let = in))(mold((out Exp)(in_(Pat \
                  Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
                  16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -3462,7 +3894,7 @@ let startup : PersistentData.t =
                  1981)(label(?))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
                  Exp))))))(shards(0))(children())))(Secondary((id \
-                 1982)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1982)(content(Whitespace\" \"))))))))))((Secondary((id \
                  1955)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  1963)(label(let = in))(mold((out Exp)(in_(Pat \
                  Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -3535,9 +3967,10 @@ let startup : PersistentData.t =
                  307)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  315)(label(%EXPORT))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))))(caret Outer))";
+                 Exp))))))(shards(0))(children()))))))(ancestors())))(caret \
+                 Outer))";
               backup_text =
-                "let List.append:(([?], [?]) -> [?]) =\n\
+                "let List.append: (([?], [?]) -> [?]) =\n\
                  fun xs, ys -> List.fold_right(List.cons, xs, ys) \n\
                  in\n\n\
                  let List.concat: [[?]] -> [?] =\n\
@@ -3559,14 +3992,19 @@ let startup : PersistentData.t =
                  List.concat(\n\
                  List.mapi(fun i, x -> if f(i, x) then [x] else [], xs)) \n\
                  in\n\n\
+                 let List.exists: (? -> Bool, [?]) -> Bool =\n\
+                 fun p, xs -> List.exists(fun x -> p(x), xs)  \n\
+                 in\n\n\
+                 let List.for_all: (? -> Bool, [?]) -> Bool =\n\
+                 fun p, xs -> not(List.exists(fun x -> not(p(x)), xs)) \n\
+                 in\n\n\
+                 let List.mem = fun eq, xs, y ->\n\
+                 List.exists(fun x -> eq(x, y), xs) in\n\n\
                  #TODO:#\n\
                  let List.filter_map = ? in\n\
                  let List.concat_map = ? in\n\
-                 let List.for_all = ? in\n\
-                 let List.exists = ? in\n\
                  let List.for_all2 = ? in\n\
                  let List.exists2 = ? in\n\
-                 let List.mem = ? in\n\
                  let List.find = ? in\n\
                  let List.partition = ? in\n\
                  let List.split = ? in\n\
@@ -3576,7 +4014,7 @@ let startup : PersistentData.t =
                  #TODO: Association Lists#\n\n\n\
                  %EXPORT";
             } );
-          ( 819,
+          ( 1916,
             {
               zipper =
                 "((selection((focus Left)(content())(mode \
@@ -3593,23 +4031,20 @@ let startup : PersistentData.t =
                  513)(label(\"(\"\")\"))(mold((out Typ)(in_(Typ))(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
-                 514)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 527)(content(Comment #description:#))))(Secondary((id \
-                 528)(content(Whitespace\" \"))))(Tile((id \
+                 514)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  535)(label(String))(mold((out Typ)(in_())(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort \
                  Typ))))))(shards(0))(children())))(Tile((id \
                  536)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
                  14))(sort Typ))((shape(Concave 14))(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
-                 537)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 545)(content(Comment #status:#))))(Secondary((id \
-                 546)(content(Whitespace\" \"))))(Tile((id \
+                 537)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  551)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  552)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 555)(content(Whitespace\" \"))))))))))((Secondary((id \
+                 555)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1567)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  556)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  562)(label(type = in))(mold((out Exp)(in_(TPat \
                  Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -3627,6 +4062,7 @@ let startup : PersistentData.t =
                  Convex)(sort \
                  Typ))))))(shards(0))(children()))))))))(Secondary((id \
                  580)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1568)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  581)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  587)(label(type = in))(mold((out Exp)(in_(TPat \
                  Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -3640,53 +4076,21 @@ let startup : PersistentData.t =
                  597)(label(\"(\"\")\"))(mold((out Typ)(in_(Typ))(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort Typ))))))(shards(0 \
                  1))(children(((Secondary((id \
-                 598)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 605)(content(Comment #input:#))))(Secondary((id \
-                 606)(content(Whitespace\" \"))))(Tile((id \
+                 598)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  613)(label(String))(mold((out Typ)(in_())(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort \
                  Typ))))))(shards(0))(children())))(Tile((id \
                  614)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
                  14))(sort Typ))((shape(Concave 14))(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
-                 615)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 622)(content(Comment #todos:#))))(Secondary((id \
-                 623)(content(Whitespace\" \"))))(Tile((id \
+                 615)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  629)(label(Todos))(mold((out Typ)(in_())(nibs(((shape \
                  Convex)(sort Typ))((shape Convex)(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  630)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
                  633)(content(Whitespace\" \")))))))))(Secondary((id \
-                 634)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 639)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 640)(content(Whitespace\" \"))))(Tile((id \
-                 645)(label(init))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 646)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 647)(content(Whitespace\" \"))))(Tile((id \
-                 653)(label(Model))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 654)(content(Whitespace\" \")))))((Secondary((id \
-                 655)(content(Whitespace\" \"))))(Tile((id \
-                 656)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 657)(label(\"\\\"\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 659)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 660)(content(Whitespace\" \"))))(Tile((id \
-                 662)(label([]))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 666)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1569)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 634)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  667)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  673)(label(type = in))(mold((out Exp)(in_(TPat \
                  Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -3750,6 +4154,7 @@ let startup : PersistentData.t =
                  755)(content(Whitespace\" \"))))(Secondary((id \
                  756)(content(Whitespace\" \"))))(Secondary((id \
                  757)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 1570)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  760)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  766)(label(type = in))(mold((out Exp)(in_(TPat \
                  Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -3781,6 +4186,257 @@ let startup : PersistentData.t =
                  Convex)(sort Typ))((shape Convex)(sort \
                  Typ))))))(shards(0))(children())))(Secondary((id \
                  805)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1423)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 1571)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1576)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 1577)(content(Whitespace\" \"))))(Tile((id \
+                 1582)(label(init))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1583)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1584)(content(Whitespace\" \"))))(Tile((id \
+                 1590)(label(Model))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1591)(content(Whitespace\" \")))))((Secondary((id \
+                 1592)(content(Whitespace\" \"))))(Tile((id \
+                 1593)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1594)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1596)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1597)(content(Whitespace\" \"))))(Tile((id \
+                 1599)(label([]))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 1603)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1605)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 1258)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1678)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 1679)(content(Whitespace\" \"))))(Tile((id \
+                 1687)(label(Todo.eq))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1688)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1689)(content(Whitespace\" \"))))(Tile((id \
+                 1690)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 1695)(label(Todo))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 1696)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1697)(content(Whitespace\" \"))))(Tile((id \
+                 1702)(label(Todo))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 1703)(content(Whitespace\" \"))))(Tile((id \
+                 1705)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1706)(content(Whitespace\" \"))))(Tile((id \
+                 1711)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1712)(content(Whitespace\" \")))))((Secondary((id \
+                 1713)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1718)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 1719)(content(Whitespace\" \"))))(Tile((id \
+                 1720)(label(\"(\"\")\"))(mold((out \
+                 Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0 1))(children(((Tile((id \
+                 1723)(label(s1))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1724)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 1725)(content(Whitespace\" \"))))(Tile((id \
+                 1728)(label(b1))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children()))))))))(Tile((id \
+                 1729)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 1730)(content(Whitespace\" \"))))(Tile((id \
+                 1731)(label(\"(\"\")\"))(mold((out \
+                 Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0 1))(children(((Tile((id \
+                 1734)(label(s2))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1735)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 1736)(content(Whitespace\" \"))))(Tile((id \
+                 1739)(label(b2))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children()))))))))(Secondary((id \
+                 1740)(content(Whitespace\" \")))))))))(Secondary((id \
+                 1742)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1745)(label(s1))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1746)(content(Whitespace\" \"))))(Tile((id \
+                 1749)(label($==))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 8))(sort Exp))((shape(Concave 8))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1750)(content(Whitespace\" \"))))(Tile((id \
+                 1753)(label(s2))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1754)(content(Whitespace\" \"))))(Tile((id \
+                 1756)(label(&&))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 9))(sort Exp))((shape(Concave 9))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1757)(content(Whitespace\" \"))))(Tile((id \
+                 1765)(label(bool_eq))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1766)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1769)(label(b1))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1770)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1771)(content(Whitespace\" \"))))(Tile((id \
+                 1774)(label(b2))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 1777)(content(Whitespace\" \"))))(Secondary((id \
+                 1775)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 1778)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 1779)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1784)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 1785)(content(Whitespace\" \"))))(Tile((id \
+                 1794)(label(Model.eq))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1795)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1796)(content(Whitespace\" \"))))(Tile((id \
+                 1797)(label(\"(\"\")\"))(mold((out \
+                 Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0 1))(children(((Tile((id \
+                 1803)(label(Model))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 1804)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1805)(content(Whitespace\" \"))))(Tile((id \
+                 1811)(label(Model))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 1812)(content(Whitespace\" \"))))(Tile((id \
+                 1814)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1815)(content(Whitespace\" \"))))(Tile((id \
+                 1820)(label(Bool))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 1821)(content(Whitespace\" \")))))((Secondary((id \
+                 1822)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1827)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 1828)(content(Whitespace\" \"))))(Tile((id \
+                 1829)(label(\"(\"\")\"))(mold((out \
+                 Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0 1))(children(((Tile((id \
+                 1832)(label(s1))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1833)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 1834)(content(Whitespace\" \"))))(Tile((id \
+                 1841)(label(todos1))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children()))))))))(Tile((id \
+                 1842)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 1843)(content(Whitespace\" \"))))(Tile((id \
+                 1844)(label(\"(\"\")\"))(mold((out \
+                 Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0 1))(children(((Tile((id \
+                 1847)(label(s2))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 1848)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 1849)(content(Whitespace\" \"))))(Tile((id \
+                 1856)(label(todos2))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 1858)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1861)(label(s1))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1862)(content(Whitespace\" \"))))(Tile((id \
+                 1865)(label($==))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 8))(sort Exp))((shape(Concave 8))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1866)(content(Whitespace\" \"))))(Tile((id \
+                 1869)(label(s2))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1870)(content(Whitespace\" \"))))(Tile((id \
+                 1872)(label(&&))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 9))(sort Exp))((shape(Concave 9))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1873)(content(Whitespace\" \"))))(Tile((id \
+                 1884)(label(List.equal))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1885)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1893)(label(Todo.eq))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1894)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1895)(content(Whitespace\" \"))))(Tile((id \
+                 1902)(label(todos1))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1903)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1904)(content(Whitespace\" \"))))(Tile((id \
+                 1911)(label(todos2))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 1914)(content(Whitespace\" \"))))(Secondary((id \
+                 1912)(content(Whitespace\"\\226\\143\\142\"))))))))))((Secondary((id \
+                 1650)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
                  489)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  497)(label(%EXPORT))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
@@ -3788,22 +4444,30 @@ let startup : PersistentData.t =
                  Outer))";
               backup_text =
                 "type Todo = (\n\
-                 #description:# String,\n\
-                 #status:# Bool\n\
-                 ) in\n\
-                 type Todos = [Todo] in\n\
+                 String,\n\
+                 Bool\n\
+                 ) in\n\n\
+                 type Todos = [Todo] in\n\n\
                  type Model = (\n\
-                 #input:# String,\n\
-                 #todos:# Todos\n\
-                 ) in\n\
-                 let init: Model = (\"\", []) in\n\
+                 String,\n\
+                 Todos\n\
+                 ) in\n\n\n\
                  type Action =\n\
                  + AddTodo\n\
                  + RemoveTodo(Int)\n\
                  + ToggleTodo(Int)\n\
                  + UpdateInput(String)   \n\
-                 in\n\
-                 type Update = (Model, Action) -> Model in\n\
+                 in\n\n\
+                 type Update = (Model, Action) -> Model in\n\n\
+                 let init: Model = (\"\", []) in\n\n\
+                 let Todo.eq: (Todo, Todo) -> Bool =\n\
+                 fun (s1, b1), (s2, b2) ->\n\
+                 s1 $== s2 && bool_eq(b1, b2) \n\
+                 in\n\n\
+                 let Model.eq: (Model, Model) -> Bool =\n\
+                 fun (s1, todos1), (s2, todos2)->\n\
+                 s1 $== s2 && List.equal(Todo.eq, todos1, todos2) \n\
+                 in\n\n\
                  %EXPORT";
             } );
           ( 1044,
@@ -4673,105 +5337,11 @@ let startup : PersistentData.t =
                  type Render = +Render(String, Model, View, Update) in\n\
                  %EXPORT";
             } );
-          ( 2383,
+          ( 3776,
             {
               zipper =
                 "((selection((focus Left)(content())(mode \
                  Normal)))(backpack())(relatives((siblings(((Tile((id \
-                 346)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 347)(content(Whitespace\" \"))))(Tile((id \
-                 349)(label(i))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 350)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 14))(sort Pat))((shape(Concave 14))(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 352)(content(Whitespace\" \"))))(Tile((id \
-                 353)(label(_))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 354)(content(Whitespace\" \")))))))))(Secondary((id \
-                 357)(content(Whitespace\" \"))))(Tile((id \
-                 358)(label(i))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))((Tile((id \
-                 363)(label(!=))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 5))(sort Exp))((shape(Concave 5))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 364)(content(Whitespace\" \"))))(Tile((id \
-                 367)(label(idx))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 368)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 370)(content(Whitespace\" \"))))(Tile((id \
-                 375)(label(todos))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))(ancestors((((id \
-                 341)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
-                 306)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 310)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 311)(content(Whitespace\" \"))))(Tile((id \
-                 313)(label(\"(\"\")\"))(mold((out Pat)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0 \
-                 1))(children(((Tile((id 316)(label(idx))(mold((out \
-                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
-                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
-                 317)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 14))(sort Pat))((shape(Concave 14))(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 319)(content(Whitespace\" \"))))(Tile((id \
-                 324)(label(todos))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children()))))))))(Secondary((id \
-                 325)(content(Whitespace\" \")))))))))(Secondary((id \
-                 328)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 340)(label(List.filteri))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))((Secondary((id \
-                 379)(content(Whitespace\" \"))))(Secondary((id \
-                 376)(content(Whitespace\" \"))))(Secondary((id \
-                 377)(content(Whitespace\"\\226\\143\\142\")))))))(((id \
-                 265)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards((0 \
-                 1)(2)))(children((((Secondary((id 266)(content(Whitespace\" \
-                 \"))))(Tile((id 278)(label(remove_todo))(mold((out \
-                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
-                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
-                 279)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 281)(content(Whitespace\" \"))))(Tile((id \
-                 282)(label(\"(\"\")\"))(mold((out Typ)(in_(Typ))(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort Typ))))))(shards(0 \
-                 1))(children(((Tile((id 285)(label(Int))(mold((out \
-                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort Typ))))))(shards(0))(children())))(Tile((id \
-                 286)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 14))(sort Typ))((shape(Concave 14))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 288)(content(Whitespace\" \"))))(Tile((id \
-                 293)(label(Todos))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
-                 294)(content(Whitespace\" \"))))(Tile((id \
-                 297)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 6))(sort Typ))((shape(Concave 6))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 298)(content(Whitespace\" \"))))(Tile((id \
-                 303)(label(Todos))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 304)(content(Whitespace\" \"))))))())))(((Tile((id \
                  4)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
                  Convex)(sort Exp))((shape(Concave 16))(sort \
                  Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -4927,8 +5497,7 @@ let startup : PersistentData.t =
                  192)(content(Whitespace\" \"))))(Tile((id \
                  196)(label(done))(mold((out Pat)(in_())(nibs(((shape \
                  Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children()))))))))(Secondary((id \
-                 197)(content(Whitespace\" \")))))))))(Secondary((id \
+                 Pat))))))(shards(0))(children())))))))))))))(Secondary((id \
                  200)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  201)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
@@ -4977,7 +5546,100 @@ let startup : PersistentData.t =
                  259)(content(Whitespace\" \"))))(Secondary((id \
                  256)(content(Whitespace\" \"))))(Secondary((id \
                  257)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 261)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
+                 261)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 265)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 266)(content(Whitespace\" \"))))(Tile((id \
+                 278)(label(remove_todo))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 279)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 281)(content(Whitespace\" \"))))(Tile((id \
+                 282)(label(\"(\"\")\"))(mold((out Typ)(in_(Typ))(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 285)(label(Int))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort Typ))))))(shards(0))(children())))(Tile((id \
+                 286)(label(,))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 14))(sort Typ))((shape(Concave 14))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 288)(content(Whitespace\" \"))))(Tile((id \
+                 293)(label(Todos))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children()))))))))(Secondary((id \
+                 294)(content(Whitespace\" \"))))(Tile((id \
+                 297)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 298)(content(Whitespace\" \"))))(Tile((id \
+                 303)(label(Todos))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 304)(content(Whitespace\" \")))))((Secondary((id \
+                 306)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 310)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 311)(content(Whitespace\" \"))))(Tile((id \
+                 313)(label(\"(\"\")\"))(mold((out Pat)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort Pat))))))(shards(0 \
+                 1))(children(((Tile((id 316)(label(idx))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
+                 317)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 319)(content(Whitespace\" \"))))(Tile((id \
+                 324)(label(todos))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children()))))))))(Secondary((id \
+                 325)(content(Whitespace\" \")))))))))(Secondary((id \
+                 328)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 340)(label(List.filteri))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 341)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 346)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 347)(content(Whitespace\" \"))))(Tile((id \
+                 349)(label(i))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 350)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 352)(content(Whitespace\" \"))))(Tile((id \
+                 353)(label(_))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 354)(content(Whitespace\" \")))))))))(Secondary((id \
+                 357)(content(Whitespace\" \"))))(Tile((id \
+                 358)(label(i))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 363)(label(!=))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 5))(sort Exp))((shape(Concave 5))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 364)(content(Whitespace\" \"))))(Tile((id \
+                 367)(label(idx))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 368)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 370)(content(Whitespace\" \"))))(Tile((id \
+                 375)(label(todos))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 379)(content(Whitespace\" \"))))(Secondary((id \
+                 376)(content(Whitespace\" \"))))(Secondary((id \
+                 377)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
                  381)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  385)(label(let = in))(mold((out Exp)(in_(Pat \
                  Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -5073,7 +5735,7 @@ let startup : PersistentData.t =
                  1653)(label(\"(\"\")\"))(mold((out \
                  Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
                  Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 1658)(label(input))(mold((out Exp)(in_())(nibs(((shape \
+                 2555)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
                  Exp))))))(shards(0))(children())))(Tile((id \
                  1659)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
@@ -5212,10 +5874,687 @@ let startup : PersistentData.t =
                  1842)(content(Whitespace\" \"))))(Secondary((id \
                  1840)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
                  691)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 695)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 703)(label(%EXPORT))(mold((out Exp)(in_())(nibs(((shape \
+                 2383)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 2384)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2395)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 2679)(content(Whitespace\" \
+                 \"))))(Tile((id 2457)(label(Model.eq))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2459)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 2400)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2406)(label(update))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))))(caret Outer))";
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2407)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2524)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2544)(label(\"\\\"new\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2527)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2559)(content(Whitespace\" \"))))(Tile((id \
+                 2545)(label([]))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2435)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2561)(content(Whitespace\" \"))))(Tile((id \
+                 2487)(label(AddTodo))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2461)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2463)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2466)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2558)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2468)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2553)(content(Whitespace\" \"))))(Tile((id 2499)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2501)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2549)(label(\"\\\"new\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2504)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2560)(content(Whitespace\" \"))))(Tile((id \
+                 2511)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
+                 2440)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 2680)(content(Whitespace\" \")))))))))(Tile((id \
+                 2460)(label(\";\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2562)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2568)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 2678)(content(Whitespace\" \
+                 \"))))(Tile((id 2578)(label(Model.eq))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2579)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 2580)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2587)(label(update))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2588)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2589)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2594)(label(\"\\\"new\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2595)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2596)(content(Whitespace\" \"))))(Tile((id 2641)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2642)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2661)(label(\"\\\"old\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2647)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2649)(content(Whitespace\" \"))))(Tile((id \
+                 2654)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 2600)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2601)(content(Whitespace\" \"))))(Tile((id \
+                 2609)(label(AddTodo))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2610)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2611)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2612)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2613)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2615)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2616)(content(Whitespace\" \"))))(Tile((id 2617)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2618)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2623)(label(\"\\\"new\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2624)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2625)(content(Whitespace\" \"))))(Tile((id \
+                 2631)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2662)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2664)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2668)(label(\"\\\"old\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2669)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2671)(content(Whitespace\" \"))))(Tile((id \
+                 2676)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
+                 2632)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 2635)(content(Whitespace\" \")))))))))(Tile((id \
+                 2637)(label(\";\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3307)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+                 3353)(content(Comment\"#TODO: below triggers exception when \
+                 corrected#\"))))(Secondary((id \
+                 2681)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2687)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 2688)(content(Whitespace\" \
+                 \"))))(Tile((id 2697)(label(Model.eq))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2698)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 2699)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2706)(label(update))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2707)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2708)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2798)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2714)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2715)(content(Whitespace\" \"))))(Tile((id 2716)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2717)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2801)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2723)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2724)(content(Whitespace\" \"))))(Tile((id \
+                 2730)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2802)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2804)(content(Whitespace\" \"))))(Tile((id \
+                 2805)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2818)(label(\"\\\"2\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2808)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2810)(content(Whitespace\" \"))))(Tile((id \
+                 2825)(label(true))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 2731)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2732)(content(Whitespace\" \"))))(Tile((id \
+                 2794)(label(ToggleTodo))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2826)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2828)(label(1))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 2741)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2742)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2830)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2832)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2833)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3305)(content(Whitespace\" \"))))(Tile((id 2838)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2840)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2843)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2844)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2846)(content(Whitespace\" \"))))(Tile((id \
+                 2851)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2852)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3306)(content(Whitespace\" \"))))(Tile((id \
+                 2855)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2869)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2858)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2860)(content(Whitespace\" \"))))(Tile((id \
+                 2865)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
+                 2778)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 2781)(content(Whitespace\" \")))))))))(Tile((id \
+                 2783)(label(\";\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2872)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2878)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 2879)(content(Whitespace\" \
+                 \"))))(Tile((id 2888)(label(Model.eq))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2889)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 2890)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2897)(label(update))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2898)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2899)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2900)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2902)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2903)(content(Whitespace\" \"))))(Tile((id 2904)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2905)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2908)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2909)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2910)(content(Whitespace\" \"))))(Tile((id \
+                 2916)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 2917)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2918)(content(Whitespace\" \"))))(Tile((id \
+                 2919)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2922)(label(\"\\\"2\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2923)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2924)(content(Whitespace\" \"))))(Tile((id \
+                 2929)(label(true))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 2930)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2931)(content(Whitespace\" \"))))(Tile((id \
+                 2995)(label(RemoveTodo))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2943)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2944)(label(1))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 2946)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2947)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 2948)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2949)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 2951)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3304)(content(Whitespace\" \"))))(Tile((id 2952)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 2953)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 2956)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 2957)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2958)(content(Whitespace\" \"))))(Tile((id \
+                 2964)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
+                 2977)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 2980)(content(Whitespace\" \")))))))))(Tile((id \
+                 2982)(label(\";\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3171)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3177)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 3178)(content(Whitespace\" \
+                 \"))))(Tile((id 3187)(label(Model.eq))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3188)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3189)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3196)(label(update))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3197)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3198)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3199)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3201)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3202)(content(Whitespace\" \"))))(Tile((id 3203)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3204)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3207)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3208)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3209)(content(Whitespace\" \"))))(Tile((id \
+                 3215)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 3216)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3217)(content(Whitespace\" \"))))(Tile((id \
+                 3218)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3221)(label(\"\\\"2\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3222)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3223)(content(Whitespace\" \"))))(Tile((id \
+                 3228)(label(true))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 3229)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3230)(content(Whitespace\" \"))))(Tile((id \
+                 3241)(label(RemoveTodo))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3273)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3275)(label(2))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 3245)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3246)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3247)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3248)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3250)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3303)(content(Whitespace\" \"))))(Tile((id 3276)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3278)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3280)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3281)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3283)(content(Whitespace\" \"))))(Tile((id \
+                 3288)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 3289)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3291)(content(Whitespace\" \"))))(Tile((id \
+                 3292)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3294)(label(\"\\\"2\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3295)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3297)(content(Whitespace\" \"))))(Tile((id \
+                 3301)(label(true))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
+                 3264)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 3267)(content(Whitespace\" \")))))))))(Tile((id \
+                 3269)(label(\";\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2996)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3002)(label(test end))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id 3003)(content(Whitespace\" \
+                 \"))))(Tile((id 3012)(label(Model.eq))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3013)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 3014)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3021)(label(update))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3022)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3023)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3024)(label(\"\\\"\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3026)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3027)(content(Whitespace\" \"))))(Tile((id 3028)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3029)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3143)(label(\"\\\"Eat\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3033)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3034)(content(Whitespace\" \"))))(Tile((id \
+                 3040)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 3054)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3055)(content(Whitespace\" \"))))(Tile((id \
+                 3122)(label(UpdateInput))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3126)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3138)(label(\"\\\"Breath\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 3070)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3071)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3144)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3170)(label(\"\\\"Breath\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3147)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3149)(content(Whitespace\" \"))))(Tile((id 3150)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3151)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3155)(label(\"\\\"Eat\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3156)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3158)(content(Whitespace\" \"))))(Tile((id \
+                 3163)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
+                 3101)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 3104)(content(Whitespace\" \")))))))))(Tile((id \
+                 3106)(label(\";\"))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 10))(sort \
+                 Exp))((shape(Concave 10))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 2385)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 3670)(label(List.equal))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3672)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3686)(label(Todo.eq))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3687)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3736)(content(Whitespace\" \"))))(Tile((id 3691)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3692)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3694)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3695)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3697)(content(Whitespace\" \"))))(Tile((id \
+                 3702)(label(false))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 3689)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3737)(content(Whitespace\" \"))))(Tile((id \
+                 3732)(label(toggle))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 3733)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Grout((id \
+                 3739)(shape Convex)))(Tile((id 3734)(label(,))(mold((out \
+                 Exp)(in_())(nibs(((shape(Concave 14))(sort \
+                 Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id 3704)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 3705)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 3720)(label(\"\\\"1\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 3708)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 3710)(content(Whitespace\" \"))))(Tile((id \
+                 3750)(label(true))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))))))))()))(ancestors())))(caret \
+                 Outer))";
               backup_text =
                 "let add_todo: (String, Todos) -> Todos =\n\
                  fun (input, todos) -> (input, false) :: todos  \n\
@@ -5223,7 +6562,7 @@ let startup : PersistentData.t =
                  let toggle: (Int, Todos) -> Todos =\n\
                  fun (idx, todos) ->\n\
                  List.mapi(\n\
-                 fun i, (descr, done) ->\n\
+                 fun i, (descr, done)->\n\
                  (descr, if i == idx then !done else done),\n\
                  todos\n\
                  )  \n\
@@ -5235,19 +6574,532 @@ let startup : PersistentData.t =
                  let update: (Model, Action) -> Model =\n\
                  fun ((input: String, todos: Todos), action) ->\n\
                  case action\n\
-                 | AddTodo => (input, add_todo(input, todos))\n\
+                 | AddTodo => (\"\", add_todo(input, todos))\n\
                  | ToggleTodo(idx) => (input, toggle(idx, todos))\n\
                  | RemoveTodo(idx) => (input, remove_todo(idx, todos))\n\
                  | UpdateInput(new_input) => (new_input, todos) \n\
                  end\n\
-                 in\n\
-                 %EXPORT";
+                 in\n\n\
+                 test Model.eq(\n\
+                 update((\"new\", []), AddTodo),\n\
+                 (\"\", [(\"new\", false)])\n\
+                 ) end;\n\
+                 test Model.eq(\n\
+                 update((\"new\", [(\"old\", false)]), AddTodo),\n\
+                 (\"\", [(\"new\", false),(\"old\", false)])\n\
+                 ) end;\n\
+                 #TODO: below triggers exception when corrected#\n\
+                 test Model.eq(\n\
+                 update((\"\", [(\"1\", false), (\"2\", true)]), ToggleTodo(1)),\n\
+                 (\"\", [(\"1\", false), (\"\", false)])\n\
+                 ) end;\n\
+                 test Model.eq(\n\
+                 update((\"\", [(\"1\", false), (\"2\", true)]), RemoveTodo(1)),\n\
+                 (\"\", [(\"1\", false)])\n\
+                 ) end;\n\
+                 test Model.eq(\n\
+                 update((\"\", [(\"1\", false), (\"2\", true)]), RemoveTodo(2)),\n\
+                 (\"\", [(\"1\", false), (\"2\", true)])\n\
+                 ) end;\n\
+                 test Model.eq(\n\
+                 update((\"\", [(\"Eat\", false)]), UpdateInput(\"Breath\")),\n\
+                 (\"Breath\", [(\"Eat\", false)])\n\
+                 ) end;\n\
+                 List.equal(Todo.eq, [(\"1\", false)], toggle( ,[(\"1\", \
+                 true)]))";
             } );
-          ( 1123,
+          ( 1135,
             {
               zipper =
                 "((selection((focus Left)(content())(mode \
-                 Normal)))(backpack())(relatives((siblings(()((Tile((id \
+                 Normal)))(backpack())(relatives((siblings(((Secondary((id \
+                 1015)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1016)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 1022)(label(Create))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 1023)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1030)(label(\"\\\"class\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 1031)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1038)(label(\"\\\"todos\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 1039)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children()))))((Secondary((id \
+                 1041)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1042)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 1046)(label(Text))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 1047)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1055)(label(\"\\\"todos:\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
+                 1056)(label(@))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 7))(sort Exp))((shape(Concave 7))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1058)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 1067)(label(todosView))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1068)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1074)(label(todos))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 1075)(content(Whitespace\"\\226\\143\\142\")))))))(ancestors((((id \
+                 1013)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
+                 677)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 681)(label(Text))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 682)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 695)(label(\"\\\"Hazel TODOs\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 696)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 698)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 701)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 702)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 704)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 706)(label([]))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 707)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 709)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 710)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 719)(label(TextInput))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 720)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 722)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 723)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id \
+                 724)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 731)(label(OnInput))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 732)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 737)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 738)(content(Whitespace\" \"))))(Tile((id \
+                 740)(label(s))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 741)(content(Whitespace\" \")))))))))(Secondary((id \
+                 744)(content(Whitespace\" \"))))(Tile((id \
+                 755)(label(UpdateInput))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 756)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 758)(label(s))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 759)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 761)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 763)(label([]))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 764)(content(Whitespace\"\\226\\143\\142\"))))))))))))))(Secondary((id \
+                 765)(content(Whitespace\"\\226\\143\\142\")))))))))(Tile((id \
+                 766)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 768)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 771)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 772)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 774)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id \
+                 775)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 780)(label(Style))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 781)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 783)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id \
+                 784)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 791)(label(Display))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 792)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 798)(label(\"\\\"flex\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 799)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 801)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 815)(label(JustifyContent))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 816)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 824)(label(\"\\\"center\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 825)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 827)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 842)(label(BackgroundColor))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 843)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 849)(label(\"\\\"#986\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 850)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 852)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 864)(label(BorderRadius))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 865)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 872)(label(\"\\\"0.3em\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 873)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 875)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 881)(label(Cursor))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 882)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 891)(label(\"\\\"pointer\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 892)(content(Whitespace\"\\226\\143\\142\"))))))))))))))(Tile((id \
+                 893)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 895)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 902)(label(OnClick))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 903)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 908)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 909)(content(Whitespace\" \"))))(Tile((id \
+                 912)(label(\"()\"))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 913)(content(Whitespace\" \")))))))))(Secondary((id \
+                 916)(content(Whitespace\" \"))))(Tile((id \
+                 923)(label(AddTodo))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 924)(content(Whitespace\"\\226\\143\\142\")))))))))(Tile((id \
+                 925)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 927)(content(Whitespace\" \"))))(Tile((id 928)(label([ \
+                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
+                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 932)(label(Text))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 933)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 938)(label(\"\\\"ADD\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
+                 939)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 941)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 944)(label(if then else))(mold((out Exp)(in_(Exp \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 12))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+                 945)(content(Whitespace\" \"))))(Tile((id \
+                 947)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 957)(label(List.equal))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 958)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1131)(label(Todo.eq))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 1132)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1133)(content(Whitespace\" \"))))(Tile((id \
+                 1130)(label(todos))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 965)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 1134)(content(Whitespace\" \"))))(Tile((id \
+                 968)(label([]))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 973)(content(Whitespace\" \"))))(Secondary((id \
+                 969)(content(Whitespace\" \"))))(Secondary((id \
+                 970)(content(Whitespace\" \"))))(Secondary((id \
+                 971)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
+                 977)(content(Whitespace\" \"))))(Tile((id \
+                 981)(label(Text))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 982)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 1000)(label(\"\\\"You're caught up\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 1005)(content(Whitespace\" \"))))(Secondary((id \
+                 1001)(content(Whitespace\" \"))))(Secondary((id \
+                 1002)(content(Whitespace\" \"))))(Secondary((id \
+                 1003)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 1009)(content(Whitespace\" \"))))(Tile((id \
+                 1012)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))((Secondary((id \
+                 1076)(content(Whitespace\"\\226\\143\\142\")))))))(((id \
+                 676)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
+                 524)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 525)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Tile((id 530)(label(Style))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 531)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
+                 533)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 534)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
+                 1))(children(((Secondary((id \
+                 535)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 550)(label(BackgroundColor))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+                 551)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 557)(label(\"\\\"#543\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 558)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 560)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 572)(label(BorderRadius))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 573)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 580)(label(\"\\\"0.3em\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 581)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 583)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 588)(label(Color))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 589)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 596)(label(\"\\\"white\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 597)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 599)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 606)(label(Display))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 607)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 613)(label(\"\\\"flex\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 614)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 616)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 629)(label(FlexDirection))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 630)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 638)(label(\"\\\"column\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 639)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 641)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 644)(label(Gap))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 645)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 652)(label(\"\\\"0.5em\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
+                 653)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 655)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 662)(label(Padding))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children())))(Tile((id \
+                 663)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+                 670)(label(\"\\\"0.3em\\\"\"))(mold((out \
+                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
+                 671)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 672)(content(Whitespace\"\\226\\143\\142\"))))))))))))))(Tile((id \
+                 673)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
+                 14))(sort Exp))((shape(Concave 14))(sort \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 675)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
+                 1077)(content(Whitespace\"\\226\\143\\142\")))))))(((id \
+                 522)(label(\"(\"\")\"))(mold((out \
+                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+                 Convex)(sort \
+                 Exp))))))(shards((0)(1)))(children(()())))(((Secondary((id \
+                 481)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 485)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 13))(sort \
+                 Exp))))))(shards(0 1))(children(((Secondary((id \
+                 486)(content(Whitespace\" \"))))(Tile((id \
+                 492)(label(input))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 493)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 500)(label(String))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id \
+                 501)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 14))(sort Pat))((shape(Concave 14))(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 503)(content(Whitespace\" \"))))(Tile((id \
+                 508)(label(todos))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Tile((id \
+                 509)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Tile((id 511)(label([ \
+                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
+                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
+                 1))(children(((Tile((id 515)(label(Todo))(mold((out \
+                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
+                 Convex)(sort \
+                 Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
+                 518)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+                 521)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
+                 Convex)(sort Exp))((shape Convex)(sort \
+                 Exp))))))(shards(0))(children()))))((Secondary((id \
+                 1082)(content(Whitespace\" \"))))(Secondary((id \
+                 1078)(content(Whitespace\" \"))))(Secondary((id \
+                 1079)(content(Whitespace\" \"))))(Secondary((id \
+                 1080)(content(Whitespace\"\\226\\143\\142\")))))))(((id \
+                 455)(label(let = in))(mold((out Exp)(in_(Pat \
+                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+                 16))(sort Exp))))))(shards((0 \
+                 1)(2)))(children((((Secondary((id 456)(content(Whitespace\" \
+                 \"))))(Tile((id 461)(label(view))(mold((out \
+                 Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape \
+                 Convex)(sort Pat))))))(shards(0))(children())))(Tile((id \
+                 462)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
+                 11))(sort Pat))((shape(Concave 11))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 464)(content(Whitespace\" \"))))(Tile((id \
+                 469)(label(Model))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 470)(content(Whitespace\" \"))))(Tile((id \
+                 473)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
+                 6))(sort Typ))((shape(Concave 6))(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 474)(content(Whitespace\" \"))))(Tile((id \
+                 478)(label(Node))(mold((out Typ)(in_())(nibs(((shape \
+                 Convex)(sort Typ))((shape Convex)(sort \
+                 Typ))))))(shards(0))(children())))(Secondary((id \
+                 479)(content(Whitespace\" \"))))))())))(((Tile((id \
                  4)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
                  Convex)(sort Exp))((shape(Concave 16))(sort \
                  Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -5570,484 +7422,7 @@ let startup : PersistentData.t =
                  Exp))))))(shards(0))(children()))))))))(Secondary((id \
                  449)(content(Whitespace\" \"))))(Secondary((id \
                  447)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 451)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 455)(label(let = in))(mold((out Exp)(in_(Pat \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 16))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 456)(content(Whitespace\" \"))))(Tile((id \
-                 461)(label(view))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 462)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 464)(content(Whitespace\" \"))))(Tile((id \
-                 469)(label(Model))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 470)(content(Whitespace\" \"))))(Tile((id \
-                 473)(label(->))(mold((out Typ)(in_())(nibs(((shape(Concave \
-                 6))(sort Typ))((shape(Concave 6))(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 474)(content(Whitespace\" \"))))(Tile((id \
-                 478)(label(Node))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Secondary((id \
-                 479)(content(Whitespace\" \")))))((Secondary((id \
-                 481)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 485)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 486)(content(Whitespace\" \"))))(Tile((id \
-                 492)(label(input))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 493)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Tile((id \
-                 500)(label(String))(mold((out Typ)(in_())(nibs(((shape \
-                 Convex)(sort Typ))((shape Convex)(sort \
-                 Typ))))))(shards(0))(children())))(Tile((id \
-                 501)(label(,))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 14))(sort Pat))((shape(Concave 14))(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 503)(content(Whitespace\" \"))))(Tile((id \
-                 508)(label(todos))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Tile((id \
-                 509)(label(:))(mold((out Pat)(in_())(nibs(((shape(Concave \
-                 11))(sort Pat))((shape(Concave 11))(sort \
-                 Typ))))))(shards(0))(children())))(Tile((id 511)(label([ \
-                 ]))(mold((out Typ)(in_(Typ))(nibs(((shape Convex)(sort \
-                 Typ))((shape Convex)(sort Typ))))))(shards(0 \
-                 1))(children(((Tile((id 515)(label(Todo))(mold((out \
-                 Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape \
-                 Convex)(sort \
-                 Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
-                 518)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 521)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 522)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-                 524)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 525)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 530)(label(Style))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 531)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-                 533)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 534)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Secondary((id \
-                 535)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 550)(label(BackgroundColor))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 551)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 557)(label(\"\\\"#543\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 558)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 560)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 572)(label(BorderRadius))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 573)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 580)(label(\"\\\"0.3em\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 581)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 583)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 588)(label(Color))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 589)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 596)(label(\"\\\"white\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 597)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 599)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 606)(label(Display))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 607)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 613)(label(\"\\\"flex\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 614)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 616)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 629)(label(FlexDirection))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 630)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 638)(label(\"\\\"column\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 639)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 641)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 644)(label(Gap))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 645)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 652)(label(\"\\\"0.5em\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 653)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 655)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 662)(label(Padding))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 663)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 670)(label(\"\\\"0.3em\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 671)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 672)(content(Whitespace\"\\226\\143\\142\"))))))))))))))(Tile((id \
-                 673)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 675)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 676)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Secondary((id \
-                 677)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 681)(label(Text))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 682)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 695)(label(\"\\\"Hazel TODOs\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 696)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 698)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 701)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 702)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-                 704)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 706)(label([]))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 707)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 709)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 710)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 719)(label(TextInput))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 720)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-                 722)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 723)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Secondary((id \
-                 724)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 731)(label(OnInput))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 732)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 737)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 738)(content(Whitespace\" \"))))(Tile((id \
-                 740)(label(s))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 741)(content(Whitespace\" \")))))))))(Secondary((id \
-                 744)(content(Whitespace\" \"))))(Tile((id \
-                 755)(label(UpdateInput))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 756)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 758)(label(s))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
-                 759)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 761)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 763)(label([]))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 764)(content(Whitespace\"\\226\\143\\142\"))))))))))))))(Secondary((id \
-                 765)(content(Whitespace\"\\226\\143\\142\")))))))))(Tile((id \
-                 766)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 768)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 771)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 772)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 774)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Secondary((id \
-                 775)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 780)(label(Style))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 781)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 783)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Secondary((id \
-                 784)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 791)(label(Display))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 792)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 798)(label(\"\\\"flex\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 799)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 801)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 815)(label(JustifyContent))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 816)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 824)(label(\"\\\"center\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 825)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 827)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 842)(label(BackgroundColor))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 843)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 849)(label(\"\\\"#986\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 850)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 852)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 864)(label(BorderRadius))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 865)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 872)(label(\"\\\"0.3em\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children()))))))))(Tile((id \
-                 873)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 875)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 881)(label(Cursor))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 882)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 891)(label(\"\\\"pointer\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 892)(content(Whitespace\"\\226\\143\\142\"))))))))))))))(Tile((id \
-                 893)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 895)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 902)(label(OnClick))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 903)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 908)(label(fun ->))(mold((out Exp)(in_(Pat))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 13))(sort \
-                 Exp))))))(shards(0 1))(children(((Secondary((id \
-                 909)(content(Whitespace\" \"))))(Tile((id \
-                 912)(label(\"()\"))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 913)(content(Whitespace\" \")))))))))(Secondary((id \
-                 916)(content(Whitespace\" \"))))(Tile((id \
-                 923)(label(AddTodo))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 924)(content(Whitespace\"\\226\\143\\142\")))))))))(Tile((id \
-                 925)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 927)(content(Whitespace\" \"))))(Tile((id 928)(label([ \
-                 ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort \
-                 Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 932)(label(Text))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 933)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 938)(label(\"\\\"ADD\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))))))))))))(Tile((id \
-                 939)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 941)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 944)(label(if then else))(mold((out Exp)(in_(Exp \
-                 Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-                 12))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-                 945)(content(Whitespace\" \"))))(Tile((id \
-                 947)(label(\"(\"\")\"))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 957)(label(List.equal))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 958)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 964)(label(todos))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 965)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 968)(label([]))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
-                 973)(content(Whitespace\" \"))))(Secondary((id \
-                 969)(content(Whitespace\" \"))))(Secondary((id \
-                 970)(content(Whitespace\" \"))))(Secondary((id \
-                 971)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
-                 977)(content(Whitespace\" \"))))(Tile((id \
-                 981)(label(Text))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 982)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 1000)(label(\"\\\"You're caught up\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 1005)(content(Whitespace\" \"))))(Secondary((id \
-                 1001)(content(Whitespace\" \"))))(Secondary((id \
-                 1002)(content(Whitespace\" \"))))(Secondary((id \
-                 1003)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 1009)(content(Whitespace\" \"))))(Tile((id \
-                 1012)(label(Div))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 1013)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
-                 1015)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 1016)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 1022)(label(Create))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 1023)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 1030)(label(\"\\\"class\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 1031)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 1038)(label(\"\\\"todos\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
-                 1039)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 14))(sort Exp))((shape(Concave 14))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 1041)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 1042)(label([ ]))(mold((out Exp)(in_(Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort Exp))))))(shards(0 \
-                 1))(children(((Tile((id 1046)(label(Text))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
-                 1047)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 1055)(label(\"\\\"todos:\\\"\"))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort \
-                 Exp))))))(shards(0))(children())))))))))))))(Tile((id \
-                 1056)(label(@))(mold((out Exp)(in_())(nibs(((shape(Concave \
-                 7))(sort Exp))((shape(Concave 7))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 1058)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 1067)(label(todosView))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))(Tile((id \
-                 1068)(label(\"(\"\")\"))(mold((out \
-                 Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-                 1074)(label(todos))(mold((out Exp)(in_())(nibs(((shape \
-                 Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))(Secondary((id \
-                 1075)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 1076)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 1077)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-                 1082)(content(Whitespace\" \"))))(Secondary((id \
-                 1078)(content(Whitespace\" \"))))(Secondary((id \
-                 1079)(content(Whitespace\" \"))))(Secondary((id \
-                 1080)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
+                 451)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
                  1084)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
                  1090)(label(Render))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
@@ -6078,8 +7453,7 @@ let startup : PersistentData.t =
                  1115)(content(Whitespace\" \"))))(Tile((id \
                  1121)(label(update))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children())))))))))))(ancestors())))(caret \
-                 Outer))";
+                 Exp))))))(shards(0))(children())))))))))))))))(caret Outer))";
               backup_text =
                 "let todoView : (Int, Todo) -> Node =\n\
                  #below type anns are load bearing? casting bug? #\n\
@@ -6137,7 +7511,7 @@ let startup : PersistentData.t =
                  ]),\n\
                  OnClick(fun () -> AddTodo)\n\
                  ], [Text(\"ADD\")]),\n\
-                 if (List.equal(todos,[]))   \n\
+                 if (List.equal(Todo.eq, todos, []))   \n\
                  then Text(\"You're caught up\")   \n\
                  else Div(\n\
                  [Create(\"class\",\"todos\")],\n\
@@ -6154,6 +7528,14 @@ let startup : PersistentData.t =
               zipper =
                 "((selection((focus Left)(content())(mode \
                  Normal)))(backpack())(relatives((siblings(((Secondary((id \
+                 5)(content(Whitespace\" \")))))((Tile((id \
+                 9)(label(lol))(mold((out Pat)(in_())(nibs(((shape \
+                 Convex)(sort Pat))((shape Convex)(sort \
+                 Pat))))))(shards(0))(children())))(Secondary((id \
+                 10)(content(Whitespace\" \")))))))(ancestors((((id \
+                 4)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+                 Convex)(sort Exp))((shape(Concave 16))(sort \
+                 Exp))))))(shards((0)(1 2)))(children(()(((Secondary((id \
                  12)(content(Whitespace\" \"))))(Tile((id 42)(label(let = \
                  in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
                  Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
@@ -6192,16 +7574,8 @@ let startup : PersistentData.t =
                  79)(content(Whitespace\" \"))))(Tile((id \
                  82)(label(666))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))((Secondary((id \
-                 22)(content(Whitespace\" \")))))))(ancestors((((id \
-                 4)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
-                 Convex)(sort Exp))((shape(Concave 16))(sort \
-                 Exp))))))(shards((0 1)(2)))(children((((Secondary((id \
-                 5)(content(Whitespace\" \"))))(Tile((id \
-                 9)(label(lol))(mold((out Pat)(in_())(nibs(((shape \
-                 Convex)(sort Pat))((shape Convex)(sort \
-                 Pat))))))(shards(0))(children())))(Secondary((id \
-                 10)(content(Whitespace\" \"))))))())))(()((Secondary((id \
+                 Exp))))))(shards(0))(children())))(Secondary((id \
+                 22)(content(Whitespace\" \")))))))))(()((Secondary((id \
                  24)(content(Whitespace\" \"))))(Tile((id \
                  27)(label(lol))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
@@ -6213,7 +7587,7 @@ let startup : PersistentData.t =
                  31)(content(Whitespace\" \"))))(Tile((id \
                  34)(label(666))(mold((out Exp)(in_())(nibs(((shape \
                  Convex)(sort Exp))((shape Convex)(sort \
-                 Exp))))))(shards(0))(children()))))))))))(caret Outer))";
+                 Exp))))))(shards(0))(children()))))))))))(caret(Inner 0 1)))";
               backup_text =
                 "let lol = let lol = fun x:Int -> x in lol + 666 in lol + 666";
             } );

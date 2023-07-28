@@ -27,6 +27,12 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
+let self_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): Typ.t =>
+  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+  | Some(InfoPat({self: Common(Just(ty)), _})) => ty
+  | _ => Unknown(Internal)
+  };
+
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -52,11 +58,10 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
-      | _ =>
-        //print_endline("elaborator: casting fn:");
-        //print_endline(DHExp.show(DHExp.cast(d, self_ty, ana_ty)));
-        //DHExp.cast(d, self_ty, ana_ty)
-        d
+      | ana_ty =>
+        let (_, ana_out) = Typ.matched_arrow(ana_ty);
+        let (self_in, _) = Typ.matched_arrow(self_ty);
+        DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
       }
     | Tuple(ds) =>
       switch (ana_ty) {
@@ -157,9 +162,8 @@ let rec dhexp_of_uexp =
         DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
-        let* d1 = dhexp_of_uexp(m, body);
-        let+ ty = fixed_pat_typ(m, p);
-        DHExp.Fun(dp, ty, d1, None);
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.Fun(dp, self_pat_typ(m, p), d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -175,6 +179,7 @@ let rec dhexp_of_uexp =
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
       | UnOp(Bool(Not), e) =>
+        //TODO(andrew): this needs some more casting TLC
         let+ d_scrut = dhexp_of_uexp(m, e);
         let d_rules =
           DHExp.[
