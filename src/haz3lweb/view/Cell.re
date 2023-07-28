@@ -274,7 +274,7 @@ let editor_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
@@ -339,7 +339,7 @@ let editor_with_result_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {
