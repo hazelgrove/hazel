@@ -7529,6 +7529,38 @@ let startup : PersistentData.t =
                  (\"Breath\", [(\"Eat\", false)])\n\
                  ) end";
             } );
+          ( 33,
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                 32)(shape Convex))))))(ancestors())))(caret Outer))";
+              backup_text = " ";
+            } );
+          ( 33,
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                 32)(shape Convex))))))(ancestors())))(caret Outer))";
+              backup_text = " ";
+            } );
+          ( 33,
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                 32)(shape Convex))))))(ancestors())))(caret Outer))";
+              backup_text = " ";
+            } );
+          ( 33,
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                 32)(shape Convex))))))(ancestors())))(caret Outer))";
+              backup_text = " ";
+            } );
         ] );
     examples =
       ( "Introduction",
