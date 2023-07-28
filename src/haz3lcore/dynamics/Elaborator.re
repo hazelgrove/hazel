@@ -55,14 +55,9 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | _ => d
       }
     | Fun(_) =>
-      switch (ana_ty) {
-      | Unknown(prov) =>
-        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
-      | ana_ty =>
-        let (_, ana_out) = Typ.matched_arrow(ana_ty);
-        let (self_in, _) = Typ.matched_arrow(self_ty);
-        DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
-      }
+      let (_, ana_out) = Typ.matched_arrow(ana_ty);
+      let (self_in, _) = Typ.matched_arrow(self_ty);
+      DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -179,14 +174,18 @@ let rec dhexp_of_uexp =
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
       | UnOp(Bool(Not), e) =>
-        //TODO(andrew): this needs some more casting TLC
         let+ d_scrut = dhexp_of_uexp(m, e);
         let d_rules =
           DHExp.[
             Rule(BoolLit(true), BoolLit(false)),
             Rule(BoolLit(false), BoolLit(true)),
           ];
-        DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
+        let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
+        /* Manually construct cast (case is not otherwise cast) */
+        switch (mode) {
+        | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
+        | _ => d
+        };
       | BinOp(op, e1, e2) =>
         let (_, cons) = exp_binop_of(op);
         let* dc1 = dhexp_of_uexp(m, e1);
@@ -202,18 +201,11 @@ let rec dhexp_of_uexp =
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVariable) =>
-          /*print_endline(
-              "Elaborator: FreeVariable: "
-              ++ name
-              ++ " id: "
-              ++ string_of_int(id),
-            );*/
-          Some(FreeVar(id, 0, name))
-        //TODO(andrew): cleanup
+        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Constructor(name) =>
+        //TODO(andrew): cleanup
         switch (err_status) {
         | _ when name == "Render" =>
           /* HACK(andrew): Expanding this constructor to nexted fixes
