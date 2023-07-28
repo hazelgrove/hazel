@@ -30,7 +30,7 @@ let matched_arrow: t => (t, t) =
 let matched_prod: (int, t) => list(t) =
   length =>
     fun
-    | Prod(tys) when List.length(tys) == length => tys
+    | Prod(_, tys) when List.length(tys) == length => tys
     | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
     | _ => List.init(length, _ => Unknown(Internal));
 
@@ -63,7 +63,7 @@ let precedence = (ty: t): int =>
   | Rec(_)
   | Sum(_)
   | List(_) => precedence_const
-  | Prod(_) => precedence_Prod
+  | Prod(_, _) => precedence_Prod
   | Arrow(_, _) => precedence_Arrow
   };
 
@@ -76,7 +76,7 @@ let rec subst = (s: t, x: TypVar.t, ty: t) => {
   | Member(name, ty) => Member(name, subst(s, x, ty))
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-  | Prod(tys) => Prod(List.map(subst(s, x), tys))
+  | Prod(inner_ctx, tys) => Prod(inner_ctx, List.map(subst(s, x), tys))
   | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
   | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
@@ -120,8 +120,8 @@ let rec eq = (t1: t, t2: t): bool => {
   | (Unknown(_), _) => false
   | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
   | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
-  | (Prod(_), _) => false
+  | (Prod(_, tys1), Prod(_, tys2)) => List.equal(eq, tys1, tys2)
+  | (Prod(_, _), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
   | (Sum(sm1), Sum(sm2)) => TagMap.equal(Option.equal(eq), sm1, sm2)
@@ -150,7 +150,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
       | Some(typ) => free_vars(~bound, typ),
       List.map(snd, sm),
     )
-  | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+  | Prod(_, tys) => ListUtil.flat_map(free_vars(~bound), tys)
   | Module(inner_ctx) =>
     let ctx_entry_subst = (l: list(Token.t), e: Ctx.entry): list(Token.t) => {
       switch (e) {
@@ -233,11 +233,11 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2);
   | (Arrow(_), _) => None
-  | (Prod(tys1), Prod(tys2)) =>
+  | (Prod(ctx1, tys1), Prod(ctx2, tys2)) =>
     let* tys = ListUtil.map2_opt(join(ctx), tys1, tys2);
     let+ tys = OptUtil.sequence(tys);
-    Prod(tys);
-  | (Prod(_), _) => None
+    Prod(ctx1 @ ctx2, tys); //TODO: what if same variable in both ctx?
+  | (Prod(_, _), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let (sorted1, sorted2) =
       /* If same order, retain order for UI */
@@ -298,7 +298,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | String => ty
   | List(t) => List(normalize(ctx, t))
   | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts))
+  | Prod(ctx_in, ts) => Prod(ctx_in, List.map(normalize(ctx), ts))
   | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
   | Module(inner_ctx) =>
     let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {

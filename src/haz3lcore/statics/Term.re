@@ -135,8 +135,8 @@ module UTyp = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | TupLabel(_, e) => to_typ(ctx, e)
-      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | TupLabel(_, e) => to_typ(ctx, e) // TODO: this
+      | Tuple(us) => Prod([], List.map(to_typ(ctx), us))
       | Sum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)

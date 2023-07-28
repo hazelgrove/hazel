@@ -24,7 +24,9 @@ let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
+  NotGroundOrHole(
+    Prod([], ListUtil.replicate(length, Typ.Unknown(Internal))),
+  );
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
   let sm' = sm |> TagMap.map(Option.map(const_unknown));
   NotGroundOrHole(Sum(sm'));
@@ -48,7 +50,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Rec(_)
   | Arrow(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
-  | Prod(tys) =>
+  | Prod(_, tys) =>
     if (List.for_all(
           fun
           | Typ.Unknown(_) => true
@@ -221,14 +223,14 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
         ds,
       );
     }
-  | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
+  | (Tuple(dps), Cast(d, Prod(_, tys), Prod(_, tys'))) =>
     assert(List.length(tys) == List.length(tys'));
     matches_cast_Tuple(
       dps,
       d,
       List.map(p => [p], List.combine(tys, tys')),
     );
-  | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
+  | (Tuple(dps), Cast(d, Prod(_, tys), Unknown(_))) =>
     matches_cast_Tuple(
       dps,
       d,
@@ -237,7 +239,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
         List.combine(tys, List.init(List.length(tys), const_unknown)),
       ),
     )
-  | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
+  | (Tuple(dps), Cast(d, Unknown(_), Prod(_, tys'))) =>
     matches_cast_Tuple(
       dps,
       d,
@@ -363,7 +365,7 @@ and matches_cast_Tuple =
         Matches(Environment.empty),
       );
     }
-  | Cast(d', Prod(tys), Prod(tys')) =>
+  | Cast(d', Prod(_, tys), Prod(_, tys')) =>
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
     } else {
@@ -374,14 +376,14 @@ and matches_cast_Tuple =
         List.map2(List.cons, List.combine(tys, tys'), elt_casts),
       );
     }
-  | Cast(d', Prod(tys), Unknown(_)) =>
+  | Cast(d', Prod(_, tys), Unknown(_)) =>
     let tys' = List.init(List.length(tys), const_unknown);
     matches_cast_Tuple(
       dps,
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
-  | Cast(d', Unknown(_), Prod(tys')) =>
+  | Cast(d', Unknown(_), Prod(_, tys')) =>
     let tys = List.init(List.length(tys'), const_unknown);
     matches_cast_Tuple(
       dps,
@@ -950,8 +952,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           } else {
             return(Indet(List.nth(ds, n)));
           }
-        | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)
-        | Indet(Cast(targ', Prod(tys), Prod(tys')) as rv) =>
+        | BoxedValue(Cast(targ', Prod(_, tys), Prod(_, tys')) as rv)
+        | Indet(Cast(targ', Prod(_, tys), Prod(_, tys')) as rv) =>
           if (n >= List.length(tys)) {
             return(
               Indet(

@@ -251,7 +251,7 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
-    | TupLabel(_, t) => strip_casts(t)
+    | TupLabel(p, t) => TupLabel(p, strip_casts(t))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
@@ -325,7 +325,7 @@ module rec DHExp: {
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (TupLabel(_), _) => true
+    | (TupLabel(_, e1), TupLabel(_, e2)) => fast_equal(e1, e2) // TODO: Not right
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
@@ -362,6 +362,7 @@ module rec DHExp: {
     | (ApBuiltin(_), _)
     | (Cons(_), _)
     | (ListLit(_), _)
+    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)
     | (BinBoolOp(_), _)

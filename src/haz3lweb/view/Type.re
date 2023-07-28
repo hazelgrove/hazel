@@ -44,10 +44,10 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Arrow"]),
       [view_ty(t1), text(" -> "), view_ty(t2)],
     )
-  | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("()")])
-  | Prod([_]) =>
+  | Prod(_, []) => div(~attr=clss(["typ-view", "Prod"]), [text("()")])
+  | Prod(_, [_]) =>
     div(~attr=clss(["typ-view", "Prod"]), [text("Singleton Product")])
-  | Prod([t0, ...ts]) =>
+  | Prod(_, [t0, ...ts]) =>
     div(
       ~attr=clss(["typ-view", "atom", "Prod"]),
       [
