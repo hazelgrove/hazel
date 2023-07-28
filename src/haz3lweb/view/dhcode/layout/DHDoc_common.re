@@ -1,5 +1,4 @@
 module Doc = Pretty.Doc;
-open Util;
 open Haz3lcore;
 open DHDoc;
 
@@ -71,10 +70,6 @@ module Delim = {
   let open_FixF = mk(".{");
   let close_FixF = mk("}");
 
-  let open_Inj = (inj_side: InjSide.t) =>
-    mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
-  let close_Inj = mk(")");
-
   let projection_dot = mk(".");
 
   let open_Case = mk("case");
@@ -123,9 +118,6 @@ let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
 let mk_TagLit = Doc.text;
 
-let mk_Inj = (inj_side, padded_child) =>
-  Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
-
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
 let rec mk_comma_seq = (ld, rd, l, ol) =>
@@ -146,7 +138,7 @@ let rec mk_comma_seq = (ld, rd, l, ol) =>
 
 let mk_ListLit = l => mk_comma_seq("[", "]", l, l);
 
-let mk_Tuple = elts => mk_comma_seq("(", ")", elts, elts);
+let mk_Tuple = elts => mk_comma_seq("", "", elts, elts);
 
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));

@@ -51,7 +51,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FloatLit(_)
   | StringLit(_)
   | ListLit(_)
-  | Inj(_)
   | Prj(_)
   | EmptyHole(_)
   | Tag(_)
@@ -216,22 +215,14 @@ let rec mk =
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
-      | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
+      | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol);
-      | ListLit(u, i, InconsistentBranches(_, _), _, d_list) =>
-        let ol = d_list |> List.map(go') |> List.map(mk_cast);
-        DHDoc_common.mk_ListLit(ol)
-        |> annot(DHAnnot.InconsistentBranches((u, i)));
-      | Inj(_, inj_side, d) =>
-        let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
-        DHDoc_common.mk_Inj(
-          inj_side,
-          child |> DHDoc_common.pad_child(~enforce_inline),
-        );
       | Ap(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
+        let (doc1, doc2) = (
+          go'(~parenthesize=precedence(d1) > DHDoc_common.precedence_Ap, d1),
+          go'(~parenthesize=false, d2),
+        );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | ApBuiltin(ident, args) =>
         switch (args) {

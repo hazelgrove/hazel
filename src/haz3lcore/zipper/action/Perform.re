@@ -50,8 +50,9 @@ let go_z =
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
-        let* binding_id =
-          Option.bind(idx, Statics.get_binding_site(_, statics));
+        let* idx = idx;
+        let* ci = Id.Map.find_opt(idx, statics);
+        let* binding_id = Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }

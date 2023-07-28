@@ -19,6 +19,18 @@ let rule_prj = (dr: DHExp.rule): (DHPat.t, DHExp.t) => {
   };
 };
 
+let delta_ty = (id: MetaVar.t, Statics.Map.t): option(Typ.t) => {
+	switch(Id.Map.find_opt(id, m)) {
+	| Some(InfoExp({mode, _})) =>
+		switch(mode) {
+		| Syn
+		| SynFun => Unknown(Internal)
+		| Ana(ana_ty) => ana_ty
+		}
+	| _ => None
+	};
+}
+
 let ground = (ty: Typ.t): bool => {
   switch (ty) {
   | Bool
@@ -31,18 +43,24 @@ let ground = (ty: Typ.t): bool => {
   };
 };
 
+//TODO: Figure out how to extend ctx for adts
+//Big problem: without the context for types we cannot make typing assignments
+//for a pl with adts 
 let rec dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
   switch (dhpat, ty) {
   | (Var(name), _) =>
     let entry = Ctx.VarEntry({name, id: 0, typ: ty});
     Ctx.extend(entry, ctx);
   | (Tuple(l1), Prod(l2)) =>
+	if(List.length(l1) == List.length(l2)) {
     List.fold_left2(
       (acc, dhp, typ) => {dhpat_extend_ctx(dhp, typ, acc)},
       ctx,
       l1,
       l2,
-    )
+    ) } else {
+		ctx;
+	};
   | (Cons(dhp1, dhp2), List(typ)) =>
     ctx |> dhpat_extend_ctx(dhp1, typ) |> dhpat_extend_ctx(dhp2, ty)
   | (ListLit(typ1, l), List(typ2)) =>
@@ -54,12 +72,15 @@ let rec dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
       );
     } else {
       ctx;
-    }
+    }	
   | _ => ctx
   };
 };
 
-let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => {
+//TODO: Figure out how to replace delta with just searching in m
+Figure out what to do with Prj and Tag
+
+let rec typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) => {
   switch (dh) {
   | BoolLit(_) => Some(Bool)
   | IntLit(_) => Some(Int)
@@ -69,7 +90,7 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
   | BoundVar(name) =>
     let+ var = Ctx.lookup_var(ctx, name);
     var.typ;
-  | FreeVar(_, _, _) => Some(Unknown(Internal))
+  | FreeVar(_) => Some(Unknown(Internal))
   | Fun(dhp, ty1, d, _) =>
     let+ ty2 = typ_of_dhexp(dhpat_extend_ctx(dhp, ty1, ctx), dl, d);
     Typ.Arrow(ty1, ty2);
@@ -100,10 +121,7 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     };
   | EmptyHole(id, _) =>
     //Find id in delta and get the type
-    switch (Delta.find_opt(id, dl)) {
-    | None => None
-    | Some((_, ty, _)) => Some(ty)
-    }
+	delta_ty(id, m);
   | NonEmptyHole(_, id, _, d) =>
     switch (typ_of_dhexp(ctx, dl, d)) {
     | None => None
@@ -148,11 +166,7 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
 
       switch (typ_cases) {
       | None => None
-      | Some(_) =>
-        switch (Delta.find_opt(id, dl)) {
-        | Some((_, ty, _)) => Some(ty)
-        | None => None
-        }
+      | Some(_) => Some(Unknown(Internal))
       };
     | _ => None
     }
@@ -232,7 +246,6 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     let* ty1 = typ_of_dhexp(ctx, dl, d1);
     let* ty2 = typ_of_dhexp(ctx, dl, d2);
     if (ty1 == String && ty2 == String) {
-      //In case a new string operation comes
       switch (op) {
       | SEquals => Some(Typ.Bool)
       };
@@ -256,9 +269,9 @@ let rec typ_of_dhexp = (ctx: Ctx.t, dl: Delta.t, dh: DHExp.t): option(Typ.t) => 
     let+ typ_list =
       dhs |> List.map(typ_of_dhexp(ctx, dl)) |> OptUtil.sequence;
     Typ.Prod(typ_list);
-  | Prj(_) => None
-  | Inj(_) => None
-  | Tag(_) => None
+  | Prj(_) => 
+  | Tag(_) => 
+	| Closure(_, d1) => typ_of_dhexp(ctx, m, d1);
   | _ => None
   };
 };
