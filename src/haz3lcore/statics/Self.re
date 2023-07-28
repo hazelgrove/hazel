@@ -60,6 +60,11 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | FreeVar => None
     | Common(self) => typ_of(ctx, self);
 
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+  ctx =>
+    fun
+    | Common(self) => typ_of(ctx, self);
+
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>

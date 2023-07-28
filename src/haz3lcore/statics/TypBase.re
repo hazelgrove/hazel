@@ -267,10 +267,15 @@ module rec Typ: {
   let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ctx);
     switch (ty1, ty2) {
+    /* NOTE(andrew): The cases below are load bearing
+       for ensuring that function literals get appropriate
+       casts. Examples/Dynamics has regression tests */
+    | (Unknown(TypeHole | Free(_)) as ty, _)
+    | (_, Unknown(TypeHole | Free(_)) as ty) => Some(ty)
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
-    | (Unknown(_), ty)
-    | (ty, Unknown(_)) => Some(ty)
+    | (Unknown(Internal | SynSwitch), ty)
+    | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));

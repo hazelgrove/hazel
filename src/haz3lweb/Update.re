@@ -221,7 +221,6 @@ let export_persistent_data = () => {
   };
   let contents =
     "let startup : PersistentData.t = " ++ PersistentData.show(data);
-  JsUtil.copy(contents);
   JsUtil.download_string_file(
     ~filename="Init.ml",
     ~content_type="text/plain",
