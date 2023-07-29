@@ -328,6 +328,28 @@ module UPat = {
       }
     );
 
+  let rec has_var_def = (pat: t, var: Var.t) => {
+    switch (pat.term) {
+    | Var(var') => var == var'
+    | Parens(pat)
+    | TypeAnn(pat, _)
+    | Ap(_, pat) => has_var_def(pat, var)
+    | ListLit(pats)
+    | Tuple(pats) => List.exists(pat => has_var_def(pat, var), pats)
+    | Cons(pat1, pat2) => has_var_def(pat1, var) || has_var_def(pat2, var)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | Constructor(_) => false
+    };
+  };
+
   let rec get_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_var(pat)
@@ -414,6 +436,29 @@ module UPat = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let rec get_pats = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => get_pats(pat)
+    | Tuple(pats) => Some(pats)
+    // TODO
+    | Var(_)
+    | TypeAnn(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Constructor(_)
+    | Ap(_) => None
+    };
+  };
 };
 
 module UExp = {
@@ -620,6 +665,132 @@ module UExp = {
     | Tuple([_, ..._] as es) => es
     | _ => [e]
     };
+  };
+
+  let rec is_rec_fun = (pat: UPat.t, e: t) => {
+    switch (e.term) {
+    | Parens(e) => is_rec_fun(pat, e)
+    | Fun(_, e) =>
+      switch (UPat.get_var(pat)) {
+      | Some(var) => has_fun_var(e, var)
+      | None => false
+      }
+    | _ => false
+    };
+  }
+  and has_fun_var = (e: t, var: Var.t) =>
+    switch (e.term) {
+    | Parens(e)
+    | TyAlias(_, _, e)
+    | Test(e)
+    | UnOp(_, e) => has_fun_var(e, var)
+    | Cons(e1, e2)
+    | Seq(e1, e2)
+    | BinOp(_, e1, e2) => has_fun_var(e1, var) || has_fun_var(e2, var)
+    | If(e1, e2, e3) =>
+      has_fun_var(e1, var) || has_fun_var(e2, var) || has_fun_var(e3, var)
+    | ListLit(es)
+    | Tuple(es) => List.exists(has_fun_var(_, var), es)
+    | Fun(pat, e)
+    | Let(pat, _, e) => !UPat.has_var_def(pat, var) && has_fun_var(e, var)
+    | Match(e, ruls) =>
+      has_fun_var(e, var)
+      || List.exists(
+           ((pat, e)) =>
+             !UPat.has_var_def(pat, var) && has_fun_var(e, var),
+           ruls,
+         )
+    | Ap(fn, arg)
+    | DeferredAp(fn, arg) =>
+      has_branch_var(fn, var)
+      || has_fun_var(fn, var)
+      || has_fun_var(arg, var)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Triv
+    | Deferral(_)
+    | Bool(_)
+    | Int(_)
+    | Float(_)
+    | String(_)
+    | Var(_)
+    | Constructor(_) => false
+    }
+  and has_branch_var = (e: t, var: Var.t) => {
+    switch (e.term) {
+    | Var(var') => var == var'
+    | Parens(e)
+    | TyAlias(_, _, e)
+    | Seq(_, e) => has_branch_var(e, var)
+    | Let(pat, _, e) =>
+      !UPat.has_var_def(pat, var) && has_branch_var(e, var)
+    | If(_, e1, e2) => has_branch_var(e1, var) || has_branch_var(e2, var)
+    | Match(_, ruls) =>
+      List.exists(
+        ((pat, e)) =>
+          !UPat.has_var_def(pat, var) && has_branch_var(e, var),
+        ruls,
+      )
+    | Ap(_)
+    | DeferredAp(_)
+    | Fun(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Triv
+    | Deferral(_)
+    | Bool(_)
+    | Int(_)
+    | Float(_)
+    | String(_)
+    | ListLit(_)
+    | Tuple(_)
+    | Test(_)
+    | Cons(_)
+    | UnOp(_)
+    | BinOp(_)
+    | Constructor(_) => false
+    };
+  };
+
+  let rec is_tuple_of_rec_functions = (pat: UPat.t, e: t) => {
+    is_rec_fun(pat, e)
+    || (
+      switch (e.term) {
+      | Parens(e) => is_tuple_of_rec_functions(pat, e)
+      | Tuple(es) =>
+        switch (UPat.get_pats(pat)) {
+        | Some(pats) =>
+          List.for_all(pat => List.exists(is_rec_fun(pat), es), pats)
+        | None => false
+        }
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | Deferral(_)
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | Var(_)
+      | Let(_)
+      | TyAlias(_)
+      | Ap(_)
+      | DeferredAp(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Cons(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_)
+      | Constructor(_) => false
+      }
+    );
   };
 };
 
