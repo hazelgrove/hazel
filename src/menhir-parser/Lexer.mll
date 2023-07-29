@@ -36,6 +36,9 @@ rule token =
     | "in" { IN }
     | "fun" { FUN }
     | "case" { CASE }
+    | "if" { IF }
+    | "then" { THEN }
+    | "else" { ELSE }
     | "{" { OPEN_BRACKET }
     | "}" { CLOSE_BRACKET }
     | "[" { OPEN_SQUARE_BRACKET }
@@ -60,7 +63,7 @@ rule token =
     | "||" { L_OR }
     | "!" { L_NOT }
     | "&" { B_AND }
-    | "|" { B_OR }
+    | "|" { TURNSTILE }
     | "," { COMMA }
     | ":" { COLON }
     | "Int" { INT_TYPE }

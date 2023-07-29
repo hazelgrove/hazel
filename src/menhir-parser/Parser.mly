@@ -20,6 +20,7 @@ open AST
 %token DASH_ARROW
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
+%token TURNSTILE
 
 (* bin ops *)
 %token DOUBLE_EQUAL
@@ -39,7 +40,6 @@ open AST
 %token L_NOT
 (*bitwise ops*)
 %token B_AND
-%token B_OR
 
 %token COMMA
 %token COLON
@@ -52,6 +52,10 @@ open AST
 %token FLOAT_TYPE
 %token BOOL_TYPE
 %token STRING_TYPE
+
+%token IF
+%token THEN
+%token ELSE
 
 %type <AST.exp> exp
 
@@ -78,8 +82,6 @@ binOp:
     | L_OR { Logical_Or }
     | L_NOT { Logical_Not }
 
-
-
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
@@ -103,6 +105,12 @@ patTuple:
 typeAnn: 
     | p = pat; COLON; t = typ { TypeAnn(p, t) }
 
+rul:
+    | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
+
+case:
+    | CASE; e = exp; l = list(rul); { Rules(e, l) }
+
 exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
@@ -113,3 +121,6 @@ exp:
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ArrayExp(e) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
     | FUN; t = patTuple; DASH_ARROW; e1 = exp; { Fun (t, e1) }
+    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) }
+
+
