@@ -1,1 +1,2 @@
+let z = fun (x: Int) -> x + 1 in
 1
