@@ -36,7 +36,6 @@ type pat =
     | TypeAnn(pat, typ)
     | TuplePat(list(pat));
 
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = 
     | Int(int)
@@ -47,4 +46,9 @@ type exp =
     | Unit
     | BinExp(exp, binOp, exp)
     | Let(pat, exp, exp)
-    | Fun(pat, exp);
+    | Fun(pat, exp)
+    | If(exp, exp, exp);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rul =
+    | Rules(exp, list((pat, exp)));
