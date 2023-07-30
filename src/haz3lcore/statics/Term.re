@@ -680,6 +680,7 @@ module UExp = {
   }
   and has_fun_var = (e: t, var: Var.t) =>
     switch (e.term) {
+    | Var(var') => var == var'
     | Parens(e)
     | TyAlias(_, _, e)
     | Test(e)
@@ -702,8 +703,8 @@ module UExp = {
          )
     | Ap(fn, arg)
     | DeferredAp(fn, arg) =>
-      has_branch_var(fn, var)
-      || has_fun_var(fn, var)
+      //has_branch_var(fn, var) || 
+      has_fun_var(fn, var)
       || has_fun_var(arg, var)
     | Invalid(_)
     | EmptyHole
@@ -714,45 +715,45 @@ module UExp = {
     | Int(_)
     | Float(_)
     | String(_)
-    | Var(_)
-    | Constructor(_) => false
-    }
-  and has_branch_var = (e: t, var: Var.t) => {
-    switch (e.term) {
-    | Var(var') => var == var'
-    | Parens(e)
-    | TyAlias(_, _, e)
-    | Seq(_, e) => has_branch_var(e, var)
-    | Let(pat, _, e) =>
-      !UPat.has_var_def(pat, var) && has_branch_var(e, var)
-    | If(_, e1, e2) => has_branch_var(e1, var) || has_branch_var(e2, var)
-    | Match(_, ruls) =>
-      List.exists(
-        ((pat, e)) =>
-          !UPat.has_var_def(pat, var) && has_branch_var(e, var),
-        ruls,
-      )
-    | Ap(_)
-    | DeferredAp(_)
-    | Fun(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Triv
-    | Deferral(_)
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
-    | ListLit(_)
-    | Tuple(_)
-    | Test(_)
-    | Cons(_)
-    | UnOp(_)
-    | BinOp(_)
+    // | Var(_)
     | Constructor(_) => false
     };
-  };
+  // and has_branch_var = (e: t, var: Var.t) => {
+  //   switch (e.term) {
+  //   | Var(var') => var == var'
+  //   | Parens(e)
+  //   | TyAlias(_, _, e)
+  //   | Seq(_, e) => has_branch_var(e, var)
+  //   | Let(pat, _, e) =>
+  //     !UPat.has_var_def(pat, var) && has_branch_var(e, var)
+  //   | If(_, e1, e2) => has_branch_var(e1, var) || has_branch_var(e2, var)
+  //   | Match(_, ruls) =>
+  //     List.exists(
+  //       ((pat, e)) =>
+  //         !UPat.has_var_def(pat, var) && has_branch_var(e, var),
+  //       ruls,
+  //     )
+  //   | Ap(_)
+  //   | DeferredAp(_)
+  //   | Fun(_)
+  //   | Invalid(_)
+  //   | EmptyHole
+  //   | MultiHole(_)
+  //   | Triv
+  //   | Deferral(_)
+  //   | Bool(_)
+  //   | Int(_)
+  //   | Float(_)
+  //   | String(_)
+  //   | ListLit(_)
+  //   | Tuple(_)
+  //   | Test(_)
+  //   | Cons(_)
+  //   | UnOp(_)
+  //   | BinOp(_)
+  //   | Constructor(_) => false
+  //   };
+  // };
 
   let rec is_tuple_of_rec_functions = (pat: UPat.t, e: t) => {
     is_rec_fun(pat, e)
