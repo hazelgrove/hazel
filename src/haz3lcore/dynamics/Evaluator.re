@@ -1181,6 +1181,14 @@ and evaluate_test =
       let mk_op = (arg_d1, arg_d2) => DHExp.BinFloatOp(op, arg_d1, arg_d2);
       evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
 
+    | Ap(fn, Tuple(args)) =>
+      let* args_d: list(EvaluatorResult.t) =
+        args |> List.map(evaluate(env)) |> sequence;
+      let arg_show =
+        DHExp.Ap(fn, Tuple(List.map(EvaluatorResult.unbox, args_d)));
+      let* arg_result = evaluate(env, arg_show);
+      (arg_show, arg_result) |> return;
+
     | Ap(Ap(arg_d1, arg_d2), arg_d3) =>
       let* arg_d1 = evaluate(env, arg_d1);
       let* arg_d2 = evaluate(env, arg_d2);
