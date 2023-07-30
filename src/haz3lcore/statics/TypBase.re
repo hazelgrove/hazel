@@ -245,7 +245,7 @@ module rec Typ: {
     /* NOTE(andrew): The cases below are load bearing
        for ensuring that function literals get appropriate
        casts. Examples/Dynamics has regression tests */
-    | (Unknown(TypeHole | Free(_)) as ty, _)
+    // | (Unknown(TypeHole | Free(_)) as ty, _)
     | (_, Unknown(TypeHole | Free(_)) as ty) => Some(ty)
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
