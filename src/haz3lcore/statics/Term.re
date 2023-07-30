@@ -703,9 +703,8 @@ module UExp = {
          )
     | Ap(fn, arg)
     | DeferredAp(fn, arg) =>
-      //has_branch_var(fn, var) || 
-      has_fun_var(fn, var)
-      || has_fun_var(arg, var)
+      //has_branch_var(fn, var) ||
+      has_fun_var(fn, var) || has_fun_var(arg, var)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
