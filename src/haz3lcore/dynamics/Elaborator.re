@@ -228,7 +228,8 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty_body = fixed_exp_typ(m, body);
-        switch (Term.UPat.get_recursive_bindings(p)) {
+        //switch (Term.UPat.get_recursive_bindings(p)) {
+        switch (Term.UExp.get_recursive_bindings(p, def)) {
         | None =>
           /* not recursive */
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)

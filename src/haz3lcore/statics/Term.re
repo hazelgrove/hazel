@@ -352,9 +352,9 @@ module UPat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -439,11 +439,10 @@ module UPat = {
 
   let rec get_pats = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_pats(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => get_pats(pat)
     | Tuple(pats) => Some(pats)
-    // TODO
     | Var(_)
-    | TypeAnn(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -667,15 +666,15 @@ module UExp = {
     };
   };
 
-  let rec is_rec_fun = (pat: UPat.t, e: t) => {
+  let rec get_fun_var = (pat: UPat.t, e: t) => {
     switch (e.term) {
-    | Parens(e) => is_rec_fun(pat, e)
+    | Parens(e) => get_fun_var(pat, e)
     | Fun(_, e) =>
       switch (UPat.get_var(pat)) {
-      | Some(var) => has_fun_var(e, var)
-      | None => false
+      | Some(x) when has_fun_var(e, x) => Some(x)
+      | _ => None
       }
-    | _ => false
+    | _ => None
     };
   }
   and has_fun_var = (e: t, var: Var.t) =>
@@ -754,16 +753,28 @@ module UExp = {
   //   };
   // };
 
-  let rec is_tuple_of_rec_functions = (pat: UPat.t, e: t) => {
-    is_rec_fun(pat, e)
-    || (
+  let rec get_recursive_bindings = (pat: UPat.t, e: t) => {
+    switch (get_fun_var(pat, e)) {
+    | Some(x) => Some([x])
+    | None =>
       switch (e.term) {
-      | Parens(e) => is_tuple_of_rec_functions(pat, e)
+      | Parens(e) => get_recursive_bindings(pat, e)
       | Tuple(es) =>
         switch (UPat.get_pats(pat)) {
         | Some(pats) =>
-          List.for_all(pat => List.exists(is_rec_fun(pat), es), pats)
-        | None => false
+          let get_fun_var = pat =>
+            List.fold_left(
+              (acc, e) => Option.is_none(acc) ? get_fun_var(pat, e) : acc,
+              None,
+              es,
+            );
+          let fun_vars = pats |> List.map(get_fun_var);
+          if (List.exists(Option.is_none, fun_vars)) {
+            None;
+          } else {
+            Some(List.map(Option.get, fun_vars));
+          };
+        | None => None
         }
       | Invalid(_)
       | EmptyHole
@@ -788,9 +799,9 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Constructor(_) => false
+      | Constructor(_) => None
       }
-    );
+    };
   };
 };
 
