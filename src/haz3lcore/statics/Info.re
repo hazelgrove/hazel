@@ -232,13 +232,13 @@ let rec status_common =
   switch (self, mode) {
   | (Just(syn), Syn) => NotInHole(SynConsistent(syn))
   | (Just(syn), Ana(ana)) =>
-    switch (Typ.join(ctx, ana, syn)) {
+    switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(TypeInconsistent({syn, ana}))
     | Some(join) => NotInHole(AnaConsistent({ana, syn, join}))
     }
   | (Just(syn), SynFun) =>
     switch (
-      Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
+      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
     ) {
     | None => InHole(InconsistentWithArrow(syn))
     | Some(_) => NotInHole(SynConsistent(syn))
