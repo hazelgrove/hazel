@@ -62,6 +62,9 @@ let term_tag =
 
 let common_err_view = (err: Info.error_common) =>
   switch (err) {
+  | BadToken(token) when Form.is_bad_int(token) => [
+      text("Integer is too large or too small"),
+    ]
   | BadToken(token) => [
       text(Printf.sprintf("\"%s\" isn't a valid token", token)),
     ]
