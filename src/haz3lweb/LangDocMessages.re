@@ -1614,15 +1614,18 @@ let conapp_exp: form = {
   };
 };
 let _exp_fun = exp("e_fun");
-let _exp_arg = exp("e_arg");
+let _exp_arg = exp("e1");
+let _exp_deferral = deferral();
 let deferred_funapp_exp_coloring_ids =
-    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+    (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t)
+    : list((Id.t, Id.t)) => [
   (Piece.id(_exp_fun), x_id),
-  (Piece.id(_exp_arg), arg_id),
+  (Piece.id(_exp_arg), supplied_id),
+  (Piece.id(_exp_deferral), deferred_id),
 ];
 let deferred_funapp_exp: form = {
   let explanation = {
-    message: "Partial function application. Bound part(s) of the [*function*](%i) input pattern to supplied values in the [*argument*](%i).",
+    message: "Partial function application. Apply the [*function*](%i) to the [*supplied arguments*](%i). [*unsupplied arguments*](%i) are deferred to future applications.", //Bound part(s) of the [*function*](%i) input pattern to supplied values in the [*argument*](%i).",
     feedback: Unselected,
   };
   let comma = comma_exp();
@@ -1635,11 +1638,11 @@ let deferred_funapp_exp: form = {
       _exp_fun,
       mk_ap_exp([
         [
-          exp("e1"),
+          _exp_arg,
           space(),
           or_,
           space(),
-          deferral(),
+          _exp_deferral,
           comma,
           space(),
           exp("..."),
