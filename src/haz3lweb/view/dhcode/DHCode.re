@@ -55,22 +55,28 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
+             | OperationError(InvalidIntOfString) => (
+                 [with_cls("OperationError", txt)],
+                 ds,
+               )
+             | OperationError(InvalidFloatOfString) => (
+                 [with_cls("OperationError", txt)],
+                 ds,
+               )
              | OperationError(DivideByZero) => (
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(NegativeExponent) => (
-                 [with_cls("NegativeExponent", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(OutOfFuel) => (
-                 //TODO: custom class
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(InvalidProjection) => (
-                 //TODO: custom class
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
@@ -190,21 +196,27 @@ let view_of_layout_tylr =
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(DivideByZero) => (
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
+                 ds,
+               )
+             | OperationError(InvalidIntOfString) => (
+                 [with_cls("OperationError", txt)],
+                 ds,
+               )
+             | OperationError(InvalidFloatOfString) => (
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(NegativeExponent) => (
-                 [with_cls("NegativeExponent", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(OutOfFuel) => (
-                 //TODO: custom class
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | OperationError(InvalidProjection) => (
-                 //TODO: custom class
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("OperationError", txt)],
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
