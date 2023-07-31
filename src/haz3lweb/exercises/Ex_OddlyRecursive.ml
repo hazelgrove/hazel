@@ -2380,6 +2380,21 @@ let exercise : Exercise.spec =
           hint = "incorrect base case";
         };
       ];
+    syntax_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = [] };
+            backpack = [];
+            relatives =
+              {
+                siblings = ([ Grout { id = 0; shape = Convex } ], []);
+                ancestors = [];
+              };
+            caret = Outer;
+          };
+        hints = [ "not is used" ];
+      };
     hidden_tests =
       {
         tests =
@@ -3090,9 +3105,4 @@ let exercise : Exercise.spec =
           };
         hints = [ "zero" ];
       };
-    syntax_tests =
-      [
-        ("not is used", Haz3lschool.SyntaxTest.var_mention "not");
-        ("odd is recursive", Haz3lschool.SyntaxTest.is_recursive "odd");
-      ];
   }

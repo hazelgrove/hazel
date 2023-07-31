@@ -249,8 +249,10 @@ module MutationTestingReport = {
 
 module SyntaxReport = {
   include SyntaxReport;
-  let individual_report = (i: int, hint: string, status: bool) => {
-    let result_string = status ? "Pass" : "Indet";
+  open Haz3lcore;
+
+  let individual_report = (i: int, hint: string, status: TestStatus.t) => {
+    let result_string = status == Pass ? "Pass" : "Indet";
 
     div(
       ~attr=Attr.classes(["test-report"]),
@@ -269,7 +271,7 @@ module SyntaxReport = {
     );
   };
 
-  let individual_reports = (hinted_results: list((bool, string))) => {
+  let individual_reports = (hinted_results: list((TestStatus.t, string))) => {
     div(
       hinted_results
       |> List.mapi((i, (status, hint)) =>

@@ -146,44 +146,44 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
 };
 
 /*let rec is_tail_recursive = (uexp: Term.UExp.t, name: string): bool => {
-  switch (uexp.term) {
-  | Fun(args, body) =>
-    find_var_upat(args, name) ? false : is_tail_recursive(body, name)
-  | Let(p, def, body) =>
-    find_var_upat(p, name) || is_recursive(def, name)
-      ? false : is_tail_recursive(body, name)
-  | Tuple(l) =>
-    //If l has no recursive calls then true
-    !List.fold_left((acc, ue) => {acc || is_recursive(ue, name)}, false, l)
-  | Ap(u1, u2) =>
-    is_recursive(u2, name) ? false : is_tail_recursive(u1, name)
-  | If(u1, u2, u3) =>
-    is_recursive(u1, name)
-      ? false : is_tail_recursive(u2, name) && is_tail_recursive(u3, name)
-  | Seq(u1, u2) =>
-    is_recursive(u1, name) ? false : is_tail_recursive(u2, name)
-  | Test(_) => false
-  | Parens(u) => is_tail_recursive(u, name)
-  | Cons(u1, u2) => !(is_recursive(u1, name) || is_recursive(u2, name))
-  | UnOp(_, u) => !is_recursive(u, name)
-  | BinOp(_, u1, u2) => !(is_recursive(u1, name) || is_recursive(u2, name))
-  | Match(g, l) =>
-    is_recursive(g, name)
-      ? false
-      : List.fold_left(
-          (acc, (p, e)) => {
-            find_var_upat(p, name)
-              ? false : acc && is_tail_recursive(e, name)
-          },
-          false,
-          l,
-        )
-  | ListLit(l) =>
-    !List.fold_left((acc, ue) => {acc || is_recursive(ue, name)}, false, l)
+    switch (uexp.term) {
+    | Fun(args, body) =>
+      find_var_upat(args, name) ? false : is_tail_recursive(body, name)
+    | Let(p, def, body) =>
+      find_var_upat(p, name) || is_recursive(def, name)
+        ? false : is_tail_recursive(body, name)
+    | Tuple(l) =>
+      //If l has no recursive calls then true
+      !List.fold_left((acc, ue) => {acc || is_recursive(ue, name)}, false, l)
+    | Ap(u1, u2) =>
+      is_recursive(u2, name) ? false : is_tail_recursive(u1, name)
+    | If(u1, u2, u3) =>
+      is_recursive(u1, name)
+        ? false : is_tail_recursive(u2, name) && is_tail_recursive(u3, name)
+    | Seq(u1, u2) =>
+      is_recursive(u1, name) ? false : is_tail_recursive(u2, name)
+    | Test(_) => false
+    | Parens(u) => is_tail_recursive(u, name)
+    | Cons(u1, u2) => !(is_recursive(u1, name) || is_recursive(u2, name))
+    | UnOp(_, u) => !is_recursive(u, name)
+    | BinOp(_, u1, u2) => !(is_recursive(u1, name) || is_recursive(u2, name))
+    | Match(g, l) =>
+      is_recursive(g, name)
+        ? false
+        : List.fold_left(
+            (acc, (p, e)) => {
+              find_var_upat(p, name)
+                ? false : acc && is_tail_recursive(e, name)
+            },
+            false,
+            l,
+          )
+    | ListLit(l) =>
+      !List.fold_left((acc, ue) => {acc || is_recursive(ue, name)}, false, l)
 
-  | _ => true
-  };
-};*/
+    | _ => true
+    };
+  };*/
 
 let check =
     (uexp: Term.UExp.t, predicates: list(Term.UExp.t => bool)): syntax_result => {

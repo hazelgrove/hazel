@@ -1937,6 +1937,21 @@ let exercise : Exercise.spec =
           hint = "TODO: hint 1";
         };
       ];
+    syntax_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = [] };
+            backpack = [];
+            relatives =
+              {
+                siblings = ([ Grout { id = 0; shape = Convex } ], []);
+                ancestors = [];
+              };
+            caret = Outer;
+          };
+        hints = [];
+      };
     hidden_tests =
       {
         tests =
@@ -3080,6 +3095,4 @@ let exercise : Exercise.spec =
           };
         hints = [];
       };
-    syntax_tests =
-      [ ("fib is recursive", Haz3lschool.SyntaxTest.is_recursive "fib") ];
   }

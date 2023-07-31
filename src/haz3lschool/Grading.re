@@ -166,25 +166,58 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module SyntaxReport = {
     type t = {
-      hinted_results: list((bool, hint)),
-      percentage: float,
+      hinted_results: list((TestStatus.t, string)),
+      percentage,
     };
 
-    let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
-      let user_impl_term =
-        Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
-          EditorUtil.stitch([your_impl])
+    let percentage = (statuses: list(TestStatus.t)): percentage => {
+      let length = List.length(statuses);
+      let passing =
+        List.fold_left(
+          (acc, status: TestStatus.t) =>
+            switch (status) {
+            | Pass => acc + 1
+            | _ => acc
+            },
+          0,
+          statuses,
         );
+      length == 0 ? 1. : float_of_int(passing) /. float_of_int(length);
+    };
 
-      let predicates = List.map(((_, p)) => p, tests);
-      let hints = List.map(((h, _)) => h, tests);
-      let syntax_results = SyntaxTest.check(user_impl_term, predicates);
+    let mk =
+        (
+          ~hints: list(string),
+          ~test_results: option(TestResults.test_results),
+        )
+        : t => {
+      let hinted_results =
+        switch (test_results) {
+        | Some(test_results) =>
+          let statuses = test_results.statuses;
+          Util.ListUtil.zip_defaults(
+            statuses,
+            hints,
+            Haz3lcore.TestStatus.Indet,
+            "No hint available.",
+          );
 
-      {
-        hinted_results:
-          List.map2((r, h) => (r, h), syntax_results.results, hints),
-        percentage: syntax_results.percentage,
-      };
+        | None =>
+          Util.ListUtil.zip_defaults(
+            [],
+            hints,
+            Haz3lcore.TestStatus.Indet,
+            "Exercise configuration error: Hint without a test.",
+          )
+        };
+
+      let percentage =
+        switch (test_results) {
+        | Some(test_results) => percentage(test_results.statuses)
+        | None => 0.
+        };
+
+      {hinted_results, percentage};
     };
   };
 
@@ -274,7 +307,13 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
           ~hidden_bugs=stitched_dynamics.hidden_bugs,
         ),
       syntax_report:
-        SyntaxReport.mk(~your_impl=eds.your_impl, ~tests=eds.syntax_tests),
+        SyntaxReport.mk(
+          ~hints=eds.syntax_tests.hints,
+          ~test_results=
+            TestResults.unwrap_test_results(
+              stitched_dynamics.syntax_tests.simple_result,
+            ),
+        ),
       impl_grading_report:
         ImplGradingReport.mk(
           ~hints=eds.hidden_tests.hints,

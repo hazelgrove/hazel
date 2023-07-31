@@ -70,6 +70,7 @@ let view =
         prelude,
         instructor,
         hidden_bugs,
+        syntax_tests: _,
         hidden_tests: _,
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
@@ -302,6 +303,22 @@ let view =
       ),
     );
 
+  let syntax_tests_view =
+    InstructorOnly(
+      () =>
+        editor_view(
+          SyntaxTests,
+          ~selected=pos == SyntaxTests,
+          ~caption=Cell.bolded_caption("Syntax Tests"),
+          ~code_id="syntax-tests",
+          ~info_map=instructor.info_map,
+          ~test_results=
+            ModelResult.unwrap_test_results(instructor.simple_result),
+          ~footer=None,
+          eds.syntax_tests.tests,
+        ),
+    );
+
   let hidden_tests_view =
     InstructorOnly(
       () =>
@@ -364,6 +381,7 @@ let view =
                 mutation_testing_view,
                 your_impl_view,
                 impl_validation_view,
+                syntax_tests_view,
                 hidden_tests_view,
                 syntax_grading_view,
                 impl_grading_view,

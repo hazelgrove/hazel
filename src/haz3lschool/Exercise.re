@@ -24,18 +24,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type predicate = Term.UExp.t => bool;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type hint = string;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type syntax_test = (hint, predicate);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type syntax_tests = list(syntax_test);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type your_tests('code) = {
     tests: 'code,
     required: int,
@@ -68,8 +56,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     your_tests: your_tests('code),
     your_impl: 'code,
     hidden_bugs: list(wrong_impl('code)),
+    syntax_tests: hidden_tests('code),
     hidden_tests: hidden_tests('code),
-    syntax_tests,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,6 +79,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourTestsTesting
     | YourImpl
     | HiddenBugs(int)
+    | SyntaxTests
     | HiddenTests;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -123,11 +112,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
                hint: wrong_impl.hint,
              }
            }),
+      syntax_tests: {
+        tests: PersistentZipper.persist(p.syntax_tests.tests),
+        hints: p.syntax_tests.hints,
+      },
       hidden_tests: {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
       },
-      syntax_tests: p.syntax_tests,
     };
   };
 
@@ -154,6 +146,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourTestsTesting => eds.your_tests.tests
       | YourImpl => eds.your_impl
       | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+      | SyntaxTests => eds.syntax_tests.tests
       | HiddenTests => eds.hidden_tests.tests
       };
 
@@ -213,6 +206,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             ),
         },
       }
+    | SyntaxTests => {
+        ...state,
+        eds: {
+          ...eds,
+          next_id,
+          syntax_tests: {
+            ...eds.syntax_tests,
+            tests: editor,
+          },
+        },
+      }
     | HiddenTests => {
         ...state,
         eds: {
@@ -235,12 +239,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       eds.your_impl,
     ]
     @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
-    @ [eds.hidden_tests.tests];
+    @ [eds.syntax_tests.tests, eds.hidden_tests.tests];
 
   let editor_positions = ({eds, _}: state) =>
     [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
     @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
-    @ [HiddenTests];
+    @ [SyntaxTests, HiddenTests];
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
@@ -258,7 +262,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else {
         failwith("invalid hidden bug index");
       }
-    | HiddenTests => 5 + List.length(p.hidden_bugs)
+    | SyntaxTests => 5 + List.length(p.hidden_bugs)
+    | HiddenTests => 6 + List.length(p.hidden_bugs)
     };
 
   let pos_of_idx = (p: p('code), idx: int) =>
@@ -274,6 +279,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else if (idx < 5 + List.length(p.hidden_bugs)) {
         HiddenBugs(idx - 5);
       } else if (idx == 5 + List.length(p.hidden_bugs)) {
+        SyntaxTests;
+      } else if (idx == 6 + List.length(p.hidden_bugs)) {
         HiddenTests;
       } else {
         failwith("element idx");
@@ -283,6 +290,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let switch_editor = (~pos, instructor_mode, ~exercise) =>
     if (!instructor_mode) {
       switch (pos) {
+      | SyntaxTests
       | HiddenTests
       | HiddenBugs(_) => exercise
       | _ => {eds: exercise.eds, pos}
@@ -312,8 +320,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_tests,
         your_impl,
         hidden_bugs,
-        hidden_tests,
         syntax_tests,
+        hidden_tests,
       },
     ) => {
       let id = 0;
@@ -340,6 +348,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           (id, []),
           hidden_bugs,
         );
+      let (id, syntax_tests) = {
+        let {tests, hints} = syntax_tests;
+        let (id, tests) = zipper_of_code(id, tests);
+        (id, {tests, hints});
+      };
       let (id, hidden_tests) = {
         let {tests, hints} = hidden_tests;
         let (id, tests) = zipper_of_code(id, tests);
@@ -358,8 +371,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_tests,
         your_impl,
         hidden_bugs,
-        hidden_tests,
         syntax_tests,
+        hidden_tests,
       };
     };
 
@@ -378,8 +391,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_tests,
         your_impl,
         hidden_bugs,
-        hidden_tests,
         syntax_tests,
+        hidden_tests,
       },
     ) => {
       let prelude = editor_of_serialization(prelude);
@@ -395,6 +408,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
              let impl = editor_of_serialization(impl);
              {impl, hint};
            });
+      let syntax_tests = {
+        let {tests, hints} = syntax_tests;
+        let tests = editor_of_serialization(tests);
+        {tests, hints};
+      };
       let hidden_tests = {
         let {tests, hints} = hidden_tests;
         let tests = editor_of_serialization(tests);
@@ -412,8 +430,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_tests,
         your_impl,
         hidden_bugs,
-        hidden_tests,
         syntax_tests,
+        hidden_tests,
       };
     };
 
@@ -502,6 +520,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourTestsTesting => false
     | YourImpl => true
     | HiddenBugs(_) => instructor_mode
+    | SyntaxTests => instructor_mode
     | HiddenTests => instructor_mode
     };
   };
@@ -552,6 +571,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (0, id, []),
         spec.hidden_bugs,
       );
+    let (id, syntax_tests_tests) =
+      lookup(id, SyntaxTests, spec.syntax_tests.tests);
     let (id, hidden_tests_tests) =
       lookup(id, HiddenTests, spec.hidden_tests.tests);
 
@@ -574,11 +595,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           },
           your_impl,
           hidden_bugs,
+          syntax_tests: {
+            tests: syntax_tests_tests,
+            hints: spec.syntax_tests.hints,
+          },
           hidden_tests: {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
           },
-          syntax_tests: spec.syntax_tests,
         },
       },
       instructor_mode,
@@ -601,6 +625,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     prelude: 'a, // prelude
     instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
     hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
+    syntax_tests: 'a,
     hidden_tests: 'a,
   };
 
@@ -669,6 +694,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         eds.hidden_bugs,
       );
 
+    let syntax_tests_term =
+      EditorUtil.stitch([eds.prelude, eds.your_impl, eds.syntax_tests.tests]);
+    let syntax_tests_map = Statics.mk_map(syntax_tests_term);
+    let syntax_tests =
+      StaticsItem.{term: syntax_tests_term, info_map: syntax_tests_map};
+
     let hidden_tests_term =
       EditorUtil.stitch([eds.prelude, eds.your_impl, eds.hidden_tests.tests]);
     let hidden_tests_map = Statics.mk_map(hidden_tests_term);
@@ -682,6 +713,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       prelude: instructor, // works as long as you don't shadow anything in the prelude
       instructor,
       hidden_bugs,
+      syntax_tests,
       hidden_tests,
     };
   };
@@ -691,6 +723,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let user_tests_key = "user_tests";
   let instructor_key = "instructor";
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
+  let syntax_tests_key = "syntax_tests";
   let hidden_tests_key = "hidden_tests";
 
   let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
@@ -702,6 +735,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         prelude: _,
         instructor,
         hidden_bugs,
+        syntax_tests,
         hidden_tests,
       } =
         Util.TimeUtil.measure_time("stitch_static2", true, () =>
@@ -723,6 +757,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (
           instructor_key,
           Interface.elaborate(instructor.info_map, instructor.term),
+        ),
+        (
+          syntax_tests_key,
+          Interface.elaborate(syntax_tests.info_map, syntax_tests.term),
         ),
         (
           hidden_tests_key,
@@ -755,6 +793,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       prelude,
       instructor,
       hidden_bugs,
+      syntax_tests,
       hidden_tests,
     } =
       Util.TimeUtil.measure_time("stitch_static1", true, () =>
@@ -806,6 +845,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           },
         hidden_bugs,
       );
+
+    let syntax_tests =
+      DynamicsItem.{
+        term: syntax_tests.term,
+        info_map: syntax_tests.info_map,
+        simple_result: simple_result_of(syntax_tests_key),
+      };
+
     let hidden_tests =
       DynamicsItem.{
         term: hidden_tests.term,
@@ -820,6 +867,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       prelude,
       hidden_bugs,
+      syntax_tests,
       hidden_tests,
     };
   };
@@ -833,6 +881,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       prelude,
       instructor,
       hidden_bugs,
+      syntax_tests,
       hidden_tests,
     } = stitched_dynamics;
 
@@ -853,6 +902,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let editor = List.nth(eds.hidden_bugs, idx).impl;
         let info_map = List.nth(hidden_bugs, idx).info_map;
         (editor.state.zipper, info_map);
+      | SyntaxTests => (
+          eds.syntax_tests.tests.state.zipper,
+          syntax_tests.info_map,
+        )
       | HiddenTests => (
           eds.hidden_tests.tests.state.zipper,
           hidden_tests.info_map,
@@ -929,6 +982,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           (id, {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)});
         },
       );
+    let (id, syntax_tests_tests) = Zipper.next_blank(id);
     let (id, hidden_tests_tests) = Zipper.next_blank(id);
     {
       next_id: id,
@@ -950,7 +1004,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: hidden_tests_tests,
         hints: [],
       },
-      syntax_tests: [],
+      syntax_tests: {
+        tests: syntax_tests_tests,
+        hints: [],
+      },
     };
   };
 
