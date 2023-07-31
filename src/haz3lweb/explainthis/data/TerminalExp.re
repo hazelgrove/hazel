@@ -67,4 +67,4 @@ let tag_exp: form = {
   explanation: "`%s` constructor.",
   examples: [],
 };
-let tag_exps: group = {id: TagExp, forms: [tag_exp]};
+let tag: group = {id: TagExp, forms: [tag_exp]};

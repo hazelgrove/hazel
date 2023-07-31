@@ -1,86 +1,84 @@
-/*open Haz3lcore;
-  open ExplainThisForm;
-  open Example;
+open Haz3lcore;
+open ExplainThisForm;
+open Example;
 
-  let tuple_exp_group = "tuple_exp_group";
-  let tuple_exp_2_group = "tuple_exp_2_group";
-  let tuple_exp_3_group = "tuple_exp_3_group";
-  let tuple_example_1 = {
-    sub_id: "tuple_example_1",
-    term: mk_example("(true, 1)"),
-    message: "A tuple with first elment true and second element 1.",
-    feedback: Unselected,
+let tuple_example_1 = {
+  sub_id: Tuple1,
+  term: mk_example("(true, 1)"),
+  message: "A tuple with first elment true and second element 1.",
+};
+let tuple_example_2 = {
+  sub_id: Tuple2,
+  term: mk_example("(1, 2, 3)"),
+  message: "A tuple with first element 1, second element 2, and third element 3.",
+};
+let tuple_exp: form = {
+  let explanation = "Tuple literal. The tuple has %i elements.";
+  let comma = comma_exp();
+  {
+    id: Tuple,
+    syntactic_form: [exp("e1"), comma, space(), exp("...")],
+    expandable_id:
+      Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("...")])),
+    explanation,
+    examples: [tuple_example_1, tuple_example_2],
   };
-  let tuple_example_2 = {
-    sub_id: "tuple_example_2",
-    term: mk_example("(1, 2, 3)"),
-    message: "A tuple with first element 1, second element 2, and third element 3.",
-    feedback: Unselected,
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let tuple_exp_size2_coloring_ids =
+    (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => {
+  [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
+};
+let tuple_exp_size2: form = {
+  let explanation = "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.";
+  let comma = comma_exp();
+  {
+    id: Tuple2,
+    syntactic_form: [_exp1, comma, space(), _exp2],
+    expandable_id:
+      Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("e2")])),
+    explanation,
+    examples: [tuple_example_1],
   };
-  let tuple_exp: form = {
-    let explanation = {
-      message: "Tuple literal. The tuple has %i elements.",
-      feedback: Unselected,
-    };
-    let comma = comma_exp();
-    {
-      id: "tuple_exp",
-      syntactic_form: [exp("e1"), comma, space(), exp("...")],
-      expandable_id: Some(Piece.id(comma)),
-      explanation,
-      examples: [tuple_example_1, tuple_example_2],
-    };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let _exp3 = exp("e3");
+let tuple_exp_size3_coloring_ids =
+    (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_exp1), exp1_id),
+    (Piece.id(_exp2), exp2_id),
+    (Piece.id(_exp3), exp3_id),
+  ];
+};
+let tuple_exp_size3: form = {
+  let explanation = "Tuple literal. The 3-tuple has a [first](%i), [second](%i), and [third](%i) element.";
+  let comma = comma_exp();
+  {
+    id: Tuple3,
+    syntactic_form: [
+      _exp1,
+      comma_exp(),
+      space(),
+      _exp2,
+      comma,
+      space(),
+      _exp3,
+    ],
+    expandable_id:
+      Some((
+        Piece.id(comma),
+        [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
+      )),
+    explanation,
+    examples: [tuple_example_2],
   };
-  let _exp1 = exp("e1");
-  let _exp2 = exp("e2");
-  let tuple_exp_size2_coloring_ids =
-      (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => {
-    [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
-  };
-  let tuple_exp_size2: form = {
-    let explanation = {
-      message: "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.",
-      feedback: Unselected,
-    };
-    let comma = comma_exp();
-    {
-      id: "tuple_exp_size2",
-      syntactic_form: [_exp1, comma, space(), _exp2],
-      expandable_id: Some(Piece.id(comma)),
-      explanation,
-      examples: [tuple_example_1],
-    };
-  };
-  let _exp1 = exp("e1");
-  let _exp2 = exp("e2");
-  let _exp3 = exp("e3");
-  let tuple_exp_size3_coloring_ids =
-      (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): list((Id.t, Id.t)) => {
-    [
-      (Piece.id(_exp1), exp1_id),
-      (Piece.id(_exp2), exp2_id),
-      (Piece.id(_exp3), exp3_id),
-    ];
-  };
-  let tuple_exp_size3: form = {
-    let explanation = {
-      message: "Tuple literal. The 3-tuple has a [first](%i), [second](%i), and [third](%i) element.",
-      feedback: Unselected,
-    };
-    let comma = comma_exp();
-    {
-      id: "tuple_exp_size3",
-      syntactic_form: [
-        _exp1,
-        comma_exp(),
-        space(),
-        _exp2,
-        comma,
-        space(),
-        _exp3,
-      ],
-      expandable_id: Some(Piece.id(comma)),
-      explanation,
-      examples: [tuple_example_2],
-    };
-  };*/
+};
+
+let tuples: group = {id: Tuple, forms: [tuple_exp]};
+
+let tuples2: group = {id: Tuple2, forms: [tuple_exp_size2, tuple_exp]};
+
+let tuples3: group = {id: Tuple3, forms: [tuple_exp_size3, tuple_exp]};
