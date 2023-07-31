@@ -1,6 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t('t) =
-  | Tok('t)
+type t =
+  | Tok(Label.t) // todo: rename Lbl
   | Kid(Sort.t);
 
 let get_tok =

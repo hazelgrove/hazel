@@ -130,10 +130,6 @@ module R = {
          Error(Some(sort(terr))),
        );
 
-  let mold =
-      (~p=(_ => true), terr: t, ~kid=?, t: Token.t)
-      : Result.t((Grammar.Walk.t, Mold.t), )
-
   let mold_eq = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
     Piece.tips(R, face(terr))
     |> List.fold_left(

@@ -4,8 +4,8 @@
 type t = {
   sort: Sort.t,
   prec: Prec.t,
-  [@opaque] // todo rename to unzipped or something
-  frames: Regex.Unzipped.s(Sort.t),
+  [@opaque]
+  ctx: Regex.Ctx.t,
 };
 
 module Map =
@@ -17,21 +17,21 @@ module Map =
 let sort_ = m => m.sort;
 let prec_ = m => m.prec;
 
-let mk = (~frames=Regex.Unzipped.empty, sort, prec) => {sort, prec, frames};
+let mk = (~ctx=Regex.Ctx.empty, sort, prec) => {sort, prec, ctx};
 
 let mk_operand = sort => mk(sort, Prec.max);
 let mk_prefix = (~r=?, sort, prec) => {
   let r = Option.value(r, ~default=sort);
-  mk(~frames=[Seq_([], [Atom(Kid(r))])], sort, prec);
+  mk(~ctx=[Seq_([], [Atom(Kid(r))])], sort, prec);
 };
 let mk_postfix = (~l=?, sort, prec) => {
   let l = Option.value(l, ~default=sort);
-  mk(~frames=[Seq_([Atom(Kid(l))], [])], sort, prec);
+  mk(~ctx=[Seq_([Atom(Kid(l))], [])], sort, prec);
 };
 let mk_infix = (~l=?, ~r=?, sort, prec) => {
   let l = Option.value(l, ~default=sort);
   let r = Option.value(r, ~default=sort);
-  mk(~frames=[Seq_([Atom(Kid(l))], [Atom(Kid(r))])], sort, prec);
+  mk(~ctx=[Seq_([Atom(Kid(l))], [Atom(Kid(r))])], sort, prec);
 };
 
 // let of_tips = (l: Tip.t, s: Sort.o, r: Tip.t) =>
@@ -50,18 +50,18 @@ let mk_infix = (~l=?, ~r=?, sort, prec) => {
 
 let init = (sort, prec) => mk(sort, prec);
 
-let push = (f, m) => {...m, frames: [f, ...m.frames]};
+let push = (f, m) => {...m, ctx: [f, ...m.ctx]};
 
 // tips across alternatives
 // let tips = (d: Dir.t, m: t): list(Tip.t) =>
-//   Gram.Frame.interior(d, m.frames)
+//   Gram.Frame.interior(d, m.ctx)
 //   |> List.map(
 //        fun
 //        | None => Tip.Convex
 //        | Some(Gram.Atom.Tok(_)) => raise(Gram.Ill_typed)
 //        | Some(Kid(s)) => {
 //            // todo: this should be no_tokens
-//            let p = Gram.Frame.nullable(d, m.frames) ? m.prec : Prec.min;
+//            let p = Gram.Frame.nullable(d, m.ctx) ? m.prec : Prec.min;
 //            Concave(s, p);
 //          },
 //      );
@@ -70,7 +70,7 @@ let push = (f, m) => {...m, frames: [f, ...m.frames]};
 //   |> OptUtil.get_or_fail("expecting at least one tip");
 
 // let must_match = (d: Dir.t, m: t): bool =>
-//   Gram.Frame.must_match(d, m.frames);
+//   Gram.Frame.must_match(d, m.ctx);
 
 // let convexable = (side, m) => List.mem(Tip.Convex, tips(side, m));
 

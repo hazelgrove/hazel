@@ -52,21 +52,21 @@ module Bound = {
 //   };
 // };
 
-module Bounds = {
-  type t = (p, p);
-  let init = (min, min);
-  let push = (f: Frame.t, (l, r)) =>
-    switch (f) {
-    | Eq(p) => Some((p, p))
-    | Lt(p) when l < p => Some((l, p))
-    | Gt(p) when p > r => Some((p, r))
-    | _ => None
-    };
-};
+// module Bounds = {
+//   type t = (p, p);
+//   let init = (min, min);
+//   let push = (f: Frame.t, (l, r)) =>
+//     switch (f) {
+//     | Eq(p) => Some((p, p))
+//     | Lt(p) when l < p => Some((l, p))
+//     | Gt(p) when p > r => Some((p, r))
+//     | _ => None
+//     };
+// };
 
-module Bounded = {
-  type t('x) = {
-    bounds: Bounds.t,
-    subj: 'x,
-  };
-};
+// module Bounded = {
+//   type t('x) = {
+//     bounds: Bounds.t,
+//     subj: 'x,
+//   };
+// };

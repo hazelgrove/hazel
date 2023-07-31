@@ -3,21 +3,9 @@
 // - height
 // - if there's a middle kid, whether there's a slot that accommodates
 
-module GZipper = {
-  // a zipper into a Grammar.t
-  type t('subj) = {
-    sort: Sort.t,
-    prec: Prec.t,
-    zipper: Regex.Zipper.t('subj),
-  };
-
-  let map = failwith("todo");
-  let map_opt = failwith("todo");
-};
-
 module Mold = {
   [@deriving (sexp, ord)]
-  type t = GZipper.t(Label.t);
+  type t = Gram.Zipper.t(Label.t);
   module Ord = {
     type nonrec t = t;
     let compare = compare;
@@ -30,9 +18,9 @@ module Mold = {
 };
 
 // module Slot = {
-//   type t = GZipper.t(Regex.t);
+//   type t = Gram.Zipper.t(Regex.t);
 
-//   let empty = (~sort, ~prec) => GZipper.{sort, prec, zipper: (Regex.empty, Regex.Ctx.empty)};
+//   let empty = (~sort, ~prec) => Gram.Zipper.{sort, prec, zipper: (Regex.empty, Regex.Ctx.empty)};
 
 //   // slot is bounded by neighboring molds
 //   // let bound: (Dir.t, t) => option(Prec.Bound.t) = failwith("todo");
@@ -88,7 +76,7 @@ module Result = {
 // but need static input for memoization, dynamic output without
 // creating another datatype
 let step = (m: Mold.t): Result.t => {
-  let rec go = (z: GZipper.t(Atom.t)) =>
+  let rec go = (z: Gram.Zipper.t(Atom.t)) =>
     z.zipper |> Regex.step(R) |> List.map(stop_or_go) |> Result.concat
   and stop_or_go = z =>
     switch (z.zipper) {
@@ -101,7 +89,7 @@ let step = (m: Mold.t): Result.t => {
     | (Kid(s), _) =>
       let bound = Sort.eq(l.sort, s) ? bound : Prec.min;
       let stepped_lt =
-        Grammar.enter(~from=L, ~bound, s)
+        Gram.enter(~from=L, ~bound, s)
         |> List.map(stop_or_go)
         |> Result.concat
         |> Result.newline;
