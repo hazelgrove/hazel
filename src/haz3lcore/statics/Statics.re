@@ -194,7 +194,10 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | TupLabel(_) => atomic(Just(Int)) // TODO
+  | TupLabel(_, e) =>
+    // TODO: Fix
+    let (e, m) = go(~mode=Syn, e, m);
+    add(~self=Just(e.ty), ~co_ctx=CoCtx.union([e.co_ctx]), m);
   | Tuple(es) =>
     let modes = Mode.of_prod(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
@@ -532,7 +535,9 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
-  | TupLabel(_) => add(m)
+  | TupLabel(_, t) =>
+    let m = go(t, m) |> snd;
+    add(m);
   | Tuple(ts) =>
     let m = map_m(go, ts, m) |> snd;
     add(m);

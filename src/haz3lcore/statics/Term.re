@@ -135,8 +135,47 @@ module UTyp = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | TupLabel(_, e) => to_typ(ctx, e) // TODO: this
-      | Tuple(us) => Prod([], List.map(to_typ(ctx), us))
+      | TupLabel(_, t) => to_typ(ctx, t) // TODO: this. Lookup in ctx and reorgnize
+      | Tuple(us) =>
+        // TODO: cleanup
+        let rep_id_p = ({ids, _}: TermBase.UPat.t) => {
+          assert(ids != []);
+          List.hd(ids);
+        };
+        let utyp_to_ctx =
+            ((outer_ctx: Ctx.t, inner_ctx: Ctx.t), utyp: TermBase.UTyp.t) => {
+          switch (utyp.term) {
+          | TupLabel(var, utyp1) =>
+            switch (var.term, utyp1.term) {
+            | (Var(name), _) => (
+                outer_ctx,
+                [
+                  Ctx.VarEntry({
+                    name,
+                    id: rep_id_p(var),
+                    typ: to_typ(outer_ctx, utyp1),
+                  }),
+                  ...inner_ctx,
+                ],
+              )
+            | (Tag(name), _) => (
+                outer_ctx,
+                [
+                  TagEntry({
+                    name,
+                    id: rep_id_p(var),
+                    typ: to_typ(outer_ctx, utyp1),
+                  }),
+                  ...inner_ctx,
+                ],
+              )
+            | _ => (outer_ctx, inner_ctx)
+            }
+          | _ => (outer_ctx, inner_ctx)
+          };
+        };
+        let (_, tuple_ctx) = List.fold_left(utyp_to_ctx, (ctx, []), us);
+        Prod(tuple_ctx, List.map(to_typ(ctx), us));
       | Sum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)

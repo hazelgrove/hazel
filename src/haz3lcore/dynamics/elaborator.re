@@ -91,7 +91,11 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
       | _ => d
       }
-    | TupLabel(_) => d // TODO Fix
+    | TupLabel(_) => // TODO Fix
+      switch (ana_ty) {
+      | Unknown(_)// => DHExp.cast(d, self_ty, Unknown(prov));
+      | _ => d
+      }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
