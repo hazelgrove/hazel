@@ -16,7 +16,6 @@
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
-open Util;
 include TermBase.Any;
 
 type any = t;
@@ -243,15 +242,15 @@ module UPat = {
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid Pattern"
-    | EmptyHole => "Empty Pattern Hole"
-    | MultiHole => "Multi Pattern Hole"
+    | EmptyHole => "Empty Hole Pattern"
+    | MultiHole => "Multi Hole Pattern"
     | Wild => "Wildcard Pattern"
-    | Int => "Integer Pattern Literal"
-    | Float => "Float Pattern Literal"
-    | Bool => "Boolean Pattern Literal"
-    | String => "String Pattern Literal"
-    | Triv => "Trivial Pattern Literal"
-    | ListLit => "List Literal Pattern"
+    | Int => "Integer Literal Pattern"
+    | Float => "Float Literal Pattern"
+    | Bool => "Boolean Literal Pattern"
+    | String => "String Literal Pattern"
+    | Triv => "Trivial Literal Pattern"
+    | ListLit => "List Pattern Literal"
     | Constructor => "Constructor Pattern"
     | Cons => "Cons Pattern"
     | Var => "Pattern Variable"
