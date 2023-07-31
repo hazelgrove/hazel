@@ -1915,25 +1915,50 @@ let get_doc =
             LangDocMessages.funapp_exp_coloring_ids,
           );
         };
-      | DeferredAp(x, arg) =>
+      | DeferredAp(x, args) =>
         let x_id = List.nth(x.ids, 0);
-        let arg_id = List.nth(arg.ids, 0);
+        let supplied_id = (-1);
+        let deferred_id = (-2);
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.deferred_funapp_exp_group,
             docs,
           );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.deferred_funapp_exp_group,
-          Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            x_id,
-            arg_id,
-          ),
-          LangDocMessages.deferred_funapp_exp_coloring_ids(~x_id, ~arg_id),
-        );
+        switch (mode) {
+        | MessageContent(_) =>
+          get_message(
+            doc,
+            options,
+            LangDocMessages.deferred_funapp_exp_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              x_id,
+              supplied_id,
+              deferred_id,
+            ),
+            LangDocMessages.deferred_funapp_exp_coloring_ids(
+              ~x_id,
+              ~supplied_id,
+              ~deferred_id,
+            ),
+          )
+        | Colorings =>
+          let color_fn = List.nth(ColorSteps.child_colors, 0);
+          let color_supplied = List.nth(ColorSteps.child_colors, 1);
+          let color_deferred = List.nth(ColorSteps.child_colors, 2);
+          let add = (mapping, arg: Term.UExp.t) => {
+            let arg_id = List.nth(arg.ids, 0);
+            Haz3lcore.Id.Map.add(
+              arg_id,
+              Term.UExp.is_deferral(arg) ? color_deferred : color_supplied,
+              mapping,
+            );
+          };
+          let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
+          let mapping = List.fold_left(add, mapping, args);
+          let color_map = (mapping, List.length(args) + 1);
+          ([], ([], color_map), []);
+        };
       | If(cond, then_, else_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
