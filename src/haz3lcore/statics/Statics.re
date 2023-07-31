@@ -222,18 +222,17 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
       m,
     );
-  | DeferredAp(fn, arg) =>
+  | DeferredAp(fn, args) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (self: Self.exp, m, arg_co_ctx) = {
-      let es = UExp.matched_args(arg);
-      let length = List.length(es);
+      let length = List.length(args);
       let ty_ins = Typ.matched_args(length, ty_in);
-      let self = Self.of_deferred_ap(es, ty_ins, ty_out);
+      let self = Self.of_deferred_ap(args, ty_ins, ty_out);
       let modes = Mode.of_deferred_ap_args(ty_ins, length);
-      let (es, m) = map_m_go(m, modes, es);
-      (self, m, CoCtx.union(List.map(Info.exp_co_ctx, es)));
+      let (args, m) = map_m_go(m, modes, args);
+      (self, m, CoCtx.union(List.map(Info.exp_co_ctx, args)));
     };
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e) =>

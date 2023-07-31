@@ -659,13 +659,6 @@ module UExp = {
     };
   };
 
-  let matched_args = (e: t) => {
-    switch (e.term) {
-    | Tuple([_, ..._] as es) => es
-    | _ => [e]
-    };
-  };
-
   let rec get_fun_var = (pat: UPat.t, e: t) => {
     switch (e.term) {
     | Parens(e) => get_fun_var(pat, e)

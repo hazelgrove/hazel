@@ -87,9 +87,13 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Fun(_) =>
       switch (ana_ty) {
-      | Unknown(prov) =>
-        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
-      | _ => d
+      //| Unknown(prov) =>
+      //  DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
+      | ana_ty =>
+        /* See regression tests in Examples/Dynamics */
+        let (_, ana_out) = Typ.matched_arrow(ana_ty);
+        let (self_in, _) = Typ.matched_arrow(self_ty);
+        DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
       }
     | Tuple(ds) =>
       switch (ana_ty) {
@@ -263,7 +267,7 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
-      | DeferredAp(fn, arg) =>
+      | DeferredAp(fn, args) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         switch (err_status) {
         | InHole(ErroneousPartialAp(Meaningless)) => Some(c_fn)
@@ -272,7 +276,6 @@ let rec dhexp_of_uexp =
         | _ =>
           let mk_tuple = (ctor, xs) =>
             List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
-          let args = Term.UExp.matched_args(arg);
           let* ty_fn = fixed_exp_typ(m, fn);
           let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
           let ty_ins = Typ.matched_args(List.length(args), ty_arg);
