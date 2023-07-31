@@ -6,6 +6,7 @@ type all = {
   langDocMessages: string,
   scratch: string,
   exercise: string,
+  examples: string,
   log: string,
 };
 
@@ -26,6 +27,8 @@ let mk_all = (~instructor_mode) => {
   print_endline("LangDocMessages OK");
   let scratch = Store.Scratch.export();
   print_endline("Scratch OK");
+  let examples = Store.Examples.export();
+  print_endline("Examples OK");
   let exercise =
     Store.Exercise.export(
       ~specs=ExerciseSettings.exercises,
@@ -33,7 +36,7 @@ let mk_all = (~instructor_mode) => {
     );
   print_endline("Exercise OK");
   let log = Log.export();
-  {settings, langDocMessages, scratch, exercise, log};
+  {settings, langDocMessages, scratch, examples, exercise, log};
 };
 
 let export_all = (~instructor_mode) => {
@@ -48,6 +51,7 @@ let import_all = (data, ~specs) => {
       {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
+        examples: "",
         exercise: all_f22.exercise,
         log: all_f22.log,
         langDocMessages: "",
