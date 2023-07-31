@@ -15,6 +15,7 @@ type join =
   | GLB
   | LUB;
 
+/* this precendence seems to currently be unused */
 let precedence_Prod: int;
 let precedence_Arrow: int;
 let precedence_Sum: int;

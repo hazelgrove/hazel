@@ -219,7 +219,7 @@ let forms: list((string, t)) = [
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
-  ("type-arrow", mk_infix("->", Typ, 6)), // Assigning precedence like an operator seems to be a workaround.
+  ("type-arrow", mk_infix("->", Typ, P.arrow)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
