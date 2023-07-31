@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
