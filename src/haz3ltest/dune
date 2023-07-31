@@ -1,0 +1,5 @@
+(include_subdirs unqualified)
+
+(test
+ (name haz3ltest)
+ (libraries haz3lcore haz3lweb tezt))
