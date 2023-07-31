@@ -700,10 +700,12 @@ module UExp = {
              !UPat.has_var_def(pat, var) && has_fun_var(e, var),
            ruls,
          )
-    | Ap(fn, arg)
-    | DeferredAp(fn, arg) =>
+    | Ap(fn, arg) =>
       //has_branch_var(fn, var) ||
       has_fun_var(fn, var) || has_fun_var(arg, var)
+    | DeferredAp(fn, args) =>
+      //has_branch_var(fn, var) ||
+      has_fun_var(fn, var) || List.exists(has_fun_var(_, var), args)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
