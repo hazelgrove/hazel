@@ -77,16 +77,14 @@ let u5: Term.UExp.t = {
     ),
 };
 let m5: Statics.map = Statics.mk_map(u5);
-let d5a: DHExp.t = NonEmptyHole(TypeInconsistent, 1, 0, FreeVar(1, 0, "y"));
-let d5b: DHExp.t = NonEmptyHole(TypeInconsistent, 2, 0, FreeVar(2, 0, "x"));
-let () =
-  register_exp_test(
-    "Two free variables in binary operation",
-    [],
-    m5,
-    u5,
-    BinIntOp(Plus, d5a, d5b),
+let d5: DHExp.t =
+  BinIntOp(
+    Plus,
+    NonEmptyHole(TypeInconsistent, 1, 0, FreeVar(1, 0, "y")),
+    NonEmptyHole(TypeInconsistent, 2, 0, FreeVar(2, 0, "x")),
   );
+let () =
+  register_exp_test("Two free variables in binary operation", [], m5, u5, d5);
 
 let u6: Term.UExp.t = {
   ids: [0],
@@ -105,15 +103,18 @@ let u6: Term.UExp.t = {
     ),
 };
 let m6: Statics.map = Statics.mk_map(u6);
-let d6a: DHExp.t = NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y"));
-let d6b: DHExp.t =
+let d6: DHExp.t =
   Fun(
     Var("x"),
     Unknown(Internal),
-    BinIntOp(Plus, Cast(BoundVar("x"), Unknown(Internal), Int), d6a),
+    BinIntOp(
+      Plus,
+      Cast(BoundVar("x"), Unknown(Internal), Int),
+      NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y")),
+    ),
     None,
   );
-let () = register_exp_test("Function with free variable", [], m6, u6, d6b);
+let () = register_exp_test("Function with free variable", [], m6, u6, d6);
 
 let u7: Term.UExp.t = {
   ids: [0],
@@ -139,8 +140,7 @@ let u7: Term.UExp.t = {
     ),
 };
 let m7: Statics.map = Statics.mk_map(u7);
-let d7a: DHExp.t = NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y"));
-let d7b: DHExp.t =
+let d7: DHExp.t =
   Ap(
     Fun(
       Var("x"),
@@ -152,33 +152,32 @@ let d7b: DHExp.t =
       ),
       None,
     ),
-    d7a,
+    NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y")),
   );
 
 let () =
-  register_exp_test("Function applied to free variable", [], m7, u7, d7b);
+  register_exp_test("Function applied to free variable", [], m7, u7, d7);
 
-let u8a: Term.UExp.t = {
-  ids: [1],
-  term:
-    BinOp(
-      Int(Equals),
-      {ids: [2], term: Int(4)},
-      {ids: [3], term: Int(3)},
-    ),
-};
-let u8b: Term.UExp.t = {
+let u8: Term.UExp.t = {
   ids: [0],
   term:
     Match(
-      u8a,
+      {
+        ids: [1],
+        term:
+          BinOp(
+            Int(Equals),
+            {ids: [2], term: Int(4)},
+            {ids: [3], term: Int(3)},
+          ),
+      },
       [
         ({ids: [6], term: Bool(true)}, {ids: [4], term: Int(24)}),
         ({ids: [7], term: Bool(false)}, {ids: [5], term: Bool(false)}),
       ],
     ),
 };
-let m8: Statics.map = Statics.mk_map(u8b);
+let m8: Statics.map = Statics.mk_map(u8);
 let d8scrut: DHExp.t = BinIntOp(Equals, IntLit(4), IntLit(3));
 let d8rules =
   DHExp.[
@@ -187,4 +186,4 @@ let d8rules =
   ];
 let d8a: DHExp.t = InconsistentBranches(0, 0, Case(d8scrut, d8rules, 0));
 let d8b: DHExp.t = NonEmptyHole(TypeInconsistent, 0, 0, d8a);
-let () = register_exp_test("Inconsistent branches", [], m8, u8b, d8b);
+let () = register_exp_test("Inconsistent branches", [], m8, u8, d8b);
