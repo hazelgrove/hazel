@@ -16,7 +16,6 @@
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
-open Util;
 include TermBase.Any;
 
 type any = t;

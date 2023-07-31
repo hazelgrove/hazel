@@ -1,4 +1,3 @@
-open Util;
 open Sexplib.Std;
 
 /* SELF.re
