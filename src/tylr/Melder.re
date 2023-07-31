@@ -1,6 +1,6 @@
 module Result = {
   include Result;
-  type t('x) = Result.t('x, Meld.t);
+  type t = Result.t(Slope.t, Meld.t);
 };
 
 module Terrace = {
@@ -9,19 +9,9 @@ module Terrace = {
   };
   module R = {
     include Terrace.R;
-    let connect = (terr: t, ~kid=Meld.empty(), w: Wald.t): Result.t() =>
+    let meld = (terr: t, ~kid=Meld.empty(), w: Wald.t): Result.t =>
       Walker.step(face(terr))
-      // intended functionality here is
-      // 1. to filter slopes based on destination
-      //    and replace final dummy piece with actual wald
-      // 2. pick best sort given kid
-      // 3. stick on terr at the front depending on lt/eq slope
-      // may need additional function args if gonna remain polymorphic
-      |> Walker.Result.pick(
-        ~from=terr,
-        ~over=kid,
-        ~to_=w,
-      )
+      |> Walker.Result.pick(~from=terr, ~over=kid, ~to_=w)
       |> Result.to_option(~error=unmk(terr, kid));
   };
 };
@@ -29,19 +19,19 @@ module Terrace = {
 module Slope = {
   module Dn = {
     include Slope.Dn;
-    let rec connect = (dn: t, ~kid=Meld.empty(), t: Terrace.L.t): Result.t(t) => {
+    let rec meld = (dn: t, ~kid=Meld.empty(), w: Wald.t): Result.t => {
       let kid = Meld.pad(~l=dn.space, kid);
       switch (dn.terrs) {
       | [] => Error(kid)
       | [hd, ...tl] =>
         let tl = Slope.Dn.mk(tl);
-        // left-to-right: tl hd kid terr
-        switch (Terrace.R.connect(hd, ~kid, t)) {
+        // left-to-right: tl hd kid w
+        switch (Terrace.R.meld(hd, ~kid, w)) {
         | Some(slope) => Ok(Slope.Dn.(cat(tl, slope)))
         | None =>
           // assuming well-fitted so must be gt
           let kid = Terrace.R.unmk(hd, kid);
-          connect(tl, ~kid, t);
+          meld(tl, ~kid, w);
         };
       };
     };
@@ -52,34 +42,79 @@ module Slope = {
 };
 
 module Stepwell = {
-  let push_terr_l = (well: Stepwell.t, ~kid=Meld.empty(), t: Terrace.L.t): Stepwell.t => {
-    let (dn, up) = Stepwell.get_slopes(well);
-    switch (Slope.Dn.push_terr(dn, ~kid, t)) {
-    | Ok(dn) => Stepwell.put_slopes((dn, up), well)
-    | Error(kid) =>
-      switch (Chain.unlink(well)) {
-      | None =>
-        let dn = Slope.Dn.of_meld(Terrace.L.unmk(kid, t));
-        Stepwell.put_slopes((dn, up), well);
-      | Some((_slopes, (l, r), well)) =>
-        switch (Stepper.cmp(l, ~kid, t)) {
-        | None => raise(Bridge.Convex_inner_tips)
-        | Some(Lt())
-        | Some(Lt(kid_mel)) =>
-          let slopes = (Slope.Dn.of_meld(kid_mel), up);
-          Stepwell.put_slopes(slopes, well)
-        | Some(Eq(l_kid_mel)) =>
-          let dn = Dn.of_meld(l_kid_mel);
-          let up = Up.cat(up, Up.of_terr(r));
-          Stepwell.cons_slopes((dn, up), well);
-        | Some(Gt(l_kid)) =>
-          let up = Up.cat(up, Up.of_terr(r));
-          well
-          |> Stepwell.cons_slopes(Slopes.mk(~r=up, ()))
-          |> push_wald_l(~kid=l_kid, mel);
-        }
-      }
+  exception Pushed_beyond_slopes;
+
+  let push_space = (~onto: Dir.t, s) =>
+    Stepwell.map_slopes(Slopes.push_space(~onto, s));
+
+  // doesn't bother pushing beyond nearest slopes bc any pushed content
+  // should have been pulled from the other side, meaning any content melding
+  // with bridges should have originated from that bridge, meaning that
+  // bridge would have been deconstructed
+  let push_wald = (~onto: Dir.t, w: Wald.t, well: Stepwell.t): Stepwell.t => {
+    let (dn, up) = get_slopes(well);
+    switch (onto) {
+    | L =>
+      let dn =
+        Slope.Dn.push_wald(dn, w)
+        |> Result.to_option
+        |> OptUtil.get_or_raise(Pushed_beyond_slopes);
+      Stepwell.put_slopes((dn, up), well);
+    | R =>
+      let dn =
+        Slope.Up.push_wald(w, up)
+        |> Result.to_option
+        |> OptUtil.get_or_raise(Pushed_beyond_slopes);
+      Stepwell.put_slopes((dn, up), well);
+    };
+  };
+
+  let push_lexeme = (~onto: Dir.t, lx: Lexeme.t(Piece.t)) =>
+    switch (lx) {
+    | S(s) => push_space(~onto, s)
+    | T(p) => push_wald(~onto, Wald.of_piece(p))
     };
 
-  }
-}
+  let rec bridge_slopes = ((l, r) as slopes, well) =>
+    switch (Slope.Dn.uncons(l), Slope.Up.unsnoc(r)) {
+    | (None, _)
+    | (_, None) => push_slopes(slopes, well)
+    | (Some((hd_l, tl_l)), Some((tl_r, hd_r))) =>
+      switch (Terrace.cmp(hd_l, hd_r)) {
+      | None => failwith("expected cmp")
+      | Some(Eq(_)) =>
+        well |> cons_bridge((hd_l, hd_r)) |> unzip_slopes((tl_l, tl_r))
+      | Some(Lt(_)) =>
+        well
+        |> push_slopes(Slopes.mk(~l=Slope.of_terr(hd_l), ()))
+        |> bridge_slopes((tl_l, r))
+      | Some(Gt(_)) =>
+        well
+        |> push_slopes(Slopes.mk(~r=Slope.of_terr(hd_r), ()))
+        |> bridge_slopes((l, tl_r))
+      }
+    };
+  let bridge = (~sel=Ziggurat.empty, well: Stepwell.t): Stepwell.t => {
+    print_endline("Stepwell.assemble");
+    let (pre, suf) = get_slopes(well);
+    // separate siblings that belong to the selection
+    let (pre_lt_sel, pre_geq_sel) = Ziggurat.split_lt(pre, sel);
+    let (sel_leq_suf, sel_gt_suf) = Ziggurat.split_gt(sel, suf);
+    well
+    |> Stepwell.put_slopes(Slopes.empty)
+    |> bridge_slopes((pre_lt_sel, sel_gt_suf))
+    |> push_slopes((pre_geq_sel, sel_leq_suf));
+  };
+
+  let pull_lexeme = (~char=false, ~from: Dir.t, well: Stepwell.t) =>
+    switch (Slopes.pull_lexeme(~char, ~from, Stepwell.get_slopes(well))) {
+    | Some((a, sib)) => Some((a, Stepwell.put_slopes(sib, well)))
+    | None =>
+      open OptUtil.Syntax;
+      let+ (slopes, bridge, well) = Chain.unlink(well);
+      let (lx, slopes') = Bridge.pull_lexeme(~char, ~from, bridge);
+      let well =
+        well |> push_slopes(Slopes.cat(slopes, slopes')) |> assemble;
+      (lx, well);
+    };
+};

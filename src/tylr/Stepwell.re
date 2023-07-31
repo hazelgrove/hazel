@@ -17,64 +17,6 @@ let empty = of_slopes(Slopes.empty);
 let cat: (t, t) => t = Chain.cat(Slopes.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
-let rec cons_l = (~kid=Meld.empty(), mel: Terrace.L.t, rel: t): t => {
-  open Slope;
-  let (dn, up) = get_slopes(rel);
-  switch (Dn.snoc(dn, ~kid, mel)) {
-  | Ok(dn) => put_slopes((dn, up), rel)
-  | Error(kid) =>
-    switch (Chain.unlink(rel)) {
-    | None =>
-      let dn = Dn.of_meld(Terrace.L.unmk(kid, mel));
-      put_slopes((dn, up), rel);
-    | Some((_slopes, (l, r), rel)) =>
-      switch (Terrace.cmp(l, ~kid, mel)) {
-      | None => raise(Bridge.Convex_inner_tips)
-      | Some(Lt(kid_mel)) => put_slopes((Dn.of_meld(kid_mel), up), rel)
-      | Some(Eq(l_kid_mel)) =>
-        let dn = Dn.of_meld(l_kid_mel);
-        let up = Up.cat(up, Up.of_terr(r));
-        cons_slopes((dn, up), rel);
-      | Some(Gt(l_kid)) =>
-        let up = Up.cat(up, Up.of_terr(r));
-        rel |> cons_slopes(Slopes.mk(~r=up, ())) |> cons_l(~kid=l_kid, mel);
-      }
-    }
-  };
-};
-let rec cons_r = (~kid=Meld.empty(), mel: Terrace.R.t, rel: t): t => {
-  open Slope; // left-to-right: mel kid
-  let (dn, up) = get_slopes(rel);
-  switch (Up.cons(mel, ~kid, up)) {
-  | Ok(up) => put_slopes((dn, up), rel)
-  | Error(kid) =>
-    switch (Chain.unlink(rel)) {
-    | None =>
-      let up = Up.of_meld(Terrace.R.unmk(mel, kid));
-      put_slopes((dn, up), rel);
-    | Some((_slopes, (l, r), rel)) =>
-      switch (Terrace.cmp(mel, ~kid, r)) {
-      | None => raise(Bridge.Convex_inner_tips)
-      | Some(Gt(mel_kid)) => put_slopes((dn, Up.of_meld(mel_kid)), rel)
-      | Some(Eq(mel_kid_r)) =>
-        let dn = Dn.cat(Dn.of_terr(l), dn);
-        let up = Up.of_meld(mel_kid_r);
-        cons_slopes((dn, up), rel);
-      | Some(Lt(kid_r)) =>
-        let dn = Dn.cat(Dn.of_terr(l), dn);
-        rel |> cons_slopes(Slopes.mk(~l=dn, ())) |> cons_r(mel, ~kid=kid_r);
-      }
-    }
-  };
-};
-let cons = (~onto: Dir.t, terr, rel) =>
-  switch (onto) {
-  | L => rel |> cons_l(terr)
-  | R => rel |> cons_r(terr)
-  };
-let cons_space = (~onto: Dir.t, s, rel) =>
-  rel |> map_slopes(Slopes.cons_space(~onto, s));
-
 // todo: rename relative to cons_slopes
 let cons_slope = (~onto: Dir.t, slope: Slope.t, rel) =>
   List.fold_left(
@@ -103,38 +45,6 @@ let cons_zigg = (~onto: Dir.t, {up, top, dn}: Ziggurat.t, rel) => {
   };
 };
 
-let rec unzip_slopes = ((l, r) as slopes, well) =>
-  switch (Slope.Dn.uncons(l), Slope.Up.unsnoc(r)) {
-  | (None, _)
-  | (_, None) => cons_slopes(slopes, well)
-  | (Some((hd_l, tl_l)), Some((tl_r, hd_r))) =>
-    switch (Terrace.cmp(hd_l, hd_r)) {
-    | None => failwith("expected cmp")
-    | Some(Eq(_)) =>
-      well |> cons_bridge((hd_l, hd_r)) |> unzip_slopes((tl_l, tl_r))
-    | Some(Lt(_)) =>
-      well
-      |> cons_slopes(Slopes.mk(~l=Slope.of_terr(hd_l), ()))
-      |> unzip_slopes((tl_l, r))
-    | Some(Gt(_)) =>
-      well
-      |> cons_slopes(Slopes.mk(~r=Slope.of_terr(hd_r), ()))
-      |> unzip_slopes((l, tl_r))
-    }
-  };
-
-let assemble = (~sel=Ziggurat.empty, rel: t): t => {
-  print_endline("Stepwell.assemble");
-  let (pre, suf) = get_slopes(rel);
-  // separate siblings that belong to the selection
-  let (pre_lt_sel, pre_geq_sel) = Ziggurat.split_lt(pre, sel);
-  let (sel_leq_suf, sel_gt_suf) = Ziggurat.split_gt(sel, suf);
-  rel
-  |> put_slopes(Slopes.empty)
-  |> unzip_slopes((pre_lt_sel, sel_gt_suf))
-  |> cons_slopes((pre_geq_sel, sel_leq_suf));
-};
-
 let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t(_)) =>
   switch (lx) {
   | S(s) => cons_space(~onto, s)
@@ -146,15 +56,15 @@ let cons_opt_lexeme = (~onto: Dir.t, lx) =>
   | Some(lx) => cons_lexeme(~onto, lx)
   };
 
-let uncons_lexeme = (~char=false, ~from: Dir.t, rel) =>
-  switch (Slopes.uncons_lexeme(~char, ~from, get_slopes(rel))) {
-  | Some((a, sib)) => Some((a, put_slopes(sib, rel)))
+let pull_lexeme = (~char=false, ~from: Dir.t, well) =>
+  switch (Slopes.pull_lexeme(~char, ~from, get_slopes(well))) {
+  | Some((a, sib)) => Some((a, put_slopes(sib, well)))
   | None =>
     open OptUtil.Syntax;
-    let+ (sib, par, rel) = Chain.unlink(rel);
+    let+ (sib, par, well) = Chain.unlink(well);
     let (a, par) = Bridge.uncons_lexeme(~char, ~from, par);
-    let rel = rel |> cons_slopes(Slopes.cat(sib, par)) |> assemble;
-    (a, rel);
+    let well = well |> cons_slopes(Slopes.cat(sib, par)) |> assemble;
+    (a, well);
   };
 let uncons_opt_lexeme = (~char=false, ~from, rel) =>
   switch (uncons_lexeme(~from, rel)) {
@@ -167,21 +77,6 @@ let uncons_opt_lexemes =
   let (r, rel) = uncons_opt_lexeme(~from=R, rel);
   ((l, r), rel);
 };
-
-let shift_char = (~from: Dir.t, rel: t) => {
-  open OptUtil.Syntax;
-  let+ (c, rel) = uncons_lexeme(~char=true, ~from, rel);
-  cons_lexeme(~onto=Dir.toggle(from), c, rel);
-};
-
-let rec shift_chars = (n, rel) =>
-  if (n < 0) {
-    shift_char(~from=L, rel) |> OptUtil.and_then(shift_chars(n + 1));
-  } else if (n > 0) {
-    shift_char(~from=R, rel) |> OptUtil.and_then(shift_chars(n - 1));
-  } else {
-    Some(rel);
-  };
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
@@ -201,11 +96,6 @@ let rec shift_chars = (n, rel) =>
 //     }
 //   };
 // };
-
-let rec mold_eq = (~kid=?, t: Token.t, rel: t): (Result.t(unit, Meld.t), t) => {
-  let (pre, _) = get_slopes(rel);
-  ();
-};
 
 let rec mold_eq =
         (~kid=?, t: Token.t, rel: t): Result.t(Mold.t, option(Sort.o)) => {
@@ -417,75 +307,6 @@ module Lexed = {
   let empty = ([], 0);
 };
 
-let rec relex_insert = (s: string, rel: t): (Lexed.t, t) => {
-  print_endline("Stepwell.relex_insert");
-  assert(s != "");
-  let ((l, r), rel') = uncons_opt_lexemes(rel);
-  switch (l, r) {
-  | (Some(G(l)), Some(G(r))) when l.id == r.id =>
-    print_endline("Stepwell.relex_insert / grout mid");
-    let prefix = l.fill ++ s;
-    switch (fill(prefix, r)) {
-    | None =>
-      relex_insert(
-        prefix,
-        cons(~onto=R, Terrace.of_piece(Piece.of_grout(r)), rel'),
-      )
-    | Some(p) => (Lexed.empty, cons(~onto=L, Terrace.of_piece(p), rel'))
-    };
-  | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
-    print_endline("Stepwell.relex_insert / grout start");
-    let p = Option.get(fill(s, r));
-    let rel =
-      rel'
-      |> cons_opt_lexeme(~onto=L, l)
-      |> cons(~onto=L, Terrace.of_piece(p))
-      |> (
-        Piece.is_grout(p)
-          ? cons(~onto=R, Terrace.of_piece(Piece.of_grout(r))) : Fun.id
-      );
-    (Lexed.empty, rel);
-  | _ =>
-    print_endline("Stepwell.relex_insert / not filling");
-    // todo: recycle ids + avoid remolding if unaffected
-    let (tok_l, rel) =
-      switch (l) {
-      | None => ("", rel')
-      | Some(T(t)) => (t.token, rel')
-      | Some(l) => ("", cons_lexeme(~onto=L, l, rel'))
-      };
-    let (tok_r, rel) =
-      switch (r) {
-      | None => ("", rel)
-      | Some(T(t)) => (t.token, rel)
-      | Some(r) => ("", cons_lexeme(~onto=R, r, rel))
-      };
-    let lexed = (Lexer.lex(tok_l ++ s ++ tok_r), Token.length(tok_r));
-    print_endline("lexed = " ++ Lexeme.show_s(fst(lexed)));
-    (lexed, rel);
-  };
-};
-let relex = (~insert="", rel: t): (Lexed.t, t) => {
-  print_endline("Stepwell.relex");
-  switch (insert) {
-  | "" =>
-    let ((l, r), rel') = uncons_opt_lexemes(rel);
-    switch (l, r) {
-    | (None | Some(S(_) | G(_)), _)
-    | (_, None | Some(S(_) | G(_))) => (Lexed.empty, rel)
-    | (Some(T(l)), Some(T(r))) =>
-      switch (Lexer.lex(l.token ++ r.token)) {
-      | [T(l'), T(r')] when l'.token == l.token && r'.token == r.token => (
-          Lexed.empty,
-          rel,
-        )
-      | ls => ((ls, Token.length(r.token)), rel')
-      }
-    };
-  | _ => relex_insert(insert, rel)
-  };
-};
-
 let mark = (rel: t): t => {
   switch (uncons_lexeme(~from=R, rel)) {
   | None => cons_space(~onto=R, Space.mk(~paths=[0], []), rel)
@@ -625,30 +446,4 @@ let rec unzip = (~unzipped=empty, mel: Meld.t): t => {
       unzip_end(~unzipped, L, mel);
     }
   };
-};
-
-let insert = ((ls, offset): Lexed.t, rel: t): t => {
-  let rel =
-    switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
-    | Some(s) =>
-      rel
-      |> cons_space(~onto=L, Space.concat(s))
-      // remold if deletion, otherwise
-      // fast path for space-only insertion
-      |> (ls == [] ? remold_suffix : Fun.id)
-    | None =>
-      print_endline("Stepwell.insert / not space");
-      let inserted = List.fold_left(Fun.flip(insert_lexeme), rel, ls);
-      print_endline("inserted = " ++ show(inserted));
-      // let ins_path = path(inserted);
-      // print_endline("ins_path = " ++ Meld.Path.show(ins_path));
-      let marked = mark(inserted);
-      print_endline("marked = " ++ show(marked));
-      let remolded = remold_suffix(marked);
-      print_endline("remolded = " ++ show(remolded));
-      let zipped = zip(remolded);
-      print_endline("zipped = " ++ Meld.show(zipped));
-      unzip(zipped);
-    };
-  FunUtil.(repeat(offset, force_opt(shift_char(~from=L)), rel));
 };

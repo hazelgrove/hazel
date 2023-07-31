@@ -1,15 +1,75 @@
+// walk criteria
+// - overall length
+// - height
+// - if there's a middle kid, whether there's a slot that accommodates
+
+module GZipper = {
+  // a zipper into a Grammar.t
+  type t('subj) = {
+    sort: Sort.t,
+    prec: Prec.t,
+    zipper: Regex.Zipper.t('subj),
+  };
+
+  let map = failwith("todo");
+  let map_opt = failwith("todo");
+};
+
+module Mold = {
+  [@deriving (sexp, ord)]
+  type t = GZipper.t(Label.t);
+  module Ord = {
+    type nonrec t = t;
+    let compare = compare;
+  };
+  module Map = Map.Make(Ord);
+  module Set = Set.Make(Ord);
+
+  // mold imposes bound on neighbors
+  let bound: (Dir.t, t) => Prec.Bound.t = failwith("todo");
+};
+
+// module Slot = {
+//   type t = GZipper.t(Regex.t);
+
+//   let empty = (~sort, ~prec) => GZipper.{sort, prec, zipper: (Regex.empty, Regex.Ctx.empty)};
+
+//   // slot is bounded by neighboring molds
+//   // let bound: (Dir.t, t) => option(Prec.Bound.t) = failwith("todo");
+// };
+
+module Piece = {
+  // todo rename
+  type t =
+    | Grout
+    | Tile(Mold.t);
+};
+
 let union = Mold.Map.union((_, l, r) => Some(choose(~over?, l, r)));
 let union_all = List.fold_left(union, Mold.Map.empty);
 
 module Result = {
-  type t('path) = {
-    eq: list('path),
-    lt: list('path),
+  type t = {
+    eq: list(Slope.t),
+    lt: list(Slope.t),
   };
   let empty = {eq: [], lt: []};
   let cat = ((eq, lt), (eq', lt')) => (eq @ eq', lt @ lt');
   let concat = List.fold_left(cat, empty);
   let filter = f => TupleUtil.map2(List.filter(f));
+  let concat_map: (Slope.t => list(Slope.t), t) => t = failwith("todo");
+  let complete: (~from: Terrace.R.t, t) => list(Slope.t) = failwith("todo");
+
+  // intended functionality here is
+  // 1. to filter slopes based on destination
+  //    and replace final dummy piece with actual wald
+  // 2. pick best sort given kid
+  //    a. prioritize those that have the exact sort (accommodate existing kid, no backtracking)
+  //    b. then based on size (least correction)
+  // 3. stick on terr at the front depending on lt/eq slope
+  let pick:
+    (~from: Terrace.R.t, ~over: Meld.t, ~to_: Wald.t, t) => option(Slope.t) =
+    failwith("todo");
 };
 
 // module Stepped = {
@@ -24,7 +84,10 @@ module Result = {
 //   let filter = f => TupleUtil.map2(List.filter(f));
 // };
 
-let step = (p: Piece.t): Result.t(Terrace.R.t) => {
+// slightly awkward that input is "static" while output is "dynamic",
+// but need static input for memoization, dynamic output without
+// creating another datatype
+let step = (m: Mold.t): Result.t => {
   let rec go = (z: GZipper.t(Atom.t)) =>
     z.zipper |> Regex.step(R) |> List.map(stop_or_go) |> Result.concat
   and stop_or_go = z =>
@@ -46,19 +109,19 @@ let step = (p: Piece.t): Result.t(Terrace.R.t) => {
       let stepped_eq = go(z) |> Result.map(Terrace.R.put_mel(g));
       Result.cat(stepped_eq, stepped_lt);
     };
-  go(Mold.to_atom(p.mold));
+  go(Mold.to_atom(m));
 };
 
-let walk = (from: Wald.t): Result.t(Slope.Dn.t) => {
-  let rec go = (~stepped_to=Mold.Set.empty, p: Piece.t) =>
-    Mold.Set.mem(p.mold, stepped_to)
+let walk = (from: Mold.t): Result.t => {
+  let rec go = (~stepped_to=Mold.Set.empty, m: Mold.t) =>
+    Mold.Set.mem(m, stepped_to)
       ? Result.empty
       : step(from)
         |> Result.concat_map(to_ => {
-             let q = Terrace.R.face(to_);
-             q
-             |> go(~stepped_to=Mold.Set.add(q.mold, stepped_to))
+             let n = Terrace.R.face(to_);
+             n
+             |> go(~stepped_to=Mold.Set.add(n, stepped_to))
              |> Result.complete(~from=to_);
            });
-  go(Terrace.R.face(from));
+  go(from);
 };

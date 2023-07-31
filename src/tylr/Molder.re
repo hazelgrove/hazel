@@ -1,65 +1,17 @@
-// walk criteria
-// - overall length
-// - height
-// - if there's a middle kid, whether there's a slot that accommodates
-
-module GZipper = {
-  // a zipper into a Grammar.t
-  type t('subj) = {
-    sort: Sort.t,
-    prec: Prec.t,
-    zipper: Regex.Zipper.t('subj),
-  };
-
-  let map = failwith("todo");
-  let map_opt = failwith("todo");
-};
-
-module Mold = {
-  [@deriving (sexp, ord)]
-  type t = GZipper.t(Label.t);
-  module Ord = {
-    type nonrec t = t;
-    let compare = compare;
-  };
-  module Map = Map.Make(Ord);
-  module Set = Set.Make(Ord);
-
-  // mold imposes bound on neighbors
-  let bound: (Dir.t, t) => Prec.Bound.t = failwith("todo");
-};
-
-// module Slot = {
-//   type t = GZipper.t(Regex.t);
-
-//   let empty = (~sort, ~prec) => GZipper.{sort, prec, zipper: (Regex.empty, Regex.Ctx.empty)};
-
-//   // slot is bounded by neighboring molds
-//   // let bound: (Dir.t, t) => option(Prec.Bound.t) = failwith("todo");
-// };
-
-module Piece = {
-  // todo rename
-  type t =
-    | Grout
-    | Tile(Mold.t);
-};
-
 // module Walk = {
 //   type t = Chain.t(Slot.t, Piece.t);
 // };
 
 module Result = {
   include Result;
-  type t = Result.t(Slope.Dn.t, Meld.t);
-
-  let merge = (l, r) =>
-    switch (l, r) {
-    | (Error(_), _) => r
-    | (_, Error(_)) => l
-    | (Ok(s_l), Ok(s_r)) => Slope.Dn.compare(s_l, s_r) <= 0 ? l : r
-    };
-  let merge_all = err => List.fold_left(merge, Error(err));
+  type t('a) = Result.t('a, Meld.t);
+  // let merge = (l, r) =>
+  //   switch (l, r) {
+  //   | (Error(_), _) => r
+  //   | (_, Error(_)) => l
+  //   | (Ok(s_l), Ok(s_r)) => Slope.Dn.compare(s_l, s_r) <= 0 ? l : r
+  //   };
+  // let merge_all = err => List.fold_left(merge, Error(err));
 };
 
 let is_operator = (operand_side: Dir.t, r: Regex.t) =>
@@ -70,24 +22,47 @@ let is_operator = (operand_side: Dir.t, r: Regex.t) =>
 let wrap = (_terr, _kid) => failwith("todo");
 
 module Terrace = {
-  let mold = (terr: Terrace.R.t, ~kid=Meld.empty(), t: Token.t): Result.t =>
-    Molds.of_token(t) |> Result.merge_all(wrap(terr, kid));
+  let mold =
+      (terr: Terrace.R.t, ~kid=Meld.empty(), t: Token.t)
+      : Result.t(Slope.Dn.t) =>
+    Molds.of_token(t)
+    |> List.map(m =>
+         Walker.walk(Terrace.R.face(terr).mold)
+         |> Walker.Result.filter(failwith("only walks that end with m"))
+       )
+    |> Walker.Result.concat
+    |> Walker.Result.pick(
+         ~from=terr,
+         ~over=kid,
+         ~to_=failwith("get the piece made of m"),
+       );
 };
 
 module Slope = {
-  let rec mold = (slope: Slope.Dn.t, ~kid=Meld.empty(), t: Token.t): Result.t =>
-    switch (slope.terrs) {
-    | [] => Error(kid)
-    | [terr, ...terrs] =>
-      // todo: push slope space onto kid
-      let tl_molded = mold({...slope, terrs}, ~kid=wrap(terr, kid), t);
-      switch (Terrace.mold(terr, ~kid, t)) {
-      | Error(_) => tl_molded
-      | Ok(hd) =>
-        switch (tl_molded) {
-        | Ok(tl) when Slope.Dn.compare(hd, tl) > 0 => tl_molded
-        | _ => Ok(Slope.Dn.cat(Slope.mk(terrs), hd))
-        }
+  module Dn = {
+    let rec mold =
+            (slope: Slope.Dn.t, ~kid=Meld.empty(), t: Token.t): Result.t => {
+      let kid = Meld.pad(~l=dn.space, kid);
+      switch (slope.terrs) {
+      | [] => Error(kid)
+      | [hd, ...tl] =>
+        let tl = Slope.Dn.mk(tl);
+        let tl_molded = mold(tl, ~kid=Terrace.R.unmk(hd, kid), t);
+        let hd_molded = Terrace.mold(hd, ~kid, t);
+        switch (hd_molded) {
+        | Error(_) => tl_molded
+        | Ok(hd_walk) =>
+          switch (tl_molded) {
+          | Ok((tl_walk, rest))
+              when Slope.Dn.compare(hd_molded, tl_molded) >= 0 => tl_molded
+          // todo: change Result type so that it supports ok-slope-pair
+          | _ => Ok((hd_walk, tl))
+          }
+        };
       };
     };
+    let mold = (slope, ~kid=Meld.empty(), t) =>
+      mold(slope, ~kid, t)
+      |> Result.map(((walk, rest)) => Slope.Dn.cat(rest, walk));
+  };
 };
