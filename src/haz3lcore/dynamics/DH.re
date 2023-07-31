@@ -75,7 +75,7 @@ module rec DHExp: {
     | Cons(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Tag(string)
+    | Constructor(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -174,7 +174,7 @@ module rec DHExp: {
     | Cons(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Tag(string)
+    | Constructor(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -215,7 +215,7 @@ module rec DHExp: {
     | Cons(_, _) => "Cons"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
-    | Tag(_) => "Tag"
+    | Constructor(_) => "Constructor"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
@@ -283,9 +283,9 @@ module rec DHExp: {
     | IntLit(_) as d
     | FloatLit(_) as d
     | StringLit(_) as d
-    | Tag(_) as d
-    | InvalidOperation(_) as d
-    | ModuleVal(_) as d => d
+    | Constructor(_) as d
+    | ModuleVal(_) as d
+    | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
@@ -297,7 +297,7 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
-    | (Tag(_), _) => d1 == d2
+    | (Constructor(_), _) => d1 == d2
     | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
     | (StringLit(_), _) => false
 

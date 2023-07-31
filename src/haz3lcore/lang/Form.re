@@ -87,6 +87,7 @@ let is_tag = is_capitalized_name;
 let is_dot_var = str =>
   regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str) || str == ".";
 let is_dot_typ = str => regexp("^\\.[A-Z][A-Za-z0-9_]*$", str) || str == ".";
+let is_ctr = is_capitalized_name;
 let is_base_typ = regexp("^(String|Int|Float|Bool)$");
 let is_typ_var = is_capitalized_name;
 let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
@@ -164,7 +165,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (

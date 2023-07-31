@@ -8,19 +8,19 @@ open Util.OptUtil.Syntax;
  input: get_module("T", ctx, Int)
  output: None (Int is not a valid module type)
 
- input: get_module("T", ctx, Tag("M")) where M is not in ctx or is not a module.
+ input: get_module("T", ctx, Constructor("M")) where M is not in ctx or is not a module.
  output: Some("M.T", None)
 
- input: get_module("T", ctx, Tag("M")) where M is of type Module(ctx1) in ctx.
+ input: get_module("T", ctx, Constructor("M")) where M is of type Module(ctx1) in ctx.
  output: Some("M.T", Some(ctx1))
 
- input: get_module("T", ctx, Dot(Tag("M"), M1)) where M is of type Module(M1: Module(ctx1)) in ctx.
+ input: get_module("T", ctx, Dot(Constructor("M"), M1)) where M is of type Module(M1: Module(ctx1)) in ctx.
  output: Some("M.M1.T", Some(ctx1))
   */
 let get_tyname = (ty: UTyp.t) =>
   switch (ty.term) {
   | Var(name)
-  | Tag(name)
+  | Constructor(name)
   | Invalid(name) => Some(name)
   | _ => None
   };
@@ -28,9 +28,9 @@ let rec get_module =
         (name: string, ctx: Ctx.t, ty: UTyp.t)
         : option((string, option(Ctx.t))) => {
   switch (ty.term) {
-  | Tag(tag_name)
+  | Constructor(tag_name)
   | Var(tag_name) =>
-    switch (Ctx.lookup_tag(ctx, tag_name)) {
+    switch (Ctx.lookup_ctr(ctx, tag_name)) {
     | Some({typ: Module(inner_ctx), _}) =>
       Some((name ++ tag_name ++ ".", Some(inner_ctx)))
     | _ => Some((name ++ tag_name ++ ".", None))
@@ -40,7 +40,7 @@ let rec get_module =
     let+ (name, ctx) = get_module(name, ctx, t1);
     let inner_ctx = {
       let* ctx = ctx;
-      switch (Ctx.lookup_tag(ctx, tag_name)) {
+      switch (Ctx.lookup_ctr(ctx, tag_name)) {
       | Some({typ: Module(inner_ctx), _}) => Some(inner_ctx)
       | _ => None
       };

@@ -209,13 +209,13 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Tag(tag) => atomic(Self.of_tag(ctx, tag))
+  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
   /*
    Now Tags are not only Constructors but also possibly modules,
    don't know if necessary to add to free as Var.
    */
   | Ap(fn, arg) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UExp.tag_name(fn));
+    let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
@@ -340,8 +340,8 @@ and uexp_to_info_map =
         };
       };
       let ctx_body =
-        switch (Typ.get_sum_tags(ctx, ty_def)) {
-        | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
       let (Info.{co_ctx, ty: ty_body, _}, m) =
@@ -431,23 +431,23 @@ and upat_to_info_map =
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
-  | Tag(tag) =>
+  | Constructor(ctr) =>
     if (Mode.is_module_ana(mode)) {
       let ctx_typ =
         Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
       /* Change type var to be type member of module. */
-      let ctx_typ = Ctx.modulize(ctx_typ, tag);
+      let ctx_typ = Ctx.modulize(ctx_typ, ctr);
       /** If module has a type member with same name,
       add the type alias to the current context */
       let ctx = {
         switch (ctx_typ) {
         | Module(inner_ctx) =>
-          switch (Ctx.lookup_tvar(inner_ctx, tag)) {
+          switch (Ctx.lookup_tvar(inner_ctx, ctr)) {
           | Some({kind: Singleton(ty), _}) =>
             /** Currently all type shadowing are disallowed. See TyAlias */
             (
-              if (!Ctx.shadows_typ(ctx, tag)) {
-                Ctx.extend_alias(ctx, tag, UPat.rep_id(upat), ty);
+              if (!Ctx.shadows_typ(ctx, ctr)) {
+                Ctx.extend_alias(ctx, ctr, UPat.rep_id(upat), ty);
               } else {
                 ctx;
               }
@@ -458,13 +458,17 @@ and upat_to_info_map =
         };
       };
       let entry =
-        Ctx.TagEntry({name: tag, id: UPat.rep_id(upat), typ: ctx_typ});
+        Ctx.ConstructorEntry({
+          name: ctr,
+          id: UPat.rep_id(upat),
+          typ: ctx_typ,
+        });
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
     } else {
-      atomic(Self.of_tag(ctx, tag));
+      atomic(Self.of_ctr(ctx, ctr));
     }
   | Ap(fn, arg) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UPat.tag_name(fn));
+    let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
@@ -492,8 +496,8 @@ and upat_to_info_map =
         };
       };
       let ctx_body =
-        switch (Typ.get_sum_tags(ctx, ty_def)) {
-        | Some(sm) => Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm)
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
@@ -532,7 +536,7 @@ and utyp_to_info_map =
   | Bool
   | String => add(m)
   | Var(_)
-  | Tag(_) =>
+  | Constructor(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
@@ -548,8 +552,9 @@ and utyp_to_info_map =
     let ty_in = UTyp.to_typ(ctx, t2);
     let t1_mode: Info.typ_expects =
       switch (expects) {
-      | VariantExpected(m, sum_ty) => TagExpected(m, Arrow(ty_in, sum_ty))
-      | _ => TagExpected(Unique, Arrow(ty_in, Unknown(Internal)))
+      | VariantExpected(m, sum_ty) =>
+        ConstructorExpected(m, Arrow(ty_in, sum_ty))
+      | _ => ConstructorExpected(Unique, Arrow(ty_in, Unknown(Internal)))
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
@@ -574,7 +579,7 @@ and utyp_to_info_map =
       let res = Module.get_module("", ctx, ty_mod);
       switch (res) {
       | Some((_, Some(inner_ctx))) => inner_ctx
-      | _ => Ctx.empty
+      | _ => VarMap.empty
       };
     };
     let (_, m) =
@@ -659,7 +664,7 @@ and uexp_to_module =
       | Ap(_) => Syn
       // Var like patterns are looked up in the module context.
       | Var(name)
-      | Tag(name) =>
+      | Constructor(name) =>
         switch (Ctx.lookup_var(m, name)) {
         | Some(t) => Ana(t.typ)
         | None => Syn
@@ -816,10 +821,10 @@ and uexp_to_module =
         };
       };
       let (ctx_body, new_inner) =
-        switch (Typ.get_sum_tags(ctx, ty_def)) {
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
         | Some(sm) => (
-            Ctx.add_tags(ctx_body, name, UTyp.rep_id(utyp), sm),
-            Ctx.add_tags(new_inner, name, UTyp.rep_id(utyp), sm),
+            Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm),
+            Ctx.add_ctrs(new_inner, name, UTyp.rep_id(utyp), sm),
           )
         | None => (ctx_body, new_inner)
         };
@@ -862,7 +867,7 @@ and uexp_to_module =
   | Float(_)
   | String(_)
   | ListLit(_)
-  | Tag(_)
+  | Constructor(_)
   | Fun(_)
   | Tuple(_)
   | Var(_)
@@ -882,17 +887,20 @@ and uexp_to_module =
 }
 
 and variant_to_info_map =
-    (~ctx, ~ancestors, ~ty_sum, (m, tags), uty: UTyp.variant) => {
+    (~ctx, ~ancestors, ~ty_sum, (m, ctrs), uty: UTyp.variant) => {
   let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
   switch (uty) {
   | BadEntry(uty) =>
     let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
-    (m, tags);
-  | Variant(tag, ids, param) =>
+    (m, ctrs);
+  | Variant(ctr, ids, param) =>
     let m =
       go(
-        TagExpected(List.mem(tag, tags) ? Duplicate : Unique, ty_sum),
-        {term: Tag(tag), ids},
+        ConstructorExpected(
+          List.mem(ctr, ctrs) ? Duplicate : Unique,
+          ty_sum,
+        ),
+        {term: Constructor(ctr), ids},
         m,
       )
       |> snd;
@@ -901,7 +909,7 @@ and variant_to_info_map =
       | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
       | None => m
       };
-    (m, [tag, ...tags]);
+    (m, [ctr, ...ctrs]);
   };
 };
 

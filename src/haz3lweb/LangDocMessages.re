@@ -119,7 +119,7 @@ let empty_hole_template = (sort, str, id): form => {
   let explanation = {
     message:
       Printf.sprintf(
-        "Empty hole. This marks %s that needs to be filled in.",
+        "Empty hole. This should be filled with %s to complete the program.",
         str,
       ),
     feedback: Unselected,
@@ -264,7 +264,7 @@ let function_var_group = "function_var_group";
 let function_tuple_group = "function_tuple_group";
 let function_tuple_2_group = "function_tuple_2_group";
 let function_tuple_3_group = "function_tuple_3_group";
-let function_tag_group = "function_tag_group";
+let function_ctr_group = "function_ctr_group";
 let function_ap_group = "function_ap_group";
 let basic_fun_ex = {
   sub_id: "basic_fun_ex",
@@ -356,8 +356,8 @@ let tuple3_fun_ex = {
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
   feedback: Unselected,
 };
-let tag_fun_ex = {
-  sub_id: "tag_fun_ex",
+let ctr_fun_ex = {
+  sub_id: "ctr_fun_ex",
   term: mk_example("fun None -> 1"),
   message: "When given a None constructor argument, the function evaluates 1.",
   feedback: Unselected,
@@ -721,20 +721,20 @@ let function_tuple3_exp: form = {
 };
 let _pat = pat("C");
 let _exp = exp("e");
-let function_tag_exp_coloring_ids =
+let function_ctr_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
-let function_tag_exp: form = {
+let function_ctr_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
-    id: "function_tag_exp",
+    id: "function_ctr_exp",
     syntactic_form: form,
     expandable_id: Some(Piece.id(_pat)),
     explanation,
-    examples: [tag_fun_ex],
+    examples: [ctr_fun_ex],
   };
 };
 let _pat_con = pat("p_con");
@@ -862,14 +862,14 @@ let var_exp: form = {
   };
 };
 
-let tag_exp_group = "tag_exp_group";
-let tag_exp: form = {
+let ctr_exp_group = "ctr_exp_group";
+let ctr_exp: form = {
   let explanation = {
     message: "`%s` is a constructor for a sum type variant.",
     feedback: Unselected,
   };
   {
-    id: "tag_exp",
+    id: "ctr_exp",
     syntactic_form: [exp("Constructor")],
     expandable_id: None,
     explanation,
@@ -922,7 +922,7 @@ let let_var_exp_group = "let_var_exp_group";
 let let_tuple_base_exp_group = "let_tuple_base_exp_group";
 let let_tuple2_exp_group = "let_tuple2_exp_group";
 let let_tuple3_exp_group = "let_tuple3_exp_group";
-let let_tag_exp_group = "let_tag_exp_group";
+let let_ctr_exp_group = "let_ctr_exp_group";
 let let_ap_exp_group = "let_ap_exp_group";
 let let_base_ex = {
   sub_id: "let_base_ex",
@@ -1008,8 +1008,8 @@ let let_tuple3_ex = {
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
   feedback: Unselected,
 };
-let let_tag_ex = {
-  sub_id: "let_tag_ex",
+let let_ctr_ex = {
+  sub_id: "let_ctr_ex",
   term: mk_example("let None = None in \n2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
@@ -1475,13 +1475,13 @@ let let_tuple3_exp: form = {
 let _pat = pat("C");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
-let let_tag_exp_coloring_ids =
+let let_ctr_exp_coloring_ids =
   _pat_def_body_let_exp_coloring_ids(
     Piece.id(_pat),
     Piece.id(_exp_def),
     Piece.id(_exp_body),
   );
-let let_tag_exp: form = {
+let let_ctr_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
@@ -1492,11 +1492,11 @@ let let_tag_exp: form = {
     _exp_body,
   ];
   {
-    id: "let_tag_exp",
+    id: "let_ctr_exp",
     syntactic_form: form,
     expandable_id: Some(Piece.id(_pat)),
     explanation,
-    examples: [let_tag_ex],
+    examples: [let_ctr_ex],
   };
 };
 let _pat_con = pat("p_con");
@@ -1596,7 +1596,7 @@ let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
 ];
 let tyalias_base_exp: form = {
   let explanation = {
-    message: "Type Alias expression. The [*definition*](%i) is bound to the [*name*](%i).",
+    message: "Type alias expression. The [*type*](%i) is bound to the [*type variable*](%i) in the body.",
     feedback: Unselected,
   };
   let form = [
@@ -3020,14 +3020,14 @@ let tuple_pat_size3: form = {
   };
 };
 
-let tag_pat_group = "tag_pat_group";
-let tag_pat: form = {
+let ctr_pat_group = "ctr_pat_group";
+let ctr_pat: form = {
   let explanation = {
     message: "Constructor pattern. Only expressions that match the *`%s` constructor* match this constructor pattern.",
     feedback: Unselected,
   };
   {
-    id: "tag_pat",
+    id: "ctr_pat",
     syntactic_form: [pat("Constructor")],
     expandable_id: None,
     explanation,
@@ -3271,7 +3271,7 @@ let arrow3_typ: form = {
 let labelled_sum_typ_group = "labelled_sum_typ_group";
 let labelled_sum_typ: form = {
   let explanation = {
-    message: "Sum type. This type combines one or more labelled types, each consisting of a constructor name and (optionally) a type parameter, into a single type of alternatives.",
+    message: "Sum type. Sum types express finite labeled choices. Values of this type consist of one of the specified constructors applied to a parameter of the corresponding parameter type, if specified. Constructor names must be unique within a sum.",
     feedback: Unselected,
   };
   let divider = Example.mk_monotile(Form.get("typ_plus"));
@@ -3294,7 +3294,7 @@ let labelled_sum_typ: form = {
 let sum_typ_unary_constructor_def_group = "sum_typ_unary_constructor_def_group";
 let sum_typ_unary_constructor_def: form = {
   let explanation = {
-    message: "Constructor application definition. This appends an optional type parameter to a sum type variant.",
+    message: "Parameterized constructor definition. This specifies one possible way of constructing the parent sum type, when applied to a parameter of the specified parameter type.",
     feedback: Unselected,
   };
   {
@@ -3309,7 +3309,7 @@ let sum_typ_unary_constructor_def: form = {
 let sum_typ_nullary_constructor_def_group = "sum_typ_nullary_constructor_def_group";
 let sum_typ_nullary_constructor_def: form = {
   let explanation = {
-    message: "Constructor definition. This defines a variant of a sum type. Constructor names must be unique within a sum.",
+    message: "Constant constructor definition. This specifies one possible way of constructing the parent sum type. It does not take an argument, so it a constant of that type.",
     feedback: Unselected,
   };
   {
@@ -3394,7 +3394,7 @@ let tuple3_typ: form = {
 let var_typ_group = "var_typ_group";
 let var_typ: form = {
   let explanation = {
-    message: "`%s` is a type variable reference.",
+    message: "`%s` is a type variable.",
     feedback: Unselected,
   };
   {
@@ -3438,7 +3438,7 @@ let dot_typ: form = {
 let var_typ_pat_group = "var_typ_pat_group";
 let var_typ_pat: form = {
   let explanation = {
-    message: "`%s` is a new type variable name.",
+    message: "`%s` binds a type variable.",
     feedback: Unselected,
   };
   {
@@ -3571,14 +3571,14 @@ let init = {
     function_tuple_exp,
     function_tuple2_exp,
     function_tuple3_exp,
-    function_tag_exp,
+    function_ctr_exp,
     function_ap_exp,
     tuple_exp,
     tuple_exp_size2,
     tuple_exp_size3,
     var_exp,
-    tag_exp,
     dot_exp,
+    ctr_exp,
     let_base_exp,
     let_empty_hole_exp,
     let_multi_hole_exp,
@@ -3595,7 +3595,7 @@ let init = {
     let_tuple_exp,
     let_tuple2_exp,
     let_tuple3_exp,
-    let_tag_exp,
+    let_ctr_exp,
     let_ap_exp,
     module_exp,
     tyalias_base_exp,
@@ -3649,7 +3649,7 @@ let init = {
     tuple_pat,
     tuple_pat_size2,
     tuple_pat_size3,
-    tag_pat,
+    ctr_pat,
     ap_pat,
     typann_pat,
     // Types
@@ -3800,10 +3800,10 @@ let init = {
       ]),
     ),
     (
-      function_tag_group,
+      function_ctr_group,
       init_options([
         (function_exp.id, [pat("p")]),
-        (function_tag_exp.id, [pat("C")]),
+        (function_ctr_exp.id, [pat("C")]),
       ]),
     ),
     (
@@ -3835,8 +3835,8 @@ let init = {
       ]),
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
-    (tag_exp_group, init_options([(tag_exp.id, [])])),
     (dot_exp_group, init_options([(dot_exp.id, [])])),
+    (ctr_exp_group, init_options([(ctr_exp.id, [])])),
     (let_base_exp_group, init_options([(let_base_exp.id, [])])),
     (
       let_empty_hole_exp_group,
@@ -3949,10 +3949,10 @@ let init = {
       ]),
     ),
     (
-      let_tag_exp_group,
+      let_ctr_exp_group,
       init_options([
         (let_base_exp.id, [pat("p")]),
-        (let_tag_exp.id, [pat("C")]),
+        (let_ctr_exp.id, [pat("C")]),
       ]),
     ),
     (
@@ -4035,7 +4035,7 @@ let init = {
         ),
       ]),
     ),
-    (tag_pat_group, init_options([(tag_pat.id, [])])),
+    (ctr_pat_group, init_options([(ctr_pat.id, [])])),
     (ap_pat_group, init_options([(ap_pat.id, [])])),
     (typann_pat_group, init_options([(typann_pat.id, [])])),
     // Types

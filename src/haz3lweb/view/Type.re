@@ -65,7 +65,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
     let view_entry = (m: Haz3lcore.TypBase.Ctx.entry): list(t) => {
       switch (m) {
       | VarEntry({name: n0, typ: t0, _})
-      | TagEntry({name: n0, typ: t0, _}) => [
+      | ConstructorEntry({name: n0, typ: t0, _}) => [
           text(n0),
           text(":"),
           view_ty(t0),
@@ -106,19 +106,19 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Sum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
-      | [t0] => [text("+")] @ tagged_view(t0)
+      | [t0] => [text("+")] @ ctr_view(t0)
       | [t0, ...ts] =>
         let ts_views =
-          List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
-        tagged_view(t0) @ ts_views;
+          List.map(t => [text(" + ")] @ ctr_view(t), ts) |> List.flatten;
+        ctr_view(t0) @ ts_views;
       },
     )
   | Member(name, _) => ty_view("Member", name)
   }
-and tagged_view = ((tag, typ)) =>
+and ctr_view = ((ctr, typ)) =>
   switch (typ) {
-  | None => [text(tag)]
-  | Some(typ) => [text(tag ++ "("), view_ty(typ), text(")")]
+  | None => [text(ctr)]
+  | Some(typ) => [text(ctr ++ "("), view_ty(typ), text(")")]
   };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>

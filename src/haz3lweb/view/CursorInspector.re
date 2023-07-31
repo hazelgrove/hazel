@@ -69,7 +69,7 @@ let common_err_view = (err: Info.error_common) =>
       Type.view(typ),
       text("is not consistent with arrow type"),
     ]
-  | FreeTag => [text("Constructor is not defined")]
+  | FreeConstructor => [text("Constructor is not defined")]
   | SynInconsistentBranches(tys) => [
       text("Expecting branches to have consistent types but got:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
@@ -145,14 +145,16 @@ let typ_err_view = (ok: Info.error_typ) =>
         Printf.sprintf("\"%s\" isn't a valid type or type operator", token),
       ),
     ]
-  | WantTagFoundAp => [text("Expected a constructor, found application")]
-  | WantTagFoundType(ty) => [
+  | WantConstructorFoundAp => [
+      text("Expected a constructor, found application"),
+    ]
+  | WantConstructorFoundType(ty) => [
       text("Expected a constructor, found type "),
       Type.view(ty),
     ]
   | WantTypeFoundAp => [text("Constructor application must be in sum")]
   | WantModule => [text("Expect a valid module")]
-  | DuplicateTag(name) => [
+  | DuplicateConstructor(name) => [
       text("Constructor"),
       Type.view(Var(name)),
       text("already used in this sum"),
@@ -178,7 +180,6 @@ let exp_view: Info.status_exp => t =
 
 let pat_view: Info.status_pat => t =
   fun
-  | InHole(ExpectedTag) => div_err([text("Expected a constructor")])
   | InHole(ExpectedModule(token)) =>
     div_err([
       text(
@@ -188,6 +189,7 @@ let pat_view: Info.status_pat => t =
         ),
       ),
     ])
+  | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Common(error)) => div_err(common_err_view(error))
   | NotInHole(ok) => div_ok(common_ok_view(ok));
 
