@@ -116,7 +116,7 @@ let empty_hole_template = (sort, str, id): form => {
   let explanation = {
     message:
       Printf.sprintf(
-        "Empty hole. This marks %s that needs to be filled in.",
+        "Empty hole. This should be filled with %s to complete the program.",
         str,
       ),
     feedback: Unselected,
@@ -1534,7 +1534,7 @@ let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
 ];
 let tyalias_base_exp: form = {
   let explanation = {
-    message: "Type Alias expression. The [*definition*](%i) is bound to the [*name*](%i).",
+    message: "Type alias expression. The [*type*](%i) is bound to the [*type variable*](%i) in the body.",
     feedback: Unselected,
   };
   let form = [
@@ -3213,7 +3213,7 @@ let arrow3_typ: form = {
 let labelled_sum_typ_group = "labelled_sum_typ_group";
 let labelled_sum_typ: form = {
   let explanation = {
-    message: "Sum type. This type combines one or more labelled types, each consisting of a constructor name and (optionally) a type parameter, into a single type of alternatives.",
+    message: "Sum type. Sum types express finite labeled choices. Values of this type consist of one of the specified constructors applied to a parameter of the corresponding parameter type, if specified. Constructor names must be unique within a sum.",
     feedback: Unselected,
   };
   let divider = Example.mk_monotile(Form.get("typ_plus"));
@@ -3236,7 +3236,7 @@ let labelled_sum_typ: form = {
 let sum_typ_unary_constructor_def_group = "sum_typ_unary_constructor_def_group";
 let sum_typ_unary_constructor_def: form = {
   let explanation = {
-    message: "Constructor application definition. This appends an optional type parameter to a sum type variant.",
+    message: "Parameterized constructor definition. This specifies one possible way of constructing the parent sum type, when applied to a parameter of the specified parameter type.",
     feedback: Unselected,
   };
   {
@@ -3251,7 +3251,7 @@ let sum_typ_unary_constructor_def: form = {
 let sum_typ_nullary_constructor_def_group = "sum_typ_nullary_constructor_def_group";
 let sum_typ_nullary_constructor_def: form = {
   let explanation = {
-    message: "Constructor definition. This defines a variant of a sum type. Constructor names must be unique within a sum.",
+    message: "Constant constructor definition. This specifies one possible way of constructing the parent sum type. It does not take an argument, so it a constant of that type.",
     feedback: Unselected,
   };
   {
@@ -3336,7 +3336,7 @@ let tuple3_typ: form = {
 let var_typ_group = "var_typ_group";
 let var_typ: form = {
   let explanation = {
-    message: "`%s` is a type variable reference.",
+    message: "`%s` is a type variable.",
     feedback: Unselected,
   };
   {
@@ -3351,7 +3351,7 @@ let var_typ: form = {
 let var_typ_pat_group = "var_typ_pat_group";
 let var_typ_pat: form = {
   let explanation = {
-    message: "`%s` is a new type variable name.",
+    message: "`%s` binds a type variable.",
     feedback: Unselected,
   };
   {
