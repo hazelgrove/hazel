@@ -163,7 +163,7 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let exp_view: (cls: Term.Cls.t, status: Info.status_exp) =>
+let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([text("'" ++ name ++ "' not found")])
@@ -184,7 +184,7 @@ let exp_view: (cls: Term.Cls.t, status: Info.status_exp) =>
     ])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(AnaDeferralConsistent(ana)) =>
-    div_ok([text("satisfies expected type"), Type.view(ana)])
+    div_ok([text("Expecting type"), Type.view(ana)])
   | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
   };
 
