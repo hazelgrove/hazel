@@ -424,6 +424,7 @@ module UExp = {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -436,6 +437,7 @@ module UExp = {
     | Let
     | TyAlias
     | Ap
+    | DeferredAp
     | If
     | Seq
     | Test
