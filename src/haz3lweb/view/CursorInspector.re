@@ -101,22 +101,22 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
       Type.view(ana),
     ]
   | Syn(syn) => [text(":"), Type.view(syn)]
+  /*| Ana(Consistent({ana, syn: Unknown(_) as syn, _})) => [
+        text(":"),
+        Type.view(syn),
+        text("trivially satisfies expected type"),
+        Type.view(ana),
+      ]
+    | Ana(Consistent({ana: Unknown(_) as ana, syn, _})) => [
+        text(":"),
+        Type.view(syn),
+        text("satisfies trivial expected type"),
+        Type.view(ana),
+      ]*/
   | Ana(Consistent({ana, syn, _})) when ana == syn => [
       text(":"),
       Type.view(syn),
-      text("exactly satisfies expected type"),
-    ]
-  | Ana(Consistent({ana, syn: Unknown(_) as syn, _})) => [
-      text(":"),
-      Type.view(syn),
-      text("trivially satisfies expected type"),
-      Type.view(ana),
-    ]
-  | Ana(Consistent({ana: Unknown(_) as ana, syn, _})) => [
-      text(":"),
-      Type.view(syn),
-      text("satisfies trivial expected type"),
-      Type.view(ana),
+      text("equals expected type"),
     ]
   | Ana(Consistent({ana, syn, _})) => [
       text(":"),
