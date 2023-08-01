@@ -2725,7 +2725,7 @@ let get_doc =
       };
     | Constructor(_) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
-    | Var(_) when cls == Constructor =>
+    | Var(_) when cls == Typ(Constructor) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
       let (doc, options) =
