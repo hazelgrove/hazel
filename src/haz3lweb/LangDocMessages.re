@@ -1569,8 +1569,11 @@ let conapp_exp_ex = {
 };
 let deferred_funapp_exp_ex = {
   sub_id: "deferred_funapp_exp_ex",
-  term: mk_example("(fun (x, y) -> x + y)(_, 1)"),
-  message: "The plus function is partially applied to (_, 1). Part of the tuple pattern y is bound to 1 in the function body and the whole partial application evaluates to the new function plus1.",
+  term:
+    mk_example(
+      "let plus = fun (x, y) -> x + y in\nlet incr = plus(_, 1) in\nincr(5)",
+    ),
+  message: "The plus function is partially applied. The argument y is bound to 1 in the function body. The deferred argument x is not applied until in the full function application, incr(5), where it's bound to 5. The partial application evaluates to a new function, (fun x -> x + 1).",
   feedback: Unselected,
 };
 let _exp_fun = exp("e_fun");
@@ -1625,7 +1628,7 @@ let deferred_funapp_exp_coloring_ids =
 ];
 let deferred_funapp_exp: form = {
   let explanation = {
-    message: "Partial function application. Apply the [*function*](%i) to the [*supplied arguments*](%i). [*unsupplied arguments*](%i) are deferred to future applications.", //Bound part(s) of the [*function*](%i) input pattern to supplied values in the [*argument*](%i).",
+    message: "Partial function application. Apply the [*function*](%i) to the [*supplied arguments*](%i). The [*deferred arguments*](%i) can be applied in future applications.",
     feedback: Unselected,
   };
   let comma = comma_exp();
