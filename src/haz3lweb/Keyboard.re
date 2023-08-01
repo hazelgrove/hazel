@@ -36,13 +36,29 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
+    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     switch (key) {
-    | "F2" => print(Zipper.show(zipper))
+    | "F1" => zipper |> Zipper.show |> print
+    | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
+    | "F3" => zipper |> get_term |> TermBase.UExp.show |> print
+    | "F4" => zipper |> get_term |> Statics.mk_map |> Statics.Map.show |> print
+    | "F5" =>
+      let term = zipper |> get_term;
+      let map = term |> Statics.mk_map;
+      Interface.get_result(map, term) |> ProgramResult.show |> print;
     | "F6" =>
-      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(zipper));
-      print(TermBase.UExp.show(term));
+      let index = Indicated.index(zipper);
+      let map = zipper |> get_term |> Statics.mk_map;
+      switch (index) {
+      | Some(index) =>
+        switch (Haz3lcore.Id.Map.find_opt(index, map)) {
+        | Some(ci) => print(Info.show(ci))
+        | _ => print("DEBUG: No CI found for index")
+        }
+      | _ => print("DEBUG: No indicated index")
+      };
     | _ => []
-    }
+    };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))
@@ -100,7 +116,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
-    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
+    | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -114,7 +130,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
-    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
+    | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))

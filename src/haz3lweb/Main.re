@@ -160,9 +160,7 @@ let fragment =
 let initial_model = {
   switch (fragment) {
   | "debug" => Model.debug
-  | _ =>
-    let model = Update.load_model(Model.blank);
-    model;
+  | _ => Model.load(Model.blank)
   };
 };
 

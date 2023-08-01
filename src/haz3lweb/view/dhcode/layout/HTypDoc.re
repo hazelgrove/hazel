@@ -105,17 +105,37 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Sum(ty1, ty2) =>
-      let (d1, d2) =
-        mk_right_associative_operands(Typ.precedence_Sum, ty1, ty2);
-      (
+    | Rec(x, ty) => (
         hcats([
-          d1,
-          hcats([choices([linebreak(), space()]), text("| ")]),
-          d2,
+          text("Rec " ++ x ++ ".{"),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
+          mk_delim("}"),
         ]),
         parenthesize,
-      );
+      )
+    | Sum(sum_map) =>
+      let center =
+        List.mapi(
+          (i, (ctr, ty)) =>
+            switch (ty) {
+            | None => annot(HTypAnnot.Step(i + 1), text(ctr))
+            | Some(ty) =>
+              annot(
+                HTypAnnot.Step(i + 1),
+                hcats([text(ctr ++ "("), mk'(ty), text(")")]),
+              )
+            },
+          sum_map,
+        )
+        |> ListUtil.join(
+             hcats([text(" +"), choices([linebreak(), space()])]),
+           )
+        |> hcats;
+      (center, true);
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
