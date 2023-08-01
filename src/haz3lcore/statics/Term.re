@@ -90,9 +90,9 @@ module UTyp = {
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
     | Parens(typ) => is_arrow(typ)
-    | Arrow(_) => true
+    | Arrow(_)
+    | EmptyHole => true
     | Invalid(_)
-    | EmptyHole
     | MultiHole(_)
     | Int
     | Float
@@ -304,11 +304,13 @@ module UPat = {
   };
 
   let rec is_tuple_of_arrows = (pat: t) =>
-    is_fun_var(pat)
+    is_var(pat)
+    || is_fun_var(pat)
     || (
       switch (pat.term) {
       | Parens(pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Tuple(pats) =>
+        pats |> List.for_all(pat => is_var(pat) || is_fun_var(pat))
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -326,28 +328,6 @@ module UPat = {
       | Ap(_) => false
       }
     );
-
-  let rec has_var_def = (pat: t, var: Var.t) => {
-    switch (pat.term) {
-    | Var(var') => var == var'
-    | Parens(pat)
-    | TypeAnn(pat, _)
-    | Ap(_, pat) => has_var_def(pat, var)
-    | ListLit(pats)
-    | Tuple(pats) => List.exists(pat => has_var_def(pat, var), pats)
-    | Cons(pat1, pat2) => has_var_def(pat1, var) || has_var_def(pat2, var)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | Constructor(_) => false
-    };
-  };
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
@@ -687,94 +667,12 @@ module UExp = {
     };
   };
 
-  let rec get_fun_var = (pat: UPat.t, e: t) => {
-    switch (e.term) {
-    | Parens(e) => get_fun_var(pat, e)
-    | Fun(_, e) =>
-      switch (UPat.get_var(pat)) {
-      | Some(x) when has_fun_var(e, x) => Some(x)
-      | _ => None
-      }
-    | _ => None
+  let get_fun_var = (pat: UPat.t, e: t) =>
+    if (UPat.is_fun_var(pat) || UPat.is_var(pat) && is_fun(e)) {
+      UPat.get_var(pat);
+    } else {
+      None;
     };
-  }
-  and has_fun_var = (e: t, var: Var.t) =>
-    switch (e.term) {
-    | Var(var') => var == var'
-    | Parens(e)
-    | TyAlias(_, _, e)
-    | Test(e)
-    | UnOp(_, e) => has_fun_var(e, var)
-    | Cons(e1, e2)
-    | Seq(e1, e2)
-    | BinOp(_, e1, e2) => has_fun_var(e1, var) || has_fun_var(e2, var)
-    | If(e1, e2, e3) =>
-      has_fun_var(e1, var) || has_fun_var(e2, var) || has_fun_var(e3, var)
-    | ListLit(es)
-    | Tuple(es) => List.exists(has_fun_var(_, var), es)
-    | Fun(pat, e)
-    | Let(pat, _, e) => !UPat.has_var_def(pat, var) && has_fun_var(e, var)
-    | Match(e, ruls) =>
-      has_fun_var(e, var)
-      || List.exists(
-           ((pat, e)) =>
-             !UPat.has_var_def(pat, var) && has_fun_var(e, var),
-           ruls,
-         )
-    | Ap(fn, arg) =>
-      //has_branch_var(fn, var) ||
-      has_fun_var(fn, var) || has_fun_var(arg, var)
-    | DeferredAp(fn, args) =>
-      //has_branch_var(fn, var) ||
-      has_fun_var(fn, var) || List.exists(has_fun_var(_, var), args)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Triv
-    | Deferral(_)
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
-    // | Var(_)
-    | Constructor(_) => false
-    };
-  // and has_branch_var = (e: t, var: Var.t) => {
-  //   switch (e.term) {
-  //   | Var(var') => var == var'
-  //   | Parens(e)
-  //   | TyAlias(_, _, e)
-  //   | Seq(_, e) => has_branch_var(e, var)
-  //   | Let(pat, _, e) =>
-  //     !UPat.has_var_def(pat, var) && has_branch_var(e, var)
-  //   | If(_, e1, e2) => has_branch_var(e1, var) || has_branch_var(e2, var)
-  //   | Match(_, ruls) =>
-  //     List.exists(
-  //       ((pat, e)) =>
-  //         !UPat.has_var_def(pat, var) && has_branch_var(e, var),
-  //       ruls,
-  //     )
-  //   | Ap(_)
-  //   | DeferredAp(_)
-  //   | Fun(_)
-  //   | Invalid(_)
-  //   | EmptyHole
-  //   | MultiHole(_)
-  //   | Triv
-  //   | Deferral(_)
-  //   | Bool(_)
-  //   | Int(_)
-  //   | Float(_)
-  //   | String(_)
-  //   | ListLit(_)
-  //   | Tuple(_)
-  //   | Test(_)
-  //   | Cons(_)
-  //   | UnOp(_)
-  //   | BinOp(_)
-  //   | Constructor(_) => false
-  //   };
-  // };
 
   let rec get_recursive_bindings = (pat: UPat.t, e: t) => {
     switch (get_fun_var(pat, e)) {
@@ -784,20 +682,14 @@ module UExp = {
       | Parens(e) => get_recursive_bindings(pat, e)
       | Tuple(es) =>
         switch (UPat.get_pats(pat)) {
-        | Some(pats) =>
-          let get_fun_var = pat =>
-            List.fold_left(
-              (acc, e) => Option.is_none(acc) ? get_fun_var(pat, e) : acc,
-              None,
-              es,
-            );
-          let fun_vars = pats |> List.map(get_fun_var);
+        | Some(pats) when List.length(pats) == List.length(es) =>
+          let fun_vars = List.map2(get_fun_var, pats, es);
           if (List.exists(Option.is_none, fun_vars)) {
             None;
           } else {
             Some(List.map(Option.get, fun_vars));
           };
-        | None => None
+        | _ => None
         }
       | Invalid(_)
       | EmptyHole
