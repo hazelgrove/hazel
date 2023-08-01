@@ -383,6 +383,7 @@ select {
 
 #top-bar .menu-icon {
   width: 2.75em;
+  min-width: 2.75em; /* Seems to be necessary at high zooms? */
   height: 2.75em;
   display: flex;
   justify-content: center;
@@ -452,6 +453,7 @@ select {
   border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
   font-size: 0.7em;
+  white-space: nowrap;
 }
 
 #top-bar #editor-mode .icon {
@@ -531,7 +533,8 @@ select {
 }
 
 .editor.single {
-  padding: 2em 2em 4em 2em;
+  width: fit-content;
+  padding: 2em 0em 4em 2em;
 }
 
 #mousedown-overlay {
@@ -557,8 +560,7 @@ select {
 }
 
 .cell-container {
-  width: fit-content;
-  /*min-width: 24em;*/
+  min-width: 30em;
 }
 
 .cell-container .cell-item:first-child {

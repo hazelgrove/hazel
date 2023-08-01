@@ -88,6 +88,9 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
 
 let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
   switch (ok) {
+  | _ when cls == Exp(MultiHole) || cls == Pat(MultiHole) => [
+      text("Expecting operator or delimiter"),
+    ]
   | Syn(_) when cls == Exp(EmptyHole) => [
       text("Fillable by any expression"),
     ]
