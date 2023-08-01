@@ -246,8 +246,10 @@ and uexp_to_info_map =
     );
   | Let(p, def, body) =>
     let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
+    let is_tuple_of_functions =
+      UPat.is_tuple_of_arrows(p) && UExp.is_tuple_of_functions(def);
     let (def, p_ana, m) =
-      if (Option.is_none(UExp.get_recursive_bindings(p, def))) {
+      if (!is_tuple_of_functions) {
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
@@ -256,7 +258,7 @@ and uexp_to_info_map =
         let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def_base.ty), p, m);
-        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_ana.ty), def, m);
+        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_syn.ty), def, m);
         (def, p_ana, m);
       };
     // let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
