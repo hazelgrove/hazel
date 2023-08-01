@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,33 +90,6 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Tag
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | TyAlias
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
@@ -128,7 +100,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
@@ -200,33 +172,6 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Tag
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | TyAlias
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
@@ -237,7 +182,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
@@ -271,7 +216,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -295,7 +240,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -319,14 +264,14 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
-    | Tag(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
   and variant =
-    | Variant(Tag.t, list(Id.t), option(t))
+    | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
   and t = {
     ids: list(Id.t),
@@ -344,14 +289,14 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
-    | Tag(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
   and variant =
-    | Variant(Tag.t, list(Id.t), option(t))
+    | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
   and t = {
     ids: list(Id.t),

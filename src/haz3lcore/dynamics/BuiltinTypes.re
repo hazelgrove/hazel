@@ -12,8 +12,8 @@ let ctx = (types: t, ctx: Ctx.t): Ctx.t =>
           (ty_rec, ctx_body);
         | _ => (typ, Ctx.extend_alias(ctx, name, Id.invalid, typ))
         };
-      switch (Typ.get_sum_tags(ctx, ty_def)) {
-      | Some(sm) => Ctx.add_tags(ctx_body, name, Id.invalid, sm)
+      switch (Typ.get_sum_constructors(ctx, ty_def)) {
+      | Some(sm) => Ctx.add_ctrs(ctx_body, name, Id.invalid, sm)
       | None => ctx_body
       };
     },

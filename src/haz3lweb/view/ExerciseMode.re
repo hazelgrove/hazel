@@ -348,7 +348,7 @@ let view =
       ),
     );
 
-  let ci_view =
+  let bottom_bar =
     settings.statics
       ? [
         CursorInspector.view(
@@ -360,7 +360,17 @@ let view =
         ),
       ]
       : [];
-
+  let sidebar =
+    langDocMessages.show && settings.statics
+      ? LangDoc.view(
+          ~inject,
+          ~font_metrics,
+          ~settings,
+          ~doc=langDocMessages,
+          Indicated.index(focal_zipper),
+          focal_info_map,
+        )
+      : div([]);
   [
     div(
       ~attr=Attr.id("main"),
@@ -386,26 +396,13 @@ let view =
                 syntax_grading_view,
                 impl_grading_view,
               ],
-            )
-          @ (
-            langDocMessages.show && settings.statics
-              ? [
-                LangDoc.view(
-                  ~inject,
-                  ~font_metrics,
-                  ~settings,
-                  ~doc=langDocMessages,
-                  Indicated.index(focal_zipper),
-                  focal_info_map,
-                ),
-              ]
-              : []
-          ),
+            ),
         ),
       ],
     ),
-    div(~attr=Attr.class_("bottom-bar"), ci_view),
-  ]; // TODO lang doc visibility tied to ci visibility (is this desired?)
+    sidebar,
+  ]
+  @ bottom_bar;
 };
 
 let toolbar_buttons =

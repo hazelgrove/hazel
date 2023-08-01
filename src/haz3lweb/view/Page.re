@@ -84,7 +84,18 @@ let nut_menu =
         "https://github.com/hazelgrove/hazel",
         ~tooltip="Hazel on GitHub",
       ),
-    ],
+    ]
+    @ (
+      instructor_mode
+        ? [
+          button(
+            Icons.sprout,
+            _ => inject(ExportPersistentData),
+            ~tooltip="Export Persistent Data",
+          ),
+        ]
+        : []
+    ),
   ),
 ];
 
@@ -97,7 +108,7 @@ let top_bar_view =
   div(
     ~attr=Attr.id("top-bar"),
     nut_menu(~inject, settings)
-    @ [div(~attr=Attr.id("title"), [text("HAZEL")])]
+    @ [div(~attr=Attr.id("title"), [text("hazel")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)]
     @ history_bar(Editors.get_editor(editors), ~inject)
     @ toolbar_buttons,

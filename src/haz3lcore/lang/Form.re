@@ -45,6 +45,11 @@ type t = {
   mold: Mold.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type bad_token_cls =
+  | Other
+  | BadInt;
+
 let mk = (expansion, label, mold) => {label, mold, expansion};
 
 /* Abbreviations for expansion behaviors */
@@ -62,8 +67,9 @@ let mk_nul_infix = (t: Token.t, prec) =>
   mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
 
 /* Token Recognition Predicates */
-let is_arbitary_int = regexp("^[0-9_]*$");
-let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
+let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
+let is_arbitary_float = x =>
+  x != "." && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
@@ -83,7 +89,7 @@ let is_bool = str => str == "true" || str == "false";
 let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_tag = is_capitalized_name;
+let is_ctr = is_capitalized_name;
 let is_base_typ = regexp("^(String|Int|Float|Bool)$");
 let is_typ_var = is_capitalized_name;
 let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
@@ -153,6 +159,13 @@ let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
 
+let bad_token_cls: string => bad_token_cls =
+  t =>
+    switch () {
+    | _ when is_bad_int(t) => BadInt
+    | _ => Other
+    };
+
 /* B. Operands:
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
@@ -161,7 +174,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
