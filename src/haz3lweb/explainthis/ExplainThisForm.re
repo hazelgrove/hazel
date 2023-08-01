@@ -201,7 +201,20 @@ type form_id =
   | Tuple2Pat
   | Tuple3Pat
   | ApPat
-  | TypAnnPat;
+  | TypAnnPat
+  | EmptyHoleTyp
+  | MultiHoleTyp
+  | IntTyp
+  | FloatTyp
+  | BoolTyp
+  | StrTyp
+  | VarTyp
+  | ListTyp
+  | ArrowTyp
+  | Arrow3Typ
+  | TupleTyp
+  | Tuple2Typ
+  | Tuple3Typ;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -258,7 +271,20 @@ type group_id =
   | Tuple2Pat
   | Tuple3Pat
   | ApPat
-  | TypAnnPat;
+  | TypAnnPat
+  | EmptyHoleTyp
+  | MultiHoleTyp
+  | IntTyp
+  | FloatTyp
+  | BoolTyp
+  | StrTyp
+  | VarTyp
+  | ListTyp
+  | ArrowTyp
+  | Arrow3Typ
+  | TupleTyp
+  | Tuple2Typ
+  | Tuple3Typ;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {
