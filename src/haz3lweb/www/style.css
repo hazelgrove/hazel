@@ -297,7 +297,7 @@ body {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(16em);
+  grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
 }
@@ -1280,6 +1280,7 @@ svg.tile-selected {
 }
 
 .lang-doc {
+  width: 18em;
   padding: 0.2em;
   white-space: nowrap;
 }

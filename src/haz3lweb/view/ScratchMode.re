@@ -99,17 +99,6 @@ let download_slide_state = state => {
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
-let download_slide_init_state = state => {
-  let slide_init_state = ScratchSlide.export_init(state);
-  let contents =
-    "let slide : ScratchSlide.persistent_state = " ++ slide_init_state;
-  JsUtil.download_string_file(
-    ~filename="exported_slide_init_state.ml",
-    ~content_type="text/plain",
-    ~contents,
-  );
-};
-
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
     Widgets.button(
@@ -133,20 +122,6 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       ~tooltip="Import Scratchpad",
     );
 
-  // for pasting into files like SerializedExamples.ml (note .ml extension)
-  let export_init_button =
-    ExerciseSettings.show_instructor
-      ? Some(
-          Widgets.button(
-            Icons.export,
-            _ => {
-              download_slide_init_state(state);
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Slide Persistent State Value",
-          ),
-        )
-      : None;
   let reset_button =
     Widgets.button(
       Icons.trash,
@@ -163,7 +138,5 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       },
       ~tooltip="Reset Scratchpad",
     );
-  [export_button, import_button]
-  @ Option.to_list(export_init_button)
-  @ [reset_button];
+  [export_button, import_button] @ [reset_button];
 };

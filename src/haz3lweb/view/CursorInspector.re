@@ -21,7 +21,7 @@ let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
     ]);
   div(
     ~attr=clss(["lang-doc-button"]),
-    [Widgets.toggle(~tooltip, "i", show_lang_doc, toggle_landocs)],
+    [Widgets.toggle(~tooltip, "?", show_lang_doc, toggle_landocs)],
   );
 };
 
