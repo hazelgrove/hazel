@@ -62,7 +62,7 @@ let no_type_error = (err: Info.error_no_type) =>
     | BadInt => "Integer is too large or too small"
     | Other => Printf.sprintf("\"%s\" isn't a valid token", token)
     }
-  | FreeConstructor(name) => name ++ " not found"
+  | FreeConstructor(name) => "'" ++ name ++ "' not found"
   };
 
 let elements_noun: Term.Cls.t => string =
@@ -144,28 +144,20 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
       text("is a type alias for"),
       Type.view(ty_lookup),
     ]
-  | Variant(name, sum_ty) => [
-      Type.view(Var(name)),
-      text("of type"),
-      Type.view(sum_ty),
-    ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
-      Type.view(sum_ty),
-    ]
+  | Variant(name, _sum_ty) => [Type.view(Var(name))]
+  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
   | FreeTypeVariable(name) => [Type.view(Var(name)), text("not found")]
   | BadToken(token) => [
-      text(Printf.sprintf("'%s' isn't a type or type operator", token)),
+      text("'" ++ token ++ "' isn't a type or type operator"),
     ]
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
-  | WantTypeFoundAp => [text("Constructor application must be in sum")]
+  | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      text("Constructor"),
       Type.view(Var(name)),
       text("already used in this sum"),
     ]
@@ -173,7 +165,8 @@ let typ_err_view = (ok: Info.error_typ) =>
 
 let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
-  | InHole(FreeVariable(name)) => div_err([text(name), text("not found")])
+  | InHole(FreeVariable(name)) =>
+    div_err([text("'" ++ name ++ "' not found")])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
