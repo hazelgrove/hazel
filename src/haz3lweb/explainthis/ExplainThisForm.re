@@ -182,7 +182,26 @@ type form_id =
   | Test
   | UnOp(un_op_sub_form_id)
   | BinOp(bin_op_sub_form_id)
-  | Case;
+  | Case
+  | EmptyHolePat
+  | MultiHolePat
+  | Wild
+  | IntPat
+  | FloatPat
+  | BoolPat
+  | StrPat
+  | TrivPat
+  | VarPat
+  | TagPat
+  | ListLitPat
+  | ListNilPat
+  | ConsPat
+  | Cons2Pat
+  | TuplePat
+  | Tuple2Pat
+  | Tuple3Pat
+  | ApPat
+  | TypAnnPat;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -220,7 +239,26 @@ type group_id =
   | Test
   | UnOp(un_op_sub_form_id)
   | BinOp(bin_op_sub_form_id)
-  | Case;
+  | Case
+  | EmptyHolePat
+  | MultiHolePat
+  | Wild
+  | IntPat
+  | FloatPat
+  | BoolPat
+  | StrPat
+  | TrivPat
+  | VarPat
+  | TagPat
+  | ListLitPat
+  | ListNilPat
+  | ConsPat
+  | Cons2Pat
+  | TuplePat
+  | Tuple2Pat
+  | Tuple3Pat
+  | ApPat
+  | TypAnnPat;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {
