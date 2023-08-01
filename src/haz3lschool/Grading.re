@@ -167,7 +167,7 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
   module SyntaxReport = {
     type t = {
       hinted_results: list((bool, hint)),
-      percentage: float,
+      percentage,
     };
 
     let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
