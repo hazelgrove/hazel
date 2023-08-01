@@ -258,7 +258,7 @@ and uexp_to_info_map =
         let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def_base.ty), p, m);
-        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_syn.ty), def, m);
+        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_ana.ty), def, m);
         (def, p_ana, m);
       };
     // let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
