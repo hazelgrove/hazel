@@ -1,4 +1,4 @@
-open OptUtil.Syntax;
+open Util.OptUtil.Syntax;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

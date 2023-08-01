@@ -2782,7 +2782,7 @@ let get_doc =
       };
     | Constructor(_) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
-    | Var(_) when cls == Constructor =>
+    | Var(_) when cls == Typ(Constructor) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
       let (doc, options) =
@@ -2873,10 +2873,10 @@ let view =
   let (syn_form, (explanation, _), example) =
     get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
   div(
-    ~attr=clss(["lang-doc"]),
+    ~attr=Attr.id("side-bar"),
     [
       div(
-        ~attr=clss(["content"]),
+        ~attr=clss(["lang-doc"]),
         [
           div(
             ~attr=clss(["top-bar"]),

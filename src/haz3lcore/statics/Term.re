@@ -16,7 +16,6 @@
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
-open Util;
 include TermBase.Any;
 
 type any = t;
@@ -72,21 +71,21 @@ module UTyp = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Type"
-    | EmptyHole => "Empty Type Hole"
-    | MultiHole => "Multi Type Hole"
+    | Invalid => "Invalid type"
+    | MultiHole => "Broken type"
+    | EmptyHole => "Empty type hole"
     | Int
     | Float
     | String
-    | Bool => "Base Type"
-    | Var => "Type Variable"
-    | Constructor => "Sum Constructor"
-    | List => "List Type"
-    | Arrow => "Function Type"
-    | Tuple => "Product Type"
-    | Sum => "Sum Type"
-    | Parens => "Parenthesized Type Term"
-    | Ap => "Sum Constructor Application";
+    | Bool => "Base type"
+    | Var => "Type variable"
+    | Constructor => "Sum constructor"
+    | List => "List type"
+    | Arrow => "Function type"
+    | Tuple => "Product type"
+    | Sum => "Sum type"
+    | Parens => "Parenthesized type"
+    | Ap => "Constructor application";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -180,10 +179,10 @@ module UTPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Type Variable"
-    | EmptyHole => "Empty Type Variable Hole"
-    | MultiHole => "Multi Type Variable Hole"
-    | Var => "Type Variable";
+    | Invalid => "Invalid type alias"
+    | MultiHole => "Broken type alias"
+    | EmptyHole => "Empty type alias hole"
+    | Var => "Type alias";
 };
 
 module UPat = {
@@ -242,23 +241,23 @@ module UPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Pattern"
-    | EmptyHole => "Empty Pattern Hole"
-    | MultiHole => "Multi Pattern Hole"
-    | Wild => "Wildcard Pattern"
-    | Int => "Integer Pattern Literal"
-    | Float => "Float Pattern Literal"
-    | Bool => "Boolean Pattern Literal"
-    | String => "String Pattern Literal"
-    | Triv => "Trivial Pattern Literal"
-    | ListLit => "List Literal Pattern"
-    | Constructor => "Constructor Pattern"
-    | Cons => "Cons Pattern"
-    | Var => "Pattern Variable"
-    | Tuple => "Tuple Pattern"
-    | Parens => "Parenthesized Pattern"
-    | Ap => "Constructor Application Pattern"
-    | TypeAnn => "Type Annotation";
+    | Invalid => "Invalid pattern"
+    | MultiHole => "Broken pattern"
+    | EmptyHole => "Empty pattern hole"
+    | Wild => "Wildcard"
+    | Int => "Integer literal"
+    | Float => "Float literal"
+    | Bool => "Boolean literal"
+    | String => "String literal"
+    | Triv => "Trivial literal"
+    | ListLit => "List literal"
+    | Constructor => "Constructor"
+    | Cons => "Cons"
+    | Var => "New variable"
+    | Tuple => "Tuple"
+    | Parens => "Parenthesized pattern"
+    | Ap => "Constructor application"
+    | TypeAnn => "Annotation";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
@@ -463,7 +462,36 @@ module UPat = {
 module UExp = {
   include TermBase.UExp;
 
-  let hole = (tms: list(any)) =>
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Deferral
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Constructor
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | TyAlias
+    | Ap
+    | DeferredAp
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
+
+  let hole = (tms: list(any)): term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -555,32 +583,32 @@ module UExp = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Expression"
-    | EmptyHole => "Empty Expression Hole"
-    | MultiHole => "Multi Expression Hole"
-    | Triv => "Trivial Literal. Pathetic, really."
+    | Invalid => "Invalid expression"
+    | MultiHole => "Broken expression"
+    | EmptyHole => "Empty expression hole"
+    | Triv => "Trivial literal"
     | Deferral => "Deferral"
-    | Bool => "Boolean Literal"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | String => "String Literal"
-    | ListLit => "List Literal"
+    | Bool => "Boolean literal"
+    | Int => "Integer literal"
+    | Float => "Float literal"
+    | String => "String literal"
+    | ListLit => "List literal"
     | Constructor => "Constructor"
-    | Fun => "Function Literal"
-    | Tuple => "Tuple Literal"
-    | Var => "Variable Reference"
-    | Let => "Let Expression"
-    | TyAlias => "Type Alias Definition"
-    | Ap => "Function/Constructor Application"
-    | DeferredAp => "Partial Function Application"
-    | If => "If Expression"
-    | Seq => "Sequence Expression"
-    | Test => "Test (Effectful)"
-    | Parens => "Parenthesized Expression"
+    | Fun => "Function literal"
+    | Tuple => "Tuple literal"
+    | Var => "Variable reference"
+    | Let => "Let expression"
+    | TyAlias => "Type Alias definition"
+    | Ap => "Application"
+    | DeferredAp => "Partial Application"
+    | If => "If expression"
+    | Seq => "Sequence expression"
+    | Test => "Test"
+    | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | Match => "Match Expression";
+    | Match => "Case expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
@@ -826,6 +854,25 @@ module URul = {
     switch (ids(~any_ids, tm)) {
     | [] => raise(Invalid_argument("Term.UExp.rep_id"))
     | [id, ..._] => id
+    };
+};
+
+module Cls = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Exp(UExp.cls)
+    | Pat(UPat.cls)
+    | Typ(UTyp.cls)
+    | TPat(UTPat.cls)
+    | Rul(URul.cls);
+
+  let show = (cls: t) =>
+    switch (cls) {
+    | Exp(cls) => UExp.show_cls(cls)
+    | Pat(cls) => UPat.show_cls(cls)
+    | Typ(cls) => UTyp.show_cls(cls)
+    | TPat(cls) => UTPat.show_cls(cls)
+    | Rul(cls) => URul.show_cls(cls)
     };
 };
 

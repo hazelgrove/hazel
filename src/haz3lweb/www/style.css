@@ -247,19 +247,65 @@ svg {
   }
 }
 
+body {
+  /* Default UI font */
+  font-family: 'Helvetica Neue';
+}
+
+/* LOADING: This shows before the app is loaded */
+
+#container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--light-page-color);
+  color: var(--light-text-color);
+  font-size: 1.75em;
+  font-style: italic;
+}
+
+#container .loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#container .loading .spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#container .loading .spinner .spinner-nut {
+  position: fixed;
+  transform: scale(0.25);
+  filter: invert();
+}
+
 /* PAGE */
 
 #page {
+  position: fixed;
+  top: 0;
+  left: 0;
   height: 100vh;
   width: 100vw;
-  position: fixed;
-  top: 0%;
-  left: 0%;
+  display: grid;
+  grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(16em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
-  display: flex;
-  flex-direction: column;
-  cursor: default;
+}
+
+#main {
+  grid-row: 2;
+  grid-column: 1 / span 1;
+  overflow: auto;
 }
 
 select {
@@ -283,11 +329,6 @@ select {
   font-size: 13pt;
 }
 
-body,
-.cursor-inspector {
-  font-family: 'Helvetica Neue';
-}
-
 #editor-mode,
 .cell-caption,
 .cell-prompt,
@@ -301,21 +342,16 @@ body,
 /* TOP BAR */
 
 #top-bar {
+  grid-row: 1 / span 1;
+  grid-column: 1 / span 2;
   z-index: var(--top-bar-z);
-  box-sizing: border-box;
-  width: 100%;
-  min-width: fit-content;
-  display: flex;
-  background-color: var(--light-page-color);
-  border-bottom: 0.6px solid #c7b480;
   display: flex;
   align-items: center;
   gap: 1em;
-  font-family: 'Helvetica Neue';
+  border-bottom: 0.6px solid #c7b480;
 }
 
 #top-bar #title {
-  font-family: 'Helvetica Neue';
   color: #a69460;
 }
 
@@ -521,7 +557,7 @@ body,
 
 .cell-container {
   width: fit-content;
-  min-width: 24em;
+  /*min-width: 24em;*/
 }
 
 .cell-container .cell-item:first-child {
@@ -541,7 +577,6 @@ body,
 
 .title-cell .title-text {
   font-size: 1.5rem;
-  font-family: "Helvetica Neue", sans-serif;
   font-weight: bold;
   color: var(--light-text-color);
 }
@@ -827,31 +862,31 @@ svg.tile-selected {
 
 /* OTHER SORT COLORS */
 
-.ci-header-nul {
+.ci-header-Nul {
   background-color: var(--nul-bg-color);
   color: var(--nul-off-color);
 }
-.ci-header-any {
+.ci-header-Any {
   background-color: var(--any-bg-color);
   color: var(--any-off-color);
 }
-.ci-header-exp {
+.ci-header-Exp {
   background-color: var(--exp-bg-color);
   color: var(--exp-off-color);
 }
-.ci-header-pat {
+.ci-header-Pat {
   background-color: var(--pat-bg-color);
   color: var(--pat-off-color);
 }
-.ci-header-typ {
+.ci-header-Typ {
   background-color: var(--typ-bg-color);
   color: var(--typ-off-color);
 }
-.ci-header-rul {
+.ci-header-Rul {
   background-color: var(--rul-bg-color);
   color: var(--rul-off-color);
 }
-.ci-header-tpat {
+.ci-header-TPat {
   background-color: var(--tpat-bg-color);
   color: var(--tpat-off-color);
 }
@@ -1045,7 +1080,6 @@ svg.tile-selected {
 }
 
 .term-tag {
-  color: #0006;
   font-weight: bolder;
   text-transform: uppercase;
 }
@@ -1053,21 +1087,17 @@ svg.tile-selected {
 /* CURSOR INSPECTOR */
 
 .cursor-inspector {
-  z-index: var(--type-inspector-z);
   display: flex;
+  /*z-index: var(--type-inspector-z);
   gap: 0.5em;
   color: #8c795b;
-  /*border-radius: 0.3em;*/
   border-radius: 0 1.1em 0 0;
   padding-right: 0.6em;
-  /* border-right: 1px solid #daca9f; */
-  background-color: #fbecaa;
-  /*#fefcf3;*/
-  align-items: stretch;
+  align-items: stretch;*/
 }
 
 .cursor-inspector.no-info {
-  align-items: center;;
+  align-items: center;
 }
 
 .cursor-inspector.error {
@@ -1179,30 +1209,24 @@ svg.tile-selected {
 
 /* END STATICS*/
 
-.bottom-bar {
-  height: 1.9em;
-  z-index: var(--result-z);
-  position: fixed;
-  bottom: 0;
-  /*max-height: 3.2em;
-  overflow-y: auto;*/
-  left: 0;
-  width: 100%;
+#bottom-bar {
+  grid-row: 3 / span 1;
+  grid-column: 1 / span 2;
   display: flex;
   align-items: center;
   gap: 1em;
-  background-color: #fbecaa;
   justify-content: space-between;
   align-items: stretch;
-  border-top: 0.7px solid #c7b480;
+  background-color: #fbecaa;
+  border-top: 0.6px solid #c7b480;
 }
 
-.bottom-bar .icon {
+#bottom-bar .icon {
   display: flex;
   padding: 0.2em;
 }
 
-.bottom-bar .id-and-class {
+#bottom-bar .id {
   display: flex;
   gap: 1em;
   font-size: 0.6em;
@@ -1210,18 +1234,15 @@ svg.tile-selected {
   padding-left: 1em;
   padding-right: 1em;
   white-space: nowrap;
-}
-
-.bottom-bar .id-and-class .syntax-class {
-  color: var(--top_bar_icon_fill);
-  color: #392f10; /*#fdf6e3;*/
-}
-
-.bottom-bar .id-and-class .id {
   color: #a69461;
 }
 
-.bottom-bar .cursor-inspector .gamma {
+#bottom-bar .syntax-class {
+  display: flex;
+  align-items: center;
+}
+
+#bottom-bar .cursor-inspector .gamma {
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1235,36 +1256,26 @@ svg.tile-selected {
   height: 100%;
 }
 
-.bottom-bar .cursor-inspector .gamma:hover,
-.bottom-bar .cursor-inspector .gamma.visible {
+#bottom-bar .cursor-inspector .gamma:hover,
+#bottom-bar .cursor-inspector .gamma.visible {
   color: gold;
   background-color: #907b5a;
   border-radius: 0;
 }
 
-.lang-doc {
-  z-index: 20;
-  position: fixed;
-  right: 0.6em;
-  top: 2.8em;
-  width: 25vw;
-  height: 100vh;
-  overflow: auto;
-  padding: 0.2em;
-  padding-bottom: 1.5em;
-  white-space: nowrap;
-  color: var(--light-text-color);
-  background-color: #fdf6e3;
+#side-bar {
+  grid-row: 2 / span 1;
+  grid-column: 2 / span 1;
   border-left: 0.6px solid #c7b480;
+}
+
+.lang-doc {
+  padding: 0.2em;
+  white-space: nowrap;
 }
 
 .comment {
   color: #a0c1aa;
-}
-
-/* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though...*/
-.lang-doc .content {
-  padding-bottom: 8em;
 }
 
 /* TODO seems like should be better way to ignore inconsistentcy colorings...*/
@@ -1527,7 +1538,8 @@ svg.expandable path {
 
 .result {
   min-height: 1.6em;
-  overflow: hidden;
+  overflow-y: hidden;
+  overflow-x: auto;
 }
 
 /* DYNAMICS - DHEXP */
@@ -1577,16 +1589,9 @@ svg.expandable path {
   display: inline-block;
 }
 
+.DHCode .OperationError,
 .DHCode .CastDecoration,
-.DHCode .FailedCastDecoration,
-.DHCode .DivideByZero {
-  display: inline-block;
-  position: relative;
-  font-size: 75%;
-  top: -10px;
-}
-
-.DHCode .NegativeExponent {
+.DHCode .FailedCastDecoration {
   display: inline-block;
   position: relative;
   font-size: 75%;
@@ -1926,7 +1931,3 @@ svg.expandable path {
   left: -1em;
 }
 
-#main {
-  overflow: auto;
-  flex: 1;
-}

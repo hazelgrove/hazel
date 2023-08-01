@@ -213,12 +213,13 @@ let rec dhexp_of_uexp =
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Constructor(name) =>
         switch (err_status) {
-        | InHole(Common(FreeConstructor)) => Some(FreeVar(id, 0, name))
+        | InHole(Common(NoType(FreeConstructor(_)))) =>
+          Some(FreeVar(id, 0, name))
         | _ => Some(Constructor(name))
         }
       | Let(p, def, body) =>
@@ -316,7 +317,7 @@ let rec dhexp_of_uexp =
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(SynInconsistentBranches(_))) =>
+        | InHole(Common(Inconsistent(Internal(_)))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -334,7 +335,7 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(SynInconsistentBranches(_))) =>
+        | InHole(Common(Inconsistent(Internal(_)))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -378,7 +379,8 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       wrap(ListLit(Typ.matched_list(ty), ds));
     | Constructor(name) =>
       switch (err_status) {
-      | InHole(Common(FreeConstructor)) => Some(BadConstructor(u, 0, name))
+      | InHole(Common(NoType(FreeConstructor(_)))) =>
+        Some(BadConstructor(u, 0, name))
       | _ => wrap(Constructor(name))
       }
     | Cons(hd, tl) =>
