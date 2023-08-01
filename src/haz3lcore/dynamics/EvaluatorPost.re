@@ -58,7 +58,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -99,7 +99,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Cons(d1', d2') |> return;
 
-  | ListLit(a, b, c, d, ds) =>
+  | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
       |> List.fold_left(
@@ -110,11 +110,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, d, ds);
-
-  | Inj(ty, side, d') =>
-    let* d'' = pp_eval(d');
-    Inj(ty, side, d'') |> return;
+    ListLit(a, b, c, ds);
 
   | Tuple(ds) =>
     let+ ds =
@@ -271,7 +267,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -324,7 +320,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Cons(d1', d2') |> return;
 
-  | ListLit(a, b, c, d, ds) =>
+  | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
       |> List.fold_left(
@@ -335,11 +331,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, d, ds);
-
-  | Inj(ty, side, d') =>
-    let* d'' = pp_uneval(env, d');
-    Inj(ty, side, d'') |> return;
+    ListLit(a, b, c, ds);
 
   | Tuple(ds) =>
     let+ ds =
@@ -438,7 +430,7 @@ let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
   switch (d) {
-  | Tag(_)
+  | Constructor(_)
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
@@ -447,7 +439,6 @@ let rec track_children_of_hole =
   | BoundVar(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d, _)
-  | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
@@ -463,7 +454,7 @@ let rec track_children_of_hole =
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
 
-  | ListLit(_, _, _, _, ds) =>
+  | ListLit(_, _, _, ds) =>
     List.fold_right(
       (d, hii) => track_children_of_hole(hii, parent, d),
       ds,
