@@ -2816,10 +2816,10 @@ let view =
   let (syn_form, (explanation, _), example) =
     get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
   div(
-    ~attr=clss(["lang-doc"]),
+    ~attr=Attr.id("side-bar"),
     [
       div(
-        ~attr=clss(["content"]),
+        ~attr=clss(["lang-doc"]),
         [
           div(
             ~attr=clss(["top-bar"]),

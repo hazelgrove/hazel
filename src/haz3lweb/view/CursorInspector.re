@@ -240,7 +240,7 @@ let view =
       zipper: Zipper.t,
       info_map: Statics.Map.t,
     ) => {
-  let bar_view = div_c("bottom-bar");
+  let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
       div(
