@@ -1986,147 +1986,145 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp(/*{_term, _}*/ _)) => /*switch (bypass_parens_typ(term).term) {
-                                          | EmptyHole => get_message(HoleTyp.empty_hole_typ_group)
-                                          | MultiHole(_) => get_message(HoleTyp.multi_hole_typ_group)
-                                          | Int => get_message(TerminalTyp.int_typ_group)
-                                          | Float => get_message(TerminalTyp.float_typ_group)
-                                          | Bool => get_message(TerminalTyp.bool_typ_group)
-                                          | String => get_message(TerminalTyp.str_typ_group)
-                                          | List(elem) =>
-                                            let elem_id = List.nth(elem.ids, 0);
-                                            get_message(
-                                              ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
-                                              ~format=
-                                                Some(
-                                                  msg =>
-                                                    Printf.sprintf(Scanf.format_from_string(msg, "%i"), elem_id),
-                                                ),
-                                              ListTyp.list_typ_group,
-                                            );
-                                          | Arrow(arg, result) =>
-                                            let arg_id = List.nth(arg.ids, 0);
-                                            let result_id = List.nth(result.ids, 0);
-                                            let basic = doc =>
-                                              get_message(
-                                                ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
-                                                ~format=
-                                                  Some(
-                                                    msg =>
-                                                      Printf.sprintf(
-                                                        Scanf.format_from_string(msg, "%i%i"),
-                                                        arg_id,
-                                                        result_id,
-                                                      ),
-                                                  ),
-                                                doc,
-                                              );
-                                            switch (result.term) {
-                                            | TermBase.UTyp.Arrow(arg2, result2) =>
-                                              if (ArrowTyp.arrow3_typ.id
-                                                  == get_specificity_level(ArrowTyp.arrow3_typ_group)) {
-                                                let arg2_id = List.nth(arg2.ids, 0);
-                                                let result2_id = List.nth(result2.ids, 0);
-                                                get_message(
-                                                  ~colorings=
-                                                    ArrowTyp.arrow3_typ_coloring_ids(
-                                                      ~arg1_id=arg_id,
-                                                      ~arg2_id,
-                                                      ~result_id=result2_id,
-                                                    ),
-                                                  ~format=
-                                                    Some(
-                                                      msg =>
-                                                        Printf.sprintf(
-                                                          Scanf.format_from_string(msg, "%i%i%i"),
-                                                          arg_id,
-                                                          arg2_id,
-                                                          result2_id,
-                                                        ),
-                                                    ),
-                                                  ArrowTyp.arrow3_typ_group,
-                                                );
-                                              } else {
-                                                basic(ArrowTyp.arrow3_typ_group);
-                                              }
-                                            | _ => basic(ArrowTyp.arrow_typ_group)
-                                            };
-                                          | Tuple(elements) =>
-                                            let basic = group =>
-                                              get_message(
-                                                ~format=
-                                                  Some(
-                                                    msg =>
-                                                      Printf.sprintf(
-                                                        Scanf.format_from_string(msg, "%i"),
-                                                        List.length(elements),
-                                                      ),
-                                                  ),
-                                                group,
-                                              );
-                                            switch (List.length(elements)) {
-                                            | 2 =>
-                                              if (TupleTyp.tuple2_typ.id
-                                                  == get_specificity_level(TupleTyp.tuple2_typ_group)) {
-                                                let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-                                                let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-                                                get_message(
-                                                  ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
-                                                  ~format=
-                                                    Some(
-                                                      msg =>
-                                                        Printf.sprintf(
-                                                          Scanf.format_from_string(msg, "%i%i"),
-                                                          elem1_id,
-                                                          elem2_id,
-                                                        ),
-                                                    ),
-                                                  TupleTyp.tuple2_typ_group,
-                                                );
-                                              } else {
-                                                basic(TupleTyp.tuple2_typ_group);
-                                              }
-                                            | 3 =>
-                                              if (TupleTyp.tuple3_typ.id
-                                                  == get_specificity_level(TupleTyp.tuple3_typ_group)) {
-                                                let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
-                                                let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
-                                                let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
-                                                get_message(
-                                                  ~colorings=
-                                                    TupleTyp.tuple3_typ_coloring_ids(
-                                                      ~elem1_id,
-                                                      ~elem2_id,
-                                                      ~elem3_id,
-                                                    ),
-                                                  ~format=
-                                                    Some(
-                                                      msg =>
-                                                        Printf.sprintf(
-                                                          Scanf.format_from_string(msg, "%i%i%i"),
-                                                          elem1_id,
-                                                          elem2_id,
-                                                          elem3_id,
-                                                        ),
-                                                    ),
-                                                  TupleTyp.tuple3_typ_group,
-                                                );
-                                              } else {
-                                                basic(TupleTyp.tuple3_typ_group);
-                                              }
-                                            | _ => basic(TupleTyp.tuple_typ_group)
-                                            };
-                                          | Var(v) =>
-                                            get_message(
-                                              ~format=
-                                                Some(
-                                                  msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-                                                ),
-                                              TerminalTyp.var_typ_group,
-                                            )
-                                          | Invalid(_) // Shouldn't be hit
-                                          | Parens(_) => default // Shouldn't be hit?
-                                          }*/ default
+  | Some(InfoTyp({term, _})) =>
+    switch (bypass_parens_typ(term).term) {
+    | EmptyHole => get_message(HoleTyp.empty_hole)
+    | MultiHole(_) => get_message(HoleTyp.multi_hole)
+    | Int => get_message(TerminalTyp.int)
+    | Float => get_message(TerminalTyp.float)
+    | Bool => get_message(TerminalTyp.bool)
+    | String => get_message(TerminalTyp.str)
+    | List(elem) =>
+      let elem_id = List.nth(elem.ids, 0);
+      get_message(
+        ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(Scanf.format_from_string(msg, "%i"), elem_id),
+          ),
+        ListTyp.list,
+      );
+    | Arrow(arg, result) =>
+      let arg_id = List.nth(arg.ids, 0);
+      let result_id = List.nth(result.ids, 0);
+      let basic = doc =>
+        get_message(
+          ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%i%i"),
+                  arg_id,
+                  result_id,
+                ),
+            ),
+          doc,
+        );
+      switch (result.term) {
+      | TermBase.UTyp.Arrow(arg2, result2) =>
+        if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
+          let arg2_id = List.nth(arg2.ids, 0);
+          let result2_id = List.nth(result2.ids, 0);
+          get_message(
+            ~colorings=
+              ArrowTyp.arrow3_typ_coloring_ids(
+                ~arg1_id=arg_id,
+                ~arg2_id,
+                ~result_id=result2_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%i%i%i"),
+                    arg_id,
+                    arg2_id,
+                    result2_id,
+                  ),
+              ),
+            ArrowTyp.arrow3,
+          );
+        } else {
+          basic(ArrowTyp.arrow3);
+        }
+      | _ => basic(ArrowTyp.arrow)
+      };
+    | Tuple(elements) =>
+      let basic = group =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%i"),
+                  List.length(elements),
+                ),
+            ),
+          group,
+        );
+      switch (List.length(elements)) {
+      | 2 =>
+        if (TupleTyp.tuple2_typ.id == get_specificity_level(TupleTyp.tuple2)) {
+          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          get_message(
+            ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%i%i"),
+                    elem1_id,
+                    elem2_id,
+                  ),
+              ),
+            TupleTyp.tuple2,
+          );
+        } else {
+          basic(TupleTyp.tuple2);
+        }
+      | 3 =>
+        if (TupleTyp.tuple3_typ.id == get_specificity_level(TupleTyp.tuple3)) {
+          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+          get_message(
+            ~colorings=
+              TupleTyp.tuple3_typ_coloring_ids(
+                ~elem1_id,
+                ~elem2_id,
+                ~elem3_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%i%i%i"),
+                    elem1_id,
+                    elem2_id,
+                    elem3_id,
+                  ),
+              ),
+            TupleTyp.tuple3,
+          );
+        } else {
+          basic(TupleTyp.tuple3);
+        }
+      | _ => basic(TupleTyp.tuple)
+      };
+    | Var(v) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
+          ),
+        TerminalTyp.var,
+      )
+    | Invalid(_) // Shouldn't be hit
+    | Parens(_) => default // Shouldn't be hit?
+    }
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default
