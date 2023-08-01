@@ -60,7 +60,7 @@ let view =
       ~result,
       editor,
     );
-  let ci_view =
+  let bottom_bar =
     settings.statics
       ? [
         CursorInspector.view(
@@ -72,28 +72,26 @@ let view =
         ),
       ]
       : [];
-  let bottom_bar = div(~attr=Attr.class_("bottom-bar"), ci_view);
-  let right_panel =
+  let sidebar =
     langDocMessages.show && settings.statics
-      ? [
-        LangDoc.view(
+      ? LangDoc.view(
           ~inject,
           ~font_metrics,
           ~settings,
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
-        ),
-      ]
-      : [];
+        )
+      : div([]);
 
   [
     div(
       ~attr=Attr.id("main"),
-      [div(~attr=clss(["editor", "single"]), [editor_view] @ right_panel)],
+      [div(~attr=clss(["editor", "single"]), [editor_view])],
     ),
-    bottom_bar,
-  ];
+    sidebar,
+  ]
+  @ bottom_bar;
 };
 
 let download_slide_state = state => {

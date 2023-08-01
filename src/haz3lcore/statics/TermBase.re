@@ -90,35 +90,6 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Deferral
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Constructor
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | TyAlias
-    | Ap
-    | DeferredAp
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type status_deferral =
     | Used
     | Unused;
@@ -206,35 +177,6 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Deferral
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Constructor
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | TyAlias
-    | Ap
-    | DeferredAp
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type status_deferral =
