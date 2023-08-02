@@ -26,19 +26,12 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
   | Fun(args, body) =>
-    if (find_var_upat(name, args)) {
-      false;
-    } else {
-      var_mention(name, body);
-    }
+    find_var_upat(name, args) ? false : var_mention(name, body)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Let(p, def, body) =>
-    if (find_var_upat(name, p)) {
-      false;
-    } else {
-      var_mention(name, def) || var_mention(name, body);
-    }
+    find_var_upat(name, p)
+      ? false : var_mention(name, def) || var_mention(name, body)
   | Ap(u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | If(u1, u2, u3) =>
     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
@@ -53,17 +46,54 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
     || List.fold_left(
          (acc, pe) => {
            let (p, e) = pe;
-           if (find_var_upat(name, p)) {
-             false;
-           } else {
-             acc || var_mention(name, e);
-           };
+           find_var_upat(name, p) ? false : acc || var_mention(name, e);
          },
          false,
          l,
        )
   | ListLit(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+
+  | _ => false
+  };
+};
+
+let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
+  switch (uexp.term) {
+  | Fun(args, body) =>
+    find_var_upat(name, args) ? false : var_applied(name, body)
+  | Tuple(l) =>
+    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+  | Let(p, def, body) =>
+    find_var_upat(name, p)
+      ? false : var_applied(name, def) || var_applied(name, body)
+  | Ap(u1, u2) =>
+    switch (u1.term) {
+    | Var(x) => x == name ? true : var_applied(name, u2)
+    | _ => var_applied(name, u1) || var_applied(name, u2)
+    }
+  | If(u1, u2, u3) =>
+    var_applied(name, u1)
+    || var_applied(name, u2)
+    || var_applied(name, u3)
+  | Seq(u1, u2) => var_applied(name, u1) || var_applied(name, u2)
+  | Test(u) => var_applied(name, u)
+  | Parens(u) => var_applied(name, u)
+  | Cons(u1, u2) => var_applied(name, u1) || var_applied(name, u2)
+  | UnOp(_, u) => var_applied(name, u)
+  | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
+  | Match(g, l) =>
+    var_applied(name, g)
+    || List.fold_left(
+         (acc, pe) => {
+           let (p, e) = pe;
+           find_var_upat(name, p) ? false : acc || var_applied(name, e);
+         },
+         false,
+         l,
+       )
+  | ListLit(l) =>
+    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
 
   | _ => false
   };
@@ -139,6 +169,56 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   } else {
     List.fold_left(
       (acc, ue) => {acc && var_mention(name, ue)},
+      true,
+      fn_bodies,
+    );
+  };
+};
+
+let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
+  switch (uexp.term) {
+  | Fun(args, body) =>
+    find_var_upat(name, args) ? false : tail_check(name, body)
+  | Let(p, def, body) =>
+    find_var_upat(name, p) || var_mention(name, def)
+      ? false : tail_check(name, body)
+  | Tuple(l) =>
+    //If l has no recursive calls then true
+    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+  | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
+  | If(u1, u2, u3) =>
+    var_mention(name, u1)
+      ? false : tail_check(name, u2) && tail_check(name, u3)
+  | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
+  | Test(_) => false
+  | Parens(u) => tail_check(name, u)
+  | Cons(u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
+  | UnOp(_, u) => !var_mention(name, u)
+  | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
+  | Match(g, l) =>
+    var_mention(name, g)
+      ? false
+      : List.fold_left(
+          (acc, (p, e)) => {
+            find_var_upat(name, p) ? false : acc && tail_check(name, e)
+          },
+          true,
+          l,
+        )
+  | ListLit(l) =>
+    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+
+  | _ => true
+  };
+};
+
+let is_tail_recursive = (name: string, uexp: Term.UExp.t): bool => {
+  let fn_bodies = [] |> find_fn(name, uexp);
+  if (List.length(fn_bodies) == 0) {
+    false;
+  } else {
+    List.fold_left(
+      (acc, ue) => {acc && var_mention(name, ue) && tail_check(name, ue)},
       true,
       fn_bodies,
     );
