@@ -1,12 +1,8 @@
 // open Util;
 
+include Gram.Zipper;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t = {
-  sort: Sort.t,
-  prec: Prec.t,
-  [@opaque]
-  ctx: Regex.Ctx.t,
-};
+type t = Gram.Zipper.t(Label.t);
 
 module Map =
   Map.Make({
@@ -17,7 +13,13 @@ module Map =
 let sort_ = m => m.sort;
 let prec_ = m => m.prec;
 
-let mk = (~ctx=Regex.Ctx.empty, sort, prec) => {sort, prec, ctx};
+let label = m => fst(m.zipper);
+
+let mk = (~ctx=Regex.Ctx.empty, sort, prec, lbl) => {
+  sort,
+  prec,
+  zipper: (lbl, ctx),
+};
 
 let mk_operand = sort => mk(sort, Prec.max);
 let mk_prefix = (~r=?, sort, prec) => {
@@ -48,9 +50,9 @@ let mk_infix = (~l=?, ~r=?, sort, prec) => {
 // let default_operand = mk_operand(None);
 // let default_infix = mk_infix(None, Prec.max_op);
 
-let init = (sort, prec) => mk(sort, prec);
+// let init = (sort, prec) => mk(sort, prec);
 
-let push = (f, m) => {...m, ctx: [f, ...m.ctx]};
+// let push = (f, m) => {...m, ctx: [f, ...m.ctx]};
 
 // tips across alternatives
 // let tips = (d: Dir.t, m: t): list(Tip.t) =>

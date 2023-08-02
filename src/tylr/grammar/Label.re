@@ -1,3 +1,5 @@
+open Util;
+
 // todo: add operator class
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t =
@@ -13,10 +15,31 @@ module Map =
     let compare = compare;
   });
 
+let is_empty =
+  fun
+  | Const("") => true
+  | _ => false;
+
 let is_const =
   fun
   | Const(t) => Some(t)
   | _ => None;
+
+// succeeds on and duplicates labels of empty and dynamic length
+let unzip = (n: int, lbl: t): Result.t((t, t), Dir.t) =>
+  switch (lbl) {
+  | Const(t) when Token.length(t) > 0 =>
+    Token.unzip(n, t)
+    |> Result.map(((l, r)) => (Const(l), Const(r)))
+  | _ => Ok((lbl, lbl))
+  };
+
+let zip = (l: t, r: t): option(t) =>
+  switch (l, r) {
+  | (Const(l), Const(r)) => Some(Const(l ++ r))
+  | _ when l == r => Some(l)
+  | _ => None
+  };
 
 let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0);
 

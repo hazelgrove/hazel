@@ -11,7 +11,7 @@ let of_regex = (s: Sort.t, p: Prec.t, g: Regex.t): t => {
   let rec go = (uz: Regex.Ctx.t, g: Regex.t) =>
     switch (g) {
     | Atom(Kid(_)) => empty
-    | Atom(Tok(t)) => singleton(t, [mk(uz)])
+    | Atom(Tok(lbl)) => singleton(lbl, [mk(uz, lbl)])
     | Star(g) => go([Star_, ...uz], g)
     | Alt(gs) =>
       ListUtil.elem_splits(gs)

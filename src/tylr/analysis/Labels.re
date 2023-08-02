@@ -1,4 +1,4 @@
-let const =
+let const: list(Token.t) =
   Molds.bindings(Molds.v)
   |> List.map(fst)
   |> List.filter_map(

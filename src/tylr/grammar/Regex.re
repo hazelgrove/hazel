@@ -100,6 +100,7 @@ module Ctx = {
 };
 
 module Zipper = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('x) = ('x, Ctx.t);
 };
 

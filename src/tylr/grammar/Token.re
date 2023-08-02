@@ -11,11 +11,11 @@ let split = (n, tok) => {
   (l, r);
 };
 
-let unzip = (n, tok): Either.t(Dir.t, (t, t)) =>
+let unzip = (n, tok): Result.t((t, t), Dir.t) =>
   if (n <= 0) {
-    L(L);
+    Error(L);
   } else if (n >= length(tok)) {
-    L(R);
+    Error(R);
   } else {
-    R(split(n, tok));
+    Ok(split(n, tok));
   };
