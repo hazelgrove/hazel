@@ -115,7 +115,7 @@ let logical_or = () => mk_monotile(Form.get("logical_or"));
 let comma_exp = () => mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => mk_monotile(Form.get("comma_typ"));
-let nil = () => exp("nil");
+let nil = () => exp("[]");
 let typeann = () => mk_monotile(Form.get("typeann"));
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));
@@ -125,8 +125,8 @@ let mk_if = mk_tile(Form.get("if_"));
 let mk_test = mk_tile(Form.get("test"));
 let mk_case = mk_tile(Form.get("case"));
 let mk_rule = mk_tile(Form.get("rule"));
-let linebreak = () => mk_secondary(Secondary.linebreak);
-let space = () => mk_secondary(Secondary.space);
+let linebreak = () => mk_secondary(Form.linebreak);
+let space = () => mk_secondary(Form.space);
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {

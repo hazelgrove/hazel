@@ -34,8 +34,8 @@ let let_str_ex = {
 };
 let let_triv_ex = {
   sub_id: TrivLet,
-  term: mk_example("let triv = triv in \n2"),
-  message: "The triv is thrown away, so the expression evaluates to 2.",
+  term: mk_example("let () = () in \n2"),
+  message: "The () is thrown away, so the expression evaluates to 2.",
 };
 let let_listlit_ex = {
   sub_id: ListLitLet,
@@ -44,17 +44,17 @@ let let_listlit_ex = {
 };
 let let_listnil_ex = {
   sub_id: ListNilLet,
-  term: mk_example("let nil = nil in \n2"),
+  term: mk_example("let [] = [] in \n2"),
   message: "The empty list is thrown away, so the expression evaluates to 2.",
 };
 let let_cons_hd_ex = {
   sub_id: ConsHdLet,
-  term: mk_example("let hd::tl = 1::nil in \nhd"),
+  term: mk_example("let hd::tl = 1::[] in \nhd"),
   message: "The hd is bound to 1 and the tl is bound to the empty list, so the expression evaluates to 1.",
 };
 let let_cons_snd_ex = {
   sub_id: ConsSndLet,
-  term: mk_example("let fst::snd::tl = true::false::nil in \nsnd"),
+  term: mk_example("let fst::snd::tl = true::false::[] in \nsnd"),
   message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
 };
 let let_var_ex = {
@@ -275,7 +275,7 @@ let let_str_exp: form = {
     examples: [let_str_ex],
   };
 };
-let _pat = pat("triv");
+let _pat = pat("()");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
 let let_triv_exp_coloring_ids =
@@ -285,7 +285,7 @@ let let_triv_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_triv_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `()`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -294,7 +294,7 @@ let let_triv_exp: form = {
   {
     id: Let(Triv),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("triv")])),
+    expandable_id: Some((Piece.id(_pat), [pat("()")])),
     explanation,
     examples: [let_triv_ex],
   };
@@ -319,7 +319,7 @@ let let_listlit_exp: form = {
     examples: [let_listlit_ex],
   };
 };
-let _pat = pat("nil");
+let _pat = pat("[]");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
 let let_listnil_exp_coloring_ids =
@@ -329,7 +329,7 @@ let let_listnil_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_listnil_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `nil`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `[]`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -338,7 +338,7 @@ let let_listnil_exp: form = {
   {
     id: Let(ListNil),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("nil")])),
+    expandable_id: Some((Piece.id(_pat), [pat("[]")])),
     explanation,
     examples: [let_listnil_ex],
   };

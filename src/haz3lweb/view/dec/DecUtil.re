@@ -34,6 +34,59 @@ let jagged_edge_w = child_border_thickness /. 1.;
 
 let short_tip_width = (1. -. t) *. tip_width;
 
+type dims = {
+  width: int,
+  height: int,
+  left: int,
+  top: int,
+};
+
+type fdims = {
+  width: float,
+  height: float,
+  left: float,
+  top: float,
+};
+
+let fzero: fdims = {width: 0., height: 0., left: 0., top: 0.};
+
+let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
+  Printf.sprintf(
+    "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+    Float.of_int(d.left) *. font_metrics.col_width +. fudge.left,
+    Float.of_int(d.top) *. font_metrics.row_height +. fudge.top,
+    Float.of_int(d.width) *. (font_metrics.col_width +. fudge.width),
+    Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
+  );
+
+let code_svg_sized =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
+      ~base_cls=[],
+      ~path_cls=[],
+      ~fudge: fdims=fzero,
+      paths: list(SvgUtil.Path.cmd),
+    ) => {
+  let (left, top) = (origin.col, origin.row);
+  let (width, height) = (
+    abs(last.col - origin.col),
+    abs(last.row - origin.row + 1),
+  );
+  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  create_svg(
+    "svg",
+    ~attr=
+      Attr.many([
+        Attr.classes(base_cls),
+        Attr.create("style", style),
+        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
+        Attr.create("preserveAspectRatio", "none"),
+      ]),
+    [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
+  );
+};
+
 let position =
     (
       ~style="",

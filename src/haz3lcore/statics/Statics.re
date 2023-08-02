@@ -86,7 +86,8 @@ type error =
   | Multi
   | NoFun(Typ.t)
   | SynInconsistentBranches(list(Typ.t))
-  | TypeInconsistent(Typ.t, Typ.t);
+  | TypeInconsistent(Typ.t, Typ.t)
+  | IntegerOutOfRange;
 
 /* Statics non-error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]

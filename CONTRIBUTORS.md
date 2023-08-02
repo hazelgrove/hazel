@@ -1,29 +1,14 @@
 # Code Contributors 
-(roughly in order of first major commit to the `dev` branch)
-
-- Cyrus Omar
-- David Moon
-- Nick Smith
-- Brandon Kase
-- Nicholas Collins
-- Michael D. Adams
-- Yongwei Yuan
-- Qiran Li
-- Walter Litwinczyk
-- Zhiyi (Zoe) Pan
-- Yuning Wang
-- Yunsoo Kim
-- Colin de Roos
-- Utkarsh Mehta
-- Hannah Potter
+See https://github.com/hazelgrove/hazel/graphs/contributors for an up-to-date list of code contributors.
 
 # Theory Contributors 
-(helped develop theory, but no code contributions to Hazel)
+(helped develop theory, but no or minimal code contributions to Hazel)
 
 - Ian Voysey
 - Jonathan Aldrich
 - Matthew Hammer
 - Ravi Chugh
+- Scott Guest
 
 # Art Contributors
 - Vincent Zeng

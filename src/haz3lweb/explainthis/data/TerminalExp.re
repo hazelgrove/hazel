@@ -3,9 +3,9 @@ open Example;
 
 let triv_exp: form = {
   id: TrivExp,
-  syntactic_form: [exp("Triv")],
+  syntactic_form: [exp("()")],
   expandable_id: None,
-  explanation: "Trivial expression.",
+  explanation: "Trivial value.",
   examples: [],
 };
 let triv_exps: group = {id: TrivExp, forms: [triv_exp]};

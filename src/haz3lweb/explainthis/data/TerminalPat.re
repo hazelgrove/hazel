@@ -56,10 +56,10 @@ let strlit_pat: form = {
 };
 
 let triv_pat: form = {
-  let explanation = "Triv pattern. Only expressions with the trivial value `triv` match the *trivial pattern `triv`*.";
+  let explanation = "() pattern. Only expressions with the trivial value `()` match the *trivial pattern `()`*.";
   {
     id: TrivPat,
-    syntactic_form: [pat("triv")],
+    syntactic_form: [pat("()")],
     expandable_id: None,
     explanation,
     examples: [],

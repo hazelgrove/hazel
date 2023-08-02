@@ -27,12 +27,12 @@ let list_exp: form = {
 
 let cons1_ex = {
   sub_id: Cons1,
-  term: mk_example("1::nil"),
+  term: mk_example("1::[]"),
   message: "A single element list of 1.",
 };
 let cons2_ex = {
   sub_id: Cons2,
-  term: mk_example("true::false::nil"),
+  term: mk_example("true::false::[]"),
   message: "A list with two elements, true and false.",
 };
 let _exp_hd = exp("e_hd");

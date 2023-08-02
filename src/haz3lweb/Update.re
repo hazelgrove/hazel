@@ -307,12 +307,17 @@ let apply =
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }
-    | SwitchEditor(n) =>
+    | SwitchEditor(pos) =>
       switch (model.editors) {
       | DebugLoad => failwith("impossible")
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
-        let exercise = SchoolExercise.switch_editor(n, exercise);
+        let exercise =
+          SchoolExercise.switch_editor(
+            ~pos,
+            model.settings.instructor_mode,
+            ~exercise,
+          );
         LocalStorage.School.save_exercise(
           exercise,
           ~instructor_mode=model.settings.instructor_mode,
@@ -343,12 +348,22 @@ let apply =
       ) {
       | None => Error(CantPaste)
       | Some((z, id)) =>
-        //TODO: add correct action to history (Pick_up is wrong)
-        let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        Ok({
-          ...model,
-          editors: Editors.put_editor_and_id(id, ed, model.editors),
-        });
+        /* NOTE(andrew): These two perform calls are a hack to
+           deal with the fact that pasting something like "let a = b in"
+           won't trigger the barfing of the "in"; to trigger this, we
+           insert a space, and then we immediately delete it. */
+        switch (Haz3lcore.Perform.go_z(Insert(" "), z, id)) {
+        | Error(_) => Error(CantPaste)
+        | Ok((z, id)) =>
+          switch (Haz3lcore.Perform.go_z(Destruct(Left), z, id)) {
+          | Error(_) => Error(CantPaste)
+          | Ok((z, id)) =>
+            let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+            //TODO: add correct action to history (Pick_up is wrong)
+            let editors = Editors.put_editor_and_id(id, ed, model.editors);
+            Ok({...model, editors});
+          }
+        }
       };
     | ResetCurrentEditor =>
       /* This serializes the current editor to text, resets the current
