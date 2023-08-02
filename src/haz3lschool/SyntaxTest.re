@@ -73,9 +73,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
   | If(u1, u2, u3) =>
-    var_applied(name, u1)
-    || var_applied(name, u2)
-    || var_applied(name, u3)
+    var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
   | Seq(u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | Test(u) => var_applied(name, u)
   | Parens(u) => var_applied(name, u)
