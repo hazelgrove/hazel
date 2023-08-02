@@ -3092,7 +3092,7 @@ let exercise : SchoolExercise.spec =
       };
     syntax_tests =
       [
-        ("not is applied", Haz3lschool.SyntaxTest.var_mention_ap "not");
+        ("not is applied", Haz3lschool.SyntaxTest.var_applied "not");
         ("odd is recursive", Haz3lschool.SyntaxTest.is_recursive "odd");
       ];
   }
