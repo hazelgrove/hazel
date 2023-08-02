@@ -34,12 +34,12 @@ let strlit_fun_ex = {
 };
 let triv_fun_ex = {
   sub_id: TrivFun,
-  term: mk_example("fun triv -> 2"),
-  message: "When given an argument with the triv value, the function throws away the supplied argument and always evaluates to 2.",
+  term: mk_example("fun () -> 2"),
+  message: "When given an argument with the () value, the function throws away the supplied argument and always evaluates to 2.",
 };
 let listnil_fun_ex = {
   sub_id: ListNilFun,
-  term: mk_example("fun nil -> 2"),
+  term: mk_example("fun [] -> 2"),
   message: "When given an argument with the empty list value, the function throws away the supplied argument and always evaluates to 2.",
 };
 let listlist_fun_ex = {
@@ -218,32 +218,32 @@ let function_strlit_exp: form = {
     examples: [strlit_fun_ex],
   };
 };
-let _pat = pat("triv");
+let _pat = pat("()");
 let _exp = exp("e");
 let function_triv_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_triv_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `triv`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Triv),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("triv")])),
+    expandable_id: Some((Piece.id(_pat), [pat("()")])),
     explanation,
     examples: [triv_fun_ex],
   };
 };
-let _pat = pat("nil");
+let _pat = pat("[]");
 let _exp = exp("e");
 let function_listnil_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listnil_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `nil`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(ListNil),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("nil")])),
+    expandable_id: Some((Piece.id(_pat), [pat("[]")])),
     explanation,
     examples: [listnil_fun_ex],
   };

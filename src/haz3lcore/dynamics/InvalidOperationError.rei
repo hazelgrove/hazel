@@ -3,6 +3,8 @@ type t =
   | DivideByZero
   | NegativeExponent
   | OutOfFuel
+  | InvalidIntOfString
+  | InvalidFloatOfString
   | InvalidProjection;
 
 let err_msg: t => string;

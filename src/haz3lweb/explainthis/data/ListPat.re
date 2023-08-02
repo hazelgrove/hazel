@@ -15,10 +15,10 @@ let listlit_pat: form = {
   };
 };
 let listnil_pat: form = {
-  let explanation = "Empty list pattern. Only expressions that are empty lists `nil` match the *empty list `nil` pattern*.";
+  let explanation = "Empty list pattern. Only expressions that are empty lists `[]` match the *empty list `[]` pattern*.";
   {
     id: ListNilPat,
-    syntactic_form: [pat("nil")],
+    syntactic_form: [pat("[]")],
     expandable_id: None,
     explanation,
     examples: [],
