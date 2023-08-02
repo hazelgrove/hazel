@@ -244,10 +244,11 @@ and uexp_to_info_map =
       m,
     );
   | Let(p, def, body) =>
-    let (p_syn, _) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
+    let (p_syn, m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
-    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
+    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+    /* Analyze pattern to incorporate def type into ctx */
+    let (p_ana, _m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),

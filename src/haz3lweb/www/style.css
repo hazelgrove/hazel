@@ -297,7 +297,7 @@ body {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(16em);
+  grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
 }
@@ -321,7 +321,8 @@ select {
 .code-container,
 .DHCode,
 .context-entry,
-.typ-view {
+.typ-view,
+.code {
   line-height: var(--line-height);
   white-space: pre;
   font-family: "Source Code Pro", monospace;
@@ -382,6 +383,7 @@ select {
 
 #top-bar .menu-icon {
   width: 2.75em;
+  min-width: 2.75em; /* Seems to be necessary at high zooms? */
   height: 2.75em;
   display: flex;
   justify-content: center;
@@ -451,6 +453,7 @@ select {
   border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
   font-size: 0.7em;
+  white-space: nowrap;
 }
 
 #top-bar #editor-mode .icon {
@@ -530,7 +533,8 @@ select {
 }
 
 .editor.single {
-  padding: 2em 2em 4em 2em;
+  width: fit-content;
+  padding: 2em 0em 4em 2em;
 }
 
 #mousedown-overlay {
@@ -556,8 +560,7 @@ select {
 }
 
 .cell-container {
-  width: fit-content;
-  /*min-width: 24em;*/
+  min-width: 30em;
 }
 
 .cell-container .cell-item:first-child {
@@ -862,31 +865,31 @@ svg.tile-selected {
 
 /* OTHER SORT COLORS */
 
-.ci-header-Nul {
+.ci-header.Nul {
   background-color: var(--nul-bg-color);
   color: var(--nul-off-color);
 }
-.ci-header-Any {
+.ci-header.Any {
   background-color: var(--any-bg-color);
   color: var(--any-off-color);
 }
-.ci-header-Exp {
+.ci-header.Exp {
   background-color: var(--exp-bg-color);
   color: var(--exp-off-color);
 }
-.ci-header-Pat {
+.ci-header.Pat {
   background-color: var(--pat-bg-color);
   color: var(--pat-off-color);
 }
-.ci-header-Typ {
+.ci-header.Typ {
   background-color: var(--typ-bg-color);
   color: var(--typ-off-color);
 }
-.ci-header-Rul {
+.ci-header.Rul {
   background-color: var(--rul-bg-color);
   color: var(--rul-off-color);
 }
-.ci-header-TPat {
+.ci-header.TPat {
   background-color: var(--tpat-bg-color);
   color: var(--tpat-off-color);
 }
@@ -1071,6 +1074,7 @@ svg.tile-selected {
   display: flex;
   gap: 0.5em;
   align-items: center;
+  white-space: nowrap;
 }
 
 .ci-header.error {
@@ -1114,6 +1118,13 @@ svg.tile-selected {
   align-items: stretch;
   gap: 0.5em;
   color: #8c795b;
+}
+
+.cursor-inspector .error .code {
+  background-color: #f3d890;
+  padding: 0 0.3em 0 0.3em;
+  border-radius: 0.3em;
+  border-bottom: 1px dashed red;
 }
 
 .cursor-inspector .info .ok,
@@ -1270,6 +1281,7 @@ svg.tile-selected {
 }
 
 .lang-doc {
+  width: 18em;
   padding: 0.2em;
   white-space: nowrap;
 }
