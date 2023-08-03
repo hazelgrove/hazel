@@ -4,4 +4,4 @@ include TeztExample;
 
 include Test_Elaborator;
 
-let () = Test.run();
+Test.run();

@@ -2,10 +2,9 @@ open Tezt;
 open Tezt.Base;
 open Haz3lcore;
 
-let register_exp_test =
-    (title, tags, m: Statics.map, uexp: Term.UExp.t, dhexp: DHExp.t) =>
-  Test.register(
-    ~__FILE__, ~title, ~tags=["hazelcore", "elaborator"] @ tags, () =>
+let register_exp_test = (title, uexp: Term.UExp.t, dhexp: DHExp.t) => {
+  let m = Statics.mk_map(uexp);
+  Test.register(~__FILE__, ~title, ~tags=["hazelcore", "elaborator"], () =>
     switch (Elaborator.dhexp_of_uexp(m, uexp)) {
     | None => Test.fail("Elaborator failed: Got None")
     | Some(d) =>
@@ -16,19 +15,20 @@ let register_exp_test =
       }
     }
   );
+};
 
 let u1: Term.UExp.t = {ids: [0], term: Int(8)};
-let m1: Statics.map = Statics.mk_map(u1);
-let () = register_exp_test("Single integer test", [], m1, u1, IntLit(8));
+register_exp_test("Single integer", u1, IntLit(8));
 
 let u2: Term.UExp.t = {ids: [0], term: EmptyHole};
-let m2: Statics.map = Statics.mk_map(u2);
-let () = register_exp_test("Empty hole test", [], m2, u2, EmptyHole(0, 0));
+register_exp_test("Empty hole", u2, EmptyHole(0, 0));
 
-let u3: Term.UExp.t = {ids: [0], term: Var("x")};
-let m3: Statics.map = Statics.mk_map(u3);
-let d3: DHExp.t = NonEmptyHole(TypeInconsistent, 0, 0, FreeVar(0, 0, "x"));
-let () = register_exp_test("Free variable test", [], m3, u3, d3);
+let u3: Term.UExp.t = {
+  ids: [0],
+  term: Parens({ids: [1], term: Var("y")}),
+};
+let d3: DHExp.t = NonEmptyHole(TypeInconsistent, 1, 0, FreeVar(1, 0, "y"));
+register_exp_test("Free variable in parentheses", u3, d3);
 
 let u4: Term.UExp.t = {
   ids: [0],
@@ -58,63 +58,52 @@ let u4: Term.UExp.t = {
       },
     ),
 };
-let m4: Statics.map = Statics.mk_map(u4);
 let d4: DHExp.t =
   Let(
     Tuple([Var("a"), Var("b")]),
     Tuple([IntLit(4), IntLit(6)]),
     BinIntOp(Minus, BoundVar("a"), BoundVar("b")),
   );
-let () = register_exp_test("Let expression", [], m4, u4, d4);
+register_exp_test("Let expression", u4, d4);
 
 let u5: Term.UExp.t = {
   ids: [0],
   term:
     BinOp(
       Int(Plus),
-      {ids: [1], term: Var("y")},
-      {ids: [2], term: Var("x")},
+      {ids: [1], term: Bool(false)},
+      {ids: [2], term: Var("y")},
     ),
 };
-let m5: Statics.map = Statics.mk_map(u5);
 let d5: DHExp.t =
   BinIntOp(
     Plus,
-    NonEmptyHole(TypeInconsistent, 1, 0, FreeVar(1, 0, "y")),
-    NonEmptyHole(TypeInconsistent, 2, 0, FreeVar(2, 0, "x")),
+    NonEmptyHole(TypeInconsistent, 1, 0, BoolLit(false)),
+    NonEmptyHole(TypeInconsistent, 2, 0, FreeVar(2, 0, "y")),
   );
-let () =
-  register_exp_test("Two free variables in binary operation", [], m5, u5, d5);
+register_exp_test("Badly typed binary operation", u5, d5);
 
 let u6: Term.UExp.t = {
   ids: [0],
   term:
-    Fun(
-      {ids: [1], term: Var("x")},
-      {
-        ids: [4],
-        term:
-          BinOp(
-            Int(Plus),
-            {ids: [5], term: Var("x")},
-            {ids: [6], term: Var("y")},
-          ),
-      },
+    If(
+      {ids: [1], term: Bool(false)},
+      {ids: [2], term: Int(8)},
+      {ids: [3], term: Int(6)},
     ),
 };
-let m6: Statics.map = Statics.mk_map(u6);
 let d6: DHExp.t =
-  Fun(
-    Var("x"),
-    Unknown(Internal),
-    BinIntOp(
-      Plus,
-      Cast(BoundVar("x"), Unknown(Internal), Int),
-      NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y")),
+  ConsistentCase(
+    Case(
+      BoolLit(false),
+      DHExp.[
+        Rule(BoolLit(true), IntLit(8)),
+        Rule(BoolLit(false), IntLit(6)),
+      ],
+      0,
     ),
-    None,
   );
-let () = register_exp_test("Function with free variable", [], m6, u6, d6);
+register_exp_test("If statement", u6, d6);
 
 let u7: Term.UExp.t = {
   ids: [0],
@@ -139,7 +128,6 @@ let u7: Term.UExp.t = {
       {ids: [6], term: Var("y")},
     ),
 };
-let m7: Statics.map = Statics.mk_map(u7);
 let d7: DHExp.t =
   Ap(
     Fun(
@@ -154,9 +142,7 @@ let d7: DHExp.t =
     ),
     NonEmptyHole(TypeInconsistent, 6, 0, FreeVar(6, 0, "y")),
   );
-
-let () =
-  register_exp_test("Function applied to free variable", [], m7, u7, d7);
+register_exp_test("Function applied to free variable", u7, d7);
 
 let u8: Term.UExp.t = {
   ids: [0],
@@ -177,7 +163,6 @@ let u8: Term.UExp.t = {
       ],
     ),
 };
-let m8: Statics.map = Statics.mk_map(u8);
 let d8scrut: DHExp.t = BinIntOp(Equals, IntLit(4), IntLit(3));
 let d8rules =
   DHExp.[
@@ -186,4 +171,55 @@ let d8rules =
   ];
 let d8a: DHExp.t = InconsistentBranches(0, 0, Case(d8scrut, d8rules, 0));
 let d8b: DHExp.t = NonEmptyHole(TypeInconsistent, 0, 0, d8a);
-let () = register_exp_test("Inconsistent branches", [], m8, u8, d8b);
+register_exp_test("Inconsistent branches", u8, d8b);
+
+let u9: Term.UExp.t = {
+  ids: [0],
+  term:
+    Let(
+      {
+        ids: [1],
+        term:
+          TypeAnn(
+            {ids: [2], term: Var("f")},
+            {
+              ids: [3],
+              term: Arrow({ids: [4], term: Int}, {ids: [5], term: Int}),
+            },
+          ),
+      },
+      {
+        ids: [6],
+        term:
+          Fun(
+            {ids: [7], term: Var("x")},
+            {
+              ids: [8],
+              term:
+                BinOp(
+                  Int(Plus),
+                  {ids: [9], term: Int(1)},
+                  {ids: [10], term: Var("x")},
+                ),
+            },
+          ),
+      },
+      {ids: [11], term: Int(55)},
+    ),
+};
+let d9: DHExp.t =
+  Let(
+    Var("f"),
+    FixF(
+      "f",
+      Arrow(Int, Int),
+      Fun(
+        Var("x"),
+        Int,
+        BinIntOp(Plus, IntLit(1), BoundVar("x")),
+        Some("f"),
+      ),
+    ),
+    IntLit(55),
+  );
+register_exp_test("Let expression for function", u9, d9);
