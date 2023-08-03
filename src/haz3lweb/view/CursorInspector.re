@@ -18,6 +18,11 @@ let infoc = "info";
 
 let error_view = (err: Haz3lcore.Statics.error) =>
   switch (err) {
+  | IntegerOutOfRange =>
+    div(
+      ~attr=clss([errorc, "err-integer-out-of-range"]),
+      [text("Integer is too large or too small")],
+    )
   | Multi =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
   | Free(UserOp) =>
@@ -153,10 +158,21 @@ let view_of_info =
   let is_err = Haz3lcore.Statics.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
-    div(
-      ~attr=clss([infoc, "unknown"]),
-      [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
-    )
+    switch (msg) {
+    | BadInt(_) =>
+      div(
+        ~attr=clss([infoc, "exp"]),
+        [
+          term_tag(~inject, ~show_lang_doc, is_err, "exp"),
+          error_view(IntegerOutOfRange),
+        ],
+      )
+    | _ =>
+      div(
+        ~attr=clss([infoc, "unknown"]),
+        [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
+      )
+    }
   | InfoExp({mode, self, _}) =>
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(

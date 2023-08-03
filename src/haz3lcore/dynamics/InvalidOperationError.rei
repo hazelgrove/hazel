@@ -4,6 +4,8 @@ type t =
   | NegativeExponent
   | OutOfFuel
   | InvalidProjection
-  | LetOperatorsNotDefined(string);
+  | LetOperatorsNotDefined(string)
+  | InvalidIntOfString
+  | InvalidFloatOfString;
 
 let err_msg: t => string;
