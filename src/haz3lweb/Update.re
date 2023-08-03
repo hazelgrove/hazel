@@ -88,8 +88,8 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
 
 let load_model = (model: Model.t): Model.t => {
   let settings = LocalStorage.Settings.load();
-  //let explainThisModel = LocalStorage.ExplainThisModel.load();
-  let model = {...model, settings /*, explainThisModel*/};
+  let explainThisModel = LocalStorage.ExplainThisModel.load();
+  let model = {...model, settings, explainThisModel};
   let model =
     switch (model.settings.mode) {
     | DebugLoad => model
@@ -406,7 +406,7 @@ let apply =
     | UpdateExplainThisModel(u) =>
       let explainThisModel =
         ExplainThisUpdate.set_update(model.explainThisModel, u);
-      //LocalStorage.ExplainThisModel.save(explainThisModel);
+      LocalStorage.ExplainThisModel.save(explainThisModel);
       Ok({...model, explainThisModel});
     | UpdateResult(key, res) =>
       /* If error, print a message. */
