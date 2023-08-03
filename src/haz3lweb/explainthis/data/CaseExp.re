@@ -50,7 +50,7 @@ let case_exp: form = {
       ],
     ]);
   {
-    id: Case,
+    id: CaseExp,
     syntactic_form: [case],
     expandable_id: None,
     explanation,
@@ -63,7 +63,7 @@ let case_exp: form = {
   };
 };
 
-let case: group = {id: Case, forms: [case_exp]};
+let case: group = {id: CaseExp, forms: [case_exp]};
 /*let case_exp_rules: form = {
     let explanation = {
       message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",

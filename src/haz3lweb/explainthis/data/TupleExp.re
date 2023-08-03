@@ -16,7 +16,7 @@ let tuple_exp: form = {
   let explanation = "Tuple literal. The tuple has %i elements.";
   let comma = comma_exp();
   {
-    id: Tuple,
+    id: TupleExp,
     syntactic_form: [exp("e1"), comma, space(), exp("...")],
     expandable_id:
       Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("...")])),
@@ -34,7 +34,7 @@ let tuple_exp_size2: form = {
   let explanation = "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.";
   let comma = comma_exp();
   {
-    id: Tuple2,
+    id: Tuple2Exp,
     syntactic_form: [_exp1, comma, space(), _exp2],
     expandable_id:
       Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("e2")])),
@@ -57,7 +57,7 @@ let tuple_exp_size3: form = {
   let explanation = "Tuple literal. The 3-tuple has a [first](%i), [second](%i), and [third](%i) element.";
   let comma = comma_exp();
   {
-    id: Tuple3,
+    id: Tuple3Exp,
     syntactic_form: [
       _exp1,
       comma_exp(),
@@ -77,8 +77,8 @@ let tuple_exp_size3: form = {
   };
 };
 
-let tuples: group = {id: Tuple, forms: [tuple_exp]};
+let tuples: group = {id: TupleExp, forms: [tuple_exp]};
 
-let tuples2: group = {id: Tuple2, forms: [tuple_exp_size2, tuple_exp]};
+let tuples2: group = {id: Tuple2Exp, forms: [tuple_exp_size2, tuple_exp]};
 
-let tuples3: group = {id: Tuple3, forms: [tuple_exp_size3, tuple_exp]};
+let tuples3: group = {id: Tuple3Exp, forms: [tuple_exp_size3, tuple_exp]};

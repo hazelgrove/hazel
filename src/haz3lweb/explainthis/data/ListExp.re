@@ -4,12 +4,12 @@ open Example;
 
 let list_exp: form = {
   let int_list = {
-    sub_id: IntList,
+    sub_id: List(Int),
     term: mk_example("[1, 2]"),
     message: "A list with two elements, 1 and 2.",
   };
   let tuple_list = {
-    sub_id: TupleList,
+    sub_id: List(Tuple),
     term: mk_example("[(1, true), (2, false)]"),
     message: "A list with two elements, a tuple with 1 and true and a tuple with 2 and false.",
   };
@@ -26,12 +26,12 @@ let list_exp: form = {
 };
 
 let cons1_ex = {
-  sub_id: Cons1,
+  sub_id: List(Cons1),
   term: mk_example("1::[]"),
   message: "A single element list of 1.",
 };
 let cons2_ex = {
-  sub_id: Cons2,
+  sub_id: List(Cons2),
   term: mk_example("true::false::[]"),
   message: "A list with two elements, true and false.",
 };

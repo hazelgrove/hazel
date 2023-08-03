@@ -3,87 +3,87 @@ open ExplainThisForm;
 open Example;
 
 let basic_fun_ex = {
-  sub_id: BasicFun,
+  sub_id: Fun(Basic),
   term: mk_example("fun x -> x"),
   message: "The identity function. When given an argument, the function evaluates to that argument.",
 };
 let wild_fun_ex = {
-  sub_id: WildFun,
+  sub_id: Fun(Wild),
   term: mk_example("fun _ -> 3"),
   message: "When given an argument, the function throws away the supplied argument and always evaluates to 3.",
 };
 let intlit_fun_ex = {
-  sub_id: IntLitFun,
+  sub_id: Fun(IntLit),
   term: mk_example("fun 1 -> 2"),
   message: "When given an argument with value 1, the function throws away the supplied argument and always evaluates to 2.",
 };
 let floatlit_fun_ex = {
-  sub_id: FloatLitFun,
+  sub_id: Fun(FloatLit),
   term: mk_example("fun 1.1 -> 2"),
   message: "When given an argument with value 1.1, the function throws away the supplied argument and always evaluates to 2.",
 };
 let boollit_fun_ex = {
-  sub_id: BoolLitFun,
+  sub_id: Fun(BoolLit),
   term: mk_example("fun true -> 2"),
   message: "When given an argument with value true, the function throws away the supplied argument and always evaluates to 2.",
 };
 let strlit_fun_ex = {
-  sub_id: StrLitFun,
+  sub_id: Fun(StrLit),
   term: mk_example("fun \"abc\" -> 2"),
   message: "When given an argument with value \"abc\", the function throws away the supplied argument and always evaluates to 2.",
 };
 let triv_fun_ex = {
-  sub_id: TrivFun,
+  sub_id: Fun(Triv),
   term: mk_example("fun () -> 2"),
   message: "When given an argument with the () value, the function throws away the supplied argument and always evaluates to 2.",
 };
 let listnil_fun_ex = {
-  sub_id: ListNilFun,
+  sub_id: Fun(ListNil),
   term: mk_example("fun [] -> 2"),
   message: "When given an argument with the empty list value, the function throws away the supplied argument and always evaluates to 2.",
 };
-let listlist_fun_ex = {
-  sub_id: ListListFun,
+let listlit_fun_ex = {
+  sub_id: Fun(ListLit),
   term: mk_example("fun [x, y] -> x"),
   message: "When given an argument that is a list of two elements, the function evaluates to the first element of that list.",
 };
 let cons_hd_fun_ex = {
-  sub_id: ConsHdFun,
+  sub_id: Fun(ConsHd),
   term: mk_example("fun hd::tl -> hd"),
   message: "When given an argument that is a non-empty list, the function evaluates to the head of that list.",
 };
 let cons_snd_fun_ex = {
-  sub_id: ConsSndFun,
+  sub_id: Fun(ConsSnd),
   term: mk_example("fun fst::snd::tl -> snd"),
   message: "When given an argument that is a list with at least two elements, the function evaluates to the second element of that list.",
 };
 let var_incr_fun_ex = {
-  sub_id: VarIncrFun,
+  sub_id: Fun(VarIncr),
   term: mk_example("fun x -> x + 1"),
   message: "When given an integer argument, the function evaluates to the argument plus 1.",
 };
 let var_and_fun_ex = {
-  sub_id: VarAndFun,
+  sub_id: Fun(VarAnd),
   term: mk_example("fun b -> b && true"),
   message: "When given a boolean argument, the function evaluates to the logical-and of the argument and true, which evaluates to the truth value of the argument.",
 };
 let tuple2_fun_ex = {
-  sub_id: Tuple2Fun,
+  sub_id: Fun(Tuple2),
   term: mk_example("fun (x, y) -> x + y"),
   message: "When given a 2-tuple of integers, the function evaluates to the sum of the two integers.",
 };
 let tuple3_fun_ex = {
-  sub_id: Tuple3Fun,
+  sub_id: Fun(Tuple3),
   term: mk_example("fun (a, b, c) -> a && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
 };
 let tag_fun_ex = {
-  sub_id: TagFun,
+  sub_id: Fun(Tag),
   term: mk_example("fun None -> 1"),
   message: "When given a None constructor argument, the function evaluates 1.",
 };
 let ap_fun_ex = {
-  sub_id: ApFun,
+  sub_id: Fun(Ap),
   term: mk_example("fun Some(a) -> a"),
   message: "When given a Some constructor argument, the function evaluates to the constructor's argument.",
 };
@@ -264,7 +264,7 @@ let function_listlit_exp: form = {
         [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
       )),
     explanation,
-    examples: [listnil_fun_ex, listlist_fun_ex],
+    examples: [listnil_fun_ex, listlit_fun_ex],
   };
 };
 let _pat_hd = pat("p_hd");
@@ -373,7 +373,7 @@ let function_tuple3_exp_coloring_ids =
   ];
 };
 let function_tuple3_exp: form = {
-  let explanation = "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the *argument pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).";
   let comma = comma_pat();
   let form = [
     mk_fun([

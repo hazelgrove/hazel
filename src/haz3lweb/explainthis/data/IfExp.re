@@ -24,7 +24,7 @@ let if_exp_coloring_ids =
 let if_exp: form = {
   let explanation = "If expression. If the [*condition*](%i) evaluates to `true`, evaluate the [*then branch*](%i). Otherwise, evaluate the [*else branch*](%i).";
   {
-    id: If,
+    id: IfExp,
     syntactic_form: [
       mk_if([
         [space(), _exp_cond, linebreak()],
@@ -39,4 +39,4 @@ let if_exp: form = {
   };
 };
 
-let ifs: group = {id: If, forms: [if_exp]};
+let ifs: group = {id: IfExp, forms: [if_exp]};

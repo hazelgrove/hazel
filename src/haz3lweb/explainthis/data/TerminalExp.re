@@ -19,11 +19,6 @@ let bool_exp: form = {
 };
 let bool_exps: group = {id: BoolExp, forms: [bool_exp]};
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type int_exp_group = {
-  id: group_id,
-  int_exp: form,
-};
 let int_exp: form = {
   id: IntExp,
   syntactic_form: [exp("IntLit")],
