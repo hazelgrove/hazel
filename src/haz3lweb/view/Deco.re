@@ -289,8 +289,10 @@ module Deco =
       //| _ when Indicated.index(z) == Some(id) => false
       | None => false
       //TODO(andrew): supress drawing holes for multis
-      | Some(InfoExp({status: InHole(Common(MultiError)), _})) => false
-      | Some(InfoPat({status: InHole(Common(MultiError)), _})) => false
+      | Some(InfoExp({status: InHole(Common(NoType(MultiError))), _})) =>
+        false
+      | Some(InfoPat({status: InHole(Common(NoType(MultiError))), _})) =>
+        false
       | Some(info) => Info.is_error(info)
       };
     let is_rep = (id: Id.t) =>

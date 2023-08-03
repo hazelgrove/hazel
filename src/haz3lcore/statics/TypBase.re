@@ -2,6 +2,11 @@ open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
 
+let precedence_Prod = 1;
+let precedence_Arrow = 2;
+let precedence_Sum = 3;
+let precedence_const = 4;
+
 module rec Typ: {
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
      Is it generated from an unannotated pattern variable (SynSwitch),
@@ -51,17 +56,16 @@ module rec Typ: {
   let matched_prod: (int, t) => list(t);
   let matched_cons: t => (t, t);
   let matched_list: t => t;
-  let precedence_Prod: int;
-  let precedence_Arrow: int;
-  let precedence_Sum: int;
-  let precedence_const: int;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
   let eq: (t, t) => bool;
   let free_vars: (~bound: list(Var.t)=?, t) => list(Var.t);
-  let join: (~resolve: bool=?, Ctx.t, t, t) => option(t);
+  let join: (~resolve: bool=?, ~fix: bool, Ctx.t, t, t) => option(t);
+  let join_fix: (~resolve: bool=?, Ctx.t, t, t) => option(t);
   let join_all: (Ctx.t, list(t)) => option(t);
+  let is_consistent: (Ctx.t, Typ.t, Typ.t) => bool;
+  let is_nontrivially_consistent: (Ctx.t, Typ.t, Typ.t) => bool;
   let weak_head_normalize: (Ctx.t, t) => t;
   let normalize: (Ctx.t, t) => t;
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
@@ -165,11 +169,6 @@ module rec Typ: {
     | List(ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => Unknown(Internal);
-
-  let precedence_Prod = 1;
-  let precedence_Arrow = 2;
-  let precedence_Sum = 3;
-  let precedence_const = 4;
   let precedence = (ty: t): int =>
     switch (ty) {
     | Int
@@ -264,17 +263,18 @@ module rec Typ: {
      resolve parameter specifies whether, in the case of a type
      variable and a succesful join, to return the resolved join type,
      or to return the (first) type variable for readability */
-  let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-    let join' = join(~resolve, ctx);
+  let rec join =
+          (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+    let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
-    /* NOTE(andrew): The cases below are load bearing
-       for ensuring that function literals get appropriate
-       casts. Examples/Dynamics has regression tests */
-    | (Unknown(TypeHole | Free(_)) as ty, _)
-    | (_, Unknown(TypeHole | Free(_)) as ty) => Some(ty)
+    | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
+      /* NOTE(andrew): This is load bearing
+         for ensuring that function literals get appropriate
+         casts. Examples/Dynamics has regression tests */
+      Some(ty)
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
-    | (Unknown(Internal | SynSwitch), ty)
+    | (Unknown(_), ty)
     | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
@@ -300,7 +300,8 @@ module rec Typ: {
            by the forthcoming debruijn index implementation
          */
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
-      let+ ty_body = join(ctx, ty1, subst(Var(x1), x2, ty2));
+      let+ ty_body =
+        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Rec(x1, ty_body);
     | (Rec(_), _) => None
     | (Int, Int) => Some(Int)
@@ -317,7 +318,7 @@ module rec Typ: {
       Arrow(ty1, ty2);
     | (Arrow(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
-      let* tys = ListUtil.map2_opt(join(ctx), tys1, tys2);
+      let* tys = ListUtil.map2_opt(join', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys);
     | (Prod(_), _) => None
@@ -327,7 +328,12 @@ module rec Typ: {
         ConstructorMap.same_constructors_same_order(sm1, sm2)
           ? (sm1, sm2)
           : (ConstructorMap.sort(sm1), ConstructorMap.sort(sm2));
-      let* ty = ListUtil.map2_opt(join_sum_entries(ctx), sorted1, sorted2);
+      let* ty =
+        ListUtil.map2_opt(
+          join_sum_entries(~resolve, ~fix, ctx),
+          sorted1,
+          sorted2,
+        );
       let+ ty = OptUtil.sequence(ty);
       Sum(ty);
     | (Sum(_), _) => None
@@ -338,22 +344,40 @@ module rec Typ: {
     };
   }
   and join_sum_entries =
-      (ctx: Ctx.t, (ctr1, ty1): sum_entry, (ctr2, ty2): sum_entry)
+      (
+        ~resolve,
+        ~fix,
+        ctx: Ctx.t,
+        (ctr1, ty1): sum_entry,
+        (ctr2, ty2): sum_entry,
+      )
       : option(sum_entry) =>
     switch (ty1, ty2) {
     | (None, None) when ctr1 == ctr2 => Some((ctr1, None))
     | (Some(ty1), Some(ty2)) when ctr1 == ctr2 =>
-      let+ ty_join = join(ctx, ty1, ty2);
+      let+ ty_join = join(~resolve, ~fix, ctx, ty1, ty2);
       (ctr1, Some(ty_join));
     | _ => None
     };
 
+  let join_fix = join(~fix=true);
+
   let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
     List.fold_left(
-      (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+      (acc, ty) => OptUtil.and_then(join(~fix=false, ctx, ty), acc),
       Some(Unknown(Internal)),
       ts,
     );
+
+  let is_consistent = (ctx: Ctx.t, ty1: Typ.t, ty2: Typ.t): bool =>
+    Typ.join(~fix=false, ctx, ty1, ty2) != None;
+
+  let is_nontrivially_consistent = (ctx: Ctx.t, ty1: Typ.t, ty2: Typ.t): bool =>
+    switch (ty1, ty2) {
+    | (Unknown(_), _)
+    | (_, Unknown(_)) => false
+    | _ => is_consistent(ctx, ty1, ty2)
+    };
 
   let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
     switch (ty) {

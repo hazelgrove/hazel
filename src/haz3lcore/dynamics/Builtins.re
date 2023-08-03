@@ -69,6 +69,27 @@ module Pervasives = {
       unary'(f, name, r);
     };
 
+    let is_finite =
+      unary(
+        fun
+        | FloatLit(f) => Ok(BoolLit(Float.is_finite(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
+
+    let is_infinite =
+      unary(
+        fun
+        | FloatLit(f) => Ok(BoolLit(Float.is_infinite(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
+
+    let is_nan =
+      unary(
+        fun
+        | FloatLit(f) => Ok(BoolLit(Float.is_nan(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
+
     let string_of_int =
       unary(
         fun
@@ -228,6 +249,9 @@ module Pervasives = {
     |> const("pi", Float, pi)
     |> const("max_int", Int, max_int)
     |> const("min_int", Int, min_int)
+    |> fn("is_finite", Arrow(Float, Bool), is_finite)
+    |> fn("is_infinite", Arrow(Float, Bool), is_infinite)
+    |> fn("is_nan", Arrow(Float, Bool), is_nan)
     |> fn("int_of_float", Arrow(Float, Int), int_of_float)
     |> fn("float_of_int", Arrow(Int, Float), float_of_int)
     |> fn("string_of_int", Arrow(Int, String), string_of_int)

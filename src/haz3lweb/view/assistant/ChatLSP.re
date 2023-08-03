@@ -95,19 +95,19 @@ module Errors = {
 
   let common_error: Info.error_common => string =
     fun
-    | MultiError =>
+    | NoType(MultiError) =>
       prn("Incomplete syntax (maybe missing operator, function parens)")
 
-    | BadToken(token) => prn("\"%s\" isn't a valid token", token)
-    | InconsistentWithArrow(typ) =>
+    | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
+    | Inconsistent(WithArrow(typ)) =>
       prn("type %s is not consistent with arrow type", Typ.to_string(typ))
-    | FreeConstructor => prn("Constructor is not defined")
-    | SynInconsistentBranches(tys) =>
+    | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
+    | Inconsistent(Internal(tys)) =>
       prn(
         "Expecting branches to have consistent types but got types: %s",
         List.map(Typ.to_string, tys) |> String.concat(", "),
       )
-    | TypeInconsistent({ana, syn}) =>
+    | Inconsistent(Expectation({ana, syn})) =>
       prn(
         "Expecting type %s but got inconsistent type %s",
         Typ.to_string(ana),
@@ -116,7 +116,7 @@ module Errors = {
 
   let exp_error: Info.error_exp => string =
     fun
-    | FreeVariable => "Variable is not bound"
+    | FreeVariable(name) => "Variable " ++ name ++ " is not bound"
     | Common(error) => common_error(error);
 
   let pat_error: Info.error_pat => string =
@@ -126,7 +126,7 @@ module Errors = {
 
   let typ_error: Info.error_typ => string =
     fun
-    | FreeTypeVar(name) => prn("Type variable %s is not bound", name)
+    | FreeTypeVariable(name) => prn("Type variable %s is not bound", name)
     | BadToken(token) => prn("\"%s\" isn't a valid type token", token)
     | WantConstructorFoundAp => "Expected a constructor, found application"
     | WantConstructorFoundType(ty) =>

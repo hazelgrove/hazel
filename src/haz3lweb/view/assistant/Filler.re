@@ -145,13 +145,11 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
         fun
         | Ctx.VarEntry({name, typ: Arrow(_, typ), _})
         | Ctx.ConstructorEntry({name, typ: Arrow(_, typ), _})
-            when
-              Typ.join(ctx, expected_ty, typ) != None && !Typ.is_unknown(typ) =>
+            when Typ.is_nontrivially_consistent(ctx, expected_ty, typ) =>
           Some(name ++ ": " ++ Typ.to_string(typ))
         | Ctx.VarEntry({name, typ, _})
         | Ctx.ConstructorEntry({name, typ, _})
-            when
-              Typ.join(ctx, expected_ty, typ) != None && !Typ.is_unknown(typ) =>
+            when Typ.is_nontrivially_consistent(ctx, expected_ty, typ) =>
           Some(name ++ ":" ++ Typ.to_string(typ))
         | _ => None,
         ctx,
@@ -224,7 +222,7 @@ let error_reply =
       response_z |> ChatLSP.get_info_and_top_ci_from_zipper(~ctx=init_ctx);
     let self: Self.t =
       switch (top_ci.self) {
-      | FreeVar => Just(Unknown(Internal))
+      | Free(_) => Just(Unknown(Internal))
       | Common(self) => self
       };
     let status = Info.status_common(init_ctx, mode, self);
@@ -242,7 +240,7 @@ let error_reply =
         "Static errors: The following static errors were encountered:",
         errors,
       )
-    | ([], [], InHole(TypeInconsistent({ana, syn}))) =>
+    | ([], [], InHole(Inconsistent(Expectation({ana, syn})))) =>
       wrap(
         "Static error: The suggested filling has the wrong expected type: expected "
         ++ Typ.to_string(ana)

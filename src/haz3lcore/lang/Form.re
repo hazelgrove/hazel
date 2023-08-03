@@ -45,6 +45,11 @@ type t = {
   mold: Mold.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type bad_token_cls =
+  | Other
+  | BadInt;
+
 let mk = (expansion, label, mold) => {label, mold, expansion};
 
 /* Abbreviations for expansion behaviors */
@@ -62,8 +67,9 @@ let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
 //  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
 
 /* Token Recognition Predicates */
-let is_arbitary_int = regexp("^[0-9_]*$");
-let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
+let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
+let is_arbitary_float = x =>
+  x != "." && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
@@ -190,6 +196,12 @@ let const_mono_delims =
 let explicit_hole = "?";
 let expliciter_hole = "??";
 let is_explicit_hole = t => t == explicit_hole || t == expliciter_hole;
+let bad_token_cls: string => bad_token_cls =
+  t =>
+    switch () {
+    | _ when is_bad_int(t) => BadInt
+    | _ => Other
+    };
 
 /* B. Operands:
    Order in this list determines relative remolding
