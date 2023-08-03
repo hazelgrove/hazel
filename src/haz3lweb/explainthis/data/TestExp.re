@@ -2,7 +2,6 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-let test_group = "test_group";
 let test_true_ex = {
   sub_id: TestTrue,
   term: mk_example("test true end"),
@@ -21,7 +20,7 @@ let test_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
 let test_exp: form = {
   let explanation = "Test expression. If the [*body*](%i) of the test evalutes to `true`, the test passes. Otherwise, the test fails.";
   {
-    id: Test,
+    id: TestExp,
     syntactic_form: [mk_test([[space(), _exp_body, space()]])],
     expandable_id: None,
     explanation,
@@ -29,4 +28,4 @@ let test_exp: form = {
   };
 };
 
-let tests: group = {id: Test, forms: [test_exp]};
+let tests: group = {id: TestExp, forms: [test_exp]};

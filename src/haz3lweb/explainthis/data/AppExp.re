@@ -23,7 +23,7 @@ let funapp_exp_coloring_ids =
 let funapp_exp: form = {
   let explanation = "Function application. Apply the [*function*](%i) to the [*argument*](%i).";
   {
-    id: FunAp,
+    id: FunApExp,
     syntactic_form: [_exp_fun, mk_ap_exp([[_exp_arg]])],
     expandable_id: None,
     explanation,
@@ -40,7 +40,7 @@ let conapp_exp_coloring_ids =
 let conapp_exp: form = {
   let explanation = "Constructor application. Apply the [*`%s` constructor*](%i) to the [*argument*](%i).";
   {
-    id: ConAp,
+    id: ConApExp,
     syntactic_form: [_exp_con, mk_ap_exp([[_exp_arg]])],
     expandable_id: None,
     explanation,
@@ -48,6 +48,6 @@ let conapp_exp: form = {
   };
 };
 
-let funaps: group = {id: FunAp, forms: [funapp_exp]};
+let funaps: group = {id: FunApExp, forms: [funapp_exp]};
 
-let conaps: group = {id: ConAp, forms: [conapp_exp]};
+let conaps: group = {id: ConApExp, forms: [conapp_exp]};

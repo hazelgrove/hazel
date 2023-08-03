@@ -3,7 +3,7 @@ open ExplainThisForm;
 let wild_pat: form = {
   let explanation = "Wildcard pattern. All expressions match the *wildcard pattern*.";
   {
-    id: Wild,
+    id: WildPat,
     syntactic_form: [pat("_")],
     expandable_id: None,
     explanation,
@@ -88,7 +88,7 @@ let tag_pat: form = {
   };
 };
 
-let wild: group = {id: Wild, forms: [wild_pat]};
+let wild: group = {id: WildPat, forms: [wild_pat]};
 
 let intlit: group = {id: IntPat, forms: [intlit_pat]};
 

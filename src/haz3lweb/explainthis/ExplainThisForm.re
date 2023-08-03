@@ -5,46 +5,78 @@ open Haz3lcore;
 // TODO Use /tau instead of ty when can do that and still have highlighting work
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type example_id =
-  | IntList
-  | TupleList
+type list_examples =
+  | Int
+  | Tuple
   | Cons1
-  | Cons2
-  | BasicFun
-  | WildFun
-  | IntLitFun
-  | FloatLitFun
-  | BoolLitFun
-  | StrLitFun
-  | TrivFun
-  | ListNilFun
-  | ListListFun
-  | ConsHdFun
-  | ConsSndFun
-  | VarIncrFun
-  | VarAndFun
-  | Tuple2Fun
-  | Tuple3Fun
-  | TagFun
-  | ApFun
+  | Cons2;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type fun_examples =
+  | Basic
+  | Wild
+  | IntLit
+  | FloatLit
+  | BoolLit
+  | StrLit
+  | Triv
+  | ListNil
+  | ListLit
+  | ConsHd
+  | ConsSnd
+  | VarIncr
+  | VarAnd
+  | Tuple2
+  | Tuple3
+  | Tag
+  | Ap;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type let_examples =
+  | Basic
+  | Wild
+  | IntLit
+  | FloatLit
+  | BoolLit
+  | StrLit
+  | Triv
+  | ListNil
+  | ListLit
+  | ConsHd
+  | ConsSnd
+  | Var
+  | Tuple2
+  | Tuple3
+  | Tag
+  | Ap;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type numeric_bin_op_examples =
+  | Plus
+  | Minus
+  | Times
+  | Power
+  | Divide
+  | LessThanTrue
+  | LessThanFalse
+  | LessThanEqualLess
+  | LessThanEqualEqual
+  | LessThanEqualFalse
+  | GreaterThanTrue
+  | GreaterThanFalse
+  | GreaterThanEqualGreater
+  | GreaterThanEqualEqual
+  | GreaterThanEqualFalse
+  | EqualFalse
+  | EqualTrue;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type example_id =
+  | List(list_examples)
+  | Fun(fun_examples)
   | Tuple1
   | Tuple2
-  | BasicLet
-  | WildLet
-  | IntLet
-  | FloatLet
-  | BoolLet
-  | StrLet
-  | TrivLet
-  | ListLitLet
-  | ListNilLet
-  | ConsHdLet
-  | ConsSndLet
-  | VarLet
-  | Tuple2Let
-  | Tuple3Let
-  | TagLet
-  | ApLet
+  | Let(let_examples)
   | FunAp
   | ConAp
   | IfTrue
@@ -54,40 +86,8 @@ type example_id =
   | TestTrue
   | TestFalse
   | IntUnaryMinus
-  | IntPlus
-  | IntMinus
-  | IntTimes
-  | IntPower
-  | IntDivide
-  | IntLessThanTrue
-  | IntLessThanFalse
-  | IntLessThanEqualLess
-  | IntLessThanEqualEqual
-  | IntLessThanEqualFalse
-  | IntGreaterThanTrue
-  | IntGreaterThanFalse
-  | IntGreaterThanEqualGreater
-  | IntGreaterThanEqualEqual
-  | IntGreaterThanEqualFalse
-  | IntEqualFalse
-  | IntEqualTrue
-  | FloatPlus
-  | FloatMinus
-  | FloatTimes
-  | FloatPower
-  | FloatDivide
-  | FloatLessThanTrue
-  | FloatLessThanFalse
-  | FloatLessThanEqualLess
-  | FloatLessThanEqualEqual
-  | FloatLessThanEqualFalse
-  | FloatGreaterThanTrue
-  | FloatGreaterThanFalse
-  | FloatGreaterThanEqualGreater
-  | FloatGreaterThanEqualEqual
-  | FloatGreaterThanEqualFalse
-  | FloatEqualFalse
-  | FloatEqualTrue
+  | Int(numeric_bin_op_examples)
+  | Float(numeric_bin_op_examples)
   | AndFalse
   | AndTrue
   | OrFalse
@@ -171,21 +171,21 @@ type form_id =
   | ListExp
   | ConsExp
   | FunctionExp(pat_sub_form_id)
-  | Tuple
-  | Tuple2
-  | Tuple3
-  | Let(pat_sub_form_id)
-  | FunAp
-  | ConAp
-  | If
-  | Seq
-  | Test
-  | UnOp(un_op_sub_form_id)
-  | BinOp(bin_op_sub_form_id)
-  | Case
+  | TupleExp
+  | Tuple2Exp
+  | Tuple3Exp
+  | LetExp(pat_sub_form_id)
+  | FunApExp
+  | ConApExp
+  | IfExp
+  | SeqExp
+  | TestExp
+  | UnOpExp(un_op_sub_form_id)
+  | BinOpExp(bin_op_sub_form_id)
+  | CaseExp
   | EmptyHolePat
   | MultiHolePat
-  | Wild
+  | WildPat
   | IntPat
   | FloatPat
   | BoolPat
@@ -241,21 +241,21 @@ type group_id =
   | ListExp
   | ConsExp
   | FunctionExp(pat_sub_form_id)
-  | Tuple
-  | Tuple2
-  | Tuple3
-  | Let(pat_sub_form_id)
-  | FunAp
-  | ConAp
-  | If
-  | Seq
-  | Test
-  | UnOp(un_op_sub_form_id)
-  | BinOp(bin_op_sub_form_id)
-  | Case
+  | TupleExp
+  | Tuple2Exp
+  | Tuple3Exp
+  | LetExp(pat_sub_form_id)
+  | FunApExp
+  | ConApExp
+  | IfExp
+  | SeqExp
+  | TestExp
+  | UnOpExp(un_op_sub_form_id)
+  | BinOpExp(bin_op_sub_form_id)
+  | CaseExp
   | EmptyHolePat
   | MultiHolePat
-  | Wild
+  | WildPat
   | IntPat
   | FloatPat
   | BoolPat

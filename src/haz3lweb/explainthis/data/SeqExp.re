@@ -2,7 +2,6 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-let seq_exp_group = "sequence_exp_group";
 let seq_basic_exp_ex = {
   sub_id: SeqBasic,
   term: mk_example("1; 2"),
@@ -24,7 +23,7 @@ let seq_exp_coloring_ids =
 let seq_exp: form = {
   let explanation = "Expression sequence. The [left expression](%i) is evaluated, then the [right expression](%i) is evaluated.";
   {
-    id: Seq,
+    id: SeqExp,
     syntactic_form: [_exp1, seq(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -32,4 +31,4 @@ let seq_exp: form = {
   };
 };
 
-let seqs: group = {id: Seq, forms: [seq_exp]};
+let seqs: group = {id: SeqExp, forms: [seq_exp]};

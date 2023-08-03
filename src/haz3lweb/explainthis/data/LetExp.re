@@ -3,82 +3,82 @@ open ExplainThisForm;
 open Example;
 
 let let_base_ex = {
-  sub_id: BasicLet,
+  sub_id: Let(Basic),
   term: mk_example("let x = 1 in \nx"),
   message: "The variable x is bound to 1, so the expression evaluates to 1",
 };
 let let_wild_ex = {
-  sub_id: WildLet,
+  sub_id: Let(Wild),
   term: mk_example("let _ = 1 in \n2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
 };
 let let_int_ex = {
-  sub_id: IntLet,
+  sub_id: Let(IntLit),
   term: mk_example("let 1 = 1 in \n2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
 };
 let let_float_ex = {
-  sub_id: FloatLet,
+  sub_id: Let(FloatLit),
   term: mk_example("let 1.1 = 1.1 in \n2"),
   message: "The 1.1 is thrown away, so the expression evaluates to 2.",
 };
 let let_bool_ex = {
-  sub_id: BoolLet,
+  sub_id: Let(BoolLit),
   term: mk_example("let true = true in \n2"),
   message: "The true is thrown away, so the expression evaluates to 2.",
 };
 let let_str_ex = {
-  sub_id: StrLet,
+  sub_id: Let(StrLit),
   term: mk_example("let \"abc\" = \"abc\" in \n2"),
   message: "The true is thrown away, so the expression evaluates to 2.",
 };
 let let_triv_ex = {
-  sub_id: TrivLet,
+  sub_id: Let(Triv),
   term: mk_example("let () = () in \n2"),
   message: "The () is thrown away, so the expression evaluates to 2.",
 };
 let let_listlit_ex = {
-  sub_id: ListLitLet,
+  sub_id: Let(ListLit),
   term: mk_example("let [x, y] = [1, 2] in \nx"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1.",
 };
 let let_listnil_ex = {
-  sub_id: ListNilLet,
+  sub_id: Let(ListNil),
   term: mk_example("let [] = [] in \n2"),
   message: "The empty list is thrown away, so the expression evaluates to 2.",
 };
 let let_cons_hd_ex = {
-  sub_id: ConsHdLet,
+  sub_id: Let(ConsHd),
   term: mk_example("let hd::tl = 1::[] in \nhd"),
   message: "The hd is bound to 1 and the tl is bound to the empty list, so the expression evaluates to 1.",
 };
 let let_cons_snd_ex = {
-  sub_id: ConsSndLet,
+  sub_id: Let(ConsSnd),
   term: mk_example("let fst::snd::tl = true::false::[] in \nsnd"),
   message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
 };
 let let_var_ex = {
-  sub_id: VarLet,
+  sub_id: Let(Var),
   term: mk_example("let x = 1 in \nx + 2"),
   message: "The x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
 };
 let let_tuple2_ex = {
-  sub_id: Tuple2Let,
+  sub_id: Let(Tuple2),
   term: mk_example("let (x, y) = (1, 2) in \nx + y"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1 + 2, which is 3.",
 };
 let let_tuple3_ex = {
-  sub_id: Tuple3Let,
+  sub_id: Let(Tuple3),
   term: mk_example("let (x, y, z) = (1, 2, 3) in \nx + y + z"),
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
 };
 let let_tag_ex = {
-  sub_id: TagLet,
+  sub_id: Let(Tag),
   term: mk_example("let None = None in \n2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
 };
 let let_ap_ex = {
-  sub_id: ApLet,
+  sub_id: Let(Ap),
   term: mk_example("let Some(a) = Some(2) in \na"),
   message: "The a is bound to 2, so the expression evaluates to 2.",
 };
@@ -111,7 +111,7 @@ let let_base_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(Base),
+    id: LetExp(Base),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("p")])),
     explanation,
@@ -130,7 +130,7 @@ let let_empty_hole_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(EmptyHole),
+    id: LetExp(EmptyHole),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("EmptyHole")])),
     explanation,
@@ -149,7 +149,7 @@ let let_multi_hole_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(MultiHole),
+    id: LetExp(MultiHole),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("INVALID")])),
     explanation,
@@ -172,7 +172,7 @@ let let_wild_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Wild),
+    id: LetExp(Wild),
     syntactic_form: form,
     expandable_id: Some((Piece.id(pat_), [pat("_")])),
     explanation,
@@ -196,7 +196,7 @@ let let_int_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Int),
+    id: LetExp(Int),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
     explanation,
@@ -220,7 +220,7 @@ let let_float_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Float),
+    id: LetExp(Float),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("FloatLit")])),
     explanation,
@@ -244,7 +244,7 @@ let let_bool_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Bool),
+    id: LetExp(Bool),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("BoolLit")])),
     explanation,
@@ -268,7 +268,7 @@ let let_str_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(String),
+    id: LetExp(String),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("StringLit")])),
     explanation,
@@ -292,7 +292,7 @@ let let_triv_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Triv),
+    id: LetExp(Triv),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("()")])),
     explanation,
@@ -311,7 +311,7 @@ let let_listlit_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(ListLit),
+    id: LetExp(ListLit),
     syntactic_form: form,
     expandable_id:
       Some((Piece.id(_pat), [pat("p1"), comma_pat(), pat("...")])),
@@ -336,7 +336,7 @@ let let_listnil_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(ListNil),
+    id: LetExp(ListNil),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("[]")])),
     explanation,
@@ -364,7 +364,7 @@ let let_cons_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(ListCons),
+    id: LetExp(ListCons),
     syntactic_form: form,
     expandable_id:
       Some((Piece.id(cons), [pat("p_hd"), cons_pat(), pat("p_tl")])),
@@ -389,7 +389,7 @@ let let_var_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Var),
+    id: LetExp(Var),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("x")])),
     explanation,
@@ -412,7 +412,7 @@ let let_tuple_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(Tuple),
+    id: LetExp(Tuple),
     syntactic_form: form,
     expandable_id:
       Some((Piece.id(_comma), [pat("p1"), comma_pat(), pat("...")])),
@@ -441,7 +441,7 @@ let let_tuple2_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(Tuple2),
+    id: LetExp(Tuple2),
     syntactic_form: form,
     expandable_id:
       Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("p2")])),
@@ -483,7 +483,7 @@ let let_tuple3_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(Tuple3),
+    id: LetExp(Tuple3),
     syntactic_form: form,
     expandable_id:
       Some((
@@ -511,7 +511,7 @@ let let_tag_exp: form = {
     _exp_body,
   ];
   {
-    id: Let(Tag),
+    id: LetExp(Tag),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("C")])),
     explanation,
@@ -539,7 +539,7 @@ let let_ap_exp: form = {
     exp("e_body"),
   ];
   {
-    id: Let(Ap),
+    id: LetExp(Ap),
     syntactic_form: form,
     expandable_id:
       Some((Piece.id(ap), [pat("p_con"), mk_ap_pat([[pat("p_arg")]])])),
@@ -549,62 +549,74 @@ let let_ap_exp: form = {
 };
 
 let lets_emptyhole: group = {
-  id: Let(EmptyHole),
+  id: LetExp(EmptyHole),
   forms: [let_empty_hole_exp, let_base_exp],
 };
 
 let lets_mutlihole: group = {
-  id: Let(MultiHole),
+  id: LetExp(MultiHole),
   forms: [let_multi_hole_exp, let_base_exp],
 };
 
-let lets_wild: group = {id: Let(Wild), forms: [let_wild_exp, let_base_exp]};
+let lets_wild: group = {
+  id: LetExp(Wild),
+  forms: [let_wild_exp, let_base_exp],
+};
 
-let lets_int: group = {id: Let(Int), forms: [let_int_exp, let_base_exp]};
+let lets_int: group = {id: LetExp(Int), forms: [let_int_exp, let_base_exp]};
 
 let lets_float: group = {
-  id: Let(Float),
+  id: LetExp(Float),
   forms: [let_float_exp, let_base_exp],
 };
 
-let lets_bool: group = {id: Let(Bool), forms: [let_bool_exp, let_base_exp]};
+let lets_bool: group = {
+  id: LetExp(Bool),
+  forms: [let_bool_exp, let_base_exp],
+};
 
-let lets_str: group = {id: Let(String), forms: [let_str_exp, let_base_exp]};
+let lets_str: group = {
+  id: LetExp(String),
+  forms: [let_str_exp, let_base_exp],
+};
 
-let lets_triv: group = {id: Let(Triv), forms: [let_str_exp, let_base_exp]};
+let lets_triv: group = {
+  id: LetExp(Triv),
+  forms: [let_str_exp, let_base_exp],
+};
 
 let lets_listlit: group = {
-  id: Let(ListLit),
+  id: LetExp(ListLit),
   forms: [let_listlit_exp, let_base_exp],
 };
 
 let lets_listnil: group = {
-  id: Let(ListNil),
+  id: LetExp(ListNil),
   forms: [let_listnil_exp, let_base_exp],
 };
 
 let lets_cons: group = {
-  id: Let(ListCons),
+  id: LetExp(ListCons),
   forms: [let_cons_exp, let_base_exp],
 };
 
-let lets_var: group = {id: Let(Var), forms: [let_var_exp, let_base_exp]};
+let lets_var: group = {id: LetExp(Var), forms: [let_var_exp, let_base_exp]};
 
 let lets_tuple: group = {
-  id: Let(Tuple),
+  id: LetExp(Tuple),
   forms: [let_tuple_exp, let_base_exp],
 };
 
 let lets_tuple2: group = {
-  id: Let(Tuple2),
+  id: LetExp(Tuple2),
   forms: [let_tuple2_exp, let_tuple_exp, let_base_exp],
 };
 
 let lets_tuple3: group = {
-  id: Let(Tuple3),
+  id: LetExp(Tuple3),
   forms: [let_tuple3_exp, let_tuple_exp, let_base_exp],
 };
 
-let lets_tag: group = {id: Let(Tag), forms: [let_tag_exp, let_base_exp]};
+let lets_tag: group = {id: LetExp(Tag), forms: [let_tag_exp, let_base_exp]};
 
-let lets_ap: group = {id: Let(Ap), forms: [let_ap_exp, let_base_exp]};
+let lets_ap: group = {id: LetExp(Ap), forms: [let_ap_exp, let_base_exp]};

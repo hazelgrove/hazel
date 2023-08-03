@@ -293,20 +293,20 @@ let deco =
                       id == form_id
                         ? ["selected"] @ get_clss(segment)
                         : get_clss(segment);
+                    let update_group_selection = _ =>
+                      inject(
+                        Update.UpdateExplainThisModel(
+                          ExplainThisUpdate.UpdateGroupSelection(
+                            group_id,
+                            id,
+                          ),
+                        ),
+                      );
                     Node.div(
                       ~attr=
                         Attr.many([
                           clss(classes),
-                          Attr.on_click(_ =>
-                            inject(
-                              Update.UpdateExplainThisModel(
-                                ExplainThisUpdate.UpdateGroupSelection(
-                                  group_id,
-                                  id,
-                                ),
-                              ),
-                            )
-                          ),
+                          Attr.on_click(update_group_selection),
                         ]),
                       [code_view],
                     );
@@ -967,7 +967,7 @@ let get_doc =
               basic(FunctionExp.functions_tuple2);
             };
           | 3 =>
-            let doc_id = get_specificity_level(FunctionExp.functions_tuple2);
+            let doc_id = get_specificity_level(FunctionExp.functions_tuple3);
             if (FunctionExp.function_tuple3_exp.id == doc_id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
@@ -991,19 +991,19 @@ let get_doc =
                         body_id,
                       ),
                   ),
-                FunctionExp.functions_tuple2,
+                FunctionExp.functions_tuple3,
               );
             } else if (FunctionExp.function_tuple_exp.id == doc_id) {
-              basic_tuple(FunctionExp.functions_tuple2);
+              basic_tuple(FunctionExp.functions_tuple3);
             } else {
-              basic(FunctionExp.functions_tuple2);
+              basic(FunctionExp.functions_tuple3);
             };
           | _ =>
             if (FunctionExp.function_tuple_exp.id
-                == get_specificity_level(FunctionExp.functions_tuple2)) {
-              basic_tuple(FunctionExp.functions_tuple2);
+                == get_specificity_level(FunctionExp.functions_tuple)) {
+              basic_tuple(FunctionExp.functions_tuple);
             } else {
-              basic(FunctionExp.functions_tuple2);
+              basic(FunctionExp.functions_tuple);
             }
           };
         | Ap(con, arg) =>
