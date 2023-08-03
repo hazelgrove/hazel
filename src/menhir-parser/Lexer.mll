@@ -34,11 +34,13 @@ rule token =
     | "false" { FALSE }
     | "let" { LET }
     | "in" { IN }
+    | "end" { END }
     | "fun" { FUN }
     | "case" { CASE }
     | "if" { IF }
     | "then" { THEN }
     | "else" { ELSE }
+    | "as" { AS }
     | "{" { OPEN_BRACKET }
     | "}" { CLOSE_BRACKET }
     | "[" { OPEN_SQUARE_BRACKET }
