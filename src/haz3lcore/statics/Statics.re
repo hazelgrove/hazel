@@ -157,6 +157,8 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     }
   | (AnaInfix(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
+    | Some(Unknown(_) as ty_join)
+    | Some(Arrow(Unknown(_), _) as ty_join)
     | Some(Arrow(Prod([_, _]), _) as ty_join) =>
       NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
     | Some(_)
@@ -167,6 +169,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | Some(ty_syn) =>
       let ty_syn = wrap(ty_syn);
       switch (Typ.join(ty_ana, ty_syn)) {
+      | Some(Unknown(_) as ty_join)
       | Some(Arrow(Prod([_, _]), _) as ty_join) =>
         NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
       | Some(_)
@@ -378,6 +381,7 @@ and uexp_to_info_map =
     );
   | Var(name) =>
     switch (Ctx.lookup_var(ctx, name)) {
+    | None when Form.is_op_in_let(name) => atomic(Free(UserOpVar))
     | None => atomic(Free(Variable))
     | Some(var) when Form.is_op_in_let(name) =>
       switch (var.typ) {
@@ -417,14 +421,18 @@ and uexp_to_info_map =
     let ty_all =
       switch (op_var) {
       | None => None
-      | Some(var) =>
-        switch (var.typ) {
-        | Arrow(Prod([ty1, ty2]), out) => Some((out, ty1, ty2))
-        | _ => None
-        }
+      | Some(var) => Some(Typ.matched_arrow(var.typ))
       };
     switch (ty_all) {
-    | Some((ty_out, ty1, ty2)) =>
+    | Some((Unknown(_) as ty_var, _)) =>
+      let (_, free1, m1) = go(~mode=Syn, e1);
+      let (_, free2, m2) = go(~mode=Syn, e2);
+      add(
+        ~self=Just(ty_var),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
+    | Some((Prod([ty1, ty2]), ty_out)) =>
       let (_, free1, m1) = go(~mode=Ana(ty1), e1);
       let (_, free2, m2) = go(~mode=Ana(ty2), e2);
       add(
@@ -432,11 +440,19 @@ and uexp_to_info_map =
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );
-    | None =>
+    | Some(_) =>
       let (_, free1, m1) = go(~mode=Syn, e1);
       let (_, free2, m2) = go(~mode=Syn, e2);
       add(
         ~self=Free(UserOp),
+        ~free=Ctx.union([free1, free2]),
+        union_m([m1, m2]),
+      );
+    | None =>
+      let (_, free1, m1) = go(~mode=Syn, e1);
+      let (_, free2, m2) = go(~mode=Syn, e2);
+      add(
+        ~self=Free(UserOpVar),
         ~free=Ctx.union([free1, free2]),
         union_m([m1, m2]),
       );

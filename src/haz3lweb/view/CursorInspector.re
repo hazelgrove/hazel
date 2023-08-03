@@ -30,6 +30,11 @@ let error_view = (err: Haz3lcore.Statics.error) =>
       ~attr=clss([errorc, "err-free-userop"]),
       [text("User-defined operator is not a binary function")],
     )
+  | Free(UserOpVar) =>
+    div(
+      ~attr=clss([errorc, "err-free-useropvar"]),
+      [text("User-defined operator is not bound")],
+    )
   | Free(Variable) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),

@@ -1,11 +1,11 @@
 let slide : ScratchSlide.persistent_state =
-  ( 3588,
+  ( 4671,
     {
       zipper =
         "((selection((focus \
          Left)(content())))(backpack())(relatives((siblings(((Secondary((id \
          2915)(content(Comment\"# Hazel Language Quick Reference \
-         #\")))))((Secondary((id \
+         #\"))))(Secondary((id \
          3020)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3021)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3150)(content(Comment\"# Empty holes stand for missing expressions, \
@@ -563,7 +563,7 @@ let slide : ScratchSlide.persistent_state =
          2189)(content(Whitespace\" \"))))(Secondary((id \
          2190)(content(Whitespace\" \"))))(Secondary((id \
          2191)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
-         2195)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         2195)(content(Whitespace\"\\226\\143\\142\")))))((Secondary((id \
          2939)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          2998)(content(Comment\"# Recursive Functions (arrow type annotation \
          required) #\"))))(Secondary((id \
@@ -645,6 +645,173 @@ let slide : ScratchSlide.persistent_state =
          2316)(content(Whitespace\" \"))))(Secondary((id \
          2317)(content(Whitespace\"\\226\\143\\142\")))))))))(Secondary((id \
          2321)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3589)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4561)(content(Comment\"# User-defined Binary Operators \
+         #\"))))(Secondary((id \
+         3625)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3678)(content(Comment\"# User-defined operator precedence and \
+         associativity #\"))))(Secondary((id \
+         3681)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3734)(content(Comment\"# are determined by the first character in \
+         the       #\"))))(Secondary((id \
+         3737)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3790)(content(Comment\"# operator. These properties are taken from \
+         the      #\"))))(Secondary((id \
+         3793)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3846)(content(Comment\"# built-in operator of the same \
+         character.           #\"))))(Secondary((id \
+         4576)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3850)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3903)(content(Comment\"# From top to bottom, these operators are \
+         ordered    #\"))))(Secondary((id \
+         3906)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         3959)(content(Comment\"# from tightest binding to least tightest \
+         binding,   #\"))))(Secondary((id \
+         3962)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4015)(content(Comment\"# with operators on the same tier sharing the \
+         same   #\"))))(Secondary((id \
+         4018)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4071)(content(Comment\"# \
+         precedence:                                        \
+         #\"))))(Secondary((id \
+         4074)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4127)(content(Comment\"#    1.    \
+         :                                         #\"))))(Secondary((id \
+         4130)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4183)(content(Comment\"#    2.    \
+         .                                         #\"))))(Secondary((id \
+         4186)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4239)(content(Comment\"#    3.    \
+         &                                         #\"))))(Secondary((id \
+         4242)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4295)(content(Comment\"#    4.    \
+         ~?!=$><                                   #\"))))(Secondary((id \
+         4298)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4351)(content(Comment\"#    5.    \
+         @^                                        #\"))))(Secondary((id \
+         4354)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4407)(content(Comment\"#    6.    \
+         */%                                       #\"))))(Secondary((id \
+         4410)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
+         4463)(content(Comment\"#    7.    \
+         +-                                        #\"))))(Secondary((id \
+         4466)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         4471)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 4472)(content(Whitespace\" \
+         \"))))(Tile((id 4477)(label(_:*_))(mold((out Pat)(in_())(nibs(((shape \
+         Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         4478)(content(Whitespace\" \")))))((Secondary((id \
+         4479)(content(Whitespace\" \"))))(Tile((id 4484)(label(fun \
+         ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
+         1))(children(((Secondary((id 4485)(content(Whitespace\" \
+         \"))))(Tile((id 4486)(label(\"(\"\")\"))(mold((out \
+         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0 1))(children(((Tile((id 4487)(label(m))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id 4489)(label(,))(mold((out \
+         Pat)(in_())(nibs(((shape(Concave 14))(sort Pat))((shape(Concave \
+         14))(sort Pat))))))(shards(0))(children())))(Secondary((id \
+         4577)(content(Whitespace\" \"))))(Tile((id 4490)(label(n))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children()))))))))(Secondary((id \
+         4492)(content(Whitespace\" \")))))))))(Secondary((id \
+         4494)(content(Whitespace\" \"))))(Tile((id 4495)(label(m))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4497)(content(Whitespace\" \"))))(Tile((id 4498)(label(+))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 5))(sort Exp))((shape(Concave \
+         5))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         4499)(content(Whitespace\" \"))))(Tile((id 4500)(label(n))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4504)(content(Whitespace\" \")))))))))(Secondary((id \
+         4507)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         4512)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 4513)(content(Whitespace\" \
+         \"))))(Tile((id 4518)(label(_+$_))(mold((out Pat)(in_())(nibs(((shape \
+         Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         4519)(content(Whitespace\" \")))))((Secondary((id \
+         4520)(content(Whitespace\" \"))))(Tile((id 4525)(label(fun \
+         ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
+         1))(children(((Secondary((id 4526)(content(Whitespace\" \
+         \"))))(Tile((id 4527)(label(\"(\"\")\"))(mold((out \
+         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0 1))(children(((Tile((id 4528)(label(m))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id 4530)(label(,))(mold((out \
+         Pat)(in_())(nibs(((shape(Concave 14))(sort Pat))((shape(Concave \
+         14))(sort Pat))))))(shards(0))(children())))(Secondary((id \
+         4578)(content(Whitespace\" \"))))(Tile((id 4531)(label(n))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children()))))))))(Secondary((id \
+         4533)(content(Whitespace\" \")))))))))(Secondary((id \
+         4535)(content(Whitespace\" \"))))(Tile((id 4594)(label(m))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4596)(content(Whitespace\" \"))))(Tile((id 4598)(label(:*))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 11))(sort Exp))((shape(Concave \
+         11))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         4599)(content(Whitespace\" \"))))(Tile((id 4593)(label(n))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4545)(content(Whitespace\" \"))))(Tile((id 4660)(label(*))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 4))(sort Exp))((shape(Concave \
+         4))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         4662)(content(Whitespace\" \"))))(Tile((id 4663)(label(3))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4664)(content(Whitespace\" \")))))))))(Secondary((id \
+         4600)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
+         4605)(label(let = in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape \
+         Convex)(sort Exp))((shape(Concave 16))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id 4606)(content(Whitespace\" \
+         \"))))(Tile((id 4611)(label(_^@_))(mold((out Pat)(in_())(nibs(((shape \
+         Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         4612)(content(Whitespace\" \")))))((Secondary((id \
+         4613)(content(Whitespace\" \"))))(Tile((id 4618)(label(fun \
+         ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 13))(sort Exp))))))(shards(0 \
+         1))(children(((Secondary((id 4619)(content(Whitespace\" \
+         \"))))(Tile((id 4620)(label(\"(\"\")\"))(mold((out \
+         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0 1))(children(((Tile((id 4621)(label(m))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id 4623)(label(,))(mold((out \
+         Pat)(in_())(nibs(((shape(Concave 14))(sort Pat))((shape(Concave \
+         14))(sort Pat))))))(shards(0))(children())))(Secondary((id \
+         4626)(content(Whitespace\" \"))))(Tile((id 4629)(label(n))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children()))))))))(Secondary((id \
+         4631)(content(Whitespace\" \")))))))))(Secondary((id \
+         4633)(content(Whitespace\" \"))))(Tile((id \
+         4638)(label(_+$_))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+         4647)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape(Concave 1))(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
+         4648)(label(n))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort Exp))))))(shards(0))(children())))(Tile((id \
+         4650)(label(,))(mold((out Exp)(in_())(nibs(((shape(Concave 14))(sort \
+         Exp))((shape(Concave 14))(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4652)(content(Whitespace\" \"))))(Tile((id 4656)(label(m))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         4665)(content(Whitespace\" \"))))(Tile((id 4668)(label(:*))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 11))(sort Exp))((shape(Concave \
+         11))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         4669)(content(Whitespace\" \"))))(Tile((id 4670)(label(4))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         4659)(content(Whitespace\" \")))))))))(Secondary((id \
+         3588)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          2999)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
          3007)(content(Comment\"# Lists #\"))))(Secondary((id \
          2323)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
@@ -1040,6 +1207,25 @@ let slide : ScratchSlide.persistent_state =
          if n == 0 then 0   \n\
          else double_recursively(n - 1) + 2   \n\
          in\n\n\
+         # User-defined Binary Operators #\n\
+         # User-defined operator precedence and associativity #\n\
+         # are determined by the first character in the       #\n\
+         # operator. These properties are taken from the      #\n\
+         # built-in operator of the same character.           #\n\n\
+         # From top to bottom, these operators are ordered    #\n\
+         # from tightest binding to least tightest binding,   #\n\
+         # with operators on the same tier sharing the same   #\n\
+         # precedence:                                        #\n\
+         #    1.    :                                         #\n\
+         #    2.    .                                         #\n\
+         #    3.    &                                         #\n\
+         #    4.    ~?!=$><                                   #\n\
+         #    5.    @^                                        #\n\
+         #    6.    */%                                       #\n\
+         #    7.    +-                                        #\n\
+         let _:*_ = fun (m, n) -> m + n in\n\
+         let _+$_ = fun (m, n) -> m :* n * 3 in\n\
+         let _^@_ = fun (m, n) -> _+$_(n, m) :* 4 in\n\n\
          # Lists #\n\
          let empty_list : [Int] = [] in\n\
          let non_empty_list : [Int] = 1::2::3::[] in\n\
