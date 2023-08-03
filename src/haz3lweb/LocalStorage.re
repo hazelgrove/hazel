@@ -42,52 +42,52 @@ module Settings = {
 };
 
 // ExplainThisModel serialization
-/*module ExplainThisModel = {
-    let save_ExplainThisModel_key: string = "ExplainThisModel";
+module ExplainThisModel = {
+  let save_ExplainThisModel_key: string = "ExplainThisModel";
 
-    let serialize = explainThisModel =>
-      ExplainThisModel.serialize(explainThisModel);
+  let serialize = explainThisModel =>
+    explainThisModel |> ExplainThisModel.sexp_of_t |> Sexplib.Sexp.to_string;
 
-    let deserialize = data =>
-      try(ExplainThisModel.deserialize(data)) {
-      | _ =>
-        print_endline("Could not deserialize ExplainThisModel.");
-        ExplainThisModel.init;
-      };
-
-    let save = (explainThisModel: ExplainThisModel.t): unit =>
-      JsUtil.set_localstore(
-        save_ExplainThisModel_key,
-        serialize(explainThisModel),
-      );
-
-    let init = () => {
-      JsUtil.set_localstore(
-        save_ExplainThisModel_key,
-        serialize(ExplainThisModel.init),
-      );
+  let deserialize = data =>
+    try(data |> Sexplib.Sexp.of_string |> ExplainThisModel.t_of_sexp) {
+    | _ =>
+      print_endline("Could not deserialize ExplainThisModel.");
       ExplainThisModel.init;
     };
 
-    let load = (): ExplainThisModel.t =>
-      switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
-      | None => init()
-      | Some(data) => deserialize(data)
-      };
+  let save = (explainThisModel: ExplainThisModel.t): unit =>
+    JsUtil.set_localstore(
+      save_ExplainThisModel_key,
+      serialize(explainThisModel),
+    );
 
-    let rec export = () =>
-      switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
-      | None =>
-        let _ = init();
-        export();
-      | Some(data) => data
-      };
+  let init = () => {
+    JsUtil.set_localstore(
+      save_ExplainThisModel_key,
+      serialize(ExplainThisModel.init),
+    );
+    ExplainThisModel.init;
+  };
 
-    let import = data => {
-      let explainThisModel = deserialize(data);
-      save(explainThisModel);
+  let load = (): ExplainThisModel.t =>
+    switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
+    | None => init()
+    | Some(data) => deserialize(data)
     };
-  };*/
+
+  let rec export = () =>
+    switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
+    | None =>
+      let _ = init();
+      export();
+    | Some(data) => data
+    };
+
+  let import = data => {
+    let explainThisModel = deserialize(data);
+    save(explainThisModel);
+  };
+};
 
 // Scratch mode serialization
 module Scratch = {

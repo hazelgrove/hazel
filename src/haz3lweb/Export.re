@@ -3,7 +3,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
   settings: string,
-  //explainThisModel: string,
+  explainThisModel: string,
   scratch: string,
   school: string,
   log: string,
@@ -22,15 +22,15 @@ let mk_all = (~instructor_mode): all => {
   print_endline("Mk all");
   let settings = LocalStorage.Settings.export();
   print_endline("Settings OK");
-  //let explainThisModel = LocalStorage.ExplainThisModel.export();
-  //print_endline("ExplainThisModel OK");
+  let explainThisModel = LocalStorage.ExplainThisModel.export();
+  print_endline("ExplainThisModel OK");
   let scratch = LocalStorage.Scratch.export();
   print_endline("Scratch OK");
   let specs = School.exercises;
   let school = LocalStorage.School.export(~specs, ~instructor_mode);
   print_endline("School OK");
   let log = Log.export();
-  {settings, /*explainThisModel,*/ scratch, school, log};
+  {settings, explainThisModel, scratch, school, log};
 };
 
 let export_all = (~instructor_mode) => {
@@ -47,11 +47,11 @@ let import_all = (data, ~specs) => {
         scratch: all_f22.scratch,
         school: all_f22.school,
         log: all_f22.log,
-        //explainThisModel: "",
+        explainThisModel: "",
       };
     };
   let settings = LocalStorage.Settings.import(all.settings);
-  //LocalStorage.ExplainThisModel.import(all.explainThisModel);
+  LocalStorage.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   LocalStorage.Scratch.import(all.scratch);
   LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
