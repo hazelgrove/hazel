@@ -1,4 +1,3 @@
-open Util;
 open Sexplib.Std;
 
 /* SELF.re
@@ -35,7 +34,7 @@ type t =
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
-  | FreeVar
+  | Free(Var.t)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,7 +56,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
-    | FreeVar => None
+    | Free(_) => None
     | Common(self) => typ_of(ctx, self);
 
 let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
@@ -69,7 +68,7 @@ let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
-  | None => FreeVar
+  | None => Free(name)
   | Some(var) => Common(Just(var.typ))
   };
 

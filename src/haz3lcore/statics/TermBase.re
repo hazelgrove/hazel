@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -111,34 +110,6 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Constructor
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | TyAlias
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | ListConcat
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
@@ -234,34 +205,6 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Constructor
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | TyAlias
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | ListConcat
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
