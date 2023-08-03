@@ -32,9 +32,15 @@ type typ =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat = 
+    | IntPat(int)
+    | FloatPat(float)
+    | VarPat(string)
+    | StringPat(string)
     | Var(string)
     | TypeAnn(pat, typ)
-    | TuplePat(list(pat));
+    | AsPat(pat, pat)
+    | TuplePat(list(pat))
+    | ApPat(pat, pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = 
@@ -43,12 +49,12 @@ type exp =
     | Var(string)
     | String(string)
     | ArrayExp(list(exp))
+    | TupleExp(list(exp))
     | Unit
     | BinExp(exp, binOp, exp)
     | Let(pat, exp, exp)
     | Fun(pat, exp)
+    | CaseExp(exp, list(((pat, exp))))
+    | ApExp(exp, exp)
     | If(exp, exp, exp);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type rul =
-    | Rules(exp, list((pat, exp)));

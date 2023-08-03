@@ -11,6 +11,7 @@ open AST
 %token LET
 %token FUN
 %token CASE
+%token AS
 %token OPEN_BRACKET
 %token CLOSE_BRACKET
 %token OPEN_SQUARE_BRACKET
@@ -46,6 +47,7 @@ open AST
 %token EOF
 %token IN
 %token UNIT
+%token END
 
 (* type tokens *)
 %token INT_TYPE
@@ -95,9 +97,15 @@ typ:
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
 
 pat: 
-    | i = IDENT { Var(i) }
+    | i = IDENT { VarPat (i) }
     | t = patTuple { t }
     | t = typeAnn { t }
+    | i = INT { IntPat i }
+    | f = FLOAT { FloatPat f }
+    | s = STRING { StringPat s}
+    | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) }
+    | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
+
 
 patTuple: 
     | OPEN_PAREN; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(pats) }
@@ -109,7 +117,7 @@ rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
 
 case:
-    | CASE; e = exp; l = list(rul); { Rules(e, l) }
+    | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
 
 exp:
     | i = INT { Int i }
@@ -117,10 +125,11 @@ exp:
     | v = IDENT { Var v }
     | s = STRING { String s}
     | b = binExp { b }
+    | OPEN_PAREN; l = separated_list(COMMA, exp) ; CLOSE_PAREN { TupleExp(l)}
+    | c = case { c }
     | UNIT { Unit }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ArrayExp(e) }
+    | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
     | FUN; t = patTuple; DASH_ARROW; e1 = exp; { Fun (t, e1) }
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) }
-
-
