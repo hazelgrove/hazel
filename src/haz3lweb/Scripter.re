@@ -9,7 +9,7 @@ type test = {
   name: string,
   sketch: string,
   llm: OpenAI.chat_models,
-  prompt_builder: Editor.t => option(string),
+  prompt_builder: Editor.t => option(OpenAI.prompt),
 };
 
 let tests_raw = (~ctx_init): list(test) => [

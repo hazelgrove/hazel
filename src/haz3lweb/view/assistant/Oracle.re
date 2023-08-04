@@ -12,9 +12,9 @@ let sanitize_prompt = (prompt: string): string => {
   prompt;
 };
 
-let ask = (model: Model.t): option(string) => {
+let ask = (model: Model.t): option(OpenAI.prompt) => {
   let editor = model.editors |> Editors.get_editor;
-  let prefixes = [
+  let system_prompt = [
     "Respond as minimally as possible",
     "Do not include a period at the end of your response",
   ];
@@ -22,7 +22,11 @@ let ask = (model: Model.t): option(string) => {
   let body = sanitize_prompt(body);
   switch (String.trim(body)) {
   | "" => None
-  | _ => Some(String.concat(". ", prefixes) ++ ". " ++ body ++ ":")
+  | _ =>
+    let prompt =
+      [OpenAI.{role: System, content: String.concat("\n", system_prompt)}]
+      @ [{role: User, content: body}];
+    Some(prompt);
   };
 };
 
