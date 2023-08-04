@@ -1,41 +1,12 @@
-open Virtual_dom.Vdom;
 open Haz3lcore;
-//open Util;
-//open OptUtil.Syntax;
+open Virtual_dom.Vdom;
 
 type t = {
   name: string, // key to store model state
   inject: UpdateAction.t => Ui_effect.t(unit),
   update: DHExp.t,
   model: DHExp.t,
-  view: DHExp.t,
   font_metrics: FontMetrics.t,
-  model_ty: Typ.t,
-  action_ty: Typ.t,
-  node_ty: Typ.t,
-};
-
-let mk =
-    (
-      ~name,
-      ~inject,
-      ~update,
-      ~model,
-      ~view,
-      ~font_metrics,
-      ~model_ty,
-      ~action_ty,
-      ~node_ty,
-    ) => {
-  name,
-  inject,
-  update,
-  model,
-  view,
-  font_metrics,
-  model_ty,
-  action_ty,
-  node_ty,
 };
 
 let dhexp_view = (~font_metrics, d) =>
@@ -52,18 +23,6 @@ let dhexp_view = (~font_metrics, d) =>
     ~width=80,
     d,
   );
-
-let eval = (d: DHExp.t): DHExp.t => {
-  //print_endline("MVU: eval: starting");
-  //print_endline("MVU: eval: dhexp to evaluate: " ++ DHExp.show(d));
-  switch (Interface.evaluate(d)) {
-  | (result, _, _) =>
-    //print_endline("MVU: eval: done");
-    let d = EvaluatorResult.unbox(result);
-    //print_endline("MVU: eval: dhexp after evaluation: " ++ DHExp.show(d));
-    d;
-  };
-};
 
 let render_style_attr: DHExp.t => string =
   fun
@@ -277,49 +236,50 @@ let render_style_attr: DHExp.t => string =
  Prevent_default
  */
 
+/* TODO: Handlers to implement:
+
+   on_dblclick
+   on_mousedown
+   on_mouseup
+   on_mousemove
+
+   on_keydown
+   on_keyup
+   on_keypress
+    */
+
 let render_styles = styles =>
   styles
   |> List.map(render_style_attr)
   |> String.concat(";")
   |> Attr.create("style");
 
-let render_attr = ({name, inject, update, model, _}: t, d: DHExp.t): Attr.t => {
-  let on_ = (handler, arg) => {
-    //TODO(andrew): casting?
-    //print_endline("MVU: render_attr: handler ap eval starting");
-    let maybe_action = eval(Ap(handler, arg));
-    //print_endline("MVU: render_attr: handler ap eval finished");
-    //print_endline("MVU: render_attr: update ap eval starting");
-    let maybe_model = eval(Ap(update, Tuple([model, maybe_action])));
-    //print_endline("MVU: render_attr: update ap eval finished");
-    Virtual_dom.Vdom.Effect.Many([
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-      //Virtual_dom.Vdom.Effect.Prevent_default,
-      inject(SetMeta(MVU(name, maybe_model))) //DHExp.strip_casts(maybe_model),
-    ]);
-  };
-  /* TODO: Handlers to implement:
+let update = ({name, update, model, _}: t, handler, arg): UpdateAction.t => {
+  let model =
+    Interface.eval_d2d(Ap(update, Tuple([model, Ap(handler, arg)])));
+  SetMeta(MVU(name, model));
+};
 
-     on_dblclick
-     on_mousedown
-     on_mouseup
-     on_mousemove
+let on_ = (mvu: t, handler, arg) =>
+  Effect.Many([
+    Effect.Stop_propagation,
+    mvu.inject(update(mvu, handler, arg)),
+  ]);
 
-     on_keydown
-     on_keyup
-     on_keypress
-      */
+let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
   switch (d) {
   | Ap(Constructor("Create"), Tuple([StringLit(name), StringLit(value)])) =>
     Attr.create(name, value)
   | Ap(Constructor("Style"), ListLit(_, _, _, styles)) =>
     render_styles(styles)
   | Ap(Constructor("OnClick"), handler) =>
-    Attr.on_click(_evt => on_(handler, Tuple([])))
+    Attr.on_click(_evt => on_(mvu, handler, Tuple([])))
   | Ap(Constructor("OnMouseDown"), handler) =>
-    Attr.on_mousedown(_evt => on_(handler, Tuple([])))
+    Attr.on_mousedown(_evt => on_(mvu, handler, Tuple([])))
   | Ap(Constructor("OnInput"), handler) =>
-    Attr.on_input((_evt, input_str) => on_(handler, StringLit(input_str)))
+    Attr.on_input((_evt, input_str) =>
+      on_(mvu, handler, StringLit(input_str))
+    )
   | _ =>
     //print_endline("ERROR: render_attr: " ++ DHExp.show(d));
     Attr.create("error", "error")
@@ -369,35 +329,34 @@ let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
     let d = elide_errors ? DHExp.EmptyHole(0, 0) : d;
     dhexp_view(~font_metrics=context.font_metrics, d);
   }
-and input_of = (input_type, context, body) => {
-  let (attrs, divs) = attrs_and_divs(context, body);
+and input_of = (input_type: string, mvu:t, body:DHExp.t) => {
+  let (attrs, divs) = attrs_and_divs(mvu, body);
   Node.input(
     ~attr=Attr.many([Attr.create("type", input_type)] @ attrs),
     divs,
   );
 }
 and attrs_and_divs =
-    (context: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
+    (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
   switch (body) {
-  | Tuple([ListLit(_, _, _, attrs), ListLit(_, _, _, divs)]) =>
-    let attrs = attrs |> List.map(render_attr(context));
-    let divs = divs |> List.map(render_div(context));
-    (attrs, divs);
+  | Tuple([ListLit(_, _, _, attrs), ListLit(_, _, _, divs)]) => (
+      List.map(render_attr(mvu), attrs),
+      List.map(render_div(mvu), divs),
+    )
   | _ => ([], [])
   };
 
-let go = (mvu: t) => {
-  //print_endline("MVU: go: starting");
-  //print_endline("MVU: go: model: " ++ DHExp.show(mvu.model));
-  //print_endline("MVU: go: view ap eval starting");
+let go =
+    (~mvu_states, ~init_model, ~name, ~inject, ~view, ~update, ~font_metrics) => {
+  let model =
+    switch (VarMap.lookup(mvu_states, name)) {
+    | Some(d) => d
+    | _ => init_model
+    };
+  let mvu = {name, model, update, inject, font_metrics};
   //TODO(andrew): casting in ap?
-  let result = eval(Ap(mvu.view, mvu.model));
-  //print_endline("MVU: go: view ap eval finished");
-  let d_view = DHExp.strip_casts(result);
+  let result = Ap(view, mvu.model) |> Interface.eval_d2d |> DHExp.strip_casts;
   [
-    Node.div(
-      ~attr=Attr.classes(["mvu-render"]),
-      [Node.text("Rendered MVU: "), render_div(mvu, d_view)],
-    ),
+    Node.div(~attr=Attr.classes(["mvu-render"]), [render_div(mvu, result)]),
   ];
 };

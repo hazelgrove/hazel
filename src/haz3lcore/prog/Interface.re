@@ -106,10 +106,14 @@ let eval_editor =
   evaluate(~env=env_init, d);
 };
 
-let eval_to_dhexp = (map, term): option(DHExp.t) =>
+let eval_d2d = (d: DHExp.t): DHExp.t =>
   //NOTE: assumes empty init ctx, env
-  switch (term |> elaborate(map) |> evaluate(~env=Environment.empty)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
+  switch (evaluate(d)) {
+  | (result, _, _) => EvaluatorResult.unbox(result)
   };
+
+let eval_u2d = (map, term): DHExp.t =>
+  //NOTE: assumes empty init ctx, env
+  term |> elaborate(map) |> eval_d2d;
 
 include TestResults;

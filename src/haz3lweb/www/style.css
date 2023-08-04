@@ -1073,7 +1073,6 @@ svg.tile-selected {
   display: flex;
   gap: 0.5em;
   color: #0006;
-  font-weight: bolder;
   /*text-transform: uppercase;*/
   align-items: center;
   white-space: nowrap;
