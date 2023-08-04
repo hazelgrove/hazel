@@ -96,7 +96,14 @@ module Errors = {
   let common_error: Info.error_common => string =
     fun
     | NoType(MultiError) =>
-      prn("Incomplete syntax (maybe missing operator, function parens)")
+    /* NOTE: possible cause explanation actually helps.
+    e.g. when generating
+    "if i == index then (description, not(done)) else (description, done)"
+    it would tend not to parethesize the argument to not
+     */
+      prn(
+        "Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)",
+      )
 
     | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
     | Inconsistent(WithArrow(typ)) =>
