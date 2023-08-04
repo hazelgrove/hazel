@@ -95,6 +95,7 @@ typ:
     | UNIT { UnitType }
     | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
 
 pat: 
     | i = IDENT { VarPat (i) }
