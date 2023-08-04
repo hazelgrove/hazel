@@ -7,19 +7,54 @@ type samples = list((string, string, string));
 
 let samples = [
   (
-    "let a:Float = ??(5)",
-    Type.expected(Some(SynFun), ~ctx=[]),
-    "float_of_int",
+    {|
+let List.length: [(String, Bool)]-> Int =
+  fun xs ->
+    ?? end in
+|},
+    Type.expected(Some(Ana(Int)), ~ctx=[]),
+    {|
+case xs
+| [] => 0
+| _::xs => 1 + List.length(xs)|},
+  ),
+  (
+    {|
+let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
+  fun f, xs ->
+    let go: (Int, [Bool])-> [Bool] = fun idx, xs ->
+      ?? end in
+    go(0, xs) in
+|},
+    Type.expected(Some(Ana(List(Bool))), ~ctx=[]),
+    {|
+case xs
+| [] => []
+| hd::tl => f(idx, hd)::go(idx + 1, tl)
+|},
+  ),
+  (
+    {|
+type Container =
+  + Pod(Int)
+  + CapsuleCluster(Int, Int) in
+let total_capacity: Container -> Int =
+  ??
+in
+|},
+    Type.expected(Some(Ana(Arrow(Var("Container"), Int))), ~ctx=[]),
+    {|
+fun c ->
+    case c
+      | Pod(x) => x
+      | CapsuleCluster(x, y) => x * y
+    end
+|},
   ),
   (
     "let f = ?? in f(5)",
     Type.expected(Some(Syn), ~ctx=[]),
     "fun x:Int -> ??",
-  ),
-  (
-    "let g =\nfun x:Int, y: Bool ->\n if y then x else 6 in g(5, ??)",
-    Type.expected(Some(Ana(Bool)), ~ctx=[]),
-    "true",
   ),
   (
     "case Foo(5) | Foo(x) => ?? | Bar => 6",
@@ -84,48 +119,36 @@ let _mk_prompt =
     completion,
   );
 
-let collate_samples: samples => list(string) =
-  List.mapi((idx, (prompt, expected_ty, completion)) =>
-    Printf.sprintf(
-      {|sample_%d:
-{ prompt: %s,
-  expected type: %s,
-  completion: %s,
-}|},
-      idx,
-      prompt,
-      expected_ty,
-      completion,
-    )
-  );
-
 let main_prompt = [
-  "Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
-  //"Your replacement suggestion doesn't have to be complete; it's okay to leave holes (marked '?') in your completion if there isn't enough information to fill them in",
-  "Reply only with a single replacement term for the unqiue distinguished hole marked '??'",
-  "Reply only with code",
-  "DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
-  "DO NOT include the program sketch in your reply",
-  "DO NOT include a period at the end of your response and DO NOT use markdown",
-  //"DO NOT provide replacements for the samples",
+  "CODE COMPLETION INSTRUCTIONS:",
+  "- Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
+  //" - Your replacement suggestion doesn't have to be complete; it's okay to leave holes (marked '?') in your completion if there isn't enough information to fill them in",
+  "- Reply only with a single replacement term for the unqiue distinguished hole marked '??'",
+  "- Reply only with code",
+  "- DO NOT suggest more replacements for other holes in the sketch (marked '?'), or implicit holes",
+  "- DO NOT include the program sketch in your reply",
+  "- DO NOT include a period at the end of your response and DO NOT use markdown",
 ];
 
 let hazel_syntax_notes = [
-  "START HAZEL SYNTAX NOTES:",
-  "0. Hazel uses C-style function application syntax, with parenthesis around comma-separated arguments",
-  "1. Function application is ALWAYS written using parentheses and commas: use 'function(arg1, arg2)'. DO NOT just use spaces between the function name and arguments.",
-  "2. Function parameters are ALWAYS commas separated: 'fun arg1, arg2 -> <exp>'. DO NOT use spaces to separate function arguments.",
-  "2. Pattern matching is ALWAYS written a 'case ... end' expression. Cases MUST END in an 'end' keyword. DO NOT USE any other keyword besides 'case' to do pattern matching.  DO NOT USE a 'with' or 'of' keyword with 'case', just start the list of rules. Pattern matching rules use syntax '| pattern => expression'. Note the '=>' arrow.",
-  "3. The ONLY way to define a named function is by using a function expression nested in a let expression like 'let <pat> = fun <pat> -> <exp> in <exp'. There is no support for specifying the function arguments directly as part of the let. DO NOT write function arguments in the let pattern.",
-  "4. No 'rec' keyword is necessary for 'let' to define a recursive function. DO NOT use the 'rec' keyword with 'let'.",
-  "END HAZEL SYNTAX NOTES",
+  "HAZEL SYNTAX NOTES:",
+  "- Hazel uses C-style function application syntax, with parenthesis around comma-separated arguments",
+  "- Function application is ALWAYS written using parentheses and commas: use 'function(arg1, arg2)'. DO NOT just use spaces between the function name and arguments.",
+  "- Function parameters are ALWAYS commas separated: 'fun arg1, arg2 -> <exp>'. DO NOT use spaces to separate function arguments.",
+  "- There is no dot accessor notation for fields; use pattern matching for destructuring",
+  "- The following ARE NOT Hazel keywords. DO NOT use these keywords: switch, with, of, rec. ALWAYS omit these keywords",
+  "- Pattern matching is ALWAYS written a 'case ... end' expression. Cases MUST END in an 'end' keyword. DO NOT USE any other keyword besides 'case' to do pattern matching.  DO NOT USE a 'with' or 'of' keyword with 'case', just start the list of rules. Pattern matching rules use syntax '| pattern => expression'. Note the '=>' arrow.",
+  "- The ONLY way to define a named function is by using a function expression nested in a let expression like 'let <pat> = fun <pat> -> <exp> in <exp'. There is no support for specifying the function arguments directly as part of the let. DO NOT write function arguments in the let pattern.",
+  "- No 'rec' keyword is necessary for 'let' to define a recursive function. DO NOT use the 'rec' keyword with 'let'.",
+  "- Format the code with proper linebreaks",
 ];
+
+let system_prompt = main_prompt @ hazel_syntax_notes;
 
 /*
  IDEA: take into account clipboard, past code positions, selections
 
  TODO: make holes rendered as some actual text; otherwise it tries to fill them...
-
 
  TODO: remove leading spaces before linebreaks from reply
 
@@ -160,43 +183,44 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
   };
 };
 
-let prompt = (~ctx_init, editor: Editor.t): option(string) => {
+let mk_user_message = (sketch: string, expected_ty: string): string =>
+  Printf.sprintf(
+    {|
+{
+  sketch: %s,
+  expected_type: %s,
+}
+      |},
+    sketch,
+    expected_ty,
+  );
+
+let collate_samples: samples => list(OpenAI.message) =
+  Util.ListUtil.flat_map(((sketch, expected_ty, completion)) =>
+    [
+      OpenAI.{role: User, content: mk_user_message(sketch, expected_ty)},
+      OpenAI.{role: Assistant, content: completion},
+    ]
+  );
+
+let prompt = (~ctx_init, editor: Editor.t): option(OpenAI.prompt) => {
   let ctx =
     switch (ChatLSP.get_ci(~ctx_init, editor)) {
     | Some(ci) => Info.ctx_of(ci)
     | None => Builtins.ctx(Builtins.Pervasives.builtins)
     };
   let mode = ChatLSP.Type.mode(~ctx_init, editor);
+  let sketch = Printer.to_string_editor(~holes=Some("?"), editor);
   let expected_ty = mode |> ChatLSP.Type.expected(~ctx);
-  let relevant_context =
-    ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
-  let prefix =
-    ["Consider these examples:"]
-    @ collate_samples(samples)
-    @ main_prompt
-    @ hazel_syntax_notes;
-  let body = Printer.to_string_editor(~holes=Some("?"), editor);
-  switch (String.trim(body)) {
+  //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
+  switch (String.trim(sketch)) {
   | "" => None
   | _ =>
-    let prompt_proper =
-      Printf.sprintf(
-        {|
-Finally, the details of the actual program sketch to be completed:
-actual_prompt: %s,
-actual_expected_type: %s,
-actual_relevant_context: %s,
-actual_completion:
-      |},
-        body,
-        expected_ty,
-        relevant_context,
-      );
     let prompt =
-      String.concat("\n ", prefix)
-      ++ prompt_proper
-      ++ "\nREMEMBER TO USE 'end' where applicable. REMEMBER NOT TO USE 'rec'. Format the code with proper linebreaks.\n";
-    print_endline("ABOUT TO SUBMIT PROMPT:\n " ++ prompt);
+      [OpenAI.{role: System, content: String.concat("\n", system_prompt)}]
+      @ collate_samples(samples)
+      @ [{role: User, content: mk_user_message(sketch, expected_ty)}];
+    print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
     Some(prompt);
   };
 };
@@ -232,7 +256,7 @@ let error_reply =
     switch (orphans, errors, status) {
     | ([_, ..._], _, _) =>
       wrap(
-        "Syntax errors: The parser has detected the following unmatched delimiters:",
+        "Syntax errors: The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression.",
         orphans,
       )
     | ([], [_, ..._], _) =>

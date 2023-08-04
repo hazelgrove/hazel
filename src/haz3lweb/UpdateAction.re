@@ -16,7 +16,7 @@ type settings_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type filler_options = {
   llm: OpenAI.chat_models,
-  prompt_builder: Editor.t => option(string),
+  prompt_builder: Editor.t => option(OpenAI.prompt),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
