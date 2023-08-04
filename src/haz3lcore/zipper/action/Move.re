@@ -93,6 +93,16 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
+  let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
+    let Measured.Point.{row, col} = caret_point(z);
+    switch (Zipper.move(d, z)) {
+    | None => true
+    | Some(z) =>
+      let Measured.Point.{row: rowp, col: colp} = caret_point(z);
+      row != rowp || col == colp;
+    };
+  };
+
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
@@ -123,10 +133,21 @@ module Make = (M: Editor.Meta.S) => {
       | (Over, Exact) =>
         switch (anchor) {
         | None =>
-          let d_curr = abs(curr_p.col - goal.col);
-          let d_prev = abs(caret_point(prev).col - goal.col);
-          // default to going over when equal
-          d_prev < d_curr ? prev : curr;
+          /* Special case for when you're (eg) you're trying
+             to move down, but you're at the right end of a row
+             and the first position of the next row is further
+             right than the current row's end. In this case we
+             want to progress regardless of whether the new
+             position would be closer or futher from the
+             goal col */
+          is_at_side_of_row(Direction.toggle(d), curr)
+            ? curr
+            : {
+              let d_curr = abs(curr_p.col - goal.col);
+              let d_prev = abs(caret_point(prev).col - goal.col);
+              // default to going over when equal
+              d_prev < d_curr ? prev : curr;
+            }
         | Some(anchor) =>
           let anchor_d =
             goal.row < anchor.row
