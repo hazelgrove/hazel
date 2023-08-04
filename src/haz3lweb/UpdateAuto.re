@@ -1,5 +1,34 @@
 open Haz3lcore;
 
+let get_test_results =
+    (model: Model.t, ~test_slide: int): option(Auto.test_results) =>
+  switch (model.editors) {
+  | Scratch(_idx, slides) =>
+    let editors = Editors.Scratch(test_slide, slides);
+    let ctx_init = Editors.get_ctx_init(editors);
+    let env_init = Editors.get_env_init(editors);
+    let editor = Editors.get_editor(editors);
+    try(
+      Interface.eval_editor(~env_init, ~ctx_init, editor)
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_tests
+      |> List.map(((id, instance_report)) =>
+           switch (instance_report) {
+           | [] => (id, TestStatus.Indet)
+           | [(_, status, _), ..._] => (id, status)
+           }
+         )
+      |> Option.some
+    ) {
+    | _ =>
+      print_endline(
+        "AUTO: ERROR: get_test_results: exception during evaluation",
+      );
+      None;
+    };
+  | _ => None
+  };
+
 let go =
     (
       model: Model.t,
@@ -36,9 +65,11 @@ let go =
       );
       model.meta;
     | {to_run: [], reports, _} =>
-      print_endline("AUTO: StartTest: Finsihed all tests. Results:");
-      print_endline(Auto.show_reports(Auto.pp_llm_report, reports));
-      let json_report = Auto.yojson_of_llm_reports(reports);
+      print_endline("AUTO: StartTest: Finished all tests. Results:");
+      //print_endline(Auto.show_reports(Auto.pp_llm_report, reports));
+      let statuses =
+        reports |> VarMap.map(((_name, guy)) => Auto.final_report(guy));
+      let json_report = Auto.yojson_of_final_statuses(statuses);
       JsUtil.download_json("hazel-llm-auto-results", json_report);
       model.meta;
     | {to_run: [(name, s1), ...to_run], reports, _} =>
@@ -101,13 +132,16 @@ let go =
       let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
       let static_errors = Statics.collect_errors(info_map);
       let completed_sketch = Printer.to_string_editor(editor);
+      let test_slide = 7; //TODO(andrew): put somewhere better
+      let tests = get_test_results(model, ~test_slide);
       //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
       schedule_action(
         SetMeta(
           Auto(
             UpdateResult(
               name,
-              Auto.finalize_llm_reports(
+              Auto.complete_llm_reports(
+                tests,
                 syntax_errors,
                 static_errors,
                 completed_sketch,

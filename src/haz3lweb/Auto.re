@@ -48,6 +48,9 @@ type t('action, 'report) = {
   reports: reports('report),
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type test_results = list((KeywordID.t, TestStatus.t));
+
 let init: t('action, 'report) = {
   current_script: None,
   to_run: [],
@@ -61,17 +64,40 @@ type llm_report = {
   completed_sketch: option(string),
   static_errors: option(list((Id.t, Info.error))),
   syntax_errors: option(list(string)),
+  tests: option(test_results),
 };
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type llm_reports = VarMap.t_(llm_report);
 
+[@deriving (show({with_path: false}), yojson, sexp)]
+type final_report = {
+  time_elapsed: float,
+  completed_sketch: string,
+  num_syntax_errors: int,
+  num_static_errors: int,
+  num_tests_passing: int,
+  static_errors: list((Id.t, Info.error)),
+  syntax_errors: list(string),
+  tests: test_results,
+};
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type final_status =
+  | Ok(final_report)
+  | Error(string);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type final_statuses = VarMap.t_(final_status);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
 let blank_llm_report = {
   time_start: None,
   time_end: None,
   completed_sketch: None,
   static_errors: None,
   syntax_errors: None,
+  tests: None,
 };
 
 let init_llm_report = _r => {
@@ -80,13 +106,66 @@ let init_llm_report = _r => {
   completed_sketch: None,
   static_errors: None,
   syntax_errors: None,
+  tests: None,
 };
 
-let finalize_llm_reports =
-    (syntax_errors, static_errors, completed_sketch, report: llm_report) => {
+let complete_llm_reports =
+    (
+      tests,
+      syntax_errors,
+      static_errors,
+      completed_sketch,
+      report: llm_report,
+    ) => {
   ...report,
+  tests,
   syntax_errors: Some(syntax_errors),
   static_errors: Some(static_errors),
   completed_sketch: Some(completed_sketch),
   time_end: Some(Sys.time()),
+};
+
+let final_report =
+    (
+      {
+        time_start,
+        time_end,
+        completed_sketch,
+        static_errors,
+        syntax_errors,
+        tests,
+      }: llm_report,
+    )
+    : final_status => {
+  switch (
+    time_start,
+    time_end,
+    completed_sketch,
+    static_errors,
+    syntax_errors,
+    tests,
+  ) {
+  | (
+      Some(time_start),
+      Some(time_end),
+      Some(completed_sketch),
+      Some(static_errors),
+      Some(syntax_errors),
+      Some(tests),
+    ) =>
+    Ok({
+      num_syntax_errors: syntax_errors |> List.length,
+      num_static_errors: static_errors |> List.length,
+      num_tests_passing:
+        tests
+        |> List.filter(((_, status)) => status == TestStatus.Pass)
+        |> List.length,
+      time_elapsed: time_end -. time_start,
+      completed_sketch,
+      static_errors,
+      syntax_errors,
+      tests,
+    })
+  | _ => Error("Incomplete report")
+  };
 };
