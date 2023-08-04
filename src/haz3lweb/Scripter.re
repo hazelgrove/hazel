@@ -15,23 +15,32 @@ type test = {
 let tests_raw = (~ctx_init): list(test) => [
   {
     name: "one",
-    sketch: "let lol = FILL_ME in lol + 666",
-    llm: Azure_GPT3_5Turbo,
+    sketch: {|let update: (Model, Action) -> Model =
+  FILL_ME
+in
+%EXPORT|},
+    llm: Azure_GPT4,
     prompt_builder: Filler.prompt(~ctx_init),
   },
   /*
    {
-     name: "two",
-     sketch: "let lol: Int = FILL_ME in lol + 1337",
+     name: "one",
+     sketch: "let lol = FILL_ME in lol + 666",
      llm: Azure_GPT3_5Turbo,
      prompt_builder: Filler.prompt(~ctx_init),
    },
     {
-        name: "three",
-        sketch: "let lol: Int-> Bool = FILL_ME in lol(4) && lol(5)",
-        llm: Azure_GPT3_5Turbo,
-        prompt_builder: Filler.prompt(~ctx_init),
-      },*/
+      name: "two",
+      sketch: "let lol: Int = FILL_ME in lol + 1337",
+      llm: Azure_GPT3_5Turbo,
+      prompt_builder: Filler.prompt(~ctx_init),
+    },
+     {
+         name: "three",
+         sketch: "let lol: Int-> Bool = FILL_ME in lol(4) && lol(5)",
+         llm: Azure_GPT3_5Turbo,
+         prompt_builder: Filler.prompt(~ctx_init),
+       },*/
 ];
 
 let is_fill_marker: Piece.t => bool =
@@ -43,7 +52,7 @@ let mk_script =
     (~llm, ~prompt_builder, ~sketch: string): list(UpdateAction.t) => {
   [
     Reset,
-    SwitchScratchSlide(sketch_slide),
+    SwitchScratchSlide(5),
     PerformAction(Move(Extreme(Up))),
     PerformAction(Select(Resize(Extreme(Down)))),
     Paste(sketch),
