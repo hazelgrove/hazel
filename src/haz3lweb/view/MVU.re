@@ -329,15 +329,14 @@ let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
     let d = elide_errors ? DHExp.EmptyHole(0, 0) : d;
     dhexp_view(~font_metrics=context.font_metrics, d);
   }
-and input_of = (input_type: string, mvu:t, body:DHExp.t) => {
+and input_of = (input_type: string, mvu: t, body: DHExp.t) => {
   let (attrs, divs) = attrs_and_divs(mvu, body);
   Node.input(
     ~attr=Attr.many([Attr.create("type", input_type)] @ attrs),
     divs,
   );
 }
-and attrs_and_divs =
-    (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
+and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
   switch (body) {
   | Tuple([ListLit(_, _, _, attrs), ListLit(_, _, _, divs)]) => (
       List.map(render_attr(mvu), attrs),

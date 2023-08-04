@@ -33,7 +33,7 @@ let schedule_prompt =
         Prompt(
           Filler(
             Some({
-              llm: GPT4, //Azure_GPT3_5Turbo,
+              llm: Azure_GPT4, //Azure_GPT3_5Turbo,
               prompt_builder: Filler.prompt(~ctx_init),
             }),
           ),
@@ -80,7 +80,7 @@ let apply =
     switch (Oracle.ask(model)) {
     | None => print_endline("Oracle: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.start_chat(~llm=GPT4, prompt, req =>
+      OpenAI.start_chat(~llm=Azure_GPT4, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) => schedule_action(Oracle.react(response))
         | None => print_endline("Assistant: response parse failed")
