@@ -1,9 +1,13 @@
-let z = 
-    fun (x: Int) -> 
-        case (x)
-            | 1 => 1
-            | 2 => 2
+let intsOneElseAdd: ((Int, Int)) -> Int = 
+    fun (x, y) -> 
+        case (x, y) 
+            | (1, 1) => 1
+            | _ => x + y
         end
+in
+
+let ap_and_inc: ((Int, Int) -> Int, Int) = 
+    fun (f, x) -> f(x) + 1
 in
 
 z(1)

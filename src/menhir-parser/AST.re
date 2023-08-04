@@ -27,7 +27,7 @@ type typ =
     | UnitType
     | TupleType(list(typ))
     | ArrayType(typ)
-    | Arrow(typ, typ);
+    | ArrowType(typ, typ);
 
 
 [@deriving (show({with_path: false}), sexp, yojson)]
