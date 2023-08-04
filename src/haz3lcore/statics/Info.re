@@ -310,7 +310,9 @@ let rec status_common =
     | _ => InHole(NoType(FreeConstructor(name)))
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
+  | (IsMulti, _) =>
+    // TODO(andrew): making these errors for now for llm purposes
+    InHole(NoType(MultiError))
   | (NoJoin(tys), Ana(ana)) =>
     NotInHole(
       Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
