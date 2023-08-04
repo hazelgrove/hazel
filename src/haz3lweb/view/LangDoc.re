@@ -416,7 +416,7 @@ let example_view =
                 uhexp,
               );
             let result_view =
-              switch (Interface.eval_to_dhexp(info_map, uhexp)) {
+              switch (Some(Interface.eval_u2d(info_map, uhexp))) {
               | None => []
               | Some(dhexp) => [
                   DHCode.view_tylr(

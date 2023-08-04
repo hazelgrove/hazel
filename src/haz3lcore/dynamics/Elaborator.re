@@ -208,7 +208,7 @@ let rec dhexp_of_uexp =
       | Constructor(name) =>
         //TODO(andrew): cleanup
         switch (err_status) {
-        | _ when name == "Render" =>
+        /*| _ when name == "Render" =>
           /* HACK(andrew): Expanding this constructor to nexted fixes
              purely so as to used their Typ fields to smuggle out the
              model and action types for use in MVU casts. 'Fix' has no
@@ -219,9 +219,7 @@ let rec dhexp_of_uexp =
             | Some(action_ty) =>
               switch (Ctx.lookup_alias(ctx, "Node")) {
               | Some(node_ty) =>
-                let model_ty = Typ.normalize(ctx, model_ty);
-                let action_ty = Typ.normalize(ctx, action_ty);
-                let node_ty = Typ.normalize(ctx, node_ty);
+
                 Some(
                   FixF(
                     name,
@@ -238,8 +236,7 @@ let rec dhexp_of_uexp =
             | None => Some(Constructor(name))
             }
           | None => Some(Constructor(name))
-          }
-
+          }*/
         | _ when Hyper.is_export(name) =>
           /*print_endline(
               "elaborating export: id:"
