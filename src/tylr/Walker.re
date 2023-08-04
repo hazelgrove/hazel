@@ -26,11 +26,23 @@ module Mold = {
 //   // let bound: (Dir.t, t) => option(Prec.Bound.t) = failwith("todo");
 // };
 
-module Piece = {
-  // todo rename
+// module Piece = {
+//   // todo rename
+//   type t =
+//     | Grout
+//     | Tile(Mold.t);
+// };
+
+module Mold = {
+  // thinking this is the proper mold type
+  // clearly indicates and enforces:
+  // - mold-space is divided into tile molds and grout molds
+  // - tile molds are grammar zippers focused on whatever label is specified
+  //   in that context by the grammar
+  // - grout molds describe "holes" in the grammar, hence nothing of focus
   type t =
-    | Grout
-    | Tile(Mold.t);
+    | Grout(Gram.Zipper.t(unit))
+    | Tile(Gram.Zipper.t(Label.t));
 };
 
 let union = Mold.Map.union((_, l, r) => Some(choose(~over?, l, r)));

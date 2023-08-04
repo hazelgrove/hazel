@@ -67,6 +67,10 @@ module R = {
     Wald.mk(mel) |> Option.map(((mel, wal, kid)) => ({mel, wal}, kid));
   let unmk = ({mel, wal}: t, kid) => Wald.unmk(~l=mel, wal, ~r=kid);
 
+  [@warning "-27"]
+  let unlink = (t: t): option((t, Meld.t, Piece.t)) =>
+    failwith("todo Terrace.R.unlink");
+
   let pad = (s: Space.t, t: t) => {...t, mel: Meld.pad(~l=s, t.mel)};
 
   let split_face = ({mel, wal}: t): (Meld.t, Piece.t) =>

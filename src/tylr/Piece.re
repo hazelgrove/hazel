@@ -30,7 +30,6 @@ type t = {
 // !Label.is_empty(p.mold.label) ==> is_prefix(p.token, p.mold.label)
 exception Ill_labeled;
 
-
 let label = p => Mold.label(p.mold);
 let sort = p => p.mold.sort;
 let prec = p => p.mold.prec;
@@ -92,7 +91,7 @@ let unzip = (n: int, p: t): Result.t((t, t), Dir.t) => {
       let r = Piece.put_label(lbl_r, {...p, token: tok_r});
       Ok((l, r));
     }
-  }
+  };
 };
 
 let zip = (l: t, r: t): option(t) => {
@@ -106,64 +105,68 @@ let zip = (l: t, r: t): option(t) => {
 };
 let zips = (l, r) => Option.is_some(zip(l, r));
 
-let replace = (l: t, r: t): option(t) => {
-  let replaced_l = add_paths(List.map(_ => 0, l.paths), r);
-  let replaced_r = add_paths(List.map(_ => length(l), r.paths), l);
-  switch (l.shape, r.shape) {
-  | (G(g), _)
-      when Grout.is_empty(g) && Tips.consistent(tips(L, l), tips(L, r)) =>
-    Some(replaced_l)
-  | (_, G(g))
-      when Grout.is_empty(g) && Tips.consistent(tips(R, l), tips(R, r)) =>
-    Some(replaced_r)
-  | (T(t), _) when !Tile.is_filled(t) && proto(l) == proto(r) =>
-    Some(replaced_l)
-  | (_, T(t)) when !Tile.is_filled(t) && proto(l) == proto(r) =>
-    Some(replaced_r)
-  | _ => None
-  };
-};
+// replace/merge/fuse/matches no longer needed under assumptions:
+// - grout removed and re-inserted on each edit
+// - mold procedure handles removing and inserting temp tiles
 
-let merge = (l: t, r: t): option(t) =>
-  switch (l.shape, r.shape) {
-  | (G(g_l), G(g_r)) =>
-    Grout.merge(g_l, g_r)
-    |> Option.map(of_grout(~id=l.id, ~paths=l.paths @ r.paths))
-  | _ => None
-  };
+// let replace = (l: t, r: t): option(t) => {
+//   let replaced_l = add_paths(List.map(_ => 0, l.paths), r);
+//   let replaced_r = add_paths(List.map(_ => length(l), r.paths), l);
+//   switch (l.shape, r.shape) {
+//   | (G(g), _)
+//       when Grout.is_empty(g) && Tips.consistent(tips(L, l), tips(L, r)) =>
+//     Some(replaced_l)
+//   | (_, G(g))
+//       when Grout.is_empty(g) && Tips.consistent(tips(R, l), tips(R, r)) =>
+//     Some(replaced_r)
+//   | (T(t), _) when !Tile.is_filled(t) && proto(l) == proto(r) =>
+//     Some(replaced_l)
+//   | (_, T(t)) when !Tile.is_filled(t) && proto(l) == proto(r) =>
+//     Some(replaced_r)
+//   | _ => None
+//   };
+// };
 
-let fuse = (l: t, r: t): option(t) => {
-  open OptUtil.Syntax;
-  let/ () = zip(l, r);
-  let/ () = replace(l, r);
-  merge(l, r);
-};
+// let merge = (l: t, r: t): option(t) =>
+//   switch (l.shape, r.shape) {
+//   | (G(g_l), G(g_r)) =>
+//     Grout.merge(g_l, g_r)
+//     |> Option.map(of_grout(~id=l.id, ~paths=l.paths @ r.paths))
+//   | _ => None
+//   };
 
-let matches = (l: t, r: t): option(Complement.t) => {
-  let mk_mold = frames => {...mold(l), frames};
-  let rec go = (l, r) => {
-    let moved = Gram.Zipper.move_to_tok(~skip_nullable=true, R, l);
-    if (List.mem(r, moved)) {
-      zipper_const(l)
-      |> Option.map(((label, frames)) =>
-           [Proto.{label, mold: mk_mold(frames)}]
-         );
-    } else {
-      moved
-      |> List.map(l => (l, go(l, r)))
-      |> List.filter(((_, found_r)) => Option.is_some(found_r))
-      |> List.filter_map(((l, found_r)) =>
-           zipper_const(l)
-           |> Option.map(((label, frames)) =>
-                (Proto.{label, mold: mk_mold(frames)}, found_r)
-              )
-         )
-      |> ListUtil.hd_opt
-      |> Option.map(((l, compl)) => [l, ...Option.get(compl)]);
-    };
-  };
-  go(zipper(l), zipper(r)) |> Option.map(List.tl);
-};
+// let fuse = (l: t, r: t): option(t) => {
+//   open OptUtil.Syntax;
+//   let/ () = zip(l, r);
+//   let/ () = replace(l, r);
+//   merge(l, r);
+// };
+
+// let matches = (l: t, r: t): option(Complement.t) => {
+//   let mk_mold = frames => {...mold(l), frames};
+//   let rec go = (l, r) => {
+//     let moved = Gram.Zipper.move_to_tok(~skip_nullable=true, R, l);
+//     if (List.mem(r, moved)) {
+//       zipper_const(l)
+//       |> Option.map(((label, frames)) =>
+//            [Proto.{label, mold: mk_mold(frames)}]
+//          );
+//     } else {
+//       moved
+//       |> List.map(l => (l, go(l, r)))
+//       |> List.filter(((_, found_r)) => Option.is_some(found_r))
+//       |> List.filter_map(((l, found_r)) =>
+//            zipper_const(l)
+//            |> Option.map(((label, frames)) =>
+//                 (Proto.{label, mold: mk_mold(frames)}, found_r)
+//               )
+//          )
+//       |> ListUtil.hd_opt
+//       |> Option.map(((l, compl)) => [l, ...Option.get(compl)]);
+//     };
+//   };
+//   go(zipper(l), zipper(r)) |> Option.map(List.tl);
+// };
 
 // let complement_beyond = (~side: Dir.t, p: t): Complement.t => {
 //   let rec go = z =>

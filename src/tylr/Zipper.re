@@ -32,7 +32,6 @@ let zip = (~d=Dir.L, z: t): Meld.t => {
   let z = unselect(d, z);
   Stepwell.zip(z.ctx);
 };
-
 // todo: cleanup
 let push_sel = (lx: Lexeme.t, foc: Dir.t, sel) =>
   switch (foc) {

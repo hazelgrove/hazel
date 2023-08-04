@@ -1,13 +1,10 @@
 // open Sexplib.Std;
-
 // module Mold = Mold;
-
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type t = {
 //   mold: Mold.t,
 //   unfilled: int,
 // };
-
 // let mk = (~unfilled=0, mold) => {mold, unfilled};
 // // let get_proto = (f, t) => f(t.proto);
 // let length = t => Token.length(t.token);
@@ -23,8 +20,6 @@
 //          ? (mk(l), mk(~unfilled, r))
 //          : (mk(~unfilled=unfilled - n, l), mk(~unfilled=n, r));
 //      });
-
-
 // open Util;
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type t = {

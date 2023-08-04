@@ -29,8 +29,7 @@ let is_const =
 let unzip = (n: int, lbl: t): Result.t((t, t), Dir.t) =>
   switch (lbl) {
   | Const(t) when Token.length(t) > 0 =>
-    Token.unzip(n, t)
-    |> Result.map(((l, r)) => (Const(l), Const(r)))
+    Token.unzip(n, t) |> Result.map(((l, r)) => (Const(l), Const(r)))
   | _ => Ok((lbl, lbl))
   };
 
@@ -39,6 +38,13 @@ let zip = (l: t, r: t): option(t) =>
   | (Const(l), Const(r)) => Some(Const(l ++ r))
   | _ when l == r => Some(l)
   | _ => None
+  };
+
+let consistent = (l: t, r: t): bool =>
+  switch (l, r) {
+  | (Const(""), _)
+  | (_, Const("")) => true
+  | _ => l == r
   };
 
 let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0);
