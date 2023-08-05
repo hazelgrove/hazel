@@ -112,14 +112,13 @@ let parent_duomerges = (z: Zipper.t) => {
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
-  let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
   switch (
     parent_duomerges(z),
     z.caret,
-    neighbor_monotiles(z_trimmed.relatives.siblings),
+    neighbor_monotiles(z.relatives.siblings),
   ) {
   | (Some(lbl), Outer, (None, None))
-      when Siblings.no_siblings(z_trimmed.relatives.siblings) =>
+      when Siblings.no_siblings(z.relatives.siblings) =>
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
@@ -129,7 +128,7 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
     |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
-    merge((l, r), (z_trimmed, id_gen))
+    merge((l, r), (z, id_gen))
   | _ => Some((z, id_gen))
   };
 };
