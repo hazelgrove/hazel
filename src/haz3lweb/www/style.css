@@ -1058,6 +1058,10 @@ svg.tile-selected {
   gap: 0em;
 }
 
+.typ-view.atom.unknown {
+  /* to advertise provenance display on-hover */
+  cursor: help;
+}
 .typ-alias-view {
   color: var(--tpat-text-color);
   display: flex;
