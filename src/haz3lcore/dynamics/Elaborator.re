@@ -366,7 +366,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   List.fold_left(
     (d', (ident, (elab, _))) => DHExp.Let(Var(ident), elab, d'),
     d,
-    Builtins.forms(Builtins.Pervasives.builtins),
+    Builtins.forms_init,
   );
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);

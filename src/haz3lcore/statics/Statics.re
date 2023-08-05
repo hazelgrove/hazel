@@ -507,11 +507,6 @@ and variant_to_info_map =
 
 let mk_map =
   Core.Memo.general(~cache_size_bound=1000, e => {
-    uexp_to_info_map(
-      ~ctx=Builtins.ctx(Builtins.Pervasives.builtins),
-      ~ancestors=[],
-      e,
-      Id.Map.empty,
-    )
+    uexp_to_info_map(~ctx=Builtins.ctx_init, ~ancestors=[], e, Id.Map.empty)
     |> snd
   });
