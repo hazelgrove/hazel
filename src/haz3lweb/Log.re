@@ -22,7 +22,7 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | DebugAction(_)
   | ExportPersistentData => false
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)

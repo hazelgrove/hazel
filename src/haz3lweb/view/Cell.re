@@ -23,7 +23,9 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
           on_mouseup(_ => inject(Update.Mouseup)),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(Update.PerformAction(Select(Resize(Goal(goal)))));
+            inject(
+              Update.PerformAction(Select(Resize(Goal(Point(goal))))),
+            );
           }),
         ],
       ),
@@ -39,7 +41,7 @@ let mousedown_handler =
       Update.(
         [Mousedown]
         @ additional_updates
-        @ [PerformAction(Move(Goal(goal)))]
+        @ [PerformAction(Move(Goal(Point(goal))))]
       ),
     ),
   );
@@ -109,7 +111,7 @@ let code_cell_view =
                 let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
 
                 let events = [
-                  inject(PerformAction(Move(Goal(goal)))),
+                  inject(PerformAction(Move(Goal(Point(goal))))),
                   inject(
                     Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
                   ),

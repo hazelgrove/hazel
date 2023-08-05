@@ -84,7 +84,8 @@ let reevaluate_post_update =
     | Mode(_) => true
     }
   | PerformAction(
-      Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_) |
+      Move(_) | MoveToNextHole(_) | Select(_) | Unselect | RotateBackpack |
+      MoveToBackpackTarget(_) |
       Jump(_),
     )
   | MoveToNextHole(_) //
@@ -105,7 +106,7 @@ let reevaluate_post_update =
   | ExportPersistentData => false
   // may not be necessary on all of these
   // TODO review and prune
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
@@ -154,9 +155,7 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action =
-    (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
-    : Result.t(Model.t) => {
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
   switch (Haz3lcore.Perform.go(a, ed_init, id)) {
   | Error(err) => Error(FailedToPerform(err))
@@ -280,11 +279,11 @@ let apply =
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
-    | PerformAction(a) => perform_action(model, a, state, ~schedule_action)
+    | PerformAction(a) => perform_action(model, a)
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left), state, ~schedule_action)
+      perform_action(model, Destruct(Left))
     | Copy =>
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
@@ -313,7 +312,7 @@ let apply =
           }
         }
       };
-    | ResetCurrentEditor =>
+    | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
@@ -348,9 +347,13 @@ let apply =
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         })
       };
-    | MoveToNextHole(_d) =>
-      // TODO restore
-      Ok(model)
+    | MoveToNextHole(d) =>
+      let p: Piece.t => bool = (
+        fun
+        | Grout(_) => true
+        | _ => false
+      );
+      perform_action(model, Move(Goal(Piece(p, d))));
     | UpdateLangDocMessages(u) =>
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);
