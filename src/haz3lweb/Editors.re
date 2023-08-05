@@ -124,8 +124,7 @@ let deps = (fn: ('a, 'b) => 'a, acc_0: 'a, slides, idx) => {
   };
 };
 
-let get_ctx_init_slides =
-  deps(export_ctx, Builtins.ctx(Builtins.Pervasives.builtins));
+let get_ctx_init_slides = deps(export_ctx, Builtins.ctx_init);
 let get_env_init_slides = ctx_init =>
   deps(export_env(ctx_init), Environment.empty);
 
@@ -134,7 +133,7 @@ let get_ctx_init = (editors: t): Ctx.t =>
   | Scratch(idx, slides) => get_ctx_init_slides(slides, idx)
   | DebugLoad
   | Exercise(_)
-  | Examples(_) => Builtins.ctx(Builtins.Pervasives.builtins)
+  | Examples(_) => Builtins.ctx_init
   };
 
 let get_env_init = (editors: t): Environment.t =>

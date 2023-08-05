@@ -207,7 +207,7 @@ let prompt = (~ctx_init, editor: Editor.t): option(OpenAI.prompt) => {
   let ctx =
     switch (ChatLSP.get_ci(~ctx_init, editor)) {
     | Some(ci) => Info.ctx_of(ci)
-    | None => Builtins.ctx(Builtins.Pervasives.builtins)
+    | None => Builtins.ctx_init
     };
   let mode = ChatLSP.Type.mode(~ctx_init, editor);
   let sketch = Printer.to_string_editor(~holes=Some("?"), editor);
