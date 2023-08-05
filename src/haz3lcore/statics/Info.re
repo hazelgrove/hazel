@@ -284,11 +284,16 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
-  | (NoJoin(tys), Ana(ana)) =>
-    NotInHole(
-      Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
-    )
-  | (NoJoin(tys), Syn | SynFun) =>
+  | (NoJoin(wrap, tys), Ana(ana)) =>
+    let syn: Typ.t = wrap(Unknown(Internal));
+    switch (Typ.join_fix(ctx, ana, syn)) {
+    | None => InHole(Inconsistent(Expectation({ana, syn})))
+    | Some(_) =>
+      NotInHole(
+        Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
+      )
+    };
+  | (NoJoin(_, tys), Syn | SynFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
