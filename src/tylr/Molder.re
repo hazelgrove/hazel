@@ -24,6 +24,25 @@ let is_operator = (operand_side: Dir.t, r: Regex.t) =>
 // wrap terrace around kid and complement as needed
 let wrap = (_terr, _kid) => failwith("todo");
 
+// replace ghost with piece above bridge
+// let x = 1 >in< x + 1
+// let x = 1 >in< x + 1 [in]
+// let x = 1 >< x + 1 [in]
+// let x = 1 >< x + 1 in <>
+
+// replace ghost with piece under bridge
+// let x = 1 + 2 >in< x + 1
+// let x = 1 [in] + 2 >in< x + 1
+//
+// let x = 1 in <> + 2 >< x + 1
+
+// replacing even solid bridges?
+// let x = 1 + 2 in x + 1
+// let x = 1 [in] + 2 in x + 1
+//
+// let x = 1 in <> + 2 >in< x + 1
+// or
+// let x = 1 in <> + 2 >< <in> >< x + 1
 module Terrace = {
   let rec mold =
           (~eq_only=false, terr: Terrace.R.t, ~kid=Meld.empty(), t: Token.t)
