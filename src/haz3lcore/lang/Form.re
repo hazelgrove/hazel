@@ -260,10 +260,10 @@ let forms: list((string, t)) = [
   ("divide", mk_infix("/", Exp, P.mult)),
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
-  ("string_append", mk_infix("++", Exp, P.plus)),
+  ("string_concat", mk_infix("++", Exp, P.plus)),
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
-  ("not_equals", mk_infix("!=", Exp, 5)),
+  ("not_equals", mk_infix("!=", Exp, P.eqs)),
   ("not", mk(ds, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
   ("gte", mk_infix(">=", Exp, P.eqs)),
   ("lte", mk_infix("<=", Exp, P.eqs)),
@@ -274,7 +274,7 @@ let forms: list((string, t)) = [
   ("fequals", mk_infix("==.", Exp, P.eqs)),
   ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
   ("fgt", mk_infix(">.", Exp, 5)), //TODO: precedence
-  ("fnot_equals", mk_infix("!=.", Exp, 5)),
+  ("fnot_equals", mk_infix("!=.", Exp, P.eqs)),
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
