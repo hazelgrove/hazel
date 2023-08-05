@@ -629,7 +629,7 @@ select {
   color: #0000 !important;
 }
 
-.code-text-shards span.delim-incomplete {
+.code-text-shards span.incomplete {
   color: var(--code-emphasis) !important;
 }
 
@@ -810,15 +810,7 @@ svg.tile-selected {
 .code .token.Typ { color: var(--typ-text-color); }
 .code .token.Rul { color: var(--rul-text-color); }
 .code .token.TPat { color: var(--tpat-text-color); }
-/*
-.code .token.text-Nul { color: var(--nul-token-color); }
-.code .token.text-Any { color: var(--any-token-color); }
-.code .token.text-Exp { color: var(--exp-token-color); }
-.code .token.text-Pat { color: var(--pat-token-color); }
-.code .token.text-Typ { color: var(--typ-token-color); }
-.code .token.text-Rul { color: var(--rul-token-color); }
-.code .token.text-TPat { color: var(--tpat-token-color); }
-*/
+
 .tile-path.Nul { filter: url(#drop-shadow-Nul); }
 .tile-path.Any { filter: url(#drop-shadow-Any); }
 .tile-path.Exp { filter: url(#drop-shadow-Exp); }
@@ -955,7 +947,7 @@ svg.tile-selected {
 
 .secondary {
   color: rgb(126, 80, 0);
-  opacity: 20%;tok
+  opacity: 20%;
 }
 
 .linebreak {
@@ -1331,7 +1323,7 @@ svg.tile-selected {
 }
 
 .lang-doc .code .token.delim-inconsistent {
-  color: var(--exp-delim-color);
+  color: var(--exp-token-color);
   font-weight: bold;
 }
 
