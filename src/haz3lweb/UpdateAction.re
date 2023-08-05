@@ -34,7 +34,7 @@ type t =
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Cut
   | Copy
   | Paste(string)
