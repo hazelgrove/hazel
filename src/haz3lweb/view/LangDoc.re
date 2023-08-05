@@ -410,11 +410,7 @@ let example_view =
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
-            let info_map =
-              Statics.mk_map_ctx(
-                Builtins.ctx(Builtins.Pervasives.builtins),
-                uhexp,
-              );
+            let info_map = Statics.mk_map_ctx(Builtins.ctx_init, uhexp);
             let result_view =
               switch (Some(Interface.eval_u2d(info_map, uhexp))) {
               | None => []
@@ -2840,7 +2836,7 @@ let get_color_map = (~doc: LangDocMessages.t, zipper: Zipper.t) => {
       let info_map =
         MakeTerm.from_zip_for_view(zipper)
         |> fst
-        |> Statics.mk_map_ctx(Builtins.ctx(Builtins.Pervasives.builtins));
+        |> Statics.mk_map_ctx(Builtins.ctx_init);
       Id.Map.find_opt(index, info_map);
     | None => None
     };

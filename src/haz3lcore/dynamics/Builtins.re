@@ -239,7 +239,6 @@ module Pervasives = {
   };
 
   open Impls;
-  //let builtins = VarMap.empty;
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
@@ -275,17 +274,20 @@ module Pervasives = {
     |> fn("acos", Arrow(Float, Float), acos)
     |> fn("atan", Arrow(Float, Float), atan)
     |> fn("mod", Arrow(Prod([Int, Int]), Int), int_mod)
-    |> fn("String.length", Arrow(String, Int), string_length)
+    |> fn("string_length", Arrow(String, Int), string_length)
     |> fn(
-         "String.compare",
+         "string_compare",
          Arrow(Prod([String, String]), Int),
          string_compare,
        )
-    |> fn("String.trim", Arrow(String, String), string_trim)
+    |> fn("string_trim", Arrow(String, String), string_trim)
     |> fn(
-         "String.concat",
+         "string_concat",
          Arrow(Prod([String, List(String)]), String),
          string_concat,
        )
-    |> fn("String.sub", Arrow(Prod([String, Int, Int]), String), string_sub);
+    |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
 };
+
+let ctx_init = ctx(Pervasives.builtins);
+let forms_init = forms(Pervasives.builtins);
