@@ -162,7 +162,7 @@ module Pervasives = {
           | Some(n) => Ok(BoxedValue(wrap(n)))
           | None =>
             let d' = DHExp.ApBuiltin(name, [d]);
-            Ok(Indet(InvalidOperation(d', ToStringFailed)));
+            Ok(Indet(InvalidOperation(d', InvalidOfString)));
           }
         | d => Error(InvalidBoxedStringLit(d)),
         name,

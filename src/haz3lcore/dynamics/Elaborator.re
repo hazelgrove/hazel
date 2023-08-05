@@ -48,15 +48,10 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | _ => d
       }
     | Fun(_) =>
-      switch (ana_ty) {
-      //| Unknown(prov) =>
-      //  DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
-      | ana_ty =>
-        /* See regression tests in Examples/Dynamics */
-        let (_, ana_out) = Typ.matched_arrow(ana_ty);
-        let (self_in, _) = Typ.matched_arrow(self_ty);
-        DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
-      }
+      /* See regression tests in Examples/Dynamics */
+      let (_, ana_out) = Typ.matched_arrow(ana_ty);
+      let (self_in, _) = Typ.matched_arrow(self_ty);
+      DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>

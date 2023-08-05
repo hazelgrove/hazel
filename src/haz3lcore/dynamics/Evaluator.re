@@ -1001,9 +1001,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
-          | _ =>
-            print_endline("CastBVHoleGround");
-            raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
+          | _ => raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
