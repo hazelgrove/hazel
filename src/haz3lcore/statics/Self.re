@@ -59,6 +59,11 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | Free(_) => None
     | Common(self) => typ_of(ctx, self);
 
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+  ctx =>
+    fun
+    | Common(self) => typ_of(ctx, self);
+
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
@@ -80,11 +85,16 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
       },
   });
 
-/* The self assigned to things like cases and list literals
-   which can have internal type inconsistencies. */
-let join =
-    (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t): t =>
+let add_source = List.map2((id, ty) => Typ.{id, ty});
+
+let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(wrap, List.map2((id, ty) => Typ.{id, ty}, ids, tys))
-  | Some(ty) => Just(wrap(ty))
+  | None => NoJoin(ty => ty, add_source(ids, tys))
+  | Some(ty) => Just(ty)
+  };
+
+let listlit = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(List(ty))
   };

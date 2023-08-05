@@ -85,12 +85,14 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let is_bool = str => str == "true" || str == "false";
+let bools = ["true", "false"];
+let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = is_capitalized_name;
-let is_base_typ = regexp("^(String|Int|Float|Bool)$");
+let base_typs = ["String", "Int", "Float", "Bool"];
+let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
 let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
@@ -103,9 +105,20 @@ let is_bad_lit = str =>
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
 let is_string = t =>
-  regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
+  regexp("^\"[^⏎]*\"$", t)
+  && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let is_string_delim = (==)(string_delim);
+let strip_quotes = s =>
+  if (String.length(s) < 2) {
+    s;
+  } else if (String.sub(s, 0, 1) != "\""
+             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+    s;
+  } else {
+    String.sub(s, 1, String.length(s) - 2);
+  };
+let string_quote = s => "\"" ++ s ++ "\"";
 
 /* List literals */
 let list_start = "[";

@@ -1,49 +1,6 @@
 open Sexplib.Std;
 
 module rec DHExp: {
-  module BinBoolOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | And
-      | Or;
-  };
-
-  module BinIntOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals;
-  };
-
-  module BinFloatOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | FPlus
-      | FMinus
-      | FTimes
-      | FPower
-      | FDivide
-      | FLessThan
-      | FLessThanOrEqual
-      | FGreaterThan
-      | FGreaterThanOrEqual
-      | FEquals;
-  };
-
-  module BinStringOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | SEquals;
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -52,7 +9,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -65,10 +22,10 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
-    | BinStringOp(BinStringOp.t, t, t)
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | Tuple(list(t))
@@ -94,49 +51,6 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 } = {
-  module BinBoolOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | And
-      | Or;
-  };
-
-  module BinIntOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals;
-  };
-
-  module BinFloatOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | FPlus
-      | FMinus
-      | FTimes
-      | FPower
-      | FDivide
-      | FLessThan
-      | FLessThanOrEqual
-      | FGreaterThan
-      | FGreaterThanOrEqual
-      | FEquals;
-  };
-
-  module BinStringOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | SEquals;
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -161,10 +75,10 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
-    | BinStringOp(BinStringOp.t, t, t)
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | Tuple(list(t))

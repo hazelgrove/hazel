@@ -475,11 +475,16 @@ let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({term: {term: Var(name) | Constructor(name), _}, ctx, _})
-  | InfoPat({term: {term: Constructor(name), _}, ctx, _})
+  | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
+    let+ entry = Ctx.lookup_var(ctx, name);
+    entry.id;
+  | InfoExp({term: {term: Constructor(name), _}, ctx, _})
+  | InfoPat({term: {term: Constructor(name), _}, ctx, _}) =>
+    let+ entry = Ctx.lookup_ctr(ctx, name);
+    entry.id;
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup(ctx, name);
-    Ctx.get_id(entry);
+    let+ entry = Ctx.lookup_tvar(ctx, name);
+    entry.id;
   | _ => None
   };
 };

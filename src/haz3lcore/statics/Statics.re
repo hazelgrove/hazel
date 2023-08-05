@@ -163,7 +163,7 @@ and uexp_to_info_map =
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
-      ~self=Self.join(ty => List(ty), tys, ids, ctx),
+      ~self=Self.listlit(ctx, tys, ids),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
@@ -247,7 +247,7 @@ and uexp_to_info_map =
     let (cons, m) = go(~mode, e1, m);
     let (alt, m) = go(~mode, e2, m);
     add(
-      ~self=Self.join(Fun.id, [cons.ty, alt.ty], branch_ids, ctx),
+      ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
       ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
       m,
     );
@@ -270,7 +270,7 @@ and uexp_to_info_map =
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     add(
-      ~self=Self.join(Fun.id, e_tys, branch_ids, ctx),
+      ~self=Self.match(ctx, e_tys, branch_ids),
       ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
       m,
     );
@@ -360,11 +360,7 @@ and upat_to_info_map =
   | ListLit(ps) =>
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(
-      ~self=Self.join(ty => List(ty), tys, List.map(UPat.rep_id, ps), ctx),
-      ~ctx,
-      m,
-    );
+    add(~self=Self.listlit(ctx, tys, List.map(UPat.rep_id, ps)), ~ctx, m);
   | Cons(hd, tl) =>
     let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =
