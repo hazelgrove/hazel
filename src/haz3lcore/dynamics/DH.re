@@ -61,7 +61,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)

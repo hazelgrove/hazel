@@ -10,17 +10,19 @@ let of_delim' =
     ((sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
-        | [_] when !is_consistent => "mono-inconsistent"
-        | [s] when Form.is_string(s) => "mono-string-lit"
+        | [_] when !is_consistent => "sort-inconsistent"
+        | _ when !is_complete => "incomplete"
+        | [s] when Form.is_string(s) => "string-lit"
         | [_] => "mono"
         | _ when !is_consistent => "delim-inconsistent"
-        | _ when !is_complete => "delim-incomplete"
+
         | _ => "delim"
         };
+      let plurality = List.length(label) == 1 ? "mono" : "poly";
       [
         span(
           ~attr=
-            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+            Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
           [Node.text(List.nth(label, i))],
         ),
       ];
@@ -57,8 +59,7 @@ module Text = (M: {
                  let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
-  let rec of_segment =
-          (~no_sorts=false, ~sort=Sort.root, seg: Segment.t): list(Node.t) => {
+  let rec of_segment = (~no_sorts=false, ~sort, seg: Segment.t): list(Node.t) => {
     //note: no_sorts flag is used for backback
     let expected_sorts =
       no_sorts
@@ -124,7 +125,7 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(unselected))],
+    [span_c("code-text", Text.of_segment(~sort=Sort.Any, unselected))],
   );
 };
 
@@ -144,7 +145,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected)
+      Text.of_segment(~sort=Exp, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
