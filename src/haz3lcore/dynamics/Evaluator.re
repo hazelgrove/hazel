@@ -551,7 +551,8 @@ and matches_cast_Cons =
 /**
   [eval_bin_bool_op op b1 b2] is the result of applying [op] to [b1] and [b2].
  */
-let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
+let eval_bin_bool_op =
+    (op: TermBase.UExp.op_bin_bool, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
   | And => BoolLit(b1 && b2)
   | Or => BoolLit(b1 || b2)
@@ -562,7 +563,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   resolved with just [b1].
  */
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(DHExp.t) =>
+    (op: TermBase.UExp.op_bin_bool, b1: bool): option(DHExp.t) =>
   switch (op, b1) {
   | (Or, true) => Some(BoolLit(true))
   | (And, false) => Some(BoolLit(false))
@@ -572,7 +573,8 @@ let eval_bin_bool_op_short_circuit =
 /**
   [eval_bin_int_op op n1 n2] is the result of applying [op] to [n1] and [n2].
  */
-let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
+let eval_bin_int_op =
+    (op: TermBase.UExp.op_bin_int, n1: int, n2: int): DHExp.t => {
   switch (op) {
   | Minus => IntLit(n1 - n2)
   | Plus => IntLit(n1 + n2)
@@ -591,25 +593,25 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   [eval_bin_float_op op f1 f2] is the result of applying [op] to [f1] and [f2].
  */
 let eval_bin_float_op =
-    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
+    (op: TermBase.UExp.op_bin_float, f1: float, f2: float): DHExp.t => {
   switch (op) {
-  | FPlus => FloatLit(f1 +. f2)
-  | FMinus => FloatLit(f1 -. f2)
-  | FTimes => FloatLit(f1 *. f2)
-  | FPower => FloatLit(f1 ** f2)
-  | FDivide => FloatLit(f1 /. f2)
-  | FLessThan => BoolLit(f1 < f2)
-  | FLessThanOrEqual => BoolLit(f1 <= f2)
-  | FGreaterThan => BoolLit(f1 > f2)
-  | FGreaterThanOrEqual => BoolLit(f1 >= f2)
-  | FEquals => BoolLit(f1 == f2)
+  | Plus => FloatLit(f1 +. f2)
+  | Minus => FloatLit(f1 -. f2)
+  | Times => FloatLit(f1 *. f2)
+  | Power => FloatLit(f1 ** f2)
+  | Divide => FloatLit(f1 /. f2)
+  | LessThan => BoolLit(f1 < f2)
+  | LessThanOrEqual => BoolLit(f1 <= f2)
+  | GreaterThan => BoolLit(f1 > f2)
+  | GreaterThanOrEqual => BoolLit(f1 >= f2)
+  | Equals => BoolLit(f1 == f2)
   };
 };
 
 let eval_bin_string_op =
-    (op: DHExp.BinStringOp.t, s1: string, s2: string): DHExp.t =>
+    (op: TermBase.UExp.op_bin_string, s1: string, s2: string): DHExp.t =>
   switch (op) {
-  | SEquals => BoolLit(s1 == s2)
+  | Equals => BoolLit(s1 == s2)
   };
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =

@@ -1,13 +1,13 @@
 open Haz3lcore;
 module Doc = Pretty.Doc;
 
-let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
+let precedence_bin_bool_op = (op: TermBase.UExp.op_bin_bool) =>
   switch (op) {
   | And => DHDoc_common.precedence_And
   | Or => DHDoc_common.precedence_Or
   };
 
-let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
+let precedence_bin_int_op = (bio: TermBase.UExp.op_bin_int) =>
   switch (bio) {
   | Times => DHDoc_common.precedence_Times
   | Power => DHDoc_common.precedence_Power
@@ -20,22 +20,22 @@ let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
   | GreaterThan => DHDoc_common.precedence_GreaterThan
   | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
-let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
+let precedence_bin_float_op = (bfo: TermBase.UExp.op_bin_float) =>
   switch (bfo) {
-  | FTimes => DHDoc_common.precedence_Times
-  | FPower => DHDoc_common.precedence_Power
-  | FDivide => DHDoc_common.precedence_Divide
-  | FPlus => DHDoc_common.precedence_Plus
-  | FMinus => DHDoc_common.precedence_Minus
-  | FEquals => DHDoc_common.precedence_Equals
-  | FLessThan => DHDoc_common.precedence_LessThan
-  | FLessThanOrEqual => DHDoc_common.precedence_LessThan
-  | FGreaterThan => DHDoc_common.precedence_GreaterThan
-  | FGreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
+  | Times => DHDoc_common.precedence_Times
+  | Power => DHDoc_common.precedence_Power
+  | Divide => DHDoc_common.precedence_Divide
+  | Plus => DHDoc_common.precedence_Plus
+  | Minus => DHDoc_common.precedence_Minus
+  | Equals => DHDoc_common.precedence_Equals
+  | LessThan => DHDoc_common.precedence_LessThan
+  | LessThanOrEqual => DHDoc_common.precedence_LessThan
+  | GreaterThan => DHDoc_common.precedence_GreaterThan
+  | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
-let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
+let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
   switch (bso) {
-  | SEquals => DHDoc_common.precedence_Equals
+  | Equals => DHDoc_common.precedence_Equals
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
@@ -77,7 +77,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   };
 };
 
-let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc.t =>
+let mk_bin_bool_op = (op: TermBase.UExp.op_bin_bool): DHDoc.t =>
   Doc.text(
     switch (op) {
     | And => "&&"
@@ -85,7 +85,7 @@ let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc.t =>
     },
   );
 
-let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
+let mk_bin_int_op = (op: TermBase.UExp.op_bin_int): DHDoc.t =>
   Doc.text(
     switch (op) {
     | Minus => "-"
@@ -101,26 +101,26 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
     },
   );
 
-let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
+let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
   Doc.text(
     switch (op) {
-    | FMinus => "-."
-    | FPlus => "+."
-    | FTimes => "*."
-    | FPower => "**."
-    | FDivide => "/."
-    | FLessThan => "<."
-    | FLessThanOrEqual => "<=."
-    | FGreaterThan => ">."
-    | FGreaterThanOrEqual => ">=."
-    | FEquals => "==."
+    | Minus => "-."
+    | Plus => "+."
+    | Times => "*."
+    | Power => "**."
+    | Divide => "/."
+    | LessThan => "<."
+    | LessThanOrEqual => "<=."
+    | GreaterThan => ">."
+    | GreaterThanOrEqual => ">=."
+    | Equals => "==."
     },
   );
 
-let mk_bin_string_op = (op: DHExp.BinStringOp.t): DHDoc.t =>
+let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
   Doc.text(
     switch (op) {
-    | SEquals => "$=="
+    | Equals => "$=="
     },
   );
 
