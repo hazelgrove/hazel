@@ -55,16 +55,8 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             | OperationError(InvalidIntOfString) => (
-                 [with_cls("OperationError", txt)],
-                 ds,
-               )
-             | OperationError(InvalidFloatOfString) => (
-                 [with_cls("OperationError", txt)],
-                 ds,
-               )
              | OperationError(
-                 DivideByZero | ToStringFailed | IndexOutOfBounds,
+                 DivideByZero | InvalidOfString | IndexOutOfBounds,
                ) => (
                  [with_cls("OperationError", txt)],
                  ds,
@@ -198,16 +190,8 @@ let view_of_layout_tylr =
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(
-                 DivideByZero | ToStringFailed | IndexOutOfBounds,
+                 DivideByZero | InvalidOfString | IndexOutOfBounds,
                ) => (
-                 [with_cls("OperationError", txt)],
-                 ds,
-               )
-             | OperationError(InvalidIntOfString) => (
-                 [with_cls("OperationError", txt)],
-                 ds,
-               )
-             | OperationError(InvalidFloatOfString) => (
                  [with_cls("OperationError", txt)],
                  ds,
                )
