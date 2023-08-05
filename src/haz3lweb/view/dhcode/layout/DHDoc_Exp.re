@@ -37,7 +37,7 @@ let precedence_bin_float_op = (bfo: TermBase.UExp.op_bin_float) =>
   };
 let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
   switch (bso) {
-  | Concat => DHDoc_common.precedence_Plus //TODO: consistency
+  | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {

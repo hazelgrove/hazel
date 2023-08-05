@@ -5,7 +5,7 @@ open OptUtil.Syntax;
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
-let precedence_const = 4;
+let precedence_Const = 4;
 
 module rec Typ: {
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
@@ -169,6 +169,7 @@ module rec Typ: {
     | List(ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => Unknown(Internal);
+
   let precedence = (ty: t): int =>
     switch (ty) {
     | Int
@@ -178,8 +179,8 @@ module rec Typ: {
     | Unknown(_)
     | Var(_)
     | Rec(_)
-    | Sum(_)
-    | List(_) => precedence_const
+    | Sum(_) => precedence_Sum
+    | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
     };
