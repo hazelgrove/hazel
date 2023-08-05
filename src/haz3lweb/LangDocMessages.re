@@ -40,6 +40,7 @@ type form_group = {
 // TODO Make sure using this for all the forms that should, like wild and nil
 // TODO Should this have its own ID generator or is using the Example one fine?
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
+let list_concat_exp = () => Example.mk_monotile(Form.get("list_concat"));
 let cons_pat = () => Example.mk_monotile(Form.get("cons_pat"));
 let seq = () => Example.mk_monotile(Form.get("cell-join"));
 let exp = v =>
@@ -61,12 +62,14 @@ let mk_list_pat = Example.mk_tile(Form.get("list_lit_pat"));
 let mk_list_typ = Example.mk_tile(Form.get("list_typ"));
 let arrow = () => Example.mk_monotile(Form.get("type-arrow"));
 let unary_minus = () => Example.mk_monotile(Form.get("unary_minus"));
+let unary_not = () => Example.mk_monotile(Form.get("not"));
 let plus = () => Example.mk_monotile(Form.get("plus"));
 let minus = () => Example.mk_monotile(Form.get("minus"));
 let times = () => Example.mk_monotile(Form.get("times"));
 let power = () => Example.mk_monotile(Form.get("power"));
 let divide = () => Example.mk_monotile(Form.get("divide"));
 let equals = () => Example.mk_monotile(Form.get("equals"));
+let not_equals = () => Example.mk_monotile(Form.get("not_equals"));
 let lt = () => Example.mk_monotile(Form.get("lt"));
 let lte = () => Example.mk_monotile(Form.get("lte"));
 let gt = () => Example.mk_monotile(Form.get("gt"));
@@ -77,11 +80,13 @@ let ftimes = () => Example.mk_monotile(Form.get("ftimes"));
 let fpower = () => Example.mk_monotile(Form.get("fpower"));
 let fdivide = () => Example.mk_monotile(Form.get("fdivide"));
 let fequals = () => Example.mk_monotile(Form.get("fequals"));
+let fnot_equals = () => Example.mk_monotile(Form.get("fnot_equals"));
 let flt = () => Example.mk_monotile(Form.get("flt"));
 let flte = () => Example.mk_monotile(Form.get("flte"));
 let fgt = () => Example.mk_monotile(Form.get("fgt"));
 let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let sequals = () => Example.mk_monotile(Form.get("string_equals"));
+let sconcat = () => Example.mk_monotile(Form.get("string_concat"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
@@ -1693,6 +1698,8 @@ let test_exp: form = {
 };
 
 let cons_exp_group = "cons_exp_group";
+let list_concat_exp_group = "list_concat_exp_group";
+
 let cons1_ex = {
   sub_id: "cons1_ex",
   term: mk_example("1::[]"),
@@ -1724,8 +1731,28 @@ let cons_exp: form = {
     examples: [cons1_ex, cons2_ex],
   };
 };
+let list_concat_exp: form = {
+  let explanation = {
+    message: "List concatenation operator. Creates a list by combining the [*first operand*](%i) and the [*second operand*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "list_concat_exp",
+    syntactic_form: [
+      exp("xs"),
+      space(),
+      list_concat_exp(),
+      space(),
+      exp("ys"),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 
 let int_unary_minus_group = "int_unary_minus_group";
+let bool_unary_not_group = "bool_unary_not_group";
 let int_plus_group = "int_plus_group";
 let int_minus_group = "int_minus_group";
 let int_times_group = "int_times_group";
@@ -1736,6 +1763,7 @@ let int_lte_group = "int_lte_group";
 let int_gt_group = "int_gt_group";
 let int_gte_group = "int_gte_group";
 let int_eq_group = "int_eq_group";
+let int_neq_group = "int_neq_group";
 let float_plus_group = "float_plus_group";
 let float_minus_group = "float_minus_group";
 let float_times_group = "float_times_group";
@@ -1746,9 +1774,11 @@ let float_lte_group = "float_lte_group";
 let float_gt_group = "float_gt_group";
 let float_gte_group = "float_gte_group";
 let float_eq_group = "float_eq_group";
+let float_neq_group = "float_neq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
 let str_eq_group = "str_eq_group";
+let str_concat_group = "str_concat_group";
 let int_unary_minus_ex = {
   sub_id: "int_unary_minus_ex",
   term: mk_example("-1"),
@@ -1973,13 +2003,13 @@ let bool_and2_ex = {
 };
 let bool_or1_ex = {
   sub_id: "bool_or1_ex",
-  term: mk_example("false \/ 2 < 1"),
+  term: mk_example("false \\/ 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
   feedback: Unselected,
 };
 let bool_or2_ex = {
   sub_id: "bool_or2_ex",
-  term: mk_example("3 < 4 \/ false"),
+  term: mk_example("3 < 4 \\/ false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
   feedback: Unselected,
 };
@@ -1999,6 +2029,19 @@ let _exp = exp("e");
 let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp), exp_id),
 ];
+let bool_unary_not_exp: form = {
+  let explanation = {
+    message: "Unary not. Performs boolean negation of the [*operand*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "bool_unary_not_exp",
+    syntactic_form: [unary_not(), _exp],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let int_unary_minus_exp: form = {
   let explanation = {
     message: "Unary minus. Performs integer negation of the [*operand*](%i).",
@@ -2245,6 +2288,19 @@ let int_eq_exp: form = {
     examples: [int_eq1_ex, int_eq2_ex],
   };
 };
+let int_neq_exp: form = {
+  let explanation = {
+    message: "Integer inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "int_neq_exp",
+    syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
 let float_plus_exp_coloring_ids =
@@ -2473,6 +2529,19 @@ let float_eq_exp: form = {
     examples: [float_eq1_ex, float_eq2_ex],
   };
 };
+let float_neq_exp: form = {
+  let explanation = {
+    message: "Floating-point inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "float_neq_exp",
+    syntactic_form: [_exp1, space(), fnot_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
 let bool_and_exp_coloring_ids =
@@ -2541,6 +2610,19 @@ let str_eq_exp: form = {
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
+  };
+};
+let str_concat_exp: form = {
+  let explanation = {
+    message: "String concatenation. Returns the concatenation of the [*left operand*](%i) and the [*right operand*](%i),",
+    feedback: Unselected,
+  };
+  {
+    id: "str_concat_exp",
+    syntactic_form: [_exp1, space(), sconcat(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
   };
 };
 
@@ -3443,6 +3525,8 @@ let init = {
     seq_exp,
     test_exp,
     cons_exp,
+    list_concat_exp,
+    bool_unary_not_exp,
     int_unary_minus_exp,
     int_plus_exp,
     int_minus_exp,
@@ -3454,6 +3538,7 @@ let init = {
     int_gt_exp,
     int_gte_exp,
     int_eq_exp,
+    int_neq_exp,
     float_plus_exp,
     float_minus_exp,
     float_times_exp,
@@ -3464,9 +3549,11 @@ let init = {
     float_gt_exp,
     float_gte_exp,
     float_eq_exp,
+    float_neq_exp,
     bool_and_exp,
     bool_or_exp,
     str_eq_exp,
+    str_concat_exp,
     case_exp,
     // Rules
     // Patterns
@@ -3803,6 +3890,8 @@ let init = {
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),
     (cons_exp_group, init_options([(cons_exp.id, [])])),
+    (list_concat_exp_group, init_options([(list_concat_exp.id, [])])),
+    (bool_unary_not_group, init_options([(bool_unary_not_exp.id, [])])),
     (int_unary_minus_group, init_options([(int_unary_minus_exp.id, [])])),
     (int_plus_group, init_options([(int_plus_exp.id, [])])),
     (int_minus_group, init_options([(int_minus_exp.id, [])])),
@@ -3814,6 +3903,7 @@ let init = {
     (int_gt_group, init_options([(int_gt_exp.id, [])])),
     (int_gte_group, init_options([(int_gte_exp.id, [])])),
     (int_eq_group, init_options([(int_eq_exp.id, [])])),
+    (int_neq_group, init_options([(int_neq_exp.id, [])])),
     (float_plus_group, init_options([(float_plus_exp.id, [])])),
     (float_minus_group, init_options([(float_minus_exp.id, [])])),
     (float_times_group, init_options([(float_times_exp.id, [])])),
@@ -3824,9 +3914,11 @@ let init = {
     (float_gt_group, init_options([(float_gt_exp.id, [])])),
     (float_gte_group, init_options([(float_gte_exp.id, [])])),
     (float_eq_group, init_options([(float_eq_exp.id, [])])),
+    (float_neq_group, init_options([(float_neq_exp.id, [])])),
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),
     (str_eq_group, init_options([(str_eq_exp.id, [])])),
+    (str_concat_group, init_options([(str_concat_exp.id, [])])),
     (case_exp_group, init_options([(case_exp.id, [])])),
     // Rules
     // Patterns

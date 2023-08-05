@@ -1983,14 +1983,44 @@ let get_doc =
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
-      | ListConcat(_) =>
-        //TODO(docs)
-        default
+      | ListConcat(xs, ys) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.list_concat_exp_group,
+            docs,
+          );
+        let hd_id = List.nth(xs.ids, 0);
+        let tl_id = List.nth(ys.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.list_concat_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            hd_id,
+            tl_id,
+          ),
+          LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
+        );
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>
-          //TODO(docs)
-          default
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.bool_unary_not_group,
+              docs,
+            );
+          let exp_id = List.nth(exp.ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.bool_unary_not_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i"),
+              exp_id,
+            ),
+            LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
+          );
         | Int(Minus) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -2052,10 +2082,8 @@ let get_doc =
               LangDocMessages.int_eq_group,
               LangDocMessages.int_eq_exp_coloring_ids,
             )
-          | Int(NotEquals) =>
-            //TODO(docs)
-            (
-              LangDocMessages.int_eq_group,
+          | Int(NotEquals) => (
+              LangDocMessages.int_neq_group,
               LangDocMessages.int_eq_exp_coloring_ids,
             )
           | Float(Plus) => (
@@ -2099,10 +2127,8 @@ let get_doc =
               LangDocMessages.float_eq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
             )
-          | Float(NotEquals) =>
-            //TODO(docs)
-            (
-              LangDocMessages.float_eq_group,
+          | Float(NotEquals) => (
+              LangDocMessages.float_neq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
             )
           | Bool(And) => (
@@ -2117,10 +2143,8 @@ let get_doc =
               LangDocMessages.str_eq_group,
               LangDocMessages.str_eq_exp_coloring_ids,
             )
-          | String(Concat) =>
-            //TODO(docs)
-            (
-              LangDocMessages.str_eq_group,
+          | String(Concat) => (
+              LangDocMessages.str_concat_group,
               LangDocMessages.str_eq_exp_coloring_ids,
             )
           };
