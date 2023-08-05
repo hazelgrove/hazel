@@ -162,7 +162,7 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
 let view =
     (
       ~is_in_buffer: Tile.t => bool,
-      ~sort,
+      ~sort: Sort.t,
       ~font_metrics,
       ~segment,
       ~unselected,
