@@ -128,6 +128,7 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
 
 let view =
     (
+      ~sort: Sort.t,
       ~font_metrics,
       ~segment,
       ~unselected,
@@ -142,7 +143,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~sort=Exp, unselected)
+      Text.of_segment(~sort, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

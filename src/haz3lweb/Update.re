@@ -109,7 +109,7 @@ let reevaluate_post_update =
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
+  | ResetCurrentEditor
   | SwitchEditor(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)
@@ -248,7 +248,7 @@ let apply =
     | ExportPersistentData =>
       export_persistent_data();
       Ok(model);
-    | ResetSlide =>
+    | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
       Model.save_and_return({...model, editors});

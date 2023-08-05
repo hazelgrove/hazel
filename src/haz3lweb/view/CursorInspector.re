@@ -16,7 +16,7 @@ let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
   let tooltip = "Toggle language documentation";
   let toggle_landocs = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
+      inject(Update.UpdateLangDocMessages(ToggleShow)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
