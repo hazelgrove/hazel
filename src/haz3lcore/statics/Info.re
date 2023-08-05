@@ -56,9 +56,9 @@ type error_no_type =
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
-  /* No type can be assigned */
+  /* Underdetermined: No type can be assigned */
   | NoType(error_no_type)
-  /* Assigned type inconsistent with expectation */
+  /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -182,12 +182,12 @@ type exp = {
   term: UExp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
-  mode: Mode.t, /* Parental type expectations; see Mode.re */
-  self: Self.exp, /* Expectation-independent type info; see Self.re */
-  co_ctx: CoCtx.t, /* Locally unbound variables; see CoCtx.re */
-  cls: Term.Cls.t, /* derived */
-  status: status_exp, /* derived: cursor inspector display */
-  ty: Typ.t /* derived: type after hole fixing */
+  mode: Mode.t, /* Parental type expectations  */
+  self: Self.exp, /* Expectation-independent type info */
+  co_ctx: CoCtx.t, /* Locally free variables */
+  cls: Term.Cls.t, /* DERIVED: Syntax class (i.e. form name) */
+  status: status_exp, /* DERIVED: Ok/Error statuses for display */
+  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -197,9 +197,9 @@ type pat = {
   ctx: Ctx.t,
   mode: Mode.t,
   self: Self.pat,
-  cls: Term.Cls.t, /* derived */
-  status: status_pat, /* derived: cursor inspector display */
-  ty: Typ.t /* derived: type after hole fixing */
+  cls: Term.Cls.t,
+  status: status_pat,
+  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -208,9 +208,9 @@ type typ = {
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
-  cls: Term.Cls.t, /* derived */
-  status: status_typ, /* derived: cursor inspector display */
-  ty: Typ.t /* derived: represented type */
+  cls: Term.Cls.t,
+  status: status_typ,
+  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -218,8 +218,8 @@ type tpat = {
   term: UTPat.t,
   ancestors,
   ctx: Ctx.t,
-  cls: Term.Cls.t, /* derived */
-  status: status_tpat /* derived : cursor inspector display */
+  cls: Term.Cls.t,
+  status: status_tpat,
 };
 
 /* The static information collated for each term */
