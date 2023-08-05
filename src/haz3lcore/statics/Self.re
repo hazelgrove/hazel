@@ -23,7 +23,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
@@ -85,6 +85,6 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
 let join =
     (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t): t =>
   switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => Typ.{id, ty}, ids, tys))
+  | None => NoJoin(wrap, List.map2((id, ty) => Typ.{id, ty}, ids, tys))
   | Some(ty) => Just(wrap(ty))
   };
