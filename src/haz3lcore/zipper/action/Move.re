@@ -115,7 +115,6 @@ module Make = (M: Editor.Meta.S) => {
     let d =
       goal.row < init.row || goal.row == init.row && goal.col < init.col
         ? Direction.Left : Right;
-
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
       switch (
@@ -158,12 +157,10 @@ module Make = (M: Editor.Meta.S) => {
         }
       };
     };
-
     let res = go(z, z);
     Measured.Point.equals(caret_point(res), caret_point(z))
       ? None : Some(res);
   };
-
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
     /* Here f should be a function which results in strict d-wards

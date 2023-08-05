@@ -57,9 +57,9 @@ type error_no_type =
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_common =
-  /* No type can be assigned */
+  /* Underdetermined: No type can be assigned */
   | NoType(error_no_type)
-  /* Assigned type inconsistent with expectation */
+  /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -183,12 +183,12 @@ type exp = {
   term: UExp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
-  mode: Mode.t, /* Parental type expectations; see Mode.re */
-  self: Self.exp, /* Expectation-independent type info; see Self.re */
-  co_ctx: CoCtx.t, /* Locally unbound variables; see CoCtx.re */
-  cls: Term.Cls.t, /* derived */
-  status: status_exp, /* derived: cursor inspector display */
-  ty: Typ.t /* derived: type after hole fixing */
+  mode: Mode.t, /* Parental type expectations  */
+  self: Self.exp, /* Expectation-independent type info */
+  co_ctx: CoCtx.t, /* Locally free variables */
+  cls: Term.Cls.t, /* DERIVED: Syntax class (i.e. form name) */
+  status: status_exp, /* DERIVED: Ok/Error statuses for display */
+  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -313,11 +313,16 @@ let rec status_common =
   | (IsMulti, _) =>
     // TODO(andrew): making these errors for now for llm purposes
     InHole(NoType(MultiError))
-  | (NoJoin(tys), Ana(ana)) =>
-    NotInHole(
-      Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
-    )
-  | (NoJoin(tys), Syn | SynFun) =>
+  | (NoJoin(wrap, tys), Ana(ana)) =>
+    let syn: Typ.t = wrap(Unknown(Internal));
+    switch (Typ.join_fix(ctx, ana, syn)) {
+    | None => InHole(Inconsistent(Expectation({ana, syn})))
+    | Some(_) =>
+      NotInHole(
+        Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
+      )
+    };
+  | (NoJoin(_, tys), Syn | SynFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 

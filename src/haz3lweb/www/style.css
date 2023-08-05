@@ -302,6 +302,7 @@ body {
   grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
+  user-select: none;
 }
 
 #main {
@@ -450,7 +451,6 @@ select {
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
-  user-select: none;
   background-color: #c7b480;
   border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
@@ -594,7 +594,6 @@ select {
 .cell {
   display: flex;
   flex-direction: column;
-  user-select: none;
   gap: 1em;
   /* border-radius: 0.4em; */
   padding-left: 1em;
@@ -610,14 +609,28 @@ select {
 
 .cell-caption {
   color: var(--top-bar-text);
-  user-select: none;
 }
 
 .code-text {
   position: relative;
   z-index: var(--code-text-z);
-  user-select: none;
   white-space: pre;
+}
+
+/* NOTE(andrew): below 3 styles are part of
+   a hack to display incomplete delims in
+   selections */
+.code-text-shards {
+  /*position: absolute;*/
+  z-index: var(--code-text-shards-z);
+}
+
+.code-text-shards span {
+  color: #0000 !important;
+}
+
+.code-text-shards span.delim-incomplete {
+  color: var(--code-emphasis) !important;
 }
 
 .empty-hole {
@@ -1057,6 +1070,10 @@ svg.tile-selected {
   gap: 0em;
 }
 
+.typ-view.atom.unknown {
+  /* to advertise provenance display on-hover */
+  cursor: help;
+}
 .typ-alias-view {
   color: var(--tpat-text-color);
   display: flex;
@@ -1877,7 +1894,6 @@ svg.expandable path {
 }
 
 .toggle-switch {
-  user-select: none;
   height: 1.2em;
   width: 2em;
   display: inline-block;
