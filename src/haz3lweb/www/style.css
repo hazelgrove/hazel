@@ -73,49 +73,49 @@
 
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
-  --nul-delim-color: var(--nul-text-color);
+  --nul-token-color: var(--nul-text-color);
   --nul-shadow-color: var(--nul-text-color);
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
   --any-text-color: var(--nul-text-color);
   --any-off-color: var(--nul-off-color);
-  --any-delim-color: var(--nul-delim-color);
+  --any-token-color: var(--nul-token-color);
   --any-shadow-color: var(--nul-shadow-color);
   --any-bg-color: var(--nul-bg-color);
   --any-bg-off-color: var(--nul-bg-off-color);
 
   --exp-text-color: var(--light-text-color);
   --exp-off-color: #b1a47f;
-  --exp-delim-color: var(--light-text-color);
+  --exp-token-color: var(--light-text-color);
   --exp-shadow-color: #c4b599;
   --exp-bg-color: #ebdfc5;
   --exp-bg-off-color: #feddb3;
 
   --pat-text-color: #169fdc;
   --pat-off-color: #13aed2;
-  --pat-delim-color: #a2dffb;
+  --pat-token-color: #a2dffb;
   --pat-shadow-color: var(--pat-off-color);
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
 
   --tpat-text-color: #16c8dc;
   --tpat-off-color: #13d2d2;
-  --tpat-delim-color: #a2fbf9;
+  --tpat-token-color: #a2fbf9;
   --tpat-shadow-color: var(--pat-off-color);
   --tpat-bg-color: #b2fbff;
   --tpat-bg-off-color: #d7fff7;
 
   --typ-text-color: #772cff;
   --typ-off-color: #975dff;
-  --typ-delim-color: #cfb5ff;
+  --typ-token-color: #cfb5ff;
   --typ-shadow-color: var(--typ-off-color);
   --typ-bg-color: #f2ccff;
   --typ-bg-off-color: #f9e8ff;
 
   --rul-text-color: var(--exp-text-color);
   --rul-off-color: var(--exp-off-color);
-  --rul-delim-color: #ccc2af;
+  --rul-token-color: #ccc2af;
   --rul-shadow-color: var(--exp-shadow-color);
   --rul-bg-color: var(--exp-bg-color);
   --rul-bg-off-color: var(--exp-bg-off-color);
@@ -627,7 +627,7 @@ select {
   color: #0000 !important;
 }
 
-.code-text-shards span.delim-incomplete {
+.code-text-shards span.incomplete {
   color: var(--code-emphasis) !important;
 }
 
@@ -714,26 +714,21 @@ select {
   vector-effect: non-scaling-stroke;
 }
 
-.code .delim {
+.code .token.poly {
   font-weight: bold;
 }
 
-.code .token.mono-string-lit {
+.code .token.mono.string-lit {
   color: var(--string-lit-color);
 }
 
-.code .token.mono-inconsistent {
-  color: var(--err-color);
+.code .token.sort-inconsistent {
+  color: var(--nul-text-color) !important;
 }
 
-.code .token.delim {
-  color: var(--exp-delim-color);
-  font-weight: bold;
-}
 
-.code .token.delim-incomplete {
-  color: var(--code-emphasis);
-  font-weight: bold;
+.code .token.incomplete {
+  color: var(--code-emphasis) !important;
 }
 
 .code .token.delim-inconsistent {
@@ -787,21 +782,13 @@ svg.tile-selected {
 
 /* TOKEN COLORS */
 
-.code .text-Nul { color: var(--nul-text-color); }
-.code .text-Any { color: var(--any-text-color); }
-.code .text-Exp { color: var(--exp-text-color); }
-.code .text-Pat { color: var(--pat-text-color); }
-.code .text-Typ { color: var(--typ-text-color); }
-.code .text-Rul { color: var(--rul-text-color); }
-.code .text-TPat { color: var(--tpat-text-color); }
-
-.code .delim.text-Nul { color: var(--nul-delim-color); }
-.code .delim.text-Any { color: var(--any-delim-color); }
-.code .delim.text-Exp { color: var(--exp-delim-color); }
-.code .delim.text-Pat { color: var(--pat-delim-color); }
-.code .delim.text-Typ { color: var(--typ-delim-color); }
-.code .delim.text-Rul { color: var(--rul-delim-color); }
-.code .delim.text-TPat { color: var(--tpat-delim-color); }
+.code .token.Nul { color: var(--nul-text-color); }
+.code .token.Any { color: var(--any-text-color); }
+.code .token.Exp { color: var(--exp-text-color); }
+.code .token.Pat { color: var(--pat-text-color); }
+.code .token.Typ { color: var(--typ-text-color); }
+.code .token.Rul { color: var(--rul-text-color); }
+.code .token.TPat { color: var(--tpat-text-color); }
 
 .tile-path.Nul { filter: url(#drop-shadow-Nul); }
 .tile-path.Any { filter: url(#drop-shadow-Any); }
@@ -1308,7 +1295,7 @@ svg.tile-selected {
 }
 
 .lang-doc .code .token.delim-inconsistent {
-  color: var(--exp-delim-color);
+  color: var(--exp-token-color);
   font-weight: bold;
 }
 
