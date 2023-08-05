@@ -141,41 +141,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    //TODO(andrew): rm
-    | "p" =>
-      print_endline("DEBUG: CMD+P");
-      let f = (z, id_gen) =>
-        Util.OptUtil.Syntax.(
-          {
-            let s = (z, id_gen);
-            let* s = Insert.go(Form.linebreak, s);
-            let* s = Insert.go(Form.linebreak, s);
-            let* s = Insert.go(Form.linebreak, s);
-            Insert.go(Form.linebreak, s);
-          }
-        );
-      [
-        Update.PerformAction(
-          RemoteAction(Action.Extreme(Right(ByToken)), f),
-        ),
-      ];
-    | "b" =>
-      print_endline("DEBUG: CMD+B");
-      let f = (z, id_gen) =>
-        Util.OptUtil.Syntax.(
-          {
-            let s = (z, id_gen);
-            let* s = Destruct.go(Right, s);
-            let* s = Destruct.go(Right, s);
-            let* s = Destruct.go(Right, s);
-            Destruct.go(Right, s);
-          }
-        );
-      [
-        Update.PerformAction(
-          RemoteAction(Action.Extreme(Right(ByToken)), f),
-        ),
-      ];
     | "z" => now_save_u(Undo)
     | "d" => now(Select(Term(Current)))
     //| "p" => now(Pick_up)

@@ -32,16 +32,7 @@ let of_delim' =
         span(
           ~attr=
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
-          switch (label) {
-          /*| [s] when Form.is_string(s) =>
-            let ss = Str.split(Str.regexp("⏎"), s) |> List.map(Node.text);
-            ListUtil.interleave(
-              ss,
-              List.init(List.length(ss) - 1, _ => Node.br()),
-            );*/
-          //[Node.br()]
-          | _ => [Node.text(List.nth(label, i))]
-          },
+          [Node.text(List.nth(label, i))],
         ),
       ];
     },
@@ -123,16 +114,6 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    /*if (!is_consistent) {
-        print_endline(
-          "inconsistent sort: "
-          ++ Sort.to_string(t.mold.out)
-          ++ " vs "
-          ++ Sort.to_string(expected_sort)
-          ++ " for tile:"
-          ++ Tile.show(t),
-        );
-      };*/
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(~is_in_buffer, t.mold.out, is_consistent, t),

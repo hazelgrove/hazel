@@ -48,7 +48,7 @@ type error_inconsistent =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
-  | MultiError //TODO(andrew): ?
+  | MultiError
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
   /* Sum constructor neiter bound nor in ana type */
@@ -196,12 +196,12 @@ type pat = {
   term: UPat.t,
   ancestors,
   ctx: Ctx.t,
-  co_ctx: CoCtx.t, /* Locally unbound variables in this pattern's scope */
+  co_ctx: CoCtx.t,
   mode: Mode.t,
   self: Self.pat,
-  cls: Term.Cls.t, /* derived */
-  status: status_pat, /* derived: cursor inspector display */
-  ty: Typ.t /* derived: type after hole fixing */
+  cls: Term.Cls.t,
+  status: status_pat,
+  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -210,9 +210,9 @@ type typ = {
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
-  cls: Term.Cls.t, /* derived */
-  status: status_typ, /* derived: cursor inspector display */
-  ty: Typ.t /* derived: represented type */
+  cls: Term.Cls.t,
+  status: status_typ,
+  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -220,8 +220,8 @@ type tpat = {
   term: UTPat.t,
   ancestors,
   ctx: Ctx.t,
-  cls: Term.Cls.t, /* derived */
-  status: status_tpat /* derived : cursor inspector display */
+  cls: Term.Cls.t,
+  status: status_tpat,
 };
 
 /* The static information collated for each term */

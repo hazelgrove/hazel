@@ -285,8 +285,6 @@ module Deco =
     let seg = Zipper.unselect_and_zip(z);
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
-      //TODO(andrew): document, make setting: (show/dont show err holes on indicated term)
-      //| _ when Indicated.index(z) == Some(id) => false
       | None => false
       //TODO(andrew): supress drawing holes for multis
       | Some(InfoExp({status: InHole(Common(NoType(MultiError))), _})) =>
