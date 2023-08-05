@@ -461,15 +461,26 @@ module Trim = {
     | _ => wss'
     };
 
-  let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
+  let add_grout =
+      (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
     let (wss, gs) = trim;
 
     /* If we're adding a grout, remove a secondary. Note that
        changes made to the logic here should also take into
-       account the other direction in 'regrout' below. */
-    let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
+       account the other direction in 'regrout' below.
+
+       Examples:
+       1. concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
+       2. convex left "[|]" want "[ |]"=>"[<>|]" (consume)
+       3. convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
+       */
+
+    let trim = (
+      g.shape == Concave && d == Right ? wss : rm_up_to_one_space(wss),
+      gs,
+    );
     let (wss', gs') = cons_g(g, trim);
     /* Hack to supress the addition of leading secondary on a line */
     //let wss' = scooch_over_linebreak(wss');
@@ -478,7 +489,7 @@ module Trim = {
   };
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
+  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
 
@@ -487,13 +498,17 @@ module Trim = {
          conversion of spaces to grout in 'add_grout' above. */
       let new_spaces =
         List.filter_map(
-          ({id, shape}: Grout.t) =>
+          ({id, shape}: Grout.t) => {
             switch (shape) {
-            | Concave => Some(Secondary.mk_space(id))
-            | Convex => None
-            },
+            /* convave right case "let a = 1><in|" => "let a = 1 in |" (convert) */
+            | Concave when d == Right => Some(Secondary.mk_space(id))
+            | _ => None
+            }
+          },
           gs,
-        ); /* Note below that it is important that we add the new spaces
+        );
+
+      /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
          somewhat hacky; we may just want to remove all the spaces
@@ -517,7 +532,7 @@ module Trim = {
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
-      | [] => add_grout(l, merged)
+      | [] => add_grout(~d, l, merged)
       | [_, ..._] => IdGen.return(merged)
       };
     };
@@ -531,7 +546,7 @@ module Trim = {
 let rec regrout = ((l, r), seg) => {
   open IdGen.Syntax;
   let* (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let+ trim = Trim.regrout((l, r), trim);
+  let+ trim = Trim.regrout(Direction.Right, (l, r), trim);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
@@ -559,7 +574,7 @@ and regrout_affix =
           let p = Piece.Tile({...t, children});
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let+ trim = Trim.regrout((r', r), trim);
+          let+ trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         };
       },
@@ -616,6 +631,19 @@ let trim_secondary: (Direction.t, t) => t =
       | [Piece.Secondary(_), ...xs] => trim_l(xs)
       | [_, ..._] => xs
       };
+    trim_f(trim_l, d, ps);
+  };
+
+let trim_grout: (Direction.t, t) => t =
+  (d, ps) => {
+    /* Trims leading/trailing grout */
+    let rec trim_l: list(Base.piece) => list(Base.piece) =
+      xs =>
+        switch (xs) {
+        | [] => []
+        | [Grout(_), ...xs] => trim_l(xs)
+        | [_, ..._] => xs
+        };
     trim_f(trim_l, d, ps);
   };
 
