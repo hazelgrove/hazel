@@ -74,7 +74,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
-  | ListConcat(_) => DHDoc_common.precedence_Concat
+  | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
@@ -179,7 +179,7 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | StringLit(s) => DHDoc_common.mk_StringLit("\"" ++ s ++ "\"")
+      | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
@@ -227,11 +227,7 @@ let rec mk =
         DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
       | ListConcat(d1, d2) =>
         let (doc1, doc2) =
-          mk_right_associative_operands(
-            DHDoc_common.precedence_Concat,
-            d1,
-            d2,
-          );
+          mk_right_associative_operands(DHDoc_common.precedence_Plus, d1, d2);
         DHDoc_common.mk_ListConcat(mk_cast(doc1), mk_cast(doc2));
       | BinBoolOp(op, d1, d2) =>
         let (doc1, doc2) =

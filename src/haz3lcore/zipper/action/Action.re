@@ -33,10 +33,8 @@ type t =
   | Move(move)
   | MoveToNextHole(Direction.t)
   | Jump(jump_target)
-  | RemoteAction(move, (Zipper.t, Id.t) => option((Zipper.t, Id.t)))
   | Select(select)
   | Unselect(option(Direction.t))
-  | SetSelectionFocus(Direction.t)
   | Destruct(Direction.t)
   | Insert(string)
   | RotateBackpack

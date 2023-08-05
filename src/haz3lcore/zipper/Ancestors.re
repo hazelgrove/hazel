@@ -79,7 +79,6 @@ let regrout = (ancs: t) =>
       let* regrouted = regrouted;
       let* ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
       let (l', r') = TupleUtil.map2(Nib.shape, Mold.nibs(a.mold));
-      //TODO(andrew): dunno if below directions are right
       let* trim_l = Segment.Trim.regrout(Left, (l, l'), trim_l);
       let+ trim_r = Segment.Trim.regrout(Right, (r', r), trim_r);
       let pre = pre @ Segment.Trim.to_seg(trim_l);

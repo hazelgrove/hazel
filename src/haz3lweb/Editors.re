@@ -146,20 +146,14 @@ let get_env_init = (editors: t): Environment.t =>
   | Examples(_) => Environment.empty
   };
 
-//TODO(andrew): cleanup
-[@deriving (show({with_path: false}), sexp, yojson)]
-type blah = list((Var.t, DHExp.t));
 let get_spliced_elabs =
     (editors: t): list((ModelResults.key, DHExp.t, Environment.t)) => {
   let ctx_init = get_ctx_init(editors);
   switch (editors) {
   | DebugLoad => []
   | Scratch(idx, slides) =>
-    //print_endline("get_spliced_elabs: idx= " ++ string_of_int(idx));
     let current_slide = List.nth(slides, idx);
-    //print_endline("ctx=" ++ Ctx.show(ctx_init));
     let env_init = get_env_init_slides(ctx_init, slides, idx);
-    //print_endline("env=" ++ Environment.show(env_init));
     let (key, d) = ScratchSlide.spliced_elab(~ctx_init, current_slide);
     [(key, d, env_init)];
   | Examples(name, slides) =>

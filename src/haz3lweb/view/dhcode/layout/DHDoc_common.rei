@@ -10,7 +10,6 @@ let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;
 let precedence_Cons: int;
-let precedence_Concat: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
 let precedence_GreaterThan: int;

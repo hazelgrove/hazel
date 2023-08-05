@@ -179,7 +179,6 @@ let space = " ";
    issues with using \n. Someone who understands regexps better
    should fix this. */
 let linebreak = "⏎";
-//let hspace = "¶";
 let comment_regexp = "^#[^#⏎]*#$"; /* Multiline comments not supported */
 let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
@@ -259,12 +258,9 @@ let forms: list((string, t)) = [
   ("power", mk_infix("**", Exp, P.power)),
   ("fpower", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
-  //("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
-  ("string_append", mk_infix("++", Exp, P.plus)), //TODO: precedence
-  //("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
-  //("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
+  ("string_append", mk_infix("++", Exp, P.plus)),
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
   ("not_equals", mk_infix("!=", Exp, 5)),
@@ -281,18 +277,14 @@ let forms: list((string, t)) = [
   ("fnot_equals", mk_infix("!=.", Exp, 5)),
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
-  //("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
-  //("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("\\/", Exp, P.or_)),
-  //("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
   ("type-arrow", mk_infix("->", Typ, 6)),
-  //("secret_exp", mk(ii, ["", ""], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
@@ -310,10 +302,6 @@ let forms: list((string, t)) = [
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
-  //TODO(andrew): temp hacky shit bwlow
-  ("json{}}", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
-  ("json:", mk(ss, [":"], mk_bin'(P.ann, Exp, Pat, [], Exp))),
-  ("json,", mk_infix(",", Any, P.prod)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
@@ -334,7 +322,7 @@ let forms: list((string, t)) = [
   // ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
   // ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
-  ("list_concat", mk_infix("@", Exp, P.concat)),
+  ("list_concat", mk_infix("@", Exp, P.plus)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),

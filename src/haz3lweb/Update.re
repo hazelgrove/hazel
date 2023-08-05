@@ -97,8 +97,7 @@ let reevaluate_post_update =
   | PerformAction(
       Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
       MoveToBackpackTarget(_) |
-      Jump(_) |
-      SetSelectionFocus(_),
+      Jump(_),
     )
   | MoveToNextHole(_)
   | Save
@@ -112,9 +111,7 @@ let reevaluate_post_update =
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
-  | PerformAction(
-      Destruct(_) | Insert(_) | Pick_up | Put_down | RemoteAction(_),
-    )
+  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor

@@ -469,16 +469,14 @@ module Trim = {
 
     /* If we're adding a grout, remove a secondary. Note that
        changes made to the logic here should also take into
-       account the other direction in 'regrout' below. */
-    /*print_endline(
-        "add grout. direction:"
-        ++ Direction.show(d)
-        ++ " grout shape:"
-        ++ Grout.show_shape(g.shape),
-      );*/
-    // concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
-    // convex left "[|]" want "[ |]"=>"[<>|]" (consume)
-    // convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
+       account the other direction in 'regrout' below.
+
+       Examples:
+       1. concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
+       2. convex left "[|]" want "[ |]"=>"[<>|]" (consume)
+       3. convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
+       */
+
     let trim = (
       g.shape == Concave && d == Right ? wss : rm_up_to_one_space(wss),
       gs,
@@ -501,17 +499,8 @@ module Trim = {
       let new_spaces =
         List.filter_map(
           ({id, shape}: Grout.t) => {
-            /*print_endline(
-                "rm grout. direction:"
-                ++ Direction.show(d)
-                ++ " grout shape:"
-                ++ Grout.show_shape(shape),
-              );*/
-            /* This seems like left... might be due to add_grout calls in
-               Relatives where I reverse directio... this seems load-bearing tho */
             switch (shape) {
-            // convave right case "let a = 1><in|" => "let a = 1 in |" (convert)
-
+            /* convave right case "let a = 1><in|" => "let a = 1 in |" (convert) */
             | Concave when d == Right => Some(Secondary.mk_space(id))
             | _ => None
             }
@@ -543,9 +532,7 @@ module Trim = {
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
-      | [] =>
-        //print_endline("add_grout called in Trim.regrout");
-        add_grout(~d, l, merged)
+      | [] => add_grout(~d, l, merged)
       | [_, ..._] => IdGen.return(merged)
       };
     };
@@ -655,35 +642,6 @@ let trim_grout: (Direction.t, t) => t =
         switch (xs) {
         | [] => []
         | [Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
-    trim_f(trim_l, d, ps);
-  };
-
-let push_grout: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing grout */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Grout(_) as g, Secondary(_) as s, ...xs] => [s, g, ...trim_l(xs)]
-        //| [Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
-    trim_f(trim_l, d, ps);
-  };
-let secondaryze_grout: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing grout */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Grout(_), ...xs] => [
-            Secondary({id: (-1), content: Whitespace(" ")}),
-            ...trim_l(xs),
-          ]
         | [_, ..._] => xs
         };
     trim_f(trim_l, d, ps);

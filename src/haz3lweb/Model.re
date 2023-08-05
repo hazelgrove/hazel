@@ -1,24 +1,24 @@
 open Sexplib.Std;
 open Haz3lcore;
 
-/* MODEL.re
+/* MODEL:
 
-   The model consists of three broad categories. EDITORS is the 'meat',
-   containing the code content and cursor/selection/buffer state for all
-   active editors. SETTINGS are user-selectable preferences. Together,
-   these two comprise the 'persistant' state of the application which is
-   saved to localstore.
+      The model consists of three broad categories. Editors is the meat,
+      containing the code content and cursor/selection/buffer state for all
+      active editors. Settings are user-selectable preferences. Together,
+      these two comprise the persistent state of the application which is
+      saved to localstore.
 
-   META on the other hand consists of everything which is not
-   peristant, including transitory UI_STATE such as whether the mouse
-   is held down, and cached evaluation RESULTS.
+      Meta on the other hand consists of everything which is not
+      peristant, including transitory ui_state such as whether the mouse
+      is held down, and cached evaluation results.
 
-    */
+   */
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
-/* Non-persistant UI state */
+/* Non-persistent UI state */
 [@deriving (show({with_path: false}), yojson, sexp)]
 type ui_state = {
   font_metrics: FontMetrics.t,
@@ -34,7 +34,7 @@ let ui_state_init = {
   mousedown: false,
 };
 
-/* Non-persistant application state */
+/* Non-persistent application state */
 [@deriving (show({with_path: false}), yojson, sexp)]
 type meta = {
   ui_state,
@@ -125,7 +125,7 @@ let save_and_return = (model: t) => {
 };
 let reset = (model: t): t => {
   /* Reset model to default, including in localstorage,
-     but don't otherwise erase localstorage,, allowing
+     but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
   ignore(Store.Settings.init());
   ignore(Store.LangDocMessages.init());

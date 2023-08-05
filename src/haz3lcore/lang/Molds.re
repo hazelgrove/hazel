@@ -37,10 +37,7 @@ let get = (label: Label.t): list(Mold.t) =>
        logic which checks if the token is the prefix of whatever. */
     Form.regexp("^[a-zA-Z0-9_]$", String.sub(t, 0, 1))
       ? [Mold.mk_op(Any, [])] : [Mold.mk_bin(Precedence.min, Any, [])]
-  //Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
-  | (_lbl, None) =>
-    //Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
-    [Mold.mk_op(Any, [])]
+  | (_lbl, None) => [Mold.mk_op(Any, [])]
   };
 
 let delayed_expansions: expansions =

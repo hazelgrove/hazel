@@ -470,7 +470,6 @@ and Ctx: {
   let extend_tvar: (t, tvar_entry) => t;
   let extend_alias: (t, TypVar.t, Id.t, Typ.t) => t;
   let extend_dummy_tvar: (t, TypVar.t) => t;
-  //let lookup: (t, Var.t) => option(entry);
   let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
   let get_id: entry => int;
@@ -508,17 +507,6 @@ and Ctx: {
   type t = list(entry);
 
   let extend = (ctx, entry) => List.cons(entry, ctx);
-
-  //TODO(andrew): deprec
-  let _lookup = (ctx: t, name) =>
-    List.find_map(
-      fun
-      | VarEntry(v) when v.name == name => Some(VarEntry(v))
-      | ConstructorEntry(v) when v.name == name => Some(ConstructorEntry(v))
-      | TVarEntry(v) when v.name == name => Some(TVarEntry(v))
-      | _ => None,
-      ctx,
-    );
 
   let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
     extend(ctx, TVarEntry(tvar_entry));
