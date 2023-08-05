@@ -100,7 +100,6 @@ let reevaluate_post_update =
   | UpdateResult(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | FailedInput(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | ExportPersistentData => false
@@ -280,7 +279,6 @@ let apply =
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
     | PerformAction(a) => perform_action(model, a)
-    | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
       perform_action(model, Destruct(Left))

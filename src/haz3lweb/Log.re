@@ -32,7 +32,6 @@ let is_action_logged: UpdateAction.t => bool =
   | SwitchExampleSlide(_)
   | SwitchEditor(_)
   | PerformAction(_)
-  | FailedInput(_)
   | Cut
   | Copy
   | Paste(_)
