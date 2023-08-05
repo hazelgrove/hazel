@@ -568,7 +568,6 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: TermBase.UExp.term)) {
-      | ListConcat(_) //TODO
       | Invalid(_) => default
       | EmptyHole => basic_info(LangDocMessages.empty_hole_exp_group)
       | MultiHole(_) => basic_info(LangDocMessages.multi_hole_exp_group)
@@ -1984,10 +1983,15 @@ let get_doc =
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
+      | ListConcat(_) =>
+        //TODO(docs)
+        default
       | UnOp(op, exp) =>
         switch (op) {
-        | Int(Minus)
         | Bool(Not) =>
+          //TODO(docs)
+          default
+        | Int(Minus) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
               LangDocMessages.int_unary_minus_group,
@@ -2044,7 +2048,13 @@ let get_doc =
               LangDocMessages.int_gte_group,
               LangDocMessages.int_gte_exp_coloring_ids,
             )
-          | Int(Equals | NotEquals) => (
+          | Int(Equals) => (
+              LangDocMessages.int_eq_group,
+              LangDocMessages.int_eq_exp_coloring_ids,
+            )
+          | Int(NotEquals) =>
+            //TODO(docs)
+            (
               LangDocMessages.int_eq_group,
               LangDocMessages.int_eq_exp_coloring_ids,
             )
@@ -2084,7 +2094,14 @@ let get_doc =
               LangDocMessages.float_gte_group,
               LangDocMessages.float_gte_exp_coloring_ids,
             )
-          | Float(Equals | NotEquals) => (
+
+          | Float(Equals) => (
+              LangDocMessages.float_eq_group,
+              LangDocMessages.float_eq_exp_coloring_ids,
+            )
+          | Float(NotEquals) =>
+            //TODO(docs)
+            (
               LangDocMessages.float_eq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
             )
@@ -2096,7 +2113,13 @@ let get_doc =
               LangDocMessages.bool_or_group,
               LangDocMessages.bool_or_exp_coloring_ids,
             )
-          | String(Equals | Concat) => (
+          | String(Equals) => (
+              LangDocMessages.str_eq_group,
+              LangDocMessages.str_eq_exp_coloring_ids,
+            )
+          | String(Concat) =>
+            //TODO(docs)
+            (
               LangDocMessages.str_eq_group,
               LangDocMessages.str_eq_exp_coloring_ids,
             )

@@ -1973,13 +1973,13 @@ let bool_and2_ex = {
 };
 let bool_or1_ex = {
   sub_id: "bool_or1_ex",
-  term: mk_example("false || 2 < 1"),
+  term: mk_example("false \/ 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
   feedback: Unselected,
 };
 let bool_or2_ex = {
   sub_id: "bool_or2_ex",
-  term: mk_example("3 < 4 || false"),
+  term: mk_example("3 < 4 \/ false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
   feedback: Unselected,
 };
