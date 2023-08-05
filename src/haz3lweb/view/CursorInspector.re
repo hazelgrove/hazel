@@ -94,8 +94,12 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
     ]
   | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
   | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
-  | (Exp(EmptyHole) | Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
-      text("Expecting type"),
+  | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+      text("Fillable by any expression of type"),
+      Type.view(ana),
+    ]
+  | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+      text("Fillable by any pattern of type"),
       Type.view(ana),
     ]
   | (_, Syn(syn)) => [text(":"), Type.view(syn)]
@@ -111,7 +115,7 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
   | (_, Ana(Consistent({ana, syn, _}))) => [
       text(":"),
       Type.view(syn),
-      text("satisfies expected type"),
+      text("consistent with expected type"),
       Type.view(ana),
     ]
   | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
@@ -119,7 +123,7 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
-    @ [text("but these satisfy expected type"), Type.view(ana)]
+    @ [text("but are consistent with expected"), Type.view(ana)]
   };
 };
 
