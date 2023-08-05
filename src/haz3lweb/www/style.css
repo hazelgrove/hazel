@@ -300,6 +300,7 @@ body {
   grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
+  user-select: none;
 }
 
 #main {
@@ -448,7 +449,6 @@ select {
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
-  user-select: none;
   background-color: #c7b480;
   border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
@@ -592,7 +592,6 @@ select {
 .cell {
   display: flex;
   flex-direction: column;
-  user-select: none;
   gap: 1em;
   /* border-radius: 0.4em; */
   padding-left: 1em;
@@ -608,13 +607,11 @@ select {
 
 .cell-caption {
   color: var(--top-bar-text);
-  user-select: none;
 }
 
 .code-text {
   position: relative;
   z-index: var(--code-text-z);
-  user-select: none;
   white-space: pre;
 }
 
@@ -624,7 +621,6 @@ select {
 .code-text-shards {
   /*position: absolute;*/
   z-index: var(--code-text-shards-z);
-  user-select: none;
 }
 
 .code-text-shards span {
@@ -1875,7 +1871,6 @@ svg.expandable path {
 }
 
 .toggle-switch {
-  user-select: none;
   height: 1.2em;
   width: 2em;
   display: inline-block;
