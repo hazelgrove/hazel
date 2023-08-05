@@ -206,42 +206,8 @@ let rec dhexp_of_uexp =
         | _ => Some(BoundVar(name))
         }
       | Constructor(name) =>
-        //TODO(andrew): cleanup
         switch (err_status) {
-        /*| _ when name == "Render" =>
-          /* HACK(andrew): Expanding this constructor to nexted fixes
-             purely so as to used their Typ fields to smuggle out the
-             model and action types for use in MVU casts. 'Fix' has no
-             semantic role here. */
-          switch (Ctx.lookup_alias(ctx, "Model")) {
-          | Some(model_ty) =>
-            switch (Ctx.lookup_alias(ctx, "Action")) {
-            | Some(action_ty) =>
-              switch (Ctx.lookup_alias(ctx, "Node")) {
-              | Some(node_ty) =>
-
-                Some(
-                  FixF(
-                    name,
-                    model_ty,
-                    FixF(
-                      name,
-                      action_ty,
-                      FixF(name, node_ty, Constructor(name)),
-                    ),
-                  ),
-                );
-              | None => Some(Constructor(name))
-              }
-            | None => Some(Constructor(name))
-            }
-          | None => Some(Constructor(name))
-          }*/
         | _ when Hyper.is_export(name) =>
-          /*print_endline(
-              "elaborating export: id:"
-              ++ string_of_int(Hyper.export_id),
-            );*/
           Some(DHExp.Ap(TestLit(Hyper.export_id), Tuple([])))
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
@@ -413,7 +379,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
+let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
@@ -425,4 +391,3 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
       };
     Elaborates(d, ty, Delta.empty);
   };
-};

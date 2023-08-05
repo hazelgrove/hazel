@@ -63,9 +63,6 @@ let di: expansion = (Delayed, Instant);
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
-//let mk_nul_infix = (t: Token.t, prec) =>
-//  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
-
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
 let is_arbitary_float = x =>
@@ -86,7 +83,7 @@ let is_float = str =>
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
-let is_bool = str => List.mem(str, bools);
+let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 let is_reserved = str => is_bool(str);
 let is_var = str =>
   !is_reserved(str)

@@ -623,7 +623,6 @@ let eval_bin_string_op =
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
-    //print_endline("evaluate exexuting, d: " ++ DHExp.show(d));
     let* () = take_step;
 
     switch (d) {
@@ -701,24 +700,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-        /*print_endline("CastArrow Executing:  ");
-          print_endline("Ap(d1, d2):" ++ DHExp.show(Ap(d1, d2)));
-          print_endline("d1': " ++ DHExp.show(d1'));
-          print_endline("d2: " ++ DHExp.show(d2));
-          print_endline("ty1: " ++ Typ.show(ty1));
-          print_endline("ty2: " ++ Typ.show(ty2));
-          print_endline("ty1': " ++ Typ.show(ty1'));
-          print_endline("ty2': " ++ Typ.show(ty2'));*/
-
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') =>
-          /*print_endline(
-              "final: "
-              ++ DHExp.show(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2')),
-            );*/
-          /* ap cast rule */
           evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
         };
       | BoxedValue(d1') =>
@@ -753,18 +738,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | BoxedValue(BoolLit(b2)) =>
             BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
           | BoxedValue(d2') =>
-            print_endline("InvalidBoxedBoolLit1");
-            print_endline("d: " ++ DHExp.show(d));
-            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
           };
         }
       | BoxedValue(d1') =>
-        print_endline("InvalidBoxedBoolLit2");
-        print_endline("d1: " ++ DHExp.show(d1));
-        print_endline("d1': " ++ DHExp.show(d1'));
-        print_endline("d: " ++ DHExp.show(d));
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
@@ -801,9 +780,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           }
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
-          print_endline("d: " ++ DHExp.show(d));
-          print_endline("d2: " ++ DHExp.show(d2));
-          print_endline("d2': " ++ DHExp.show(d2'));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
@@ -948,8 +924,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
-          print_endline("d:" ++ DHExp.show(d));
-          print_endline("Cons(d1,d2):" ++ DHExp.show(Cons(d1, d2)));
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
       };
@@ -1052,14 +1026,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
-          | _ =>
-            print_endline("CastBVHoleGround:");
-            print_endline("d1:" ++ DHExp.show(d1));
-            print_endline("d1':" ++ DHExp.show(d1'));
-            print_endline("ty:" ++ Typ.show(ty));
-            print_endline("ty':" ++ Typ.show(ty'));
-            //BoxedValue(d1') |> return;
-            raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
+          | _ => raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
