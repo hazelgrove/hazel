@@ -198,9 +198,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_string(t) =>
-        let s = Re.Str.string_after(t, 1);
-        let s = Re.Str.string_before(s, String.length(s) - 1);
-        ret(String(s));
+        ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t))
@@ -240,12 +238,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
-        },
-      )
+      switch (t) {
+      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
