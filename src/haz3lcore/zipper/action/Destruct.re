@@ -124,9 +124,10 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
        for example edge case: "((|))" */
     z
     |> Zipper.delete_parent
-    |> Zipper.set_caret(Inner(List.length(lbl), 0))
+    |> Zipper.set_caret(Inner(0, 0))
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
-    |> Option.some
+    /* Below regrouting important for parens/ap positioning */
+    |> (((z, id_gen)) => Zipper.regrout(Right, z, id_gen) |> Option.some)
   | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
     merge((l, r), (z, id_gen))
   | _ => Some((z, id_gen))
