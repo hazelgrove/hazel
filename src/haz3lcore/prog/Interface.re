@@ -13,7 +13,7 @@ exception PostprocessError(EvaluatorPost.error);
 let evaluate =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(Environment.empty),
+    Evaluator.evaluate(Builtins.env_init),
   );
 
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
