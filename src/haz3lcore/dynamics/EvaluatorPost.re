@@ -103,6 +103,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     ListConcat(d1', d2') |> return;
+
   | ListLit(a, b, c, ds) =>
     let+ ds =
       ds

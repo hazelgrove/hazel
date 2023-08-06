@@ -950,6 +950,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
         }
       };
+
     | ListLit(u, i, ty, lst) =>
       let+ lst = lst |> List.map(evaluate(env)) |> sequence;
       let (lst, indet) =
