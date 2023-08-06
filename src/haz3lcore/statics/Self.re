@@ -23,7 +23,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
@@ -69,6 +69,11 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | IsErroneousPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+  ctx =>
+    fun
+    | Common(self) => typ_of(ctx, self);
+
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
@@ -107,11 +112,22 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   };
 };
 
-/* The self assigned to things like cases and list literals
-   which can have internal type inconsistencies. */
-let join =
-    (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t): t =>
-  switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => Typ.{id, ty}, ids, tys))
-  | Some(ty) => Just(wrap(ty))
+let add_source = List.map2((id, ty) => Typ.{id, ty});
+
+let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => ty, add_source(ids, tys))
+  | Some(ty) => Just(ty)
+  };
+
+let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty, ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(List(ty))
+  };
+
+let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(ty)
   };

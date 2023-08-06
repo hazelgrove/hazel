@@ -199,9 +199,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_string(t) =>
-        let s = Re.Str.string_after(t, 1);
-        let s = Re.Str.string_before(s, String.length(s) - 1);
-        ret(String(s));
+        ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t))
@@ -227,6 +225,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
+        | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
@@ -242,6 +241,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
+      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: UExp.t): UExp.t => {
           ids: arg.ids,
@@ -284,6 +284,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
           | (["=="], []) => BinOp(Int(Equals), l, r)
+          | (["!="], []) => BinOp(Int(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -294,11 +295,14 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
           | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
           | (["==."], []) => BinOp(Float(Equals), l, r)
+          | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
+          | (["\\/"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
+          | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
         )

@@ -2,7 +2,7 @@
    Built-in functions for Hazel.
 
    To add a built-in function or constant, write the implementation in the
-   `Pervasives.Impls` module below and add it to `Pervasives`.
+   `Pervasives.Impls` module below and add it to `builtins`.
 
    See the existing ones for reference.
  */
@@ -11,145 +11,156 @@
 type t = VarMap.t_(Builtin.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
+type forms = VarMap.t_(Builtin.builtin_evaluate);
 
-let ctx = (builtins: t): Ctx.t =>
-  List.map(
-    ((name, Builtin.{typ, _})) =>
-      Ctx.VarEntry({name, typ, id: Id.invalid}),
-    builtins,
-  );
+type pervasive =
+  (string, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
-let forms = (builtins: t): forms =>
-  List.map(
-    ((name, Builtin.{typ: _, eval, elab})) => (name, (elab, eval)),
-    builtins,
-  );
+type result = Result.t(EvaluatorResult.t, EvaluatorError.t);
 
-let using = (name: Var.t, impl: Var.t => Builtin.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, impl(name)));
+let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
+  VarMap.extend(builtins, (name, Builtin.mk_zero(name, typ, v)));
+let fn = (name: Var.t, typ: Typ.t, impl: pervasive, builtins: t): t =>
+  VarMap.extend(builtins, (name, Builtin.mk_one(name, typ, impl)));
 
 module Pervasives = {
   module Impls = {
     open EvaluatorMonad;
     open EvaluatorResult;
 
-    /* is_finite implementation. */
-    let is_finite = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(FloatLit(f)) =>
-        let b = Float.is_finite(f);
-        BoxedValue(BoolLit(b)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+    /* constants */
+    let infinity = DHExp.FloatLit(Float.infinity);
+    let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
+    let nan = DHExp.FloatLit(Float.nan);
+    let epsilon_float = DHExp.FloatLit(epsilon_float);
+    let pi = DHExp.FloatLit(Float.pi);
+    let max_int = DHExp.IntLit(Int.max_int);
+    let min_int = DHExp.IntLit(Int.min_int);
+
+    let unary' = (f: DHExp.t => result, name: string, r: EvaluatorResult.t) =>
+      switch (r) {
+      | BoxedValue(b) =>
+        switch (f(b)) {
+        | Ok(r') => r' |> return
+        | Error(e) => EvaluatorError.Exception(e) |> raise
+        }
+      | Indet(d) => Indet(ApBuiltin(name, [d])) |> return
       };
 
-    /* is_infinite implementation. */
-    let is_infinite = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(FloatLit(f)) =>
-        let b = Float.is_infinite(f);
-        BoxedValue(BoolLit(b)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
-
-    /* is_NaN implementation. */
-    let is_nan = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(FloatLit(f)) =>
-        let b = Float.is_nan(f);
-        BoxedValue(BoolLit(b)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
-
-    /* int_of_string implementation. */
-    let int_of_string = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(StringLit(f) as d1) =>
-        let i = int_of_string_opt(f);
-        switch (i) {
-        | Some(x) => BoxedValue(IntLit(x)) |> return
-        | None =>
-          Indet(
-            InvalidOperation(ApBuiltin(name, [d1]), InvalidIntOfString),
-          )
-          |> return
+    let unary = (f: DHExp.t => Result.t(DHExp.t, EvaluatorError.t), name, r) => {
+      let f = (d: DHExp.t): result =>
+        switch (f(d)) {
+        | Ok(r') => Ok(BoxedValue(r'))
+        | Error(e) => Error(e)
         };
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
+      unary'(f, name, r);
+    };
 
-    /* int_of_float implementation. */
-    let int_of_float = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(FloatLit(f)) =>
-        let i = int_of_float(f);
-        BoxedValue(IntLit(i)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
+    let is_finite =
+      unary(
+        fun
+        | FloatLit(f) => Ok(BoolLit(Float.is_finite(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
 
-    /* float_of_int implementation. */
-    let float_of_int = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(IntLit(i)) =>
-        let f = float_of_int(i);
-        BoxedValue(FloatLit(f)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
+    let is_infinite =
+      unary(
+        fun
+        | FloatLit(f) => Ok(BoolLit(Float.is_infinite(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
 
-    /* float_of_string implementation. */
-    let float_of_string = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(StringLit(s) as d1) =>
-        let f = float_of_string_opt(s);
-        switch (f) {
-        | Some(x) => BoxedValue(FloatLit(x)) |> return
-        | None =>
-          Indet(
-            InvalidOperation(ApBuiltin(name, [d1]), InvalidFloatOfString),
-          )
-          |> return
-        };
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
+    let is_nan =
+      unary(
+        fun
+        | FloatLit(f) => Ok(BoolLit(Float.is_nan(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
 
-    /* string_of_int implementation. */
-    let string_of_int = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(IntLit(i)) =>
-        let s = string_of_int(i);
-        BoxedValue(StringLit(s)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
+    let string_of_int =
+      unary(
+        fun
+        | IntLit(n) => Ok(StringLit(string_of_int(n)))
+        | d => Error(InvalidBoxedIntLit(d)),
+      );
 
-    /* string_of_float implementation. */
-    let string_of_float = (name, r1) =>
-      switch (r1) {
-      | BoxedValue(FloatLit(f)) =>
-        let s = string_of_float(f);
-        BoxedValue(StringLit(s)) |> return;
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
-      };
+    let string_of_float =
+      unary(
+        fun
+        | FloatLit(f) => Ok(StringLit(string_of_float(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
 
-    /* mod implementation */
-    let int_mod = (name, r1) =>
-      switch (r1) {
+    let string_of_bool =
+      unary(
+        fun
+        | BoolLit(b) => Ok(StringLit(string_of_bool(b)))
+        | d => Error(InvalidBoxedBoolLit(d)),
+      );
+
+    let int_of_float =
+      unary(
+        fun
+        | FloatLit(f) => Ok(IntLit(int_of_float(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
+
+    let float_of_int =
+      unary(
+        fun
+        | IntLit(n) => Ok(FloatLit(float_of_int(n)))
+        | d => Error(InvalidBoxedIntLit(d)),
+      );
+
+    let abs =
+      unary(
+        fun
+        | IntLit(n) => Ok(IntLit(abs(n)))
+        | d => Error(InvalidBoxedIntLit(d)),
+      );
+
+    let float_op = fn =>
+      unary(
+        fun
+        | FloatLit(f) => Ok(FloatLit(fn(f)))
+        | d => Error(InvalidBoxedFloatLit(d)),
+      );
+
+    let abs_float = float_op(abs_float);
+    let ceil = float_op(ceil);
+    let floor = float_op(floor);
+    let sqrt = float_op(sqrt);
+    let exp = float_op(exp);
+    let log = float_op(log);
+    let log10 = float_op(log10);
+    let sin = float_op(sin);
+    let cos = float_op(cos);
+    let tan = float_op(tan);
+    let asin = float_op(asin);
+    let acos = float_op(acos);
+    let atan = float_op(atan);
+
+    let of_string =
+        (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
+      unary'(
+        fun
+        | StringLit(s) as d =>
+          switch (convert(s)) {
+          | Some(n) => Ok(BoxedValue(wrap(n)))
+          | None =>
+            let d' = DHExp.ApBuiltin(name, [d]);
+            Ok(Indet(InvalidOperation(d', InvalidOfString)));
+          }
+        | d => Error(InvalidBoxedStringLit(d)),
+        name,
+      );
+
+    let int_of_string = of_string(int_of_string_opt, n => IntLit(n));
+    let float_of_string = of_string(float_of_string_opt, f => FloatLit(f));
+    let bool_of_string = of_string(bool_of_string_opt, b => BoolLit(b));
+
+    let int_mod = (name, r) =>
+      switch (r) {
       | BoxedValue(Tuple([IntLit(n), IntLit(m)]) as d1) =>
         switch (m) {
         | 0 =>
@@ -157,61 +168,131 @@ module Pervasives = {
           |> return
         | _ => return(BoxedValue(IntLit(n mod m)))
         }
-      | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
-      | Indet(d1) => return(Indet(ApBuiltin(name, [d1])))
+      | BoxedValue(d) =>
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
+      | Indet(d) => Indet(ApBuiltin(name, [d])) |> return
       };
 
-    /* PI implementation. */
-    let pi = DHExp.FloatLit(Float.pi);
+    let string_length =
+      unary(
+        fun
+        | StringLit(s) => Ok(IntLit(String.length(s)))
+        | d => Error(InvalidBoxedStringLit(d)),
+      );
 
-    /* Infinity-float implementation. */
-    let infinity = DHExp.FloatLit(Float.infinity);
-    let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
+    let string_compare =
+      unary(
+        fun
+        | Tuple([StringLit(s1), StringLit(s2)]) =>
+          Ok(IntLit(String.compare(s1, s2)))
+        | d => Error(InvalidBoxedTuple(d)),
+      );
 
-    /* NaN float implementation. */
-    let nan = DHExp.FloatLit(Float.nan);
+    let string_trim =
+      unary(
+        fun
+        | StringLit(s) => Ok(StringLit(String.trim(s)))
+        | d => Error(InvalidBoxedStringLit(d)),
+      );
+
+    let string_of: DHExp.t => option(string) =
+      fun
+      | StringLit(s) => Some(s)
+      | _ => None;
+
+    let string_concat =
+      unary(
+        fun
+        | Tuple([StringLit(s1), ListLit(_, _, _, xs)]) =>
+          switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
+          | None => Error(InvalidBoxedStringLit(List.hd(xs)))
+          | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
+          }
+        | d => Error(InvalidBoxedTuple(d)),
+      );
+
+    let string_sub = name =>
+      unary'(
+        fun
+        | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
+          try(Ok(BoxedValue(StringLit(String.sub(s, idx, len))))) {
+          | _ =>
+            let d' = DHExp.ApBuiltin(name, [d]);
+            Ok(Indet(InvalidOperation(d', IndexOutOfBounds)));
+          }
+        | d => Error(InvalidBoxedTuple(d)),
+        name,
+      );
   };
 
-  let pi = name => Builtin.mk_zero(name, Float, Impls.pi);
-  let infinity = name => Builtin.mk_zero(name, Float, Impls.infinity);
-  let neg_infinity = name => Builtin.mk_zero(name, Float, Impls.neg_infinity);
-  let nan = name => Builtin.mk_zero(name, Float, Impls.nan);
-  let is_finite = name =>
-    Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_finite);
-  let is_infinite = name =>
-    Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_infinite);
-  let is_nan = name =>
-    Builtin.mk_one(name, Arrow(Float, Bool), Impls.is_nan);
-  let int_of_float = name =>
-    Builtin.mk_one(name, Arrow(Float, Int), Impls.int_of_float);
-  let int_of_string = name =>
-    Builtin.mk_one(name, Arrow(String, Int), Impls.int_of_string);
-  let float_of_int = name =>
-    Builtin.mk_one(name, Arrow(Int, Float), Impls.float_of_int);
-  let float_of_string = name =>
-    Builtin.mk_one(name, Arrow(String, Float), Impls.float_of_string);
-  let string_of_float = name =>
-    Builtin.mk_one(name, Arrow(Float, String), Impls.string_of_float);
-  let string_of_int = name =>
-    Builtin.mk_one(name, Arrow(Int, String), Impls.string_of_int);
-  let modulo = name =>
-    Builtin.mk_one(name, Arrow(Prod([Int, Int]), Int), Impls.int_mod);
-
+  open Impls;
   let builtins =
     VarMap.empty
-    |> using("pi", pi)
-    |> using("infinity", infinity)
-    |> using("neg_infinity", neg_infinity)
-    |> using("nan", nan)
-    |> using("is_finite", is_finite)
-    |> using("is_infinite", is_infinite)
-    |> using("is_nan", is_nan)
-    |> using("int_of_float", int_of_float)
-    |> using("int_of_string", int_of_string)
-    |> using("float_of_int", float_of_int)
-    |> using("float_of_string", float_of_string)
-    |> using("string_of_int", string_of_int)
-    |> using("string_of_float", string_of_float)
-    |> using("mod", modulo);
+    |> const("infinity", Float, infinity)
+    |> const("neg_infinity", Float, neg_infinity)
+    |> const("nan", Float, nan)
+    |> const("epsilon_float", Float, epsilon_float)
+    |> const("pi", Float, pi)
+    |> const("max_int", Int, max_int)
+    |> const("min_int", Int, min_int)
+    |> fn("is_finite", Arrow(Float, Bool), is_finite)
+    |> fn("is_infinite", Arrow(Float, Bool), is_infinite)
+    |> fn("is_nan", Arrow(Float, Bool), is_nan)
+    |> fn("int_of_float", Arrow(Float, Int), int_of_float)
+    |> fn("float_of_int", Arrow(Int, Float), float_of_int)
+    |> fn("string_of_int", Arrow(Int, String), string_of_int)
+    |> fn("string_of_float", Arrow(Float, String), string_of_float)
+    |> fn("string_of_bool", Arrow(Bool, String), string_of_bool)
+    |> fn("int_of_string", Arrow(String, Int), int_of_string)
+    |> fn("float_of_string", Arrow(String, Float), float_of_string)
+    |> fn("bool_of_string", Arrow(String, Bool), bool_of_string)
+    |> fn("abs", Arrow(Int, Int), abs)
+    |> fn("abs_float", Arrow(Float, Float), abs_float)
+    |> fn("ceil", Arrow(Float, Float), ceil)
+    |> fn("floor", Arrow(Float, Float), floor)
+    |> fn("exp", Arrow(Float, Float), exp)
+    |> fn("log", Arrow(Float, Float), log)
+    |> fn("log10", Arrow(Float, Float), log10)
+    |> fn("sqrt", Arrow(Float, Float), sqrt)
+    |> fn("sin", Arrow(Float, Float), sin)
+    |> fn("cos", Arrow(Float, Float), cos)
+    |> fn("tan", Arrow(Float, Float), tan)
+    |> fn("asin", Arrow(Float, Float), asin)
+    |> fn("acos", Arrow(Float, Float), acos)
+    |> fn("atan", Arrow(Float, Float), atan)
+    |> fn("mod", Arrow(Prod([Int, Int]), Int), int_mod)
+    |> fn("string_length", Arrow(String, Int), string_length)
+    |> fn(
+         "string_compare",
+         Arrow(Prod([String, String]), Int),
+         string_compare,
+       )
+    |> fn("string_trim", Arrow(String, String), string_trim)
+    |> fn(
+         "string_concat",
+         Arrow(Prod([String, List(String)]), String),
+         string_concat,
+       )
+    |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
 };
+
+let ctx_init: Ctx.t =
+  List.map(
+    ((name, Builtin.{typ, _})) =>
+      Ctx.VarEntry({name, typ, id: Id.invalid}),
+    Pervasives.builtins,
+  );
+
+let forms_init: forms =
+  List.map(
+    ((name, Builtin.{eval, _})) => (name, eval),
+    Pervasives.builtins,
+  );
+
+let env_init: Environment.t =
+  List.fold_left(
+    (env, (name, Builtin.{elab, _})) =>
+      Environment.extend(env, (name, elab)),
+    Environment.empty,
+    Pervasives.builtins,
+  );
