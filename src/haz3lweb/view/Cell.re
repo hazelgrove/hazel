@@ -213,7 +213,7 @@ let eval_result_footer_view =
     switch (simple) {
     | None => [
         Node.text("No result available. Elaboration follows:"),
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings={
             evaluate: true,
             show_case_clauses: true,
@@ -228,7 +228,7 @@ let eval_result_footer_view =
         ),
       ]
     | Some({eval_result, _}) => [
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,
