@@ -323,7 +323,8 @@ and matches_cast_Sum =
   | Sequence(_, _)
   | Closure(_)
   | TestLit(_)
-  | Cons(_) => DoesNotMatch
+  | Cons(_)
+  | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
     (
@@ -404,6 +405,7 @@ and matches_cast_Tuple =
   | StringLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
+  | ListConcat(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
@@ -531,6 +533,7 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
+  | ListConcat(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -586,6 +589,7 @@ let eval_bin_int_op =
   | GreaterThan => BoolLit(n1 > n2)
   | GreaterThanOrEqual => BoolLit(n1 >= n2)
   | Equals => BoolLit(n1 == n2)
+  | NotEquals => BoolLit(n1 != n2)
   };
 };
 
@@ -605,12 +609,14 @@ let eval_bin_float_op =
   | GreaterThan => BoolLit(f1 > f2)
   | GreaterThanOrEqual => BoolLit(f1 >= f2)
   | Equals => BoolLit(f1 == f2)
+  | NotEquals => BoolLit(f1 != f2)
   };
 };
 
 let eval_bin_string_op =
     (op: TermBase.UExp.op_bin_string, s1: string, s2: string): DHExp.t =>
   switch (op) {
+  | Concat => StringLit(s1 ++ s2)
   | Equals => BoolLit(s1 == s2)
   };
 
@@ -625,7 +631,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         x
         |> ClosureEnvironment.lookup(env)
         |> OptUtil.get(() => {
-             print_endline("FreeInvalidVar");
+             print_endline("FreeInvalidVar:" ++ x);
              raise(EvaluatorError.Exception(FreeInvalidVar(x)));
            });
       /* We need to call [evaluate] on [d] again since [env] does not store
@@ -733,14 +739,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | BoxedValue(BoolLit(b2)) =>
             BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
           | BoxedValue(d2') =>
-            print_endline("InvalidBoxedBoolLit");
-            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
           };
         }
       | BoxedValue(d1') =>
-        print_endline("InvalidBoxedBoolLit");
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
@@ -922,6 +926,29 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | _ =>
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+        }
+      };
+
+    | ListConcat(d1, d2) =>
+      let* d1 = evaluate(env, d1);
+      let* d2 = evaluate(env, d2);
+      switch (d1, d2) {
+      | (Indet(d1), Indet(d2))
+      | (Indet(d1), BoxedValue(d2))
+      | (BoxedValue(d1), Indet(d2)) => Indet(ListConcat(d1, d2)) |> return
+      | (BoxedValue(d1), BoxedValue(d2)) =>
+        switch (d1, d2) {
+        | (ListLit(u, i, ty, ds1), ListLit(_, _, _, ds2)) =>
+          BoxedValue(ListLit(u, i, ty, ds1 @ ds2)) |> return
+        | (Cast(d1, List(ty), List(ty')), d2)
+        | (d1, Cast(d2, List(ty), List(ty'))) =>
+          evaluate(env, Cast(ListConcat(d1, d2), List(ty), List(ty')))
+        | (ListLit(_), _) =>
+          print_endline("InvalidBoxedListLit: " ++ DHExp.show(d2));
+          raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+        | _ =>
+          print_endline("InvalidBoxedListLit: " ++ DHExp.show(d1));
+          raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
         }
       };
 

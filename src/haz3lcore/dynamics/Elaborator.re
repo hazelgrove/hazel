@@ -42,6 +42,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
+    | ListConcat(_)
     | Cons(_) =>
       switch (ana_ty) {
       | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
@@ -151,9 +152,26 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.Cons(dc1, dc2);
+      | ListConcat(e1, e2) =>
+        let* dc1 = dhexp_of_uexp(m, e1);
+        let+ dc2 = dhexp_of_uexp(m, e2);
+        DHExp.ListConcat(dc1, dc2);
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
+      | UnOp(Bool(Not), e) =>
+        let+ d_scrut = dhexp_of_uexp(m, e);
+        let d_rules =
+          DHExp.[
+            Rule(BoolLit(true), BoolLit(false)),
+            Rule(BoolLit(false), BoolLit(true)),
+          ];
+        let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
+        /* Manually construct cast (case is not otherwise cast) */
+        switch (mode) {
+        | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
+        | _ => d
+        };
       | BinOp(op, e1, e2) =>
         let (_, cons) = exp_binop_of(op);
         let* dc1 = dhexp_of_uexp(m, e1);

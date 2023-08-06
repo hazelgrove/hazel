@@ -224,6 +224,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
+        | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
@@ -263,6 +264,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
           | (["=="], []) => BinOp(Int(Equals), l, r)
+          | (["!="], []) => BinOp(Int(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -273,11 +275,14 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
           | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
           | (["==."], []) => BinOp(Float(Equals), l, r)
+          | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
+          | (["\\/"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
+          | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
         )
