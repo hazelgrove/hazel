@@ -95,12 +95,12 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Backspace") => now_save(Destruct(Left))
     | (Up, "Delete") => now_save(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Up, "Tab") =>
       Selection.is_buffer(zipper.selection)
         ? [Agent(AcceptSuggestion), Save]
         : Zipper.can_put_down(zipper)
             ? [PerformAction(Put_down), Save] : [MoveToNextHole(Right)]
+    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "Tab") => [MoveToNextHole(Left)]
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
