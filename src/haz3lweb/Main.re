@@ -51,7 +51,6 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(FailedToPerform(err)));
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
-  //{...model, history: ActionHistory.just_failed(reason, model.history)};
   | Error(err) =>
     print_endline(Update.Failure.show(err));
     model;

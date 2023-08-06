@@ -4,15 +4,6 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
-//TODO(andrew): consolidate settings, something like:
-// actually maybe base it on a token classifier fn
-type settings = {
-  is_in_buffer: Piece.tile => bool,
-  no_sorts: bool,
-  is_consistent: bool,
-  is_complete: bool,
-};
-
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=100000,

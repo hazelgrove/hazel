@@ -17,7 +17,7 @@ open Haz3lcore;
      2. paste in sketch (or insert segment as zipper manually to save time)
      3. move caret to immediately after first ??
      4. schedule_action(PerformAction(Select(Term(Current))));
-         schedule_action(Agent(Prompt(Filler)));
+         schedule_action(Assistant(Prompt(Filler)));
      NOTE: will want to parameterize Filler action
      5. after 5, other actions will get scheduled; we
      need the last to trigger End test

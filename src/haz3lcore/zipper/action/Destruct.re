@@ -126,7 +126,7 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     |> Zipper.delete_parent
     |> Zipper.set_caret(Inner(0, 0))
     |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
-    /* below regrout important for parens/ap positioning */
+    /* Below regrout important for parens/ap positioning */
     |> (((z, id_gen)) => Zipper.regrout(Right, z, id_gen) |> Option.some)
   | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
     merge((l, r), (z, id_gen))

@@ -97,7 +97,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") =>
       Selection.is_buffer(zipper.selection)
-        ? [Agent(AcceptSuggestion), Save]
+        ? [Assistant(AcceptSuggestion), Save]
         : Zipper.can_put_down(zipper)
             ? [PerformAction(Put_down), Save] : [MoveToNextHole(Right)]
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))

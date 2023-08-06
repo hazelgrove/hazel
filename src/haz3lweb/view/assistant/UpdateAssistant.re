@@ -24,12 +24,12 @@ let schedule_prompt =
         && c == String.length(s)
         - 2 =>
     schedule_action(PerformAction(Select(Term(Current))));
-    schedule_action(Agent(Prompt(Oracle)));
+    schedule_action(Assistant(Prompt(Oracle)));
   | (Outer, _, [Tile({label: [s], _}), ..._])
       when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
     schedule_action(PerformAction(Select(Term(Current))));
     schedule_action(
-      Agent(
+      Assistant(
         Prompt(
           Filler(
             Some({
@@ -120,7 +120,7 @@ let apply =
                 "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
               );
               let trimmed_response = trim_indentation(response);
-              schedule_action(Agent(SetBuffer(trimmed_response)));
+              schedule_action(Assistant(SetBuffer(trimmed_response)));
               schedule_action(SetMeta(Auto(EndTest())));
             | Some(reply) =>
               print_endline("react_error: errors:" ++ reply);
@@ -132,7 +132,7 @@ let apply =
                     "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
                   );
                   let trimmed_response = trim_indentation(response);
-                  schedule_action(Agent(SetBuffer(trimmed_response)));
+                  schedule_action(Assistant(SetBuffer(trimmed_response)));
                   schedule_action(SetMeta(Auto(EndTest())));
                 | None => print_endline("Filler: handler failed")
                 //schedule_action(Script(EndTest()));
@@ -141,7 +141,7 @@ let apply =
             }
           | _ =>
             print_endline("react_error: no CI");
-            schedule_action(Agent(SetBuffer(response)));
+            schedule_action(Assistant(SetBuffer(response)));
             schedule_action(SetMeta(Auto(EndTest())));
           };
         | None => print_endline("Filler: handler failed")

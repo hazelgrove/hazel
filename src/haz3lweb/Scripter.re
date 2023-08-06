@@ -60,7 +60,7 @@ let mk_script =
     PerformAction(Select(Term(Current))),
     Paste(Form.expliciter_hole),
     PerformAction(Select(Term(Current))),
-    Agent(Prompt(Filler(Some({llm, prompt_builder})))),
+    Assistant(Prompt(Filler(Some({llm, prompt_builder})))),
   ];
 };
 

@@ -93,7 +93,7 @@ let go =
     | {current_script: Some(name), to_run: _, reports: _, _} =>
       print_endline("AUTO: EndTest: Ending script: " ++ name);
       //TODO(andrew): abstract this script into cleanup function
-      schedule_action(Agent(AcceptSuggestion));
+      schedule_action(Assistant(AcceptSuggestion));
       schedule_action(SetMeta(Auto(LogTest())));
       model.meta;
     }

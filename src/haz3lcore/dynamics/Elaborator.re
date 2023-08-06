@@ -27,12 +27,6 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let self_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): Typ.t =>
-  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
-  | Some(InfoPat({self: Common(Just(ty)), _})) => ty
-  | _ => Unknown(Internal)
-  };
-
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -158,8 +152,9 @@ let rec dhexp_of_uexp =
         DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
-        let+ d1 = dhexp_of_uexp(m, body);
-        DHExp.Fun(dp, self_pat_typ(m, p), d1, None);
+        let* d1 = dhexp_of_uexp(m, body);
+        let+ ty = fixed_pat_typ(m, p);
+        DHExp.Fun(dp, ty, d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
