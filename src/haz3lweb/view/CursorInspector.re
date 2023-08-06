@@ -124,7 +124,7 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
-    @ [text("but are consistent with expected"), Type.view(ana)]
+    @ [text("but consistent with expected"), Type.view(ana)]
   };
 };
 
