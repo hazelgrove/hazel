@@ -60,6 +60,7 @@ let elements_noun: Term.Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
+  | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
 let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>

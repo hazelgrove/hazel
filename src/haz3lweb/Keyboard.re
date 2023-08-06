@@ -73,8 +73,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Tab") =>
       Zipper.can_put_down(zipper)
         ? [PerformAction(Put_down), Save] : [MoveToNextHole(Right)]
-    | (Down, "Tab") => [MoveToNextHole(Left)]
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
+    | (Down, "Tab") => [MoveToNextHole(Left)]
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))

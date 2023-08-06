@@ -58,18 +58,25 @@ let extend_let_def_ctx =
 let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Int
-  | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
+  | (
+      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
+      NotEquals
+    ) as _op =>
     Bool;
 
 let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Float
-  | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
+  | (
+      LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
+      NotEquals
+    ) as _op =>
     Bool;
 
 let typ_exp_binop_bin_string: UExp.op_bin_string => Typ.t =
   fun
-  | Equals as _op => Bool;
+  | Concat => String
+  | Equals => Bool;
 
 let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
@@ -80,6 +87,7 @@ let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
 
 let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   fun
+  | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
 let rec any_to_info_map =
@@ -173,6 +181,16 @@ and uexp_to_info_map =
     add(
       ~self=Just(List(hd.ty)),
       ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
+      m,
+    );
+  | ListConcat(e1, e2) =>
+    let ids = List.map(Term.UExp.rep_id, [e1, e2]);
+    let mode = Mode.of_list_concat(mode);
+    let (e1, m) = go(~mode, e1, m);
+    let (e2, m) = go(~mode, e2, m);
+    add(
+      ~self=Self.list_concat(ctx, [e1.ty, e2.ty], ids),
+      ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
       m,
     );
   | Var(name) =>
@@ -303,7 +321,7 @@ and uexp_to_info_map =
         | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
-      let (Info.{co_ctx, ty: ty_body, _}, m) =
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
@@ -313,7 +331,8 @@ and uexp_to_info_map =
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) =>
-      let (Info.{co_ctx, ty: ty_body, _}, m) = go'(~ctx, ~mode, body, m);
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_body), ~co_ctx, m);
     };

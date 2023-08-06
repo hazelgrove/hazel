@@ -98,3 +98,9 @@ let listlit = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   | None => NoJoin(ty => List(ty), add_source(ids, tys))
   | Some(ty) => Just(List(ty))
   };
+
+let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(ty)
+  };
