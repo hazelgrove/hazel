@@ -2,7 +2,7 @@
    Built-in functions for Hazel.
 
    To add a built-in function or constant, write the implementation in the
-   `Pervasives.Impls` module below and add it to `Pervasives`.
+   `Pervasives.Impls` module below and add it to `builtins`.
 
    See the existing ones for reference.
  */
@@ -11,25 +11,12 @@
 type t = VarMap.t_(Builtin.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
+type forms = VarMap.t_(Builtin.builtin_evaluate);
 
 type pervasive =
   (string, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
 type result = Result.t(EvaluatorResult.t, EvaluatorError.t);
-
-let ctx = (builtins: t): Ctx.t =>
-  List.map(
-    ((name, Builtin.{typ, _})) =>
-      Ctx.VarEntry({name, typ, id: Id.invalid}),
-    builtins,
-  );
-
-let forms = (builtins: t): forms =>
-  List.map(
-    ((name, Builtin.{typ: _, eval, elab})) => (name, (elab, eval)),
-    builtins,
-  );
 
 let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
   VarMap.extend(builtins, (name, Builtin.mk_zero(name, typ, v)));
@@ -289,5 +276,23 @@ module Pervasives = {
     |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
 };
 
-let ctx_init = ctx(Pervasives.builtins);
-let forms_init = forms(Pervasives.builtins);
+let ctx_init: Ctx.t =
+  List.map(
+    ((name, Builtin.{typ, _})) =>
+      Ctx.VarEntry({name, typ, id: Id.invalid}),
+    Pervasives.builtins,
+  );
+
+let forms_init: forms =
+  List.map(
+    ((name, Builtin.{eval, _})) => (name, eval),
+    Pervasives.builtins,
+  );
+
+let env_init: Environment.t =
+  List.fold_left(
+    (env, (name, Builtin.{elab, _})) =>
+      Environment.extend(env, (name, elab)),
+    Environment.empty,
+    Pervasives.builtins,
+  );
