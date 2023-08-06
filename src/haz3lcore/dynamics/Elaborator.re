@@ -350,7 +350,7 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
-    let d = uexp_elab_wrap_builtins(d);
+    //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
