@@ -120,7 +120,7 @@ let reevaluate_post_update =
   | SwitchExampleSlide(_)
   | Cut
   | Paste(_)
-  | Agent(_)
+  | Assistant(_)
   | Execute
   | Undo
   | Redo
@@ -306,7 +306,7 @@ let rec apply =
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
       let ctx_init = Editors.get_ctx_init(model.editors);
-      AgentUpdate.schedule_prompt(
+      UpdateAssistant.schedule_prompt(
         ~ctx_init,
         editor.state.zipper,
         ~schedule_action,
@@ -316,10 +316,10 @@ let rec apply =
       //NOTE: effectful
       switch (a) {
       | Destruct(_)
-      | Insert(_) => schedule_action(Agent(Prompt(TyDi)))
+      | Insert(_) => schedule_action(Assistant(Prompt(TyDi)))
       | _ => ()
       };
-      let model = AgentUpdate.reset_buffer(model);
+      let model = UpdateAssistant.reset_buffer(model);
       perform_action(model, a);
 
     /*| Paste(clipboard) =>
@@ -406,8 +406,14 @@ let rec apply =
         | _ => false
       );
       perform_action(model, Move(Goal(Piece(p, d))));
-    | Agent(action) =>
-      AgentUpdate.apply(model, action, ~schedule_action, ~state, ~main=apply)
+    | Assistant(action) =>
+      UpdateAssistant.apply(
+        model,
+        action,
+        ~schedule_action,
+        ~state,
+        ~main=apply,
+      )
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

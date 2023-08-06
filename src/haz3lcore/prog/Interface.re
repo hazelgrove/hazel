@@ -73,7 +73,7 @@ let evaluate =
     (r, es, HoleInstanceInfo.empty)
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
-    print_endline("Interface.eval EXCEPTION:");
+    print_endline("Interface.evaluate EXCEPTION:");
     print_endline(
       Sexplib.Sexp.to_string_hum(EvaluatorError.sexp_of_t(_reason)),
     );

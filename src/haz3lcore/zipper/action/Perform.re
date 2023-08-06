@@ -31,7 +31,6 @@ let go_z =
     | None => Editor.Meta.init(z)
     };
   module M = (val Editor.Meta.module_of_t(meta));
-  module Move2 = Move;
   module Move = Move.Make(M);
   module Select = Select.Make(M);
   switch (a) {

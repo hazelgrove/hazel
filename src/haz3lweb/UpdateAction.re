@@ -74,7 +74,7 @@ type t =
   | Undo
   | Redo
   | MoveToNextHole(Direction.t)
-  | Agent(agent_action);
+  | Assistant(agent_action);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type auto_llm = Auto.t(t, Auto.llm_report);

@@ -33,7 +33,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Paste(_)
   | Undo
   | Redo
-  | Agent(_)
+  | Assistant(_)
   | MoveToNextHole(_)
   | UpdateLangDocMessages(_) => true;
 

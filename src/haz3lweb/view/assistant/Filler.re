@@ -277,3 +277,34 @@ let error_reply =
     };
   };
 };
+
+/*
+
+ TODO(andrew): incorporate this into syntax error reporting
+  levels of syntax error:
+
+  general checks:
+  a. get list of all backpack items (use label + shards to get actual delim)
+  b. check if exist unbound kw: if, then, else, let, in, fun, case, test, end
+  c. check if exist unbound false kws: match, of, with
+  d. check if exist multiholes
+
+  heuristics:
+     if rule (|,=>) in backpack, suggest => instead of -> (check for ->?)
+     if case, test in backpack, suggest end might be missing/unrecognized
+     if let, type in backpack, suggest in might be missing/unrecognized
+     if ( or [: suggest ) or ] might be missing
+
+  // check if these exist unbound
+  reserved: if, then, else, let, in, fun, case, test, end
+
+
+  1: backpack empty, but exist multiholes:
+  1a check for reserved/ false reserved
+  1b suggest function application syntax
+
+   */
+/*print_endline("TESTING: ChatLSP.Errors.collect:");
+  print_endline(
+    ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
+  );*/

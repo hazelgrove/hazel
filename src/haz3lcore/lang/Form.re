@@ -292,11 +292,8 @@ let forms: list((string, t)) = [
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
-  //("ap_exp_triv", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
-  // ("ap_pat_triv", mk(ii, ["()"], mk_post(P.ap, Pat, []))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
-  //("ap_typ_triv", mk(ii, ["()"], mk_post(P.ap, Typ, []))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
     "type_alias",
@@ -332,6 +329,7 @@ let forms: list((string, t)) = [
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),
+  //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
 let get: String.t => t =
@@ -356,12 +354,6 @@ let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 let is_valid_nonpoly_token = t => is_valid_token(t) && t != "=";
-
-/*let is_valid_char = t =>
-  is_valid_token(t)
-  || is_string_delim(t)
-  || is_comment_delim(t)
-  || is_whitelisted_char(t);*/
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
