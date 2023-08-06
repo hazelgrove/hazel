@@ -51,11 +51,6 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(FailedToPerform(err)));
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
-  | Error(UnrecognizedInput(reason)) =>
-    // TODO(andrew): reinstate this history functionality
-    print_endline(Update.Failure.show(UnrecognizedInput(reason)));
-    model;
-  //{...model, history: ActionHistory.just_failed(reason, model.history)};
   | Error(err) =>
     print_endline(Update.Failure.show(err));
     model;
@@ -160,9 +155,7 @@ let fragment =
 let initial_model = {
   switch (fragment) {
   | "debug" => Model.debug
-  | _ =>
-    let model = Update.load_model(Model.blank);
-    model;
+  | _ => Model.load(Model.blank)
   };
 };
 
