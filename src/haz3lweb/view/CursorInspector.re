@@ -16,7 +16,7 @@ let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
   let tooltip = "Toggle language documentation";
   let toggle_landocs = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
+      inject(Update.UpdateLangDocMessages(ToggleShow)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -60,6 +60,7 @@ let elements_noun: Term.Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
+  | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
 let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
@@ -71,12 +72,9 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     }
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
+      text(":"),
       Type.view(typ),
-      text("is inconsistent with arrow type"),
-    ]
-  | Inconsistent(Internal(tys)) => [
-      text(elements_noun(cls) ++ " have inconsistent types:"),
-      ...ListUtil.join(text(","), List.map(Type.view, tys)),
+      text("inconsistent with arrow type"),
     ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),
@@ -84,52 +82,49 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       text("inconsistent with expected type"),
       Type.view(ana),
     ]
+  | Inconsistent(Internal(tys)) => [
+      text(elements_noun(cls) ++ " have inconsistent types:"),
+      ...ListUtil.join(text(","), List.map(Type.view, tys)),
+    ]
   };
 
 let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
-  switch (ok) {
-  | _ when cls == Exp(MultiHole) || cls == Pat(MultiHole) => [
+  switch (cls, ok) {
+  | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
     ]
-  | Syn(_) when cls == Exp(EmptyHole) => [
-      text("Fillable by any expression"),
-    ]
-  | Syn(_) when cls == Pat(EmptyHole) => [text("Fillable by any pattern")]
-  | Ana(Consistent({ana, _}))
-      when cls == Exp(EmptyHole) || cls == Pat(EmptyHole) => [
-      text("Expecting type"),
+  | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
+  | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
+  | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+      text("Fillable by any expression of type"),
       Type.view(ana),
     ]
-  | Syn(syn) => [text(":"), Type.view(syn)]
-  /*| Ana(Consistent({ana, syn: Unknown(_) as syn, _})) => [
-        text(":"),
-        Type.view(syn),
-        text("trivially satisfies expected type"),
-        Type.view(ana),
-      ]
-    | Ana(Consistent({ana: Unknown(_) as ana, syn, _})) => [
-        text(":"),
-        Type.view(syn),
-        text("satisfies trivial expected type"),
-        Type.view(ana),
-      ]*/
-  | Ana(Consistent({ana, syn, _})) when ana == syn => [
+  | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+      text("Fillable by any pattern of type"),
+      Type.view(ana),
+    ]
+  | (_, Syn(syn)) => [text(":"), Type.view(syn)]
+  | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
+      text(":"),
+      Type.view(ana),
+    ]
+  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
       text(":"),
       Type.view(syn),
       text("equals expected type"),
     ]
-  | Ana(Consistent({ana, syn, _})) => [
+  | (_, Ana(Consistent({ana, syn, _}))) => [
       text(":"),
       Type.view(syn),
-      text("satisfies expected type"),
+      text("consistent with expected type"),
       Type.view(ana),
     ]
-  | Ana(InternallyInconsistent({ana, nojoin: tys})) =>
+  | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
     [
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
-    @ [text("but these satisfy expected type"), Type.view(ana)]
+    @ [text("but consistent with expected"), Type.view(ana)]
   };
 };
 

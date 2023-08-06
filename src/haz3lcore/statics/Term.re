@@ -445,7 +445,8 @@ module UExp = {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | ListConcat;
 
   let hole = (tms: list(any)): term =>
     switch (tms) {
@@ -483,9 +484,14 @@ module UExp = {
     | Test(_) => Test
     | Parens(_) => Parens
     | Cons(_) => Cons
+    | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
+
+  let show_op_un_bool: op_un_bool => string =
+    fun
+    | Not => "Boolean Negation";
 
   let show_op_un_int: op_un_int => string =
     fun
@@ -493,6 +499,7 @@ module UExp = {
 
   let show_unop: op_un => string =
     fun
+    | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
   let show_op_bin_bool: op_bin_bool => string =
@@ -511,7 +518,8 @@ module UExp = {
     | LessThanOrEqual => "Integer Less Than or Equal"
     | GreaterThan => "Integer Greater Than"
     | GreaterThanOrEqual => "Integer Greater Than or Equal"
-    | Equals => "Integer Equality";
+    | Equals => "Integer Equality"
+    | NotEquals => "Integer Inequality";
 
   let show_op_bin_float: op_bin_float => string =
     fun
@@ -524,10 +532,12 @@ module UExp = {
     | LessThanOrEqual => "Float Less Than or Equal"
     | GreaterThan => "Float Greater Than"
     | GreaterThanOrEqual => "Float Greater Than or Equal"
-    | Equals => "Float Equality";
+    | Equals => "Float Equality"
+    | NotEquals => "Float Inequality";
 
   let show_op_bin_string: op_bin_string => string =
     fun
+    | Concat => "String Concatenation"
     | Equals => "String Equality";
 
   let show_binop: op_bin => string =
@@ -562,6 +572,7 @@ module UExp = {
     | Test => "Test"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
+    | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | Match => "Case expression";
@@ -590,6 +601,7 @@ module UExp = {
     | Seq(_)
     | Test(_)
     | Cons(_)
+    | ListConcat(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
@@ -623,6 +635,7 @@ module UExp = {
       | Seq(_)
       | Test(_)
       | Cons(_)
+      | ListConcat(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)

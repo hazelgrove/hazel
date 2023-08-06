@@ -78,6 +78,13 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
   | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
   };
 
+let of_list_concat = (mode: t): t =>
+  switch (mode) {
+  | Syn
+  | SynFun => Ana(List(Unknown(SynSwitch)))
+  | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+  };
+
 let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>
   List.init(length, _ => of_list(ctx, mode));
 

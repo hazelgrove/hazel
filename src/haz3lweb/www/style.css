@@ -73,49 +73,49 @@
 
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
-  --nul-delim-color: var(--nul-text-color);
+  --nul-token-color: var(--nul-text-color);
   --nul-shadow-color: var(--nul-text-color);
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
   --any-text-color: var(--nul-text-color);
   --any-off-color: var(--nul-off-color);
-  --any-delim-color: var(--nul-delim-color);
+  --any-token-color: var(--nul-token-color);
   --any-shadow-color: var(--nul-shadow-color);
   --any-bg-color: var(--nul-bg-color);
   --any-bg-off-color: var(--nul-bg-off-color);
 
   --exp-text-color: var(--light-text-color);
   --exp-off-color: #b1a47f;
-  --exp-delim-color: var(--light-text-color);
+  --exp-token-color: var(--light-text-color);
   --exp-shadow-color: #c4b599;
   --exp-bg-color: #ebdfc5;
   --exp-bg-off-color: #feddb3;
 
   --pat-text-color: #169fdc;
   --pat-off-color: #13aed2;
-  --pat-delim-color: #a2dffb;
+  --pat-token-color: #a2dffb;
   --pat-shadow-color: var(--pat-off-color);
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
 
   --tpat-text-color: #16c8dc;
   --tpat-off-color: #13d2d2;
-  --tpat-delim-color: #a2fbf9;
+  --tpat-token-color: #a2fbf9;
   --tpat-shadow-color: var(--pat-off-color);
   --tpat-bg-color: #b2fbff;
   --tpat-bg-off-color: #d7fff7;
 
   --typ-text-color: #772cff;
   --typ-off-color: #975dff;
-  --typ-delim-color: #cfb5ff;
+  --typ-token-color: #cfb5ff;
   --typ-shadow-color: var(--typ-off-color);
   --typ-bg-color: #f2ccff;
   --typ-bg-off-color: #f9e8ff;
 
   --rul-text-color: var(--exp-text-color);
   --rul-off-color: var(--exp-off-color);
-  --rul-delim-color: #ccc2af;
+  --rul-token-color: #ccc2af;
   --rul-shadow-color: var(--exp-shadow-color);
   --rul-bg-color: var(--exp-bg-color);
   --rul-bg-off-color: var(--exp-bg-off-color);
@@ -300,6 +300,7 @@ body {
   grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
+  user-select: none;
 }
 
 #main {
@@ -448,7 +449,6 @@ select {
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
-  user-select: none;
   background-color: #c7b480;
   border-radius: 0.4em 1em 1em 0.4em;
   transition: width 0.1s ease-in;
@@ -592,7 +592,6 @@ select {
 .cell {
   display: flex;
   flex-direction: column;
-  user-select: none;
   gap: 1em;
   /* border-radius: 0.4em; */
   padding-left: 1em;
@@ -608,13 +607,11 @@ select {
 
 .cell-caption {
   color: var(--top-bar-text);
-  user-select: none;
 }
 
 .code-text {
   position: relative;
   z-index: var(--code-text-z);
-  user-select: none;
   white-space: pre;
 }
 
@@ -624,14 +621,13 @@ select {
 .code-text-shards {
   /*position: absolute;*/
   z-index: var(--code-text-shards-z);
-  user-select: none;
 }
 
 .code-text-shards span {
   color: #0000 !important;
 }
 
-.code-text-shards span.delim-incomplete {
+.code-text-shards span.incomplete {
   color: var(--code-emphasis) !important;
 }
 
@@ -718,31 +714,20 @@ select {
   vector-effect: non-scaling-stroke;
 }
 
-.code .delim {
+.code .token.poly {
   font-weight: bold;
 }
 
-.code .token.mono-string-lit {
+.code .token.mono.string-lit {
   color: var(--string-lit-color);
 }
 
-.code .token.mono-inconsistent {
-  color: var(--err-color);
+.code .token.sort-inconsistent {
+  color: var(--nul-text-color) !important;
 }
 
-.code .token.delim {
-  color: var(--exp-delim-color);
-  font-weight: bold;
-}
-
-.code .token.delim-incomplete {
-  color: var(--code-emphasis);
-  font-weight: bold;
-}
-
-.code .token.delim-inconsistent {
-  color: var(--err-color);
-  font-weight: bold;
+.code .token.incomplete {
+  color: var(--code-emphasis) !important;
 }
 
 .child-backing {
@@ -791,21 +776,13 @@ svg.tile-selected {
 
 /* TOKEN COLORS */
 
-.code .text-Nul { color: var(--nul-text-color); }
-.code .text-Any { color: var(--any-text-color); }
-.code .text-Exp { color: var(--exp-text-color); }
-.code .text-Pat { color: var(--pat-text-color); }
-.code .text-Typ { color: var(--typ-text-color); }
-.code .text-Rul { color: var(--rul-text-color); }
-.code .text-TPat { color: var(--tpat-text-color); }
-
-.code .delim.text-Nul { color: var(--nul-delim-color); }
-.code .delim.text-Any { color: var(--any-delim-color); }
-.code .delim.text-Exp { color: var(--exp-delim-color); }
-.code .delim.text-Pat { color: var(--pat-delim-color); }
-.code .delim.text-Typ { color: var(--typ-delim-color); }
-.code .delim.text-Rul { color: var(--rul-delim-color); }
-.code .delim.text-TPat { color: var(--tpat-delim-color); }
+.code .token.Nul { color: var(--nul-text-color); }
+.code .token.Any { color: var(--any-text-color); }
+.code .token.Exp { color: var(--exp-text-color); }
+.code .token.Pat { color: var(--pat-text-color); }
+.code .token.Typ { color: var(--typ-text-color); }
+.code .token.Rul { color: var(--rul-text-color); }
+.code .token.TPat { color: var(--tpat-text-color); }
 
 .tile-path.Nul { filter: url(#drop-shadow-Nul); }
 .tile-path.Any { filter: url(#drop-shadow-Any); }
@@ -1058,6 +1035,10 @@ svg.tile-selected {
   gap: 0em;
 }
 
+.typ-view.atom.unknown {
+  /* to advertise provenance display on-hover */
+  cursor: help;
+}
 .typ-alias-view {
   color: var(--tpat-text-color);
   display: flex;
@@ -1288,28 +1269,6 @@ svg.tile-selected {
 
 .comment {
   color: #a0c1aa;
-}
-
-/* TODO seems like should be better way to ignore inconsistentcy colorings...*/
-.lang-doc .code .text-Pat.mono-inconsistent {
-  color: var(--pat-text-color);
-}
-
-.lang-doc .code .text-Exp.mono-inconsistent {
-  color: var(--exp-text-color);
-}
-
-.lang-doc .code .text-Typ.mono-inconsistent {
-  color: var(--typ-text-color);
-}
-
-.lang-doc .code .text-Rul.mono-inconsistent {
-  color: var(--rul-text-color);
-}
-
-.lang-doc .code .token.delim-inconsistent {
-  color: var(--exp-delim-color);
-  font-weight: bold;
 }
 
 .lang-doc #examples {
@@ -1550,8 +1509,22 @@ svg.expandable path {
 
 .result {
   min-height: 1.6em;
+  width: 100%;
   overflow-y: hidden;
   overflow-x: auto;
+}
+
+.cell-item.cell-result:has(.exception) {
+  background-color: #ffa2a2;
+}
+
+.result .exception {
+  background-color: #ffa2a2;
+  color: #7d0000;
+  border-radius: 0.3em;
+  font-family: 'Helvetica Neue';
+  font-size: 1rem;
+  padding: 0.1em 0.4em 0.1em 0.4em;
 }
 
 /* DYNAMICS - DHEXP */
@@ -1871,7 +1844,6 @@ svg.expandable path {
 }
 
 .toggle-switch {
-  user-select: none;
   height: 1.2em;
   width: 2em;
   display: inline-block;
