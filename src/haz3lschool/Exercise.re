@@ -8,8 +8,7 @@ module type ExerciseEnv = {
 };
 
 let output_header_grading = _module_name =>
-  "module SchoolExercise = GradePrelude.SchoolExercise\n"
-  ++ "let prompt = ()\n";
+  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
 
 module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -572,7 +571,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module StaticsItem = {
     type t = {
       term: TermBase.UExp.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     };
   };
 
@@ -725,7 +724,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module DynamicsItem = {
     type t = {
       term: TermBase.UExp.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
       simple_result: ModelResult.simple,
     };
   };
@@ -857,7 +856,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       "let prompt = "
       ++ module_name
       ++ "_prompt.prompt\n"
-      ++ "let exercise: SchoolExercise.spec = ";
+      ++ "let exercise: Exercise.spec = ";
     let record = show_p(editor_pp, eds);
     let data = prefix ++ record ++ "\n";
     data;
@@ -874,7 +873,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       "let prompt = "
       ++ module_name
       ++ "_prompt.prompt\n"
-      ++ "let exercise: SchoolExercise.spec = SchoolExercise.transition(";
+      ++ "let exercise: Exercise.spec = Exercise.transition(";
     let record = show_p(transitionary_editor_pp, eds);
     let data = prefix ++ record ++ ")\n";
     data;
@@ -882,7 +881,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let export_grading_module = (module_name, {eds, _}: state) => {
     let header = output_header_grading(module_name);
-    let prefix = "let exercise: SchoolExercise.spec = ";
+    let prefix = "let exercise: Exercise.spec = ";
     let record = show_p(editor_pp, eds);
     let data = header ++ prefix ++ record ++ "\n";
     data;
@@ -935,10 +934,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  // From LocalStorage
+  // From Store
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type school_export = {
+  type exercise_export = {
     cur_exercise: key,
     exercise_data: list((key, persistent_state)),
   };
@@ -956,7 +955,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> unpersist_state(~spec, ~instructor_mode);
   };
 
-  let deserialize_school_export = data => {
-    data |> Sexplib.Sexp.of_string |> school_export_of_sexp;
+  let deserialize_exercise_export = data => {
+    data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
   };
 };

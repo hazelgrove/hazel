@@ -12,13 +12,13 @@
   </head>
 
   <body spellcheck="false">
-    <div class="container" id="container">
-      <div class="loading-container" style="position: absolute; left:0; top:0; right:0; bottom:0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #fdf6e3">
-        <div class="loading" style="display: flex; align-items: center; justify-content: center; ">
-          <img width="200px" height="200px" src="img/loading.gif" />
-          <img width="200px" height="200px" src="img/hazelnut.svg" style="position:fixed; transform: scale(0.25); filter: invert()"/>
+    <div id="container">
+      <div class="loading">
+        <div class="spinner">
+          <img width="100px" height="100px" src="img/loading.gif" />
+          <img class="spinner-nut" width="100px" height="100px" src="img/hazelnut.svg" />
         </div>
-        <p style="font-size:4em; color: black;">loading</p>
+        loading
       </div>
     </div>
   </body>

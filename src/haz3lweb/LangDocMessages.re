@@ -40,6 +40,7 @@ type form_group = {
 // TODO Make sure using this for all the forms that should, like wild and nil
 // TODO Should this have its own ID generator or is using the Example one fine?
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
+let list_concat_exp = () => Example.mk_monotile(Form.get("list_concat"));
 let cons_pat = () => Example.mk_monotile(Form.get("cons_pat"));
 let seq = () => Example.mk_monotile(Form.get("cell-join"));
 let exp = v =>
@@ -48,6 +49,9 @@ let pat = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Pat, []))));
 let typ = t =>
   Example.mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
+let tpat = v =>
+  Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
+let typ_pat_var = t => Example.mk_monotile(Form.mk_atomic(TPat, t));
 let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
 let bool = b => Example.mk_monotile(Form.mk_atomic(Exp, b));
 let mk_parens_exp = Example.mk_tile(Form.get("parens_exp"));
@@ -58,12 +62,14 @@ let mk_list_pat = Example.mk_tile(Form.get("list_lit_pat"));
 let mk_list_typ = Example.mk_tile(Form.get("list_typ"));
 let arrow = () => Example.mk_monotile(Form.get("type-arrow"));
 let unary_minus = () => Example.mk_monotile(Form.get("unary_minus"));
+let unary_not = () => Example.mk_monotile(Form.get("not"));
 let plus = () => Example.mk_monotile(Form.get("plus"));
 let minus = () => Example.mk_monotile(Form.get("minus"));
 let times = () => Example.mk_monotile(Form.get("times"));
 let power = () => Example.mk_monotile(Form.get("power"));
 let divide = () => Example.mk_monotile(Form.get("divide"));
 let equals = () => Example.mk_monotile(Form.get("equals"));
+let not_equals = () => Example.mk_monotile(Form.get("not_equals"));
 let lt = () => Example.mk_monotile(Form.get("lt"));
 let lte = () => Example.mk_monotile(Form.get("lte"));
 let gt = () => Example.mk_monotile(Form.get("gt"));
@@ -74,11 +80,13 @@ let ftimes = () => Example.mk_monotile(Form.get("ftimes"));
 let fpower = () => Example.mk_monotile(Form.get("fpower"));
 let fdivide = () => Example.mk_monotile(Form.get("fdivide"));
 let fequals = () => Example.mk_monotile(Form.get("fequals"));
+let fnot_equals = () => Example.mk_monotile(Form.get("fnot_equals"));
 let flt = () => Example.mk_monotile(Form.get("flt"));
 let flte = () => Example.mk_monotile(Form.get("flte"));
 let fgt = () => Example.mk_monotile(Form.get("fgt"));
 let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let sequals = () => Example.mk_monotile(Form.get("string_equals"));
+let sconcat = () => Example.mk_monotile(Form.get("string_concat"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
@@ -90,6 +98,8 @@ let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
+let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
+
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
@@ -105,34 +115,47 @@ let mk_example = str => {
 };
 
 let empty_hole_exp_group = "empty_hole_exp_group";
-let empty_hole_exp: form = {
+let empty_hole_tpat_group = "empty_hole_tpat_group";
+let empty_hole_template = (sort, str, id): form => {
   let explanation = {
-    message: "Empty hole. This marks an expression that needs to be filled in.",
+    message:
+      Printf.sprintf(
+        "Empty hole. This should be filled with %s to complete the program.",
+        str,
+      ),
     feedback: Unselected,
   };
   {
-    id: "empty_hole_exp",
-    syntactic_form: [exp("EmptyHole")],
+    id,
+    syntactic_form: [sort("EmptyHole")],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
+let empty_hole_exp: form =
+  empty_hole_template(exp, "an expression", "empty_hole_exp");
+let empty_hole_tpat: form =
+  empty_hole_template(tpat, "a type pattern", "empty_hole_tpat");
 
 let multi_hole_exp_group = "multi_hole_exp_group";
-let multi_hole_exp: form = {
+let multi_hole_tpat_group = "multi_hole_tpat_group";
+
+let multi_hole_template = (sort, id: string): form => {
   let explanation = {
     message: "Not recognized. This is an invalid term.",
     feedback: Unselected,
   };
   {
-    id: "multi_hole_exp",
-    syntactic_form: [exp("INVALID")],
+    id,
+    syntactic_form: [sort("INVALID")],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
+let multi_hole_exp: form = multi_hole_template(exp, "multi_hole_exp");
+let multi_hole_tpat: form = multi_hole_template(tpat, "multi_hole_tpat");
 
 let triv_exp_group = "triv_exp_group";
 let triv_exp: form = {
@@ -242,7 +265,7 @@ let function_var_group = "function_var_group";
 let function_tuple_group = "function_tuple_group";
 let function_tuple_2_group = "function_tuple_2_group";
 let function_tuple_3_group = "function_tuple_3_group";
-let function_tag_group = "function_tag_group";
+let function_ctr_group = "function_ctr_group";
 let function_ap_group = "function_ap_group";
 let basic_fun_ex = {
   sub_id: "basic_fun_ex",
@@ -334,8 +357,8 @@ let tuple3_fun_ex = {
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
   feedback: Unselected,
 };
-let tag_fun_ex = {
-  sub_id: "tag_fun_ex",
+let ctr_fun_ex = {
+  sub_id: "ctr_fun_ex",
   term: mk_example("fun None -> 1"),
   message: "When given a None constructor argument, the function evaluates 1.",
   feedback: Unselected,
@@ -699,20 +722,20 @@ let function_tuple3_exp: form = {
 };
 let _pat = pat("C");
 let _exp = exp("e");
-let function_tag_exp_coloring_ids =
+let function_ctr_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
-let function_tag_exp: form = {
+let function_ctr_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
-    id: "function_tag_exp",
+    id: "function_ctr_exp",
     syntactic_form: form,
     expandable_id: Some(Piece.id(_pat)),
     explanation,
-    examples: [tag_fun_ex],
+    examples: [ctr_fun_ex],
   };
 };
 let _pat_con = pat("p_con");
@@ -840,12 +863,15 @@ let var_exp: form = {
   };
 };
 
-let tag_exp_group = "tag_exp_group";
-let tag_exp: form = {
-  let explanation = {message: "`%s` constructor.", feedback: Unselected};
+let ctr_exp_group = "ctr_exp_group";
+let ctr_exp: form = {
+  let explanation = {
+    message: "`%s` is a constructor for a sum type variant.",
+    feedback: Unselected,
+  };
   {
-    id: "tag_exp",
-    syntactic_form: [exp("C")],
+    id: "ctr_exp",
+    syntactic_form: [exp("Constructor")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -854,7 +880,9 @@ let tag_exp: form = {
 
 let let_base_exp_group = "let_base_exp_group";
 let let_empty_hole_exp_group = "let_empty_hole_exp_group";
+let let_empty_hole_tpat_group = "let_empty_hole_tpat_group";
 let let_multi_hole_exp_group = "let_multi_hole_exp_group";
+let let_multi_hole_tpat_group = "let_multi_hole_tpat_group";
 let let_wild_exp_group = "let_wild_hole_exp_group";
 let let_int_exp_group = "let_int_exp_group";
 let let_float_exp_group = "let_float_exp_group";
@@ -868,7 +896,7 @@ let let_var_exp_group = "let_var_exp_group";
 let let_tuple_base_exp_group = "let_tuple_base_exp_group";
 let let_tuple2_exp_group = "let_tuple2_exp_group";
 let let_tuple3_exp_group = "let_tuple3_exp_group";
-let let_tag_exp_group = "let_tag_exp_group";
+let let_ctr_exp_group = "let_ctr_exp_group";
 let let_ap_exp_group = "let_ap_exp_group";
 let let_base_ex = {
   sub_id: "let_base_ex",
@@ -954,8 +982,8 @@ let let_tuple3_ex = {
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
   feedback: Unselected,
 };
-let let_tag_ex = {
-  sub_id: "let_tag_ex",
+let let_ctr_ex = {
+  sub_id: "let_ctr_ex",
   term: mk_example("let None = None in \n2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
@@ -1421,13 +1449,13 @@ let let_tuple3_exp: form = {
 let _pat = pat("C");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
-let let_tag_exp_coloring_ids =
+let let_ctr_exp_coloring_ids =
   _pat_def_body_let_exp_coloring_ids(
     Piece.id(_pat),
     Piece.id(_exp_def),
     Piece.id(_exp_body),
   );
-let let_tag_exp: form = {
+let let_ctr_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
@@ -1438,11 +1466,11 @@ let let_tag_exp: form = {
     _exp_body,
   ];
   {
-    id: "let_tag_exp",
+    id: "let_ctr_exp",
     syntactic_form: form,
     expandable_id: Some(Piece.id(_pat)),
     explanation,
-    examples: [let_tag_ex],
+    examples: [let_ctr_ex],
   };
 };
 let _pat_con = pat("p_con");
@@ -1474,6 +1502,32 @@ let let_ap_exp: form = {
     expandable_id: Some(Piece.id(ap)),
     explanation,
     examples: [let_ap_ex],
+  };
+};
+
+let tyalias_exp_group = "tyalias_exp_group";
+let _tpat = tpat("p");
+let _typ_def = typ("ty_def");
+let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
+  (Piece.id(_tpat), tpat_id),
+  (Piece.id(_typ_def), def_id),
+];
+let tyalias_base_exp: form = {
+  let explanation = {
+    message: "Type alias expression. The [*type*](%i) is bound to the [*type variable*](%i) in the body.",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_tyalias([[space(), _tpat, space()], [space(), _typ_def, space()]]),
+    linebreak(),
+    exp("e_body"),
+  ];
+  {
+    id: "tyalias_base_exp",
+    syntactic_form: form,
+    expandable_id: None,
+    explanation,
+    examples: [],
   };
 };
 
@@ -1644,6 +1698,8 @@ let test_exp: form = {
 };
 
 let cons_exp_group = "cons_exp_group";
+let list_concat_exp_group = "list_concat_exp_group";
+
 let cons1_ex = {
   sub_id: "cons1_ex",
   term: mk_example("1::[]"),
@@ -1675,8 +1731,28 @@ let cons_exp: form = {
     examples: [cons1_ex, cons2_ex],
   };
 };
+let list_concat_exp: form = {
+  let explanation = {
+    message: "List concatenation operator. Creates a list by combining the [*first operand*](%i) and the [*second operand*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "list_concat_exp",
+    syntactic_form: [
+      exp("xs"),
+      space(),
+      list_concat_exp(),
+      space(),
+      exp("ys"),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 
 let int_unary_minus_group = "int_unary_minus_group";
+let bool_unary_not_group = "bool_unary_not_group";
 let int_plus_group = "int_plus_group";
 let int_minus_group = "int_minus_group";
 let int_times_group = "int_times_group";
@@ -1687,6 +1763,7 @@ let int_lte_group = "int_lte_group";
 let int_gt_group = "int_gt_group";
 let int_gte_group = "int_gte_group";
 let int_eq_group = "int_eq_group";
+let int_neq_group = "int_neq_group";
 let float_plus_group = "float_plus_group";
 let float_minus_group = "float_minus_group";
 let float_times_group = "float_times_group";
@@ -1697,9 +1774,11 @@ let float_lte_group = "float_lte_group";
 let float_gt_group = "float_gt_group";
 let float_gte_group = "float_gte_group";
 let float_eq_group = "float_eq_group";
+let float_neq_group = "float_neq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
 let str_eq_group = "str_eq_group";
+let str_concat_group = "str_concat_group";
 let int_unary_minus_ex = {
   sub_id: "int_unary_minus_ex",
   term: mk_example("-1"),
@@ -1924,13 +2003,13 @@ let bool_and2_ex = {
 };
 let bool_or1_ex = {
   sub_id: "bool_or1_ex",
-  term: mk_example("false || 2 < 1"),
+  term: mk_example("false \\/ 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
   feedback: Unselected,
 };
 let bool_or2_ex = {
   sub_id: "bool_or2_ex",
-  term: mk_example("3 < 4 || false"),
+  term: mk_example("3 < 4 \\/ false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
   feedback: Unselected,
 };
@@ -1950,6 +2029,19 @@ let _exp = exp("e");
 let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp), exp_id),
 ];
+let bool_unary_not_exp: form = {
+  let explanation = {
+    message: "Unary not. Performs boolean negation of the [*operand*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "bool_unary_not_exp",
+    syntactic_form: [unary_not(), _exp],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let int_unary_minus_exp: form = {
   let explanation = {
     message: "Unary minus. Performs integer negation of the [*operand*](%i).",
@@ -2196,6 +2288,19 @@ let int_eq_exp: form = {
     examples: [int_eq1_ex, int_eq2_ex],
   };
 };
+let int_neq_exp: form = {
+  let explanation = {
+    message: "Integer inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "int_neq_exp",
+    syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
 let float_plus_exp_coloring_ids =
@@ -2424,6 +2529,19 @@ let float_eq_exp: form = {
     examples: [float_eq1_ex, float_eq2_ex],
   };
 };
+let float_neq_exp: form = {
+  let explanation = {
+    message: "Floating-point inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "float_neq_exp",
+    syntactic_form: [_exp1, space(), fnot_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
 let bool_and_exp_coloring_ids =
@@ -2492,6 +2610,19 @@ let str_eq_exp: form = {
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
+  };
+};
+let str_concat_exp: form = {
+  let explanation = {
+    message: "String concatenation. Returns the concatenation of the [*left operand*](%i) and the [*right operand*](%i),",
+    feedback: Unselected,
+  };
+  {
+    id: "str_concat_exp",
+    syntactic_form: [_exp1, space(), sconcat(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
   };
 };
 
@@ -2864,15 +2995,15 @@ let tuple_pat_size3: form = {
   };
 };
 
-let tag_pat_group = "tag_pat_group";
-let tag_pat: form = {
+let ctr_pat_group = "ctr_pat_group";
+let ctr_pat: form = {
   let explanation = {
     message: "Constructor pattern. Only expressions that match the *`%s` constructor* match this constructor pattern.",
     feedback: Unselected,
   };
   {
-    id: "tag_pat",
-    syntactic_form: [pat("C")],
+    id: "ctr_pat",
+    syntactic_form: [pat("Constructor")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -3088,6 +3219,59 @@ let arrow3_typ: form = {
   };
 };
 
+let labelled_sum_typ_group = "labelled_sum_typ_group";
+let labelled_sum_typ: form = {
+  let explanation = {
+    message: "Sum type. Sum types express finite labeled choices. Values of this type consist of one of the specified constructors applied to a parameter of the corresponding parameter type, if specified. Constructor names must be unique within a sum.",
+    feedback: Unselected,
+  };
+  let divider = Example.mk_monotile(Form.get("typ_plus"));
+  {
+    id: "labelled_sum_typ",
+    syntactic_form: [
+      space(),
+      typ("Cons(ty)"),
+      space(),
+      divider,
+      space(),
+      typ("..."),
+      space(),
+    ],
+    expandable_id: Some(Piece.id(divider)),
+    explanation,
+    examples: [],
+  };
+};
+let sum_typ_unary_constructor_def_group = "sum_typ_unary_constructor_def_group";
+let sum_typ_unary_constructor_def: form = {
+  let explanation = {
+    message: "Parameterized constructor definition. This specifies one possible way of constructing the parent sum type, when applied to a parameter of the specified parameter type.",
+    feedback: Unselected,
+  };
+  {
+    id: "sum_typ_unary_constructor_def",
+    syntactic_form: [typ("Constructor(type)")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let sum_typ_nullary_constructor_def_group = "sum_typ_nullary_constructor_def_group";
+let sum_typ_nullary_constructor_def: form = {
+  let explanation = {
+    message: "Constant constructor definition. This specifies one possible way of constructing the parent sum type. It does not take an argument, so it a constant of that type.",
+    feedback: Unselected,
+  };
+  {
+    id: "sum_typ_nullary_constructor_def",
+    syntactic_form: [typ("Constructor")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let tuple_typ_group = "tuple_typ_group";
 let tuple2_typ_group = "tuple2_typ_group";
 let tuple3_typ_group = "tuple3_typ_group";
@@ -3160,10 +3344,28 @@ let tuple3_typ: form = {
 
 let var_typ_group = "var_typ_group";
 let var_typ: form = {
-  let explanation = {message: "`%s` type.", feedback: Unselected};
+  let explanation = {
+    message: "`%s` is a type variable.",
+    feedback: Unselected,
+  };
   {
     id: "var_typ",
-    syntactic_form: [typ("x")],
+    syntactic_form: [typ("T")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let var_typ_pat_group = "var_typ_pat_group";
+let var_typ_pat: form = {
+  let explanation = {
+    message: "`%s` binds a type variable.",
+    feedback: Unselected,
+  };
+  {
+    id: "var_typ_pat",
+    syntactic_form: [typ_pat_var("T")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -3181,24 +3383,39 @@ type t = {
   groups: list((string, form_group)),
 };
 
+let find = (p: 'a => bool, xs: list('a), err: string): 'a =>
+  switch (List.find_opt(p, xs)) {
+  | Some(x) => x
+  | None => failwith(err)
+  };
+
 let get_group = (group_id, doc: t) => {
-  let (_, form_group) = List.find(((id, _)) => id == group_id, doc.groups);
+  let (_, form_group) =
+    find(
+      ((id, _)) => id == group_id,
+      doc.groups,
+      "group not found: " ++ group_id,
+    );
   form_group;
 };
+
+let get_form = (form_id, docs) =>
+  find(({id, _}) => id == form_id, docs, "form not found: " ++ form_id);
+
+let get_example = (example_sub_id, examples) =>
+  find(
+    ({sub_id, _}) => sub_id == example_sub_id,
+    examples,
+    "example not found: " ++ example_sub_id,
+  );
 
 let get_form_and_options = (group_id, doc: t) => {
   let form_group = get_group(group_id, doc);
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
-  let form = List.find(({id, _}) => id == selected_id, doc.forms);
+  let form = get_form(selected_id, doc.forms);
   (form, form_group.options);
 };
-
-let get_example = (example_sub_id, examples) =>
-  List.find(({sub_id, _}) => sub_id == example_sub_id, examples);
-
-let get_form = (form_id, docs) =>
-  List.find(({id, _}) => id == form_id, docs);
 
 let rec update_form = (new_form, docs) => {
   switch (docs) {
@@ -3246,12 +3463,14 @@ let init_options = options => {
 
 let init = {
   show: true,
-  highlight: true,
+  highlight: false,
   specificity_open: false,
   forms: [
     // Expressions
     empty_hole_exp,
+    empty_hole_tpat,
     multi_hole_exp,
+    multi_hole_tpat,
     triv_exp,
     bool_exp,
     int_exp,
@@ -3274,13 +3493,13 @@ let init = {
     function_tuple_exp,
     function_tuple2_exp,
     function_tuple3_exp,
-    function_tag_exp,
+    function_ctr_exp,
     function_ap_exp,
     tuple_exp,
     tuple_exp_size2,
     tuple_exp_size3,
     var_exp,
-    tag_exp,
+    ctr_exp,
     let_base_exp,
     let_empty_hole_exp,
     let_multi_hole_exp,
@@ -3297,14 +3516,17 @@ let init = {
     let_tuple_exp,
     let_tuple2_exp,
     let_tuple3_exp,
-    let_tag_exp,
+    let_ctr_exp,
     let_ap_exp,
+    tyalias_base_exp,
     funapp_exp,
     conapp_exp,
     if_exp,
     seq_exp,
     test_exp,
     cons_exp,
+    list_concat_exp,
+    bool_unary_not_exp,
     int_unary_minus_exp,
     int_plus_exp,
     int_minus_exp,
@@ -3316,6 +3538,7 @@ let init = {
     int_gt_exp,
     int_gte_exp,
     int_eq_exp,
+    int_neq_exp,
     float_plus_exp,
     float_minus_exp,
     float_times_exp,
@@ -3326,9 +3549,11 @@ let init = {
     float_gt_exp,
     float_gte_exp,
     float_eq_exp,
+    float_neq_exp,
     bool_and_exp,
     bool_or_exp,
     str_eq_exp,
+    str_concat_exp,
     case_exp,
     // Rules
     // Patterns
@@ -3348,7 +3573,7 @@ let init = {
     tuple_pat,
     tuple_pat_size2,
     tuple_pat_size3,
-    tag_pat,
+    ctr_pat,
     ap_pat,
     typann_pat,
     // Types
@@ -3361,15 +3586,21 @@ let init = {
     list_typ,
     arrow_typ,
     arrow3_typ,
+    labelled_sum_typ,
+    sum_typ_unary_constructor_def,
+    sum_typ_nullary_constructor_def,
     tuple_typ,
     tuple2_typ,
     tuple3_typ,
     var_typ,
+    var_typ_pat,
   ],
   groups: [
     // Expressions
     (empty_hole_exp_group, init_options([(empty_hole_exp.id, [])])),
+    (empty_hole_tpat_group, init_options([(empty_hole_tpat.id, [])])),
     (multi_hole_exp_group, init_options([(multi_hole_exp.id, [])])),
+    (multi_hole_tpat_group, init_options([(multi_hole_tpat.id, [])])),
     (triv_exp_group, init_options([(triv_exp.id, [])])),
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),
@@ -3491,10 +3722,10 @@ let init = {
       ]),
     ),
     (
-      function_tag_group,
+      function_ctr_group,
       init_options([
         (function_exp.id, [pat("p")]),
-        (function_tag_exp.id, [pat("C")]),
+        (function_ctr_exp.id, [pat("C")]),
       ]),
     ),
     (
@@ -3526,7 +3757,7 @@ let init = {
       ]),
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
-    (tag_exp_group, init_options([(tag_exp.id, [])])),
+    (ctr_exp_group, init_options([(ctr_exp.id, [])])),
     (let_base_exp_group, init_options([(let_base_exp.id, [])])),
     (
       let_empty_hole_exp_group,
@@ -3639,10 +3870,10 @@ let init = {
       ]),
     ),
     (
-      let_tag_exp_group,
+      let_ctr_exp_group,
       init_options([
         (let_base_exp.id, [pat("p")]),
-        (let_tag_exp.id, [pat("C")]),
+        (let_ctr_exp.id, [pat("C")]),
       ]),
     ),
     (
@@ -3652,12 +3883,15 @@ let init = {
         (let_ap_exp.id, [pat("p_con"), mk_ap_pat([[pat("p_arg")]])]),
       ]),
     ),
+    (tyalias_exp_group, init_options([(tyalias_base_exp.id, [])])),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
     (if_exp_group, init_options([(if_exp.id, [])])),
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),
     (cons_exp_group, init_options([(cons_exp.id, [])])),
+    (list_concat_exp_group, init_options([(list_concat_exp.id, [])])),
+    (bool_unary_not_group, init_options([(bool_unary_not_exp.id, [])])),
     (int_unary_minus_group, init_options([(int_unary_minus_exp.id, [])])),
     (int_plus_group, init_options([(int_plus_exp.id, [])])),
     (int_minus_group, init_options([(int_minus_exp.id, [])])),
@@ -3669,6 +3903,7 @@ let init = {
     (int_gt_group, init_options([(int_gt_exp.id, [])])),
     (int_gte_group, init_options([(int_gte_exp.id, [])])),
     (int_eq_group, init_options([(int_eq_exp.id, [])])),
+    (int_neq_group, init_options([(int_neq_exp.id, [])])),
     (float_plus_group, init_options([(float_plus_exp.id, [])])),
     (float_minus_group, init_options([(float_minus_exp.id, [])])),
     (float_times_group, init_options([(float_times_exp.id, [])])),
@@ -3679,9 +3914,11 @@ let init = {
     (float_gt_group, init_options([(float_gt_exp.id, [])])),
     (float_gte_group, init_options([(float_gte_exp.id, [])])),
     (float_eq_group, init_options([(float_eq_exp.id, [])])),
+    (float_neq_group, init_options([(float_neq_exp.id, [])])),
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),
     (str_eq_group, init_options([(str_eq_exp.id, [])])),
+    (str_concat_group, init_options([(str_concat_exp.id, [])])),
     (case_exp_group, init_options([(case_exp.id, [])])),
     // Rules
     // Patterns
@@ -3722,7 +3959,7 @@ let init = {
         ),
       ]),
     ),
-    (tag_pat_group, init_options([(tag_pat.id, [])])),
+    (ctr_pat_group, init_options([(ctr_pat.id, [])])),
     (ap_pat_group, init_options([(ap_pat.id, [])])),
     (typann_pat_group, init_options([(typann_pat.id, [])])),
     // Types
@@ -3740,6 +3977,15 @@ let init = {
         (arrow_typ.id, [typ("ty_out")]),
         (arrow3_typ.id, [typ("ty_arg2"), arrow(), typ("ty_out")]),
       ]),
+    ),
+    (labelled_sum_typ_group, init_options([(labelled_sum_typ.id, [])])),
+    (
+      sum_typ_unary_constructor_def_group,
+      init_options([(sum_typ_unary_constructor_def.id, [])]),
+    ),
+    (
+      sum_typ_nullary_constructor_def_group,
+      init_options([(sum_typ_nullary_constructor_def.id, [])]),
     ),
     (tuple_typ_group, init_options([(tuple_typ.id, [])])),
     (
@@ -3760,6 +4006,7 @@ let init = {
       ]),
     ),
     (var_typ_group, init_options([(var_typ.id, [])])),
+    (var_typ_pat_group, init_options([(var_typ_pat.id, [])])),
   ],
 };
 
