@@ -164,14 +164,13 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
-      ~self=Self.listlit(ctx, tys, ids),
+      ~self=Self.listlit(~empty=Unknown(Internal), ctx, tys, ids),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
@@ -375,11 +374,11 @@ and upat_to_info_map =
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
+    let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Self.listlit(ctx, tys, List.map(UPat.rep_id, ps)), ~ctx, m);
+    add(~self=Self.listlit(~empty=unknown, ctx, tys, ids), ~ctx, m);
   | Cons(hd, tl) =>
     let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =

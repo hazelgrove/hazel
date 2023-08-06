@@ -88,19 +88,19 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
 let add_source = List.map2((id, ty) => Typ.{id, ty});
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
   | None => NoJoin(ty => ty, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
-let listlit = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(ctx, tys)) {
+let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty, ctx, tys)) {
   | None => NoJoin(ty => List(ty), add_source(ids, tys))
   | Some(ty) => Just(List(ty))
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
   | None => NoJoin(ty => List(ty), add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
