@@ -126,7 +126,7 @@ let deps = (fn: ('a, 'b) => 'a, acc_0: 'a, slides, idx) => {
 
 let get_ctx_init_slides = deps(export_ctx, Builtins.ctx_init);
 let get_env_init_slides = ctx_init =>
-  deps(export_env(ctx_init), Environment.empty);
+  deps(export_env(ctx_init), Builtins.env_init);
 
 let get_ctx_init = (editors: t): Ctx.t =>
   switch (editors) {
@@ -142,7 +142,7 @@ let get_env_init = (editors: t): Environment.t =>
     get_env_init_slides(get_ctx_init(editors), slides, idx)
   | DebugLoad
   | Exercise(_)
-  | Examples(_) => Environment.empty
+  | Examples(_) => Builtins.env_init
   };
 
 let get_spliced_elabs =
@@ -158,7 +158,7 @@ let get_spliced_elabs =
   | Examples(name, slides) =>
     let slide = List.assoc(name, slides);
     let (key, d) = ScratchSlide.spliced_elab(~ctx_init, slide);
-    [(key, d, Environment.empty)];
+    [(key, d, Builtins.env_init)];
   | Exercise(_, _, exercise) => Exercise.spliced_elabs(exercise)
   };
 };

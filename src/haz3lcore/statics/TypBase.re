@@ -63,8 +63,8 @@ module rec Typ: {
   let free_vars: (~bound: list(Var.t)=?, t) => list(Var.t);
   let join: (~resolve: bool=?, ~fix: bool, Ctx.t, t, t) => option(t);
   let join_fix: (~resolve: bool=?, Ctx.t, t, t) => option(t);
-  let join_all: (Ctx.t, list(t)) => option(t);
-  let is_consistent: (Ctx.t, Typ.t, Typ.t) => bool;
+  let join_all: (~empty: t, Ctx.t, list(t)) => option(t);
+  let is_consistent: (Ctx.t, t, t) => bool;
   let is_nontrivially_consistent: (Ctx.t, Typ.t, Typ.t) => bool;
   let weak_head_normalize: (Ctx.t, t) => t;
   let normalize: (Ctx.t, t) => t;
@@ -138,10 +138,12 @@ module rec Typ: {
       (p1: type_provenance, p2: type_provenance): type_provenance =>
     switch (p1, p2) {
     | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
-    | (Internal | Free(_), _)
-    | (_, Internal | Free(_)) => Internal
     | (TypeHole, TypeHole | SynSwitch)
     | (SynSwitch, TypeHole) => TypeHole
+    | (SynSwitch, Internal)
+    | (Internal, SynSwitch) => SynSwitch
+    | (Internal | Free(_), _)
+    | (_, Internal | Free(_)) => Internal
     | (SynSwitch, SynSwitch) => SynSwitch
     };
 
@@ -363,15 +365,15 @@ module rec Typ: {
 
   let join_fix = join(~fix=true);
 
-  let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
+  let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
     List.fold_left(
       (acc, ty) => OptUtil.and_then(join(~fix=false, ctx, ty), acc),
-      Some(Unknown(Internal)),
+      Some(empty),
       ts,
     );
 
-  let is_consistent = (ctx: Ctx.t, ty1: Typ.t, ty2: Typ.t): bool =>
-    Typ.join(~fix=false, ctx, ty1, ty2) != None;
+  let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
+    join(~fix=false, ctx, ty1, ty2) != None;
 
   let is_nontrivially_consistent = (ctx: Ctx.t, ty1: Typ.t, ty2: Typ.t): bool =>
     switch (ty1, ty2) {

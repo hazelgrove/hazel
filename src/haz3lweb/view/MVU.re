@@ -10,7 +10,7 @@ type t = {
 };
 
 let dhexp_view = (~font_metrics, d) =>
-  DHCode.view_tylr(
+  DHCode.view(
     ~settings={
       evaluate: true,
       show_case_clauses: true,

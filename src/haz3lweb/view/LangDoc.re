@@ -415,7 +415,7 @@ let example_view =
               switch (Some(Interface.eval_u2d(info_map, uhexp))) {
               | None => []
               | Some(dhexp) => [
-                  DHCode.view_tylr(
+                  DHCode.view(
                     ~settings=Settings.Evaluation.init,
                     ~selected_hole_instance=None,
                     ~font_metrics,
