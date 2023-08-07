@@ -12,7 +12,7 @@ let mode_of_string = (s: string): mode =>
   | "Scratch" => Scratch
   | "Examples" => Examples
   | "Exercise" => Exercise
-  | _ => Scratch
+  | _ => failwith("mode_of_string: unknown mode:" ++ s)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -41,6 +40,10 @@ module rec Any: {
 }
 and UExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_bool =
+    | Not;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -60,7 +63,8 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_float =
@@ -73,15 +77,18 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_string =
+    | Concat
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
-    | Int(op_un_int);
+    | Int(op_un_int)
+    | Bool(op_un_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
@@ -89,35 +96,6 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Constructor
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | Module
-    | Dot
-    | TyAlias
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -144,6 +122,7 @@ and UExp: {
     | Test(t)
     | Parens(t) // (
     | Cons(t, t)
+    | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -152,7 +131,16 @@ and UExp: {
     ids: list(Id.t),
     term,
   };
+
+  let bool_op_to_string: op_bin_bool => string;
+  let int_op_to_string: op_bin_int => string;
+  let float_op_to_string: op_bin_float => string;
+  let string_op_to_string: op_bin_string => string;
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_bool =
+    | Not;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
@@ -173,7 +161,8 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_float =
@@ -186,15 +175,18 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_string =
+    | Concat
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
-    | Int(op_un_int);
+    | Int(op_un_int)
+    | Bool(op_un_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
@@ -202,35 +194,6 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Constructor
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | Module
-    | Dot
-    | TyAlias
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -257,6 +220,7 @@ and UExp: {
     | Test(t)
     | Parens(t) // (
     | Cons(t, t)
+    | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -264,6 +228,52 @@ and UExp: {
     // invariant: nonempty
     ids: list(Id.t),
     term,
+  };
+
+  let bool_op_to_string = (op: op_bin_bool): string => {
+    switch (op) {
+    | And => "&&"
+    | Or => "\\/"
+    };
+  };
+
+  let int_op_to_string = (op: op_bin_int): string => {
+    switch (op) {
+    | Plus => "+"
+    | Minus => "-"
+    | Times => "*"
+    | Power => "**"
+    | Divide => "/"
+    | LessThan => "<"
+    | LessThanOrEqual => "<="
+    | GreaterThan => ">"
+    | GreaterThanOrEqual => ">="
+    | Equals => "=="
+    | NotEquals => "!="
+    };
+  };
+
+  let float_op_to_string = (op: op_bin_float): string => {
+    switch (op) {
+    | Plus => "+."
+    | Minus => "-."
+    | Times => "*."
+    | Power => "**."
+    | Divide => "/."
+    | LessThan => "<."
+    | LessThanOrEqual => "<=."
+    | GreaterThan => ">."
+    | GreaterThanOrEqual => ">=."
+    | Equals => "==."
+    | NotEquals => "!=."
+    };
+  };
+
+  let string_op_to_string = (op: op_bin_string): string => {
+    switch (op) {
+    | Concat => "++"
+    | Equals => "$=="
+    };
   };
 }
 and UPat: {

@@ -372,3 +372,9 @@ let serialize = (z: t): string => {
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
+
+let can_put_down = z =>
+  switch (pop_backpack(z)) {
+  | Some(_) => z.caret == Outer
+  | None => false
+  };

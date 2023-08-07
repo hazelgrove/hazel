@@ -1,49 +1,6 @@
 open Sexplib.Std;
 
 module rec DHExp: {
-  module BinBoolOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | And
-      | Or;
-  };
-
-  module BinIntOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals;
-  };
-
-  module BinFloatOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | FPlus
-      | FMinus
-      | FTimes
-      | FPower
-      | FDivide
-      | FLessThan
-      | FLessThanOrEqual
-      | FGreaterThan
-      | FGreaterThanOrEqual
-      | FEquals;
-  };
-
-  module BinStringOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | SEquals;
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -52,7 +9,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -67,12 +24,13 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
-    | BinStringOp(BinStringOp.t, t, t)
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
+    | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
@@ -97,49 +55,6 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 } = {
-  module BinBoolOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | And
-      | Or;
-  };
-
-  module BinIntOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals;
-  };
-
-  module BinFloatOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | FPlus
-      | FMinus
-      | FTimes
-      | FPower
-      | FDivide
-      | FLessThan
-      | FLessThanOrEqual
-      | FGreaterThan
-      | FGreaterThanOrEqual
-      | FEquals;
-  };
-
-  module BinStringOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | SEquals;
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -150,7 +65,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -166,12 +81,13 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
-    | BinStringOp(BinStringOp.t, t, t)
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
+    | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
@@ -213,6 +129,7 @@ module rec DHExp: {
     | BinStringOp(_, _, _) => "BinStringOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
+    | ListConcat(_, _) => "ListConcat"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
@@ -248,6 +165,7 @@ module rec DHExp: {
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
+    | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
@@ -317,6 +235,8 @@ module rec DHExp: {
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
@@ -352,6 +272,7 @@ module rec DHExp: {
     | (Ap(_), _)
     | (ApBuiltin(_), _)
     | (Cons(_), _)
+    | (ListConcat(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)

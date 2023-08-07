@@ -1,13 +1,13 @@
 open Haz3lcore;
 module Doc = Pretty.Doc;
 
-let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
+let precedence_bin_bool_op = (op: TermBase.UExp.op_bin_bool) =>
   switch (op) {
   | And => DHDoc_common.precedence_And
   | Or => DHDoc_common.precedence_Or
   };
 
-let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
+let precedence_bin_int_op = (bio: TermBase.UExp.op_bin_int) =>
   switch (bio) {
   | Times => DHDoc_common.precedence_Times
   | Power => DHDoc_common.precedence_Power
@@ -15,27 +15,30 @@ let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
   | Plus => DHDoc_common.precedence_Plus
   | Minus => DHDoc_common.precedence_Minus
   | Equals => DHDoc_common.precedence_Equals
+  | NotEquals => DHDoc_common.precedence_Equals
   | LessThan => DHDoc_common.precedence_LessThan
   | LessThanOrEqual => DHDoc_common.precedence_LessThan
   | GreaterThan => DHDoc_common.precedence_GreaterThan
   | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
-let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
+let precedence_bin_float_op = (bfo: TermBase.UExp.op_bin_float) =>
   switch (bfo) {
-  | FTimes => DHDoc_common.precedence_Times
-  | FPower => DHDoc_common.precedence_Power
-  | FDivide => DHDoc_common.precedence_Divide
-  | FPlus => DHDoc_common.precedence_Plus
-  | FMinus => DHDoc_common.precedence_Minus
-  | FEquals => DHDoc_common.precedence_Equals
-  | FLessThan => DHDoc_common.precedence_LessThan
-  | FLessThanOrEqual => DHDoc_common.precedence_LessThan
-  | FGreaterThan => DHDoc_common.precedence_GreaterThan
-  | FGreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
+  | Times => DHDoc_common.precedence_Times
+  | Power => DHDoc_common.precedence_Power
+  | Divide => DHDoc_common.precedence_Divide
+  | Plus => DHDoc_common.precedence_Plus
+  | Minus => DHDoc_common.precedence_Minus
+  | Equals => DHDoc_common.precedence_Equals
+  | NotEquals => DHDoc_common.precedence_Equals
+  | LessThan => DHDoc_common.precedence_LessThan
+  | LessThanOrEqual => DHDoc_common.precedence_LessThan
+  | GreaterThan => DHDoc_common.precedence_GreaterThan
+  | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
-let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
+let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
   switch (bso) {
-  | SEquals => DHDoc_common.precedence_Equals
+  | Concat => DHDoc_common.precedence_Plus
+  | Equals => DHDoc_common.precedence_Equals
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
@@ -74,58 +77,24 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Dot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
+  | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
 };
 
-let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc.t =>
-  Doc.text(
-    switch (op) {
-    | And => "&&"
-    | Or => "||"
-    },
-  );
+let mk_bin_bool_op = (op: TermBase.UExp.op_bin_bool): DHDoc.t =>
+  Doc.text(TermBase.UExp.bool_op_to_string(op));
 
-let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
-  Doc.text(
-    switch (op) {
-    | Minus => "-"
-    | Plus => "+"
-    | Times => "*"
-    | Power => "**"
-    | Divide => "/"
-    | LessThan => "<"
-    | LessThanOrEqual => "<="
-    | GreaterThan => ">"
-    | GreaterThanOrEqual => ">="
-    | Equals => "=="
-    },
-  );
+let mk_bin_int_op = (op: TermBase.UExp.op_bin_int): DHDoc.t =>
+  Doc.text(TermBase.UExp.int_op_to_string(op));
 
-let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
-  Doc.text(
-    switch (op) {
-    | FMinus => "-."
-    | FPlus => "+."
-    | FTimes => "*."
-    | FPower => "**."
-    | FDivide => "/."
-    | FLessThan => "<."
-    | FLessThanOrEqual => "<=."
-    | FGreaterThan => ">."
-    | FGreaterThanOrEqual => ">=."
-    | FEquals => "==."
-    },
-  );
+let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
+  Doc.text(TermBase.UExp.float_op_to_string(op));
 
-let mk_bin_string_op = (op: DHExp.BinStringOp.t): DHDoc.t =>
-  Doc.text(
-    switch (op) {
-    | SEquals => "$=="
-    },
-  );
+let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
+  Doc.text(TermBase.UExp.string_op_to_string(op));
 
 let rec mk =
         (
@@ -221,7 +190,7 @@ let rec mk =
              )
           |> List.flatten;
         Doc.(hcats([text("Module(\n")] @ envlist @ [text(")")]));
-      | StringLit(s) => DHDoc_common.mk_StringLit("\"" ++ s ++ "\"")
+      | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
@@ -271,6 +240,10 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
         DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
+      | ListConcat(d1, d2) =>
+        let (doc1, doc2) =
+          mk_right_associative_operands(DHDoc_common.precedence_Plus, d1, d2);
+        DHDoc_common.mk_ListConcat(mk_cast(doc1), mk_cast(doc2));
       | BinBoolOp(op, d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);

@@ -8,14 +8,14 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let mode_menu = (~inject, ~mode: ModelSettings.mode) =>
+let mode_menu = (~inject: Update.t => 'a, ~mode: ModelSettings.mode) =>
   div(
     ~attr=Attr.many([Attr.class_("mode-name"), Attr.title("Toggle Mode")]),
     [
       select(
         ~attr=
           Attr.on_change((_, name) =>
-            inject(Update.SetMode(ModelSettings.mode_of_string(name)))
+            inject(SetMode(ModelSettings.mode_of_string(name)))
           ),
         List.map(
           option_view(ModelSettings.show_mode(mode)),

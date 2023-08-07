@@ -105,6 +105,11 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Cons(d1', d2') |> return;
 
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    ListConcat(d1', d2') |> return;
+
   | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
@@ -344,6 +349,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Cons(d1', d2') |> return;
 
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    ListConcat(d1', d2') |> return;
+
   | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
@@ -478,6 +488,9 @@ let rec track_children_of_hole =
   | BinStringOp(_, d1, d2)
   | Dot(d1, d2)
   | Cons(d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
+  | ListConcat(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
 
