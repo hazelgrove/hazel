@@ -462,22 +462,20 @@ module Trim = {
     };
 
   let add_grout =
-      (~d: Direction.t=Right, shape: Nib.Shape.t, (wss, gs): t): IdGen.t(t) => {
+      (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
-    /* When adding a grout, maybe consume a space. Note that
+    /* When adding a grout to the left, consume a space. Note
        changes made to the logic here should also take into
        account the other direction in 'regrout' below */
     let wss' =
-      switch (d, g.shape) {
+      switch (d) {
       /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
-      | (Right, Convex) => wss
       /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
-      | (Right, Concave) => wss
+      | Right => wss
       /* Left Convex e.g. Insert Space `[|]` => `[ |]` => `[<>|]` (Consume) */
-      | (Left, Convex) => rm_up_to_one_space(wss)
       /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
-      | (Left, Concave) => rm_up_to_one_space(wss)
+      | Left => rm_up_to_one_space(wss)
       };
     cons_g(g, (wss', gs));
   };
@@ -486,22 +484,21 @@ module Trim = {
   let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
-
-      /* When removing a grout, maybe add a space. Note that
+      /* When removing a grout to the Left, add a space. Note
          changes made to the logic here should also take into
          account the other direction in 'add_grout' above */
       let new_spaces =
         List.filter_map(
-          ({id, shape}: Grout.t) => {
-            switch (d, shape) {
+          ({id, shape: _}: Grout.t) => {
+            switch (d) {
             /* Right Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
-            | (Right, _) => Some(Secondary.mk_space(id))
-            | _ => None
+            //HACK(andrew): Not sure why d here seems reversed
+            | Right => Some(Secondary.mk_space(id))
+            | Left => None
             }
           },
           gs,
         );
-
       /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
