@@ -4,7 +4,7 @@ open Haz3lschool;
 open Core;
 
 open Specs;
-open GradePrelude.SchoolExercise;
+open GradePrelude.Exercise;
 open GradePrelude.Grading;
 
 [@deriving (sexp, yojson)]
@@ -44,15 +44,15 @@ type section = {
 type chapter = list(section);
 
 module Main = {
-  let name_to_school_export = path => {
+  let name_to_exercise_export = path => {
     let yj = Yojson.Safe.from_file(path);
     switch (yj) {
     | `Assoc(l) =>
       let sch = List.Assoc.find_exn(~equal=String.(==), l, "school");
       switch (sch) {
       | `String(sch) =>
-        let school_export = sch |> deserialize_school_export;
-        school_export;
+        let exercise_export = sch |> deserialize_exercise_export;
+        exercise_export;
       | _ => failwith("School is not a string")
       };
     | _ => failwith("Json without school key")
@@ -98,7 +98,7 @@ module Main = {
   };
   let run = () => {
     let hw_path = Sys.get_argv()[1];
-    let hw = name_to_school_export(hw_path);
+    let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
       |> List.map(~f=(((name, _) as key, persistent_state)) => {
