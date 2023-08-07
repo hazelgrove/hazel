@@ -451,63 +451,44 @@ module Trim = {
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
-  let scooch_over_linebreak = wss' =>
-    switch (wss') {
-    | [ws, [w, ...ws'], ...wss] when Secondary.is_linebreak(w) => [
-        ws @ [w],
-        ws',
-        ...wss,
-      ]
-    | _ => wss'
-    };
-
   let add_grout =
-      (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
+      (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim;
-
-    /* If we're adding a grout, remove a secondary. Note that
+    /* When adding a grout to the left, consume a space. Note
        changes made to the logic here should also take into
-       account the other direction in 'regrout' below.
-
-       Examples:
-       1. concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
-       2. convex left "[|]" want "[ |]"=>"[<>|]" (consume)
-       3. convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
-       */
-
-    let trim = (
-      g.shape == Concave && d == Right ? wss : rm_up_to_one_space(wss),
-      gs,
-    );
-    let (wss', gs') = cons_g(g, trim);
-    /* Hack to supress the addition of leading secondary on a line */
-    //let wss' = scooch_over_linebreak(wss');
-    /* ANDREW: disabled above hack; with calmer indent it seems annoying */
-    (wss', gs');
+       account the other direction in 'regrout' below */
+    let wss' =
+      switch (d) {
+      /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
+      /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
+      | Right => wss
+      /* Left Convex e.g. Insert Space `[|]` => `[ |]` => `[<>|]` (Consume) */
+      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
+      | Left => rm_up_to_one_space(wss)
+      };
+    cons_g(g, (wss', gs));
   };
 
   // assumes grout in trim fit r but may not fit l
   let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
-
-      /* Convert unneeded grout to spaces. Note that changes made
-         to the logic here should also take into account the
-         conversion of spaces to grout in 'add_grout' above. */
+      /* When removing a grout to the Left, add a space. Note
+         changes made to the logic here should also take into
+         account the other direction in 'add_grout' above */
       let new_spaces =
         List.filter_map(
-          ({id, shape}: Grout.t) => {
-            switch (shape) {
-            /* convave right case "let a = 1><in|" => "let a = 1 in |" (convert) */
-            | Concave when d == Right => Some(Secondary.mk_space(id))
-            | _ => None
+          (g: Grout.t) => {
+            switch (d) {
+            /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
+            //HACK(andrew): Not sure why d here seems reversed
+            | Right => Some(Secondary.mk_space(g.id))
+            | Left => None
             }
           },
           gs,
         );
-
       /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
