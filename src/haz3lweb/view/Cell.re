@@ -211,23 +211,7 @@ let eval_result_footer_view =
     switch (simple) {
     | None => [
         Node.text("No result available. Elaboration follows:"),
-        DHCode.view_tylr(
-          ~settings={
-            evaluate: true,
-            show_case_clauses: true,
-            show_fn_bodies: true,
-            show_casts: true,
-            show_unevaluated_elaboration: false,
-          },
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
-      ]
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
-        Node.text("No result available (exception). Elaboration follows:"),
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings={
             evaluate: true,
             show_case_clauses: true,
@@ -259,7 +243,7 @@ let eval_result_footer_view =
         ~font_metrics,
       )
     | Some({eval_result, _}) => [
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,

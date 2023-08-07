@@ -1185,7 +1185,7 @@ and evaluate_ap_builtin =
     (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
     : m(EvaluatorResult.t) => {
   switch (VarMap.lookup(Builtins.forms_init, ident)) {
-  | Some((_, eval)) => eval(env, args, evaluate)
+  | Some(eval) => eval(env, args, evaluate)
   | None =>
     print_endline("InvalidBuiltin");
     raise(EvaluatorError.Exception(InvalidBuiltin(ident)));

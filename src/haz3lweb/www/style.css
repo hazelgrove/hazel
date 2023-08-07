@@ -1565,8 +1565,22 @@ svg.expandable path {
 
 .result {
   min-height: 1.6em;
+  width: 100%;
   overflow-y: hidden;
   overflow-x: auto;
+}
+
+.cell-item.cell-result:has(.exception) {
+  background-color: #ffa2a2;
+}
+
+.result .exception {
+  background-color: #ffa2a2;
+  color: #7d0000;
+  border-radius: 0.3em;
+  font-family: 'Helvetica Neue';
+  font-size: 1rem;
+  padding: 0.1em 0.4em 0.1em 0.4em;
 }
 
 /* DYNAMICS - DHEXP */
