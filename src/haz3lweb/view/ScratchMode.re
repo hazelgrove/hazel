@@ -27,7 +27,7 @@ let view =
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let info_map = Statics.mk_map_ctx(ctx_init, term);
   let result =
-    settings.dynamics
+    settings.core.dynamics
       ? ModelResult.get_simple(
           ModelResults.lookup(results, ScratchSlide.scratch_key),
         )
@@ -58,7 +58,7 @@ let view =
       editor,
     );
   let bottom_bar =
-    settings.statics
+    settings.core.statics
       ? [
         CursorInspector.view(
           ~inject,
@@ -70,7 +70,7 @@ let view =
       ]
       : [];
   let sidebar =
-    langDocMessages.show && settings.statics
+    langDocMessages.show && settings.core.statics
       ? LangDoc.view(
           ~inject,
           ~font_metrics,

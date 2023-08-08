@@ -7,7 +7,13 @@ let perform = action => {
   switch (action) {
   | TurnOffDynamics =>
     let settings = Store.Settings.load();
-    Store.Settings.save({...settings, dynamics: false});
+    Store.Settings.save({
+      ...settings,
+      core: {
+        ...settings.core,
+        dynamics: false,
+      },
+    });
   | ClearStore => JsUtil.clear_localstore()
   };
 };

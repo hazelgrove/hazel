@@ -328,7 +328,7 @@ let view =
     );
 
   let bottom_bar =
-    settings.statics
+    settings.core.statics
       ? [
         CursorInspector.view(
           ~inject,
@@ -340,7 +340,7 @@ let view =
       ]
       : [];
   let sidebar =
-    langDocMessages.show && settings.statics
+    langDocMessages.show && settings.core.statics
       ? LangDoc.view(
           ~inject,
           ~font_metrics,

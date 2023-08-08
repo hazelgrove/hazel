@@ -4,8 +4,7 @@ let startup : PersistentData.t =
       {
         captions = true;
         secondary_icons = false;
-        statics = true;
-        dynamics = true;
+        core = { statics = true; dynamics = true };
         async_evaluation = false;
         context_inspector = false;
         instructor_mode = true;

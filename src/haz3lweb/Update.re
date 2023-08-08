@@ -12,15 +12,20 @@ let update_settings =
       ...model,
       settings: {
         ...settings,
-        statics: !settings.statics,
-        dynamics: !settings.statics && settings.dynamics,
+        core: {
+          statics: !settings.core.statics,
+          dynamics: !settings.core.statics && settings.core.dynamics,
+        },
       },
     }
   | Dynamics => {
       ...model,
       settings: {
         ...settings,
-        dynamics: !settings.dynamics,
+        core: {
+          ...settings.core,
+          dynamics: !settings.core.dynamics,
+        },
       },
     }
   | Benchmark => {
@@ -136,7 +141,7 @@ let evaluate_and_schedule =
         Util.TimeUtil.measure_time(
           "ModelResults.init", model.settings.benchmark, () =>
           ModelResults.init(
-            model.settings.dynamics
+            model.settings.core.dynamics
               ? Editors.get_spliced_elabs(model.editors) : [],
           )
         ),
