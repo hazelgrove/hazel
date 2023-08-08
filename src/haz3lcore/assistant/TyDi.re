@@ -166,16 +166,13 @@ let ctx_candidates = (ci: Info.t): list(string) => {
   };
 };
 
-let backpack_candidate = (_sort: Sort.t, z: Zipper.t) => {
-  /* NOTE: Disabled sort check for now. Needs to be more
-     subtle to get stuff like -> completion for "fun x -|"
-     (sort is Pat, mold.out is Exp).  */
+let backpack_candidate = (_sort: Sort.t, z: Zipper.t): list(string) => {
+  /* NOTE: Sort check unnecessary as shouldn't be able to put down */
   switch (z.backpack) {
   | [] => []
   | [{content, _}, ..._] =>
     switch (content) {
-    | [Tile({label, shards: [idx], mold: _, _})]
-        when Zipper.can_put_down(z) /*&& sort == mold.out*/ => [
+    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
         List.nth(label, idx),
       ]
     | _ => []
