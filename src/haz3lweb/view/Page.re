@@ -40,7 +40,7 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
 let nut_menu =
     (
       ~inject: Update.t => 'a,
-      {statics, dynamics, benchmark, instructor_mode, _}: ModelSettings.t,
+      {statics, dynamics, benchmark, instructor_mode, _}: Settings.t,
     ) => [
   menu_icon,
   div(

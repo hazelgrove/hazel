@@ -5,7 +5,7 @@ open Node;
 type t = {
   exercise: Exercise.state,
   results: option(ModelResults.t),
-  settings: ModelSettings.t,
+  settings: Settings.t,
   langDocMessages: LangDocMessages.t,
   stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
@@ -40,7 +40,7 @@ type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
 
-let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
+let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   List.filter_map(
     vis =>
       switch (vis) {
@@ -382,8 +382,7 @@ let view =
   @ bottom_bar;
 };
 
-let toolbar_buttons =
-    (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
+let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Settings.t) => {
   let (_idx, _specs, exercise): Editors.exercises =
     switch (editors) {
     | Exercise(idx, specs, exercise) => (idx, specs, exercise)

@@ -11,13 +11,7 @@ type t = {
 
 let dhexp_view = (~font_metrics, d) =>
   DHCode.view(
-    ~settings={
-      evaluate: true,
-      show_case_clauses: true,
-      show_fn_bodies: true,
-      show_casts: true,
-      show_unevaluated_elaboration: false,
-    },
+    ~settings=Settings.Evaluation.init,
     ~selected_hole_instance=None,
     ~font_metrics,
     ~width=80,

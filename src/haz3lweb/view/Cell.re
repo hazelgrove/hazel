@@ -229,13 +229,7 @@ let eval_result_footer_view =
     | None => [
         Node.text("No result available. Elaboration follows:"),
         DHCode.view(
-          ~settings={
-            evaluate: true,
-            show_case_clauses: true,
-            show_fn_bodies: true,
-            show_casts: true,
-            show_unevaluated_elaboration: false,
-          },
+          ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -288,7 +282,7 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -364,7 +358,7 @@ let editor_with_result_view =
       ~show_backpack_targets,
       ~clss=[],
       ~mousedown: bool,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,

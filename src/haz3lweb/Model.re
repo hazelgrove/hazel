@@ -52,7 +52,7 @@ let meta_init = {
 
 type t = {
   editors: Editors.t,
-  settings: ModelSettings.t,
+  settings: Settings.t,
   langDocMessages: LangDocMessages.t,
   meta,
 };
@@ -69,8 +69,7 @@ let mk = editors => {
 let blank = mk(Editors.Scratch(0, []));
 let debug = mk(Editors.DebugLoad);
 
-let load_editors =
-    (~mode: ModelSettings.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors = (~mode: Settings.mode, ~instructor_mode: bool): Editors.t =>
   switch (mode) {
   | DebugLoad => DebugLoad
   | Scratch =>
