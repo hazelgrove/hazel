@@ -19,17 +19,16 @@ type jump_target =
   | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type term =
+type rel =
   | Current
-  //Parent
   | Id(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type select =
   | Resize(move)
-  //Token
-  //Tile
-  | Term(term);
+  | Smart
+  | Tile(rel)
+  | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =

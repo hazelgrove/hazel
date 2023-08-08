@@ -42,9 +42,12 @@ let mousedown_handler =
     ) =>
   /*
    new behavior concept:
-   for concave/convex forms:
-   doubleclick: select form eg token
+   for atomic forms:
+   doubleclick: select term ie token
    tripleclick: select parent term (e.g. ap for fnpos token)
+   for non-atomic concave/convex forms:
+   doubleclick: select token
+   tripleclick: select term
    for chevron forms:
    doubleclick: select tile (eg. {let _ = _ in} _)
    tripleclick: select term
@@ -73,9 +76,8 @@ let mousedown_handler =
         ),
       ),
     );
-  | (false, 2) => inject(Update.PerformAction(Select(Term(Current))))
-  | (false, 3) => inject(Update.PerformAction(Select(Term(Current))))
-  | (false, _) => inject(Update.PerformAction(Select(Term(Current))))
+  | (false, 2) => inject(Update.PerformAction(Select(Tile(Current))))
+  | (false, 3 | _) => inject(Update.PerformAction(Select(Smart)))
   };
 
 let narrative_cell = (content: Node.t) =>
