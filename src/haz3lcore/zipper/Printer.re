@@ -130,7 +130,12 @@ let zipper_of_string =
     ((Zipper.t, IdGen.state), string) => (Zipper.t, IdGen.state) =
     ((z, id_gen), c) => {
       switch (
-        Perform.go_z(Insert(c == "\n" ? Form.linebreak : c), z, id_gen)
+        Perform.go_z(
+          ~settings=CoreSettings.off,
+          Insert(c == "\n" ? Form.linebreak : c),
+          z,
+          id_gen,
+        )
       ) {
       | Error(err) =>
         print_endline(
@@ -158,11 +163,12 @@ let paste_into_zip =
      deal with the fact that pasting something like "let a = b in"
      won't trigger the barfing of the "in"; to trigger this, we
      insert a space, and then we immediately delete it. */
+  let settings = CoreSettings.off;
   let* (z, id) = zipper_of_string(~zipper_init=z, id, str);
-  switch (Perform.go_z(Insert(" "), z, id)) {
+  switch (Perform.go_z(~settings, Insert(" "), z, id)) {
   | Error(_) => None
   | Ok((z, id)) =>
-    switch (Perform.go_z(Destruct(Left), z, id)) {
+    switch (Perform.go_z(~settings, Destruct(Left), z, id)) {
     | Error(_) => None
     | Ok((z, id)) => Some((z, id))
     }

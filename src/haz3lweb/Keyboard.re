@@ -21,6 +21,7 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
 };
 
 let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
+  let settings = model.settings;
   let editor = Editors.get_editor(model.editors);
   let zipper = Editors.active_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
@@ -50,23 +51,31 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       |> TermBase.UExp.show
       |> print
     | "F4" =>
-      let ctx_init = Editors.get_ctx_init(model.editors);
+      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       zipper
       |> get_term
-      |> Statics.mk_map_ctx(ctx_init)
+      |> Interface.Statics.mk_map_ctx(settings.core, ctx_init)
       |> Statics.Map.show
       |> print;
     | "F5" =>
       //TODO(andrew): simplify below
-      let ctx_init = Editors.get_ctx_init(model.editors);
-      let env_init = Editors.get_env_init(model.editors);
-      Interface.eval_editor(~env_init, ~ctx_init, editor)
+      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+      let env_init = Editors.get_env_init(~settings, model.editors);
+      Interface.eval_editor(
+        ~settings=settings.core,
+        ~env_init,
+        ~ctx_init,
+        editor,
+      )
       |> ProgramResult.show
       |> print;
     | "F6" =>
       let index = Indicated.index(zipper);
-      let ctx_init = Editors.get_ctx_init(model.editors);
-      let map = zipper |> get_term |> Statics.mk_map_ctx(ctx_init);
+      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+      let map =
+        zipper
+        |> get_term
+        |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
       switch (index) {
       | Some(index) =>
         switch (Haz3lcore.Id.Map.find_opt(index, map)) {

@@ -106,7 +106,8 @@ let load = (init_model: t): t => {
     );
   let results =
     ModelResults.init(
-      settings.core.dynamics ? Editors.get_spliced_elabs(editors) : [],
+      ~settings=settings.core,
+      Editors.get_spliced_elabs(~settings, editors),
     );
   let meta = {...init_model.meta, results};
   {editors, settings, langDocMessages, meta};

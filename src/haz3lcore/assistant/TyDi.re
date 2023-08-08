@@ -38,8 +38,12 @@ open OptUtil.Syntax;
   */
 
 //TODO(andrew): PERF DANGER!!
-let z_to_ci = (~ctx: Ctx.t, z: Zipper.t) => {
-  let map = z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx);
+let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
+  let map =
+    z
+    |> MakeTerm.from_zip_for_sem
+    |> fst
+    |> Interface.Statics.mk_map_ctx(settings, ctx);
   let* index = Indicated.index(z);
   Id.Map.find_opt(index, map);
 };
@@ -253,9 +257,10 @@ let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
 };
 
 let set_buffer =
-    (~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t): option((Zipper.t, Id.t)) => {
+    (~settings, ~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t)
+    : option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
-  let* ci = z_to_ci(~ctx, z);
+  let* ci = z_to_ci(~settings, ~ctx, z);
   let candidates = candidates(ci, z);
   let filtered_candidates =
     candidates |> List.filter(String.starts_with(~prefix=tok_to_left));

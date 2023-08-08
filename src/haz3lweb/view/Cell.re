@@ -223,9 +223,16 @@ let deco =
 };
 
 let eval_result_footer_view =
-    (~mvu_states, ~inject, ~font_metrics, ~elab, simple: ModelResult.simple) => {
+    (
+      ~settings,
+      ~mvu_states,
+      ~inject,
+      ~font_metrics,
+      ~elab,
+      results: ModelResult.simple,
+    ) => {
   let d_view =
-    switch (simple) {
+    switch (results) {
     | None => [
         Node.text("No result available. Elaboration follows:"),
         DHCode.view(
@@ -245,6 +252,7 @@ let eval_result_footer_view =
         _,
       }) =>
       MVU.go(
+        ~settings,
         ~mvu_states,
         ~name,
         ~init_model,
@@ -369,15 +377,19 @@ let editor_with_result_view =
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let elab = Interface.elaborate_editor(~ctx_init, editor);
+  let elab =
+    Interface.elaborate_editor(~settings=settings.core, ~ctx_init, editor);
   let eval_result_footer =
-    eval_result_footer_view(
-      ~mvu_states,
-      ~inject,
-      ~font_metrics,
-      ~elab,
-      result,
-    );
+    settings.core.statics
+      ? eval_result_footer_view(
+          ~settings,
+          ~mvu_states,
+          ~inject,
+          ~font_metrics,
+          ~elab,
+          result,
+        )
+      : None;
   editor_view(
     ~inject,
     ~font_metrics,

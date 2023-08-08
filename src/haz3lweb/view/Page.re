@@ -135,7 +135,7 @@ let exercises_view =
     ExerciseMode.mk(
       ~settings,
       ~exercise,
-      ~results=settings.core.dynamics ? Some(results) : None,
+      ~results=settings.core.dynamics ? Some(results) : None, //TODO(andrew)
       ~langDocMessages,
     );
   let toolbar_buttons =
@@ -161,7 +161,8 @@ let slide_view = (~inject, ~model, ~ctx_init, slide_state) => {
 };
 
 let editors_view = (~inject, model: Model.t) => {
-  let ctx_init = Editors.get_ctx_init(model.editors);
+  let ctx_init =
+    Editors.get_ctx_init(~settings=model.settings, model.editors);
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(slide_idx, slides) =>

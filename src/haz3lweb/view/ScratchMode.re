@@ -25,16 +25,14 @@ let view =
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
-  let info_map = Statics.mk_map_ctx(ctx_init, term);
+  let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
   let result =
-    settings.core.dynamics
-      ? ModelResult.get_simple(
-          ModelResults.lookup(results, ScratchSlide.scratch_key),
-        )
-      : None;
+    ModelResult.get_simple(
+      ModelResults.lookup(results, ScratchSlide.scratch_key),
+    );
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
-      Some(LangDoc.get_color_map(~doc=langDocMessages, zipper));
+      Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
     } else {
       None;
     };
@@ -58,17 +56,13 @@ let view =
       editor,
     );
   let bottom_bar =
-    settings.core.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~show_lang_doc=langDocMessages.show,
-          zipper,
-          info_map,
-        ),
-      ]
-      : [];
+    CursorInspector.view(
+      ~inject,
+      ~settings,
+      ~show_lang_doc=langDocMessages.show,
+      zipper,
+      info_map,
+    );
   let sidebar =
     langDocMessages.show && settings.core.statics
       ? LangDoc.view(
@@ -79,16 +73,15 @@ let view =
           Indicated.index(zipper),
           info_map,
         )
-      : div([]);
-
+      : div_empty;
   [
     div(
       ~attr=Attr.id("main"),
       [div(~attr=clss(["editor", "single"]), [editor_view])],
     ),
     sidebar,
-  ]
-  @ bottom_bar;
+    bottom_bar,
+  ];
 };
 
 let download_slide_state = state => {

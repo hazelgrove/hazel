@@ -15,14 +15,14 @@ let mk =
     (
       ~exercise: Exercise.state,
       ~results: option(ModelResults.t),
-      ~settings,
+      ~settings: Settings.t,
       ~langDocMessages,
     )
     : t => {
   let Exercise.{eds, _} = exercise;
   let stitched_dynamics =
     Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      Exercise.stitch_dynamic(exercise, results)
+      Exercise.stitch_dynamic(~settings=settings.core, exercise, results)
     );
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
@@ -83,7 +83,9 @@ let view =
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
-      Some(LangDoc.get_color_map(~doc=langDocMessages, focal_zipper));
+      Some(
+        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
+      );
     } else {
       None;
     };
@@ -263,6 +265,7 @@ let view =
         ~footer=
           Some(
             Cell.eval_result_footer_view(
+              ~settings,
               ~mvu_states,
               ~inject,
               ~font_metrics,

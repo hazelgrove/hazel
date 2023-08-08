@@ -585,22 +585,6 @@ and variant_to_info_map =
   };
 };
 
-let mk_map =
-  Core.Memo.general(~cache_size_bound=1000, e => {
-    uexp_to_info_map(~ctx=Builtins.ctx_init, ~ancestors=[], e, Id.Map.empty)
-    |> snd
-  });
-
-let mk_map_and_info_ctx =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
-  });
-
-let mk_map_ctx =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
-  });
-
 let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
   Id.Map.fold(
     (id, info: Info.t, acc) =>

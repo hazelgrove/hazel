@@ -587,7 +587,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
-  let stitch_static = ({eds, _}: state): stitched_statics => {
+  let stitch_static =
+      (~settings: CoreSettings.t, {eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
         EditorUtil.stitch([
@@ -598,7 +599,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let test_validation_map =
       Util.TimeUtil.measure_time("test_validation_map", true, () =>
-        Statics.mk_map(test_validation_term)
+        Interface.Statics.mk_map(settings, test_validation_term)
       );
     let test_validation =
       StaticsItem.{term: test_validation_term, info_map: test_validation_map};
@@ -609,7 +610,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let user_impl_map =
       Util.TimeUtil.measure_time("user_impl_map", true, () =>
-        Statics.mk_map(user_impl_term)
+        Interface.Statics.mk_map(settings, user_impl_term)
       );
     let user_impl =
       StaticsItem.{term: user_impl_term, info_map: user_impl_map};
@@ -620,13 +621,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let user_tests_map =
       Util.TimeUtil.measure_time("user_tests_map", true, () =>
-        Statics.mk_map(user_tests_term)
+        Interface.Statics.mk_map(settings, user_tests_term)
       );
     let user_tests =
       StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
     // let prelude_term = EditorUtil.stitch([eds.prelude]);
-    // let prelude_map = Statics.mk_map(prelude_term);
+    // let prelude_map = Interface.Statics.mk_map(settings,prelude_term);
     // let prelude = StaticsItem.{term: prelude_term, info_map: prelude_map};
 
     let instructor_term =
@@ -635,7 +636,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         eds.correct_impl,
         eds.hidden_tests.tests,
       ]);
-    let instructor_info_map = Statics.mk_map(instructor_term);
+    let instructor_info_map =
+      Interface.Statics.mk_map(settings, instructor_term);
     let instructor =
       StaticsItem.{term: instructor_term, info_map: instructor_info_map};
 
@@ -644,7 +646,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ({impl, _}) => {
           let term =
             EditorUtil.stitch([eds.prelude, impl, eds.your_tests.tests]);
-          let info_map = Statics.mk_map(term);
+          let info_map = Interface.Statics.mk_map(settings, term);
           StaticsItem.{term, info_map};
         },
         eds.hidden_bugs,
@@ -652,7 +654,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
     let hidden_tests_term =
       EditorUtil.stitch([eds.prelude, eds.your_impl, eds.hidden_tests.tests]);
-    let hidden_tests_map = Statics.mk_map(hidden_tests_term);
+    let hidden_tests_map =
+      Interface.Statics.mk_map(settings, hidden_tests_term);
     let hidden_tests =
       StaticsItem.{term: hidden_tests_term, info_map: hidden_tests_map};
 
@@ -674,59 +677,71 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  let spliced_elabs:
-    state => list((ModelResults.key, DHExp.t, Environment.t)) =
-    state => {
-      let {
-        test_validation,
-        user_impl,
-        user_tests,
-        prelude: _,
-        instructor,
-        hidden_bugs,
-        hidden_tests,
-      } =
-        Util.TimeUtil.measure_time("stitch_static2", true, () =>
-          stitch_static(state)
-        );
-      [
-        (
-          test_validation_key,
-          Interface.elaborate(test_validation.info_map, test_validation.term),
-          Environment.empty,
-        ),
-        (
-          user_impl_key,
-          Interface.elaborate(user_impl.info_map, user_impl.term),
-          Environment.empty,
-        ),
-        (
-          user_tests_key,
-          Interface.elaborate(user_tests.info_map, user_tests.term),
-          Environment.empty,
-        ),
-        (
-          instructor_key,
-          Interface.elaborate(instructor.info_map, instructor.term),
-          Environment.empty,
-        ),
-        (
-          hidden_tests_key,
-          Interface.elaborate(hidden_tests.info_map, hidden_tests.term),
-          Environment.empty,
-        ),
-      ]
-      @ (
-        hidden_bugs
-        |> List.mapi((n, hidden_bug: StaticsItem.t) =>
-             (
-               hidden_bugs_key(n),
-               Interface.elaborate(hidden_bug.info_map, hidden_bug.term),
-               Environment.empty,
-             )
-           )
+  let spliced_elabs =
+      (~settings: CoreSettings.t, state: state)
+      : list((ModelResults.key, DHExp.t, Environment.t)) => {
+    let {
+      test_validation,
+      user_impl,
+      user_tests,
+      prelude: _,
+      instructor,
+      hidden_bugs,
+      hidden_tests,
+    } =
+      Util.TimeUtil.measure_time("stitch_static2", true, () =>
+        stitch_static(~settings, state)
       );
-    };
+    [
+      (
+        test_validation_key,
+        Interface.elaborate(
+          ~settings,
+          test_validation.info_map,
+          test_validation.term,
+        ),
+        Environment.empty,
+      ),
+      (
+        user_impl_key,
+        Interface.elaborate(~settings, user_impl.info_map, user_impl.term),
+        Environment.empty,
+      ),
+      (
+        user_tests_key,
+        Interface.elaborate(~settings, user_tests.info_map, user_tests.term),
+        Environment.empty,
+      ),
+      (
+        instructor_key,
+        Interface.elaborate(~settings, instructor.info_map, instructor.term),
+        Environment.empty,
+      ),
+      (
+        hidden_tests_key,
+        Interface.elaborate(
+          ~settings,
+          hidden_tests.info_map,
+          hidden_tests.term,
+        ),
+        Environment.empty,
+      ),
+    ]
+    @ (
+      hidden_bugs
+      |> List.mapi((n, hidden_bug: StaticsItem.t) =>
+           (
+             hidden_bugs_key(n),
+             Interface.elaborate(
+               ~settings,
+               hidden_bug.info_map,
+               hidden_bug.term,
+             ),
+             Environment.empty,
+           )
+         )
+    );
+  };
 
   module DynamicsItem = {
     type t = {
@@ -735,7 +750,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       simple_result: ModelResult.simple,
     };
   };
-  let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
+  let stitch_dynamic =
+      (
+        ~settings: CoreSettings.t,
+        state: state,
+        results: option(ModelResults.t),
+      ) => {
     let {
       test_validation,
       user_impl,
@@ -746,7 +766,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       Util.TimeUtil.measure_time("stitch_static1", true, () =>
-        stitch_static(state)
+        stitch_static(~settings, state)
       );
     let simple_result_of = key =>
       switch (results) {

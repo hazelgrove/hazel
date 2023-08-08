@@ -4,7 +4,7 @@ include UpdateAction;
 //TODO(andrew): this is duplicated from Update
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-  switch (Haz3lcore.Perform.go(a, ed_init, id)) {
+  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init, id)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok((ed, id)) =>
     Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
@@ -12,7 +12,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
 };
 
 let schedule_prompt =
-    (~ctx_init: Ctx.t, zipper: Zipper.t, ~schedule_action): unit =>
+    (~settings, ~ctx_init: Ctx.t, zipper: Zipper.t, ~schedule_action): unit =>
   switch (
     zipper.caret,
     zipper.relatives.siblings |> snd,
@@ -34,7 +34,7 @@ let schedule_prompt =
           Filler(
             Some({
               llm: Azure_GPT4, //Azure_GPT3_5Turbo,
-              prompt_builder: Filler.prompt(~ctx_init),
+              prompt_builder: Filler.prompt(~settings, ~ctx_init),
             }),
           ),
         ),
@@ -48,7 +48,9 @@ let reset_buffer = (model: Model.t) => {
   let z = ed.state.zipper;
   switch (z.selection.mode) {
   | Buffer(_) =>
-    switch (Perform.go_z(Destruct(Left), z, id)) {
+    switch (
+      Perform.go_z(~settings=model.settings.core, Destruct(Left), z, id)
+    ) {
     | Error(_) => model
     | Ok((z, id)) =>
       let ed = Editor.new_state(Destruct(Left), z, ed);
@@ -62,10 +64,16 @@ let reset_buffer = (model: Model.t) => {
 //TODO(andrew): add special case for when it just returns the whole sketch instead of completion
 
 let apply =
-    (model: Model.t, update: agent_action, ~schedule_action, ~state, ~main)
+    (
+      {settings, _} as model: Model.t,
+      update: agent_action,
+      ~schedule_action,
+      ~state,
+      ~main,
+    )
     : Result.t(Model.t) => {
   let (id, editor) = model.editors |> Editors.get_editor_and_id;
-  let ctx_init = Editors.get_ctx_init(model.editors);
+  let ctx_init = Editors.get_ctx_init(~settings, model.editors);
   let z = editor.state.zipper;
   switch (update) {
   | Prompt(Weather) =>
@@ -108,11 +116,13 @@ let apply =
             );
           print_endline("Filler: calling react_error");
           switch (
-            ChatLSP.Type.ctx(~ctx_init, editor),
-            ChatLSP.Type.mode(~ctx_init, editor),
+            ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
+            ChatLSP.Type.mode(~settings, ~ctx_init, editor),
           ) {
           | (Some(init_ctx), Some(mode)) =>
-            switch (Filler.error_reply(response, 0, ~init_ctx, ~mode)) {
+            switch (
+              Filler.error_reply(~settings, response, 0, ~init_ctx, ~mode)
+            ) {
             | None =>
               print_endline("react_error: no errors.");
               print_endline("RECEIVED RESPONSE:\n " ++ response);
@@ -152,7 +162,7 @@ let apply =
     Ok(model);
   | Prompt(TyDi) =>
     //let ctx = Editors.get_ctx_init(model.editors);
-    switch (TyDi.set_buffer(~ctx=ctx_init, z, id)) {
+    switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z, id)) {
     | None => Ok(model)
     | Some((z, id)) =>
       let ed = Editor.new_state(Pick_up, z, editor);

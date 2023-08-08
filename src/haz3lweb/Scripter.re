@@ -12,7 +12,7 @@ type test = {
   prompt_builder: Editor.t => option(OpenAI.prompt),
 };
 
-let tests_raw = (~ctx_init): list(test) => [
+let tests_raw = (~settings, ~ctx_init): list(test) => [
   {
     name: "one",
     sketch: {|let update: (Model, Action) -> Model =
@@ -20,7 +20,7 @@ let tests_raw = (~ctx_init): list(test) => [
 in
 %EXPORT|},
     llm: Azure_GPT4,
-    prompt_builder: Filler.prompt(~ctx_init),
+    prompt_builder: Filler.prompt(~settings, ~ctx_init),
   },
   /*
    {
@@ -64,11 +64,11 @@ let mk_script =
   ];
 };
 
-let test_scripts = (~ctx_init: Ctx.t) =>
+let test_scripts = (~settings, ~ctx_init: Ctx.t) =>
   List.map(
     ({name, sketch, llm, prompt_builder}) =>
       (name, mk_script(~sketch, ~llm, ~prompt_builder)),
-    tests_raw(~ctx_init),
+    tests_raw(~settings, ~ctx_init),
   );
 
 /*

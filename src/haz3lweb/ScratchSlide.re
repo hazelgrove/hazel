@@ -13,9 +13,10 @@ let id_of_state = ((id, _): state) => id;
 let put_editor_and_id = ((_, _): state, id, editor) => (id, editor);
 
 let scratch_key = "scratch";
-let spliced_elab = (~ctx_init: Ctx.t, (_, editor: Editor.t)) => (
+let spliced_elab =
+    (~settings: Settings.t, ~ctx_init: Ctx.t, (_, editor: Editor.t)) => (
   scratch_key,
-  Interface.elaborate_editor(~ctx_init, editor),
+  Interface.elaborate_editor(~settings=settings.core, ~ctx_init, editor),
 );
 
 let persist = ((id, editor: Editor.t)) => {
