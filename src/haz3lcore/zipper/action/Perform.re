@@ -20,6 +20,7 @@ let is_write_action = (a: Action.t) => {
 let go_z =
     (
       ~meta: option(Editor.Meta.t)=?,
+      ~settings: CoreSettings.t,
       a: Action.t,
       z: Zipper.t,
       id_gen: IdGen.state,
@@ -55,7 +56,7 @@ let go_z =
       Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.from_zip", true, () =>
         MakeTerm.from_zip_for_view(z)
       );
-    let statics = Statics.mk_map(term);
+    let statics = Interface.Statics.mk_map(settings, term);
 
     (
       switch (jump_target) {
@@ -126,7 +127,12 @@ let go_z =
 };
 
 let go =
-    (a: Action.t, ed: Editor.t, id_gen: IdGen.state)
+    (
+      ~settings: CoreSettings.t,
+      a: Action.t,
+      ed: Editor.t,
+      id_gen: IdGen.state,
+    )
     : Action.Result.t((Editor.t, IdGen.state)) =>
   if (ed.read_only && is_write_action(a)) {
     Result.Ok((ed, id_gen));
@@ -134,7 +140,7 @@ let go =
     open Result.Syntax;
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
-    let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
+    let+ (z, id_gen) = go_z(~settings, ~meta, a, zipper, id_gen);
     let ed = Editor.new_state(~effects=Effect.s^, a, z, ed);
     (ed, id_gen);
   };

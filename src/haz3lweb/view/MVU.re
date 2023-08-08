@@ -2,6 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 
 type t = {
+  settings: Settings.t,
   name: string, // key to store model state
   inject: UpdateAction.t => Ui_effect.t(unit),
   update: DHExp.t,
@@ -248,9 +249,13 @@ let render_styles = styles =>
   |> String.concat(";")
   |> Attr.create("style");
 
-let update = ({name, update, model, _}: t, handler, arg): UpdateAction.t => {
+let update =
+    ({name, update, model, settings, _}: t, handler, arg): UpdateAction.t => {
   let model =
-    Interface.eval_d2d(Ap(update, Tuple([model, Ap(handler, arg)])));
+    Interface.eval_d2d(
+      ~settings=settings.core,
+      Ap(update, Tuple([model, Ap(handler, arg)])),
+    );
   SetMeta(MVU(name, model));
 };
 
@@ -340,15 +345,27 @@ and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
   };
 
 let go =
-    (~mvu_states, ~init_model, ~name, ~inject, ~view, ~update, ~font_metrics) => {
+    (
+      ~settings,
+      ~mvu_states,
+      ~init_model,
+      ~name,
+      ~inject,
+      ~view,
+      ~update,
+      ~font_metrics,
+    ) => {
   let model =
     switch (VarMap.lookup(mvu_states, name)) {
     | Some(d) => d
     | _ => init_model
     };
-  let mvu = {name, model, update, inject, font_metrics};
+  let mvu = {settings, name, model, update, inject, font_metrics};
   //TODO(andrew): casting in ap?
-  let result = Ap(view, mvu.model) |> Interface.eval_d2d |> DHExp.strip_casts;
+  let result =
+    Ap(view, mvu.model)
+    |> Interface.eval_d2d(~settings=settings.core)
+    |> DHExp.strip_casts;
   [
     Node.div(~attr=Attr.classes(["mvu-render"]), [render_div(mvu, result)]),
   ];

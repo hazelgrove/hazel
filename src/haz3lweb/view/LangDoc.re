@@ -205,7 +205,7 @@ let mk_explanation =
 let deco =
     (
       ~doc: LangDocMessages.t,
-      ~settings,
+      ~settings: Settings.t,
       ~colorings,
       ~expandable: option(Id.t),
       ~unselected,
@@ -222,7 +222,7 @@ let deco =
       let map = map;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
-      let info_map = Statics.mk_map(term);
+      let info_map = Interface.Statics.mk_map(settings.core, term);
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
@@ -410,9 +410,22 @@ let example_view =
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
-            let info_map = Statics.mk_map_ctx(Builtins.ctx_init, uhexp);
+            let info_map =
+              Interface.Statics.mk_map_ctx(
+                settings.core,
+                Builtins.ctx_init,
+                uhexp,
+              );
             let result_view =
-              switch (Some(Interface.eval_u2d(info_map, uhexp))) {
+              switch (
+                Some(
+                  Interface.eval_u2d(
+                    ~settings=settings.core,
+                    info_map,
+                    uhexp,
+                  ),
+                )
+              ) {
               | None => []
               | Some(dhexp) => [
                   DHCode.view(
@@ -2829,14 +2842,15 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
     [div(~attr=clss(["section-title"]), [text(title)])] @ contents,
   );
 
-let get_color_map = (~doc: LangDocMessages.t, zipper: Zipper.t) => {
+let get_color_map =
+    (~settings: Settings.t, ~doc: LangDocMessages.t, zipper: Zipper.t) => {
   let info: option(Statics.Info.t) =
     switch (Indicated.index(zipper)) {
     | Some(index) =>
       let info_map =
         MakeTerm.from_zip_for_view(zipper)
         |> fst
-        |> Statics.mk_map_ctx(Builtins.ctx_init);
+        |> Interface.Statics.mk_map_ctx(settings.core, Builtins.ctx_init);
       Id.Map.find_opt(index, info_map);
     | None => None
     };

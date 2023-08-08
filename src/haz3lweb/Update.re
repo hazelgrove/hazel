@@ -23,7 +23,7 @@ let update_settings =
       settings: {
         ...settings,
         core: {
-          ...settings.core,
+          statics: !settings.core.dynamics || settings.core.statics,
           dynamics: !settings.core.dynamics,
         },
       },
@@ -141,14 +141,17 @@ let evaluate_and_schedule =
         Util.TimeUtil.measure_time(
           "ModelResults.init", model.settings.benchmark, () =>
           ModelResults.init(
-            model.settings.core.dynamics
-              ? Editors.get_spliced_elabs(model.editors) : [],
+            ~settings=model.settings.core,
+            Editors.get_spliced_elabs(
+              ~settings=model.settings,
+              model.editors,
+            ),
           )
         ),
     },
   };
 
-  // if (model.settings.dynamics) {
+  // if (model.settings.core.dynamics) {
   //   Editors.get_spliced_elabs(model.editors)
   //   |> List.iter(((key, d)) => {
   //        /* Send evaluation request. */
@@ -171,7 +174,7 @@ let evaluate_and_schedule =
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-  switch (Haz3lcore.Perform.go(a, ed_init, id)) {
+  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init, id)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok((ed, id)) =>
     Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
@@ -310,8 +313,10 @@ let rec apply =
       };
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
-      let ctx_init = Editors.get_ctx_init(model.editors);
+      let ctx_init =
+        Editors.get_ctx_init(~settings=model.settings, model.editors);
       UpdateAssistant.schedule_prompt(
+        ~settings=model.settings,
         ~ctx_init,
         editor.state.zipper,
         ~schedule_action,

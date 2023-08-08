@@ -235,6 +235,9 @@ let view =
     ]);
   switch (zipper.backpack, Indicated.index(zipper)) {
   //| ([_, ..._], _) => err_view("No information while backpack in use")
+  | _ when !settings.core.statics => div_empty
+  | _ when Id.Map.is_empty(info_map) =>
+    err_view("No Static information available")
   | (_, None) => err_view("No cursor in program")
   | (_, Some(id)) =>
     switch (Id.Map.find_opt(id, info_map)) {

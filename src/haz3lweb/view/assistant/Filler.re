@@ -203,13 +203,15 @@ let collate_samples: samples => list(OpenAI.message) =
     ]
   );
 
-let prompt = (~ctx_init, editor: Editor.t): option(OpenAI.prompt) => {
+let prompt =
+    (~settings: Settings.t, ~ctx_init, editor: Editor.t)
+    : option(OpenAI.prompt) => {
   let ctx =
-    switch (ChatLSP.get_ci(~ctx_init, editor)) {
+    switch (ChatLSP.get_ci(~settings, ~ctx_init, editor)) {
     | Some(ci) => Info.ctx_of(ci)
     | None => Builtins.ctx_init
     };
-  let mode = ChatLSP.Type.mode(~ctx_init, editor);
+  let mode = ChatLSP.Type.mode(~settings, ~ctx_init, editor);
   let sketch = Printer.to_string_editor(~holes=Some("?"), editor);
   let expected_ty = mode |> ChatLSP.Type.expected(~ctx);
   //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
@@ -226,7 +228,13 @@ let prompt = (~ctx_init, editor: Editor.t): option(OpenAI.prompt) => {
 };
 
 let error_reply =
-    (response: string, id: Id.t, ~init_ctx: Ctx.t, ~mode: Mode.t) => {
+    (
+      ~settings: Settings.t,
+      response: string,
+      id: Id.t,
+      ~init_ctx: Ctx.t,
+      ~mode: Mode.t,
+    ) => {
   //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
     Some(
@@ -243,11 +251,13 @@ let error_reply =
     wrap("Syntax errors: Undocumented parse error, no feedback available", [])
   | Some((response_z, _id)) =>
     let (top_ci, map) =
-      response_z |> ChatLSP.get_info_and_top_ci_from_zipper(~ctx=init_ctx);
+      response_z
+      |> ChatLSP.get_info_and_top_ci_from_zipper(~settings, ~ctx=init_ctx);
     let self: Self.t =
-      switch (top_ci.self) {
-      | Free(_) => Just(Unknown(Internal))
-      | Common(self) => self
+      switch (top_ci) {
+      | Some({self: Common(self), _}) => self
+      | Some({self: Free(_), _}) => Just(Unknown(Internal))
+      | None => Just(Unknown(Internal))
       };
     let status = Info.status_common(init_ctx, mode, self);
     let errors = ChatLSP.Errors.collect_static(map);

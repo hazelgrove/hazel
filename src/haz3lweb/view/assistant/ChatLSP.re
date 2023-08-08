@@ -1,35 +1,46 @@
 open Haz3lcore;
 
 //TODO(andrew): calculate this in a more principled way
-let get_info_from_zipper = (~ctx_init, z: Zipper.t): Statics.Map.t => {
-  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_ctx(ctx_init);
+let get_info_from_zipper =
+    (~settings: Settings.t, ~ctx_init, z: Zipper.t): Statics.Map.t => {
+  z
+  |> MakeTerm.from_zip_for_sem
+  |> fst
+  |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
 };
 let get_info_and_top_ci_from_zipper =
-    (~ctx, z: Zipper.t): (Info.exp, Statics.Map.t) => {
-  z |> MakeTerm.from_zip_for_sem |> fst |> Statics.mk_map_and_info_ctx(ctx);
+    (~settings: Settings.t, ~ctx, z: Zipper.t)
+    : (option(Info.exp), Statics.Map.t) => {
+  z
+  |> MakeTerm.from_zip_for_sem
+  |> fst
+  |> Interface.Statics.mk_map_and_info_ctx(settings.core, ctx);
 };
 
-let get_ci = (~ctx_init, editor: Editor.t): option(Info.t) => {
+let get_ci =
+    (~settings: Settings.t, ~ctx_init, editor: Editor.t): option(Info.t) => {
   let z = editor.state.zipper;
   let index = Indicated.index(z);
   switch (index) {
   | Some(index) =>
-    let map = get_info_from_zipper(~ctx_init, z);
+    let map = get_info_from_zipper(~settings, ~ctx_init, z);
     Haz3lcore.Id.Map.find_opt(index, map);
   | _ => None
   };
 };
 
 module Type = {
-  let mode = (~ctx_init, editor: Editor.t): option(Mode.t) =>
-    switch (get_ci(~ctx_init, editor)) {
+  let mode =
+      (~settings: Settings.t, ~ctx_init, editor: Editor.t): option(Mode.t) =>
+    switch (get_ci(~settings, ~ctx_init, editor)) {
     | Some(InfoExp({mode, _})) => Some(mode)
     | Some(InfoPat({mode, _})) => Some(mode)
     | _ => None
     };
 
-  let ctx = (~ctx_init, editor: Editor.t): option(Ctx.t) =>
-    switch (get_ci(~ctx_init, editor)) {
+  let ctx =
+      (~settings: Settings.t, ~ctx_init, editor: Editor.t): option(Ctx.t) =>
+    switch (get_ci(~settings, ~ctx_init, editor)) {
     | Some(ci) => Some(Info.ctx_of(ci))
     | _ => None
     };
