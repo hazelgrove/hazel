@@ -213,7 +213,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
     ),
   ),
-  ("hole", ((==)("_"), [mk_op(Exp, []), mk_op(Pat, [])])),
+  //("hole", ((==)("_"), [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),

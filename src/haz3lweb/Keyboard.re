@@ -150,6 +150,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
+    | "/" => [Assistant(Prompt(TyDi))]
     | "z" => now_save_u(Undo)
     | "d" => now(Select(Term(Current)))
     //| "p" => now(Pick_up)
