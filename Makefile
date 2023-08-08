@@ -10,10 +10,10 @@ change-deps:
 	opam switch export opam.export
 
 setup-instructor:
-	cp src/haz3lweb/SchoolSettings_instructor.re src/haz3lweb/SchoolSettings.re
+	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/SchoolSettings_student.re src/haz3lweb/SchoolSettings.re
+	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
 
 dev-helper: 
 	dune build @src/fmt --auto-promote src --profile dev
