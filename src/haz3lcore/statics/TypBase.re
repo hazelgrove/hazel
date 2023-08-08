@@ -65,7 +65,6 @@ module rec Typ: {
   let join_fix: (~resolve: bool=?, Ctx.t, t, t) => option(t);
   let join_all: (~empty: t, Ctx.t, list(t)) => option(t);
   let is_consistent: (Ctx.t, t, t) => bool;
-  let is_nontrivially_consistent: (Ctx.t, Typ.t, Typ.t) => bool;
   let weak_head_normalize: (Ctx.t, t) => t;
   let normalize: (Ctx.t, t) => t;
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
@@ -374,13 +373,6 @@ module rec Typ: {
 
   let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
     join(~fix=false, ctx, ty1, ty2) != None;
-
-  let is_nontrivially_consistent = (ctx: Ctx.t, ty1: Typ.t, ty2: Typ.t): bool =>
-    switch (ty1, ty2) {
-    | (Unknown(_), _)
-    | (_, Unknown(_)) => false
-    | _ => is_consistent(ctx, ty1, ty2)
-    };
 
   let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
     switch (ty) {

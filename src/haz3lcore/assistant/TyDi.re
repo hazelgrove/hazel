@@ -77,12 +77,15 @@ let leading_delim_tys: list((Token.t, Typ.t)) = [
 let infix_delim_tys: list((Token.t, Typ.t)) = [
   (",", unk), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
   ("::", List(unk)),
+  ("@", List(unk)),
   (";", unk),
   ("&&", Bool),
   ("\\/", Bool),
   ("$==", Bool),
   ("==.", Bool),
   ("==", Bool),
+  ("!=", Bool),
+  ("!=.", Bool),
   ("<", Bool),
   (">", Bool),
   ("<=", Bool),
@@ -101,14 +104,14 @@ let infix_delim_tys: list((Token.t, Typ.t)) = [
   ("*.", Float),
   ("/.", Float),
   ("**.", Float),
+  ("++", String),
 ];
 
 let filter_by_type =
     (ctx: Ctx.t, expected_ty: Typ.t, self_tys: list((Token.t, Typ.t))) =>
   List.filter_map(delim => {
     let* self_ty = List.assoc_opt(delim, self_tys);
-    Typ.is_nontrivially_consistent(ctx, expected_ty, self_ty)
-      ? Some(delim) : None;
+    Typ.is_consistent(ctx, expected_ty, self_ty) ? Some(delim) : None;
   });
 
 let co_ctx_candidates = (ctx: Ctx.t, co_ctx: CoCtx.t): list(string) => {
@@ -122,19 +125,25 @@ let co_ctx_candidates = (ctx: Ctx.t, co_ctx: CoCtx.t): list(string) => {
   );
 };
 
-let filtered_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
+let _completion_nontrivially_consistent =
+    (ctx: Ctx.t, ty_expect: Typ.t, ty_given: Typ.t): bool =>
+  switch (ty_expect, ty_given) {
+  | (_, Unknown(_)) => false
+  | _ => Typ.is_consistent(ctx, ty_expect, ty_given)
+  };
+
+let filtered_entries = (ty_expect: Typ.t, ctx: Ctx.t): list(string) =>
   /* get names of all var entries consistent with ty */
   List.filter_map(
     fun
     | Ctx.VarEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
         when
-          Typ.is_nontrivially_consistent(ctx, ty, ty_out)
-          && !Typ.is_nontrivially_consistent(ctx, ty, ty_arr) => {
+          Typ.is_consistent(ctx, ty_expect, ty_out)
+          && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
         Some
           (name ++ "("); // TODO(andrew): this is a hack
       }
-    | VarEntry({typ, name, _})
-        when Typ.is_nontrivially_consistent(ctx, ty, typ) =>
+    | VarEntry({typ, name, _}) when Typ.is_consistent(ctx, ty_expect, typ) =>
       Some(name)
     | _ => None,
     ctx,
@@ -146,11 +155,10 @@ let filtered_ctr_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
     fun
     | Ctx.ConstructorEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
         when
-          Typ.is_nontrivially_consistent(ctx, ty, ty_out)
-          && !Typ.is_nontrivially_consistent(ctx, ty, ty_arr) =>
+          Typ.is_consistent(ctx, ty, ty_out)
+          && !Typ.is_consistent(ctx, ty, ty_arr) =>
       Some(name ++ "(") // TODO(andrew): this is a hack
-    | ConstructorEntry({typ, name, _})
-        when Typ.is_nontrivially_consistent(ctx, ty, typ) =>
+    | ConstructorEntry({typ, name, _}) when Typ.is_consistent(ctx, ty, typ) =>
       Some(name)
     | _ => None,
     ctx,

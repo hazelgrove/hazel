@@ -163,16 +163,23 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
   switch (expected_ty) {
   | Unknown(_) => "LSP: No variables in scope are obviously relevant here\n"
   | expected_ty =>
+    let nontrivially_consistent =
+        (ctx: Ctx.t, ty_expect: Typ.t, ty_given: Typ.t): bool =>
+      switch (ty_expect, ty_given) {
+      //| (Unknown(_), _)
+      | (_, Unknown(_)) => false
+      | _ => Typ.is_consistent(ctx, ty_expect, ty_given)
+      };
     let ctx' =
       List.filter_map(
         fun
         | Ctx.VarEntry({name, typ: Arrow(_, typ), _})
         | Ctx.ConstructorEntry({name, typ: Arrow(_, typ), _})
-            when Typ.is_nontrivially_consistent(ctx, expected_ty, typ) =>
+            when nontrivially_consistent(ctx, expected_ty, typ) =>
           Some(name ++ ": " ++ Typ.to_string(typ))
         | Ctx.VarEntry({name, typ, _})
         | Ctx.ConstructorEntry({name, typ, _})
-            when Typ.is_nontrivially_consistent(ctx, expected_ty, typ) =>
+            when nontrivially_consistent(ctx, expected_ty, typ) =>
           Some(name ++ ":" ++ Typ.to_string(typ))
         | _ => None,
         ctx,
