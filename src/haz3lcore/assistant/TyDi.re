@@ -2,40 +2,28 @@ open Util;
 open OptUtil.Syntax;
 
 /*
-   idea: if there are ~ no current suggestions, and there's a type error(?),
-   suggest a following infix to address it, e.g. on "let a:Float = fst(1.0|"
-   suggest comma, or on "let b:Bool = 1|" suggest <, >, <=, >=, ==, !=, etc.
 
-  idea: maybe more likely to use case/if if you have unused variables
+   IDEA: Add a keybinding to force reveal suggestion if not current shown.
+   I've stubbed this out (Cmd+?) but needs an option to show suggestions
+   even if on hole (ie prefix for completion is "")
 
-  IDEA: add a keybinding to reveal suggestion, even where one might not otherwise show?
-     could use this to give prefix suggestions e.g... actually, do we want this...
+   IDEA: If there are ~ no current suggestions, and the indicated term
+   has a type error suggest following infixes which fix that type error,
+   e.g. given "let a:Float = fst(1.0|" suggest comma
+   e.g. given "let b:Bool = 1|" suggest <, >, <=, >=, ==, !=, etc.
 
-  how to decide if a literal is likely vs variable vs computation
+   IDEA: UNBIDIRECTIONAL POSITIONS:
+  1. In ap funpos: favor input ty consistent with arg
+  2. In case scrut, favor the tys of extant patterns
+  3. In list element, favor the tys of extant elements
+  3. In pattern annotation type: favor patann expected type
 
-  heuristic: dual-informed:
-  in app funpos: favor input ty consistent with arg
-  in case scrut, favor pattern ty (or tys if incosistent?)
-  in pat ann typpos: favor patann expected type
+  IDEA: If on infix op, suggest based on either operand type,
+  especially the case where it would fix an operand type error
 
-  heuristic: if type inconsistent, and no suggestions otherwise,
-  suggest inserting infix after that would make it consistent
+  IDEA: If on 2-multihole, suggest infix ops as above or Ap if applicable
 
-  heuristic: deprioritize fns returning unknown & variables of type unknown
-
-  2-multihole: pretend it's an ap?
-     choose funpos based on parent expect and other branch
-     (if to non-prefix, A><B| choose arg similarly, but wrap it in parens A><(B|) )
-
-  A|><B
-  2-multihole, alternate: pretend its another binop
-     get self tys of both branches, filter based on Statics.typ_exp_binop
-
- 2-multihole, alternate alternate: suggest applicable bp drop if possible
-
-  stylistic: in funpos: suggest only vars/tags/aps-producing-arrows
-
-  */
+ */
 
 //TODO(andrew): PERF DANGER!!
 let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
@@ -62,7 +50,7 @@ let const_mono_delim_tys: list((Token.t, Typ.t)) = [
   //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
   //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
   ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
-  ("_", unk),
+  ("_", unk) //TODO(andrew): make sure only shows in pattern pos...
 ];
 
 let leading_delim_tys: list((Token.t, Typ.t)) = [
@@ -216,7 +204,6 @@ let left_of_mono = (z: Zipper.t) =>
      if this isnt a monotile; we would need to return the label here as well to figure
      out the fit */
   | ([Tile({label: [tok_to_left, ..._], shards: [0], _}), ..._], _) =>
-    //print_endline("left_of_mono: " ++ tok_to_left ++ "");
     Some(tok_to_left)
   | _ => None
   };
@@ -257,9 +244,12 @@ let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
      want backpack candidates to show up first  */
   @ (
     delim_candidates(leading_delim_tys, Molds.delayed_leading_delims, ci)
-    @ delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
     @ delim_candidates(const_mono_delim_tys, Molds.const_mono_delims, ci)
     @ ctx_candidates(ci)
+    |> List.sort(String.compare)
+  )
+  @ (
+    delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
     |> List.sort(String.compare)
   );
 };
