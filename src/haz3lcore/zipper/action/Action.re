@@ -3,10 +3,15 @@ open Sexplib.Std;
 open Zipper;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type goal =
+  | Point(Measured.Point.t)
+  | Piece(Piece.t => bool, Direction.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type move =
   | Extreme(planar)
   | Local(planar)
-  | Goal(Measured.Point.t);
+  | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type jump_target =
@@ -26,6 +31,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Move(move)
+  | MoveToNextHole(Direction.t)
   | Jump(jump_target)
   | Select(select)
   | Unselect

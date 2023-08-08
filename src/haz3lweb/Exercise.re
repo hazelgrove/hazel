@@ -7,4 +7,4 @@ module ExerciseEnv = {
     "let prompt = " ++ module_name ++ "_prompt.prompt\n";
 };
 
-include Haz3lschool.SchoolExercise.F(ExerciseEnv);
+include Haz3lschool.Exercise.F(ExerciseEnv);
