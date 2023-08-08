@@ -40,7 +40,7 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
 let nut_menu =
     (
       ~inject: Update.t => 'a,
-      {statics, dynamics, benchmark, instructor_mode, _}: Settings.t,
+      {core: {statics, dynamics}, benchmark, instructor_mode, _}: Settings.t,
     ) => [
   menu_icon,
   div(
@@ -135,7 +135,7 @@ let exercises_view =
     ExerciseMode.mk(
       ~settings,
       ~exercise,
-      ~results=settings.dynamics ? Some(results) : None,
+      ~results=settings.core.dynamics ? Some(results) : None,
       ~langDocMessages,
     );
   let toolbar_buttons =
