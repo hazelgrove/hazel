@@ -582,7 +582,7 @@ let lets_str: group = {
 
 let lets_triv: group = {
   id: LetExp(Triv),
-  forms: [let_str_exp, let_base_exp],
+  forms: [let_triv_exp, let_base_exp],
 };
 
 let lets_listlit: group = {
