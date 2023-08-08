@@ -34,6 +34,17 @@ let go_z =
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
+
+  let select_term_current = z =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_select)
+    | Some(id) =>
+      switch (Select.term(id, z)) {
+      | Some(z) => Ok((z, id_gen))
+      | None => Error(Action.Failure.Cant_select)
+      }
+    };
+
   switch (a) {
   | Move(d) =>
     Move.go(d, z)
@@ -76,17 +87,62 @@ let go_z =
   | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
-  | Select(Term(Current)) =>
+  | Select(Term(Current)) => select_term_current(z)
+  | Select(Smart) =>
+    /* If the current tile is not coincident with the term,
+       select the term. Otherwise, select the parent term. */
+    let tile_is_term =
+      switch (Indicated.index(z)) {
+      | None => false
+      | Some(id) => Select.tile(id, z) == Select.term(id, z)
+      };
+    if (!tile_is_term) {
+      select_term_current(z);
+    } else {
+      let (term, _) =
+        Util.TimeUtil.measure_time(
+          "Perform.go_z => MakeTerm.from_zip", true, () =>
+          MakeTerm.from_zip_for_view(z)
+        );
+      let statics = Interface.Statics.mk_map(settings, term);
+      let target =
+        switch (
+          z
+          |> Indicated.index
+          |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
+        ) {
+        | Some(ci) =>
+          switch (Info.ancestors_of(ci)) {
+          | [] => None
+          | [parent, ..._] => Some(parent)
+          }
+        | None => None
+        };
+      switch (target) {
+      | None => Error(Action.Failure.Cant_select)
+      | Some(id) =>
+        switch (Select.term(id, z)) {
+        | Some(z) => Ok((z, id_gen))
+        | None => Error(Action.Failure.Cant_select)
+        }
+      };
+    };
+  | Select(Term(Id(id))) =>
+    switch (Select.term(id, z)) {
+    | Some(z) => Ok((z, id_gen))
+    | None => Error(Action.Failure.Cant_select)
+    }
+  | Select(Tile(Current)) =>
     switch (Indicated.index(z)) {
     | None => Error(Action.Failure.Cant_select)
     | Some(id) =>
-      switch (Select.term(id, z)) {
+      switch (Select.tile(id, z)) {
       | Some(z) => Ok((z, id_gen))
       | None => Error(Action.Failure.Cant_select)
       }
     }
-  | Select(Term(Id(id))) =>
-    switch (Select.term(id, z)) {
+  | Select(Tile(Id(id))) =>
+    switch (Select.tile(id, z)) {
     | Some(z) => Ok((z, id_gen))
     | None => Error(Action.Failure.Cant_select)
     }

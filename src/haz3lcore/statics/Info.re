@@ -260,6 +260,13 @@ let ctx_of: t => Ctx.t =
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _}) => ctx;
 
+let ancestors_of: t => ancestors =
+  fun
+  | InfoExp({ancestors, _})
+  | InfoPat({ancestors, _})
+  | InfoTyp({ancestors, _})
+  | InfoTPat({ancestors, _}) => ancestors;
+
 let term_string_of: t => string =
   fun
   | InfoExp({term, _}) => UExp.to_string(term)
