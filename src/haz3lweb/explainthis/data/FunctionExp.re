@@ -463,7 +463,7 @@ let functions_int = {
 };
 let functions_float = {
   id: FunctionExp(Float),
-  forms: [function_exp, function_floatlit_exp],
+  forms: [function_floatlit_exp, function_exp],
 };
 let functions_bool = {
   id: FunctionExp(Bool),
@@ -482,7 +482,7 @@ let functions_triv = {
 
 let functions_listnil = {
   id: FunctionExp(ListNil),
-  forms: [function_listlit_exp, function_exp],
+  forms: [function_listnil_exp, function_exp],
 };
 
 let functions_listlit = {

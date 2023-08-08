@@ -699,10 +699,7 @@ let int_power: group = {id: BinOpExp(IntPower), forms: [int_power_exp]};
 
 let int_divide: group = {id: BinOpExp(IntDivide), forms: [int_divide_exp]};
 
-let int_less_than: group = {
-  id: BinOpExp(IntLessThan),
-  forms: [int_lte_exp],
-};
+let int_less_than: group = {id: BinOpExp(IntLessThan), forms: [int_lt_exp]};
 
 let int_less_than_equal: group = {
   id: BinOpExp(IntLessThanEqual),
@@ -745,7 +742,7 @@ let float_divide: group = {
 
 let float_less_than: group = {
   id: BinOpExp(FloatLessThan),
-  forms: [float_lte_exp],
+  forms: [float_lt_exp],
 };
 
 let float_less_than_equal: group = {
