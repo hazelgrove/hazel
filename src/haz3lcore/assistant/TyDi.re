@@ -3,6 +3,13 @@ open OptUtil.Syntax;
 
 /*
 
+  IDEA: Expanded criteria for when to autoshow: Currently, we show only
+  when there is at least one suggestion which prefix-matches but is not
+  identical to the current nonzero prefix. We might consider relaxing
+  the nonzero prefix part. We probably don't want to autoshow on correct
+  tokens, but we could autoshow on errors if there are fixes, or on
+  empties if there's only one option.
+
    IDEA: Add a keybinding to force reveal suggestion if not current shown.
    I've stubbed this out (Cmd+?) but needs an option to show suggestions
    even if on hole (ie prefix for completion is "")
@@ -63,7 +70,7 @@ let leading_delim_tys: list((Token.t, Typ.t)) = [
 ];
 
 let infix_delim_tys: list((Token.t, Typ.t)) = [
-  (",", unk), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
+  (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
   ("::", List(unk)),
   ("@", List(unk)),
   (";", unk),
