@@ -95,6 +95,10 @@ let rec stepwell_mold =
       Error((kid, well));
     | Some((_, (l, r) as b, well)) =>
       switch (terrace_mold(l, ~kid, t)) {
+      | Error(_) =>
+        // may need to revisit this
+        let well = Stepwell.link(Slopes.mk(~r=suf, ()), b, well);
+        Error((kid, well));
       | Ok(slope) =>
         // slope contains l kid t
         // left to right: slope suf r
@@ -103,9 +107,8 @@ let rec stepwell_mold =
         let (hd, tl) = Option.get(Slope.Dn.uncons(slope));
         if (Slope.height(tl) > 0) {
           // l lt-molded t and remains matched to r
-          Ok(
-            Stepwell.link((tl, suf), (hd, r), well),
-          );
+          let well = Stepwell.link((tl, suf), (hd, r), well);
+          Ok(well);
         } else {
           // l eq-molded t
           // r now unmatched and left in suffix for suffix remolding
