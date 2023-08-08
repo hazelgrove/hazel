@@ -33,19 +33,50 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
   );
 
 let mousedown_handler =
-    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
-  let goal = get_goal(~font_metrics, ~target_id, e);
-  Virtual_dom.Vdom.Effect.Many(
-    List.map(
-      inject,
-      Update.(
-        [SetMeta(Mousedown)]
-        @ additional_updates
-        @ [PerformAction(Move(Goal(Point(goal))))]
+    (
+      ~inject: UpdateAction.t => 'a,
+      ~font_metrics,
+      ~target_id,
+      ~mousedown_updates,
+      evt,
+    ) =>
+  /*
+   new behavior concept:
+   for concave/convex forms:
+   doubleclick: select form eg token
+   tripleclick: select parent term (e.g. ap for fnpos token)
+   for chevron forms:
+   doubleclick: select tile (eg. {let _ = _ in} _)
+   tripleclick: select term
+
+   possibly additional level if already indicated:
+   singleclick: select individual token always
+   */
+  switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
+  | (true, _) =>
+    let goal = get_goal(~font_metrics, ~target_id, evt);
+
+    let events = [
+      inject(PerformAction(Move(Goal(Point(goal))))),
+      inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+    ];
+    Virtual_dom.Vdom.Effect.Many(events);
+  | (false, 1) =>
+    let goal = get_goal(~font_metrics, ~target_id, evt);
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(
+        inject,
+        Update.(
+          [SetMeta(Mousedown)]
+          @ mousedown_updates
+          @ [PerformAction(Move(Goal(Point(goal))))]
+        ),
       ),
-    ),
-  );
-};
+    );
+  | (false, 2) => inject(Update.PerformAction(Select(Term(Current))))
+  | (false, 3) => inject(Update.PerformAction(Select(Term(Current))))
+  | (false, _) => inject(Update.PerformAction(Select(Term(Current))))
+  };
 
 let narrative_cell = (content: Node.t) =>
   Node.div(
@@ -105,27 +136,13 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(evt =>
-              switch (JsUtil.ctrl_held(evt), JsUtil.is_double_click(evt)) {
-              | (true, _) =>
-                let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
-
-                let events = [
-                  inject(PerformAction(Move(Goal(Point(goal))))),
-                  inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
-                ];
-                Virtual_dom.Vdom.Effect.Many(events);
-              | (false, false) =>
-                mousedown_handler(
-                  ~inject,
-                  ~font_metrics,
-                  ~target_id=code_id,
-                  ~additional_updates=mousedown_updates,
-                  evt,
-                )
-              | (false, true) =>
-                inject(Update.PerformAction(Select(Term(Current))))
-              }
+            Attr.on_mousedown(
+              mousedown_handler(
+                ~inject,
+                ~font_metrics,
+                ~target_id=code_id,
+                ~mousedown_updates,
+              ),
             ),
           ]),
         Option.to_list(caption) @ code,
@@ -347,7 +364,6 @@ let editor_with_result_view =
       ~show_backpack_targets,
       ~clss=[],
       ~mousedown: bool,
-      ~mousedown_updates: list(Update.t)=[],
       ~settings: ModelSettings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
@@ -374,7 +390,7 @@ let editor_with_result_view =
     ~show_backpack_targets,
     ~clss,
     ~mousedown,
-    ~mousedown_updates,
+    ~mousedown_updates=[],
     ~settings,
     ~selected,
     ~caption?,
