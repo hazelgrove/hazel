@@ -4,6 +4,7 @@ open Zipper;
 let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
+  | MoveToNextHole(_)
   | Unselect
   | Jump(_)
   | Select(_) => false
@@ -37,6 +38,15 @@ let go_z =
     Move.go(d, z)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | MoveToNextHole(d) =>
+    let p: Piece.t => bool = (
+      fun
+      | Grout(_) => true
+      | _ => false
+    );
+    Move.go(Goal(Piece(p, d)), z)
+    |> Option.map(IdGen.id(id_gen))
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 
@@ -50,8 +60,9 @@ let go_z =
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
-        let* binding_id =
-          Option.bind(idx, Statics.get_binding_site(_, statics));
+        let* idx = idx;
+        let* ci = Id.Map.find_opt(idx, statics);
+        let* binding_id = Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }

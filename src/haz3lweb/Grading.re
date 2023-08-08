@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 
-include Haz3lschool.Grading.F(SchoolExercise.ExerciseEnv);
+include Haz3lschool.Grading.F(Exercise.ExerciseEnv);
 
 let score_view = ((earned: points, max: points)) => {
   div(
