@@ -41,7 +41,7 @@ let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
     [text("Γ")],
   );
 
-let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
+let term_view = (~inject, ~settings: Settings.t, ~show_lang_doc, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
@@ -220,7 +220,7 @@ let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
 let view =
     (
       ~inject,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,

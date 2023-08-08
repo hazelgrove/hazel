@@ -11,7 +11,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(ModelSettings.mode);
+  | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type filler_options = {

@@ -481,7 +481,7 @@ type message_mode =
   | MessageContent(
       Update.t => Virtual_dom.Vdom.Effect.t(unit),
       FontMetrics.t,
-      ModelSettings.t,
+      Settings.t,
     )
   | Colorings;
 
@@ -2848,7 +2848,7 @@ let view =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Statics.Map.t,
