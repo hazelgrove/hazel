@@ -10,6 +10,10 @@ let unwrap =
   | Error(a)
   | Ok(a) => a;
 
+[@warning "-27"]
+let pick = (~compare: ('ok, 'ok) => int, rs: list(t('ok, _))): t('ok, _) =>
+  failwith("todo Molder.Result.pick");
+
 module Syntax = {
   let (let+) = (result, f) => map(~f, result);
   let ( let* ) = (result, f) => bind(~f, result);
