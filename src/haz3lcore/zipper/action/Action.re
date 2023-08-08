@@ -21,11 +21,14 @@ type jump_target =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
   | Current
+  //Parent
   | Id(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type select =
   | Resize(move)
+  //Token
+  //Tile
   | Term(term);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
