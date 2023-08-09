@@ -13,7 +13,7 @@ let test_instance_view =
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
     [
-      DHCode.view_tylr(
+      DHCode.view(
         ~settings=Settings.Evaluation.init,
         ~selected_hole_instance=None,
         ~font_metrics,
@@ -23,7 +23,11 @@ let test_instance_view =
     ],
   );
 
-let jump_to_test = (~inject as _, _) => Effect.Ignore;
+let jump_to_test = (~inject, pos, id, _) => {
+  let effect1 = inject(Update.SwitchEditor(pos));
+  let effect2 = inject(Update.PerformAction(Jump(TileId(id))));
+  Effect.bind(effect1, ~f=_result1 => effect2);
+};
 
 let test_report_view =
     (
@@ -31,7 +35,7 @@ let test_report_view =
       ~font_metrics,
       ~description: option(string)=None,
       i: int,
-      (_id, instance_reports): TestMap.report,
+      (id, instance_reports): TestMap.report,
     ) => {
   let status =
     instance_reports |> TestMap.joint_status |> TestStatus.to_string;
@@ -39,7 +43,7 @@ let test_report_view =
     ~attr=
       Attr.many([
         Attr.class_("test-report"),
-        Attr.on_click(jump_to_test(~inject)),
+        Attr.on_click(jump_to_test(~inject, YourTestsTesting, id)),
       ]),
     [
       div(
@@ -82,22 +86,22 @@ let test_reports_view =
     },
   );
 
-let test_bar_segment = (~inject, (_id, reports)) => {
+let test_bar_segment = (~inject, pos, (id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
     ~attr=
       Attr.many([
         clss(["segment", status]),
-        Attr.on_click(jump_to_test(~inject)),
+        Attr.on_click(jump_to_test(~inject, pos, id)),
       ]),
     [],
   );
 };
 
-let test_bar = (~inject, ~test_results: Interface.test_results) =>
+let test_bar = (~inject, ~test_results: Interface.test_results, pos) =>
   div(
     ~attr=Attr.class_("test-bar"),
-    List.map(test_bar_segment(~inject), test_results.test_map),
+    List.map(test_bar_segment(~inject, pos), test_results.test_map),
   );
 
 // result_summary_str and test_summary_str have been moved to haz3lcore/TestResults.re
@@ -132,7 +136,7 @@ let test_summary = (~inject, ~test_results: option(Interface.test_results)) => {
       | None => [Node.text("No test results available.")]
       | Some(test_results) => [
           test_text(test_results),
-          test_bar(~inject, ~test_results),
+          test_bar(~inject, ~test_results, YourTestsTesting),
         ]
       };
     },

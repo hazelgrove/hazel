@@ -64,15 +64,17 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Float(_)
   | String(_)
   | ListLit(_)
-  | Tag(_)
+  | Constructor(_)
   | Fun(_)
   | Tuple(_)
   | Var(_)
   | Ap(_)
+  | Pipeline(_)
   | If(_)
   | Test(_)
   | Parens(_)
   | Cons(_)
+  | ListConcat(_)
   | UnOp(_)
   | BinOp(_)
   | Match(_) => (
@@ -88,6 +90,9 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Let(p, edef, ebody) =>
     let (id, ebody') = append_exp(id, ebody, e2);
     (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});
+  | TyAlias(tp, tdef, ebody) =>
+    let (id, ebody') = append_exp(id, ebody, e2);
+    (id, TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')});
   };
 };
 

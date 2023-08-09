@@ -2,6 +2,8 @@ open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
 
+let action_applied = ref(true);
+
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
     ~node=JsUtil.get_elem_by_id(id),
@@ -33,6 +35,7 @@ let restart_caret_animation = () =>
 
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
+  action_applied := true;
   switch (
     try({
       let new_model = Update.apply(model, action, state, ~schedule_action);
@@ -48,11 +51,6 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(FailedToPerform(err)));
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
-  | Error(UnrecognizedInput(reason)) =>
-    // TODO(andrew): reinstate this history functionality
-    print_endline(Update.Failure.show(UnrecognizedInput(reason)));
-    model;
-  //{...model, history: ActionHistory.just_failed(reason, model.history)};
   | Error(err) =>
     print_endline(Update.Failure.show(err));
     model;
@@ -121,13 +119,29 @@ module App = {
     Async_kernel.Deferred.return(state);
   };
 
-  let create = (model: Incr.t(Haz3lweb.Model.t), ~old_model as _, ~inject) => {
+  let create =
+      (
+        model: Incr.t(Haz3lweb.Model.t),
+        ~old_model: Incr.t(Haz3lweb.Model.t),
+        ~inject,
+      ) => {
     open Incr.Let_syntax;
-    let%map model = model;
+    let%map model = model
+    and old_model = old_model;
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
+      ~on_display=(_, ~schedule_action as _) =>
+      if (action_applied.contents) {
+        let old_zipper = Editors.get_editor(model.editors).state.zipper;
+        let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
+
+        action_applied := false;
+        if (old_zipper != new_zipper) {
+          JsUtil.scroll_cursor_into_view_if_needed();
+        };
+      }
     );
   };
 };
@@ -141,9 +155,7 @@ let fragment =
 let initial_model = {
   switch (fragment) {
   | "debug" => Model.debug
-  | _ =>
-    let model = Update.load_model(Model.blank);
-    model;
+  | _ => Model.load(Model.blank)
   };
 };
 

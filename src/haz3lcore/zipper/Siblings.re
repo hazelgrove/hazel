@@ -8,6 +8,8 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
+let no_siblings: t => bool = s => s == empty;
+
 let unzip: (int, Segment.t) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
@@ -100,6 +102,11 @@ let neighbors: t => (option(Piece.t), option(Piece.t)) =
 let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Right, l_sibs),
   Segment.trim_secondary(Left, r_sibs),
+);
+
+let trim_grout = ((l_sibs, r_sibs): t) => (
+  Segment.trim_grout(Right, l_sibs),
+  Segment.trim_grout(Left, r_sibs),
 );
 
 let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (

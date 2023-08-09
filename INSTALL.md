@@ -119,12 +119,12 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 4.14.0 (some older versions may also work, but see the
-  ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
-  why we do not use newer versions).
+- Install OCaml 5.0.0 (some older versions may also work; see the
+  ["Current version" section of `Updating.md`](docs/Updating-OCaml-Version.md) for
+  why we may not use the newest version of OCaml).
 
   ```sh
-   opam switch create 4.14 ocaml-base-compiler.4.14.0
+   opam switch create 5.0.0 ocaml-base-compiler.5.0.0
   ```
 
 ## Clone the Source Code
@@ -231,12 +231,12 @@ If the build fails, it sometimes helps to do a `make clean`.
     - `make win-chrome`
 
 You can also launch Hazel directly by opening
-`_build/default/src/hazelweb/www/index.html` in your browser.  The command `make
+`_build/default/src/haz3lweb/www/index.html` in your browser.  The command `make
 echo-html` echos that path to the terminal, so that you don't have to remember
 it.
 
 You can also run `make repl` to get a REPL in which you can play with the definitions
-in `hazelcore`. The definitions in `hazelweb` cannot be used in the REPL because that
+in `haz3lcore`. The definitions in `haz3lweb` cannot be used in the REPL because that
 package needs a browser environment to run.
 
 

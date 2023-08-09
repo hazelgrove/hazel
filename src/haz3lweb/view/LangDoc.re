@@ -234,7 +234,7 @@ let deco =
     | (Some(expandable), _) => [
         Deco.term_decoration(
           ~id=expandable,
-          ((origin, path)) => {
+          ((origin, _, path)) => {
             let specificity_pos =
               Printf.sprintf(
                 "position: absolute; top: %fpx;",
@@ -250,18 +250,11 @@ let deco =
 
             let get_clss = segment =>
               switch (List.nth(segment, 0)) {
-              | Base.Tile({mold, _}) =>
-                switch (mold.out) {
-                | Pat => ["term-tag-pat"]
-                | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
-                | Typ => ["term-tag-typ"]
-                | Any
-                | Nul
-                | Rul => []
-                }
+              | Base.Tile({mold, _}) => [
+                  "ci-header-" ++ Sort.to_string(mold.out),
+                ]
               | _ => []
               };
-
             let specificity_menu =
               Node.div(
                 ~attr=
@@ -422,7 +415,7 @@ let example_view =
               switch (Interface.evaluation_result(info_map, uhexp)) {
               | None => []
               | Some(dhexp) => [
-                  DHCode.view_tylr(
+                  DHCode.view(
                     ~settings=Settings.Evaluation.init,
                     ~selected_hole_instance=None,
                     ~font_metrics,
@@ -488,12 +481,16 @@ type message_mode =
   | MessageContent(
       Update.t => Virtual_dom.Vdom.Effect.t(unit),
       FontMetrics.t,
-      Model.settings,
+      ModelSettings.t,
     )
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Statics.t), mode: message_mode)
+    (
+      ~docs: LangDocMessages.t,
+      info: option(Statics.Info.t),
+      mode: message_mode,
+    )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -556,38 +553,38 @@ let get_doc =
     };
   };
 
+  let basic_info = group => {
+    let (doc, options) = LangDocMessages.get_form_and_options(group, docs);
+    get_message(doc, options, group, doc.explanation.message, []);
+  };
+
   switch (info) {
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch (term) {
-      | TermBase.UExp.Invalid(_) => default
-      | EmptyHole =>
+      switch ((term: TermBase.UExp.term)) {
+      | Invalid(_) => default
+      | EmptyHole => basic_info(LangDocMessages.empty_hole_exp_group)
+      | MultiHole(_) => basic_info(LangDocMessages.multi_hole_exp_group)
+      | TyAlias(ty_pat, ty_def, _body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.empty_hole_exp_group,
+            LangDocMessages.tyalias_exp_group,
             docs,
           );
+        let tpat_id = List.nth(ty_pat.ids, 0);
+        let def_id = List.nth(ty_def.ids, 0);
         get_message(
           doc,
           options,
-          LangDocMessages.empty_hole_exp_group,
-          doc.explanation.message,
-          [],
-        );
-      | MultiHole(_children) =>
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.multi_hole_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.multi_hole_exp_group,
-          doc.explanation.message,
-          [],
+          LangDocMessages.tyalias_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            def_id,
+            tpat_id,
+          ),
+          LangDocMessages.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
         );
       | Triv =>
         let (doc, options) =
@@ -1156,19 +1153,19 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_ap_group, options);
           };
-        | Tag(v) =>
+        | Constructor(v) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
-              LangDocMessages.function_tag_group,
+              LangDocMessages.function_ctr_group,
               docs,
             );
-          if (LangDocMessages.function_tag_exp.id == doc.id) {
+          if (LangDocMessages.function_ctr_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.function_tag_group,
+              LangDocMessages.function_ctr_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
                 pat_id,
@@ -1176,13 +1173,13 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              LangDocMessages.function_tag_exp_coloring_ids(
+              LangDocMessages.function_ctr_exp_coloring_ids(
                 ~pat_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.function_tag_group, options);
+            basic(doc, LangDocMessages.function_ctr_group, options);
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
@@ -1817,20 +1814,20 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.let_ap_exp_group, options);
           };
-        | Tag(v) =>
+        | Constructor(v) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
-              LangDocMessages.let_tag_exp_group,
+              LangDocMessages.let_ctr_exp_group,
               docs,
             );
-          if (LangDocMessages.let_tag_exp.id == doc.id) {
+          if (LangDocMessages.let_ctr_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
             get_message(
               doc,
               options,
-              LangDocMessages.let_tag_exp_group,
+              LangDocMessages.let_ctr_exp_group,
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
@@ -1842,14 +1839,14 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              LangDocMessages.let_tag_exp_coloring_ids(
+              LangDocMessages.let_ctr_exp_coloring_ids(
                 ~pat_id,
                 ~def_id,
                 ~body_id,
               ),
             );
           } else {
-            basic(doc, LangDocMessages.let_tag_exp_group, options);
+            basic(doc, LangDocMessages.let_ctr_exp_group, options);
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
@@ -1869,7 +1866,7 @@ let get_doc =
           );
         };
         switch (x.term) {
-        | Tag(v) =>
+        | Constructor(v) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
               LangDocMessages.conapp_exp_group,
@@ -2001,8 +1998,44 @@ let get_doc =
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
+      | ListConcat(xs, ys) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.list_concat_exp_group,
+            docs,
+          );
+        let hd_id = List.nth(xs.ids, 0);
+        let tl_id = List.nth(ys.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.list_concat_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            hd_id,
+            tl_id,
+          ),
+          LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
+        );
       | UnOp(op, exp) =>
         switch (op) {
+        | Bool(Not) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.bool_unary_not_group,
+              docs,
+            );
+          let exp_id = List.nth(exp.ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.bool_unary_not_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i"),
+              exp_id,
+            ),
+            LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
+          );
         | Int(Minus) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -2064,6 +2097,10 @@ let get_doc =
               LangDocMessages.int_eq_group,
               LangDocMessages.int_eq_exp_coloring_ids,
             )
+          | Int(NotEquals) => (
+              LangDocMessages.int_neq_group,
+              LangDocMessages.int_eq_exp_coloring_ids,
+            )
           | Float(Plus) => (
               LangDocMessages.float_plus_group,
               LangDocMessages.float_plus_exp_coloring_ids,
@@ -2104,6 +2141,10 @@ let get_doc =
               LangDocMessages.float_eq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
             )
+          | Float(NotEquals) => (
+              LangDocMessages.float_neq_group,
+              LangDocMessages.float_eq_exp_coloring_ids,
+            )
           | Bool(And) => (
               LangDocMessages.bool_and_group,
               LangDocMessages.bool_and_exp_coloring_ids,
@@ -2114,6 +2155,10 @@ let get_doc =
             )
           | String(Equals) => (
               LangDocMessages.str_eq_group,
+              LangDocMessages.str_eq_exp_coloring_ids,
+            )
+          | String(Concat) => (
+              LangDocMessages.str_concat_group,
               LangDocMessages.str_eq_exp_coloring_ids,
             )
           };
@@ -2149,16 +2194,16 @@ let get_doc =
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
-      | Tag(v) =>
+      | Constructor(v) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.tag_exp_group,
+            LangDocMessages.ctr_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.tag_exp_group,
+          LangDocMessages.ctr_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%s"),
             v,
@@ -2483,16 +2528,16 @@ let get_doc =
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
-    | Tag(con) =>
+    | Constructor(con) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
-          LangDocMessages.tag_pat_group,
+          LangDocMessages.ctr_pat_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.tag_pat_group,
+        LangDocMessages.ctr_pat_group,
         Printf.sprintf(
           Scanf.format_from_string(doc.explanation.message, "%s"),
           con,
@@ -2523,7 +2568,7 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, _})) =>
+  | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {
     | EmptyHole =>
       let (doc, options) =
@@ -2745,6 +2790,10 @@ let get_doc =
           );
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
+    | Constructor(_) =>
+      basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
+    | Var(_) when cls == Typ(Constructor) =>
+      basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(v) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2761,12 +2810,34 @@ let get_doc =
         ),
         [],
       );
-    | Invalid(_) // Shouldn't be hit
+    | Sum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
+    | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
     | Parens(_) => default // Shouldn't be hit?
+    | Invalid(_) => default
     }
-  | Some(InfoRul(_)) // Can't have cursor on just a rule atm
-  | None
-  | Some(Invalid(_)) => default
+  | Some(InfoTPat(info)) =>
+    switch (info.term.term) {
+    | Invalid(_) => default
+    | EmptyHole => basic_info(LangDocMessages.empty_hole_tpat_group)
+    | MultiHole(_) => basic_info(LangDocMessages.multi_hole_tpat_group)
+    | Var(v) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.var_typ_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.var_typ_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s"),
+          v,
+        ),
+        [],
+      );
+    }
+  | None => default
   };
 };
 
@@ -2777,8 +2848,8 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
-  let info: option(Statics.t) =
+    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.Map.t) => {
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2795,12 +2866,12 @@ let view =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~doc: LangDocMessages.t,
       index': option(int),
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     ) => {
-  let info: option(Statics.t) =
+  let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2812,10 +2883,10 @@ let view =
   let (syn_form, (explanation, _), example) =
     get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
   div(
-    ~attr=clss(["lang-doc"]),
+    ~attr=Attr.id("side-bar"),
     [
       div(
-        ~attr=clss(["content"]),
+        ~attr=clss(["lang-doc"]),
         [
           div(
             ~attr=clss(["top-bar"]),
@@ -2839,7 +2910,7 @@ let view =
                       )
                     ),
                   ]),
-                [text("X")],
+                [text("✕")],
               ),
             ],
           ),

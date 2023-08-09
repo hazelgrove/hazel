@@ -183,8 +183,8 @@ let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
   let shards = Id.Map.find(t.id, map.tiles);
-  let first = List.assoc(Tile.l_shard(t), shards);
-  let last = List.assoc(Tile.r_shard(t), shards);
+  let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
+  let last = ListUtil.assoc_err(Tile.r_shard(t), shards, "find_t");
   {origin: first.origin, last: last.last};
 };
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
@@ -206,8 +206,14 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
     | None =>
       switch (Id.Map.find_opt(id, map.tiles)) {
       | Some(shards) =>
-        let first = List.assoc(List.hd(shards) |> fst, shards);
-        let last = List.assoc(ListUtil.last(shards) |> fst, shards);
+        let first =
+          ListUtil.assoc_err(List.hd(shards) |> fst, shards, "find_by_id");
+        let last =
+          ListUtil.assoc_err(
+            ListUtil.last(shards) |> fst,
+            shards,
+            "find_by_id",
+          );
         Some({origin: first.origin, last: last.last});
       | None =>
         Printf.printf("Measured.WARNING: id %d not found", id);
