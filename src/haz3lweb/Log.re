@@ -22,17 +22,16 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | DebugAction(_)
   | ExportPersistentData => false
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
+  | ResetCurrentEditor
   | SetMode(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)
   | SwitchEditor(_)
   | PerformAction(_)
-  | FailedInput(_)
   | Cut
   | Copy
   | Paste(_)

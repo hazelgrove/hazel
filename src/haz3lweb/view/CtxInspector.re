@@ -37,10 +37,9 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   };
 };
 
-let div_ctx = div(~attr=clss(["context-entries"]));
-
 let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
-  div_ctx(
+  div(
+    ~attr=clss(["context-entries"]),
     List.map(
       context_entry_view(~inject),
       ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
@@ -53,7 +52,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
   |> List.rev
   |> List.map(context_entry_view(~inject));
 
-let inspector_view =
+let view =
     (~inject, ~settings: ModelSettings.t, ci: Haz3lcore.Statics.Info.t)
     : Node.t => {
   let clss =
@@ -61,23 +60,4 @@ let inspector_view =
       ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
     );
   div(~attr=clss, ctx_sorts_view(~inject, ci));
-};
-
-let view =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      index': option(Haz3lcore.Id.t),
-      info_map: Haz3lcore.Statics.Map.t,
-    ) => {
-  let ci =
-    switch (index') {
-    | Some(index) => Haz3lcore.Id.Map.find_opt(index, info_map)
-    | None => None
-    };
-  switch (ci) {
-  | None =>
-    div(~attr=clss(["context-inspector"]), [text("No Static Data")])
-  | Some(ci) => inspector_view(~inject, ~settings, ci)
-  };
 };

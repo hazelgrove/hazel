@@ -132,11 +132,14 @@ let insert_outer = (char: string, z as state: t): option(t) =>
 
 let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
   z
-  |> Option.map(Zipper.construct(~caret=Left, ~backpack=Left, lbl))
-  |> OptUtil.and_then(z =>
-       Zipper.put_down(Left, z)  //TODO(andrew): direction?
+  |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
+  |> OptUtil.and_then(z => {
+       //NOTE: regrout to put e.g. ap(1|) back together
+       z
+       |> remold_regrout(Left)
+       |> Zipper.put_down(Left)
        |> OptUtil.and_then(Zipper.move(Left))
-     );
+     });
 
 let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   z

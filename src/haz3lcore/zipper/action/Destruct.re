@@ -91,24 +91,25 @@ let parent_duomerges = (z: Zipper.t) => {
 
 let go = (d: Direction.t, z: t): option(t) => {
   let* z = destruct(d, z);
-  let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
   switch (
     parent_duomerges(z),
     z.caret,
-    neighbor_monotiles(z_trimmed.relatives.siblings),
+    neighbor_monotiles(z.relatives.siblings),
   ) {
   | (Some(lbl), Outer, (None, None))
-      when Siblings.no_siblings(z_trimmed.relatives.siblings) =>
+      when Siblings.no_siblings(z.relatives.siblings) =>
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
     z
     |> Zipper.delete_parent
-    |> Zipper.set_caret(Inner(List.length(lbl), 0))
+    |> Zipper.set_caret(Inner(0, 0))
     |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
+    /* Below regrouting important for parens/ap positioning */
+    |> Zipper.regrout(Right)
     |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
-    merge((l, r), z_trimmed)
+    merge((l, r), z)
   | _ => Some(z)
   };
 };

@@ -2,10 +2,9 @@ exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t =>
   switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
-    print_endline("Interface.elaborate EXCEPTION");
-    //HACK(andrew): supress exceptions for release
-    //raise(DoesNotElaborate)
-    InvalidText(Id.invalid, 0, "EXCEPTION");
+    let error = "Internal error: Elaboration returns None";
+    print_endline("Interface.elaborate: " ++ error);
+    InvalidText(Id.invalid, -666, error);
   | Elaborates(d, _, _) => d
   };
 
@@ -14,8 +13,9 @@ exception PostprocessError(EvaluatorPost.error);
 let evaluate =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(Environment.empty),
+    Evaluator.evaluate(Builtins.env_init),
   );
+
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
 //     es
@@ -56,35 +56,25 @@ let evaluate =
 // };
 
 let evaluate = (d: DHExp.t): ProgramResult.t => {
-  let result = evaluate(d);
-
+  let result =
+    try(evaluate(d)) {
+    | EvaluatorError.Exception(reason) =>
+      let error = "Internal exception: " ++ EvaluatorError.show(reason);
+      print_endline("Interface.evaluate: " ++ error);
+      (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
+    | exn =>
+      let error = "System exception: " ++ Printexc.to_string(exn);
+      print_endline("Interface.evaluate: " ++ error);
+      (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
+    };
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
   | (es, BoxedValue(_) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
     (r, es, HoleInstanceInfo.empty)
-  | (es, Indet(_d) as r) =>
+  | (es, Indet(_) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
     (r, es, HoleInstanceInfo.empty)
-  | exception (EvaluatorError.Exception(_reason)) =>
-    //HACK(andrew): supress exceptions for release
-    print_endline("Interface.evaluate EXCEPTION:");
-    print_endline(
-      Sexplib.Sexp.to_string_hum(EvaluatorError.sexp_of_t(_reason)),
-    );
-    (
-      Indet(InvalidText(Id.invalid, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
-  | exception exn =>
-    print_endline("Other evaluation exception raised (stack overflow?)");
-    Printexc.to_string(exn) |> print_endline;
-    (
-      Indet(InvalidText(Id.invalid, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
   };
 };
 
