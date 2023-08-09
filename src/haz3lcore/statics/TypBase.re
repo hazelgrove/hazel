@@ -476,7 +476,6 @@ and Ctx: {
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
   let shadows_typ: (t, TypVar.t) => bool;
-  let get_alias_names: t => list(string);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -620,15 +619,6 @@ and Ctx: {
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
     Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
-
-  let get_alias_names = (ctx: t): list(string) =>
-    /* get names of all type aliases */
-    List.filter_map(
-      fun
-      | TVarEntry({kind: Singleton(_), name, _}) => Some(name)
-      | _ => None,
-      ctx,
-    );
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
