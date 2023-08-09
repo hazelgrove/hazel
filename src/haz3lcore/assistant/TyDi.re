@@ -1,46 +1,73 @@
 open Util;
 open OptUtil.Syntax;
+open Sexplib.Std;
 
-/*
+/* TyDi: Type-Directed Next-Token Suggestions
 
-  IDEA: Expanded criteria for when to autoshow: Currently, we show only
-  when there is at least one suggestion which prefix-matches but is not
-  identical to the current nonzero prefix. We might consider relaxing
-  the nonzero prefix part. We probably don't want to autoshow on correct
-  tokens, but we could autoshow on errors if there are fixes, or on
-  empties if there's only one option.
+    IDEA: Expanded criteria for when to autoshow: Currently, we show only
+    when there is at least one suggestion which prefix-matches but is not
+    identical to the current nonzero prefix. We might consider relaxing
+    the nonzero prefix part. We probably don't want to autoshow on correct
+    tokens, but we could autoshow on errors if there are fixes, or on
+    empties if there's only one option.
 
-   IDEA: Add a keybinding to force reveal suggestion if not current shown.
-   I've stubbed this out (Cmd+?) but needs an option to show suggestions
-   even if on hole (ie prefix for completion is "")
+     IDEA: Add a keybinding to force reveal suggestion if not current shown.
+     I've stubbed this out (Cmd+?) but needs an option to show suggestions
+     even if on hole (ie prefix for completion is "")
 
-   IDEA: If there are ~ no current suggestions, and the indicated term
-   has a type error suggest following infixes which fix that type error,
-   e.g. given "let a:Float = fst(1.0|" suggest comma
-   e.g. given "let b:Bool = 1|" suggest <, >, <=, >=, ==, !=, etc.
+     IDEA: If there are ~ no current suggestions, and the indicated term
+     has a type error suggest following infixes which fix that type error,
+     e.g. given "let a:Float = fst(1.0|" suggest comma
+     e.g. given "let b:Bool = 1|" suggest <, >, <=, >=, ==, !=, etc.
 
-   IDEA: UNBIDIRECTIONAL POSITIONS:
-  1. In ap funpos: favor input ty consistent with arg
-  2. In case scrut, favor the tys of extant patterns
-  3. In list element, favor the tys of extant elements
-  3. In pattern annotation type: favor patann expected type
+     IDEA: UNBIDIRECTIONAL POSITIONS:
+    1. In ap funpos: favor input ty consistent with arg
+    2. In case scrut, favor the tys of extant patterns
+    3. In list element, favor the tys of extant elements
+    3. In pattern annotation type: favor patann expected type
 
-  IDEA: If on infix op, suggest based on either operand type,
-  especially the case where it would fix an operand type error
+    IDEA: If on infix op, suggest based on either operand type,
+    especially the case where it would fix an operand type error
 
-  IDEA: If on 2-multihole, suggest infix ops as above or Ap if applicable
+    IDEA: If on 2-multihole, suggest infix ops as above or Ap if applicable
 
- */
+   */
 
-//TODO(andrew): PERF DANGER!!
-let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
-  let map =
-    z
-    |> MakeTerm.from_zip_for_sem
-    |> fst
-    |> Interface.Statics.mk_map_ctx(settings, ctx);
-  let* index = Indicated.index(z);
-  Id.Map.find_opt(index, map);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type strategy_all =
+  | FromBackpack;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type strategy_common =
+  | NewForm(Typ.t)
+  | FromCtx(Typ.t)
+  | FromCtxAp(Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type strategy_exp =
+  | Common(strategy_common);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type strategy_pat =
+  | Common(strategy_common)
+  | FromCoCtx(Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type strategy_typ =
+  | NewForm
+  | FromCtx;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type strategy =
+  | Any(strategy_all)
+  | Exp(strategy_exp)
+  | Pat(strategy_pat)
+  | Typ(strategy_typ);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type suggestion = {
+  content: string,
+  strategy,
 };
 
 let unk: Typ.t = Unknown(Internal);
@@ -57,7 +84,7 @@ let const_mono_delim_tys: list((Token.t, Typ.t)) = [
   //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
   //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
   ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
-  ("_", unk) //TODO(andrew): make sure only shows in pattern pos...
+  ("_", unk),
 ];
 
 let leading_delim_tys: list((Token.t, Typ.t)) = [
@@ -103,31 +130,84 @@ let infix_delim_tys: list((Token.t, Typ.t)) = [
 ];
 
 let filter_by_type =
-    (ctx: Ctx.t, expected_ty: Typ.t, self_tys: list((Token.t, Typ.t))) =>
-  List.filter_map(delim => {
-    let* self_ty = List.assoc_opt(delim, self_tys);
-    Typ.is_consistent(ctx, expected_ty, self_ty) ? Some(delim) : None;
-  });
-
-let co_ctx_candidates = (ctx: Ctx.t, co_ctx: CoCtx.t): list(string) => {
+    (
+      ctx: Ctx.t,
+      expected_ty: Typ.t,
+      self_tys: list((Token.t, Typ.t)),
+      delims: list(string),
+    )
+    : list((Token.t, Typ.t)) =>
   List.filter_map(
-    ((name, _)) =>
+    delim => {
+      let* self_ty = List.assoc_opt(delim, self_tys);
+      Typ.is_consistent(ctx, expected_ty, self_ty)
+        ? Some((delim, self_ty)) : None;
+    },
+    delims,
+  );
+
+let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(suggestion) => {
+  let sort = Info.sort_of(ci);
+  let delims = delims_of_sort(sort);
+  let filtered =
+    filter_by_type(Info.ctx_of(ci), expected_ty(ci), ty_map, delims);
+  switch (sort) {
+  | Exp =>
+    List.map(
+      ((content, ty)) => {content, strategy: Exp(Common(NewForm(ty)))},
+      filtered,
+    )
+  | Pat =>
+    List.map(
+      ((content, ty)) => {content, strategy: Pat(Common(NewForm(ty)))},
+      filtered,
+    )
+  | _ => delims |> List.map(content => {content, strategy: Typ(NewForm)})
+  };
+};
+
+let suggest_operator: Info.t => list(suggestion) =
+  suggest_form(infix_delim_tys, Molds.infix_delims);
+
+let suggest_operand: Info.t => list(suggestion) =
+  suggest_form(const_mono_delim_tys, Molds.const_mono_delims);
+
+let suggest_leading: Info.t => list(suggestion) =
+  suggest_form(leading_delim_tys, Molds.delayed_leading_delims);
+
+let suggest_backpack = (z: Zipper.t): list(suggestion) => {
+  /* Note: Sort check unnecessary as wouldn't be able to put down */
+  switch (z.backpack) {
+  | [] => []
+  | [{content, _}, ..._] =>
+    switch (content) {
+    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
+        {content: List.nth(label, idx), strategy: Any(FromBackpack)},
+      ]
+    | _ => []
+    }
+  };
+};
+
+let free_variables =
+    (expected_ty: Typ.t, ctx: Ctx.t, co_ctx: CoCtx.t): list(suggestion) => {
+  List.filter_map(
+    ((name, entries)) =>
       switch (Ctx.lookup_var(ctx, name)) {
-      | None => Some(name)
+      | None =>
+        let joint_use_typ = CoCtx.join(ctx, entries);
+        if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
+          Some({content: name, strategy: Pat(FromCoCtx(joint_use_typ))});
+        } else {
+          None;
+        };
       | Some(_) => None
       },
     co_ctx,
   );
 };
 
-let _completion_nontrivially_consistent =
-    (ctx: Ctx.t, ty_expect: Typ.t, ty_given: Typ.t): bool =>
-  switch (ty_expect, ty_given) {
-  | (_, Unknown(_)) => false
-  | _ => Typ.is_consistent(ctx, ty_expect, ty_given)
-  };
-
-let filtered_entries = (ty_expect: Typ.t, ctx: Ctx.t): list(string) =>
+let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(suggestion) =>
   /* get names of all var entries consistent with ty */
   List.filter_map(
     fun
@@ -136,15 +216,18 @@ let filtered_entries = (ty_expect: Typ.t, ctx: Ctx.t): list(string) =>
           Typ.is_consistent(ctx, ty_expect, ty_out)
           && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
         Some
-          (name ++ "("); // TODO(andrew): this is a hack
+          ({
+            content: name ++ "(",
+            strategy: Exp(Common(FromCtxAp(ty_out))),
+          }); // TODO(andrew): this is a hack
       }
     | VarEntry({typ, name, _}) when Typ.is_consistent(ctx, ty_expect, typ) =>
-      Some(name)
+      Some({content: name, strategy: Exp(Common(FromCtx(typ)))})
     | _ => None,
     ctx,
   );
 
-let filtered_ctr_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
+let bound_constructors = (wrap, ty: Typ.t, ctx: Ctx.t): list(suggestion) =>
   /* get names of all constructor entries consistent with ty */
   List.filter_map(
     fun
@@ -152,52 +235,60 @@ let filtered_ctr_entries = (ty: Typ.t, ctx: Ctx.t): list(string) =>
         when
           Typ.is_consistent(ctx, ty, ty_out)
           && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some(name ++ "(") // TODO(andrew): this is a hack
+      Some({content: name ++ "(", strategy: wrap(FromCtxAp(ty_out))}) // TODO(andrew): this is a hack
     | ConstructorEntry({typ, name, _}) when Typ.is_consistent(ctx, ty, typ) =>
-      Some(name)
+      Some({content: name, strategy: wrap(FromCtx(typ))})
     | _ => None,
     ctx,
   );
 
-let ctx_candidates = (ci: Info.t): list(string) => {
+let typ_context_entries = (ctx: Ctx.t): list(suggestion) =>
+  /* get names of all type aliases */
+  List.filter_map(
+    fun
+    | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
+      Some({content: name, strategy: Typ(FromCtx)})
+    | _ => None,
+    ctx,
+  );
+
+let suggest_variable = (ci: Info.t): list(suggestion) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
   | InfoExp({mode, _}) =>
-    filtered_entries(Mode.ty_of(mode), ctx)
-    @ filtered_ctr_entries(Mode.ty_of(mode), ctx)
+    bound_variables(Mode.ty_of(mode), ctx)
+    @ bound_constructors(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
   | InfoPat({mode, co_ctx, _}) =>
-    filtered_ctr_entries(Mode.ty_of(mode), ctx)
-    @ co_ctx_candidates(ctx, co_ctx)
-  | InfoTyp(_) => Ctx.get_alias_names(ctx)
+    bound_constructors(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
+    @ free_variables(Mode.ty_of(mode), ctx, co_ctx)
+  | InfoTyp(_) => typ_context_entries(ctx)
   | _ => []
   };
 };
 
-let backpack_candidate = (_sort: Sort.t, z: Zipper.t): list(string) => {
-  /* NOTE: Sort check unnecessary as shouldn't be able to put down */
-  switch (z.backpack) {
-  | [] => []
-  | [{content, _}, ..._] =>
-    switch (content) {
-    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
-        List.nth(label, idx),
-      ]
-    | _ => []
-    }
-  };
+let compare_suggestions = (s1: suggestion, s2: suggestion): int => {
+  String.compare(s1.content, s2.content);
 };
 
-let delim_candidates = (ty_map, delims_of_sort, ci: Info.t): list(string) => {
-  let sort = Info.sort_of(ci);
-  let delims = delims_of_sort(sort);
-  switch (sort) {
-  | Exp
-  | Pat => filter_by_type(Info.ctx_of(ci), expected_ty(ci), ty_map, delims)
-  | _ => delims
-  };
+let suggest = (ci: Info.t, z: Zipper.t): list(suggestion) => {
+  suggest_backpack(z)
+  /* NOTE: Sorting here ensures that if we have an exact match already,
+     we won't suggest extending it, but sorting may not be desirable in
+     other ways, for example maybe we want recency bias in ctx?
+     Possibly revisit this.
+
+     I'm sorting here as opposed to after combination because I always
+     want backpack candidates to show up first  */
+  @ (
+    suggest_operand(ci)
+    @ suggest_leading(ci)
+    @ suggest_variable(ci)
+    |> List.sort(compare_suggestions)
+  )
+  @ (suggest_operator(ci) |> List.sort(compare_suggestions));
 };
 
-let left_of_mono = (z: Zipper.t) =>
+let left_of_mono = (z: Zipper.t): option(string) =>
   switch (
     z.relatives.siblings |> fst |> List.rev,
     z.relatives.siblings |> snd,
@@ -237,25 +328,15 @@ let suffix_of = (candidate: Token.t, left: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
-let candidates = (ci: Info.t, z: Zipper.t): list(string) => {
-  backpack_candidate(Info.sort_of(ci), z)
-  /* NOTE: Sorting here ensures that if we have an exact match already,
-     we won't suggest extending it, but sorting may not be desirable in
-     other ways, for example maybe we want recency bias in ctx?
-     Possibly revisit this.
-
-     I'm sorting here as opposed to after combination because I always
-     want backpack candidates to show up first  */
-  @ (
-    delim_candidates(leading_delim_tys, Molds.delayed_leading_delims, ci)
-    @ delim_candidates(const_mono_delim_tys, Molds.const_mono_delims, ci)
-    @ ctx_candidates(ci)
-    |> List.sort(String.compare)
-  )
-  @ (
-    delim_candidates(infix_delim_tys, Molds.infix_delims, ci)
-    |> List.sort(String.compare)
-  );
+//TODO(andrew): PERF DANGER
+let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
+  let map =
+    z
+    |> MakeTerm.from_zip_for_sem
+    |> fst
+    |> Interface.Statics.mk_map_ctx(settings, ctx);
+  let* index = Indicated.index(z);
+  Id.Map.find_opt(index, map);
 };
 
 let set_buffer =
@@ -263,17 +344,20 @@ let set_buffer =
     : option((Zipper.t, Id.t)) => {
   let* tok_to_left = left_of_mono(z);
   let* ci = z_to_ci(~settings, ~ctx, z);
-  let candidates = candidates(ci, z);
-  let filtered_candidates =
-    candidates |> List.filter(String.starts_with(~prefix=tok_to_left));
-  let* top_candidate = filtered_candidates |> Util.ListUtil.hd_opt;
-  let* candidate_suffix = suffix_of(top_candidate, tok_to_left);
+  let suggestions = suggest(ci, z);
+  let suggestions =
+    suggestions
+    |> List.filter(({content, _}: suggestion) =>
+         String.starts_with(~prefix=tok_to_left, content)
+       );
+  let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
+  let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let (id, tile) =
     mk_amorphous_tile(
       ~sort=Info.sort_of(ci),
       id_gen,
       z.relatives.siblings,
-      candidate_suffix,
+      suggestion_suffix,
     );
   let z = Zipper.set_buffer(z, ~content=[Tile(tile)], ~mode=Amorphous);
   Some((z, id));
