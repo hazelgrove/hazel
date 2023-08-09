@@ -231,7 +231,7 @@ and UExp: {
   let bool_op_to_string = (op: op_bin_bool): string => {
     switch (op) {
     | And => "&&"
-    | Or => "\\/"
+    | Or => "||"
     };
   };
 

@@ -277,7 +277,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["==."], []) => BinOp(Float(Equals), l, r)
           | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["\\/"], []) => BinOp(Bool(Or), l, r)
+          | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
