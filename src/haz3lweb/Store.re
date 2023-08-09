@@ -1,5 +1,20 @@
 open Haz3lcore;
 
+// A generic key-value store for saving/loading data to/from local storage
+module Generic = {
+  let prefix: string = "KEY_STORE_";
+
+  let full_key = (key: string): string => {
+    prefix ++ key;
+  };
+
+  let save = (key: string, value: string): unit =>
+    JsUtil.set_localstore(full_key(key), value);
+
+  let load = (key: string): option(string) =>
+    JsUtil.get_localstore(full_key(key));
+};
+
 // Settings serialization
 module Settings = {
   let save_settings_key: string = "SETTINGS";

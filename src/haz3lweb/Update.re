@@ -84,7 +84,8 @@ let reevaluate_post_update =
     | Mode(_) => true
     }
   | PerformAction(
-      Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_) |
+      Move(_) | MoveToNextHole(_) | Select(_) | Unselect | RotateBackpack |
+      MoveToBackpackTarget(_) |
       Jump(_),
     )
   | MoveToNextHole(_) //
@@ -99,17 +100,16 @@ let reevaluate_post_update =
   | UpdateResult(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | FailedInput(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | ExportPersistentData => false
   // may not be necessary on all of these
   // TODO review and prune
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
+  | ResetCurrentEditor
   | SwitchEditor(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)
@@ -154,9 +154,7 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action =
-    (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
-    : Result.t(Model.t) =>
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (model.editors |> Editors.get_editor |> Haz3lcore.Perform.go(a)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
@@ -207,7 +205,6 @@ let export_persistent_data = () => {
   };
   let contents =
     "let startup : PersistentData.t = " ++ PersistentData.show(data);
-  JsUtil.copy(contents);
   JsUtil.download_string_file(
     ~filename="Init.ml",
     ~content_type="text/plain",
@@ -248,7 +245,7 @@ let apply =
     | ExportPersistentData =>
       export_persistent_data();
       Ok(model);
-    | ResetSlide =>
+    | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
       Model.save_and_return({...model, editors});
@@ -278,11 +275,10 @@ let apply =
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
-    | PerformAction(a) => perform_action(model, a, state, ~schedule_action)
-    | FailedInput(reason) => Error(UnrecognizedInput(reason))
+    | PerformAction(a) => perform_action(model, a)
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left), state, ~schedule_action)
+      perform_action(model, Destruct(Left))
     | Copy =>
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
@@ -311,7 +307,7 @@ let apply =
           }
         }
       };
-    | ResetCurrentEditor =>
+    | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
@@ -340,9 +336,13 @@ let apply =
       | Some(ed) =>
         Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
-    | MoveToNextHole(_d) =>
-      // TODO restore
-      Ok(model)
+    | MoveToNextHole(d) =>
+      let p: Piece.t => bool = (
+        fun
+        | Grout(_) => true
+        | _ => false
+      );
+      perform_action(model, Move(Goal(Piece(p, d))));
     | UpdateLangDocMessages(u) =>
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);

@@ -104,7 +104,7 @@ let mk_TestLit = _n => Doc.text(ExpandingKeyword.to_string(Test));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
-let mk_StringLit = Doc.text;
+let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
 let mk_FloatLit = (f: float) =>
   switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
@@ -119,6 +119,7 @@ let mk_BoolLit = b => Doc.text(string_of_bool(b));
 let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
+let mk_ListConcat = (hd, tl) => Doc.(hcats([hd, text("@"), tl]));
 
 let mk_comma_seq = (ld, rd, l) => {
   let rec mk_comma_seq_inner = l => {
