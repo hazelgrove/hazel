@@ -103,6 +103,7 @@ let reevaluate_post_update =
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | ExportPersistentData => false
+  | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
@@ -368,6 +369,13 @@ let apply =
       Ok({...model, results});
     | DebugAction(a) =>
       DebugAction.perform(a);
+      Ok(model);
+    | Benchmark(Start) =>
+      List.iter(schedule_action, Benchmark.actions_1);
+      Benchmark.start();
+      Ok(model);
+    | Benchmark(Finish) =>
+      Benchmark.finish();
       Ok(model);
     };
   reevaluate_post_update(update)
