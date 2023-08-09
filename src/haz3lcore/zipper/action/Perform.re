@@ -87,10 +87,30 @@ let go_z =
   | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
+  | Select(All) =>
+    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+    | Some(z) =>
+      switch (Select.go(Extreme(Down), z)) {
+      | Some(z) => Ok((z, id_gen))
+      | None => Error(Action.Failure.Cant_select)
+      }
+    | None => Error(Action.Failure.Cant_select)
+    }
+
   | Select(Term(Current)) => select_term_current(z)
   | Select(Smart) =>
     /* If the current tile is not coincident with the term,
        select the term. Otherwise, select the parent term. */
+    /* TODO(andrew): Maybe a better logic for this: Next
+       reasonable enclosure. Define 'enclosures' of a token to
+       be terms and tiles that include that token. Then for a
+       given token, itsenclosures are totally ordered by inclusion.
+       Doubleclicking gives the minimum enclosure, triple-clicking
+       gives the second-most minimum enclosure, which will be
+       (check) either the current term, the parent tile, or the
+       parent term. But would need to be careful to force that
+       the original tile is included; e.g. in an Ap the parent
+       tile doesn't include the funpos. */
     let tile_is_term =
       switch (Indicated.index(z)) {
       | None => false
@@ -99,16 +119,12 @@ let go_z =
     if (!tile_is_term) {
       select_term_current(z);
     } else {
-      let (term, _) =
-        Util.TimeUtil.measure_time(
-          "Perform.go_z => MakeTerm.from_zip", true, () =>
-          MakeTerm.from_zip_for_view(z)
-        );
+      //TODO: perf
+      let (term, _) = MakeTerm.from_zip_for_view(z);
       let statics = Interface.Statics.mk_map(settings, term);
       let target =
         switch (
-          z
-          |> Indicated.index
+          Indicated.index(z)
           |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
         ) {
         | Some(ci) =>
