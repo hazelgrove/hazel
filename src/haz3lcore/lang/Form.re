@@ -244,7 +244,7 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or_", mk_nul_infix("\\", P.eqs)), // HACK: SUBSTRING REQ
-  ("logical_or", mk_infix("\\/", Exp, P.or_)),
+  ("logical_or", mk_infix("||", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
