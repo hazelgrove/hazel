@@ -89,6 +89,11 @@ let update_siblings: (Siblings.t => Siblings.t, t) => t =
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
+let delete_parent = (z: t): t => {
+  ...z,
+  relatives: Relatives.delete_parent(z.relatives),
+};
+
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
@@ -367,3 +372,9 @@ let serialize = (z: t): string => {
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
+
+let can_put_down = z =>
+  switch (pop_backpack(z)) {
+  | Some(_) => z.caret == Outer
+  | None => false
+  };

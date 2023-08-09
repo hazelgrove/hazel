@@ -70,11 +70,6 @@ module Delim = {
   let colon_FixF = mk(":");
   let open_FixF = mk(".{");
   let close_FixF = mk("}");
-
-  let open_Inj = (inj_side: InjSide.t) =>
-    mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
-  let close_Inj = mk(")");
-
   let open_Case = mk("case");
   let close_Case = mk("end");
 
@@ -111,9 +106,6 @@ let mk_FloatLit = (f: float) =>
   };
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
-
-let mk_Inj = (inj_side, padded_child) =>
-  Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
