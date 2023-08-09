@@ -1514,7 +1514,7 @@ let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
 ];
 let tyalias_base_exp: form = {
   let explanation = {
-    message: "Type alias expression. The [*type*](%i) is bound to the [*type variable*](%i) in the body.",
+    message: "Type alias expression. The [*type*](%s) is bound to the [*type variable*](%s) in the body.",
     feedback: Unselected,
   };
   let form = [
@@ -1733,7 +1733,7 @@ let cons_exp: form = {
 };
 let list_concat_exp: form = {
   let explanation = {
-    message: "List concatenation operator. Creates a list by combining the [*first operand*](%i) and the [*second operand*](%i).",
+    message: "List concatenation operator. Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).",
     feedback: Unselected,
   };
   {
@@ -2031,7 +2031,7 @@ let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
 ];
 let bool_unary_not_exp: form = {
   let explanation = {
-    message: "Unary not. Performs boolean negation of the [*operand*](%i).",
+    message: "Unary not. Performs boolean negation of the [*operand*](%s).",
     feedback: Unselected,
   };
   {
@@ -2290,7 +2290,7 @@ let int_eq_exp: form = {
 };
 let int_neq_exp: form = {
   let explanation = {
-    message: "Integer inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Integer inequality. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2531,7 +2531,7 @@ let float_eq_exp: form = {
 };
 let float_neq_exp: form = {
   let explanation = {
-    message: "Floating-point inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Floating-point inequality. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2614,7 +2614,7 @@ let str_eq_exp: form = {
 };
 let str_concat_exp: form = {
   let explanation = {
-    message: "String concatenation. Returns the concatenation of the [*left operand*](%i) and the [*right operand*](%i),",
+    message: "String concatenation. Returns the concatenation of the [*left operand*](%s) and the [*right operand*](%s),",
     feedback: Unselected,
   };
   {
