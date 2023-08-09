@@ -56,13 +56,17 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d2
-  | ListLit(a, b, c, d, ds) =>
-    ListLit(a, b, c, d, List.map(subst_var(d1, x), ds))
+  | Constructor(_) => d2
+  | ListLit(a, b, c, ds) =>
+    ListLit(a, b, c, List.map(subst_var(d1, x), ds))
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Cons(d3, d4);
+  | ListConcat(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    ListConcat(d3, d4);
   | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds))
   | Prj(d, n) => Prj(subst_var(d1, x, d), n)
   | BinBoolOp(op, d3, d4) =>

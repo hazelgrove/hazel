@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Haz3lcore;
 
 let ty_view = (cls: string, s: string): Node.t =>
   div(~attr=clss(["typ-view", cls]), [text(s)]);
@@ -8,9 +9,11 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
+let prov_view: Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
+  | Free(name) =>
+    div(~attr=clss(["typ-mod", "free-type-var"]), [text(name)])
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
@@ -19,8 +22,12 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   switch (ty) {
   | Unknown(prov) =>
     div(
-      ~attr=clss(["typ-view", "atom", "unknown"]),
-      [text("?"), prov_view(prov)],
+      ~attr=
+        Attr.many([
+          clss(["typ-view", "atom", "unknown"]),
+          Attr.title(Typ.show_type_provenance(prov)),
+        ]),
+      [text("?") /*, prov_view(prov)*/],
     )
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
@@ -63,18 +70,18 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Sum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
-      | [t0] => [text("Singleton Sum {")] @ tagged_view(t0) @ [text("}")]
+      | [t0] => [text("+")] @ ctr_view(t0)
       | [t0, ...ts] =>
         let ts_views =
-          List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
-        tagged_view(t0) @ ts_views;
+          List.map(t => [text(" + ")] @ ctr_view(t), ts) |> List.flatten;
+        ctr_view(t0) @ ts_views;
       },
     )
   }
-and tagged_view = ((tag, typ)) =>
+and ctr_view = ((ctr, typ)) =>
   switch (typ) {
-  | None => [text(tag)]
-  | Some(typ) => [text(tag ++ "("), view_ty(typ), text(")")]
+  | None => [text(ctr)]
+  | Some(typ) => [text(ctr ++ "("), view_ty(typ), text(")")]
   };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>

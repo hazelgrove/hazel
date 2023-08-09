@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 
-include Haz3lschool.Grading.F(SchoolExercise.ExerciseEnv);
+include Haz3lschool.Grading.F(Exercise.ExerciseEnv);
 
 let score_view = ((earned: points, max: points)) => {
   div(
@@ -54,7 +54,11 @@ module TestValidationReport = {
         @ Option.to_list(
             report.test_results
             |> Option.map(test_results =>
-                 TestView.test_bar(~inject, ~test_results)
+                 TestView.test_bar(
+                   ~inject,
+                   ~test_results,
+                   YourTestsValidation,
+                 )
                ),
           ),
       ),
@@ -72,13 +76,19 @@ module MutationTestingReport = {
       [score_view(score), text(summary_str(~total, ~found))],
     );
 
-  let bar = (~inject as _, instances) =>
+  let bar = (~inject, instances) =>
     div(
       ~attr=Attr.classes(["test-bar"]),
-      List.map(
-        ((status, _)) =>
+      List.mapi(
+        (id, (status, _)) =>
           div(
-            ~attr=Attr.classes(["segment", TestStatus.to_string(status)]),
+            ~attr=
+              Attr.many([
+                Attr.classes(["segment", TestStatus.to_string(status)]),
+                Attr.on_click(
+                  TestView.jump_to_test(~inject, HiddenBugs(id), id),
+                ),
+              ]),
             [],
           ),
         instances,
@@ -111,12 +121,12 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status) =>
+  let individual_report = (id, ~inject, ~hint: string, ~status: TestStatus.t) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject)),
+          Attr.on_click(TestView.jump_to_test(~inject, HiddenBugs(id), id)),
         ]),
       [
         div(
@@ -126,7 +136,7 @@ module MutationTestingReport = {
               "Test" ++ TestStatus.to_string(status),
             ]),
           /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
+          [text(string_of_int(id + 1))],
         ),
         // TestView.test_instance_view(~font_metrics, instance),
       ]
@@ -265,12 +275,12 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status) =>
+  let individual_report = (i, ~inject, ~hint: string, ~status, (id, _)) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject)),
+          Attr.on_click(TestView.jump_to_test(~inject, HiddenTests, id)),
         ]),
       [
         div(
@@ -297,13 +307,24 @@ module ImplGradingReport = {
       ],
     );
 
-  let individual_reports = (~inject, ~hinted_results) =>
-    div(
-      hinted_results
-      |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~inject, ~hint, ~status)
-         ),
-    );
+  let individual_reports = (~inject, ~report) => {
+    switch (report.test_results) {
+    | Some(test_results) =>
+      div(
+        report.hinted_results
+        |> List.mapi((i, (status, hint)) =>
+             individual_report(
+               i,
+               ~inject,
+               ~hint,
+               ~status,
+               List.nth(test_results.test_map, i),
+             )
+           ),
+      )
+    | None => div([])
+    };
+  };
 
   let view = (~inject, ~report: t, ~max_points: int) => {
     Cell.panel(
@@ -313,7 +334,7 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~inject, ~hinted_results=report.hinted_results),
+        individual_reports(~inject, ~report),
       ],
       ~footer=
         Some(
@@ -334,7 +355,7 @@ module ImplGradingReport = {
               @ Option.to_list(
                   report.test_results
                   |> Option.map(test_results =>
-                       TestView.test_bar(~inject, ~test_results)
+                       TestView.test_bar(~inject, ~test_results, HiddenTests)
                      ),
                 ),
             ),

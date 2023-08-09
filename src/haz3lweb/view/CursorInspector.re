@@ -14,206 +14,225 @@ let status_cls: Statics.Info.status_cls => string =
   | Warn => "warn";
 
 let cls_cls = (ci: Statics.Info.t): string =>
-  switch (ci) {
-  | InfoExp({cls, _}) => Term.UExp.show_cls(cls)
-  | InfoPat({cls, _}) => Term.UPat.show_cls(cls)
-  | InfoTyp({cls, _}) => Term.UTyp.show_cls(cls)
-  | InfoTPat({cls, _}) => Term.UTPat.show_cls(cls)
-  };
+  Term.Cls.show(Info.cls_of(ci));
 
 let status_view = status => div(~attr=clss([status_cls(status)]));
 let view_err = status_view(Error);
 let view_warn = status_view(Warn);
 let view_ok = status_view(Ok);
 
-let lang_doc_toggle = (~inject, ~show_lang_doc) => {
+let code_err = (code: string): Node.t =>
+  div(~attr=clss(["code"]), [text(code)]);
+
+let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
   let tooltip = "Toggle language documentation";
   let toggle_landocs = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
+      inject(Update.UpdateLangDocMessages(ToggleShow)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
     ~attr=clss(["lang-doc-button"]),
-    [Widgets.toggle(~tooltip, "i", show_lang_doc, toggle_landocs)],
+    [Widgets.toggle(~tooltip, "?", show_lang_doc, toggle_landocs)],
   );
 };
 
-let term_tag =
-    (~inject, ~settings: ModelSettings.t, ~show_lang_doc, sort, id, ci) =>
+let cls_view = (ci: Info.t): Node.t =>
+  div(
+    ~attr=clss(["syntax-class"]),
+    [text(ci |> Info.cls_of |> Term.Cls.show)],
+  );
+
+let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
   div(
     ~attr=
-      clss(["term-tag", sort_cls(ci), status_cls(Info.status_cls(ci))]),
-    [
-      div(
-        ~attr=
-          Attr.many([
-            Attr.on_click(_ => inject(Update.Set(ContextInspector))),
-            clss(
-              ["gamma"] @ (settings.context_inspector ? ["visible"] : []),
-            ),
-          ]),
-        [text("Γ")],
-      ),
-      CtxInspector.inspector_view(~inject, ~settings, id, ci),
-      text(sort),
-      lang_doc_toggle(~inject, ~show_lang_doc),
-    ],
+      Attr.many([
+        Attr.on_click(_ => inject(Update.Set(ContextInspector))),
+        clss(["gamma"] @ (context_inspector ? ["visible"] : [])),
+      ]),
+    [text("Γ")],
   );
 
-let common_err_view = (err: Info.error_common) =>
+let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
+  let sort = ci |> Info.sort_of |> Sort.show;
+  div(
+    ~attr=clss(["ci-header", sort, status_cls(Info.status_cls(ci))]),
+    [
+      ctx_toggle(~inject, settings.context_inspector),
+      CtxInspector.view(~inject, ~settings, ci),
+      div(~attr=clss(["term-tag"]), [text(sort)]),
+      lang_doc_toggle(~inject, ~show_lang_doc),
+      cls_view(ci),
+    ],
+  );
+};
+
+let elements_noun: Term.Cls.t => string =
+  fun
+  | Exp(Match | If) => "Branches"
+  | Exp(ListLit)
+  | Pat(ListLit) => "Elements"
+  | Exp(ListConcat) => "Operands"
+  | _ => failwith("elements_noun: Cls doesn't have elements");
+
+let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
   switch (err) {
-  | BadToken(token) => [
-      text(Printf.sprintf("\"%s\" isn't a valid token", token)),
-    ]
-  | InconsistentWithArrow(typ) => [
+  | NoType(BadToken(token)) =>
+    switch (Form.bad_token_cls(token)) {
+    | BadInt => [text("Integer is too large or too small")]
+    | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
+    }
+  | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
+  | Inconsistent(WithArrow(typ)) => [
+      text(":"),
       Type.view(typ),
-      text("is not consistent with arrow type"),
+      text("inconsistent with arrow type"),
     ]
-  | FreeTag => [text("Constructor is not defined")]
-  | SynInconsistentBranches(tys) => [
-      text("Expecting branches to have consistent types but got:"),
-      ...ListUtil.join(text(","), List.map(Type.view, tys)),
-    ]
-  | TypeInconsistent({ana, syn}) => [
-      text("Expecting"),
-      Type.view(ana),
-      text("but got"),
+  | Inconsistent(Expectation({ana, syn})) => [
+      text(":"),
       Type.view(syn),
+      text("inconsistent with expected type"),
+      Type.view(ana),
+    ]
+  | Inconsistent(Internal(tys)) => [
+      text(elements_noun(cls) ++ " have inconsistent types:"),
+      ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
   };
 
-let common_ok_view = (ok: Info.ok_pat) => {
-  switch (ok) {
-  | SynConsistent(ty_syn) => [text("has type"), Type.view(ty_syn)]
-  | AnaConsistent({ana, syn, _}) when ana == syn => [
-      text("has expected & actual type"),
+let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
+  switch (cls, ok) {
+  | (Exp(MultiHole) | Pat(MultiHole), _) => [
+      text("Expecting operator or delimiter"),
+    ]
+  | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
+  | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
+  | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+      text("Fillable by any expression of type"),
       Type.view(ana),
     ]
-  | AnaConsistent({ana, syn: Unknown(_), _}) => [
-      text("satisfies expected type"),
+  | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+      text("Fillable by any pattern of type"),
       Type.view(ana),
     ]
-  | AnaConsistent({ana, syn, _}) => [
-      text("has type"),
+  | (_, Syn(syn)) => [text(":"), Type.view(syn)]
+  | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
+      text(":"),
+      Type.view(ana),
+    ]
+  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
+      text(":"),
       Type.view(syn),
-      text("which is consistent with"),
+      text("equals expected type"),
+    ]
+  | (_, Ana(Consistent({ana, syn, _}))) => [
+      text(":"),
+      Type.view(syn),
+      text("consistent with expected type"),
       Type.view(ana),
     ]
-  | AnaInternalInconsistent({ana, nojoin}) =>
+  | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
     [
-      text("is consistent with"),
-      Type.view(ana),
-      text("but is internally inconsistent:"),
+      text(elements_noun(cls) ++ " have inconsistent types:"),
+      ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
-    @ ListUtil.join(text(","), List.map(Type.view, nojoin))
+    @ [text("but consistent with expected"), Type.view(ana)]
   };
 };
 
-let typ_ok_view = (ok: Info.ok_typ) =>
+let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
-  | Variant(name, sum_ty) => [
-      Type.view(Var(name)),
-      text("is a sum type constuctor of type"),
-      Type.view(sum_ty),
-    ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
-      Type.view(sum_ty),
-    ]
-  | Type(ty) => [Type.view(ty), text("is a type")]
+  | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
+  | Type(ty) => [Type.view(ty)]
   | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
-      text("is a type alias for"),
+      text("is an alias for"),
       Type.view(ty_lookup),
     ]
+  | Variant(name, _sum_ty) => [Type.view(Var(name))]
+  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
-  | FreeTypeVar(name) => [
-      text("Type variable"),
-      Type.view(Var(name)),
-      text("is not bound"),
-    ]
+  | FreeTypeVariable(name) => [Type.view(Var(name)), text("not found")]
   | BadToken(token) => [
-      text(Printf.sprintf("\"%s\" isn't a valid type token", token)),
+      code_err(token),
+      text("not a type or type operator"),
     ]
-  | WantTagFoundAp => [text("Expected a constructor, found application")]
-  | WantTagFoundType(ty) => [
-      text("Expected a constructor, found type "),
-      Type.view(ty),
-    ]
-  | WantTypeFoundAp => [text("Constructor application must be in sum")]
-  | DuplicateTag(name) => [
-      text("Constructor"),
+  | WantConstructorFoundAp
+  | WantConstructorFoundType(_) => [text("Expected a constructor")]
+  | WantTypeFoundAp => [text("Must be part of a sum type")]
+  | DuplicateConstructor(name) => [
       Type.view(Var(name)),
       text("already used in this sum"),
     ]
   };
 
-let exp_view: Info.status_exp => t =
-  fun
-  | InHole(FreeVariable) => view_err([text("Variable is not bound")])
-  | InHole(Common(error)) => view_err(common_err_view(error))
-  | NotInHole(ok) => view_ok(common_ok_view(ok));
+let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
+  switch (status) {
+  | InHole(FreeVariable(name)) =>
+    view_err([code_err(name), text("not found")])
+  | InHole(Common(error)) => view_err(common_err_view(cls, error))
+  | NotInHole(ok) => view_ok(common_ok_view(cls, ok))
+  };
 
-let pat_view: Info.status_pat => t =
-  fun
+let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
+  switch (status) {
   | Warning(ok, SoloRefutable) =>
-    view_warn([text("Doesn't cover all cases but ")] @ common_ok_view(ok))
+    view_warn(
+      common_ok_view(cls, ok)
+      @ [text(Unicode.nbsp), text("but pattern doesn't cover all cases")],
+    )
   | Warning(ok, Shadowing(_id)) =>
     view_warn(
-      [text("Shadowing previous binding but ")] @ common_ok_view(ok),
+      common_ok_view(cls, ok)
+      @ [text(Unicode.nbsp), text("but shadowings previous binding")],
     )
-  | InHole(ExpectedTag) => view_err([text("Expected a constructor")])
-  | InHole(Common(error)) => view_err(common_err_view(error))
-  | NotInHole(ok) => view_ok(common_ok_view(ok));
+  | InHole(ExpectedConstructor) =>
+    view_err([text("Expected a constructor")])
+  | InHole(Common(error)) => view_err(common_err_view(cls, error))
+  | NotInHole(ok) => view_ok(common_ok_view(cls, ok))
+  };
 
-let typ_view: Info.status_typ => t =
-  fun
-  | NotInHole(ok) => view_ok(typ_ok_view(ok))
-  | InHole(err) => view_err(typ_err_view(err));
+let typ_view = (cls: Term.Cls.t, status: Info.status_typ) =>
+  switch (status) {
+  | NotInHole(ok) => view_ok(typ_ok_view(cls, ok))
+  | InHole(err) => view_err(typ_err_view(err))
+  };
 
-let tpat_view: Info.status_tpat => t =
-  fun
-  | NotInHole(Empty) => view_ok([text("Enter a new type alias")])
-  | NotInHole(Var(name)) =>
-    view_ok([Type.alias_view(name), text("is a new type alias")])
-  | InHole(NotAVar) => view_err([text("Not a valid type name")])
+let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
+  switch (status) {
+  | NotInHole(Empty) => view_ok([text("Fillable with a new alias")])
+  | NotInHole(Var(name)) => view_ok([Type.alias_view(name)])
+  | InHole(NotAVar(NotCapitalized)) =>
+    view_err([text("Must begin with a capital letter")])
+  | InHole(NotAVar(_)) => view_err([text("Expected an alias")])
+  | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
+    view_err([text("Can't shadow base type"), Type.view(Var(name))])
   | InHole(ShadowsType(name)) =>
-    view_err([text("Can't shadow base type"), Type.view(Var(name))]);
-
-let view_of_info_sort: Statics.Info.t => Node.t =
-  fun
-  | InfoExp({status, _}) => exp_view(status)
-  | InfoPat({status, _}) => pat_view(status)
-  | InfoTyp({status, _}) => typ_view(status)
-  | InfoTPat({status, _}) => tpat_view(status);
+    view_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+  };
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, id, ci: Statics.Info.t): Node.t =>
-  div(
-    ~attr=clss(["info", sort_cls(ci)]),
-    [
-      term_tag(~inject, ~settings, ~show_lang_doc, sort_cls(ci), id, ci),
-      view_of_info_sort(ci),
-    ],
-  );
+    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+  let wrapper = status_view =>
+    div(
+      ~attr=clss(["info"]),
+      [term_view(~inject, ~settings, ~show_lang_doc, ci), status_view],
+    );
+  switch (ci) {
+  | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
+  | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
+  | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
+  | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
+  };
+};
 
-let cls_and_id_view = (id: int, ci: Statics.Info.t): Node.t =>
+let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
   div(
-    ~attr=Attr.many([clss(["id-and-class"])]),
-    [
-      div(~attr=clss(["syntax-class"]), [text(cls_cls(ci))]),
-      div(~attr=clss(["id"]), [text(string_of_int(id + 1))]),
-    ],
-  );
-
-let inspector_view = (~inject, ~settings, ~show_lang_doc, id, ci): Node.t =>
-  div(
-    ~attr=clss(["cursor-inspector"] @ [status_cls(Info.status_cls(ci))]),
-    [view_of_info(~inject, ~settings, ~show_lang_doc, id, ci)],
+    ~attr=clss(["cursor-inspector", status_cls(Info.status_cls(ci))]),
+    [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
   );
 
 let view =
@@ -224,7 +243,7 @@ let view =
       zipper: Zipper.t,
       info_map: Statics.Map.t,
     ) => {
-  let bar_view = div_c("bottom-bar");
+  let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
       div(
@@ -240,8 +259,8 @@ let view =
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
       bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, id, ci),
-        cls_and_id_view(id, ci),
+        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
+        div(~attr=clss(["id"]), [text(string_of_int(id + 1))]),
       ])
     }
   };
