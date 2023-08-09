@@ -25,6 +25,7 @@ type rel =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type select =
+  | All
   | Resize(move)
   | Smart
   | Tile(rel)

@@ -154,7 +154,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "z" => now_save_u(Undo)
     | "d" => now(Select(Term(Current)))
     //| "p" => now(Pick_up)
-    | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
+    | "a" => now(Select(All))
     | "k" => [ReparseCurrentEditor]
     | "e" => [Execute]
     | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
@@ -169,7 +169,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "z" => now_save_u(Undo)
     | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
-    | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
+    | "a" => now(Select(All))
     | "k" => [ReparseCurrentEditor]
     | "e" => [Execute]
     | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
