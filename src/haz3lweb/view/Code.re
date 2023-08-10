@@ -63,9 +63,13 @@ module Text = (M: {
                  let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
-  let rec of_segment = (sort, seg: Segment.t): list(Node.t) => {
-    //note: no_sorts flag is used for backback
-    let expected_sorts = Segment.expected_sorts(sort, seg);
+  let rec of_segment = (no_sorts, sort, seg: Segment.t): list(Node.t) => {
+    /* note: no_sorts flag is used for backback view;
+       otherwise Segment.expected_sorts call crashes for some reason */
+    let expected_sorts =
+      no_sorts
+        ? List.init(List.length(seg), i => (i, Sort.Any))
+        : Segment.expected_sorts(sort, seg);
     let sort_of_p_idx = idx =>
       switch (List.assoc_opt(idx, expected_sorts)) {
       | None => Sort.Any
@@ -103,7 +107,7 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(sort, seg)
+         of_segment(false, sort, seg)
        )
     |> List.concat;
   };
@@ -135,7 +139,7 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(Sort.Any, unselected))],
+    [span_c("code-text", Text.of_segment(false, Sort.Any, unselected))],
   );
 };
 
@@ -156,7 +160,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(sort, unselected)
+      Text.of_segment(false, sort, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
