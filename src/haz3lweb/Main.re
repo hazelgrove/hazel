@@ -4,6 +4,8 @@ open Haz3lweb;
 open Virtual_dom.Vdom;
 
 let action_applied = ref(true);
+let edit_action_applied = ref(true);
+let last_edit_action = ref(JsUtil.timestamp());
 
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
@@ -37,6 +39,11 @@ let restart_caret_animation = () =>
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
   action_applied := true;
+  if (UpdateAction.is_edit(action)) {
+    last_edit_action := JsUtil.timestamp();
+    edit_action_applied := true;
+  };
+  last_edit_action := JsUtil.timestamp();
   switch (
     try({
       let new_model = Update.apply(model, action, state, ~schedule_action);
@@ -136,11 +143,21 @@ module App = {
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
-      ~on_display=(_, ~schedule_action as _) =>
-      if (action_applied.contents) {
-        action_applied := false;
-        JsUtil.scroll_cursor_into_view_if_needed();
-      }
+      ~on_display=(_, ~schedule_action) => {
+        if (edit_action_applied^
+            && JsUtil.timestamp()
+            -. last_edit_action^ > 2000.0) {
+          /* If an edit action has been applied, but no other edit action
+             has been applied for 2 seconds, save the model. */
+          edit_action_applied := false;
+          print_endline("Saving...");
+          schedule_action(Update.Save);
+        };
+        if (action_applied.contents) {
+          action_applied := false;
+          JsUtil.scroll_cursor_into_view_if_needed();
+        };
+      },
     );
   };
 };

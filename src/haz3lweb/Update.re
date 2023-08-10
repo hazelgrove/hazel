@@ -159,16 +159,9 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
     let model = {...model, editors: Editors.put_editor(ed, model.editors)};
-    /* TODO(andrew): Saving on every keystroke is expensive...
-       decide when we actually need to do this. */
-    switch (a) {
-    //| Pick_up
-    //| Put_down
-    //| Insert(_)
-    | Destruct(_) => Model.save_and_return(model)
-    | Insert(x) when x == Form.linebreak => Model.save_and_return(model)
-    | _ => Ok(model)
-    };
+    /* Note: Not saving here as saving is costly to do each keystroke,
+       we wait until 2 seconds after the last edit action (see Main.re) */
+    Ok(model);
   };
 
 let switch_scratch_slide =
@@ -337,20 +330,14 @@ let apply =
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Model.save_and_return({
-          ...model,
-          editors: Editors.put_editor(ed, model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Model.save_and_return({
-          ...model,
-          editors: Editors.put_editor(ed, model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
       let p: Piece.t => bool = (
