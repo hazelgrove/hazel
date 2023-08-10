@@ -51,17 +51,21 @@ let of_secondary =
     }
   );
 
+/* PERF(andrew): Tile memoization makes a >2X difference. I've left
+   the memoization in place for delims and secondary above as it still
+   seems like a marginal positive (5-10% difference).
+
+   TODO(andrew): Consider setting a limit for the hashtbl size? */
+let piece_hash = Hashtbl.create(10000);
+
 module Text = (M: {
                  let map: Measured.t;
                  let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
-  let rec of_segment = (~no_sorts=false, ~sort, seg: Segment.t): list(Node.t) => {
+  let rec of_segment = (sort, seg: Segment.t): list(Node.t) => {
     //note: no_sorts flag is used for backback
-    let expected_sorts =
-      no_sorts
-        ? List.init(List.length(seg), i => (i, Sort.Any))
-        : Segment.expected_sorts(sort, seg);
+    let expected_sorts = Segment.expected_sorts(sort, seg);
     let sort_of_p_idx = idx =>
       switch (List.assoc_opt(idx, expected_sorts)) {
       | None => Sort.Any
@@ -71,12 +75,21 @@ module Text = (M: {
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece' = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
+    };
+  }
+  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+    let arg = (expected_sort, p);
+    try(Hashtbl.find(piece_hash, arg)) {
+    | _ =>
+      let res = of_piece'(expected_sort, p);
+      Hashtbl.add(piece_hash, arg, res);
+      res;
     };
   }
   and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -90,7 +103,7 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, seg)
+         of_segment(sort, seg)
        )
     |> List.concat;
   };
@@ -122,7 +135,7 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(~sort=Sort.Any, unselected))],
+    [span_c("code-text", Text.of_segment(Sort.Any, unselected))],
   );
 };
 
@@ -143,7 +156,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~sort, unselected)
+      Text.of_segment(sort, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
