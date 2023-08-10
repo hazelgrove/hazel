@@ -398,11 +398,13 @@ and remold_exp = (shape, seg: t): t =>
     }
   };
 
-let skel = seg =>
-  seg
-  |> List.mapi((i, p) => (i, p))
-  |> List.filter(((_, p)) => !Piece.is_secondary(p))
-  |> Skel.mk;
+let skel =
+  Core.Memo.general(~cache_size_bound=1000, seg =>
+    seg
+    |> List.mapi((i, p) => (i, p))
+    |> List.filter(((_, p)) => !Piece.is_secondary(p))
+    |> Skel.mk
+  );
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
