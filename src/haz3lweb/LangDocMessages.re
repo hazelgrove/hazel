@@ -1114,7 +1114,7 @@ let let_int_exp_coloring_ids =
   );
 let let_int_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%i`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -2761,7 +2761,7 @@ let wild_pat: form = {
 let intlit_pat_group = "intlit_pat_group";
 let intlit_pat: form = {
   let explanation = {
-    message: "Integer literal pattern. Only expressions with value `%s` match the *`%s` pattern*.",
+    message: "Integer literal pattern. Only expressions with value `%i` match the *`%i` pattern*.",
     feedback: Unselected,
   };
   {
