@@ -113,11 +113,9 @@ let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert_to_zid: (Zipper.t, string) => Zipper.t =
     (z, c) => {
-      switch (Perform.go_z(Insert(c == "\n" ? Form.linebreak : c), z)) {
-      | Error(err) =>
-        print_endline(
-          "WARNING: zipper_of_string: insert: " ++ Action.Failure.show(err),
-        );
+      switch (Insert.go(c == "\n" ? Form.linebreak : c, z)) {
+      | None =>
+        print_endline("WARNING: zipper_of_string: insert returned none ");
         z;
       | exception exn =>
         print_endline(
@@ -125,7 +123,7 @@ let zipper_of_string =
           ++ Printexc.to_string(exn),
         );
         z;
-      | Ok(r) => r
+      | Some(r) => r
       };
     };
   str
