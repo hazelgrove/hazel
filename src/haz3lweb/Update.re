@@ -160,7 +160,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   | Ok(ed) =>
     let model = {...model, editors: Editors.put_editor(ed, model.editors)};
     /* Note: Not saving here as saving is costly to do each keystroke,
-       we wait until 2 seconds after the last edit action (see Main.re) */
+       we wait a second after the last edit action (see Main.re) */
     Ok(model);
   };
 

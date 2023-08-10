@@ -146,9 +146,9 @@ module App = {
       ~on_display=(_, ~schedule_action) => {
         if (edit_action_applied^
             && JsUtil.timestamp()
-            -. last_edit_action^ > 2000.0) {
+            -. last_edit_action^ > 1000.0) {
           /* If an edit action has been applied, but no other edit action
-             has been applied for 2 seconds, save the model. */
+             has been applied for 1 second, save the model. */
           edit_action_applied := false;
           print_endline("Saving...");
           schedule_action(Update.Save);
