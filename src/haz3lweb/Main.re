@@ -1,6 +1,7 @@
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
+open Virtual_dom.Vdom;
 
 let action_applied = ref(true);
 
@@ -57,26 +58,28 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   };
 };
 
-let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
-  Virtual_dom.Vdom.Effect.(
-    switch (evts) {
-    | [] => Many([])
-    | evts => Many([Prevent_default, Stop_propagation, ...evts])
+let update_handler =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~model: Model.t,
+      ~dir: Key.dir,
+      evt: Js.t(Dom_html.keyboardEvent),
+    )
+    : Effect.t(unit) =>
+  Effect.(
+    switch (Keyboard.handle_key_event(Key.mk(dir, evt), ~model)) {
+    | None => Ignore
+    | Some(action) =>
+      Many([Prevent_default, Stop_propagation, inject(action)])
     }
   );
-};
 
-let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
-  let key = Key.mk(dir, evt);
-  Keyboard.handle_key_event(key, ~model) |> List.map(inject) |> do_many;
-};
-
-let handlers = (~inject, ~model: Model.t) =>
-  Virtual_dom.Vdom.[
-    Attr.on_keypress(_ => Effect.Prevent_default),
-    Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
-    Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
-  ];
+let handlers =
+    (~inject: UpdateAction.t => Ui_effect.t(unit), ~model: Model.t) => [
+  Attr.on_keypress(_ => Effect.Prevent_default),
+  Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
+  Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
+];
 
 module App = {
   module Model = Model;
@@ -122,25 +125,21 @@ module App = {
   let create =
       (
         model: Incr.t(Haz3lweb.Model.t),
-        ~old_model: Incr.t(Haz3lweb.Model.t),
+        ~old_model as _: Incr.t(Haz3lweb.Model.t),
         ~inject,
       ) => {
     open Incr.Let_syntax;
-    let%map model = model
-    and old_model = old_model;
+    let%map model = model;
+    /* Note: mapping over the old_model here may
+       trigger an additional redraw */
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
       ~on_display=(_, ~schedule_action as _) =>
       if (action_applied.contents) {
-        let old_zipper = Editors.get_editor(model.editors).state.zipper;
-        let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
-
         action_applied := false;
-        if (old_zipper != new_zipper) {
-          JsUtil.scroll_cursor_into_view_if_needed();
-        };
+        JsUtil.scroll_cursor_into_view_if_needed();
       }
     );
   };

@@ -54,3 +54,5 @@ let rec mk = (~map=empty, seg: Segment.t) => {
        union(map, snd(go(Segment.skel(seg)))),
      );
 };
+
+let mk = Core.Memo.general(~cache_size_bound=1000, mk);
