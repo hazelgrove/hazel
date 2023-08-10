@@ -10,7 +10,6 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
   | Save

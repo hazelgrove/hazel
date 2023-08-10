@@ -89,7 +89,6 @@ let reevaluate_post_update =
       Jump(_),
     )
   | MoveToNextHole(_) //
-  | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
   | Save
@@ -158,7 +157,18 @@ let evaluate_and_schedule =
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (model.editors |> Editors.get_editor |> Haz3lcore.Perform.go(a)) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+  | Ok(ed) =>
+    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
+    /* TODO(andrew): Saving on every keystroke is expensive...
+       decide when we actually need to do this. */
+    switch (a) {
+    //| Pick_up
+    //| Put_down
+    //| Insert(_)
+    | Destruct(_) => Model.save_and_return(model)
+    | Insert(x) when x == Form.linebreak => Model.save_and_return(model)
+    | _ => Ok(model)
+    };
   };
 
 let switch_scratch_slide =
@@ -221,7 +231,6 @@ let apply =
     switch (update) {
     | Set(s_action) =>
       Model.save_and_return(update_settings(s_action, model))
-    | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
     | Save => Model.save_and_return(model)
@@ -328,14 +337,20 @@ let apply =
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+        Model.save_and_return({
+          ...model,
+          editors: Editors.put_editor(ed, model.editors),
+        })
       };
     | Redo =>
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+        Model.save_and_return({
+          ...model,
+          editors: Editors.put_editor(ed, model.editors),
+        })
       };
     | MoveToNextHole(d) =>
       let p: Piece.t => bool = (
