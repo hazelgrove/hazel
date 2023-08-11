@@ -132,7 +132,7 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
   | None => SynFun
   };
 
-let of_deferred_ap_args = (ty_ins: list(Typ.t), length: int): list(t) =>
+let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
   (
     List.length(ty_ins) == length
       ? ty_ins : List.init(length, _ => (Unknown(Internal): Typ.t))

@@ -31,19 +31,21 @@ type t =
       syn_ty: option(Typ.t),
     }); /* Constructors have special ana logic */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_partial_ap =
+  | NoDefferedArgs
+  | ArityMismatch({
+      expected: int,
+      actual: int,
+    });
+
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
   | IsDeferral(Term.UExp.status_deferral)
-  | IsErroneousPartialAp(error_partial_ap)
-  | Common(t)
-and error_partial_ap =
-  | Meaningless
-  | ArityMismatch({
-      expected: int,
-      actual: int,
-    });
+  | IsBadPartialAp(error_partial_ap)
+  | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -66,7 +68,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     fun
     | Free(_)
     | IsDeferral(_)
-    | IsErroneousPartialAp(_) => None
+    | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
 let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
@@ -99,9 +101,9 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
-    IsErroneousPartialAp(ArityMismatch({expected, actual}));
-  } else if (!List.exists(arg => !Term.UExp.is_deferral(arg), args)) {
-    IsErroneousPartialAp(Meaningless);
+    IsBadPartialAp(ArityMismatch({expected, actual}));
+  } else if (List.for_all(Term.UExp.is_deferral, args)) {
+    IsBadPartialAp(NoDefferedArgs);
   } else {
     let ty_ins =
       List.combine(args, ty_ins)

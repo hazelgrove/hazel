@@ -65,7 +65,7 @@ type error_common =
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
   | UnusedDeferral
-  | ErroneousPartialAp(Self.error_partial_ap)
+  | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -327,8 +327,7 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (Free(name), _) => InHole(FreeVariable(name))
   | (IsDeferral(Used), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
   | (IsDeferral(_), _) => InHole(UnusedDeferral)
-  | (IsErroneousPartialAp(_ as info), _) =>
-    InHole(ErroneousPartialAp(info))
+  | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
