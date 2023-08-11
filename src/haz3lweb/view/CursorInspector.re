@@ -163,9 +163,9 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
     div_err([code_err(name), text("not found")])
   | InHole(UnusedDeferral) =>
     div_err([text("Deferral must appear as a function argument")])
-  | InHole(ErroneousPartialAp(Meaningless)) =>
+  | InHole(BadPartialAp(NoDefferedArgs)) =>
     div_err([text("Expected at least one non-deferred argument")])
-  | InHole(ErroneousPartialAp(ArityMismatch({expected, actual}))) =>
+  | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
     div_err([
       text(
         "Arity mismatched partial application: expected "
