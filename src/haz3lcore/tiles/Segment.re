@@ -399,7 +399,7 @@ and remold_exp = (shape, seg: t): t =>
   };
 
 let skel =
-  Core.Memo.general(~cache_size_bound=1000, seg =>
+  Core.Memo.general(~cache_size_bound=10000, seg =>
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.filter(((_, p)) => !Piece.is_secondary(p))

@@ -55,8 +55,9 @@ let of_secondary =
    the memoization in place for delims and secondary above as it still
    seems like a marginal positive (5-10% difference).
 
-   TODO(andrew): Consider setting a limit for the hashtbl size? */
-let piece_hash = Hashtbl.create(10000);
+   TODO(andrew): Consider setting a limit for the hashtbl size */
+let piece_hash: Hashtbl.t((Sort.t, Piece.t), list(t)) =
+  Hashtbl.create(10000);
 
 module Text = (M: {
                  let map: Measured.t;
