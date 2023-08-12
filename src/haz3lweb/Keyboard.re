@@ -4,37 +4,22 @@ let is_printable = s => Re.Str.(string_match(regexp("^[ -~]$"), s, 0));
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
-let update_double_tap = (model: Model.t): list(Update.t) => {
-  let cur_time = JsUtil.timestamp();
-  switch (model.meta.ui_state.double_tap) {
-  | None => [SetMeta(DoubleTap(Some(cur_time)))]
-  | Some(prev_time) =>
-    if (cur_time -. prev_time < 400.) {
-      [
-        SetMeta(DoubleTap(None)),
-        // PerformAction(RotateBackpack) // TODO(cyrus) disabling double tab here, but would be good to give it a different hotkey
-      ];
-    } else {
-      [SetMeta(DoubleTap(Some(cur_time)))];
-    }
-  };
-};
-
-let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
+let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let settings = model.settings;
   let editor = Editors.get_editor(model.editors);
   let zipper = Editors.active_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
-  let now = a => [Update.PerformAction(a) /*Update.UpdateDoubleTap(None)*/];
-  let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
-  let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
-  let print = str => str |> print_endline |> (_ => []);
+  let now = (a: Action.t): option(UpdateAction.t) =>
+    Some(PerformAction(a));
+  let print = str => str |> print_endline |> (_ => None);
   switch (k) {
   | {key: U(key), _} =>
+    /* NOTE: Remember that since there is a keyup for every
+       keydown, making an update here may trigger an entire
+       redraw, contingent on model.cutoff */
     switch (key) {
-    | "Shift" => [] // NOTE: don't update double_tap here
-    | "Alt" => [SetMeta(ShowBackpackTargets(false))]
-    | _ => [SetMeta(DoubleTap(None))]
+    | "Alt" => Some(SetMeta(ShowBackpackTargets(false)))
+    | _ => None
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
@@ -84,14 +69,15 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         }
       | _ => print("DEBUG: No indicated index")
       };
-    | "F7" => [SetMeta(Auto(StartTest()))]
-    | "F8" => [SetMeta(Auto(StartRun()))]
-    | "F9" =>
+    | "F7" => Some(Benchmark(Start))
+    | "F8" => Some(SetMeta(Auto(StartTest())))
+    | "F9" => Some(SetMeta(Auto(StartRun())))
+    | "F10" =>
       print_endline(
-        "DEBUG: F9: Zipper with dump_backpack=true, erase_buffer=false",
+        "DEBUG: F10: Zipper with dump_backpack=true, erase_buffer=false",
       );
       zipper |> Zipper.seg_for_sem |> Segment.show |> print;
-    | _ => []
+    | _ => None
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
@@ -101,89 +87,92 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "ArrowDown") => now(Move(Local(Down)))
     | (Up, "Home") => now(Move(Extreme(Left(ByToken))))
     | (Up, "End") => now(Move(Extreme(Right(ByToken))))
-    | (Up, "Backspace") => now_save(Destruct(Left))
-    | (Up, "Delete") => now_save(Destruct(Right))
+    | (Up, "Backspace") => now(Destruct(Left))
+    | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") =>
-      Selection.is_buffer(zipper.selection)
-        ? [Assistant(AcceptSuggestion), Save]
-        : Zipper.can_put_down(zipper)
-            ? [PerformAction(Put_down), Save] : [MoveToNextHole(Right)]
+      //TODO(andrew): remove logic from here (potential Incr_dom bug)
+      Some(
+        Selection.is_buffer(zipper.selection)
+          ? Assistant(AcceptSuggestion)
+          : Zipper.can_put_down(zipper)
+              ? PerformAction(Put_down) : MoveToNextHole(Right),
+      )
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
-    | (Down, "Tab") => [MoveToNextHole(Left)]
+    | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
-    | (_, "Shift") => update_double_tap(model)
-    | (_, "Enter") => now_save(Insert(Form.linebreak))
+    | (_, "Enter") => now(Insert(Form.linebreak))
     | _ when /*Form.is_valid_char(key) &&*/ String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things
          like F5 which are now valid tokens and also weird
          unicode shit which is multichar i guess */
-      now_save(Insert(key))
-    | _ => []
+      now(Insert(key))
+    | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "Z"
-    | "z" => now_save_u(Redo)
+    | "z" => Some(Redo)
     | "ArrowLeft" => now(Select(Resize(Extreme(Left(ByToken)))))
     | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Extreme(Up))))
     | "ArrowDown" => now(Select(Resize(Extreme(Down))))
-    | _ => []
+    | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "Z"
-    | "z" => now_save_u(Redo)
+    | "z" => Some(Redo)
     | "ArrowLeft" => now(Select(Resize(Local(Left(ByToken)))))
     | "ArrowRight" => now(Select(Resize(Local(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Local(Up))))
     | "ArrowDown" => now(Select(Resize(Local(Down))))
     | "Home" => now(Select(Resize(Extreme(Up))))
     | "End" => now(Select(Resize(Extreme(Down))))
-    | _ => []
+    | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "/" => [Assistant(Prompt(TyDi))]
-    | "z" => now_save_u(Undo)
+    | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
-    //| "p" => now(Pick_up)
+    | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
-    | "k" => [ReparseCurrentEditor]
-    | "e" => [Execute]
-    | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
+    | "k" => Some(ReparseCurrentEditor)
+    | "e" => Some(Execute)
+    | "/" => Some(Assistant(Prompt(TyDi)))
+    | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
     | "ArrowDown" => now(Move(Extreme(Down)))
-    | _ => []
+    | _ => None
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "z" => now_save_u(Undo)
+    | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
-    | "p" => now(Pick_up)
+    | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
-    | "k" => [ReparseCurrentEditor]
-    | "e" => [Execute]
-    | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
+    | "k" => Some(ReparseCurrentEditor)
+    | "e" => Some(Execute)
+    | "/" => Some(Assistant(Prompt(TyDi)))
+    | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
     | "End" => now(Move(Extreme(Down)))
-    | _ => []
+    | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "a" => now(Move(Extreme(Left(ByToken))))
     | "e" => now(Move(Extreme(Right(ByToken))))
-    | _ => []
+    | _ => None
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (sys, key) {
@@ -193,14 +182,11 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       now(MoveToBackpackTarget(Right(ByToken)))
     | (Mac, "ArrowLeft") => now(Move(Local(Left(ByToken))))
     | (Mac, "ArrowRight") => now(Move(Local(Right(ByToken))))
-    | (_, "Alt") => [
-        SetMeta(ShowBackpackTargets(true)),
-        SetMeta(DoubleTap(None)),
-      ]
+    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
-    | _ => []
+    | _ => None
     }
-  | _ => []
+  | _ => None
   };
 };

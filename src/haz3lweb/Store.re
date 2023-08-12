@@ -159,13 +159,13 @@ module Examples = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.examples;
 
-  let persist = ((name, (id, editor: Editor.t))) => {
-    (name, (id, PersistentZipper.persist(editor.state.zipper)));
+  let persist = ((name, editor: Editor.t)) => {
+    (name, PersistentZipper.persist(editor.state.zipper));
   };
 
-  let unpersist = ((name, (id, zipper))) => {
-    let (id, zipper) = PersistentZipper.unpersist(zipper, id);
-    (name, (id, Editor.init(zipper, ~read_only=false)));
+  let unpersist = ((name, zipper)) => {
+    let zipper = PersistentZipper.unpersist(zipper);
+    (name, Editor.init(zipper, ~read_only=false));
   };
 
   let to_persistent = ((string, slides)): persistent => (

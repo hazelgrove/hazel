@@ -235,7 +235,7 @@ let rec dhexp_of_uexp =
             | _ => ddef
             };
           let uniq_id = List.nth(def.ids, 0);
-          let self_id = "__mutual__" ++ string_of_int(uniq_id);
+          let self_id = "__mutual__" ++ Id.to_string(uniq_id);
           let self_var = DHExp.BoundVar(self_id);
           let (_, substituted_def) =
             fs
@@ -293,7 +293,7 @@ let rec dhexp_of_uexp =
   | None =>
     print_endline(
       "Elaborate: Exp: Infomap lookup failed; id: "
-      ++ string_of_int(Term.UExp.rep_id(uexp)),
+      ++ Id.to_string(Term.UExp.rep_id(uexp)),
     );
     None;
   };
@@ -359,7 +359,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   | None =>
     print_endline(
       "Elaborate: Pat: Infomap lookup failed; id: "
-      ++ string_of_int(Term.UPat.rep_id(upat)),
+      ++ Id.to_string(Term.UPat.rep_id(upat)),
     );
     None;
   };

@@ -33,19 +33,18 @@ module Statics = {
 };
 
 exception DoesNotElaborate;
-let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t => {
+let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
   switch (settings.statics) {
-  | false => InvalidText(-666, -666, "Statics disabled: No elaboration")
+  | false => InvalidText(Id.invalid, -666, "Statics disabled: No elaboration")
   | true =>
     switch (Elaborator.uexp_elab(map, term)) {
     | DoesNotElaborate =>
       let error = "Internal error: Elaboration returns None";
       print_endline("Interface.elaborate: " ++ error);
-      InvalidText(-666, -666, error);
+      InvalidText(Id.invalid, -666, error);
     | Elaborates(d, _, _) => d
     }
   };
-};
 
 let elaborate_editor =
     (~settings: CoreSettings.t, ~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
@@ -99,16 +98,11 @@ exception PostprocessError(EvaluatorPost.error);
 let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
     : ProgramResult.t => {
-  /*
-   Core.Memo.general(~cache_size_bound=1000, (env, dhexp) =>
-     Evaluator.evaluate(env, dhexp)
-   );*/
-  //TODO: renable memoization
   switch () {
   | _ when !settings.statics =>
     let error = "Statics disabled: No elaboration or evaluation";
     (
-      Indet(InvalidText(-666, -666, error)),
+      Indet(InvalidText(Id.invalid, -666, error)),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
@@ -123,11 +117,11 @@ let evaluate =
       | EvaluatorError.Exception(reason) =>
         let error = "Internal exception: " ++ EvaluatorError.show(reason);
         print_endline("Interface.evaluate: " ++ error);
-        (EvaluatorState.init, Indet(InvalidText(-666, -666, error)));
+        (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
       | exn =>
         let error = "System exception: " ++ Printexc.to_string(exn);
         print_endline("Interface.evaluate: " ++ error);
-        (EvaluatorState.init, Indet(InvalidText(-666, -666, error)));
+        (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
       };
     // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
     switch (result) {

@@ -14,7 +14,19 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.statics,
+          elaborate: !settings.core.statics && settings.core.elaborate,
           dynamics: !settings.core.statics && settings.core.dynamics,
+        },
+      },
+    }
+  | Elaborate => {
+      ...model,
+      settings: {
+        ...settings,
+        core: {
+          statics: !settings.core.elaborate || settings.core.statics,
+          elaborate: !settings.core.elaborate,
+          dynamics: !settings.core.elaborate && settings.core.dynamics,
         },
       },
     }
@@ -24,6 +36,7 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.dynamics || settings.core.statics,
+          elaborate: !settings.core.dynamics || settings.core.elaborate,
           dynamics: !settings.core.dynamics,
         },
       },
@@ -81,8 +94,9 @@ let reevaluate_post_update =
     switch (s_action) {
     | Captions
     | SecondaryIcons
-    | Statics
     | Benchmark => false
+    | Statics
+    | Elaborate
     | Dynamics
     | InstructorMode
     | ContextInspector
@@ -90,7 +104,6 @@ let reevaluate_post_update =
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
-    | DoubleTap(_)
     | Mousedown
     | Mouseup
     | ShowBackpackTargets(_)
@@ -113,6 +126,7 @@ let reevaluate_post_update =
   | DebugAction(_)
   | StoreKey(_) => false
   | ExportPersistentData => false
+  | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
@@ -172,14 +186,19 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
-  let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init, id)) {
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
+  switch (
+    model.editors
+    |> Editors.get_editor
+    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
+  ) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok((ed, id)) =>
-    Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
+  | Ok(ed) =>
+    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
+    /* Note: Not saving here as saving is costly to do each keystroke,
+       we wait a second after the last edit action (see Main.re) */
+    Ok(model);
   };
-};
 
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
@@ -242,8 +261,8 @@ let rec apply =
     | Reset => Ok(Model.reset(model))
     | Set(s_action) =>
       let model = update_settings(s_action, model);
-      /* NOTE: Need to reload model for editors to load */
       Model.save(model);
+      // TODO(andrew): hacky; loading here to load editors if switch
       Ok(Model.load(model));
     | SetMeta(action) =>
       Ok({...model, meta: meta_update(model, action, ~schedule_action)})
@@ -323,52 +342,32 @@ let rec apply =
       );
       perform_action(model, a);
     | PerformAction(a) =>
-      //NOTE: effectful
-      switch (a) {
-      | Destruct(_)
-      | Insert(_) => schedule_action(Assistant(Prompt(TyDi)))
-      | _ => ()
-      };
       let model = UpdateAssistant.reset_buffer(model);
-      perform_action(model, a);
-
-    /*| Paste(clipboard) =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
-      switch (
-        Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
-      ) {
-      | None => Error(CantPaste)
-      | Some((z, id)) =>
-        /* NOTE(andrew): These two perform calls are a hack to
-           deal with the fact that pasting something like "let a = b in"
-           won't trigger the barfing of the "in"; to trigger this, we
-           insert a space, and then we immediately delete it. */
-        switch (Haz3lcore.Perform.go_z(Insert(" "), z, id)) {
-        | Error(_) => Error(CantPaste)
-        | Ok((z, id)) =>
-          switch (Haz3lcore.Perform.go_z(Destruct(Left), z, id)) {
-          | Error(_) => Error(CantPaste)
-          | Ok((z, id)) =>
-            let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-            //TODO: add correct action to history (Pick_up is wrong)
-            let editors = Editors.put_editor_and_id(id, ed, model.editors);
-            Ok({...model, editors});
-          }
-        }
-      };*/
+      switch (perform_action(model, a)) {
+      | Ok(model) when Action.is_edit(a) =>
+        //TODO(andrew): cleanup, document
+        UpdateAssistant.apply(
+          model,
+          Prompt(TyDi),
+          ~schedule_action,
+          ~state,
+          ~main=apply,
+        )
+      | x => x
+      };
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
-      let zipper_init = Zipper.init(id);
+      let ed = Editors.get_editor(model.editors);
+      let zipper_init = Zipper.init();
       let ed_str = Printer.to_string_editor(ed);
-      switch (Printer.zipper_of_string(~zipper_init, id + 1, ed_str)) {
+      switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
       | None => Error(CantReset)
-      | Some((z, id)) =>
+      | Some(z) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        let editors = Editors.put_editor_and_id(id, editor, model.editors);
+        let editors = Editors.put_editor(editor, model.editors);
         Ok({...model, editors});
       };
     | Cut =>
@@ -379,35 +378,28 @@ let rec apply =
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
     | Paste(clipboard) =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
-      switch (Printer.paste_into_zip(ed.state.zipper, id, clipboard)) {
+      let ed = Editors.get_editor(model.editors);
+      switch (Printer.paste_into_zip(ed.state.zipper, clipboard)) {
       | None => Error(CantPaste)
-      | Some((z, id)) =>
+      | Some(z) =>
         //HACK(andrew): below is not strictly a insert action...
         let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
-        let editors = Editors.put_editor_and_id(id, ed, model.editors);
+        let editors = Editors.put_editor(ed, model.editors);
         Ok({...model, editors});
       };
-
     | Undo =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor_and_id(id, ed, model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor_and_id(id, ed, model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
       let p: Piece.t => bool = (
@@ -424,6 +416,13 @@ let rec apply =
         ~state,
         ~main=apply,
       )
+    | Benchmark(Start) =>
+      List.iter(schedule_action, Benchmark.actions_1);
+      Benchmark.start();
+      Ok(model);
+    | Benchmark(Finish) =>
+      Benchmark.finish();
+      Ok(model);
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
@@ -431,13 +430,6 @@ let rec apply =
 and meta_update =
     (model: Model.t, update: set_meta, ~schedule_action): Model.meta => {
   switch (update) {
-  | DoubleTap(double_tap) => {
-      ...model.meta,
-      ui_state: {
-        ...model.meta.ui_state,
-        double_tap,
-      },
-    }
   | Mousedown => {
       ...model.meta,
       ui_state: {

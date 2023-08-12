@@ -34,15 +34,10 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
-type dark_id = int;
-let dark_gen = ref(-1);
-let dark_id = () => {
-  let id = dark_gen^;
-  dark_gen := id - 1;
-  id;
-};
+type dark_id = Id.t; //TODO(andrew): does this still make sense?
+
 let dark_hole = (~ids=[], s: Sort.t): t => {
-  let id = dark_id();
+  let id = Id.mk();
   switch (s) {
   // put dark id last to avoid messing with rep id
   | Exp => Exp({ids: ids @ [id], term: EmptyHole})
@@ -165,13 +160,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
-    | None => return_dark_hole(Exp)
+    | None => Exp(exp(unsorted(skel, seg)))
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => return_dark_hole(~ids, Exp)
+      | None => Exp(exp(unsorted(skel, seg)))
       | Some(t) =>
         if (t.mold.out == Any) {
-          return_dark_hole(~ids, Exp);
+          Exp(exp(unsorted(skel, seg)));
         } else {
           go_s(t.mold.out, skel, seg);
         }

@@ -251,7 +251,10 @@ let view =
         };*/
       bar_view([
         inspector_view(~inject, ~settings, ~show_lang_doc, ci),
-        div(~attr=clss(["id"]), [text(string_of_int(id + 1))]),
+        div(
+          ~attr=clss(["id"]),
+          [text(String.sub(Id.to_string(id), 0, 4))],
+        ),
       ])
     }
   };

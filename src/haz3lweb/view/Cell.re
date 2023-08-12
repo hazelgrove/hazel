@@ -192,6 +192,8 @@ let deco =
     (
       ~zipper,
       ~measured,
+      ~term_ranges,
+      ~unselected,
       ~segment,
       ~font_metrics,
       ~show_backpack_targets,
@@ -200,7 +202,6 @@ let deco =
       ~test_results: option(Interface.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
-  let unselected = Zipper.unselect_and_zip(zipper);
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
@@ -208,7 +209,7 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
-      let term_ranges = TermRanges.mk(unselected);
+      let term_ranges = term_ranges;
       let tiles = TileMap.mk(unselected);
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
@@ -227,7 +228,7 @@ let deco =
 
 let eval_result_footer_view =
     (
-      ~settings,
+      ~settings: Settings.t,
       ~mvu_states,
       ~inject,
       ~font_metrics,
@@ -236,7 +237,7 @@ let eval_result_footer_view =
     ) => {
   let d_view =
     switch (results) {
-    | None => [
+    | None when settings.core.elaborate => [
         Node.text("No result available. Elaboration follows:"),
         DHCode.view(
           ~settings=Settings.Evaluation.init,
@@ -246,6 +247,7 @@ let eval_result_footer_view =
           elab,
         ),
       ]
+    | None => []
     | Some({
         eval_result:
           Ap(
@@ -304,27 +306,21 @@ let editor_view =
       editor: Editor.t,
     ) => {
   let zipper = editor.state.zipper;
+  let term_ranges = editor.state.meta.term_ranges;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
-  let is_in_buffer: Tile.tile => bool = {
+  let buffer_ids: list(Uuidm.t) = {
     //TODO(andrew): document or improve
     let buffer =
       Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
-    let buffer_map = Measured.of_segment(buffer);
-    t =>
-      try({
-        let _ = Measured.find_t(t, buffer_map);
-        true;
-      }) {
-      | _ => false
-      };
+    Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
   };
   let code_base_view =
     Code.view(
       ~sort=Sort.root,
       ~font_metrics,
-      ~is_in_buffer,
+      ~buffer_ids,
       ~segment,
       ~unselected,
       ~measured,
@@ -333,7 +329,9 @@ let editor_view =
   let deco_view =
     deco(
       ~zipper,
+      ~unselected,
       ~measured,
+      ~term_ranges,
       ~segment,
       ~font_metrics,
       ~show_backpack_targets,

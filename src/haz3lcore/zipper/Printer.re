@@ -1,5 +1,5 @@
 open Util;
-open OptUtil.Syntax;
+open Util.OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), yojson)]
 type t = {
@@ -124,53 +124,31 @@ let to_log_flat = (~measured, z: Zipper.t): string => {
 };
 
 let zipper_of_string =
-    (~zipper_init=Zipper.init(0), id_gen: IdGen.state, str: string)
-    : option((Zipper.t, IdGen.state)) => {
-  let insert_to_zid:
-    ((Zipper.t, IdGen.state), string) => (Zipper.t, IdGen.state) =
-    ((z, id_gen), c) => {
-      switch (
-        Perform.go_z(
-          ~settings=CoreSettings.off,
-          Insert(c == "\n" ? Form.linebreak : c),
-          z,
-          id_gen,
-        )
-      ) {
-      | Error(err) =>
-        print_endline(
-          "WARNING: zipper_of_string: insert: " ++ Action.Failure.show(err),
-        );
-        (z, id_gen);
-      | exception exn =>
-        print_endline(
-          "WARNING: zipper_of_string: exception during insert: "
-          ++ Printexc.to_string(exn),
-        );
-        (z, id_gen);
-      | Ok(r) => r
-      };
+    (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
+  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
+    let* z = z;
+    try(c == "\r" ? Some(z) : Insert.go(c == "\n" ? Form.linebreak : c, z)) {
+    | exn =>
+      print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
+      None;
     };
-  str
-  |> Util.StringUtil.to_list
-  |> List.fold_left(insert_to_zid, (zipper_init, id_gen))
-  |> Option.some;
+  };
+  str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
 };
 
-let paste_into_zip =
-    (z: Zipper.t, id: Id.t, str: string): option((Zipper.t, Id.t)) => {
+let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
   /* HACK(andrew): These two perform calls are a hack to
      deal with the fact that pasting something like "let a = b in"
      won't trigger the barfing of the "in"; to trigger this, we
      insert a space, and then we immediately delete it. */
   let settings = CoreSettings.off;
-  let* (z, id) = zipper_of_string(~zipper_init=z, id, str);
-  switch (Perform.go_z(~settings, Insert(" "), z, id)) {
+  let* z = zipper_of_string(~zipper_init=z, str);
+  switch (Perform.go_z(~settings, Insert(" "), z)) {
   | Error(_) => None
-  | Ok((z, id)) =>
-    switch (Perform.go_z(~settings, Destruct(Left), z, id)) {
+  | Ok(z) =>
+    switch (Perform.go_z(~settings, Destruct(Left), z)) {
     | Error(_) => None
-    | Ok((z, id)) => Some((z, id))
+    | Ok(z) => Some(z)
     }
   };
 };

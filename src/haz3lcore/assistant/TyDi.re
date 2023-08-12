@@ -303,12 +303,9 @@ let left_of_mono = (z: Zipper.t): option(string) =>
   | _ => None
   };
 
-let mk_amorphous_tile =
-    (~sort: Sort.t, id_gen: Id.t, sibs: Siblings.t, t: Token.t)
-    : (Id.t, Tile.t) => {
-  let (id, id_gen) = IdGen.fresh(id_gen);
+let mk_amorphous_tile = (~sort: Sort.t, sibs: Siblings.t, t: Token.t): Tile.t => {
   let mold = Siblings.mold_fitting_between(sort, Precedence.max, sibs);
-  (id_gen, {id, label: [t], shards: [0], children: [], mold});
+  {id: Id.mk(), label: [t], shards: [0], children: [], mold};
 };
 
 let get_amorphous_buffer_text = (z: Zipper.t): option(Token.t) =>
@@ -339,9 +336,7 @@ let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
   Id.Map.find_opt(index, map);
 };
 
-let set_buffer =
-    (~settings, ~ctx: Ctx.t, z: Zipper.t, id_gen: Id.t)
-    : option((Zipper.t, Id.t)) => {
+let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
   let* tok_to_left = left_of_mono(z);
   let* ci = z_to_ci(~settings, ~ctx, z);
   let suggestions = suggest(ci, z);
@@ -352,13 +347,12 @@ let set_buffer =
        );
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
-  let (id, tile) =
+  let tile =
     mk_amorphous_tile(
       ~sort=Info.sort_of(ci),
-      id_gen,
       z.relatives.siblings,
       suggestion_suffix,
     );
   let z = Zipper.set_buffer(z, ~content=[Tile(tile)], ~mode=Amorphous);
-  Some((z, id));
+  Some(z);
 };

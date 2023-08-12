@@ -59,3 +59,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Insert(_)
+  | Destruct(_)
+  | Pick_up
+  | Put_down => true
+  | _ => false;

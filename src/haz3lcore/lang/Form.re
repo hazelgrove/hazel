@@ -66,7 +66,7 @@ let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
 let is_arbitary_float = x =>
-  x != "." && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
+  x != "." && x != "-" && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
@@ -97,7 +97,6 @@ let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
-let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
@@ -107,7 +106,6 @@ let is_bad_lit = str =>
   regexp({|^![a-z]*$|}, str)
   || is_bad_int(str)
   || is_bad_float(str)
-  || is_partial_base_typ(str)
   || is_bad_var(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
@@ -213,7 +211,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
     ),
   ),
-  //("hole", ((==)("_"), [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -228,20 +225,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
-  ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
-  ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("type", (is_base_typ, [mk_op(Typ, [])])),
-  ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
-  (
-    "empty_tuple",
-    (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
-  ),
-  ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("wild", (is_wild, [mk_op(Pat, [])])),
-  ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
 /* C. Compound Forms:

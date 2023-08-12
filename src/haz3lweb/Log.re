@@ -20,6 +20,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Reset
   | Execute
   | ResetCurrentEditor
+  | Benchmark(_) => false
   | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)
