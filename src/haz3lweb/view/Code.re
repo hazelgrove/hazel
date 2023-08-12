@@ -65,8 +65,13 @@ let of_secondary =
    the memoization in place for delims and secondary above as it still
    seems like a marginal positive (5-10% difference).
 
+   WARNING: Note that this the table is stored outside the Text functor.
+   This means that if there are data dependencies on the functor argument
+   values, they will need to be explictly encoded in the key.
+
    TODO(andrew): Consider setting a limit for the hashtbl size */
-let piece_hash: Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t), list(t)) =
+let piece_hash:
+  Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t, int, Settings.t), list(t)) =
   Hashtbl.create(10000);
 
 module Text = (M: {
@@ -104,7 +109,10 @@ module Text = (M: {
   }
   and of_piece =
       (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
-    let arg = (buffer_ids, expected_sort, p);
+    /* Last two elements of arg track the functorial args which
+       can effect the code layout; without these the first,
+       indentation can get out of sync */
+    let arg = (buffer_ids, expected_sort, p, m(p).last.col, M.settings);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
       let res = of_piece'(buffer_ids, expected_sort, p);
