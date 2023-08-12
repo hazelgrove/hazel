@@ -14,7 +14,7 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.statics,
-          elaborate: !settings.core.statics && settings.core.elaborate,
+          elaborate: settings.core.elaborate,
           dynamics: !settings.core.statics && settings.core.dynamics,
         },
       },
@@ -26,7 +26,7 @@ let update_settings =
         core: {
           statics: !settings.core.elaborate || settings.core.statics,
           elaborate: !settings.core.elaborate,
-          dynamics: !settings.core.elaborate && settings.core.dynamics,
+          dynamics: settings.core.dynamics,
         },
       },
     }
@@ -36,7 +36,7 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.dynamics || settings.core.statics,
-          elaborate: !settings.core.dynamics || settings.core.elaborate,
+          elaborate: settings.core.elaborate,
           dynamics: !settings.core.dynamics,
         },
       },

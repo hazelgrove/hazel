@@ -533,6 +533,14 @@ let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   go(seg);
 };
 
-let from_zip_for_view = from_zip(~dump_backpack=false, ~erase_buffer=true);
+let from_zip_for_view =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=false, ~erase_buffer=true),
+  );
 
-let from_zip_for_sem = from_zip(~dump_backpack=true, ~erase_buffer=true);
+let from_zip_for_sem =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=true, ~erase_buffer=true),
+  );

@@ -373,21 +373,19 @@ let editor_with_result_view =
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
+      ~term,
       ~result: ModelResult.simple,
-      ~ctx_init: Ctx.t,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let elab =
-    Interface.elaborate_editor(~settings=settings.core, ~ctx_init, editor);
   let eval_result_footer =
-    settings.core.statics
+    settings.core.statics && settings.core.elaborate
       ? eval_result_footer_view(
           ~settings,
           ~mvu_states,
           ~inject,
           ~font_metrics,
-          ~elab,
+          ~elab=Interface.elaborate(~settings=settings.core, info_map, term),
           result,
         )
       : None;

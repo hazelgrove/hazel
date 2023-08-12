@@ -365,13 +365,10 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   };
 };
 
-//let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
-
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
-    //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty

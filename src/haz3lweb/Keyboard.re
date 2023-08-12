@@ -6,7 +6,6 @@ let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
 let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let settings = model.settings;
-  let editor = Editors.get_editor(model.editors);
   let zipper = Editors.active_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
   let now = (a: Action.t): option(UpdateAction.t) =>
@@ -46,12 +45,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       //TODO(andrew): simplify below
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       let env_init = Editors.get_env_init(~settings, model.editors);
-      Interface.eval_editor(
-        ~settings=settings.core,
-        ~env_init,
-        ~ctx_init,
-        editor,
-      )
+      Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, zipper)
       |> ProgramResult.show
       |> print;
     | "F6" =>

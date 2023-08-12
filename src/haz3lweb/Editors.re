@@ -48,19 +48,15 @@ let put_editor = (ed: Editor.t, eds: t): t =>
 let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
-let export_ctx = (~settings: Settings.t, init_ctx: Ctx.t, ed: Editor.t): Ctx.t => {
+let export_ctx = (~settings: Settings.t, init_ctx: Ctx.t, z: Zipper.t): Ctx.t => {
   let info =
-    ed.state.zipper
+    z
     |> MakeTerm.from_zip_for_sem
     |> fst
     |> Interface.Statics.mk_map_ctx(settings.core, init_ctx)
     |> Id.Map.find_opt(Hyper.export_id);
   switch (info) {
-  | None =>
-    /* print_endline(
-         "WARN: export_ctx: NOT found id= " ++ string_of_int(Hyper.export_id),
-       );*/
-    init_ctx
+  | None => init_ctx
   | Some(info) => Info.ctx_of(info)
   };
 };
@@ -70,20 +66,16 @@ let export_env =
       ~settings: Settings.t,
       ctx_init: Ctx.t,
       env_init: Environment.t,
-      ed: Editor.t,
+      z: Zipper.t,
     ) => {
   let tests =
-    Interface.eval_editor(~settings=settings.core, ~env_init, ~ctx_init, ed)
+    Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, z)
     |> ProgramResult.get_state
     |> EvaluatorState.get_tests
     |> TestMap.lookup(Hyper.export_id);
   switch (tests) {
   | None
-  | Some([]) =>
-    /*print_endline(
-        "WARN: export_env: NOT found id= " ++ string_of_int(Hyper.export_id),
-      );*/
-    env_init
+  | Some([]) => env_init
   | Some([(_, _, env), ..._]) => env
   };
 };
@@ -121,7 +113,7 @@ let get_env_init_slides = (~settings: Settings.t, ctx_init, editors, idx) =>
 let get_ctx_init = (~settings: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
   | Scratch(idx, slides) when settings.core.statics =>
-    get_ctx_init_slides(~settings, slides, idx)
+    get_ctx_init_slides(~settings, List.map(Editor.get_z, slides), idx)
   | Scratch(_)
   | DebugLoad
   | Exercise(_)
@@ -134,7 +126,7 @@ let get_env_init = (~settings: Settings.t, editors: t): Environment.t =>
     get_env_init_slides(
       ~settings,
       get_ctx_init(~settings, editors),
-      slides,
+      List.map(Editor.get_z, slides),
       idx,
     )
   | Scratch(_)
