@@ -235,19 +235,19 @@ let eval_result_footer_view =
       ~elab,
       results: ModelResult.simple,
     ) => {
+  let dhcode_view = (~show_casts) =>
+    DHCode.view(
+      ~settings={...Settings.Evaluation.init, show_casts},
+      ~selected_hole_instance=None,
+      ~font_metrics,
+      ~width=80,
+    );
   let d_view =
     switch (results) {
-    | None when settings.core.elaborate => [
-        Node.text("No result available. Elaboration follows:"),
-        DHCode.view(
-          ~settings=Settings.Evaluation.init,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
+    | None => [
+        Node.text("Evaluation disabled. Elaboration follows:"),
+        dhcode_view(~show_casts=true, elab),
       ]
-    | None => []
     | Some({
         eval_result:
           Ap(
@@ -266,15 +266,10 @@ let eval_result_footer_view =
         ~update,
         ~font_metrics,
       )
-    | Some({eval_result, _}) => [
-        DHCode.view(
-          ~settings=Settings.Evaluation.init,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          eval_result,
-        ),
-      ]
+    | Some({eval_result, _}) =>
+      /* Disabling casts in this case as large casts
+       * can blow up UI perf unexpectedly */
+      [dhcode_view(~show_casts=false, eval_result)]
     };
   Node.(
     div(
@@ -379,13 +374,16 @@ let editor_with_result_view =
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
   let eval_result_footer =
-    settings.core.statics && settings.core.elaborate
+    settings.core.statics
       ? eval_result_footer_view(
           ~settings,
           ~mvu_states,
           ~inject,
           ~font_metrics,
-          ~elab=Interface.elaborate(~settings=settings.core, info_map, term),
+          ~elab=
+            settings.core.elaborate
+              ? Interface.elaborate(~settings=settings.core, info_map, term)
+              : InvalidText(Id.invalid, -666, "Elaboration disabled"),
           result,
         )
       : None;
