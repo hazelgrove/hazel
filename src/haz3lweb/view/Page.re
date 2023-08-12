@@ -49,11 +49,11 @@ let nut_menu =
       toggle("τ", ~tooltip="Toggle Statics", statics, _ =>
         inject(Set(Statics))
       ),
-      toggle("e", ~tooltip="Toggle Elaboration", elaborate, _ =>
-        inject(Set(Elaborate))
-      ),
       toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
         inject(Set(Dynamics))
+      ),
+      toggle("e", ~tooltip="Show Elaboration", elaborate, _ =>
+        inject(Set(Elaborate))
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))

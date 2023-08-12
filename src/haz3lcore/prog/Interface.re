@@ -32,19 +32,19 @@ module Statics = {
     core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
 };
 
+let dh_err = (error: string): DHExp.t =>
+  InvalidText(Id.invalid, -666, error);
+
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
 
 exception DoesNotElaborate;
 let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  switch (settings.statics && settings.elaborate) {
-  | false => InvalidText(Id.invalid, -666, "Statics disabled: No elaboration")
+  switch (settings.statics) {
+  | false => dh_err("Statics disabled: No elaboration")
   | true =>
     switch (elaborate(map, term)) {
-    | DoesNotElaborate =>
-      let error = "Internal error: Elaboration returns None";
-      print_endline("Interface.elaborate: " ++ error);
-      InvalidText(Id.invalid, -666, error);
+    | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
     | Elaborates(d, _, _) => d
     }
   };
@@ -101,40 +101,29 @@ exception PostprocessError(EvaluatorPost.error);
 let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
     : ProgramResult.t => {
-  switch () {
-  | _ when !settings.statics =>
-    let error = "Statics disabled: No elaboration or evaluation";
-    (
-      Indet(InvalidText(Id.invalid, -666, error)),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
-  | _ when !settings.dynamics => (
-      Indet(d),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    )
-  | _ =>
-    let result =
+  let err_wrap = (error): (EvaluatorState.t, EvaluatorResult.t) => (
+    EvaluatorState.init,
+    Indet(dh_err(error)),
+  );
+  let result =
+    switch () {
+    | _ when !settings.statics =>
+      err_wrap("Statics disabled: No elaboration or evaluation")
+    | _ when !settings.dynamics =>
+      err_wrap("Dynamics disabled: No evaluation")
+    | _ =>
       try(Evaluator.evaluate(env, d)) {
       | EvaluatorError.Exception(reason) =>
-        let error = "Internal exception: " ++ EvaluatorError.show(reason);
-        print_endline("Interface.evaluate: " ++ error);
-        (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
-      | exn =>
-        let error = "System exception: " ++ Printexc.to_string(exn);
-        print_endline("Interface.evaluate: " ++ error);
-        (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
-      };
-    // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
-    switch (result) {
-    | (es, BoxedValue(_) as r) =>
-      // let ((d, hii), es) = postprocess(es, d);
-      (r, es, HoleInstanceInfo.empty)
-    | (es, Indet(_) as r) =>
-      // let ((d, hii), es) = postprocess(es, d);
-      (r, es, HoleInstanceInfo.empty)
+        err_wrap("Internal exception: " ++ EvaluatorError.show(reason))
+      | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
+      }
     };
+  // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
+  switch (result) {
+  | (es, BoxedValue(_) as r)
+  | (es, Indet(_) as r) =>
+    // let ((d, hii), es) = postprocess(es, d);
+    (r, es, HoleInstanceInfo.empty)
   };
 };
 
