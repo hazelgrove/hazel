@@ -10,11 +10,11 @@ let get_test_results =
     let env_init = Editors.get_env_init(~settings, editors);
     let editor = Editors.get_editor(editors);
     try(
-      Interface.eval_editor(
+      Interface.eval_z(
         ~settings=settings.core,
         ~env_init,
         ~ctx_init,
-        editor,
+        editor.state.zipper,
       )
       |> ProgramResult.get_state
       |> EvaluatorState.get_tests

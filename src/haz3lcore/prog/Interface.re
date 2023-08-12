@@ -32,12 +32,15 @@ module Statics = {
     core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
 };
 
+let elaborate =
+  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+
 exception DoesNotElaborate;
 let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  switch (settings.statics) {
+  switch (settings.statics && settings.elaborate) {
   | false => InvalidText(Id.invalid, -666, "Statics disabled: No elaboration")
   | true =>
-    switch (Elaborator.uexp_elab(map, term)) {
+    switch (elaborate(map, term)) {
     | DoesNotElaborate =>
       let error = "Internal error: Elaboration returns None";
       print_endline("Interface.elaborate: " ++ error);
@@ -135,15 +138,15 @@ let evaluate =
   };
 };
 
-let eval_editor =
+let eval_z =
     (
       ~settings: CoreSettings.t,
       ~ctx_init: Ctx.t,
       ~env_init: Environment.t,
-      editor: Editor.t,
+      z: Zipper.t,
     )
     : ProgramResult.t => {
-  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
+  let (term, _) = MakeTerm.from_zip_for_sem(z);
   let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
   let d = elaborate(~settings, info_map, term);
   evaluate(~settings, ~env=env_init, d);

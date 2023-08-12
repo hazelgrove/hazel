@@ -51,8 +51,8 @@ let view =
       ~settings,
       ~color_highlighting,
       ~info_map,
+      ~term,
       ~result,
-      ~ctx_init: Ctx.t,
       editor,
     );
   let bottom_bar =
