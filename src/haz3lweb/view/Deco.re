@@ -316,10 +316,29 @@ module Deco =
 
   // faster infomap traversal
   let err_holes = (_z: Zipper.t) => {
-    //TODO(andrew): export id needed heere otherwise will look up in measured and fail
     Id.Map.fold(
-      (id, info, acc) =>
-        Info.is_error(info) && id != Hyper.export_id
+      (id, info: Info.t, acc) =>
+        (
+          switch (info) {
+          //TODO(andrew): supress drawing holes for multis
+          | InfoExp({status: InHole(Common(NoType(MultiError))), _})
+          | InfoPat({status: InHole(Common(NoType(MultiError))), _}) =>
+            false
+          | _ =>
+            //TODO(andrew): figure out why this fails for some multihole situations
+            switch (Id.Map.find_opt(id, M.term_ranges)) {
+            | None =>
+              Printf.printf(
+                "WARN: err_holes: No term range %s\n",
+                Id.to_string(id),
+              );
+              //Printf.printf("info: %s\n",Info.show(info));
+              false;
+
+            | Some(_) => Info.is_error(info)
+            }
+          }
+        )
           ? [term_highlight(~clss=["err-hole"], id), ...acc] : acc,
       M.info_map,
       [],
