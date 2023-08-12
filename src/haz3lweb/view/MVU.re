@@ -325,7 +325,7 @@ let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
   | Ap(Constructor("WeekInput"), body) => input_of("week", context, body)
   | _ =>
     //print_endline("ERROR: render_div: " ++ DHExp.show(d));
-    let d = elide_errors ? DHExp.EmptyHole(0, 0) : d;
+    let d = elide_errors ? DHExp.EmptyHole(Id.invalid, 0) : d;
     dhexp_view(~font_metrics=context.font_metrics, d);
   }
 and input_of = (input_type: string, mvu: t, body: DHExp.t) => {

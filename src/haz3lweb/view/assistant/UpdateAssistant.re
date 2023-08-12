@@ -3,11 +3,10 @@ include UpdateAction;
 
 //TODO(andrew): this is duplicated from Update
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
-  let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init, id)) {
+  let ed_init = Editors.get_editor(model.editors);
+  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init)) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok((ed, id)) =>
-    Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
+  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
   };
 };
 
@@ -44,18 +43,16 @@ let schedule_prompt =
   };
 
 let reset_buffer = (model: Model.t) => {
-  let (id, ed) = model.editors |> Editors.get_editor_and_id;
+  let ed = model.editors |> Editors.get_editor;
   let z = ed.state.zipper;
   switch (z.selection.mode) {
   | Buffer(_) =>
-    switch (
-      Perform.go_z(~settings=model.settings.core, Destruct(Left), z, id)
-    ) {
+    switch (Perform.go_z(~settings=model.settings.core, Destruct(Left), z)) {
     | Error(_) => model
-    | Ok((z, id)) =>
+    | Ok(z) =>
       let ed = Editor.new_state(Destruct(Left), z, ed);
       //TODO(andrew): fix double action
-      {...model, editors: Editors.put_editor_and_id(id, ed, model.editors)};
+      {...model, editors: Editors.put_editor(ed, model.editors)};
     }
   | _ => model
   };
@@ -72,8 +69,7 @@ let apply =
       ~main,
     )
     : Result.t(Model.t) => {
-  let (id, editor) = model.editors |> Editors.get_editor_and_id;
-  let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+  let editor = model.editors |> Editors.get_editor;
   let z = editor.state.zipper;
   switch (update) {
   | Prompt(Weather) =>
@@ -100,8 +96,6 @@ let apply =
     print_endline("deprecated");
     Ok(model);
   | Prompt(Filler(Some({llm, prompt_builder}))) =>
-    //let editor = model.editors |> Editors.get_editor;
-    //let ctx_init = Editors.get_ctx_init(model.editors);
     switch (prompt_builder(editor)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
@@ -115,14 +109,13 @@ let apply =
               "\n",
             );
           print_endline("Filler: calling react_error");
+          let ctx_init = Editors.get_ctx_init(~settings, model.editors);
           switch (
             ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
             ChatLSP.Type.mode(~settings, ~ctx_init, editor),
           ) {
           | (Some(init_ctx), Some(mode)) =>
-            switch (
-              Filler.error_reply(~settings, response, 0, ~init_ctx, ~mode)
-            ) {
+            switch (Filler.error_reply(~settings, response, ~init_ctx, ~mode)) {
             | None =>
               print_endline("react_error: no errors.");
               print_endline("RECEIVED RESPONSE:\n " ++ response);
@@ -145,7 +138,6 @@ let apply =
                   schedule_action(Assistant(SetBuffer(trimmed_response)));
                   schedule_action(SetMeta(Auto(EndTest())));
                 | None => print_endline("Filler: handler failed")
-                //schedule_action(Script(EndTest()));
                 }
               );
             }
@@ -155,21 +147,20 @@ let apply =
             schedule_action(SetMeta(Auto(EndTest())));
           };
         | None => print_endline("Filler: handler failed")
-        //schedule_action(Script(EndTest()));
         }
       )
     };
     Ok(model);
   | Prompt(TyDi) =>
-    //let ctx = Editors.get_ctx_init(model.editors);
-    switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z, id)) {
+    let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+    switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z)) {
     | None => Ok(model)
-    | Some((z, id)) =>
+    | Some(z) =>
       let ed = Editor.new_state(Pick_up, z, editor);
       //TODO: add correct action to history (Pick_up is wrong)
-      let editors = Editors.put_editor_and_id(id, ed, model.editors);
+      let editors = Editors.put_editor(ed, model.editors);
       Ok({...model, editors});
-    }
+    };
   | AcceptSuggestion =>
     switch (z.selection.mode) {
     | Normal => Ok(model)
@@ -189,15 +180,15 @@ let apply =
     }
   | SetBuffer(response) =>
     // print_endline("paste into selection: " ++ str);
-    switch (Printer.paste_into_zip(Zipper.init(id), id, response)) {
+    switch (Printer.paste_into_zip(Zipper.init(), response)) {
     | None => Error(CantSuggest)
-    | Some((response_z, id)) =>
+    | Some(response_z) =>
       let content = Zipper.unselect_and_zip(response_z);
       let z = Zipper.set_buffer(editor.state.zipper, ~content, ~mode=Solid);
       //print_endline("paste into selection suceeds: " ++ Zipper.show(z));
       //HACK(andrew): below is not strictly a insert action...
       let ed = Editor.new_state(Insert(response), z, editor);
-      let editors = Editors.put_editor_and_id(id, ed, model.editors);
+      let editors = Editors.put_editor(ed, model.editors);
       Ok({...model, editors});
     }
   };

@@ -29,11 +29,10 @@ let of_delim' =
     },
   );
 let of_delim =
-    (~is_in_buffer, sort: Sort.t, is_consistent, t: Piece.tile, i: int)
-    : list(Node.t) =>
+    (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
-    is_in_buffer(t),
-    sort,
+    is_in_buffer,
+    t.mold.out,
     is_consistent,
     Tile.is_complete(t),
     t.label,
@@ -62,15 +61,23 @@ let of_secondary =
     }
   );
 
+/* PERF(andrew): Tile memoization makes a >2X difference. I've left
+   the memoization in place for delims and secondary above as it still
+   seems like a marginal positive (5-10% difference).
+
+   TODO(andrew): Consider setting a limit for the hashtbl size */
+let piece_hash: Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t), list(t)) =
+  Hashtbl.create(10000);
+
 module Text = (M: {
                  let map: Measured.t;
                  let settings: Settings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (~is_in_buffer=_ => false, ~no_sorts=false, ~sort, seg: Segment.t)
-          : list(Node.t) => {
-    //note: no_sorts flag is used for backback
+          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
+    /* note: no_sorts flag is used for backback view;
+       otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
@@ -83,20 +90,29 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(is_in_buffer, sort_of_p_idx(i), p)
+         of_piece(buffer_ids, sort_of_p_idx(i), p)
        );
   }
-  and of_piece =
-      (is_in_buffer, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece' =
+      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(~is_in_buffer, expected_sort, t)
+    | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_tile =
-      (~is_in_buffer, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_piece =
+      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+    let arg = (buffer_ids, expected_sort, p);
+    try(Hashtbl.find(piece_hash, arg)) {
+    | _ =>
+      let res = of_piece'(buffer_ids, expected_sort, p);
+      Hashtbl.add(piece_hash, arg, res);
+      res;
+    };
+  }
+  and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -105,11 +121,10 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
+    let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(
-         of_delim(~is_in_buffer, t.mold.out, is_consistent, t),
-         ((seg, sort)) =>
-         of_segment(~is_in_buffer, ~sort, seg)
+    |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
+         of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
@@ -141,18 +156,13 @@ let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [
-      span_c(
-        "code-text",
-        Text.of_segment(~sort=Sort.Any, ~is_in_buffer=_ => false, unselected),
-      ),
-    ],
+    [span_c("code-text", Text.of_segment([], false, Sort.Any, unselected))],
   );
 };
 
 let view =
     (
-      ~is_in_buffer: Tile.t => bool,
+      ~buffer_ids: list(Uuidm.t),
       ~sort: Sort.t,
       ~font_metrics,
       ~segment,
@@ -168,7 +178,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~sort, ~is_in_buffer, unselected)
+      Text.of_segment(buffer_ids, false, sort, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

@@ -6,6 +6,14 @@ type nonrec t = t(range);
 
 let union = union((_, range, _) => Some(range));
 
+/* PERF: Up to 50% reduction in some cases by memoizing
+ * this function. Might be better though to just do an
+ * unmemoized traversal building a hashtbl avoiding unioning.
+
+   TODO(andrew): Consider setting a limit for the hashtbl size */
+let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
+  Hashtbl.create(1000);
+
 // NOTE: this calculation is out of sync with
 // MakeTerm, which matches things like list brackets
 // and case...end to separators inside eg list commas
@@ -15,7 +23,7 @@ let union = union((_, range, _) => Some(range));
 // TODO(d) fix or derive from other info
 //
 // tail-recursive in outer recursion
-let rec mk = (~map=empty, seg: Segment.t) => {
+let rec mk' = (seg: Segment.t) => {
   let rec go = (skel: Skel.t): (range, t) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
@@ -50,7 +58,14 @@ let rec mk = (~map=empty, seg: Segment.t) => {
   };
   Segment.children(seg)
   |> List.fold_left(
-       (map, kid) => mk(~map, kid),
-       union(map, snd(go(Segment.skel(seg)))),
+       (map, kid) => union(map, mk(kid)),
+       union(empty, snd(go(Segment.skel(seg)))),
      );
-};
+}
+and mk = seg =>
+  try(Hashtbl.find(range_hash, seg)) {
+  | _ =>
+    let res = mk'(seg);
+    Hashtbl.add(range_hash, seg, res);
+    res;
+  };

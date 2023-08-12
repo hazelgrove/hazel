@@ -86,7 +86,8 @@ module MutationTestingReport = {
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
                 Attr.on_click(
-                  TestView.jump_to_test(~inject, HiddenBugs(id), id),
+                  //TODO: wire up test ids
+                  TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
                 ),
               ]),
             [],
@@ -126,7 +127,10 @@ module MutationTestingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, HiddenBugs(id), id)),
+          //TODO: wire up test ids
+          Attr.on_click(
+            TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+          ),
         ]),
       [
         div(

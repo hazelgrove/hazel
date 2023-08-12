@@ -235,13 +235,7 @@ let prompt =
 };
 
 let error_reply =
-    (
-      ~settings: Settings.t,
-      response: string,
-      id: Id.t,
-      ~init_ctx: Ctx.t,
-      ~mode: Mode.t,
-    ) => {
+    (~settings: Settings.t, response: string, ~init_ctx: Ctx.t, ~mode: Mode.t) => {
   //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
     Some(
@@ -253,10 +247,10 @@ let error_reply =
       ]
       |> String.concat("\n"),
     );
-  switch (Printer.paste_into_zip(Zipper.init(id), id, response)) {
+  switch (Printer.paste_into_zip(Zipper.init(), response)) {
   | None =>
     wrap("Syntax errors: Undocumented parse error, no feedback available", [])
-  | Some((response_z, _id)) =>
+  | Some(response_z) =>
     let (top_ci, map) =
       response_z
       |> ChatLSP.get_info_and_top_ci_from_zipper(~settings, ~ctx=init_ctx);

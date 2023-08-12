@@ -67,7 +67,10 @@ module Deco =
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
       // filter out dark ids (see MakeTerm)
-      |> List.filter(id => id >= 0)
+      //TODO(andrew): dark_id: restore filter?
+      //|> List.filter(id => id >= 0)
+      //TODO(andrew): rm this?
+      //|> List.filter(id => id != Hyper.export_id)
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
@@ -137,21 +140,6 @@ module Deco =
         | None => (-1)
         | Some(i) => i
         };
-      //TODO(andrew): get this working
-      // let _segs =
-      //   switch (p) {
-      //   | Tile({children, mold, _}) =>
-      //     children
-      //     |> List.flatten
-      //     |> List.filter(
-      //          fun
-      //          | Piece.Secondary(w) when Secondary.is_linebreak(w) =>
-      //            false
-      //          | _ => true,
-      //        )
-      //     |> List.map(p => (mold, Measured.find_p(p, M.map)))
-      //   | _ => []
-      //   };
       switch (range) {
       | None => []
       | Some(range) =>
@@ -270,7 +258,7 @@ module Deco =
     );
   };
 
-  let color_highlights = (colorings: list((int, string))) => {
+  let color_highlights = (colorings: list((Id.t, string))) => {
     List.map(
       ((id, color)) => {
         term_highlight(~clss=["highlight-code-" ++ color], id)
@@ -281,7 +269,7 @@ module Deco =
 
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
-  let err_holes = (z: Zipper.t) => {
+  let _err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
@@ -324,6 +312,18 @@ module Deco =
       go_skel(Segment.skel(seg)) @ bi_ids;
     };
     go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
+  };
+
+  // faster infomap traversal
+  let err_holes = (_z: Zipper.t) => {
+    //TODO(andrew): export id needed heere otherwise will look up in measured and fail
+    Id.Map.fold(
+      (id, info, acc) =>
+        Info.is_error(info) && id != Hyper.export_id
+          ? [term_highlight(~clss=["err-hole"], id), ...acc] : acc,
+      M.info_map,
+      [],
+    );
   };
 
   let all = (zipper, sel_seg) =>

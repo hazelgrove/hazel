@@ -171,10 +171,13 @@ module Errors = {
   let collect_static = (info_map: Statics.Map.t) => {
     let errors = Statics.collect_errors(info_map);
     List.map(
-      ((id: Id.t, error: Info.error)) => {
-        let term = Info.term_string_of(Id.Map.find(id, info_map));
-        format_error(term, string_of(error));
-      },
+      ((id: Id.t, error: Info.error)) =>
+        switch (Id.Map.find_opt(id, info_map)) {
+        | None => "Can't report error: Id lookup failed"
+        | Some(info) =>
+          let term = Info.term_string_of(info);
+          format_error(term, string_of(error));
+        },
       errors,
     );
   };

@@ -7,6 +7,7 @@ type settings_action =
   | Captions
   | SecondaryIcons
   | Statics
+  | Elaborate
   | Dynamics
   | Benchmark
   | ContextInspector
@@ -34,7 +35,6 @@ type agent_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type set_meta =
-  | DoubleTap(option(float))
   | Mousedown
   | Mouseup
   | ShowBackpackTargets(bool)
@@ -42,6 +42,11 @@ type set_meta =
   | MVU(string, DHExp.t)
   | Result(ModelResults.Key.t, ModelResult.current)
   | Auto(Auto.action(Auto.llm_report));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type benchmark_action =
+  | Start
+  | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -74,6 +79,7 @@ type t =
   | Undo
   | Redo
   | MoveToNextHole(Direction.t)
+  | Benchmark(benchmark_action)
   | Assistant(agent_action);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -97,3 +103,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Cut
+  | Undo
+  | Redo => true
+  | PerformAction(a) => Action.is_edit(a)
+  | _ => false;

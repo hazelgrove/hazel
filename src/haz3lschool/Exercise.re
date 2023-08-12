@@ -44,7 +44,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) = {
-    next_id: Id.t,
     title: string,
     version: int,
     module_name: string,
@@ -88,7 +87,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let map = (p: p('a), f: 'a => 'b): p('b) => {
     {
-      next_id: p.next_id,
       title: p.title,
       version: p.version,
       module_name: p.module_name,
@@ -129,7 +127,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let key_of_state = ({eds, _}) => key_of(eds);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
+  type persistent_state = (pos, list((pos, PersistentZipper.t)));
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -143,18 +141,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | HiddenTests => eds.hidden_tests.tests
       };
 
-  let id_of_state = ({eds, _}: state): Id.t => {
-    eds.next_id;
-  };
-
-  let put_editor_and_id =
-      ({pos, eds, _} as state: state, next_id, editor: Editor.t) =>
+  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
     switch (pos) {
     | Prelude => {
         ...state,
         eds: {
           ...eds,
-          next_id,
           prelude: editor,
         },
       }
@@ -162,7 +154,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...state,
         eds: {
           ...eds,
-          next_id,
           correct_impl: editor,
         },
       }
@@ -171,7 +162,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...state,
         eds: {
           ...eds,
-          next_id,
           your_tests: {
             ...eds.your_tests,
             tests: editor,
@@ -182,7 +172,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...state,
         eds: {
           ...eds,
-          next_id,
           your_impl: editor,
         },
       }
@@ -190,7 +179,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...state,
         eds: {
           ...eds,
-          next_id,
           hidden_bugs:
             Util.ListUtil.put_nth(
               n,
@@ -203,7 +191,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...state,
         eds: {
           ...eds,
-          next_id,
           hidden_tests: {
             ...eds.hidden_tests,
             tests: editor,
@@ -277,17 +264,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       {eds: exercise.eds, pos};
     };
 
-  let zipper_of_code = (id, code) => {
-    switch (Printer.zipper_of_string(id, code)) {
+  let zipper_of_code = code => {
+    switch (Printer.zipper_of_string(code)) {
     | None => failwith("Transition failed.")
-    | Some((zipper, id)) => (id, zipper)
+    | Some(zipper) => zipper
     };
   };
 
   let transition: transitionary_spec => spec =
     (
       {
-        next_id: _,
         title,
         version,
         module_name,
@@ -301,38 +287,28 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_tests,
       },
     ) => {
-      let id = 0;
-      let (id, prelude) = zipper_of_code(id, prelude);
-      let (id, correct_impl) = zipper_of_code(id, correct_impl);
-      let (id, your_tests) = {
-        let (id, tests) = zipper_of_code(id, your_tests.tests);
-        (
-          id,
-          {
-            tests,
-            required: your_tests.required,
-            provided: your_tests.provided,
-          },
-        );
+      let prelude = zipper_of_code(prelude);
+      let correct_impl = zipper_of_code(correct_impl);
+      let your_tests = {
+        let tests = zipper_of_code(your_tests.tests);
+        {tests, required: your_tests.required, provided: your_tests.provided};
       };
-      let (id, your_impl) = zipper_of_code(id, your_impl);
-      let (id, hidden_bugs) =
+      let your_impl = zipper_of_code(your_impl);
+      let hidden_bugs =
         List.fold_left(
-          ((id, acc), {impl, hint}) => {
-            let (id, impl) = zipper_of_code(id, impl);
-            (id, acc @ [{impl, hint}]);
+          (acc, {impl, hint}) => {
+            let impl = zipper_of_code(impl);
+            acc @ [{impl, hint}];
           },
-          (id, []),
+          [],
           hidden_bugs,
         );
-      let (id, hidden_tests) = {
+      let hidden_tests = {
         let {tests, hints} = hidden_tests;
-        let (id, tests) = zipper_of_code(id, tests);
-        (id, {tests, hints});
+        let tests = zipper_of_code(tests);
+        {tests, hints};
       };
-      let next_id = id;
       {
-        next_id,
         title,
         version,
         module_name,
@@ -351,7 +327,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let eds_of_spec: spec => eds =
     (
       {
-        next_id,
         title,
         version,
         module_name,
@@ -384,7 +359,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {tests, hints};
       };
       {
-        next_id,
         title,
         version,
         module_name,
@@ -411,7 +385,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   // let eds_of_spec: spec => eds =
   //   (
   //     {
-  //       next_id,
+  //
   //       title,
   //       version,
   //       prompt,
@@ -494,54 +468,50 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let persistent_state_of_state =
-      ({pos, eds} as state: state, ~instructor_mode: bool) => {
+      ({pos, _} as state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, eds.next_id, zippers);
+    (pos, zippers);
   };
 
   let unpersist_state =
       (
-        (pos, next_id, positioned_zippers): persistent_state,
+        (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
       )
       : state => {
-    let lookup = (id, pos, default) =>
+    let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
-        let (id, zipper) = PersistentZipper.unpersist(persisted_zipper, id);
-        (id, Editor.init(zipper));
+        let zipper = PersistentZipper.unpersist(persisted_zipper);
+        Editor.init(zipper);
       } else {
-        (id, editor_of_serialization(default));
+        editor_of_serialization(default);
       };
-    let id = next_id;
-    let (id, prelude) = lookup(id, Prelude, spec.prelude);
-    let (id, correct_impl) = lookup(id, CorrectImpl, spec.correct_impl);
-    let (id, your_tests_tests) =
-      lookup(id, YourTestsValidation, spec.your_tests.tests);
-    let (id, your_impl) = lookup(id, YourImpl, spec.your_impl);
-    let (_, id, hidden_bugs) =
+    let prelude = lookup(Prelude, spec.prelude);
+    let correct_impl = lookup(CorrectImpl, spec.correct_impl);
+    let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
+    let your_impl = lookup(YourImpl, spec.your_impl);
+    let (_, hidden_bugs) =
       List.fold_left(
-        ((i, id, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-          let (id, impl) = lookup(id, HiddenBugs(i), impl);
-          (i + 1, id, hidden_bugs @ [{impl, hint}]);
+        ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
+          let impl = lookup(HiddenBugs(i), impl);
+          (i + 1, hidden_bugs @ [{impl, hint}]);
         },
-        (0, id, []),
+        (0, []),
         spec.hidden_bugs,
       );
-    let (id, hidden_tests_tests) =
-      lookup(id, HiddenTests, spec.hidden_tests.tests);
+    let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
 
     set_instructor_mode(
       {
         pos,
         eds: {
-          next_id: id,
           title: spec.title,
           version: spec.version,
           module_name: spec.module_name,
@@ -923,23 +893,20 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~provided_tests,
         ~num_wrong_impls,
       ) => {
-    let id = 0;
-    let (id, prelude) = Zipper.next_blank(id);
-    let (id, correct_impl) = Zipper.next_blank(id);
-    let (id, your_tests_tests) = Zipper.next_blank(id);
-    let (id, your_impl) = Zipper.next_blank(id);
-    let (id, hidden_bugs) =
-      Util.ListUtil.init_fold(
+    let prelude = Zipper.next_blank();
+    let correct_impl = Zipper.next_blank();
+    let your_tests_tests = Zipper.next_blank();
+    let your_impl = Zipper.next_blank();
+    let hidden_bugs =
+      List.init(
         num_wrong_impls,
-        id,
-        (i, id) => {
-          let (id, zipper) = Zipper.next_blank(id);
-          (id, {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)});
+        i => {
+          let zipper = Zipper.next_blank();
+          {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)};
         },
       );
-    let (id, hidden_tests_tests) = Zipper.next_blank(id);
+    let hidden_tests_tests = Zipper.next_blank();
     {
-      next_id: id,
       title,
       version: 1,
       module_name,
