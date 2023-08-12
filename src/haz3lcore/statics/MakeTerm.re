@@ -37,7 +37,9 @@ type unsorted =
 type dark_id = Id.t; //TODO(andrew): does this still make sense?
 
 let dark_hole = (~ids=[], s: Sort.t): t => {
-  let id = Id.mk();
+  print_endline("making dark hole");
+  let id =
+    "66666666-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
   switch (s) {
   // put dark id last to avoid messing with rep id
   | Exp => Exp({ids: ids @ [id], term: EmptyHole})
@@ -160,13 +162,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
-    | None => Exp(exp(unsorted(skel, seg)))
+    | None => return_dark_hole(Exp)
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => Exp(exp(unsorted(skel, seg)))
+      | None => return_dark_hole(Exp)
       | Some(t) =>
         if (t.mold.out == Any) {
-          Exp(exp(unsorted(skel, seg)));
+          return_dark_hole(Exp);
         } else {
           go_s(t.mold.out, skel, seg);
         }
