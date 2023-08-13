@@ -88,8 +88,9 @@ let update_settings =
     }
   };
 
-let reevaluate_post_update =
+let reevaluate_post_update = (settings: Settings.t) =>
   fun
+  | _ when !settings.core.dynamics => false
   | Set(s_action) =>
     switch (s_action) {
     | Captions
@@ -424,7 +425,7 @@ let rec apply =
       Benchmark.finish();
       Ok(model);
     };
-  reevaluate_post_update(update)
+  reevaluate_post_update(model.settings, update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
 }
 and meta_update =

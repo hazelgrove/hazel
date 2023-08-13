@@ -403,45 +403,49 @@ let try_to_dump_backpack = (zipper: t) => {
     strring lit with stuff left to drop in backpack
     with below set: Outer disabled.
     */
-  let zipper = {...zipper, caret: Outer};
-  let rec move_until_cant_put_down = (z_last, z: t) =>
-    if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
-      switch (move(Right, z)) {
-      | None => z
-      | Some(z_new) => move_until_cant_put_down(z, z_new)
+  switch (zipper.backpack) {
+  | [] => zipper
+  | _ =>
+    let zipper = {...zipper, caret: Outer};
+    let rec move_until_cant_put_down = (z_last, z: t) =>
+      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_cant_put_down(z, z_new)
+        };
+      } else {
+        z_last;
       };
-    } else {
-      z_last;
-    };
-  let rec move_until_can_put_down = (z: t) =>
-    if (!can_put_down(z)) {
-      switch (move(Right, z)) {
-      | None => z
-      | Some(z_new) => move_until_can_put_down(z_new)
+    let rec move_until_can_put_down = (z: t) =>
+      if (!can_put_down(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_can_put_down(z_new)
+        };
+      } else {
+        z;
       };
-    } else {
-      z;
-    };
-  let rec go = (z: t): t =>
-    if (can_put_down(z)) {
-      let z_can = move_until_cant_put_down(z, z);
-      switch (put_down(Right, z_can)) {
-      | None => z_can
-      | Some(z) =>
-        let z = regrout(Right, z);
-        go(z);
+    let rec go = (z: t): t =>
+      if (can_put_down(z)) {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
+      } else {
+        let z_can = move_until_can_put_down(z);
+        let z_can = move_until_cant_put_down(z_can, z_can);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
       };
-    } else {
-      let z_can = move_until_can_put_down(z);
-      let z_can = move_until_cant_put_down(z_can, z_can);
-      switch (put_down(Right, z_can)) {
-      | None => z_can
-      | Some(z) =>
-        let z = regrout(Right, z);
-        go(z);
-      };
-    };
-  go(zipper);
+    go(zipper);
+  };
 };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
