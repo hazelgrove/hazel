@@ -325,7 +325,7 @@ module rec DHExp: {
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (TupLabel(_, e1), TupLabel(_, e2)) => fast_equal(e1, e2) // TODO: Not right
+    | (TupLabel(_, e1), TupLabel(_, e2)) => fast_equal(e1, e2) // TODO: Not right?
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)

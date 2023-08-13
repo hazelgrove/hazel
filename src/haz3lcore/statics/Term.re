@@ -31,6 +31,7 @@ module UTyp = {
     | Bool
     | String
     | Arrow
+    | TupLabel
     | Tuple
     | Sum
     | List
@@ -67,7 +68,7 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Tag(_) => Tag
-    | TupLabel(_) => Int //TODO
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Module(_) => Module
@@ -88,6 +89,7 @@ module UTyp = {
     | Tag => "Sum Constructor"
     | List => "List Type"
     | Arrow => "Function Type"
+    | TupLabel => "Tuple Label"
     | Tuple => "Product Type"
     | Sum => "Sum Type"
     | Parens => "Parenthesized Type Term"
@@ -135,7 +137,7 @@ module UTyp = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | TupLabel(_, t) => to_typ(ctx, t) // TODO: this. Lookup in ctx and reorgnize
+      | TupLabel(_, ty) => to_typ(ctx, ty) // TODO: this. Lookup in ctx and reorgnize
       | Tuple(us) =>
         // TODO: cleanup
         let rep_id_p = ({ids, _}: TermBase.UPat.t) => {
@@ -718,7 +720,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Fun(_) => Fun
-    | TupLabel(_) => Int //TODO
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
@@ -798,6 +800,7 @@ module UExp = {
     | ListLit => "List Literal"
     | Tag => "Constructor"
     | Fun => "Function Literal"
+    | TupLabel => "Tuple Label Exp"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"

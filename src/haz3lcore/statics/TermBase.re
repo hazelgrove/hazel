@@ -116,6 +116,7 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TupLabel
     | Tuple
     | Var
     | Let
@@ -230,6 +231,7 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TupLabel
     | Tuple
     | Var
     | Let

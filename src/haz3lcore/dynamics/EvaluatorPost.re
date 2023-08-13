@@ -497,7 +497,7 @@ let rec track_children_of_hole =
       hii,
     )
 
-  | TupLabel(_) => hii
+  | TupLabel(_, d) => track_children_of_hole(hii, parent, d)
 
   | Tuple(ds) =>
     List.fold_right(

@@ -21,6 +21,12 @@ let lookup_tag = (ctx: t, name: string): option(var_entry) =>
   | _ => None
   };
 
+let lookup_tvar = (ctx: t, name: string): option(tvar_entry) =>
+  switch (lookup(ctx, name)) {
+  | Some(TVarEntry(v)) => Some(v)
+  | _ => None
+  };
+
 let is_alias = (ctx: t, name: TypVar.t): bool =>
   switch (lookup_alias(ctx, name)) {
   | Some(_) => true
