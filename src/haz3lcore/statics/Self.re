@@ -1,4 +1,3 @@
-open Util;
 open Sexplib.Std;
 
 /* SELF.re
@@ -24,7 +23,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
@@ -35,7 +34,7 @@ type t =
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
-  | FreeVar
+  | Free(Var.t)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,14 +56,19 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
-    | FreeVar => None
+    | Free(_) => None
+    | Common(self) => typ_of(ctx, self);
+
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+  ctx =>
+    fun
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
-  | None => FreeVar
+  | None => Free(name)
   | Some(var) => Common(Just(var.typ))
   };
 
@@ -81,11 +85,22 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
       },
   });
 
-/* The self assigned to things like cases and list literals
-   which can have internal type inconsistencies. */
-let join =
-    (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t): t =>
-  switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => Typ.{id, ty}, ids, tys))
-  | Some(ty) => Just(wrap(ty))
+let add_source = List.map2((id, ty) => Typ.{id, ty});
+
+let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => ty, add_source(ids, tys))
+  | Some(ty) => Just(ty)
+  };
+
+let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty, ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(List(ty))
+  };
+
+let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(ty)
   };

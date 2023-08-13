@@ -8,50 +8,12 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
-  fun
-  | Plus => Plus
-  | Minus => Minus
-  | Times => Times
-  | Divide => Divide
-  | LessThan => LessThan
-  | LessThanOrEqual => LessThanOrEqual
-  | GreaterThan => GreaterThan
-  | GreaterThanOrEqual => GreaterThanOrEqual
-  | Equals => Equals
-  | Power => Power;
-
-let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
-  fun
-  | Plus => FPlus
-  | Minus => FMinus
-  | Times => FTimes
-  | Divide => FDivide
-  | LessThan => FLessThan
-  | LessThanOrEqual => FLessThanOrEqual
-  | GreaterThan => FGreaterThan
-  | GreaterThanOrEqual => FGreaterThanOrEqual
-  | Equals => FEquals
-  | Power => FPower;
-
-let string_op_of: Term.UExp.op_bin_string => DHExp.BinStringOp.t =
-  fun
-  | Equals => SEquals;
-
-let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
-  fun
-  | And => And
-  | Or => Or;
-
 let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   fun
-  | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
-  | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
-  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)))
-  | String(op) => (
-      String,
-      ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
-    );
+  | Int(op) => (Int, ((e1, e2) => BinIntOp(op, e1, e2)))
+  | Float(op) => (Float, ((e1, e2) => BinFloatOp(op, e1, e2)))
+  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(op, e1, e2)))
+  | String(op) => (String, ((e1, e2) => BinStringOp(op, e1, e2)));
 
 let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
@@ -80,17 +42,17 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules get cast from their appropriate Matched types */
     switch (d) {
     | ListLit(_)
+    | ListConcat(_)
     | Cons(_) =>
       switch (ana_ty) {
       | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
       | _ => d
       }
     | Fun(_) =>
-      switch (ana_ty) {
-      | Unknown(prov) =>
-        DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), Unknown(prov))
-      | _ => d
-      }
+      /* See regression tests in Examples/Dynamics */
+      let (_, ana_out) = Typ.matched_arrow(ana_ty);
+      let (self_in, _) = Typ.matched_arrow(self_ty);
+      DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -190,9 +152,26 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.Cons(dc1, dc2);
+      | ListConcat(e1, e2) =>
+        let* dc1 = dhexp_of_uexp(m, e1);
+        let+ dc2 = dhexp_of_uexp(m, e2);
+        DHExp.ListConcat(dc1, dc2);
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
+      | UnOp(Bool(Not), e) =>
+        let+ d_scrut = dhexp_of_uexp(m, e);
+        let d_rules =
+          DHExp.[
+            Rule(BoolLit(true), BoolLit(false)),
+            Rule(BoolLit(false), BoolLit(true)),
+          ];
+        let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
+        /* Manually construct cast (case is not otherwise cast) */
+        switch (mode) {
+        | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
+        | _ => d
+        };
       | BinOp(op, e1, e2) =>
         let (_, cons) = exp_binop_of(op);
         let* dc1 = dhexp_of_uexp(m, e1);
@@ -208,12 +187,13 @@ let rec dhexp_of_uexp =
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(FreeVariable) => Some(FreeVar(id, 0, name))
+        | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Constructor(name) =>
         switch (err_status) {
-        | InHole(Common(FreeConstructor)) => Some(FreeVar(id, 0, name))
+        | InHole(Common(NoType(FreeConstructor(_)))) =>
+          Some(FreeVar(id, 0, name))
         | _ => Some(Constructor(name))
         }
       | Let(p, def, body) =>
@@ -269,7 +249,7 @@ let rec dhexp_of_uexp =
           DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(SynInconsistentBranches(_))) =>
+        | InHole(Common(Inconsistent(Internal(_)))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -287,7 +267,7 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(SynInconsistentBranches(_))) =>
+        | InHole(Common(Inconsistent(Internal(_)))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -331,7 +311,8 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       wrap(ListLit(Typ.matched_list(ty), ds));
     | Constructor(name) =>
       switch (err_status) {
-      | InHole(Common(FreeConstructor)) => Some(BadConstructor(u, 0, name))
+      | InHole(Common(NoType(FreeConstructor(_)))) =>
+        Some(BadConstructor(u, 0, name))
       | _ => wrap(Constructor(name))
       }
     | Cons(hd, tl) =>
@@ -356,20 +337,13 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   };
 };
 
-let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
-  List.fold_left(
-    (d', (ident, (elab, _))) => DHExp.Let(Var(ident), elab, d'),
-    d,
-    Builtins.forms(Builtins.Pervasives.builtins),
-  );
-
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
-    let d = uexp_elab_wrap_builtins(d);
+    //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty

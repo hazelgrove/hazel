@@ -93,11 +93,23 @@ let nut_menu =
         button(Icons.eye, _ => inject(Set(SecondaryIcons))),
         [submenu_label("Toggle Visible Secondary")],
       ),
-      submenu(
-        link(Icons.github, "https://github.com/hazelgrove/hazel"),
-        [submenu_label("Hazel on Github")],
+      link(
+        Icons.github,
+        "https://github.com/hazelgrove/hazel",
+        ~tooltip="Hazel on GitHub",
       ),
-    ],
+    ]
+    @ (
+      instructor_mode
+        ? [
+          button(
+            Icons.sprout,
+            _ => inject(ExportPersistentData),
+            ~tooltip="Export Persistent Data",
+          ),
+        ]
+        : []
+    ),
   ),
 ];
 

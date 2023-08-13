@@ -33,7 +33,8 @@ module Make = (M: Editor.Meta.S) => {
 
   let go = (d: Action.move, z: Zipper.t) =>
     switch (d) {
-    | Goal(goal) =>
+    | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
+    | Goal(Point(goal)) =>
       let anchor =
         {...z, selection: Selection.toggle_focus(z.selection)}
         |> Zipper.caret_point(M.measured);
