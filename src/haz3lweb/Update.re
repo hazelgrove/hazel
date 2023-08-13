@@ -342,7 +342,7 @@ let rec apply =
         ~schedule_action,
       );
       perform_action(model, a);
-    | PerformAction(a) =>
+    | PerformAction(a) when model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
       switch (perform_action(model, a)) {
       | Ok(model) when Action.is_edit(a) =>
@@ -356,6 +356,7 @@ let rec apply =
         )
       | x => x
       };
+    | PerformAction(a) => perform_action(model, a)
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
