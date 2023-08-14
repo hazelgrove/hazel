@@ -58,7 +58,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -98,6 +98,11 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     Cons(d1', d2') |> return;
+
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    ListConcat(d1', d2') |> return;
 
   | ListLit(a, b, c, ds) =>
     let+ ds =
@@ -267,7 +272,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -319,6 +324,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     Cons(d1', d2') |> return;
+
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    ListConcat(d1', d2') |> return;
 
   | ListLit(a, b, c, ds) =>
     let+ ds =
@@ -430,7 +440,7 @@ let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
   switch (d) {
-  | Tag(_)
+  | Constructor(_)
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
@@ -451,6 +461,9 @@ let rec track_children_of_hole =
   | BinFloatOp(_, d1, d2)
   | BinStringOp(_, d1, d2)
   | Cons(d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
+  | ListConcat(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
 

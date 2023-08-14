@@ -104,7 +104,7 @@ let mk_TestLit = _n => Doc.text(ExpandingKeyword.to_string(Test));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
-let mk_StringLit = Doc.text;
+let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
 let mk_FloatLit = (f: float) =>
   switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
@@ -116,29 +116,25 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-let mk_TagLit = Doc.text;
+let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
+let mk_ListConcat = (hd, tl) => Doc.(hcats([hd, text("@"), tl]));
 
-let rec mk_comma_seq = (ld, rd, l, ol) =>
-  switch (l) {
-  | [] =>
-    if (l == ol) {
-      Doc.(hcats([text(ld), text(rd)]));
-    } else {
-      Doc.(hcats([text(rd)]));
-    }
-  | [hd, ...tl] =>
-    if (l == ol) {
-      Doc.(hcats([text(ld), hd, mk_comma_seq(ld, rd, tl, ol)]));
-    } else {
-      Doc.(hcats([text(", "), hd, mk_comma_seq(ld, rd, tl, ol)]));
-    }
+let mk_comma_seq = (ld, rd, l) => {
+  let rec mk_comma_seq_inner = l => {
+    switch (l) {
+    | [] => []
+    | [hd] => [hd]
+    | [hd, ...tl] => Doc.([hd, text(", ")] @ mk_comma_seq_inner(tl))
+    };
   };
+  Doc.(hcats([text(ld)] @ mk_comma_seq_inner(l) @ [text(rd)]));
+};
 
-let mk_ListLit = l => mk_comma_seq("[", "]", l, l);
+let mk_ListLit = l => mk_comma_seq("[", "]", l);
 
-let mk_Tuple = elts => mk_comma_seq("", "", elts, elts);
+let mk_Tuple = elts => mk_comma_seq("", "", elts);
 
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));

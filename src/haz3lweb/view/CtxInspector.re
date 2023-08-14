@@ -16,7 +16,7 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
     );
   switch (entry) {
   | VarEntry({name, typ, _})
-  | TagEntry({name, typ, _}) =>
+  | ConstructorEntry({name, typ, _}) =>
     div_c(
       "context-entry",
       [
@@ -37,10 +37,9 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   };
 };
 
-let div_ctx = div(~attr=clss(["context-entries"]));
-
 let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
-  div_ctx(
+  div(
+    ~attr=clss(["context-entries"]),
     List.map(
       context_entry_view(~inject),
       ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
@@ -53,36 +52,12 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
   |> List.rev
   |> List.map(context_entry_view(~inject));
 
-let inspector_view =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      _id: int,
-      ci: Haz3lcore.Statics.Info.t,
-    )
+let view =
+    (~inject, ~settings: ModelSettings.t, ci: Haz3lcore.Statics.Info.t)
     : Node.t => {
   let clss =
     clss(
       ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
     );
   div(~attr=clss, ctx_sorts_view(~inject, ci));
-};
-
-let view =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      index': option(int),
-      info_map: Haz3lcore.Statics.Map.t,
-    ) => {
-  let (index, ci) =
-    switch (index') {
-    | Some(index) => (index, Haz3lcore.Id.Map.find_opt(index, info_map))
-    | None => ((-1), None)
-    };
-  switch (ci) {
-  | None =>
-    div(~attr=clss(["context-inspector"]), [text("No Static Data")])
-  | Some(ci) => inspector_view(~inject, ~settings, index, ci)
-  };
 };

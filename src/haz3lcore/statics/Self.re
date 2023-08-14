@@ -1,4 +1,3 @@
-open Util;
 open Sexplib.Std;
 
 /* SELF.re
@@ -11,7 +10,7 @@ open Sexplib.Std;
 
    A term which from which a type can be derived in isolation, that is,
    that has a valid synthetic typing judgement, will generally have a SELF
-   of Just(some_type). (The one current exception are the tags of labelled
+   of Just(some_type). (The one current exception are the constructors of labelled
    sum types, which are handled specially as their synthetic type
    may be 'overwritten' by the analytic expectation)
 
@@ -24,18 +23,18 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
-  | IsTag({
-      name: Tag.t,
+  | IsConstructor({
+      name: Constructor.t,
       syn_ty: option(Typ.t),
-    }); /* Tags have special ana logic */
+    }); /* Constructors have special ana logic */
 
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
-  | FreeVar
+  | Free(Var.t)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -49,7 +48,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ) => Some(typ)
-    | IsTag({syn_ty, _}) => syn_ty
+    | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | IsMulti
     | NoJoin(_) => None;
@@ -57,35 +56,51 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
-    | FreeVar => None
+    | Free(_) => None
+    | Common(self) => typ_of(ctx, self);
+
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+  ctx =>
+    fun
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
-  | None => FreeVar
+  | None => Free(name)
   | Some(var) => Common(Just(var.typ))
   };
 
-/* The self of a tag depends on the ctx, but a
+/* The self of a ctr depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_tag = (ctx: Ctx.t, name: Tag.t): t =>
-  IsTag({
+let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
+  IsConstructor({
     name,
     syn_ty:
-      switch (Ctx.lookup_tag(ctx, name)) {
+      switch (Ctx.lookup_ctr(ctx, name)) {
       | None => None
       | Some({typ, _}) => Some(typ)
       },
   });
 
-/* The self assigned to things like cases and list literals
-   which can have internal type inconsistencies. */
-let join =
-    (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t): t =>
-  switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => Typ.{id, ty}, ids, tys))
-  | Some(ty) => Just(wrap(ty))
+let add_source = List.map2((id, ty) => Typ.{id, ty});
+
+let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => ty, add_source(ids, tys))
+  | Some(ty) => Just(ty)
+  };
+
+let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty, ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(List(ty))
+  };
+
+let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(ty)
   };

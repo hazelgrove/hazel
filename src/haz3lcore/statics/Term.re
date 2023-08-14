@@ -16,7 +16,6 @@
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
-open Util;
 include TermBase.Any;
 
 type any = t;
@@ -35,7 +34,7 @@ module UTyp = {
     | Sum
     | List
     | Var
-    | Tag
+    | Constructor
     | Parens
     | Ap;
 
@@ -64,7 +63,7 @@ module UTyp = {
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
-    | Tag(_) => Tag
+    | Constructor(_) => Constructor
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -72,21 +71,21 @@ module UTyp = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Type"
-    | EmptyHole => "Empty Type Hole"
-    | MultiHole => "Multi Type Hole"
+    | Invalid => "Invalid type"
+    | MultiHole => "Broken type"
+    | EmptyHole => "Empty type hole"
     | Int
     | Float
     | String
-    | Bool => "Base Type"
-    | Var => "Type Variable"
-    | Tag => "Sum Constructor"
-    | List => "List Type"
-    | Arrow => "Function Type"
-    | Tuple => "Product Type"
-    | Sum => "Sum Type"
-    | Parens => "Parenthesized Type Term"
-    | Ap => "Sum Constructor Application";
+    | Bool => "Base type"
+    | Var => "Type variable"
+    | Constructor => "Sum constructor"
+    | List => "List type"
+    | Arrow => "Function type"
+    | Tuple => "Product type"
+    | Sum => "Sum type"
+    | Parens => "Parenthesized type"
+    | Ap => "Constructor application";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -102,7 +101,7 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Var(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_)
     | Sum(_) => false
     };
@@ -126,22 +125,23 @@ module UTyp = {
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | Sum(uts) => Sum(to_tag_map(ctx, uts))
+      | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
-      | Tag(_)
+      | Constructor(_)
       | Ap(_) => Unknown(Internal)
       }
-  and to_variant: (Ctx.t, variant) => option(TagMap.binding(option(Typ.t))) =
+  and to_variant:
+    (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
     ctx =>
       fun
-      | Variant(tag, _, u) => Some((tag, Option.map(to_typ(ctx), u)))
+      | Variant(ctr, _, u) => Some((ctr, Option.map(to_typ(ctx), u)))
       | BadEntry(_) => None
-  and to_tag_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
+  and to_ctr_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
     List.fold_left(
       (acc, ut) =>
-        List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
+        List.find_opt(((ctr, _)) => ctr == fst(ut), acc) == None
           ? acc @ [ut] : acc,
       [],
       List.filter_map(to_variant(ctx), uts),
@@ -179,10 +179,10 @@ module UTPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Type Variable"
-    | EmptyHole => "Empty Type Variable Hole"
-    | MultiHole => "Multi Type Variable Hole"
-    | Var => "Type Variable";
+    | Invalid => "Invalid type alias"
+    | MultiHole => "Broken type alias"
+    | EmptyHole => "Empty type alias hole"
+    | Var => "Type alias";
 };
 
 module UPat = {
@@ -198,7 +198,7 @@ module UPat = {
     | String
     | Triv
     | ListLit
-    | Tag
+    | Constructor
     | Cons
     | Var
     | Tuple
@@ -231,7 +231,7 @@ module UPat = {
     | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
-    | Tag(_) => Tag
+    | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
@@ -241,23 +241,23 @@ module UPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Pattern"
-    | EmptyHole => "Empty Pattern Hole"
-    | MultiHole => "Multi Pattern Hole"
-    | Wild => "Wildcard Pattern"
-    | Int => "Integer Pattern Literal"
-    | Float => "Float Pattern Literal"
-    | Bool => "Boolean Pattern Literal"
-    | String => "String Pattern Literal"
-    | Triv => "Trivial Pattern Literal"
-    | ListLit => "List Literal Pattern"
-    | Tag => "Constructor Pattern"
-    | Cons => "Cons Pattern"
-    | Var => "Pattern Variable"
-    | Tuple => "Tuple Pattern"
-    | Parens => "Parenthesized Pattern"
-    | Ap => "Constructor Application Pattern"
-    | TypeAnn => "Type Annotation";
+    | Invalid => "Invalid pattern"
+    | MultiHole => "Broken pattern"
+    | EmptyHole => "Empty pattern hole"
+    | Wild => "Wildcard"
+    | Int => "Integer literal"
+    | Float => "Float literal"
+    | Bool => "Boolean literal"
+    | String => "String literal"
+    | Triv => "Trivial literal"
+    | ListLit => "List literal"
+    | Constructor => "Constructor"
+    | Cons => "Cons"
+    | Var => "Variable binding"
+    | Tuple => "Tuple"
+    | Parens => "Parenthesized pattern"
+    | Ap => "Constructor application"
+    | TypeAnn => "Annotation";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
@@ -276,7 +276,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => false
     };
   };
@@ -298,7 +298,7 @@ module UPat = {
     | Cons(_, _)
     | Var(_)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => false
     };
   };
@@ -322,7 +322,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
-      | Tag(_)
+      | Constructor(_)
       | Ap(_) => false
       }
     );
@@ -344,7 +344,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => None
     };
   };
@@ -371,7 +371,7 @@ module UPat = {
     | Cons(_, _)
     | Var(_)
     | Tuple(_)
-    | Tag(_)
+    | Constructor(_)
     | Ap(_) => None
     };
   };
@@ -402,15 +402,15 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
-      | Tag(_)
+      | Constructor(_)
       | Ap(_) => None
       }
     };
   };
 
-  let tag_name = (p: t): option(Tag.t) =>
+  let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
-    | Tag(name) => Some(name)
+    | Constructor(name) => Some(name)
     | _ => None
     };
 };
@@ -418,7 +418,35 @@ module UPat = {
 module UExp = {
   include TermBase.UExp;
 
-  let hole = (tms: list(any)) =>
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Constructor
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | TyAlias
+    | Ap
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match
+    | ListConcat;
+
+  let hole = (tms: list(any)): term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -440,7 +468,7 @@ module UExp = {
     | Float(_) => Float
     | String(_) => String
     | ListLit(_) => ListLit
-    | Tag(_) => Tag
+    | Constructor(_) => Constructor
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
@@ -452,9 +480,14 @@ module UExp = {
     | Test(_) => Test
     | Parens(_) => Parens
     | Cons(_) => Cons
+    | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
+
+  let show_op_un_bool: op_un_bool => string =
+    fun
+    | Not => "Boolean Negation";
 
   let show_op_un_int: op_un_int => string =
     fun
@@ -462,6 +495,7 @@ module UExp = {
 
   let show_unop: op_un => string =
     fun
+    | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
   let show_op_bin_bool: op_bin_bool => string =
@@ -480,7 +514,8 @@ module UExp = {
     | LessThanOrEqual => "Integer Less Than or Equal"
     | GreaterThan => "Integer Greater Than"
     | GreaterThanOrEqual => "Integer Greater Than or Equal"
-    | Equals => "Integer Equality";
+    | Equals => "Integer Equality"
+    | NotEquals => "Integer Inequality";
 
   let show_op_bin_float: op_bin_float => string =
     fun
@@ -493,10 +528,12 @@ module UExp = {
     | LessThanOrEqual => "Float Less Than or Equal"
     | GreaterThan => "Float Greater Than"
     | GreaterThanOrEqual => "Float Greater Than or Equal"
-    | Equals => "Float Equality";
+    | Equals => "Float Equality"
+    | NotEquals => "Float Inequality";
 
   let show_op_bin_string: op_bin_string => string =
     fun
+    | Concat => "String Concatenation"
     | Equals => "String Equality";
 
   let show_binop: op_bin => string =
@@ -508,30 +545,31 @@ module UExp = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Expression"
-    | EmptyHole => "Empty Expression Hole"
-    | MultiHole => "Multi Expression Hole"
-    | Triv => "Trivial Literal. Pathetic, really."
-    | Bool => "Boolean Literal"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | String => "String Literal"
-    | ListLit => "List Literal"
-    | Tag => "Constructor"
-    | Fun => "Function Literal"
-    | Tuple => "Tuple Literal"
-    | Var => "Variable Reference"
-    | Let => "Let Expression"
-    | TyAlias => "Type Alias Definition"
-    | Ap => "Function/Contructor Application"
-    | If => "If Expression"
-    | Seq => "Sequence Expression"
-    | Test => "Test (Effectful)"
-    | Parens => "Parenthesized Expression"
+    | Invalid => "Invalid expression"
+    | MultiHole => "Broken expression"
+    | EmptyHole => "Empty expression hole"
+    | Triv => "Trivial litera"
+    | Bool => "Boolean literal"
+    | Int => "Integer literal"
+    | Float => "Float literal"
+    | String => "String literal"
+    | ListLit => "List literal"
+    | Constructor => "Constructor"
+    | Fun => "Function literal"
+    | Tuple => "Tuple literal"
+    | Var => "Variable reference"
+    | Let => "Let expression"
+    | TyAlias => "Type Alias definition"
+    | Ap => "Application"
+    | If => "If expression"
+    | Seq => "Sequence expression"
+    | Test => "Test"
+    | Parens => "Parenthesized expression"
     | Cons => "Cons"
+    | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | Match => "Match Expression";
+    | Match => "Case expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
@@ -555,10 +593,11 @@ module UExp = {
     | Seq(_)
     | Test(_)
     | Cons(_)
+    | ListConcat(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
-    | Tag(_) => false
+    | Constructor(_) => false
     };
   };
 
@@ -586,16 +625,17 @@ module UExp = {
       | Seq(_)
       | Test(_)
       | Cons(_)
+      | ListConcat(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | Tag(_) => false
+      | Constructor(_) => false
       }
     );
 
-  let tag_name = (e: t): option(Tag.t) =>
+  let ctr_name = (e: t): option(Constructor.t) =>
     switch (e.term) {
-    | Tag(name) => Some(name)
+    | Constructor(name) => Some(name)
     | _ => None
     };
 };
@@ -626,6 +666,25 @@ module URul = {
     switch (ids(~any_ids, tm)) {
     | [] => raise(Invalid_argument("Term.UExp.rep_id"))
     | [id, ..._] => id
+    };
+};
+
+module Cls = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Exp(UExp.cls)
+    | Pat(UPat.cls)
+    | Typ(UTyp.cls)
+    | TPat(UTPat.cls)
+    | Rul(URul.cls);
+
+  let show = (cls: t) =>
+    switch (cls) {
+    | Exp(cls) => UExp.show_cls(cls)
+    | Pat(cls) => UPat.show_cls(cls)
+    | Typ(cls) => UTyp.show_cls(cls)
+    | TPat(cls) => UTPat.show_cls(cls)
+    | Rul(cls) => URul.show_cls(cls)
     };
 };
 

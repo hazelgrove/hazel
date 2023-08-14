@@ -70,8 +70,11 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Backspace") => now_save(Destruct(Left))
     | (Up, "Delete") => now_save(Destruct(Right))
     | (Up, "Escape") => now(Unselect)
-    | (Up, "Tab") => now_save(Put_down) //TODO: if empty, move to next hole
+    | (Up, "Tab") =>
+      Zipper.can_put_down(zipper)
+        ? [PerformAction(Put_down), Save] : [MoveToNextHole(Right)]
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
+    | (Down, "Tab") => [MoveToNextHole(Left)]
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
@@ -115,8 +118,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
-    | "k" => [ResetCurrentEditor]
-    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
+    | "k" => [ReparseCurrentEditor]
+    | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -129,8 +132,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
-    | "k" => [ResetCurrentEditor]
-    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
+    | "k" => [ReparseCurrentEditor]
+    | _ when is_digit(key) => [SwitchScratchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
