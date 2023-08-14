@@ -1948,19 +1948,21 @@ svg.expandable path {
 }
 
 #top-bar .menu .submenu > .submenu-background {
-  display: hidden;
-}
-
-#top-bar .menu .submenu:hover > .submenu-background {
   z-index: calc(var(--submenu-icon-z) - 1);
-  display: block;
   position: absolute;
   top: -0.5em;
-  /* height: 1.3em; */
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform 0.07s ease, background-color 0.07s ease;
   height: calc(1em + 20px);
   width: 2.75em;
   content: " ";
   background: #7f7149;
+}
+
+#top-bar .menu .submenu:hover > .submenu-background {
+  transition-delay: 1.0s;
+  transform: scaleX(1);
 }
 
 #top-bar .menu .toggle-switch ~ .submenu-content {
@@ -1983,6 +1985,7 @@ svg.expandable path {
 }
 
 #top-bar .menu .submenu:hover > .submenu-content {
+  transition-delay: 1.0s;
   transform: scaleX(1);
   width: fit-content;
   background: #7f7149;
@@ -2089,7 +2092,7 @@ svg.expandable path {
 }
 
 #top-bar .menu ~ .submenu:hover .submenu-content {
-  /* transition-delay: 1000ms; */
+  transition-delay: 1.0s;
   transition-property: all;
   transform: scaleY(1);
 }
