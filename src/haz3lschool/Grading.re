@@ -1,8 +1,8 @@
 open Haz3lcore;
 open Sexplib.Std;
 
-module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
-  open SchoolExercise.F(ExerciseEnv);
+module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
+  open Exercise.F(ExerciseEnv);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
