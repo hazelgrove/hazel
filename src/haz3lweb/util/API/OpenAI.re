@@ -155,12 +155,12 @@ let start_chat = (~llm, prompt: prompt, handler): unit => {
   };
 };
 
-let reply_chat = (~llm, prompt: prompt, response, reply, handler): unit => {
+let reply_chat = (~llm, prompt: prompt, ~assistant, ~user, handler): unit => {
   let body =
     body(
       ~llm,
       prompt
-      @ [{role: Assistant, content: response}, {role: User, content: reply}],
+      @ [{role: Assistant, content: assistant}, {role: User, content: user}],
     );
   switch (llm) {
   | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~body, ~handler)

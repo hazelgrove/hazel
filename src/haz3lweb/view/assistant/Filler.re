@@ -1,14 +1,15 @@
 open Haz3lcore;
 open ChatLSP;
 open Util.OptUtil.Syntax;
-
 open Sexplib.Std;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type variation = {
   instructions: bool,
   syntax_notes: bool,
   num_samples: int,
   expected_type: bool,
+  error_round: bool,
 };
 
 let init_variation: variation = {
@@ -16,6 +17,24 @@ let init_variation: variation = {
   syntax_notes: true,
   num_samples: 9,
   expected_type: true,
+  error_round: true,
+};
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type parse_error = option(string);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type static_errors = list(string);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type error_report =
+  | ParseError(string)
+  | StaticErrors(static_errors);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type round_report = {
+  filling: string,
+  error_report,
 };
 
 type samples = list((string, string, string));
@@ -231,7 +250,7 @@ let get_samples = (num_samples, samples) =>
 
 let prompt =
     (
-      {instructions, syntax_notes, num_samples, expected_type}: variation,
+      {instructions, syntax_notes, num_samples, expected_type, _}: variation,
       ~settings: Settings.t,
       ~ctx_init,
       editor: Editor.t,
@@ -254,6 +273,62 @@ let prompt =
 
 let prompt = prompt(init_variation);
 
+let get_top_level_errs = (init_ctx, mode, top_ci: option(Info.exp)) => {
+  let self: Self.t =
+    switch (top_ci) {
+    | Some({self: Common(self), _}) => self
+    | Some({self: Free(_), _}) => Just(Unknown(Internal))
+    | None => Just(Unknown(Internal))
+    };
+  let status = Info.status_common(init_ctx, mode, self);
+  switch (status) {
+  | InHole(Inconsistent(Expectation({ana, syn}))) => [
+      "The suggested filling has the wrong expected type: expected "
+      ++ Typ.to_string(ana)
+      ++ ", but got "
+      ++ Typ.to_string(syn)
+      ++ ".",
+    ]
+  | _ => []
+  };
+};
+
+let get_parse_err = (filling): Result.t(Zipper.t, string) =>
+  switch (Printer.paste_into_zip(Zipper.init(), filling)) {
+  | None => Error("Undocumented parse error, no feedback available")
+  | Some(filling_z) =>
+    //TODO(andrew): for syntax errors, also collect bad syntax eg % operator
+    switch (Printer.of_backpack(filling_z)) {
+    | [_, ..._] as orphans =>
+      Error(
+        "The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression: "
+        ++ String.concat(", ", orphans),
+      )
+    | [] => Ok(filling_z)
+    }
+  };
+
+let mk_round_report =
+    (~settings, ~init_ctx, ~mode, filling: string): round_report =>
+  switch (get_parse_err(filling)) {
+  | Error(err) => {filling, error_report: ParseError(err)}
+  | Ok(filling_z) =>
+    let (top_ci, info_map) =
+      ChatLSP.get_info_and_top_ci_from_zipper(
+        ~settings,
+        ~ctx=init_ctx,
+        filling_z,
+      );
+    {
+      filling,
+      error_report:
+        StaticErrors(
+          get_top_level_errs(init_ctx, mode, top_ci)
+          @ ChatLSP.Errors.collect_static(info_map),
+        ),
+    };
+  };
+
 let error_reply =
     (~settings: Settings.t, response: string, ~init_ctx: Ctx.t, ~mode: Mode.t) => {
   //TODO(andrew): this is implictly specialized for exp only
@@ -267,45 +342,10 @@ let error_reply =
       ]
       |> String.concat("\n"),
     );
-  switch (Printer.paste_into_zip(Zipper.init(), response)) {
-  | None =>
-    wrap("Syntax errors: Undocumented parse error, no feedback available", [])
-  | Some(response_z) =>
-    let (top_ci, map) =
-      response_z
-      |> ChatLSP.get_info_and_top_ci_from_zipper(~settings, ~ctx=init_ctx);
-    let self: Self.t =
-      switch (top_ci) {
-      | Some({self: Common(self), _}) => self
-      | Some({self: Free(_), _}) => Just(Unknown(Internal))
-      | None => Just(Unknown(Internal))
-      };
-    let status = Info.status_common(init_ctx, mode, self);
-    let errors = ChatLSP.Errors.collect_static(map);
-    let orphans = Printer.of_backpack(response_z);
-    //TODO(andrew): for syntax errors, also collect bad syntax eg % operator
-    switch (orphans, errors, status) {
-    | ([_, ..._], _, _) =>
-      wrap(
-        "Syntax errors: The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression.",
-        orphans,
-      )
-    | ([], [_, ..._], _) =>
-      wrap(
-        "Static errors: The following static errors were encountered:",
-        errors,
-      )
-    | ([], [], InHole(Inconsistent(Expectation({ana, syn})))) =>
-      wrap(
-        "Static error: The suggested filling has the wrong expected type: expected "
-        ++ Typ.to_string(ana)
-        ++ ", but got "
-        ++ Typ.to_string(syn)
-        ++ ".",
-        [],
-      )
-    | ([], [], _) => None
-    };
+  switch (mk_round_report(~settings, ~init_ctx, ~mode, response).error_report) {
+  | ParseError(err) => wrap("The following parse error occured:", [err])
+  | StaticErrors(errs) =>
+    wrap("The following static errors were discovered:", errs)
   };
 };
 

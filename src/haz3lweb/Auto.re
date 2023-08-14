@@ -58,12 +58,18 @@ let init: t('action, 'report) = {
 };
 
 [@deriving (show({with_path: false}), yojson, sexp)]
+type first_round =
+  | RoundsDisabled
+  | FirstRoundCorrect
+  | FirstRoundErrors(Filler.round_report);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
 type llm_report = {
   time_start: option(float),
   time_end: option(float),
+  first_round: option(first_round),
   completed_sketch: option(string),
-  static_errors: option(list((Id.t, Info.error))),
-  syntax_errors: option(list(string)),
+  error_report: option(Filler.error_report),
   tests: option(test_results),
 };
 
@@ -74,11 +80,10 @@ type llm_reports = VarMap.t_(llm_report);
 type final_report = {
   time_elapsed: float,
   completed_sketch: string,
-  num_syntax_errors: int,
+  parse_error: bool,
   num_static_errors: int,
   num_tests_passing: int,
-  static_errors: list((Id.t, Info.error)),
-  syntax_errors: list(string),
+  error_report: Filler.error_report,
   tests: test_results,
 };
 
@@ -94,33 +99,26 @@ type final_statuses = VarMap.t_(final_status);
 let blank_llm_report = {
   time_start: None,
   time_end: None,
+  first_round: None,
   completed_sketch: None,
-  static_errors: None,
-  syntax_errors: None,
+  error_report: None,
   tests: None,
 };
 
 let init_llm_report = _r => {
   time_start: Some(Sys.time()),
   time_end: None,
+  first_round: None,
   completed_sketch: None,
-  static_errors: None,
-  syntax_errors: None,
+  error_report: None,
   tests: None,
 };
 
 let complete_llm_reports =
-    (
-      tests,
-      syntax_errors,
-      static_errors,
-      completed_sketch,
-      report: llm_report,
-    ) => {
+    (tests, error_report, completed_sketch, report: llm_report) => {
   ...report,
   tests,
-  syntax_errors: Some(syntax_errors),
-  static_errors: Some(static_errors),
+  error_report: Some(error_report),
   completed_sketch: Some(completed_sketch),
   time_end: Some(Sys.time()),
 };
@@ -130,42 +128,38 @@ let final_report =
       {
         time_start,
         time_end,
+        first_round: _, // TODO(andrew)
         completed_sketch,
-        static_errors,
-        syntax_errors,
+        error_report,
         tests,
       }: llm_report,
     )
     : final_status => {
-  switch (
-    time_start,
-    time_end,
-    completed_sketch,
-    static_errors,
-    syntax_errors,
-    tests,
-  ) {
+  switch (time_start, time_end, completed_sketch, error_report, tests) {
   | (
       Some(time_start),
       Some(time_end),
       Some(completed_sketch),
-      Some(static_errors),
-      Some(syntax_errors),
+      Some(error_report),
       Some(tests),
     ) =>
+    let (parse_error, num_static_errors) =
+      switch (error_report) {
+      | ParseError(_) => (true, 0)
+      | StaticErrors(errors) => (false, errors |> List.length)
+      };
     Ok({
-      num_syntax_errors: syntax_errors |> List.length,
-      num_static_errors: static_errors |> List.length,
+      parse_error,
+      num_static_errors,
       num_tests_passing:
         tests
         |> List.filter(((_, status)) => status == TestStatus.Pass)
         |> List.length,
       time_elapsed: time_end -. time_start,
       completed_sketch,
-      static_errors,
-      syntax_errors,
+      error_report,
       tests,
-    })
+    });
   | _ => Error("Incomplete report")
   };
 };

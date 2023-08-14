@@ -139,8 +139,10 @@ let go =
           ~ctx_init,
           editor.state.zipper,
         );
-      let syntax_errors = []; //TODO(andrew): see Filler.re (figure out how to get orphans)
-      let static_errors = Statics.collect_errors(info_map);
+      //TODO(andrew): THIS IS BROKEN ATM; doesnt detect parse errors
+      //see Filler.re (figure out how to get orphans)
+      let error_report =
+        Filler.StaticErrors(ChatLSP.Errors.collect_static(info_map));
       let completed_sketch = Printer.to_string_editor(editor);
       let test_slide = 7; //TODO(andrew): put somewhere better
       let tests = get_test_results(model, ~test_slide);
@@ -152,8 +154,7 @@ let go =
               name,
               Auto.complete_llm_reports(
                 tests,
-                syntax_errors,
-                static_errors,
+                error_report,
                 completed_sketch,
               ),
             ),

@@ -1,6 +1,13 @@
 open Haz3lcore;
 include UpdateAction;
 
+let trim_indents = s =>
+  Js_of_ocaml.Regexp.global_replace(
+    Js_of_ocaml.Regexp.regexp("\n(\\s)*"),
+    s,
+    "\n",
+  );
+
 //TODO(andrew): this is duplicated from Update
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let ed_init = Editors.get_editor(model.editors);
@@ -103,12 +110,6 @@ let apply =
       OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
-          let trim_indentation = s =>
-            Js_of_ocaml.Regexp.global_replace(
-              Js_of_ocaml.Regexp.regexp("\n(\\s)*"),
-              s,
-              "\n",
-            );
           print_endline("Filler: calling react_error");
           let ctx_init = Editors.get_ctx_init(~settings, model.editors);
           switch (
@@ -118,25 +119,22 @@ let apply =
           | (Some(init_ctx), Some(mode)) =>
             switch (Filler.error_reply(~settings, response, ~init_ctx, ~mode)) {
             | None =>
-              print_endline("react_error: no errors.");
+              print_endline("first round: no errors.");
               print_endline("RECEIVED RESPONSE:\n " ++ response);
-              print_endline(
-                "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
+              schedule_action(
+                Assistant(SetBuffer(trim_indents(response))),
               );
-              let trimmed_response = trim_indentation(response);
-              schedule_action(Assistant(SetBuffer(trimmed_response)));
               schedule_action(SetMeta(Auto(EndTest())));
             | Some(reply) =>
-              print_endline("react_error: errors:" ++ reply);
-              OpenAI.reply_chat(~llm, prompt, response, reply, req =>
+              print_endline("first round: errors detected:" ++ reply);
+              OpenAI.reply_chat(
+                ~llm, prompt, ~assistant=response, ~user=reply, req =>
                 switch (OpenAI.handle_chat(req)) {
                 | Some(response) =>
                   print_endline("RECEIVED RESPONSE:\n " ++ response);
-                  print_endline(
-                    "TRIMMED RESPONSE:\n " ++ trim_indentation(response),
+                  schedule_action(
+                    Assistant(SetBuffer(trim_indents(response))),
                   );
-                  let trimmed_response = trim_indentation(response);
-                  schedule_action(Assistant(SetBuffer(trimmed_response)));
                   schedule_action(SetMeta(Auto(EndTest())));
                 | None => print_endline("Filler: handler failed")
                 }
