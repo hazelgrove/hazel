@@ -11,7 +11,6 @@ type t = {
   grading_report: Grading.GradingReport.t,
 };
 
-/* Used in Page.re */
 let mk =
     (
       ~exercise: Exercise.state,
@@ -51,11 +50,6 @@ let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
     v,
   );
 };
-
-/* Generates the DOM objects for each component
-   in school mode.
-
-   Used in Page.re */
 
 let view =
     (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {

@@ -232,8 +232,6 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       impl_grading_report: ImplGradingReport.t,
     };
 
-    /* Used in haz3lschool/Gradescope.re and
-       haz3lweb/view/SchoolMode.re */
     let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
       point_distribution: eds.point_distribution,
       test_validation_report:

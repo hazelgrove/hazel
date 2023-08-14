@@ -121,18 +121,19 @@ let reevaluate_post_update =
 
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
-  //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-  //ModelResults.init performs evaluation on the DHExp value.
   let model = {
     ...model,
     results:
       Util.TimeUtil.measure_time(
-        "ModelResults.init", model.settings.benchmark, () =>
-        ModelResults.init(
-          model.settings.dynamics
-            ? Editors.get_spliced_elabs(model.editors) : [],
-        )
-      ),
+        "ModelResults.init", model.settings.benchmark, ()
+        //ModelResults.init performs evaluation on the DHExp value.
+        =>
+          ModelResults.init(
+            model.settings.dynamics
+              //Editors.get_spliced_elabs generates the DHExp.t of the editor.
+              ? Editors.get_spliced_elabs(model.editors) : [],
+          )
+        ),
   };
 
   // if (model.settings.dynamics) {

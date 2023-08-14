@@ -75,7 +75,7 @@ let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
    in the mode. Each elaborated expression
    is given a key for later lookup by the mode.
 
-   Used in haz3lweb/Update.re */
+   Used in the Update module */
 let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   switch (editors) {
   | DebugLoad => []
