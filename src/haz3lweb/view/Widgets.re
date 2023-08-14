@@ -49,52 +49,16 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
 
-let menu_item = (item, title, submenu) =>
+let tooltip = (tooltip, anchor) =>
   div(
-    ~attr=clss(["menu-item"]),
-    [
-      div(~attr=clss(["menu-item-thing"]), [item]),
-      div(~attr=clss(["menu-item-title"]), [text(title)]),
-      submenu,
-    ],
-  );
-
-let submenu_button = (title, action) =>
-  div(
-    ~attr=Attr.many([clss(["submenu-button"]), Attr.on_mousedown(action)]),
-    [text(title)],
-  );
-
-let submenu_toggle = (~tooltip="", label, active, action) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["toggle-switch"] @ (active ? ["active"] : [])),
-        Attr.on_click(action),
-        Attr.title(tooltip),
-      ]),
-    [div(~attr=clss(["toggle-knob"]), [text(label)])],
-  );
-
-let submenu_label = content =>
-  div(~attr=clss(["submenu-label"]), [text(content)]);
-
-let submenu_switch = (title, label, active, action) =>
-  div(
-    ~attr=clss(["submenu-switch"]),
-    [
-      div(~attr=clss(["submenu-text"]), [text(title)]),
-      submenu_toggle(~tooltip=title, label, active, action),
-    ],
-  );
-
-let submenu = (anchor, items) =>
-  div(
-    ~attr=clss(["submenu"]),
+    ~attr=clss(["tooltip"]),
     [
       anchor,
-      div(~attr=clss(["submenu-content"]), items),
-      div(~attr=clss(["submenu-background"]), []),
+      div(
+        ~attr=clss(["tooltip-content"]),
+        [div(~attr=clss(["tooltip-label"]), [text(tooltip)])],
+      ),
+      div(~attr=clss(["tooltip-background"]), []),
     ],
   );
 

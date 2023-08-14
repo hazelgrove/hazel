@@ -46,53 +46,37 @@ let nut_menu =
   div(
     ~attr=clss(["menu"]),
     [
-      submenu(
-        toggle("τ", statics, _ => inject(Set(Statics))),
-        [submenu_label("Toggle Statics")],
-      ),
-      submenu(
-        toggle("𝛿", dynamics, _ => inject(Set(Dynamics))),
-        [submenu_label("Toggle Dynamics")],
-      ),
-      submenu(
-        toggle("b", benchmark, _ => inject(Set(Benchmark))),
-        [submenu_label("Toggle Performance Benchmark")],
-      ),
-      submenu(
-        button(
-          Icons.export,
-          _ => {
-            download_editor_state(~instructor_mode);
-            Virtual_dom.Vdom.Effect.Ignore;
-          },
-        ),
-        [submenu_label("Export Submission")],
-      ),
-      submenu(
-        file_select_button("import-submission", Icons.import, file => {
-          switch (file) {
-          | None => Virtual_dom.Vdom.Effect.Ignore
-          | Some(file) => inject(InitImportAll(file))
-          }
-        }),
-        [submenu_label("Import Submission")],
-      ),
-      submenu(
-        button(Icons.eye, _ => inject(Set(SecondaryIcons))),
-        [submenu_label("Toggle Visible Secondary")],
-      ),
-      submenu(
-        link(Icons.github, "https://github.com/hazelgrove/hazel"),
-        [submenu_label("Hazel on GitHub")],
-      ),
+      toggle("τ", statics, _ => inject(Set(Statics)))
+      |> tooltip("Toggle Statics"),
+      toggle("𝛿", dynamics, _ => inject(Set(Dynamics)))
+      |> tooltip("Toggle Dynamics"),
+      toggle("b", benchmark, _ => inject(Set(Benchmark)))
+      |> tooltip("Toggle Performance Benchmark"),
+      button(
+        Icons.export,
+        _ => {
+          download_editor_state(~instructor_mode);
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+      )
+      |> tooltip("Export Submission"),
+      file_select_button("import-submission", Icons.import, file => {
+        switch (file) {
+        | None => Virtual_dom.Vdom.Effect.Ignore
+        | Some(file) => inject(InitImportAll(file))
+        }
+      })
+      |> tooltip("Import Submission"),
+      button(Icons.eye, _ => inject(Set(SecondaryIcons)))
+      |> tooltip("Toggle Visible Secondary"),
+      link(Icons.github, "https://github.com/hazelgrove/hazel")
+      |> tooltip("Hazel on GitHub"),
     ]
     @ (
       instructor_mode
         ? [
-          submenu(
-            button(Icons.sprout, _ => inject(ExportPersistentData)),
-            [submenu_label("Export Persistent Data")],
-          ),
+          button(Icons.sprout, _ => inject(ExportPersistentData))
+          |> tooltip("Export Persistent Data"),
         ]
         : []
     ),

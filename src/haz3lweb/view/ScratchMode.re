@@ -101,43 +101,38 @@ let download_slide_state = state => {
 
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
-    Widgets.submenu(
-      Widgets.button(Icons.export, _ => {Virtual_dom.Vdom.Effect.Ignore}),
-      [
-        Widgets.submenu_button("Export Scratchpad", _ => {
-          download_slide_state(state);
-          Virtual_dom.Vdom.Effect.Ignore;
-        }),
-      ],
-    );
+    Widgets.button(
+      Icons.export,
+      _ => {
+        download_slide_state(state);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+    )
+    |> Widgets.tooltip("Export Scratchpad");
   let import_button =
-    Widgets.submenu(
-      Widgets.file_select_button("import-scratchpad", Icons.import, file => {
-        switch (file) {
-        | None => Virtual_dom.Vdom.Effect.Ignore
-        | Some(file) => inject(UpdateAction.InitImportScratchpad(file))
-        }
-      }),
-      [Widgets.submenu_label("Import Scratchpad")],
-    );
+    Widgets.file_select_button("import-scratchpad", Icons.import, file => {
+      switch (file) {
+      | None => Virtual_dom.Vdom.Effect.Ignore
+      | Some(file) => inject(UpdateAction.InitImportScratchpad(file))
+      }
+    })
+    |> Widgets.tooltip("Import Scratchpad");
 
   let reset_button =
-    Widgets.submenu(
-      Widgets.button(
-        Icons.trash,
-        _ => {
-          let confirmed =
-            JsUtil.confirm(
-              "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
-            );
-          if (confirmed) {
-            inject(ResetCurrentEditor);
-          } else {
-            Virtual_dom.Vdom.Effect.Ignore;
-          };
-        },
-      ),
-      [Widgets.submenu_label("Reset Scratchpad")],
-    );
+    Widgets.button(
+      Icons.trash,
+      _ => {
+        let confirmed =
+          JsUtil.confirm(
+            "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+          );
+        if (confirmed) {
+          inject(ResetCurrentEditor);
+        } else {
+          Virtual_dom.Vdom.Effect.Ignore;
+        };
+      },
+    )
+    |> Widgets.tooltip("Reset Scratchpad");
   [export_button, import_button] @ [reset_button];
 };
