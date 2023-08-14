@@ -98,9 +98,9 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type status_deferral =
-    | Used
-    | Unused;
+  type deferral_position =
+    | InAp
+    | OutsideAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -108,7 +108,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral(status_deferral)
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -201,9 +201,9 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type status_deferral =
-    | Used
-    | Unused;
+  type deferral_position =
+    | InAp
+    | OutsideAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -211,7 +211,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
-    | Deferral(status_deferral)
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)

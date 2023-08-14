@@ -160,8 +160,8 @@ and uexp_to_info_map =
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
-  | Deferral(status) =>
-    add'(~self=IsDeferral(status), ~co_ctx=CoCtx.empty, m)
+  | Deferral(position) =>
+    add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))

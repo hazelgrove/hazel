@@ -163,7 +163,7 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
     div_err([code_err(name), text("not found")])
   | InHole(UnusedDeferral) =>
     div_err([text("Deferral must appear as a function argument")])
-  | InHole(BadPartialAp(NoDefferedArgs)) =>
+  | InHole(BadPartialAp(NoDeferredArgs)) =>
     div_err([text("Expected at least one non-deferred argument")])
   | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
     div_err([
