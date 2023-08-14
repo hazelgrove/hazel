@@ -1,5 +1,22 @@
 open Haz3lcore;
 open ChatLSP;
+open Util.OptUtil.Syntax;
+
+open Sexplib.Std;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type variation = {
+  instructions: bool,
+  syntax_notes: bool,
+  num_samples: int,
+  expected_type: bool,
+};
+
+let init_variation: variation = {
+  instructions: true,
+  syntax_notes: true,
+  num_samples: 9,
+  expected_type: true,
+};
 
 type samples = list((string, string, string));
 
@@ -143,8 +160,6 @@ let hazel_syntax_notes = [
   "- Format the code with proper linebreaks",
 ];
 
-let system_prompt = main_prompt @ hazel_syntax_notes;
-
 /*
  IDEA: take into account clipboard, past code positions, selections
 
@@ -190,49 +205,64 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
   };
 };
 
-let mk_user_message = (sketch: string, expected_ty: string): string =>
-  Printf.sprintf(
-    {|
-{
-  sketch: %s,
-  expected_type: %s,
-}
-      |},
-    sketch,
-    expected_ty,
-  );
+let mk_user_message = (~expected_ty, sketch: string): string =>
+  "{\n"
+  ++ String.concat(
+       ",\n",
+       List.filter_map(
+         Fun.id,
+         [
+           Some("sketch: " ++ sketch),
+           Option.map(Printf.sprintf("expected_ty: %s"), expected_ty),
+         ],
+       ),
+     )
+  ++ ",\n}";
 
-let collate_samples: samples => list(OpenAI.message) =
-  Util.ListUtil.flat_map(((sketch, expected_ty, completion)) =>
-    [
-      OpenAI.{role: User, content: mk_user_message(sketch, expected_ty)},
-      OpenAI.{role: Assistant, content: completion},
-    ]
-  );
+let init_prompt = (~expected_ty, ~sketch, samples, system_prompt) =>
+  OpenAI.[{role: System, content: String.concat("\n", system_prompt)}]
+  @ Util.ListUtil.flat_map(
+      ((sketch, expected_ty, completion)): list(OpenAI.message) =>
+        [
+          {role: User, content: mk_user_message(sketch, ~expected_ty)},
+          {role: Assistant, content: completion},
+        ],
+      samples,
+    )
+  @ [{role: User, content: mk_user_message(sketch, ~expected_ty)}];
+
+let get_samples = (num_samples, samples) =>
+  switch (Util.ListUtil.split_n_opt(num_samples, samples)) {
+  | Some(samples) =>
+    samples |> fst |> List.map(((s, t, u)) => (s, Some(t), u))
+  | None => []
+  };
 
 let prompt =
-    (~settings: Settings.t, ~ctx_init, editor: Editor.t)
+    (
+      {instructions, syntax_notes, num_samples, expected_type}: variation,
+      ~settings: Settings.t,
+      ~ctx_init,
+      editor: Editor.t,
+    )
     : option(OpenAI.prompt) => {
-  let ctx =
-    switch (ChatLSP.get_ci(~settings, ~ctx_init, editor)) {
-    | Some(ci) => Info.ctx_of(ci)
-    | None => Builtins.ctx_init
-    };
-  let mode = ChatLSP.Type.mode(~settings, ~ctx_init, editor);
-  let sketch = Printer.to_string_editor(~holes=Some("?"), editor);
-  let expected_ty = mode |> ChatLSP.Type.expected(~ctx);
+  let* ctx = editor |> ChatLSP.Type.ctx(~settings, ~ctx_init);
+  let mode = editor |> ChatLSP.Type.mode(~settings, ~ctx_init);
+  let sketch = editor |> Printer.to_string_editor(~holes=Some("?"));
+  let+ () = String.trim(sketch) == "" ? None : Some();
+  let system_prompt =
+    (instructions ? main_prompt : [])
+    @ (syntax_notes ? hazel_syntax_notes : []);
+  let samples = get_samples(num_samples, samples);
+  let expected_ty =
+    expected_type ? Some(ChatLSP.Type.expected(~ctx, mode)) : None;
   //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
-  switch (String.trim(sketch)) {
-  | "" => None
-  | _ =>
-    let prompt =
-      [OpenAI.{role: System, content: String.concat("\n", system_prompt)}]
-      @ collate_samples(samples)
-      @ [{role: User, content: mk_user_message(sketch, expected_ty)}];
-    print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-    Some(prompt);
-  };
+  let prompt = init_prompt(~expected_ty, ~sketch, samples, system_prompt);
+  print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
+  prompt;
 };
+
+let prompt = prompt(init_variation);
 
 let error_reply =
     (~settings: Settings.t, response: string, ~init_ctx: Ctx.t, ~mode: Mode.t) => {
