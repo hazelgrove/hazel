@@ -127,15 +127,6 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
   ),
 ];
 
-let _mk_prompt =
-    (prompt: string, expected_ty: string, completion: string): string =>
-  Printf.sprintf(
-    {|sample prompt: %s\nexpected type: %ssample completion: %s\n|},
-    prompt,
-    expected_ty,
-    completion,
-  );
-
 let main_prompt = [
   "CODE COMPLETION INSTRUCTIONS:",
   "- Reply with a functional, idiomatic replacement for the program hole marked '??' in the provided program sketch",
@@ -258,7 +249,6 @@ let prompt =
     expected_type ? Some(ChatLSP.Type.expected(~ctx, mode)) : None;
   //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
   let prompt = init_prompt(~expected_ty, ~sketch, samples, system_prompt);
-  print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
   prompt;
 };
 

@@ -99,6 +99,7 @@ let apply =
     switch (prompt_builder(editor)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
+      print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
       OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
@@ -148,7 +149,7 @@ let apply =
           };
         | None => print_endline("Filler: handler failed")
         }
-      )
+      );
     };
     Ok(model);
   | Prompt(TyDi) =>
