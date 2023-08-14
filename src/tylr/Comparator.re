@@ -4,8 +4,10 @@ module Ineq = {
     neq: list(Slope.t(Matter.m)),
   };
   let empty = {eq: [], lt: []};
-  let cat = ({eq, neq}, {eq: eq', neq: neq'}) =>
-    {eq: eq @ eq', neq: neq @ neq'};
+  let cat = ({eq, neq}, {eq: eq', neq: neq'}) => {
+    eq: eq @ eq',
+    neq: neq @ neq',
+  };
   let concat = List.fold_left(cat, empty);
   let filter = f => TupleUtil.map2(List.filter(f));
   let concat_map: (Slope.t => list(Slope.t), t) => t = failwith("todo");
@@ -14,13 +16,16 @@ module Ineq = {
 
 module Leq = {
   include Ineq; // slopes are dn
-  let pick: (from: Matter.m, t) => option(Slope.Dn.t(Matter.m)) =
+  let pick: (Matter.m, t) => option(Slope.Dn.t(Matter.m)) =
     failwith("todo");
 };
 
 module Geq = {
   include Ineq; // slopes are up
-  let pick: (~to_: Matter.m, ~over: Matter.s, ~from: Matter.m, t) => option(Slope.Up.t(Matter.m)) = failwith("todo");
+  let pick:
+    (~to_: Matter.m, ~over: Matter.s, ~from: Matter.m, t) =>
+    option(Slope.Up.t(Matter.m)) =
+    failwith("todo");
 };
 
 let step = (d: Dir.t, m: Matter.m): Ineq.t => {
@@ -66,7 +71,8 @@ module Result = {
 // `leq(l, ~kid, r)` steps right from `l` and filters the result
 // to those concluding with `r` and accommodating `kid`
 // postcond: slope is nonempty, top terrace has empty mold
-let leq = (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Dn.m) =>
+let leq =
+    (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Dn.m) =>
   step(R, l)
   |> Leq.filter(failwith("todo only steps ending with r"))
   |> Leq.filter(failwith("todo only slopes that take kid"))
@@ -75,7 +81,8 @@ let leq = (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Dn.
 // `geq(l, ~kid, r)` steps left from `r` and filters the result
 // to those concluding with `l` and accommodating `kid`
 // postcond: slope is nonempty, top terrace has empty mold
-let geq = (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Up.m) =>
+let geq =
+    (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Up.m) =>
   step(L, r)
   |> Geq.filter(failwith("todo only steps ending with r"))
   |> Geq.filter(failwith("todo only slopes that take kid"))
@@ -86,11 +93,13 @@ let cmp =
     : option(Result.t(Slope.Dn.m, Wald.m, Slope.Up.m)) =>
   switch (leq(l, ~kid?, r), geq(l, ~kid?, r)) {
   | (None, None) => None
-  | (Some({terrs: [{wal: leq, _}], _}), Some({terrs: [{wal: geq, _}], _}))
+  | (
+      Some({terrs: [{wal: leq, _}], _}),
+      Some({terrs: [{wal: geq, _}], _}),
+    )
       when Wald.eq(leq, geq) =>
     Some(Eq(leq))
   // may need to validate some unique precedence relation invariant here
   | (Some(lt), _) => Some(Lt(lt))
   | (_, Some(gt)) => Some(Gt(gt))
   };
-

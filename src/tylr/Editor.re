@@ -123,13 +123,15 @@ let delete = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   mk(Stepwell.insert(lexed, ctx));
 };
 
-let insert_token = (t: Token.t, well: Stepwell.t): t =>
-  switch (Molder.stepwell_mold(well, t)) {
-  | Ok(well) => well
-  | Error(_) =>
-    let p = failwith("todo: assign default to t");
-    Stepwell.push_piece(~onto=L, p, well);
-  };
+let insert_token = (t: Token.t, well: Stepwell.t): Stepwell.t => {
+  let m =
+    switch (Molder.Stepwell.mold(well, t)) {
+    | Some(m) => m
+    | None => failwith("default grout mold based on token")
+    };
+  let p = Piece.mk(m, t);
+  Melder.Stepwell.push(~onto=L, Wald.of_piece(p), well);
+};
 
 let rec insert_wald = (wald: Wald.t, well: Stepwell.t): t => {
   let hd = Chain.fst(wald);

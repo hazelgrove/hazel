@@ -30,6 +30,15 @@ type t = {
 // !Label.is_empty(p.mold.label) ==> is_prefix(p.token, p.mold.label)
 exception Ill_labeled;
 
+let mk = (~id=?, ~paths=[], matter, token) => {
+  let id =
+    switch (id) {
+    | None => Id.Gen.next()
+    | Some(id) => id
+    };
+  {id, paths, matter, token};
+};
+
 let id_ = p => p.id;
 let label = p => Mold.label(p.mold);
 let sort = p => p.mold.sort;

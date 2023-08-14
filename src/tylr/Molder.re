@@ -1,6 +1,8 @@
+exception Empty_slope;
+
 let mold =
     (~eq_only, m: Mold.t, ~kid: option(Matter.t(Sort.t))=?, t: Token.t)
-    : option(Slope.Dn.t(Mold.t)) =>
+    : option(Slope.Dn.m) =>
   Molds.of_token(t)
   |> List.map(n =>
        Walker.step(m)
@@ -41,16 +43,25 @@ let mold =
 // or
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
+module Result = {
+  include Result;
+  type t = Result.t(Slope.Dn.m, option(Matter.s));
+
+  // if both error, then return r
+  let pick = (l, r) =>
+    switch (l, r) {
+    | (Error(_), _) => r
+    | (_, Error(_)) => l
+    | (Ok(slope_l), Ok(slope_r)) =>
+      Slope.Dn.compare(slope_l, slope_r) <= 0 ? l : r
+    };
+};
+
 module Terrace = {
   include Terrace;
   let rec mold =
-          (
-            ~eq_only=false,
-            terr: R.p,
-            ~kid: option(Matter.s)=?,
-            t: Token.t,
-          )
-          : Result.t(Mold.t, Matter.s) => {
+          (~eq_only=false, terr: R.p, ~kid: option(Matter.s)=?, t: Token.t)
+          : Result.t => {
     let hd_molded = mold(~eq_only, R.face(terr).mold, ~kid?, t);
     let tl_molded =
       switch (R.unlink(terr)) {
@@ -63,75 +74,48 @@ module Terrace = {
         mold(~eq_only=true, terr, ~kid=Grout, t)
       | _ => Error(R.unmk(terr, kid))
       };
-    Result.pick(~compare=Slope.Dn.compare, hd_molded, tl_molded);
+    Result.pick(hd_molded, tl_molded);
   };
 };
 
 module Slope = {
   include Slope;
   let rec mold =
-          (slope: Dn.p, ~kid: option(Matter.s)=?, t: Token.t)
-          : Result.t((Dn.p, Slope.Dn.t), Meld.t) => {
-    let kid = Meld.pad(~l=dn.space, kid);
+          (slope: Dn.p, ~kid: option(Matter.s)=?, t: Token.t): Result.t =>
     switch (slope.terrs) {
     | [] => Error(kid)
     | [hd, ...tl] =>
-      let tl = Slope.Dn.mk(tl);
-      let tl_molded = slope_mold(tl, ~kid=Terrace.R.unmk(hd, kid), t);
-      let hd_molded = terrace_mold(hd, ~kid, t);
-      switch (hd_molded) {
-      | Error(_) => tl_molded
-      | Ok(hd_walk) =>
-        switch (tl_molded) {
-        | Ok((rest, tl_walk)) when Slope.Dn.compare(hd_walk, tl_walk) >= 0 => tl_molded
-        | _ => Ok((tl, hd_walk))
-        }
-      };
+      let hd_molded = Terrace.mold(hd, ~kid?, t);
+      let tl_molded =
+        mold(Slope.Dn.mk(tl), ~kid=Terrace.R.unmk(hd, kid), t);
+      Result.pick(hd_molded, tl_molded);
     };
-  };
 };
 
-let slopes_mold =
-    ((pre, suf): Slopes.t, ~kid=Meld.empty(), t)
-    : Result.t(Slopes.t, (Meld.t, Slope.Up.t)) =>
-  slope_mold(pre, ~kid, t)
-  |> Result.map(((rest, walk)) => (Slope.Dn.cat(rest, walk), suf))
-  |> Result.map_error(kid => (kid, suf));
+// let slopes_mold =
+//     ((pre, suf): Slopes.t, ~kid=Meld.empty(), t)
+//     : Result.t(Slopes.t, (Meld.t, Slope.Up.t)) =>
+//   slope_mold(pre, ~kid, t)
+//   |> Result.map(((rest, walk)) => (Slope.Dn.cat(rest, walk), suf))
+//   |> Result.map_error(kid => (kid, suf));
 
-let rec stepwell_mold =
-        (well: Stepwell.t, ~kid=Meld.empty(), t: Token.t)
-        : Result.t(Stepwell.t, (Meld.t, Stepwell.t)) => {
-  switch (slopes_mold(Stepwell.get_slopes(well), ~kid, t)) {
-  | Ok(slopes) => Stepwell.put_slopes(slopes, well)
-  | Error((kid, suf)) =>
-    switch (Stepwell.unlink(well)) {
-    | None =>
-      let well = Stepwell.put_slopes(Slopes.mk(~r=suf, ()), well);
-      Error((kid, well));
-    | Some((_, (l, r) as b, well)) =>
-      switch (terrace_mold(l, ~kid, t)) {
-      | Error(_) =>
-        // may need to revisit this
-        // may want to break bridges with ghosts
-        let well = Stepwell.link(Slopes.mk(~r=suf, ()), b, well);
-        Error((kid, well));
-      | Ok(slope) =>
-        // slope contains l kid t
-        // left to right: slope suf r
-        assert(Slope.height(slope) > 0);
-        // hd contains l
-        let (hd, tl) = Option.get(Slope.Dn.uncons(slope));
-        if (Slope.height(tl) > 0) {
-          // l lt-molded t and remains matched to r
-          let well = Stepwell.link((tl, suf), (hd, r), well);
-          Ok(well);
-        } else {
-          // l eq-molded t
-          // r now unmatched and left in suffix for suffix remolding
-          let suf = Slope.Up.snoc(suf, r);
-          Ok(Stepwell.cons_slopes((slope, suf), well));
-        };
+module Stepwell = {
+  let rec mold =
+          (well: Stepwell.t, ~kid: option(Matter.s)=?, t: Token.t): Result.t => {
+    let (pre, _) = Stepwell.get_slopes(well);
+    switch (Slope.mold(pre, ~kid?, t)) {
+    | Ok(_) as r => r
+    | Error(kid) as r =>
+      switch (Stepwell.unlink(well)) {
+      | None => r
+      | Some((_, (l, _r), _well)) => Terrace.mold(l, ~kid, t)
       }
-    }
+    };
   };
+
+  let mold = (well: Stepwell.t, t: Token.t): option(Mold.t) =>
+    mold(well, t)
+    |> Result.to_option
+    |> Option.map(Slope.Dn.face)
+    |> Option.map(OptUtil.get_or_raise(Empty_slope));
 };

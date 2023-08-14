@@ -10,36 +10,18 @@ module Wald = {
     Comparator.cmp(m_l, ~kid=?Meld.sort(kid), m_r)
     |> OptUtil.get_or_raise(Incomparable(m_l, m_r))
     |> Comparator.Result.map(
-      Slope.Dn.bake(~l, ~kid, ~r),
-      Wald.bake(~l=l.wal, ~kid, ~r=r.wal),
-      Slope.Up.bake(~l, ~kid, ~r),
-    );
+         Slope.Dn.bake(~l, ~kid, ~r),
+         Wald.bake(~l=l.wal, ~kid, ~r=r.wal),
+         Slope.Up.bake(~l, ~kid, ~r),
+       );
   };
-}
-
-// module Terrace = {
-//   include Terrace;
-//   let cmp =
-//       (l: R.p, ~kid=Meld.empty(), r: L.p)
-//       : option(Comparator.Result.t(Slope.Dn.p, Meld.p, Slope.Up.p)) => {
-//     let m_l = Piece.mold(R.face(l));
-//     let m_r = Piece.mold(L.face(r));
-//     Comparator.cmp(m_l, ~kid=?Meld.sort(kid), m_r)
-//     |> Comparator.Result.map(
-//       Slope.Dn.bake(~l, ~kid, ~r),
-//       wal =>
-//         wal
-//         |> Wald.bake(~l=l.wal, ~kid, ~r=r.wal)
-//         |> Wald.unmk(~l=l.mel, ~r=r.mel),
-//       Slope.Up.bake(~l, ~kid, ~r),
-//     );
-//   };
-// };
+};
 
 module Slope = {
   module Dn = {
     include Slope.Dn;
-    let rec push_wald = (dn: p, ~kid=Meld.empty(), w: Wald.p): Result.t(p, Meld.p) => {
+    let rec push_wald =
+            (dn: p, ~kid=Meld.empty(), w: Wald.p): Result.t(p, Meld.p) => {
       let kid = Meld.pad(~l=dn.space, kid);
       switch (dn.terrs) {
       | [] => Error(kid)
@@ -50,15 +32,14 @@ module Slope = {
         | Lt(lt) =>
           let lt = Slope.map_top(Terrace.put_mel(hd.mel), lt);
           Ok(Slope.Dn.cat(tl, lt));
-        | Eq(eq) =>
-          Ok(Slope.Dn.cons(tl, Terrace.put_mel(hd.mel, eq)))
+        | Eq(eq) => Ok(Slope.Dn.cons(tl, Terrace.put_mel(hd.mel, eq)))
         | Gt(gt) =>
           let (gt, _w) = Slope.Up.split_top(gt);
           // connectedness invariant ensures that gt has single terrace
           // combine this terrace with hd.mel to form new kid
           let kid = failwith("todo");
           push_wald(tl, ~kid, w);
-        }
+        };
       };
     };
   };

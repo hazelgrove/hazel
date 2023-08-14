@@ -1,4 +1,4 @@
-  open Sexplib.Std;
+open Sexplib.Std;
 open Util;
 
 module M = {
@@ -64,16 +64,14 @@ module Dn = {
 
   let push_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
 
-  let rec push = (dn: t, ~kid=Meld.empty(), w: Wald.t): Result.t(t, Meld.t) => {
-    let kid = Meld.pad(~l=dn.space, kid);
-    switch (dn.terrs) {
-    | [] => Error(kid)
-    | [hd, ...tl] =>
+  // let rec push = (dn: t, ~kid=Meld.empty(), w: Wald.t): Result.t(t, Meld.t) => {
+  //   let kid = Meld.pad(~l=dn.space, kid);
+  //   switch (dn.terrs) {
+  //   | [] => Error(kid)
+  //   | [hd, ...tl] =>
 
-    };
-  };
-
-
+  //   };
+  // };
 
   let rec push =
           (dn: t, ~kid=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
