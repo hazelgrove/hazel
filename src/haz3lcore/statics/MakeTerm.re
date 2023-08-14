@@ -148,9 +148,9 @@ let return_dark_hole = (~ids=[], s) => {
 
 let parse_sum_term: UTyp.t => UTyp.variant =
   fun
-  | {term: Var(tag), ids} => Variant(tag, ids, None)
-  | {term: Ap({term: Var(tag), ids: ids_tag}, u), ids: ids_ap} =>
-    Variant(tag, ids_tag @ ids_ap, Some(u))
+  | {term: Var(ctr), ids} => Variant(ctr, ids, None)
+  | {term: Ap({term: Var(ctr), ids: ids_ctr}, u), ids: ids_ap} =>
+    Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
@@ -198,12 +198,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_string(t) =>
-        let s = Re.Str.string_after(t, 1);
-        let s = Re.Str.string_before(s, String.length(s) - 1);
-        ret(String(s));
+        ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
@@ -226,6 +224,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
+        | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
@@ -240,12 +239,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
-        },
-      )
+      switch (t) {
+      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -266,6 +264,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
           | (["=="], []) => BinOp(Int(Equals), l, r)
+          | (["!="], []) => BinOp(Int(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -276,11 +275,14 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
           | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
           | (["==."], []) => BinOp(Float(Equals), l, r)
+          | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
+          | (["\\/"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
+          | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
         )
@@ -315,7 +317,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           String(s);
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_tag(t) => Tag(t)
+        | ([t], []) when Form.is_ctr(t) => Constructor(t)
         | ([t], []) when t != " " => Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
