@@ -245,7 +245,7 @@ let rec dhexp_of_uexp =
       | DeferredAp(fn, args) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         switch (err_status) {
-        | InHole(BadPartialAp(NoDefferedArgs)) => Some(c_fn)
+        | InHole(BadPartialAp(NoDeferredArgs)) => Some(c_fn)
         | InHole(BadPartialAp(ArityMismatch(_))) =>
           Some(DHExp.InvalidText(id, 0, "<inv partial ap>"))
         | _ =>

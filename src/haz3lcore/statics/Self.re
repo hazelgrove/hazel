@@ -33,7 +33,7 @@ type t =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_partial_ap =
-  | NoDefferedArgs
+  | NoDeferredArgs
   | ArityMismatch({
       expected: int,
       actual: int,
@@ -43,7 +43,7 @@ type error_partial_ap =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
-  | IsDeferral(Term.UExp.status_deferral)
+  | IsDeferral(Term.UExp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t);
 
@@ -103,7 +103,7 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   if (expected != actual) {
     IsBadPartialAp(ArityMismatch({expected, actual}));
   } else if (List.for_all(Term.UExp.is_deferral, args)) {
-    IsBadPartialAp(NoDefferedArgs);
+    IsBadPartialAp(NoDeferredArgs);
   } else {
     let ty_ins =
       List.combine(args, ty_ins)
