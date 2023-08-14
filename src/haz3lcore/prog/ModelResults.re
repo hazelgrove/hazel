@@ -1,12 +1,12 @@
 open Sexplib.Std;
 
-/* This module is a map storing ModelResult.t
-      values where the key distinguishes between
-      different evaluations of DHExps when inserted.
+/*
+ ModelResults is used to store the results of
+ evaluations requested by the current editor mode,
+ with the key distinguishing these requests.
 
-      The keys for school mode are in haz3lschool/SchoolExercise.re
-   */
-
+ See the SchoolExercise module for an example.
+ */
 module Key = {
   include String;
   [@deriving (show({with_path: false}), sexp, yojson)]
