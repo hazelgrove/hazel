@@ -51,15 +51,11 @@ let nut_menu =
         [submenu_label("Toggle Statics")],
       ),
       submenu(
-        toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
-          inject(Set(Dynamics))
-        ),
+        toggle("𝛿", dynamics, _ => inject(Set(Dynamics))),
         [submenu_label("Toggle Dynamics")],
       ),
       submenu(
-        toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
-          inject(Set(Benchmark))
-        ),
+        toggle("b", benchmark, _ => inject(Set(Benchmark))),
         [submenu_label("Toggle Performance Benchmark")],
       ),
       submenu(
@@ -70,15 +66,7 @@ let nut_menu =
             Virtual_dom.Vdom.Effect.Ignore;
           },
         ),
-        [
-          submenu_button("Export Submission", _ => {
-            download_editor_state(~instructor_mode);
-            Virtual_dom.Vdom.Effect.Ignore;
-          }),
-          submenu_button("Export Persistent Data", _ =>
-            inject(ExportPersistentData)
-          ),
-        ],
+        [submenu_label("Export Submission")],
       ),
       submenu(
         file_select_button("import-submission", Icons.import, file => {
@@ -93,19 +81,17 @@ let nut_menu =
         button(Icons.eye, _ => inject(Set(SecondaryIcons))),
         [submenu_label("Toggle Visible Secondary")],
       ),
-      link(
-        Icons.github,
-        "https://github.com/hazelgrove/hazel",
-        ~tooltip="Hazel on GitHub",
+      submenu(
+        link(Icons.github, "https://github.com/hazelgrove/hazel"),
+        [submenu_label("Hazel on GitHub")],
       ),
     ]
     @ (
       instructor_mode
         ? [
-          button(
-            Icons.sprout,
-            _ => inject(ExportPersistentData),
-            ~tooltip="Export Persistent Data",
+          submenu(
+            button(Icons.sprout, _ => inject(ExportPersistentData)),
+            [submenu_label("Export Persistent Data")],
           ),
         ]
         : []

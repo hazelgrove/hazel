@@ -108,17 +108,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
           download_slide_state(state);
           Virtual_dom.Vdom.Effect.Ignore;
         }),
-      ]
-      @ (
-        ExerciseSettings.show_instructor
-          ? [
-            Widgets.submenu_button("Export Slide Persistent State Value", _ => {
-              download_slide_init_state(state);
-              Virtual_dom.Vdom.Effect.Ignore;
-            }),
-          ]
-          : []
-      ),
+      ],
     );
   let import_button =
     Widgets.submenu(
@@ -131,8 +121,6 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       [Widgets.submenu_label("Import Scratchpad")],
     );
 
-<<<<<<< HEAD
-  // for pasting into files like SerializedExamples.ml (note .ml extension)
   let reset_button =
     Widgets.submenu(
       Widgets.button(

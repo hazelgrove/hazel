@@ -405,9 +405,8 @@ let toolbar_buttons =
             Virtual_dom.Vdom.Effect.Ignore;
           };
         },
-        
       ),
-      [Widgets.submenu_label("Reset Exercise")]
+      [Widgets.submenu_label("Reset Exercise")],
     );
 
   let instructor_export =

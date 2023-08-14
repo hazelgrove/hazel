@@ -1947,10 +1947,17 @@ svg.expandable path {
   z-index: var(--submenu-content-z);
 }
 
-#top-bar .menu .submenu:hover::after {
+#top-bar .menu .submenu > .submenu-background {
+  display: hidden;
+}
+
+#top-bar .menu .submenu:hover > .submenu-background {
+  z-index: calc(var(--submenu-icon-z) - 1);
+  display: block;
   position: absolute;
   top: -0.5em;
-  height: 2.3em;
+  /* height: 1.3em; */
+  height: calc(1em + 20px);
   width: 2.75em;
   content: " ";
   background: #7f7149;
@@ -1960,16 +1967,18 @@ svg.expandable path {
   left: calc(+2.75em / 2 + 2em / 2);
 }
 
-#top-bar .menu .toggle-switch ~ .submenu:hover::after {
+#top-bar .menu .submenu:hover > .toggle-switch ~ .submenu-background {
+  height: calc(1em + 1.2em);
   left: calc(-2.75em / 2 + 2em / 2);
 }
 
 #top-bar .menu .icon ~ .submenu-content,
 #top-bar .menu label ~ .submenu-content {
+  height: calc(1em + 20px);
   left: calc(+2.75em / 2 + 20px / 2);
 }
 
-#top-bar .menu .icon ~ .submenu:hover::after {
+#top-bar .menu .submenu:hover > .icon ~ .submenu-background {
   left: calc(-2.75em / 2 + 20px / 2);
 }
 
@@ -1991,7 +2000,7 @@ svg.expandable path {
 #top-bar .menu .submenu-label {
   color: var(--top_bar_icon_fill);
   white-space: nowrap;
-  height: 1.3em;
+  /* height: calc(1em + 20px); */
 }
 
 #top-bar .menu .submenu-switch,
