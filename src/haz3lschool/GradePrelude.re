@@ -1,9 +1,9 @@
 module ExerciseEnv = {
   type node = unit;
   let default = ();
-  let output_header = SchoolExercise.output_header_grading;
+  let output_header = Exercise.output_header_grading;
 };
 
-module SchoolExercise = SchoolExercise.F(ExerciseEnv);
+module Exercise = Exercise.F(ExerciseEnv);
 
 module Grading = Grading.F(ExerciseEnv);

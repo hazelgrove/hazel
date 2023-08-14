@@ -45,6 +45,11 @@ type t = {
   mold: Mold.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type bad_token_cls =
+  | Other
+  | BadInt;
+
 let mk = (expansion, label, mold) => {label, mold, expansion};
 
 /* Abbreviations for expansion behaviors */
@@ -80,29 +85,42 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let is_bool = str => str == "true" || str == "false";
+let bools = ["true", "false"];
+let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_tag = is_capitalized_name;
-let is_concrete_typ = str =>
-  str == "String" || str == "Int" || str == "Float" || str == "Bool";
-let is_typ_var = t => is_capitalized_name(t) && !is_concrete_typ(t);
-let is_partial_concrete_typ = x =>
-  !is_concrete_typ(x) && is_capitalized_name(x);
-let is_wild = regexp("^_$");
+let is_ctr = is_capitalized_name;
+let base_typs = ["String", "Int", "Float", "Bool"];
+let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
+let is_typ_var = is_capitalized_name;
+let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
+let wild = "_";
+let is_wild = regexp("^" ++ wild ++ "$");
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
+  is_bad_int(str) || is_bad_float(str) || is_partial_base_typ(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
 let is_string = t =>
-  regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
+  regexp("^\"[^⏎]*\"$", t)
+  && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
+let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
+let strip_quotes = s =>
+  if (String.length(s) < 2) {
+    s;
+  } else if (String.sub(s, 0, 1) != "\""
+             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+    s;
+  } else {
+    String.sub(s, 1, String.length(s) - 2);
+  };
+let string_quote = s => "\"" ++ s ++ "\"";
 
 /* List literals */
 let list_start = "[";
@@ -142,7 +160,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
    exceptions when used elsewhere, as no molds will be found. Such exceptions are
    currently caught. This should be replaced by a more disciplined
    approach to invalid text.*/
-let is_whitelisted_char = regexp("[!@]");
+let is_whitelisted_char = regexp("[!@\\{\\}]");
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
 let space = " ";
@@ -156,6 +174,13 @@ let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
 
+let bad_token_cls: string => bad_token_cls =
+  t =>
+    switch () {
+    | _ when is_bad_int(t) => BadInt
+    | _ => Other
+    };
+
 /* B. Operands:
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
@@ -163,8 +188,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
-  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("type", (is_concrete_typ, [mk_op(Typ, [])])),
+  ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
@@ -183,6 +209,8 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   ("sequence", mk_infix(";", Exp, P.semi)),
+  ("typ_plus", mk_infix("+", Typ, P.or_)),
+  ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
@@ -194,9 +222,11 @@ let forms: list((string, t)) = [
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
   ("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
   ("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
+  ("string_concat", mk_infix("++", Exp, P.plus)),
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
-  //("not_equals", mk_infix("!=", Exp, P.eqs)),
+  ("not_equals", mk_infix("!=", Exp, P.eqs)),
+  ("not", mk(ds, ["!"], mk_pre(P.neg, Exp, []))),
   ("gte", mk_infix(">=", Exp, P.eqs)),
   ("lte", mk_infix("<=", Exp, P.eqs)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
@@ -206,14 +236,15 @@ let forms: list((string, t)) = [
   ("fequals", mk_infix("==.", Exp, P.eqs)),
   ("flt", mk_infix("<.", Exp, P.eqs)),
   ("fgt", mk_infix(">.", Exp, P.eqs)),
-  //("fnot_equals", mk_infix("!=.", Exp, P.eqs)),
+  ("fnot_equals", mk_infix("!=.", Exp, P.eqs)),
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
   ("bitwise_and", mk_nul_infix("&", P.mult)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
-  ("bitwise_or", mk_infix("|", Exp, P.mult)), // HACK: SUBSTRING REQ
-  ("logical_or", mk_infix("||", Exp, P.or_)),
+  //("bitwise_or", mk_infix("|", Exp, P.mult)),
+  ("logical_or_", mk_nul_infix("\\", P.eqs)), // HACK: SUBSTRING REQ
+  ("logical_or", mk_infix("\\/", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
@@ -227,7 +258,12 @@ let forms: list((string, t)) = [
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
+  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  (
+    "type_alias",
+    mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
@@ -248,7 +284,7 @@ let forms: list((string, t)) = [
   // ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
   // ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
-  //("concat", mk_infix("@", Exp, P.concat)),
+  ("list_concat", mk_infix("@", Exp, P.plus)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
@@ -261,7 +297,8 @@ let forms: list((string, t)) = [
   //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
-let get: String.t => t = name => List.assoc(name, forms);
+let get: String.t => t =
+  name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
 
 let delims: list(Token.t) =
   forms
