@@ -126,7 +126,10 @@ follow these instructions instead of the shorter instructions in the
   ```sh
    opam switch create 5.0.0 ocaml-base-compiler.5.0.0
   ```
-
+- Update the current switch environment
+  ```sh
+  eval $(opam env --switch=5.0.0)
+  ```
 ## Clone the Source Code
 
 - Pick a directory that you want to be the parent of the directory that contains
