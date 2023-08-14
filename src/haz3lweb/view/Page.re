@@ -59,7 +59,7 @@ let nut_menu =
           Virtual_dom.Vdom.Effect.Ignore;
         },
       )
-      |> tooltip("1Export Submission"),
+      |> tooltip("Export Submission"),
       file_select_button("import-submission", Icons.import, file => {
         switch (file) {
         | None => Virtual_dom.Vdom.Effect.Ignore
@@ -76,7 +76,7 @@ let nut_menu =
       instructor_mode
         ? [
           button(Icons.sprout, _ => inject(ExportPersistentData))
-          |> tooltip("2Export Persistent Data"),
+          |> tooltip("Export Persistent Data"),
         ]
         : []
     ),
