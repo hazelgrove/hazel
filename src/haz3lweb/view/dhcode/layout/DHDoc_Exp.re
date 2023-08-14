@@ -175,12 +175,12 @@ let rec mk =
         );
       };
     let mk_left_associative_operands = (precedence_op, d1, d2) => (
-      go'(~parenthesize=precedence(d1) > precedence_op, d1),
-      go'(~parenthesize=precedence(d2) >= precedence_op, d2),
+      go'(~parenthesize=precedence(d1) < precedence_op, d1),
+      go'(~parenthesize=precedence(d2) <= precedence_op, d2),
     );
     let mk_right_associative_operands = (precedence_op, d1, d2) => (
-      go'(~parenthesize=precedence(d1) >= precedence_op, d1),
-      go'(~parenthesize=precedence(d2) > precedence_op, d2),
+      go'(~parenthesize=precedence(d1) <= precedence_op, d1),
+      go'(~parenthesize=precedence(d2) < precedence_op, d2),
     );
     let cast =
       switch (d) {
