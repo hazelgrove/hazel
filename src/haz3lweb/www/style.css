@@ -1956,31 +1956,33 @@ svg.expandable path {
   transition: transform 0.07s ease, background-color 0.07s ease;
   height: calc(1em + 20px);
   width: 2.75em;
-  content: " ";
-  background: #7f7149;
 }
 
 #top-bar .menu .tooltip:hover > .tooltip-background {
   transition-delay: 1.0s;
   transform: scaleX(1);
+  background: #7f7149;
 }
 
-#top-bar .menu .toggle-switch ~ .tooltip-content {
+#top-bar .menu .tooltip > .toggle-switch ~ .tooltip-content {
+  height: calc(1em + 1.2em);
   left: calc(+2.75em / 2 + 2em / 2);
 }
 
-#top-bar .menu .tooltip:hover > .toggle-switch ~ .tooltip-background {
+#top-bar .menu .tooltip > .toggle-switch ~ .tooltip-background {
   height: calc(1em + 1.2em);
   left: calc(-2.75em / 2 + 2em / 2);
 }
 
-#top-bar .menu .icon ~ .tooltip-content,
-#top-bar .menu label ~ .tooltip-content {
+#top-bar .menu .tooltip > .icon ~ .tooltip-content,
+#top-bar .menu .tooltip > label ~ .tooltip-content {
   height: calc(1em + 20px);
   left: calc(+2.75em / 2 + 20px / 2);
 }
 
-#top-bar .menu .tooltip:hover > .icon ~ .tooltip-background {
+#top-bar .menu .tooltip:hover > .icon ~ .tooltip-background,
+#top-bar .menu .tooltip:hover > label ~ .tooltip-background {
+  height: calc(1em + 20px);
   left: calc(-2.75em / 2 + 20px / 2);
 }
 
