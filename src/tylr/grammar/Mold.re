@@ -1,8 +1,14 @@
 // open Util;
 
-include Gram.Zipper;
+module Sort = {
+  type t = option(Sort.t);
+};
+
+// include Gram.Zipper;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t = Gram.Zipper.t(Label.t);
+type t =
+  | Grout
+  | Tile(Gram.Zipper.t(Label.t));
 
 module Map =
   Map.Make({

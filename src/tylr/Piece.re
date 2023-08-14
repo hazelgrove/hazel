@@ -22,7 +22,7 @@ module Path = {
 type t = {
   id: Id.t,
   paths: list(Path.t),
-  mold: Mold.t,
+  matter: Matter.t(Mold.t),
   token: Token.t,
 };
 
@@ -30,9 +30,30 @@ type t = {
 // !Label.is_empty(p.mold.label) ==> is_prefix(p.token, p.mold.label)
 exception Ill_labeled;
 
+let id_ = p => p.id;
 let label = p => Mold.label(p.mold);
 let sort = p => p.mold.sort;
 let prec = p => p.mold.prec;
+
+let put_label = (_, _) => failwith("todo Piece.put_label");
+let put_paths = (paths, p) => {...p, paths};
+let put_token = (token, p) => {...p, token};
+
+let is_constant = p => Label.is_const(label(p));
+
+let token_length = p => Token.length(p.token);
+let label_length = p =>
+  switch (Label.length(label(p))) {
+  | Some(n) => n
+  | None => token_length(p)
+  };
+// todo: review uses and replace with one of above
+let length = _ => failwith("todo: Piece.length");
+
+let is_grout = p => label_length(p) == 0;
+
+// todo: review uses and rename
+let is_empty = _ => failwith("todo Piece.is_empty");
 
 // let tip = (side, p) => Mold.tip(side, mold(p));
 // let tips = (side, p) => Mold.tips(side, mold(p));
@@ -47,17 +68,6 @@ let prec = p => p.mold.prec;
 
 let add_paths = (ps, p) => {...p, paths: ps @ p.paths};
 let clear_paths = p => {...p, paths: []};
-
-let is_grout = p => Label.is_empty(label(p));
-
-let is_constant = p => Label.is_const(label(p));
-
-let token_length = p => Token.length(p.token);
-let label_length = p =>
-  switch (Label.length(label(p))) {
-  | Some(n) => n
-  | None => token_length(p)
-  };
 
 let is_complete = p =>
   // assumes well-labeled
@@ -78,17 +88,17 @@ let unzip = (n: int, p: t): Result.t((t, t), Dir.t) => {
     switch (Label.unzip(n, label(p))) {
     | Error(_r) => Error(R)
     | Ok((lbl_l, lbl_r)) =>
-      let l = Piece.put_label(lbl_l, p);
-      let r = Piece.put_label(lbl_r, {...p, token: Token.empty});
+      let l = put_label(lbl_l, p);
+      let r = put_label(lbl_r, {...p, token: Token.empty});
       Ok((l, r));
     }
   | Error(R) => Error(R)
   | Ok((tok_l, tok_r)) =>
-    switch (Label.unzip(label(p))) {
+    switch (Label.unzip(n, label(p))) {
     | Error(_) => raise(Ill_labeled)
     | Ok((lbl_l, lbl_r)) =>
-      let l = Piece.put_label(lbl_l, {...p, token: tok_l});
-      let r = Piece.put_label(lbl_r, {...p, token: tok_r});
+      let l = put_label(lbl_l, {...p, token: tok_l});
+      let r = put_label(lbl_r, {...p, token: tok_r});
       Ok((l, r));
     }
   };
@@ -180,6 +190,8 @@ let zips = (l, r) => Option.is_some(zip(l, r));
 //     };
 //   go(zipper(p));
 // };
+let complement_beyond = (~side as _, _) =>
+  failwith("todo: Piece.complement_beyond");
 
 // let fst_mold = (cmpl: Complement.t, p: t) =>
 //   ListUtil.hd_opt(cmpl)

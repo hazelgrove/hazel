@@ -1,9 +1,25 @@
-let is_operator = (operand_side: Dir.t, r: Regex.t) =>
-  Regex.enter(~from=operand_side, r)
-  |> List.exists(((a, _)) => Regex.Atom.is_kid(a));
+let mold =
+    (~eq_only, m: Mold.t, ~kid: option(Matter.t(Sort.t))=?, t: Token.t)
+    : option(Slope.Dn.t(Mold.t)) =>
+  Molds.of_token(t)
+  |> List.map(n =>
+       Walker.step(m)
+       |> (eq_only ? Walker.Result.eq_only : Fun.id)
+       |> Walker.Result.filter(failwith("only walks that end with n"))
+     )
+  |> Walker.Result.concat
+  |> Walker.Result.pick(
+       ~from=m,
+       ~over=?kid,
+       ~to_=failwith("get the piece made of n"),
+     );
+
+// let is_operator = (operand_side: Dir.t, r: Regex.t) =>
+//   Regex.enter(~from=operand_side, r)
+//   |> List.exists(((a, _)) => Regex.Atom.is_kid(a));
 
 // wrap terrace around kid and complement as needed
-let wrap = (_terr, _kid) => failwith("todo");
+// let wrap = (_terr, _kid) => failwith("todo");
 
 // replace ghost with piece above bridge
 // let x = 1 >in< x + 1
@@ -24,54 +40,53 @@ let wrap = (_terr, _kid) => failwith("todo");
 // let x = 1 in <> + 2 >in< x + 1
 // or
 // let x = 1 in <> + 2 >< <in> >< x + 1
-let rec terrace_mold =
-        (~eq_only=false, terr: Terrace.R.t, ~kid=Meld.empty(), t: Token.t)
-        : Result.t(Slope.Dn.t, Meld.t) => {
-  let hd_molded =
-    Molds.of_token(t)
-    |> List.map(m =>
-         Walker.walk(Terrace.R.face(terr).mold)
-         |> (eq_only ? Walker.Result.eq_only : Fun.id)
-         |> Walker.Result.filter(failwith("only walks that end with m"))
-       )
-    |> Walker.Result.concat
-    |> Walker.Result.pick(
-         ~from=terr,
-         ~over=kid,
-         ~to_=failwith("get the piece made of m"),
-       );
-  let tl_molded = {
-    switch (Terrace.R.unlink(terr)) {
-    | Some((terr, kid', {mold: Tile(mold), _} as p))
-        when !Piece.is_complete(p) =>
-      let mold = Mold.grout_of_tile(mold);
-      let grout = {...p, mold: Grout(mold)};
-      // todo: prune away unnecessary prefix/postfix grout
-      let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
-      terrace_mold(~eq_only=true, terr, ~kid, t);
-    | _ => Error(Terrace.R.unmk(terr, kid))
-    };
+
+module Terrace = {
+  include Terrace;
+  let rec mold =
+          (
+            ~eq_only=false,
+            terr: R.p,
+            ~kid: option(Matter.s)=?,
+            t: Token.t,
+          )
+          : Result.t(Mold.t, Matter.s) => {
+    let hd_molded = mold(~eq_only, R.face(terr).mold, ~kid?, t);
+    let tl_molded =
+      switch (R.unlink(terr)) {
+      | Some((terr, kid', {matter: Tile(_), _} as p))
+          when !Piece.is_complete(p) =>
+        // let mold = Mold.grout_of_tile(mold);
+        // let grout = {...p, mold: Grout(mold)};
+        // todo: prune away unnecessary prefix/postfix grout
+        // let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
+        mold(~eq_only=true, terr, ~kid=Grout, t)
+      | _ => Error(R.unmk(terr, kid))
+      };
+    Result.pick(~compare=Slope.Dn.compare, hd_molded, tl_molded);
   };
-  Result.pick(~compare=Slope.Dn.compare, hd_molded, tl_molded);
 };
 
-let rec slope_mold =
-        (slope: Slope.Dn.t, ~kid=Meld.empty(), t: Token.t)
-        : Result.t((Slope.Dn.t, Slope.Dn.t), Meld.t) => {
-  let kid = Meld.pad(~l=dn.space, kid);
-  switch (slope.terrs) {
-  | [] => Error(kid)
-  | [hd, ...tl] =>
-    let tl = Slope.Dn.mk(tl);
-    let tl_molded = slope_mold(tl, ~kid=Terrace.R.unmk(hd, kid), t);
-    let hd_molded = terrace_mold(hd, ~kid, t);
-    switch (hd_molded) {
-    | Error(_) => tl_molded
-    | Ok(hd_walk) =>
-      switch (tl_molded) {
-      | Ok((rest, tl_walk)) when Slope.Dn.compare(hd_walk, tl_walk) >= 0 => tl_molded
-      | _ => Ok((tl, hd_walk))
-      }
+module Slope = {
+  include Slope;
+  let rec mold =
+          (slope: Dn.p, ~kid: option(Matter.s)=?, t: Token.t)
+          : Result.t((Dn.p, Slope.Dn.t), Meld.t) => {
+    let kid = Meld.pad(~l=dn.space, kid);
+    switch (slope.terrs) {
+    | [] => Error(kid)
+    | [hd, ...tl] =>
+      let tl = Slope.Dn.mk(tl);
+      let tl_molded = slope_mold(tl, ~kid=Terrace.R.unmk(hd, kid), t);
+      let hd_molded = terrace_mold(hd, ~kid, t);
+      switch (hd_molded) {
+      | Error(_) => tl_molded
+      | Ok(hd_walk) =>
+        switch (tl_molded) {
+        | Ok((rest, tl_walk)) when Slope.Dn.compare(hd_walk, tl_walk) >= 0 => tl_molded
+        | _ => Ok((tl, hd_walk))
+        }
+      };
     };
   };
 };
@@ -97,6 +112,7 @@ let rec stepwell_mold =
       switch (terrace_mold(l, ~kid, t)) {
       | Error(_) =>
         // may need to revisit this
+        // may want to break bridges with ghosts
         let well = Stepwell.link(Slopes.mk(~r=suf, ()), b, well);
         Error((kid, well));
       | Ok(slope) =>

@@ -1,38 +1,64 @@
-module Result = {
-  include Result;
-  type t = Result.t(Slope.t, Meld.t);
-};
+exception Incomparable(Matter.m, Matter.m);
 
-module Terrace = {
-  module L = {
-    include Terrace.L;
+module Wald = {
+  include Wald;
+  let cmp =
+      (l: p, ~kid=Meld.empty(), r: p)
+      : Comparator.Result.t(Slope.Dn.p, Wald.p, Slope.Up.p) => {
+    let m_l = Piece.mold(face(R, l));
+    let m_r = Piece.mold(face(L, r));
+    Comparator.cmp(m_l, ~kid=?Meld.sort(kid), m_r)
+    |> OptUtil.get_or_raise(Incomparable(m_l, m_r))
+    |> Comparator.Result.map(
+      Slope.Dn.bake(~l, ~kid, ~r),
+      Wald.bake(~l=l.wal, ~kid, ~r=r.wal),
+      Slope.Up.bake(~l, ~kid, ~r),
+    );
   };
-  module R = {
-    include Terrace.R;
-    let meld = (terr: t, ~kid=Meld.empty(), w: Wald.t): Result.t =>
-      Walker.step(face(terr))
-      |> Walker.Result.pick(~from=terr, ~over=kid, ~to_=w)
-      |> Result.to_option(~error=unmk(terr, kid));
-  };
-};
+}
+
+// module Terrace = {
+//   include Terrace;
+//   let cmp =
+//       (l: R.p, ~kid=Meld.empty(), r: L.p)
+//       : option(Comparator.Result.t(Slope.Dn.p, Meld.p, Slope.Up.p)) => {
+//     let m_l = Piece.mold(R.face(l));
+//     let m_r = Piece.mold(L.face(r));
+//     Comparator.cmp(m_l, ~kid=?Meld.sort(kid), m_r)
+//     |> Comparator.Result.map(
+//       Slope.Dn.bake(~l, ~kid, ~r),
+//       wal =>
+//         wal
+//         |> Wald.bake(~l=l.wal, ~kid, ~r=r.wal)
+//         |> Wald.unmk(~l=l.mel, ~r=r.mel),
+//       Slope.Up.bake(~l, ~kid, ~r),
+//     );
+//   };
+// };
 
 module Slope = {
   module Dn = {
     include Slope.Dn;
-    let rec meld = (dn: t, ~kid=Meld.empty(), w: Wald.t): Result.t => {
+    let rec push_wald = (dn: p, ~kid=Meld.empty(), w: Wald.p): Result.t(p, Meld.p) => {
       let kid = Meld.pad(~l=dn.space, kid);
       switch (dn.terrs) {
       | [] => Error(kid)
       | [hd, ...tl] =>
         let tl = Slope.Dn.mk(tl);
         // left-to-right: tl hd kid w
-        switch (Terrace.R.meld(hd, ~kid, w)) {
-        | Some(slope) => Ok(Slope.Dn.(cat(tl, slope)))
-        | None =>
-          // assuming well-fitted so must be gt
-          let kid = Terrace.R.unmk(hd, kid);
-          meld(tl, ~kid, w);
-        };
+        switch (Wald.cmp(hd.wal, ~kid, w)) {
+        | Lt(lt) =>
+          let lt = Slope.map_top(Terrace.put_mel(hd.mel), lt);
+          Ok(Slope.Dn.cat(tl, lt));
+        | Eq(eq) =>
+          Ok(Slope.Dn.cons(tl, Terrace.put_mel(hd.mel, eq)))
+        | Gt(gt) =>
+          let (gt, _w) = Slope.Up.split_top(gt);
+          // connectedness invariant ensures that gt has single terrace
+          // combine this terrace with hd.mel to form new kid
+          let kid = failwith("todo");
+          push_wald(tl, ~kid, w);
+        }
       };
     };
   };
@@ -48,9 +74,8 @@ module Stepwell = {
     Stepwell.map_slopes(Slopes.push_space(~onto, s));
 
   // doesn't bother pushing beyond nearest slopes bc any pushed content
-  // should have been pulled from the other side, meaning any content melding
-  // with bridges should have originated from that bridge, meaning that
-  // bridge would have been deconstructed
+  // should have been molded by or melded to something in nearest prefix slope
+  // (possibly put there by deconstructing some previously existing bridge)
   let push_wald = (~onto: Dir.t, w: Wald.t, well: Stepwell.t): Stepwell.t => {
     let (dn, up) = get_slopes(well);
     switch (onto) {

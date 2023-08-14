@@ -25,11 +25,13 @@ let is_const =
   | Const(t) => Some(t)
   | _ => None;
 
+let length = _ => failwith("todo Label.length");
+
 // succeeds on and duplicates labels of empty and dynamic length
 let unzip = (n: int, lbl: t): Result.t((t, t), Dir.t) =>
   switch (lbl) {
   | Const(t) when Token.length(t) > 0 =>
-    Token.unzip(n, t) |> Result.map(((l, r)) => (Const(l), Const(r)))
+    Token.unzip(n, t) |> Result.map(~f=((l, r)) => (Const(l), Const(r)))
   | _ => Ok((lbl, lbl))
   };
 

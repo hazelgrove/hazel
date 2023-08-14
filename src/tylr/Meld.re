@@ -150,10 +150,10 @@ let is_empty_ = mel => Option.is_some(is_empty(mel));
 
 let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
   of_chain(Chain.mk([l, r], [p])) |> aggregate;
-let of_grout = (~l=empty(), ~id=?, ~r=empty(), g: Grout.t) =>
-  of_piece(~l, Piece.of_grout(~id?, g), ~r);
-let of_tile = (~l=empty(), ~id=?, ~r=empty(), t: Tile.t) =>
-  of_piece(~l, Piece.of_tile(~id?, t), ~r);
+// let of_grout = (~l=empty(), ~id=?, ~r=empty(), g: Grout.t) =>
+//   of_piece(~l, Piece.of_grout(~id?, g), ~r);
+// let of_tile = (~l=empty(), ~id=?, ~r=empty(), t: Tile.t) =>
+//   of_piece(~l, Piece.of_tile(~id?, t), ~r);
 
 let root = mel =>
   mel.chain |> Option.map(Chain.links) |> Option.value(~default=[]);
@@ -186,8 +186,8 @@ let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
     Option.bind(mel.chain, Chain.unknil) |> Option.map(((_, p, _)) => p)
   };
 
-let fst_id = mel => Option.map(Piece.id, end_piece(~side=L, mel));
-let lst_id = mel => Option.map(Piece.id, end_piece(~side=R, mel));
+let fst_id = mel => Option.map(Piece.id_, end_piece(~side=L, mel));
+let lst_id = mel => Option.map(Piece.id_, end_piece(~side=R, mel));
 
 let link = (~kid=empty(), p: Piece.t, mel) => {
   let mel = distribute(mel);
@@ -234,73 +234,73 @@ let unknil = mel =>
   };
 
 // todo: clean up
-let is_hole = (mel: t): option((t, (Id.t, Grout.t), t)) => {
-  open OptUtil.Syntax;
-  let* c = distribute(mel).chain;
-  switch (c) {
-  // todo: don't drop paths
-  | ([l, r], [{shape: G(g), id, _}]) when Grout.is_empty(g) =>
-    Some((l, (id, g), r))
-  | _ => None
-  };
-};
+// let is_hole = (mel: t): option((t, (Id.t, Grout.t), t)) => {
+//   open OptUtil.Syntax;
+//   let* c = distribute(mel).chain;
+//   switch (c) {
+//   // todo: don't drop paths
+//   | ([l, r], [{shape: G(g), id, _}]) when Grout.is_empty(g) =>
+//     Some((l, (id, g), r))
+//   | _ => None
+//   };
+// };
 
-let patch_sort = (~id=?, s: Sort.o, mel: t) => {
-  let of_grout = of_grout(~id?);
-  switch (sort(mel)) {
-  | None => of_grout(Grout.mk_operand(None))
-  | Some(s') when Sort.eq(s, s') => mel
-  | Some(s') =>
-    let e: SortDeps.Edge.t =
-      SortDeps.takes(s, s')
-      |> OptUtil.get_or_fail("probably this means grammar isn't LR");
-    e.l
-      // todo: confirm use of prec max here is ok
-      ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
-      : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
-  };
-};
-let patch_sort = (s: Sort.o, mel: t) =>
-  switch (is_hole(mel)) {
-  | None => patch_sort(s, mel)
-  | Some((l, (id, g), r)) =>
-    switch (is_empty(l), is_empty(r)) {
-    | (None, None) =>
-      let mold =
-        s == g.proto.mold.sort
-          ? g.proto.mold
-          // check that max prec is fine
-          : {...g.proto.mold, sort: s, prec: Prec.max};
-      let g = Grout.mk(mold);
-      of_grout(~id, ~l, g, ~r);
-    | (Some(l), None) => patch_sort(~id, s, r) |> pad(~l)
-    | (None, Some(r)) => patch_sort(~id, s, l) |> pad(~r)
-    | (Some(l), Some(r)) => patch_sort(~id, s, empty()) |> pad(~l, ~r)
-    }
-  };
+// let patch_sort = (~id=?, s: Sort.o, mel: t) => {
+//   let of_grout = of_grout(~id?);
+//   switch (sort(mel)) {
+//   | None => of_grout(Grout.mk_operand(None))
+//   | Some(s') when Sort.eq(s, s') => mel
+//   | Some(s') =>
+//     let e: SortDeps.Edge.t =
+//       SortDeps.takes(s, s')
+//       |> OptUtil.get_or_fail("probably this means grammar isn't LR");
+//     e.l
+//       // todo: confirm use of prec max here is ok
+//       ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
+//       : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
+//   };
+// };
+// let patch_sort = (s: Sort.o, mel: t) =>
+//   switch (is_hole(mel)) {
+//   | None => patch_sort(s, mel)
+//   | Some((l, (id, g), r)) =>
+//     switch (is_empty(l), is_empty(r)) {
+//     | (None, None) =>
+//       let mold =
+//         s == g.proto.mold.sort
+//           ? g.proto.mold
+//           // check that max prec is fine
+//           : {...g.proto.mold, sort: s, prec: Prec.max};
+//       let g = Grout.mk(mold);
+//       of_grout(~id, ~l, g, ~r);
+//     | (Some(l), None) => patch_sort(~id, s, r) |> pad(~l)
+//     | (None, Some(r)) => patch_sort(~id, s, l) |> pad(~r)
+//     | (Some(l), Some(r)) => patch_sort(~id, s, empty()) |> pad(~l, ~r)
+//     }
+//   };
 
-let patch = (~l=?, ~r=?, mel: t): t =>
-  switch (l, r) {
-  | (None, None) => mel
-  | (Some(l), _) =>
-    let m = Piece.mold(l);
-    if (Mold.convexable(R, m) && is_empty_(mel)) {
-      mel;
-    } else {
-      let (s, _) =
-        Mold.concavable(R, m) |> OptUtil.get_or_raise(Invalid_prec);
-      patch_sort(s, mel);
-    };
-  | (_, Some(r)) =>
-    let m = Piece.mold(r);
-    if (Mold.convexable(L, m) && is_empty_(mel)) {
-      mel;
-    } else {
-      let (s, _) =
-        Mold.concavable(L, m) |> OptUtil.get_or_raise(Invalid_prec);
-      patch_sort(s, mel);
-    };
-  };
+// let patch = (~l=?, ~r=?, mel: t): t =>
+//   switch (l, r) {
+//   | (None, None) => mel
+//   | (Some(l), _) =>
+//     let m = Piece.mold(l);
+//     if (Mold.convexable(R, m) && is_empty_(mel)) {
+//       mel;
+//     } else {
+//       let (s, _) =
+//         Mold.concavable(R, m) |> OptUtil.get_or_raise(Invalid_prec);
+//       patch_sort(s, mel);
+//     };
+//   | (_, Some(r)) =>
+//     let m = Piece.mold(r);
+//     if (Mold.convexable(L, m) && is_empty_(mel)) {
+//       mel;
+//     } else {
+//       let (s, _) =
+//         Mold.concavable(L, m) |> OptUtil.get_or_raise(Invalid_prec);
+//       patch_sort(s, mel);
+//     };
+//   };
 
 let append = (_, _, _) => failwith("todo append");
 
@@ -318,21 +318,21 @@ let append = (_, _, _) => failwith("todo append");
 //   |> List.concat;
 // };
 
-let tip = (side: Dir.t, mel: t): option(Tip.t) => {
-  let tip = (kid, p) =>
-    switch (is_empty(kid)) {
-    | Some(_) => Piece.tip(side, p)
-    | None => Tip.Convex
-    };
-  switch (side) {
-  | L =>
-    Result.to_option(unlink(mel))
-    |> Option.map(((kid, p, _)) => tip(kid, p))
-  | R =>
-    Result.to_option(unknil(mel))
-    |> Option.map(((_, p, kid)) => tip(kid, p))
-  };
-};
+// let tip = (side: Dir.t, mel: t): option(Tip.t) => {
+//   let tip = (kid, p) =>
+//     switch (is_empty(kid)) {
+//     | Some(_) => Piece.tip(side, p)
+//     | None => Tip.Convex
+//     };
+//   switch (side) {
+//   | L =>
+//     Result.to_option(unlink(mel))
+//     |> Option.map(((kid, p, _)) => tip(kid, p))
+//   | R =>
+//     Result.to_option(unknil(mel))
+//     |> Option.map(((_, p, kid)) => tip(kid, p))
+//   };
+// };
 
 let split_piece = (n, mel) =>
   try({

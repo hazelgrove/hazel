@@ -47,7 +47,7 @@ module L = {
   let uncons_lexeme = (~char=false, l: t): (Lexeme.t(_), Space.t, list(t)) => {
     let (face, rest) = split_face(l);
     switch (Piece.unzip(1, face)) {
-    | R((c, rest_face)) when char =>
+    | Ok((c, rest_face)) when char =>
       let (_empty, l) = Option.get(mk(Meld.link(rest_face, rest)));
       (Lexeme.T(c), Space.empty, [l]);
     | _ =>
@@ -55,8 +55,7 @@ module L = {
       (Lexeme.T(face), s, ls);
     };
   };
-
-  let tip = (terr: t) => Piece.tip(L, face(terr));
+  // let tip = (terr: t) => Piece.tip(L, face(terr));
 };
 
 module R = {
@@ -96,7 +95,7 @@ module R = {
     print_endline("Terrace.unsnoc_lexeme");
     let (rest, face) = split_face(r);
     switch (Piece.unzip(Piece.length(face) - 1, face)) {
-    | R((rest_face, c)) when char =>
+    | Ok((rest_face, c)) when char =>
       let (r, _empty) = Option.get(mk(Meld.knil(rest, rest_face)));
       ([r], Space.empty, Lexeme.T(c));
     | _ =>
@@ -105,95 +104,95 @@ module R = {
     };
   };
 
-  let tip = (terr: t) => Piece.tip(R, face(terr));
+  // let tip = (terr: t) => Piece.tip(R, face(terr));
 
   // this function
-  let mold_lt = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
-    Piece.tips(R, face(terr))
-    |> List.fold_left(
-         (molded, tip: Tip.t) => {
-           open Result.Syntax;
-           let/ _ = molded;
-           switch (tip) {
-           | Convex => Error(kid)
-           | Concave(s_l, p_l) =>
-             let* mold =
-               LangUtil.mold_of_token(kid, s_l, t)
-               |> Result.of_option(~error=kid);
-             Mold.tips(L, mold)
-             |> List.exists(
-                  fun
-                  | Tip.Convex => true
-                  | Concave(s_r, p_r) =>
-                    s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
-                )
-               ? Ok(mold) : Error(kid);
-           };
-         },
-         // todo: remove option, added just to get things typechecking
-         Error(Some(sort(terr))),
-       );
+  // let mold_lt = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+  //   Piece.tips(R, face(terr))
+  //   |> List.fold_left(
+  //        (molded, tip: Tip.t) => {
+  //          open Result.Syntax;
+  //          let/ _ = molded;
+  //          switch (tip) {
+  //          | Convex => Error(kid)
+  //          | Concave(s_l, p_l) =>
+  //            let* mold =
+  //              LangUtil.mold_of_token(kid, s_l, t)
+  //              |> Result.of_option(~error=kid);
+  //            Mold.tips(L, mold)
+  //            |> List.exists(
+  //                 fun
+  //                 | Tip.Convex => true
+  //                 | Concave(s_r, p_r) =>
+  //                   s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
+  //               )
+  //              ? Ok(mold) : Error(kid);
+  //          };
+  //        },
+  //        // todo: remove option, added just to get things typechecking
+  //        Error(Some(sort(terr))),
+  //      );
 
-  let mold_eq = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
-    Piece.tips(R, face(terr))
-    |> List.fold_left(
-         (molded, tip: Tip.t) => {
-           switch (tip) {
-           | Convex => molded
-           | Concave(s_l, p_l) =>
-             open Result.Syntax;
-             let/ _ = molded;
-             let* mold =
-               LangUtil.mold_of_token(kid, s_l, t)
-               |> Result.of_option(~error=kid);
-             Mold.tips(L, mold)
-             |> List.exists(
-                  fun
-                  | Tip.Convex => true
-                  | Concave(s_r, p_r) =>
-                    s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
-                )
-               ? Ok(mold) : Error(kid);
-           }
-         },
-         // todo: remove option, added just to get things typechecking
-         Error(Some(sort(terr))),
-       );
+  // let mold_eq = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+  //   Piece.tips(R, face(terr))
+  //   |> List.fold_left(
+  //        (molded, tip: Tip.t) => {
+  //          switch (tip) {
+  //          | Convex => molded
+  //          | Concave(s_l, p_l) =>
+  //            open Result.Syntax;
+  //            let/ _ = molded;
+  //            let* mold =
+  //              LangUtil.mold_of_token(kid, s_l, t)
+  //              |> Result.of_option(~error=kid);
+  //            Mold.tips(L, mold)
+  //            |> List.exists(
+  //                 fun
+  //                 | Tip.Convex => true
+  //                 | Concave(s_r, p_r) =>
+  //                   s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
+  //               )
+  //              ? Ok(mold) : Error(kid);
+  //          }
+  //        },
+  //        // todo: remove option, added just to get things typechecking
+  //        Error(Some(sort(terr))),
+  //      );
 
   let complement = (terr: t) =>
-    Piece.complement_beyond(~side=R, face(terr));
+    Piece.complement_beyond(~side=Dir.R, face(terr));
 };
 
-let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
-  Wald.lt(l.wal, ~kid, r.wal)
-  |> Option.map(((kid, wal)) => Wald.unmk(~l=kid, wal, ~r=r.mel));
+// let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
+//   Wald.lt(l.wal, ~kid, r.wal)
+//   |> Option.map(((kid, wal)) => Wald.unmk(~l=kid, wal, ~r=r.mel));
 
-let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
-  Wald.gt(l.wal, ~kid, r.wal)
-  |> Option.map(((wal, kid)) => Wald.unmk(~l=l.mel, wal, ~r=kid));
+// let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
+//   Wald.gt(l.wal, ~kid, r.wal)
+//   |> Option.map(((wal, kid)) => Wald.unmk(~l=l.mel, wal, ~r=kid));
 
-let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
-  Wald.eq(l.wal, ~kid, r.wal)
-  |> Option.map(((s_l, wal, s_r)) => {
-       let l = Meld.pad(l.mel, ~r=s_l);
-       let r = Meld.pad(~l=s_r, r.mel);
-       Wald.unmk(~l, wal, ~r);
-     });
+// let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
+//   Wald.eq(l.wal, ~kid, r.wal)
+//   |> Option.map(((s_l, wal, s_r)) => {
+//        let l = Meld.pad(l.mel, ~r=s_l);
+//        let r = Meld.pad(~l=s_r, r.mel);
+//        Wald.unmk(~l, wal, ~r);
+//      });
 
-let in_ = (_, ~s as _: Space.t, _) => failwith("todo Terrace.in_");
+// let in_ = (_, ~s as _: Space.t, _) => failwith("todo Terrace.in_");
 
-type cmp =
-  | Lt(Meld.t)
-  | Eq(Meld.t)
-  | Gt(Meld.t);
+// type cmp =
+//   | Lt(Meld.t)
+//   | Eq(Meld.t)
+//   | Gt(Meld.t);
 
-let cmp = (l: R.t, ~kid=Meld.empty(), r: L.t) =>
-  switch (eq(l, ~kid, r)) {
-  | Some(eq) => Some(Eq(eq))
-  | None =>
-    switch (lt(l, ~kid, r), gt(l, ~kid, r)) {
-    | (Some(lt), _) => Some(Lt(lt))
-    | (_, Some(gt)) => Some(Gt(gt))
-    | (None, None) => None
-    }
-  };
+// let cmp = (l: R.t, ~kid=Meld.empty(), r: L.t) =>
+//   switch (eq(l, ~kid, r)) {
+//   | Some(eq) => Some(Eq(eq))
+//   | None =>
+//     switch (lt(l, ~kid, r), gt(l, ~kid, r)) {
+//     | (Some(lt), _) => Some(Lt(lt))
+//     | (_, Some(gt)) => Some(Gt(gt))
+//     | (None, None) => None
+//     }
+//   };

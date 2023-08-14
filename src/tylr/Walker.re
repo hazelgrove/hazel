@@ -3,19 +3,19 @@
 // - height
 // - if there's a middle kid, whether there's a slot that accommodates
 
-module Mold = {
-  [@deriving (sexp, ord)]
-  type t = Gram.Zipper.t(Label.t);
-  module Ord = {
-    type nonrec t = t;
-    let compare = compare;
-  };
-  module Map = Map.Make(Ord);
-  module Set = Set.Make(Ord);
+// module Mold = {
+//   [@deriving (sexp, ord)]
+//   type t = Gram.Zipper.t(Label.t);
+//   module Ord = {
+//     type nonrec t = t;
+//     let compare = compare;
+//   };
+//   module Map = Map.Make(Ord);
+//   module Set = Set.Make(Ord);
 
-  // mold imposes bound on neighbors
-  let bound: (Dir.t, t) => Prec.Bound.t = failwith("todo");
-};
+//   // mold imposes bound on neighbors
+//   let bound: (Dir.t, t) => Prec.Bound.t = failwith("todo");
+// };
 
 // module Slot = {
 //   type t = Gram.Zipper.t(Regex.t);
@@ -87,6 +87,14 @@ module Result = {
 // slightly awkward that input is "static" while output is "dynamic",
 // but need static input for memoization, dynamic output without
 // creating another datatype
+// todo: polymorphic melds
+// note: this is a deterministic-function implementation of
+// non-deterministic relation between two molds and the
+// "walked" slope connecting them (including start and end).
+// in this implementation, the returned result consists of all
+// possible steps from input mold, each step including the end
+// but not the start (the input mold), bc this is easier to work
+// with as output in inner recursion
 let step = (m: Mold.t): Result.t => {
   let rec go = (z: Gram.Zipper.t(Atom.t)) =>
     z.zipper |> Regex.step(R) |> List.map(stop_or_go) |> Result.concat
@@ -99,6 +107,7 @@ let step = (m: Mold.t): Result.t => {
       {lt: [], eq: [Terrace.of_piece(p)]};
     // keep going
     | (Kid(s), _) =>
+      // todo: fix unbound `bound`, compute from kid + ctx
       let bound = Sort.eq(l.sort, s) ? bound : Prec.min;
       let stepped_lt =
         Gram.enter(~from=L, ~bound, s)

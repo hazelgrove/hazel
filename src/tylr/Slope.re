@@ -1,4 +1,4 @@
-open Sexplib.Std;
+  open Sexplib.Std;
 open Util;
 
 module M = {
@@ -44,26 +44,38 @@ module Dn = {
     go([], mel);
   };
 
-  let cons_space = (s: Space.t, dn: t) =>
+  let hsup_space = (s: Space.t, dn: t) =>
     switch (ListUtil.split_last_opt(dn.terrs)) {
     | None => map_space(Space.cat(s), dn)
     | Some((ts, t)) => {...dn, terrs: ts @ [Terrace.R.pad(s, t)]}
     };
-  let cons = (terr: Terrace.R.t, dn: t) => {
+  let hsup = (terr: Terrace.R.t, dn: t) => {
     ...dn,
     terrs: [terr, ...dn.terrs],
   };
-  let uncons = dn =>
+  let llup = dn =>
     ListUtil.split_last_opt(dn.terrs)
     |> Option.map(((terrs, t)) => (t, {...dn, terrs}));
 
   let cat = (l: t, r: t) => {
-    let r = cons_space(l.space, r);
+    let r = hsup_space(l.space, r);
     mk(~s=r.space, r.terrs @ l.terrs);
   };
 
-  let snoc_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
-  let rec snoc =
+  let push_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
+
+  let rec push = (dn: t, ~kid=Meld.empty(), w: Wald.t): Result.t(t, Meld.t) => {
+    let kid = Meld.pad(~l=dn.space, kid);
+    switch (dn.terrs) {
+    | [] => Error(kid)
+    | [hd, ...tl] =>
+
+    };
+  };
+
+
+
+  let rec push =
           (dn: t, ~kid=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
     let kid = Meld.pad(~l=dn.space, kid);
     switch (dn.terrs) {
