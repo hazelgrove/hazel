@@ -11,13 +11,12 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   switch (upat.term) {
   | Var(x) => x == name
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+  | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
   | Parens(up) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | TypeAnn(up, _) => find_var_upat(name, up)
-  | ListLit(l) =>
-    List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
   | _ => false
   };
 };
@@ -27,20 +26,23 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Var(x) => x == name
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_mention(name, body)
+  | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
-  | Ap(u1, u2) => var_mention(name, u1) || var_mention(name, u2)
+  | Test(u)
+  | Parens(u)
+  | UnOp(_, u)
+  | TyAlias(_, _, u) => var_mention(name, u)
+  | Ap(u1, u2)
+  | Seq(u1, u2)
+  | Cons(u1, u2)
+  | ListConcat(u1, u2)
+  | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | If(u1, u2, u3) =>
     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
-  | Seq(u1, u2) => var_mention(name, u1) || var_mention(name, u2)
-  | Test(u) => var_mention(name, u)
-  | Parens(u) => var_mention(name, u)
-  | Cons(u1, u2) => var_mention(name, u1) || var_mention(name, u2)
-  | UnOp(_, u) => var_mention(name, u)
-  | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | Match(g, l) =>
     var_mention(name, g)
     || List.fold_left(
@@ -51,9 +53,6 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
          false,
          l,
        )
-  | ListLit(l) =>
-    List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
-
   | _ => false
   };
 };
@@ -62,24 +61,27 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_applied(name, body)
+  | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
+  | Test(u)
+  | Parens(u)
+  | UnOp(_, u)
+  | TyAlias(_, _, u) => var_applied(name, u)
   | Ap(u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
+  | Cons(u1, u2)
+  | Seq(u1, u2)
+  | ListConcat(u1, u2)
+  | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | If(u1, u2, u3) =>
     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
-  | Seq(u1, u2) => var_applied(name, u1) || var_applied(name, u2)
-  | Test(u) => var_applied(name, u)
-  | Parens(u) => var_applied(name, u)
-  | Cons(u1, u2) => var_applied(name, u1) || var_applied(name, u2)
-  | UnOp(_, u) => var_applied(name, u)
-  | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | Match(g, l) =>
     var_applied(name, g)
     || List.fold_left(
@@ -90,8 +92,6 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
          false,
          l,
        )
-  | ListLit(l) =>
-    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
 
   | _ => false
   };
@@ -137,19 +137,20 @@ let rec find_fn =
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
-  | ListLit(ul) =>
-    List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+  | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | Fun(_, body) => l |> find_fn(name, body)
-  | Ap(u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
+  | Parens(u1)
+  | UnOp(_, u1)
+  | TyAlias(_, _, u1) => l |> find_fn(name, u1)
+  | Ap(u1, u2)
+  | Seq(u1, u2)
+  | Cons(u1, u2)
+  | ListConcat(u1, u2)
+  | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
   | If(u1, u2, u3) =>
     l |> find_fn(name, u1) |> find_fn(name, u2) |> find_fn(name, u3)
-  | Seq(u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
-  | Parens(u1) => l |> find_fn(name, u1)
-  | Cons(u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
-  | UnOp(_, u1) => l |> find_fn(name, u1)
-  | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
   | Match(u1, ul) =>
     List.fold_left(
       (acc, (_, ue)) => {find_fn(name, ue, acc)},
@@ -180,19 +181,22 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
+  | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true
     !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+  | Test(_) => false
+  | TyAlias(_, _, u)
+  | Parens(u) => tail_check(name, u)
+  | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
+  | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
+  | Cons(u1, u2)
+  | ListConcat(u1, u2)
+  | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
   | If(u1, u2, u3) =>
     var_mention(name, u1)
       ? false : tail_check(name, u2) && tail_check(name, u3)
-  | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
-  | Test(_) => false
-  | Parens(u) => tail_check(name, u)
-  | Cons(u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
-  | UnOp(_, u) => !var_mention(name, u)
-  | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
   | Match(g, l) =>
     var_mention(name, g)
       ? false
@@ -203,8 +207,6 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
           true,
           l,
         )
-  | ListLit(l) =>
-    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
 
   | _ => true
   };
