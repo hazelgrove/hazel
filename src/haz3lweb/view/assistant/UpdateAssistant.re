@@ -17,8 +17,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   };
 };
 
-let schedule_prompt =
-    (~settings, ~ctx_init: Ctx.t, zipper: Zipper.t, ~schedule_action): unit =>
+let schedule_prompt = (zipper: Zipper.t, ~schedule_action): unit =>
   switch (
     zipper.caret,
     zipper.relatives.siblings |> snd,
@@ -34,18 +33,7 @@ let schedule_prompt =
   | (Outer, _, [Tile({label: [s], _}), ..._])
       when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
     schedule_action(PerformAction(Select(Term(Current))));
-    schedule_action(
-      Assistant(
-        Prompt(
-          Filler(
-            Some({
-              llm: Azure_GPT4, //Azure_GPT3_5Turbo,
-              prompt_builder: Filler.prompt(~settings, ~ctx_init),
-            }),
-          ),
-        ),
-      ),
-    );
+    schedule_action(Assistant(Prompt(Filler(FillerOptions.init))));
   | _ => ()
   };
 
@@ -99,52 +87,56 @@ let apply =
       )
     };
     Ok(model);
-  | Prompt(Filler(None)) =>
-    print_endline("deprecated");
-    Ok(model);
-  | Prompt(Filler(Some({llm, prompt_builder}))) =>
-    switch (prompt_builder(editor)) {
+  | Prompt(Filler({llm, _} as filter_otions)) =>
+    let schedule_if_auto = action =>
+      switch (model.meta.auto.current_script) {
+      | None => ()
+      | Some(name) => schedule_action(SetMeta(Auto(action(name))))
+      };
+    let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+    let add_round = add => schedule_if_auto(name => UpdateResult(name, add));
+    switch (Filler.prompt(filter_otions, ~settings, ~ctx_init, editor)) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
       print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
       OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) =>
-          print_endline("Filler: calling react_error");
-          let ctx_init = Editors.get_ctx_init(~settings, model.editors);
           switch (
             ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
             ChatLSP.Type.mode(~settings, ~ctx_init, editor),
           ) {
           | (Some(init_ctx), Some(mode)) =>
+            add_round(AddRoundOne(settings, init_ctx, mode, response));
             switch (Filler.error_reply(~settings, response, ~init_ctx, ~mode)) {
             | None =>
-              print_endline("first round: no errors.");
-              print_endline("RECEIVED RESPONSE:\n " ++ response);
+              print_endline("first round response:\n " ++ response);
               schedule_action(
                 Assistant(SetBuffer(trim_indents(response))),
               );
-              schedule_action(SetMeta(Auto(EndTest())));
+              schedule_if_auto(_ => EndTest());
             | Some(reply) =>
               print_endline("first round: errors detected:" ++ reply);
               OpenAI.reply_chat(
                 ~llm, prompt, ~assistant=response, ~user=reply, req =>
                 switch (OpenAI.handle_chat(req)) {
                 | Some(response) =>
-                  print_endline("RECEIVED RESPONSE:\n " ++ response);
+                  add_round(AddRoundTwo(settings, init_ctx, mode, response));
+                  print_endline("second round response:\n " ++ response);
                   schedule_action(
                     Assistant(SetBuffer(trim_indents(response))),
                   );
-                  schedule_action(SetMeta(Auto(EndTest())));
+                  schedule_if_auto(_ => EndTest());
                 | None => print_endline("Filler: handler failed")
                 }
               );
-            }
+            };
           | _ =>
-            print_endline("react_error: no CI");
-            schedule_action(Assistant(SetBuffer(response)));
-            schedule_action(SetMeta(Auto(EndTest())));
-          };
+            print_endline(
+              "ERROR: UpdateAssistant: Filler: prompt generation failed",
+            );
+            ();
+          }
         | None => print_endline("Filler: handler failed")
         }
       );
@@ -163,9 +155,7 @@ let apply =
   | AcceptSuggestion =>
     switch (z.selection.mode) {
     | Normal => Ok(model)
-    | Buffer(Solid) =>
-      //print_endline("accept suggestion: basic complete");
-      perform_action(model, Unselect(Some(Right)))
+    | Buffer(Solid) => perform_action(model, Unselect(Some(Right)))
     | Buffer(Amorphous) =>
       switch (TyDi.get_amorphous_buffer_text(z)) {
       | None => Ok(model)
@@ -173,22 +163,26 @@ let apply =
         if we assume that we prevalidate everything we put
         in the amorphous buffer*/
       | Some(completion) =>
-        //print_endline("accept suggestion: smart complete");
         main(model, Paste(completion), state, ~schedule_action)
       }
     }
   | SetBuffer(response) =>
+    print_endline("SetBuffer: response: " ++ response);
     // print_endline("paste into selection: " ++ str);
     switch (Printer.paste_into_zip(Zipper.init(), response)) {
-    | None => Error(CantSuggest)
+    | None =>
+      print_endline("SetBuffer: A");
+      Error(CantSuggest);
     | Some(response_z) =>
+      print_endline("SetBuffer: B");
       let content = Zipper.unselect_and_zip(response_z);
       let z = Zipper.set_buffer(editor.state.zipper, ~content, ~mode=Solid);
       //print_endline("paste into selection suceeds: " ++ Zipper.show(z));
       //HACK(andrew): below is not strictly a insert action...
       let ed = Editor.new_state(Insert(response), z, editor);
       let editors = Editors.put_editor(ed, model.editors);
+      print_endline("SetBuffer: C");
       Ok({...model, editors});
-    }
+    };
   };
 };

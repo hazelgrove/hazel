@@ -15,17 +15,11 @@ type settings_action =
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type filler_options = {
-  llm: OpenAI.chat_models,
-  prompt_builder: Editor.t => option(OpenAI.prompt),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
   | TyDi
   | Weather
   | Oracle
-  | Filler(option(filler_options));
+  | Filler(FillerOptions.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent_action =

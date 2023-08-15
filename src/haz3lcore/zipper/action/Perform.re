@@ -48,13 +48,8 @@ let go_z =
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
-    let p: Piece.t => bool = (
-      fun
-      | Grout(_) => true
-      | _ => false
-    );
-    Move.go(Goal(Piece(p, d)), z)
-    |> Result.of_option(~error=Action.Failure.Cant_move);
+    Move.go(Goal(Piece(Grout, d)), z)
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 

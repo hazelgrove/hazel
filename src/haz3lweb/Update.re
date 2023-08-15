@@ -333,14 +333,9 @@ let rec apply =
       };
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
-      let ctx_init =
-        Editors.get_ctx_init(~settings=model.settings, model.editors);
-      UpdateAssistant.schedule_prompt(
-        ~settings=model.settings,
-        ~ctx_init,
-        editor.state.zipper,
-        ~schedule_action,
-      );
+      /*let ctx_init =
+        Editors.get_ctx_init(~settings=model.settings, model.editors);*/
+      UpdateAssistant.schedule_prompt(editor.state.zipper, ~schedule_action);
       perform_action(model, a);
     | PerformAction(a) when model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
@@ -404,12 +399,7 @@ let rec apply =
         Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
-      let p: Piece.t => bool = (
-        fun
-        | Grout(_) => true
-        | _ => false
-      );
-      perform_action(model, Move(Goal(Piece(p, d))));
+      perform_action(model, Move(Goal(Piece(Grout, d))))
     | Assistant(action) =>
       UpdateAssistant.apply(
         model,
