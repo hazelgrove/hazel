@@ -28,7 +28,7 @@ type fun_examples =
   | VarAnd
   | Tuple2
   | Tuple3
-  | Tag
+  | Ctr
   | Ap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,7 +47,7 @@ type let_examples =
   | Var
   | Tuple2
   | Tuple3
-  | Tag
+  | Ctr
   | Ap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -124,11 +124,12 @@ type pat_sub_form_id =
   | Tuple
   | Tuple2
   | Tuple3
-  | Tag
+  | Ctr
   | Ap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type un_op_sub_form_id =
+  | BoolNot
   | IntMinus;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,6 +144,7 @@ type bin_op_sub_form_id =
   | IntGreaterThan
   | IntGreaterThanEqual
   | IntEqual
+  | IntNotEqual
   | FloatPlus
   | FloatMinus
   | FloatTimes
@@ -153,9 +155,11 @@ type bin_op_sub_form_id =
   | FloatGreaterThan
   | FloatGreaterThanEqual
   | FloatEqual
+  | FloatNotEqual
   | And
   | Or
-  | StringEqual;
+  | StringEqual
+  | StringConcat;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
@@ -167,9 +171,10 @@ type form_id =
   | FloatExp
   | StringExp
   | VarExp
-  | TagExp
+  | CtrExp
   | ListExp
   | ConsExp
+  | ListConcatExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
@@ -183,6 +188,7 @@ type form_id =
   | UnOpExp(un_op_sub_form_id)
   | BinOpExp(bin_op_sub_form_id)
   | CaseExp
+  | TyAliasExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -192,7 +198,7 @@ type form_id =
   | StrPat
   | TrivPat
   | VarPat
-  | TagPat
+  | CtrPat
   | ListLitPat
   | ListNilPat
   | ConsPat
@@ -214,7 +220,13 @@ type form_id =
   | Arrow3Typ
   | TupleTyp
   | Tuple2Typ
-  | Tuple3Typ;
+  | Tuple3Typ
+  | LabelledSumTyp
+  | SumTypUnaryConstructorDef
+  | SumTypNullaryConstructorDef
+  | EmptyHoleTPat
+  | MultiHoleTPat
+  | VarTPat;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -237,9 +249,10 @@ type group_id =
   | FloatExp
   | StringExp
   | VarExp
-  | TagExp
+  | CtrExp
   | ListExp
   | ConsExp
+  | ListConcatExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
@@ -253,6 +266,7 @@ type group_id =
   | UnOpExp(un_op_sub_form_id)
   | BinOpExp(bin_op_sub_form_id)
   | CaseExp
+  | TyAliasExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -262,7 +276,7 @@ type group_id =
   | StrPat
   | TrivPat
   | VarPat
-  | TagPat
+  | CtrPat
   | ListLitPat
   | ListNilPat
   | ConsPat
@@ -284,7 +298,13 @@ type group_id =
   | Arrow3Typ
   | TupleTyp
   | Tuple2Typ
-  | Tuple3Typ;
+  | Tuple3Typ
+  | LabelledSumTyp
+  | SumTypUnaryConstructorDef
+  | SumTypNullaryConstructorDef
+  | EmptyHoleTPat
+  | MultiHoleTPat
+  | VarTPat;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

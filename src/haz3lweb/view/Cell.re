@@ -23,7 +23,9 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
           on_mouseup(_ => inject(Update.Mouseup)),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(Update.PerformAction(Select(Resize(Goal(goal)))));
+            inject(
+              Update.PerformAction(Select(Resize(Goal(Point(goal))))),
+            );
           }),
         ],
       ),
@@ -39,7 +41,7 @@ let mousedown_handler =
       Update.(
         [Mousedown]
         @ additional_updates
-        @ [PerformAction(Move(Goal(goal)))]
+        @ [PerformAction(Move(Goal(Point(goal))))]
       ),
     ),
   );
@@ -109,7 +111,7 @@ let code_cell_view =
                 let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
 
                 let events = [
-                  inject(PerformAction(Move(Goal(goal)))),
+                  inject(PerformAction(Move(Goal(Point(goal))))),
                   inject(
                     Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
                   ),
@@ -211,23 +213,7 @@ let eval_result_footer_view =
     switch (simple) {
     | None => [
         Node.text("No result available. Elaboration follows:"),
-        DHCode.view_tylr(
-          ~settings={
-            evaluate: true,
-            show_case_clauses: true,
-            show_fn_bodies: true,
-            show_casts: true,
-            show_unevaluated_elaboration: false,
-          },
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
-      ]
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
-        Node.text("No result available (exception). Elaboration follows:"),
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings={
             evaluate: true,
             show_case_clauses: true,
@@ -242,7 +228,7 @@ let eval_result_footer_view =
         ),
       ]
     | Some({eval_result, _}) => [
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,
@@ -274,7 +260,7 @@ let editor_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
@@ -287,7 +273,14 @@ let editor_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
   let code_base_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+    Code.view(
+      ~sort=Sort.root,
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings,
+    );
   let deco_view =
     deco(
       ~zipper,
@@ -339,7 +332,7 @@ let editor_with_result_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {

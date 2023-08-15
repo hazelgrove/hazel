@@ -72,8 +72,8 @@ let let_tuple3_ex = {
   term: mk_example("let (x, y, z) = (1, 2, 3) in \nx + y + z"),
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
 };
-let let_tag_ex = {
-  sub_id: Let(Tag),
+let let_ctr_ex = {
+  sub_id: Let(Ctr),
   term: mk_example("let None = None in \n2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
 };
@@ -497,13 +497,13 @@ let let_tuple3_exp: form = {
 let _pat = pat("C");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
-let let_tag_exp_coloring_ids =
+let let_ctr_exp_coloring_ids =
   _pat_def_body_let_exp_coloring_ids(
     Piece.id(_pat),
     Piece.id(_exp_def),
     Piece.id(_exp_body),
   );
-let let_tag_exp: form = {
+let let_ctr_exp: form = {
   let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
@@ -511,11 +511,11 @@ let let_tag_exp: form = {
     _exp_body,
   ];
   {
-    id: LetExp(Tag),
+    id: LetExp(Ctr),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("C")])),
     explanation,
-    examples: [let_tag_ex],
+    examples: [let_ctr_ex],
   };
 };
 let _pat_con = pat("p_con");
@@ -617,6 +617,6 @@ let lets_tuple3: group = {
   forms: [let_tuple3_exp, let_tuple_exp, let_base_exp],
 };
 
-let lets_tag: group = {id: LetExp(Tag), forms: [let_tag_exp, let_base_exp]};
+let lets_ctr: group = {id: LetExp(Ctr), forms: [let_ctr_exp, let_base_exp]};
 
 let lets_ap: group = {id: LetExp(Ap), forms: [let_ap_exp, let_base_exp]};

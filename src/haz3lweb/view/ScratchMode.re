@@ -8,19 +8,29 @@ type state = (Id.t, Editor.t);
 let view =
     (
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      ~editor: Editor.t,
-      ~settings: ModelSettings.t,
-      ~explainThisModel: ExplainThisModel.t,
-      ~result: ModelResult.simple,
+      ~model as
+        {
+          editors,
+          font_metrics,
+          show_backpack_targets,
+          settings,
+          mousedown,
+          explainThisModel,
+          results,
+          _,
+        }: Model.t,
     ) => {
+  let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
-
+  let result =
+    settings.dynamics
+      ? ModelResult.get_simple(
+          ModelResults.lookup(results, ScratchSlide.scratch_key),
+        )
+      : None;
   let color_highlighting: option(ColorSteps.colorMap) =
     if (explainThisModel.highlight && explainThisModel.show) {
       Some(
@@ -50,56 +60,43 @@ let view =
       ~result,
       editor,
     );
-  let ci_view =
+  let bottom_bar =
     settings.statics
       ? [
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~show_lang_doc=explainThisModel.show,
+          ~show_explain_this=explainThisModel.show,
           zipper,
           info_map,
         ),
       ]
       : [];
-  let bottom_bar = div(~attr=Attr.class_("bottom-bar"), ci_view);
-  let right_panel =
+  let sidebar =
     explainThisModel.show && settings.statics
-      ? [
-        ExplainThis.view(
+      ? ExplainThis.view(
           ~inject,
           ~font_metrics,
           ~settings,
           ~doc=explainThisModel,
           Indicated.index(zipper),
           info_map,
-        ),
-      ]
-      : [];
+        )
+      : div([]);
 
   [
     div(
       ~attr=Attr.id("main"),
-      [div(~attr=clss(["editor", "single"]), [editor_view] @ right_panel)],
+      [div(~attr=clss(["editor", "single"]), [editor_view])],
     ),
-    bottom_bar,
-  ];
+    sidebar,
+  ]
+  @ bottom_bar;
 };
 
 let download_slide_state = state => {
   let json_data = ScratchSlide.export(state);
   JsUtil.download_json("hazel-scratchpad", json_data);
-};
-
-let download_slide_init_state = state => {
-  let slide_init_state = ScratchSlide.export_init(state);
-  let contents =
-    "let slide : ScratchSlide.persistent_state = " ++ slide_init_state;
-  JsUtil.download_string_file(
-    ~filename="exported_slide_init_state.ml",
-    ~content_type="text/plain",
-    ~contents,
-  );
 };
 
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
@@ -125,20 +122,6 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       ~tooltip="Import Scratchpad",
     );
 
-  // for pasting into files like LanguageRefSlide.ml (note .ml extension)
-  let export_init_button =
-    SchoolSettings.show_instructor
-      ? Some(
-          Widgets.button(
-            Icons.export,
-            _ => {
-              download_slide_init_state(state);
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Slide Persistent State Value",
-          ),
-        )
-      : None;
   let reset_button =
     Widgets.button(
       Icons.trash,
@@ -148,14 +131,12 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
             "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
           );
         if (confirmed) {
-          inject(ResetSlide);
+          inject(ResetCurrentEditor);
         } else {
           Virtual_dom.Vdom.Effect.Ignore;
         };
       },
       ~tooltip="Reset Scratchpad",
     );
-  [export_button, import_button]
-  @ Option.to_list(export_init_button)
-  @ [reset_button];
+  [export_button, import_button] @ [reset_button];
 };

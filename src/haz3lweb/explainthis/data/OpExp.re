@@ -189,12 +189,12 @@ let bool_and2_ex = {
 };
 let bool_or1_ex = {
   sub_id: OrFalse,
-  term: mk_example("false || 2 < 1"),
+  term: mk_example("false \\/ 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
 };
 let bool_or2_ex = {
   sub_id: OrTrue,
-  term: mk_example("3 < 4 || false"),
+  term: mk_example("3 < 4 \\/ false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
 };
 let str_eq1_ex = {
@@ -207,10 +207,26 @@ let str_eq2_ex = {
   term: mk_example("\"abc\" $== \"abc\""),
   message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
 };
-let _exp = exp("e");
-let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp), exp_id),
+let _unop_exp_coloring_ids =
+    (sf_exp_id: Id.t, ~exp_id: Id.t): list((Id.t, Id.t)) => [
+  (sf_exp_id, exp_id),
 ];
+let _exp = exp("e");
+let bool_unary_not_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
+  _unop_exp_coloring_ids(Piece.id(_exp), ~exp_id);
+let bool_unary_not_exp: form = {
+  let explanation = "Unary not. Performs boolean negation of the [*operand*](%i).";
+  {
+    id: UnOpExp(BoolNot),
+    syntactic_form: [unary_not(), _exp],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+let _exp = exp("e");
+let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
+  _unop_exp_coloring_ids(Piece.id(_exp), ~exp_id);
 let int_unary_minus_exp: form = {
   let explanation = "Unary minus. Performs integer negation of the [*operand*](%i).";
   {
@@ -426,6 +442,26 @@ let int_eq_exp: form = {
 };
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
+let int_neq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let int_neq_exp: form = {
+  let explanation = "Integer inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.";
+  {
+    id: BinOpExp(IntNotEqual),
+    syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
 let float_plus_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(
@@ -624,6 +660,26 @@ let float_eq_exp: form = {
 };
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
+let float_neq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let float_neq_exp: form = {
+  let explanation = "Floating-point inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.";
+  {
+    id: BinOpExp(FloatNotEqual),
+    syntactic_form: [_exp1, space(), fnot_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
 let bool_and_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(
@@ -683,6 +739,31 @@ let str_eq_exp: form = {
     examples: [str_eq1_ex, str_eq2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let str_concat_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let str_concat_exp: form = {
+  let explanation = "String concatenation. Returns the concatenation of the [*left operand*](%i) and the [*right operand*](%i),";
+  {
+    id: BinOpExp(StringConcat),
+    syntactic_form: [_exp1, space(), sconcat(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let bool_un_not: group = {
+  id: UnOpExp(BoolNot),
+  forms: [bool_unary_not_exp],
+};
 
 let int_un_minus: group = {
   id: UnOpExp(IntMinus),
@@ -716,7 +797,12 @@ let int_greater_than_equal: group = {
   forms: [int_gte_exp],
 };
 
-let int_equal: group = {id: BinOpExp(FloatEqual), forms: [int_eq_exp]};
+let int_equal: group = {id: BinOpExp(IntEqual), forms: [int_eq_exp]};
+
+let int_not_equal: group = {
+  id: BinOpExp(IntNotEqual),
+  forms: [int_neq_exp],
+};
 
 let float_plus: group = {id: BinOpExp(FloatPlus), forms: [float_plus_exp]};
 
@@ -762,8 +848,18 @@ let float_greater_than_equal: group = {
 
 let float_equal: group = {id: BinOpExp(FloatEqual), forms: [float_eq_exp]};
 
+let float_not_equal: group = {
+  id: BinOpExp(FloatNotEqual),
+  forms: [float_neq_exp],
+};
+
 let bool_and: group = {id: BinOpExp(And), forms: [bool_and_exp]};
 
 let bool_or: group = {id: BinOpExp(Or), forms: [bool_or_exp]};
 
 let string_equal: group = {id: BinOpExp(StringEqual), forms: [str_eq_exp]};
+
+let string_concat: group = {
+  id: BinOpExp(StringConcat),
+  forms: [str_concat_exp],
+};
