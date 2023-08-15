@@ -50,7 +50,9 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
       Log.update(action);
       new_model;
     }) {
-    | exc => Error(Exception(Printexc.to_string(exc)))
+    | exc =>
+      print_endline("ERROR: Exception during apply:");
+      Error(Exception(Printexc.to_string(exc)));
     }
   ) {
   | Ok(model) => model

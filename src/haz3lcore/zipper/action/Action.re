@@ -3,9 +3,30 @@ open Sexplib.Std;
 open Zipper;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type piece_goal =
+  | Grout
+  | FillMarker;
+
+//TODO(andrew): cleanup
+let fill_marker = "FILL_ME";
+
+let of_piece_goal =
+  fun
+  | Grout => (
+      fun
+      | Piece.Grout(_) => true
+      | _ => false
+    )
+  | FillMarker => (
+      fun
+      | Piece.Tile({label: [t], _}) => t == fill_marker
+      | _ => false
+    );
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type goal =
   | Point(Measured.Point.t)
-  | Piece(Piece.t => bool, Direction.t);
+  | Piece(piece_goal, Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type move =

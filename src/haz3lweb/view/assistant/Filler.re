@@ -3,23 +3,6 @@ open ChatLSP;
 open Util.OptUtil.Syntax;
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type variation = {
-  instructions: bool,
-  syntax_notes: bool,
-  num_samples: int,
-  expected_type: bool,
-  error_round: bool,
-};
-
-let init_variation: variation = {
-  instructions: true,
-  syntax_notes: true,
-  num_samples: 9,
-  expected_type: true,
-  error_round: true,
-};
-
 [@deriving (show({with_path: false}), yojson, sexp)]
 type parse_error = option(string);
 
@@ -250,7 +233,7 @@ let get_samples = (num_samples, samples) =>
 
 let prompt =
     (
-      {instructions, syntax_notes, num_samples, expected_type, _}: variation,
+      {instructions, syntax_notes, num_samples, expected_type, _}: FillerOptions.t,
       ~settings: Settings.t,
       ~ctx_init,
       editor: Editor.t,
@@ -270,8 +253,6 @@ let prompt =
   let prompt = init_prompt(~expected_ty, ~sketch, samples, system_prompt);
   prompt;
 };
-
-let prompt = prompt(init_variation);
 
 let get_top_level_errs = (init_ctx, mode, top_ci: option(Info.exp)) => {
   let self: Self.t =

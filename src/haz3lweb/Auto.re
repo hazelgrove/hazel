@@ -33,10 +33,20 @@ open Haz3lcore;
 type reports('report) = VarMap.t_('report);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type test_results = list(TestStatus.t);
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type updater =
+  | Init
+  | AddRoundOne(Settings.t, Ctx.t, Mode.t, string)
+  | AddRoundTwo(Settings.t, Ctx.t, Mode.t, string)
+  | Complete(option(test_results));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action('report) =
   | StartRun(unit)
   | StartTest(unit)
-  | UpdateResult(string, 'report => 'report)
+  | UpdateResult(string, updater)
   | LogTest(unit)
   | EndTest(unit);
 
@@ -48,9 +58,6 @@ type t('action, 'report) = {
   reports: reports('report),
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type test_results = list((KeywordID.t, TestStatus.t));
-
 let init: t('action, 'report) = {
   current_script: None,
   to_run: [],
@@ -58,18 +65,11 @@ let init: t('action, 'report) = {
 };
 
 [@deriving (show({with_path: false}), yojson, sexp)]
-type first_round =
-  | RoundsDisabled
-  | FirstRoundCorrect
-  | FirstRoundErrors(Filler.round_report);
-
-[@deriving (show({with_path: false}), yojson, sexp)]
 type llm_report = {
   time_start: option(float),
   time_end: option(float),
-  first_round: option(first_round),
-  completed_sketch: option(string),
-  error_report: option(Filler.error_report),
+  first_round: option(Filler.round_report),
+  second_round: option(Filler.round_report),
   tests: option(test_results),
 };
 
@@ -79,12 +79,14 @@ type llm_reports = VarMap.t_(llm_report);
 [@deriving (show({with_path: false}), yojson, sexp)]
 type final_report = {
   time_elapsed: float,
-  completed_sketch: string,
+  rounds: list(Filler.round_report),
+  tests: test_results,
+  num_rounds: int,
   parse_error: bool,
   num_static_errors: int,
   num_tests_passing: int,
-  error_report: Filler.error_report,
-  tests: test_results,
+  num_tests_failing: int,
+  num_tests_indet: int,
 };
 
 [@deriving (show({with_path: false}), yojson, sexp)]
@@ -100,66 +102,70 @@ let blank_llm_report = {
   time_start: None,
   time_end: None,
   first_round: None,
-  completed_sketch: None,
-  error_report: None,
+  second_round: None,
   tests: None,
 };
 
-let init_llm_report = _r => {
+let init_llm_report = _ => {
   time_start: Some(Sys.time()),
   time_end: None,
   first_round: None,
-  completed_sketch: None,
-  error_report: None,
+  second_round: None,
   tests: None,
 };
 
-let complete_llm_reports =
-    (tests, error_report, completed_sketch, report: llm_report) => {
+let add_first_round_results = (first_round, report: llm_report) => {
+  ...report,
+  first_round: Some(first_round),
+};
+
+let add_second_round_results = (second_round, report: llm_report) => {
+  ...report,
+  second_round: Some(second_round),
+};
+
+let complete_llm_reports = (tests, report: llm_report) => {
   ...report,
   tests,
-  error_report: Some(error_report),
-  completed_sketch: Some(completed_sketch),
   time_end: Some(Sys.time()),
 };
 
 let final_report =
-    (
-      {
-        time_start,
-        time_end,
-        first_round: _, // TODO(andrew)
-        completed_sketch,
-        error_report,
-        tests,
-      }: llm_report,
-    )
+    ({time_start, time_end, first_round, second_round, tests, _}: llm_report)
     : final_status => {
-  switch (time_start, time_end, completed_sketch, error_report, tests) {
-  | (
-      Some(time_start),
-      Some(time_end),
-      Some(completed_sketch),
-      Some(error_report),
-      Some(tests),
-    ) =>
-    let (parse_error, num_static_errors) =
-      switch (error_report) {
-      | ParseError(_) => (true, 0)
-      | StaticErrors(errors) => (false, errors |> List.length)
+  switch (time_start, time_end, tests) {
+  | (Some(time_start), Some(time_end), Some(tests)) =>
+    //NOTE: head is last round
+    let rounds =
+      switch (first_round, second_round) {
+      | (None, _) => []
+      | (Some(first), None) => [first]
+      | (Some(first), Some(second)) => [second, first]
       };
-    Ok({
-      parse_error,
-      num_static_errors,
-      num_tests_passing:
-        tests
-        |> List.filter(((_, status)) => status == TestStatus.Pass)
-        |> List.length,
-      time_elapsed: time_end -. time_start,
-      completed_sketch,
-      error_report,
-      tests,
-    });
+    let num_rounds = List.length(rounds);
+    switch (rounds) {
+    | [] => Error("Incomplete report: No rounds recorded")
+    | [final_round, ..._] =>
+      let (parse_error, num_static_errors) =
+        switch (final_round.error_report) {
+        | ParseError(_) => (true, 0)
+        | StaticErrors(errors) => (false, errors |> List.length)
+        };
+      Ok({
+        rounds,
+        parse_error,
+        num_rounds,
+        num_static_errors,
+        num_tests_passing:
+          tests |> List.filter((==)(TestStatus.Pass)) |> List.length,
+        num_tests_failing:
+          tests |> List.filter((==)(TestStatus.Fail)) |> List.length,
+        num_tests_indet:
+          tests |> List.filter((==)(TestStatus.Indet)) |> List.length,
+        time_elapsed: time_end -. time_start,
+        tests,
+      });
+    };
   | _ => Error("Incomplete report")
   };
 };

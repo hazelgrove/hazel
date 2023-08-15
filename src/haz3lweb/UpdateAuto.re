@@ -18,10 +18,10 @@ let get_test_results =
       )
       |> ProgramResult.get_state
       |> EvaluatorState.get_tests
-      |> List.map(((id, instance_report)) =>
+      |> List.map(((_id, instance_report)) =>
            switch (instance_report) {
-           | [] => (id, TestStatus.Indet)
-           | [(_, status, _), ..._] => (id, status)
+           | [] => TestStatus.Indet
+           | [(_, status, _), ..._] => status
            }
          )
       |> Option.some
@@ -37,7 +37,7 @@ let get_test_results =
 
 let go =
     (
-      {settings, meta, _} as model: Model.t,
+      {meta, _} as model: Model.t,
       action: Auto.action(Auto.llm_report),
       ~schedule_action: UpdateAction.t => unit,
     ) => {
@@ -51,10 +51,10 @@ let go =
       meta;
     | _ =>
       schedule_action(SetMeta(Auto(StartTest()))); //TODO: which test?
-      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+      //let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       let auto: UpdateAction.auto_llm = {
         current_script: None,
-        to_run: Scripter.test_scripts(~settings, ~ctx_init),
+        to_run: Scripter.test_scripts,
         reports: VarMap.empty,
       };
       print_endline(
@@ -86,17 +86,15 @@ let go =
         to_run,
         reports,
       };
-      schedule_action(
-        SetMeta(Auto(UpdateResult(name, Auto.init_llm_report))),
-      );
+      schedule_action(SetMeta(Auto(UpdateResult(name, Init))));
       {...meta, auto};
     }
   | EndTest () =>
-    switch (meta.auto) {
-    | {current_script: None, _} =>
+    switch (meta.auto.current_script) {
+    | None =>
       print_endline("AUTO: EndTest: Error: no test in progress");
       meta;
-    | {current_script: Some(name), to_run: _, reports: _, _} =>
+    | Some(name) =>
       print_endline("AUTO: EndTest: Ending script: " ++ name);
       //TODO(andrew): abstract this script into cleanup function
       schedule_action(Assistant(AcceptSuggestion));
@@ -104,6 +102,19 @@ let go =
       meta;
     }
   | UpdateResult(name, updater) =>
+    let updater =
+      switch (updater) {
+      | Init => Auto.init_llm_report
+      | Complete(tests) => Auto.complete_llm_reports(tests)
+      | AddRoundOne(settings, init_ctx, mode, filling) =>
+        Auto.add_first_round_results(
+          Filler.mk_round_report(~settings, ~init_ctx, ~mode, filling),
+        )
+      | AddRoundTwo(settings, init_ctx, mode, filling) =>
+        Auto.add_first_round_results(
+          Filler.mk_round_report(~settings, ~init_ctx, ~mode, filling),
+        )
+      };
     let reports =
       switch (VarMap.lookup(meta.auto.reports, name)) {
       | None =>
@@ -130,37 +141,11 @@ let go =
   | LogTest () =>
     switch (meta.auto) {
     | {current_script: Some(name), to_run, reports, _} =>
-      let editor = Editors.get_editor(model.editors);
-      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       print_endline("AUTO: LogTest: Logging script: " ++ name);
-      let info_map =
-        ChatLSP.get_info_from_zipper(
-          ~settings,
-          ~ctx_init,
-          editor.state.zipper,
-        );
-      //TODO(andrew): THIS IS BROKEN ATM; doesnt detect parse errors
-      //see Filler.re (figure out how to get orphans)
-      let error_report =
-        Filler.StaticErrors(ChatLSP.Errors.collect_static(info_map));
-      let completed_sketch = Printer.to_string_editor(editor);
       let test_slide = 7; //TODO(andrew): put somewhere better
       let tests = get_test_results(model, ~test_slide);
       //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
-      schedule_action(
-        SetMeta(
-          Auto(
-            UpdateResult(
-              name,
-              Auto.complete_llm_reports(
-                tests,
-                error_report,
-                completed_sketch,
-              ),
-            ),
-          ),
-        ),
-      );
+      schedule_action(SetMeta(Auto(UpdateResult(name, Complete(tests)))));
       schedule_action(SetMeta(Auto(StartTest())));
       {
         ...meta,

@@ -1,74 +1,50 @@
 open Haz3lcore;
 open Sexplib.Std;
 
-let sketch_slide = 7;
-let fill_marker = "FILL_ME";
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type test = {
   name: string,
   sketch: string,
-  llm: OpenAI.chat_models,
-  prompt_builder: Editor.t => option(OpenAI.prompt),
+  options: FillerOptions.t,
 };
 
-let tests_raw = (~settings, ~ctx_init): list(test) => [
+let tests_raw: list(test) = [
   {
     name: "one",
     sketch: {|let update: (Model, Action) -> Model =
   FILL_ME
 in
 %EXPORT|},
-    llm: Azure_GPT4,
-    prompt_builder: Filler.prompt(~settings, ~ctx_init),
+    options: FillerOptions.init,
   },
   /*
    {
-     name: "one",
+     name: "two",
      sketch: "let lol = FILL_ME in lol + 666",
      llm: Azure_GPT3_5Turbo,
-     prompt_builder: Filler.prompt(~ctx_init),
-   },
-    {
-      name: "two",
-      sketch: "let lol: Int = FILL_ME in lol + 1337",
-      llm: Azure_GPT3_5Turbo,
-      prompt_builder: Filler.prompt(~ctx_init),
-    },
-     {
-         name: "three",
-         sketch: "let lol: Int-> Bool = FILL_ME in lol(4) && lol(5)",
-         llm: Azure_GPT3_5Turbo,
-         prompt_builder: Filler.prompt(~ctx_init),
-       },*/
+     prompt_builder: Filler.prompt(~settings,~ctx_init),
+   },*/
 ];
 
-let is_fill_marker: Piece.t => bool =
-  fun
-  | Tile({label: [t], _}) => t == fill_marker
-  | _ => false;
-
-let mk_script =
-    (~llm, ~prompt_builder, ~sketch: string): list(UpdateAction.t) => {
+let mk_script = (~options, ~sketch: string): list(UpdateAction.t) => {
   [
     Reset,
     SwitchScratchSlide(5),
     PerformAction(Move(Extreme(Up))),
     PerformAction(Select(Resize(Extreme(Down)))),
     Paste(sketch),
-    PerformAction(Move(Goal(Piece(is_fill_marker, Left)))),
+    PerformAction(Move(Goal(Piece(FillMarker, Left)))),
     PerformAction(Select(Term(Current))),
     Paste(Form.expliciter_hole),
     PerformAction(Select(Term(Current))),
-    Assistant(Prompt(Filler(Some({llm, prompt_builder})))),
+    Assistant(Prompt(Filler(options))),
   ];
 };
 
-let test_scripts = (~settings, ~ctx_init: Ctx.t) =>
+let test_scripts =
   List.map(
-    ({name, sketch, llm, prompt_builder}) =>
-      (name, mk_script(~sketch, ~llm, ~prompt_builder)),
-    tests_raw(~settings, ~ctx_init),
+    ({name, sketch, options}) => (name, mk_script(~sketch, ~options)),
+    tests_raw,
   );
 
 /*
