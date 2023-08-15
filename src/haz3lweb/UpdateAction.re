@@ -24,7 +24,7 @@ type t =
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
   | ExportPersistentData
-  | ResetSlide
+  | ResetCurrentEditor
   | Save
   | SetMode(ModelSettings.mode)
   | SwitchScratchSlide(int)
@@ -33,8 +33,7 @@ type t =
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
-  | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Cut
   | Copy
   | Paste(string)
@@ -55,7 +54,6 @@ module Failure = {
     | CantReset
     | FailedToLoad
     | FailedToSwitch
-    | UnrecognizedInput(FailedInput.reason)
     | FailedToPerform(Action.Failure.t)
     | Exception(string);
 };

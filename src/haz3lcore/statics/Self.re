@@ -23,7 +23,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
@@ -31,19 +31,21 @@ type t =
       syn_ty: option(Typ.t),
     }); /* Constructors have special ana logic */
 
-/* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exp =
-  | Free(Var.t)
-  | IsDeferral(Term.UExp.status_deferral)
-  | IsErroneousPartialAp(error_partial_ap)
-  | Common(t)
-and error_partial_ap =
-  | Meaningless
+type error_partial_ap =
+  | NoDeferredArgs
   | ArityMismatch({
       expected: int,
       actual: int,
     });
+
+/* Expressions can also be free variables */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exp =
+  | Free(Var.t)
+  | IsDeferral(Term.UExp.deferral_position)
+  | IsBadPartialAp(error_partial_ap)
+  | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -66,7 +68,12 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     fun
     | Free(_)
     | IsDeferral(_)
-    | IsErroneousPartialAp(_) => None
+    | IsBadPartialAp(_) => None
+    | Common(self) => typ_of(ctx, self);
+
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+  ctx =>
+    fun
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
@@ -94,9 +101,9 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
-    IsErroneousPartialAp(ArityMismatch({expected, actual}));
-  } else if (!List.exists(arg => !Term.UExp.is_deferral(arg), args)) {
-    IsErroneousPartialAp(Meaningless);
+    IsBadPartialAp(ArityMismatch({expected, actual}));
+  } else if (List.for_all(Term.UExp.is_deferral, args)) {
+    IsBadPartialAp(NoDeferredArgs);
   } else {
     let ty_ins =
       List.combine(args, ty_ins)
@@ -107,11 +114,22 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   };
 };
 
-/* The self assigned to things like cases and list literals
-   which can have internal type inconsistencies. */
-let join =
-    (wrap: Typ.t => Typ.t, tys: list(Typ.t), ids: list(Id.t), ctx: Ctx.t): t =>
-  switch (Typ.join_all(ctx, tys)) {
-  | None => NoJoin(List.map2((id, ty) => Typ.{id, ty}, ids, tys))
-  | Some(ty) => Just(wrap(ty))
+let add_source = List.map2((id, ty) => Typ.{id, ty});
+
+let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => ty, add_source(ids, tys))
+  | Some(ty) => Just(ty)
+  };
+
+let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty, ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(List(ty))
+  };
+
+let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | Some(ty) => Just(ty)
   };
