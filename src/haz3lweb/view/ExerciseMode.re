@@ -399,7 +399,7 @@ let toolbar_buttons =
             "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
           );
         if (confirmed) {
-          inject(Update.ResetSlide);
+          inject(Update.ResetCurrentEditor);
         } else {
           Virtual_dom.Vdom.Effect.Ignore;
         };

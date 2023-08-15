@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Haz3lcore;
 
 let ty_view = (cls: string, s: string): Node.t =>
   div(~attr=clss(["typ-view", cls]), [text(s)]);
@@ -8,7 +9,7 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
+let prov_view: Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
   | Free(name) =>
@@ -21,8 +22,12 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   switch (ty) {
   | Unknown(prov) =>
     div(
-      ~attr=clss(["typ-view", "atom", "unknown"]),
-      [text("?"), prov_view(prov)],
+      ~attr=
+        Attr.many([
+          clss(["typ-view", "atom", "unknown"]),
+          Attr.title(Typ.show_type_provenance(prov)),
+        ]),
+      [text("?") /*, prov_view(prov)*/],
     )
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
