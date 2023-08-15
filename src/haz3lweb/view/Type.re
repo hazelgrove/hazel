@@ -76,7 +76,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
           view_ty(t0),
         ]
       | TVarEntry({name: n0, kind: Singleton(t0), _}) => [
-          text("type "),
+          text("Type "),
           text(n0),
           text("="),
           view_ty(t0),
@@ -92,7 +92,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
     div(
       ~attr=clss(["typ-view", "atom", "Module"]),
       [
-        text("Module("),
+        text("Module{"),
         div(
           ~attr=clss(["typ-view", "Module"]),
           // let the earlier definitions to be displayed first
@@ -103,7 +103,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
           )
           @ view_entry(e),
         ),
-        text(")"),
+        text("}"),
       ],
     );
   | Sum(ts) =>
