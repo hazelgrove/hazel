@@ -1622,13 +1622,10 @@ let conapp_exp: form = {
   };
 };
 let _exp_fun = exp("e_fun");
-let _exp_arg = exp("e1");
 let _exp_deferral = deferral();
 let deferred_funapp_exp_coloring_ids =
-    (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t)
-    : list((Id.t, Id.t)) => [
+    (~x_id: Id.t, ~deferred_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp_fun), x_id),
-  (Piece.id(_exp_arg), supplied_id),
   (Piece.id(_exp_deferral), deferred_id),
 ];
 let deferred_funapp_exp: form = {
@@ -1637,18 +1634,14 @@ let deferred_funapp_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_exp();
-  let or_exp = () =>
-    Example.mk_tile(Form.mk_infix("|", Rul, Precedence.or_), []);
-  let or_ = or_exp();
   {
     id: "deferred_funapp_exp",
     syntactic_form: [
       _exp_fun,
       mk_ap_exp([
         [
-          _exp_arg,
-          space(),
-          or_,
+          exp("..."),
+          comma,
           space(),
           _exp_deferral,
           comma,
