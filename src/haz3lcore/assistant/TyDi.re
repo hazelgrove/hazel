@@ -211,6 +211,30 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(suggestion) =>
   /* get names of all var entries consistent with ty */
   List.filter_map(
     fun
+    | Ctx.VarEntry({typ, name, _})
+        when Typ.is_consistent(ctx, ty_expect, typ) =>
+      Some({content: name, strategy: Exp(Common(FromCtx(typ)))})
+    | _ => None,
+    ctx,
+  );
+
+let bound_constructors =
+    (wrap: strategy_common => strategy, ty: Typ.t, ctx: Ctx.t)
+    : list(suggestion) =>
+  /* get names of all constructor entries consistent with ty */
+  List.filter_map(
+    fun
+    | Ctx.ConstructorEntry({typ, name, _})
+        when Typ.is_consistent(ctx, ty, typ) =>
+      Some({content: name, strategy: wrap(FromCtx(typ))})
+    | _ => None,
+    ctx,
+  );
+
+let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(suggestion) =>
+  /* get names of all var entries consistent with ty */
+  List.filter_map(
+    fun
     | Ctx.VarEntry({typ: Arrow(_, ty_out) as ty_arr, name, _})
         when
           Typ.is_consistent(ctx, ty_expect, ty_out)
@@ -221,13 +245,11 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(suggestion) =>
             strategy: Exp(Common(FromCtxAp(ty_out))),
           }); // TODO(andrew): this is a hack
       }
-    | VarEntry({typ, name, _}) when Typ.is_consistent(ctx, ty_expect, typ) =>
-      Some({content: name, strategy: Exp(Common(FromCtx(typ)))})
     | _ => None,
     ctx,
   );
 
-let bound_constructors = (wrap, ty: Typ.t, ctx: Ctx.t): list(suggestion) =>
+let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(suggestion) =>
   /* get names of all constructor entries consistent with ty */
   List.filter_map(
     fun
@@ -236,8 +258,6 @@ let bound_constructors = (wrap, ty: Typ.t, ctx: Ctx.t): list(suggestion) =>
           Typ.is_consistent(ctx, ty, ty_out)
           && !Typ.is_consistent(ctx, ty, ty_arr) =>
       Some({content: name ++ "(", strategy: wrap(FromCtxAp(ty_out))}) // TODO(andrew): this is a hack
-    | ConstructorEntry({typ, name, _}) when Typ.is_consistent(ctx, ty, typ) =>
-      Some({content: name, strategy: wrap(FromCtx(typ))})
     | _ => None,
     ctx,
   );
@@ -257,11 +277,100 @@ let suggest_variable = (ci: Info.t): list(suggestion) => {
   switch (ci) {
   | InfoExp({mode, _}) =>
     bound_variables(Mode.ty_of(mode), ctx)
+    @ bound_aps(Mode.ty_of(mode), ctx)
     @ bound_constructors(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
+    @ bound_constructor_aps(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
   | InfoPat({mode, co_ctx, _}) =>
-    bound_constructors(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
-    @ free_variables(Mode.ty_of(mode), ctx, co_ctx)
+    free_variables(Mode.ty_of(mode), ctx, co_ctx)
+    @ bound_constructors(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
+    @ bound_constructor_aps(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
   | InfoTyp(_) => typ_context_entries(ctx)
+  | _ => []
+  };
+};
+
+/**
+   Double-token plan:
+
+   Sometimes the expected type is Ty, but we want to enter something of Ty'
+   because we're going to follow it up with an infix op of type (Ty', _) -> Ty.
+
+   For now let's consider special-casing such situations as opposed to deriving
+   them from the grammar. In the current grammar there are basically 3 classes:
+
+   1. If bool is expected, could be int, float or string (comparisons)
+   2. If list(ty) is expected, could be ty (cons)
+   3. If tuple([ty, ...]) is expected, could be ty (comma)
+
+   2 and 3 probably most useful because they are more specific (as long as ty is),
+   and more peritnently, there is only one such infix op; in this case we can
+   complete them together. 1 is more fraught because we'd need to pick a
+   representative op to show, and we probably wouldn't want to complete that
+   op, forcing the user to backspace if they meant another, so we'd need
+   to implement staged completion.
+
+   So for now let's try:
+   2.1. if expected is list(ty!=unk), suggest "<ty>::"
+   3.1. if expected is tuple([ty!=unk, _...]), suggest "<ty1>,"
+
+   And also maybe:
+   2.2. if expected is list(ty!=unk), suggest "<_=>ty>( )::"
+   3.2. if expected is tuple([ty!=unk, n...]), suggest "<ty1>, , ," (length n-1 commas)
+
+   Note that the latter two aren't going to be perfect in the current system,
+   as they will leave holes to the left of the caret. This can be fixed,
+   but requires fancier buffer insertion logic similar to staged completion.
+
+    */
+
+let suggest_lookahead_variable = (ci: Info.t): list(suggestion) => {
+  let fix_ahead = (suffix, {content, strategy}) => {
+    content: content ++ suffix,
+    strategy,
+  };
+  let ctx = Info.ctx_of(ci);
+  switch (ci) {
+  | InfoExp({mode, _}) =>
+    let exp_refs = ty =>
+      bound_variables(ty, ctx)
+      @ bound_constructors(x => Exp(Common(x)), ty, ctx);
+    let exp_aps = ty =>
+      bound_aps(ty, ctx)
+      @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
+    switch (Mode.ty_of(mode)) {
+    | List(ty) =>
+      List.map(fix_ahead(" )::"), exp_aps(ty))
+      @ List.map(fix_ahead("::"), exp_refs(ty))
+    | Prod([ty, _]) =>
+      List.map(fix_ahead(" ),"), exp_aps(ty))
+      @ List.map(fix_ahead(","), exp_refs(ty))
+    | Prod([ty, ...rest]) =>
+      let commas =
+        List.init(List.length(rest), _ => ",") |> String.concat(" ");
+      List.map(fix_ahead(" )" ++ commas), exp_aps(ty))
+      @ List.map(fix_ahead("" ++ commas), exp_refs(ty));
+    | _ => []
+    };
+  | InfoPat({mode, co_ctx, _}) =>
+    let pat_refs = ty =>
+      free_variables(ty, ctx, co_ctx)
+      @ bound_constructors(x => Pat(Common(x)), ty, ctx);
+    let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
+    switch (Mode.ty_of(mode)) {
+    | List(ty) =>
+      List.map(fix_ahead(" )::"), pat_aps(ty))
+      @ List.map(fix_ahead("::"), pat_refs(ty))
+    | Prod([ty, _]) =>
+      List.map(fix_ahead(" ),"), pat_aps(ty))
+      @ List.map(fix_ahead(","), pat_refs(ty))
+    | Prod([ty, ...rest]) =>
+      let commas =
+        List.init(List.length(rest), _ => ",") |> String.concat(" ");
+      List.map(fix_ahead(" )" ++ commas), pat_aps(ty))
+      @ List.map(fix_ahead("" ++ commas), pat_refs(ty));
+    | _ => []
+    };
+  | InfoTyp(_) => []
   | _ => []
   };
 };
@@ -283,6 +392,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(suggestion) => {
     suggest_operand(ci)
     @ suggest_leading(ci)
     @ suggest_variable(ci)
+    @ suggest_lookahead_variable(ci)
     |> List.sort(compare_suggestions)
   )
   @ (suggest_operator(ci) |> List.sort(compare_suggestions));
