@@ -70,7 +70,7 @@ module rec UExp: {
     | ListLit(list(t))
     | Fun(UPat.t, t)
     | Record(list(t))
-    | Var(Token.t)
+    | Var(string)
     | Assign(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
@@ -83,7 +83,7 @@ module rec UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    | TypeAnn(Token.t, UTyp.t);
+    | TypeAnn(string, UTyp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
@@ -154,7 +154,7 @@ module rec UExp: {
     | ListLit(list(t))
     | Fun(UPat.t, t)
     | Record(list(t))
-    | Var(Token.t)
+    | Var(string)
     | Assign(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
@@ -167,7 +167,7 @@ module rec UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
-    | TypeAnn(Token.t, UTyp.t);
+    | TypeAnn(string, UTyp.t);
 }
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -179,7 +179,7 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | ListLit(list(t))
-    | Var(Token.t)
+    | Var(string)
     | Record(list(t))
     | Parens(t);
 } = {
@@ -192,7 +192,7 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | ListLit(list(t))
-    | Var(Token.t)
+    | Var(string)
     | Record(list(t))
     | Parens(t);
 }

@@ -1,17 +1,11 @@
+// Parameter i of generate_code is used to keep track of the indentation
 let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
   switch (t) {
   | Bool(true) => "Bool.true"
   | Bool(false) => "Bool.false"
   | Int(n) => string_of_int(n)
-  | Float(f) =>
-    let f_str = string_of_float(f);
-    let last_char = f_str.[String.length(f_str) - 1];
-    if (last_char == '.') {
-      f_str ++ "0";
-    } else {
-      f_str;
-    };
-  | String(s) => s
+  | Float(f) => string_of_float(f)
+  | String(s) => "\"" ++ s ++ "\""
   | ListLit(lst) => "[" ++ list_to_string(lst, i) ++ "]"
   | Fun(pat, body) =>
     "\\ "

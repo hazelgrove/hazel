@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 open Util.Web;
+open Haz3l_roc_transpiler;
 
 type state = (Id.t, Editor.t);
 

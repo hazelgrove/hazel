@@ -22,7 +22,8 @@
   pretty
   lwt
   lwtutil
-  omd)
+  omd
+  haz3l_roc_transpiler)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

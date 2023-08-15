@@ -1,9 +1,15 @@
-let rec get_roc_exp = (t: TermBase.UExp.t, m: Statics.map): TermRoc.UExp.t =>
+open Haz3lcore;
+
+exception UnsupportedInput;
+
+let rec get_roc_exp =
+        (t: Haz3lcore.TermBase.UExp.t, m: Haz3lcore.Statics.map)
+        : TermRoc.UExp.t =>
   switch (t.term) {
-  | Invalid(_) => String("Invalid Not Implemented")
-  | EmptyHole => String("EmptyHole Not Implemented")
-  | MultiHole(_) => String("MultiHole Not Implemented")
-  | Tag(_) => String("Tag Not Implemented")
+  | Invalid(_) => raise(UnsupportedInput)
+  | EmptyHole => raise(UnsupportedInput)
+  | MultiHole(_) => raise(UnsupportedInput)
+  | Tag(_) => raise(UnsupportedInput)
   | Triv => Record([])
   | Bool(b) => Bool(b)
   | Int(n) => Int(n)
@@ -17,9 +23,32 @@ let rec get_roc_exp = (t: TermBase.UExp.t, m: Statics.map): TermRoc.UExp.t =>
     let indent_flag =
       switch (def.term) {
       | Let(_) => true
-      | _ => false
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Tag(_)
+      | Triv
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | Tuple(_)
+      | Var(_)
+      | Ap(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Parens(_)
+      | Cons(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_) => false
       };
     switch (get_typ_ann(pat, m)) {
+    // If the let expression contains another let expression in its definition,
+    // then this new let expression should be indented to indicate its scope
     | Some(p) =>
       if (indent_flag) {
         Seq([
@@ -81,12 +110,13 @@ let rec get_roc_exp = (t: TermBase.UExp.t, m: Statics.map): TermRoc.UExp.t =>
     let scrut = get_roc_exp(t, m);
     Match(scrut, get_roc_exp_match(l, scrut, m));
   }
-and get_roc_exp_list = (list: list(TermBase.UExp.t), m: Statics.map) =>
+and get_roc_exp_list =
+    (list: list(Haz3lcore.TermBase.UExp.t), m: Haz3lcore.Statics.map) =>
   switch (list) {
   | [] => []
   | [x, ...xs] => [get_roc_exp(x, m), ...get_roc_exp_list(xs, m)]
   }
-and get_name = (map: Statics.map, name: string) =>
+and get_name = (map: Haz3lcore.Statics.map, name: string) =>
   if (!String.contains(name, '_')) {
     name;
   } else {
@@ -339,11 +369,11 @@ and get_roc_exp_tl = (tl: TermBase.UPat.t, c: int): (bool, string, int) => {
 }
 and get_roc_pat = (t: TermBase.UPat.t, m: Statics.map): TermRoc.UPat.t =>
   switch (t.term) {
-  | Invalid(_) => String("Invalid Not Implemented")
-  | EmptyHole => String("EmptyHole Not Implemented")
-  | MultiHole(_) => String("MultiHole Not Implemented")
-  | Tag(_) => String("Tag Not Implemented")
-  | Ap(_) => String("Ap Not Implemented")
+  | Invalid(_) => raise(UnsupportedInput)
+  | EmptyHole => raise(UnsupportedInput)
+  | MultiHole(_) => raise(UnsupportedInput)
+  | Tag(_) => raise(UnsupportedInput)
+  | Ap(_) => raise(UnsupportedInput)
   | Triv => Record([])
   | Wild => Wild
   | Int(n) => Int(n)
@@ -378,9 +408,9 @@ and get_roc_pat_cons =
 }
 and get_roc_typ = (t: TermBase.UTyp.t, m: Statics.map): TermRoc.UTyp.t =>
   switch (t.term) {
-  | Invalid(_) => Var("Invalid Not Implemented")
-  | EmptyHole => Var("EmptyHole Not Implemented")
-  | MultiHole(_) => Var("MultiHole Not Implemented")
+  | Invalid(_) => raise(UnsupportedInput)
+  | EmptyHole => raise(UnsupportedInput)
+  | MultiHole(_) => raise(UnsupportedInput)
   | Int => Int
   | Float => Float
   | Bool => Bool
