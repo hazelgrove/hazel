@@ -55,11 +55,11 @@ let var_exp: form = {
 };
 let var_exps: group = {id: VarExp, forms: [var_exp]};
 
-let tag_exp: form = {
-  id: TagExp,
+let ctr_exp: form = {
+  id: CtrExp,
   syntactic_form: [exp("C")],
   expandable_id: None,
-  explanation: "`%s` constructor.",
+  explanation: "`%s` is a constructor for a sum type variant.",
   examples: [],
 };
-let tag: group = {id: TagExp, forms: [tag_exp]};
+let ctr: group = {id: CtrExp, forms: [ctr_exp]};

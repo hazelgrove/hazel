@@ -77,10 +77,10 @@ let var_pat: form = {
   };
 };
 
-let tag_pat: form = {
+let ctr_pat: form = {
   let explanation = "Constructor pattern. Only expressions that match the *`%s` constructor* match this constructor pattern.";
   {
-    id: TagPat,
+    id: CtrPat,
     syntactic_form: [pat("C")],
     expandable_id: None,
     explanation,
@@ -102,4 +102,4 @@ let triv: group = {id: TrivPat, forms: [triv_pat]};
 
 let var: group = {id: VarPat, forms: [var_pat]};
 
-let tag: group = {id: TagPat, forms: [tag_pat]};
+let ctr: group = {id: CtrPat, forms: [ctr_pat]};

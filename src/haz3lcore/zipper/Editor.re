@@ -156,7 +156,7 @@ let can_redo = ed => Option.is_some(redo(ed));
 
 let set_read_only = (ed, read_only) => {...ed, read_only};
 
-let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
+let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
   let segment = Zipper.unselect_and_zip(ed.state.zipper);
   let convex_grout = Segment.convex_grout(segment);
   // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -167,7 +167,7 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
     let id = grout.id;
     let info = Id.Map.find_opt(id, info_map);
     switch (info) {
-    | Some(InfoExp(info_exp)) => Some(info_exp.ctx)
+    | Some(info) => Some(Info.ctx_of(info))
     | _ => None
     };
   };

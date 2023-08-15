@@ -46,10 +46,10 @@ let str_typ: form = {
 };
 
 let var_typ: form = {
-  let explanation = "`%s` type.";
+  let explanation = "`%s` is a type variable.";
   {
     id: VarTyp,
-    syntactic_form: [typ("x")],
+    syntactic_form: [typ("T")],
     expandable_id: None,
     explanation,
     examples: [],

@@ -5,7 +5,8 @@ type all = {
   settings: string,
   explainThisModel: string,
   scratch: string,
-  school: string,
+  exercise: string,
+  examples: string,
   log: string,
 };
 
@@ -14,23 +15,28 @@ type all = {
 type all_f22 = {
   settings: string,
   scratch: string,
-  school: string,
+  exercise: string,
   log: string,
 };
 
 let mk_all = (~instructor_mode): all => {
   print_endline("Mk all");
-  let settings = LocalStorage.Settings.export();
+  let settings = Store.Settings.export();
   print_endline("Settings OK");
-  let explainThisModel = LocalStorage.ExplainThisModel.export();
+  let explainThisModel = Store.ExplainThisModel.export();
   print_endline("ExplainThisModel OK");
-  let scratch = LocalStorage.Scratch.export();
+  let scratch = Store.Scratch.export();
   print_endline("Scratch OK");
-  let specs = School.exercises;
-  let school = LocalStorage.School.export(~specs, ~instructor_mode);
-  print_endline("School OK");
+  let examples = Store.Examples.export();
+  print_endline("Examples OK");
+  let exercise =
+    Store.Exercise.export(
+      ~specs=ExerciseSettings.exercises,
+      ~instructor_mode,
+    );
+  print_endline("Exercise OK");
   let log = Log.export();
-  {settings, explainThisModel, scratch, school, log};
+  {settings, explainThisModel, scratch, examples, exercise, log};
 };
 
 let export_all = (~instructor_mode) => {
@@ -45,15 +51,16 @@ let import_all = (data, ~specs) => {
       {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
-        school: all_f22.school,
+        examples: "",
+        exercise: all_f22.exercise,
         log: all_f22.log,
         explainThisModel: "",
       };
     };
-  let settings = LocalStorage.Settings.import(all.settings);
-  LocalStorage.ExplainThisModel.import(all.explainThisModel);
+  let settings = Store.Settings.import(all.settings);
+  Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  LocalStorage.Scratch.import(all.scratch);
-  LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
+  Store.Scratch.import(all.scratch);
+  Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
   Log.import(all.log);
 };

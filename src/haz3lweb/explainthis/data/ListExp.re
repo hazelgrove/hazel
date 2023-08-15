@@ -52,6 +52,26 @@ let cons_exp: form = {
   };
 };
 
+let _exp_xs = exp("xs");
+let _exp_ys = exp("ys");
+let concat_exp_coloring_ids =
+    (~xs_id: Id.t, ~ys_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_xs), xs_id),
+  (Piece.id(_exp_ys), ys_id),
+];
+let list_concat_exp: form = {
+  let explanation = "List concatenation operator. Creates a list by combining the [*first operand*](%i) and the [*second operand*](%i).";
+  {
+    id: ListConcatExp,
+    syntactic_form: [_exp_xs, space(), list_concat_exp(), space(), _exp_ys],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let listlits: group = {id: ListExp, forms: [list_exp]};
 
 let listcons: group = {id: ConsExp, forms: [cons_exp]};
+
+let listconcats: group = {id: ListConcatExp, forms: [list_concat_exp]};

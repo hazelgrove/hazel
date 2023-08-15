@@ -1,6 +1,6 @@
 let prompt = Ex_OddlyRecursive_prompt.prompt
 
-let exercise : SchoolExercise.spec =
+let exercise : Exercise.spec =
   {
     next_id = 5134;
     title = "Oddly Recursive";

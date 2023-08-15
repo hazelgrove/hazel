@@ -40,7 +40,7 @@ type t = {
 
 let init: t = {
   show: true,
-  highlight: true,
+  highlight: false,
   specificity_open: false,
   forms: [],
   groups: [],

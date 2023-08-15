@@ -77,8 +77,8 @@ let tuple3_fun_ex = {
   term: mk_example("fun (a, b, c) -> a && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
 };
-let tag_fun_ex = {
-  sub_id: Fun(Tag),
+let ctr_fun_ex = {
+  sub_id: Fun(Ctr),
   term: mk_example("fun None -> 1"),
   message: "When given a None constructor argument, the function evaluates 1.",
 };
@@ -406,17 +406,17 @@ let function_tuple3_exp: form = {
 };
 let _pat = pat("C");
 let _exp = exp("e");
-let function_tag_exp_coloring_ids =
+let function_ctr_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
-let function_tag_exp: form = {
+let function_ctr_exp: form = {
   let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
-    id: FunctionExp(Tag),
+    id: FunctionExp(Ctr),
     syntactic_form: form,
     expandable_id: Some((Piece.id(_pat), [pat("C")])),
     explanation,
-    examples: [tag_fun_ex],
+    examples: [ctr_fun_ex],
   };
 };
 let _pat_con = pat("p_con");
@@ -515,9 +515,9 @@ let functions_tuple3 = {
   forms: [function_tuple3_exp, function_tuple_exp, function_exp],
 };
 
-let functions_tag = {
-  id: FunctionExp(Tag),
-  forms: [function_tag_exp, function_exp],
+let functions_ctr = {
+  id: FunctionExp(Ctr),
+  forms: [function_ctr_exp, function_exp],
 };
 
 let functions_ap = {

@@ -444,3 +444,9 @@ let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
       );
     (acc, List.rev(rev_xs));
   };
+
+let assoc_err = (x, xs, err: string) =>
+  switch (List.assoc_opt(x, xs)) {
+  | None => failwith(err)
+  | Some(y) => y
+  };
