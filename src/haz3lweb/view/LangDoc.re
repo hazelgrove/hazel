@@ -1918,7 +1918,10 @@ let get_doc =
       | DeferredAp(x, args) =>
         let x_id = List.nth(x.ids, 0);
         let supplied_id = (-1);
-        let deferred_id = (-2);
+        let deferred_id = {
+          let deferral = List.find(Term.UExp.is_deferral, args);
+          List.nth(deferral.ids, 0);
+        };
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.deferred_funapp_exp_group,
@@ -1938,7 +1941,6 @@ let get_doc =
             ),
             LangDocMessages.deferred_funapp_exp_coloring_ids(
               ~x_id,
-              ~supplied_id,
               ~deferred_id,
             ),
           )
