@@ -1538,7 +1538,7 @@ let let_ap_exp: form = {
 
 let module_ex = {
   sub_id: "module_ex",
-  term: mk_example("module M = \nlet x = 1 in \n in \nM.x"),
+  term: mk_example("module M = \ntype M = Int in\nlet x : M = 1 in\nin\nM.x"),
   message: "The variable M is bound to Module(x = 1), so the expression evaluates to 1.",
   feedback: Unselected,
 };
@@ -3282,7 +3282,7 @@ let module_typ_ex = {
 let module_typ_group = "module_typ_group";
 let module_typ: form = {
   let explanation = {
-    message: "Module type. The module type classifies floating-point values. The inside patterns should be Type alias or Type annotation, specifying the type of member types or members variables",
+    message: "Module type. The module type classifies modules. It restrict the interface of a given module.",
     feedback: Unselected,
   };
   {
