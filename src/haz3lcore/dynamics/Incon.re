@@ -1,64 +1,246 @@
-let rec matches = (e: DHExp.t, p: DHPat.t): bool =>
-  switch (e, p) {
-  | (_, Var(_)) => true
-  | (_, Wild) => true
-  | (BoolLit(x), BoolLit(y)) => x == y
-  | (IntLit(x), IntLit(y)) => x == y
-  | (FloatLit(x), FloatLit(y)) => x == y
-  | (StringLit(x), StringLit(y)) => x == y
-  | (Inj(_, side1, x), Inj(side2, y)) => side1 == side2 && matches(x, y)
-  // I don't know if my algorithm is correct or not.
-  | (ListLit(_, _, _, _, []), ListLit(_, []))
-  | (Tuple([]), Tuple([])) => true
-  | (ListLit(_, _, _, _, [hd1, ...tl1]), ListLit(_, [hd2, ...tl2]))
-  | (Tuple([hd1, ...tl1]), Tuple([hd2, ...tl2])) =>
-    matches(hd1, hd2) && matches(Tuple(tl1), Tuple(tl2))
-  | (_, _) => false
+open Sets;
+
+let is_inconsistent_nums = (xis: list(Constraint.t)): bool => {
+  let (int_set, not_int_list) =
+    List.fold_left(
+      ((int_set, not_int_list), xi: Constraint.t) =>
+        switch (xi) {
+        | Int(n) => (IntSet.add(n, int_set), not_int_list)
+        | NotInt(n) => (int_set, [n, ...not_int_list])
+        | _ => failwith("input can only be Int | NotInt")
+        },
+      (IntSet.empty, []),
+      xis,
+    );
+  if (IntSet.cardinal(int_set) > 1) {
+    true;
+  } else {
+    List.fold_left(
+      (incon, n) =>
+        if (incon) {
+          incon;
+        } else {
+          IntSet.mem(n, int_set);
+        },
+      false,
+      not_int_list,
+    );
+  };
+};
+
+let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
+  let (float_set, not_float_list) =
+    List.fold_left(
+      ((float_set, not_float_list), xi: Constraint.t) =>
+        switch (xi) {
+        | Float(n) => (FloatSet.add(n, float_set), not_float_list)
+        | NotFloat(n) => (float_set, [n, ...not_float_list])
+        | _ => failwith("input can only be Float | NotFloat")
+        },
+      (FloatSet.empty, []),
+      xis,
+    );
+  if (FloatSet.cardinal(float_set) > 1) {
+    true;
+  } else {
+    List.fold_left(
+      (incon, n) =>
+        if (incon) {
+          incon;
+        } else {
+          FloatSet.mem(n, float_set);
+        },
+      false,
+      not_float_list,
+    );
+  };
+};
+
+let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
+  let (string_set, not_string_list) =
+    List.fold_left(
+      ((string_set, not_string_list), xi: Constraint.t) =>
+        switch (xi) {
+        | Float(n) => (StringSet.add(n, string_set), not_string_list)
+        | NotFloat(n) => (string_set, [n, ...not_string_list])
+        | _ => failwith("input can only be Float | NotFloat")
+        },
+      (StringSet.empty, []),
+      xis,
+    );
+  if (StringSet.cardinal(string_set) > 1) {
+    true;
+  } else {
+    List.fold_left(
+      (incon, n) =>
+        if (incon) {
+          incon;
+        } else {
+          StringSet.mem(n, string_set);
+        },
+      false,
+      not_string_list,
+    );
+  };
+};
+
+let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
+  switch (xis) {
+  | [] => false
+  | [xi, ...xis'] =>
+    switch (xi) {
+    | Truth => is_inconsistent(~may, xis')
+    | Falsity => true
+    | Hole => may ? true : is_inconsistent(~may, xis')
+    | And(xi1, xi2) => is_inconsistent(~may, [xi1, xi2, ...xis'])
+    | Or(xi1, xi2) =>
+      is_inconsistent(~may, [xi1, ...xis'])
+      && is_inconsistent(~may, [xi2, ...xis'])
+    | InjL(_) =>
+      if (List.exists(
+            fun
+            | Constraint.InjR(_) => true
+            | _ => false,
+            xis,
+          )) {
+        true;
+      } else {
+        switch (
+          List.partition(
+            fun
+            | Constraint.InjL(_) => true
+            | _ => false,
+            xis,
+          )
+        ) {
+        | (injLs, []) =>
+          let unwrap = List.map(Constraint.unwrapL, injLs);
+          is_inconsistent(~may, unwrap);
+        | (injLs, other) => is_inconsistent(~may, other @ injLs)
+        };
+      }
+    | InjR(_) =>
+      if (List.exists(
+            fun
+            | Constraint.InjL(_) => true
+            | _ => false,
+            xis,
+          )) {
+        true;
+      } else {
+        switch (
+          List.partition(
+            fun
+            | Constraint.InjR(_) => true
+            | _ => false,
+            xis,
+          )
+        ) {
+        | (injRs, []) =>
+          let unwrap = List.map(Constraint.unwrapR, injRs);
+          is_inconsistent(~may, unwrap);
+        | (injRs, other) => is_inconsistent(~may, other @ injRs)
+        };
+      }
+    | Int(_)
+    | NotInt(_) =>
+      switch (
+        List.partition(
+          fun
+          | Constraint.Int(_)
+          | NotInt(_) => true
+          | _ => false,
+          xis,
+        )
+      ) {
+      | (ns, []) => is_inconsistent_nums(ns)
+      | (ns, other) => is_inconsistent(~may, other @ ns)
+      }
+    | Float(_)
+    | NotFloat(_) =>
+      switch (
+        List.partition(
+          fun
+          | Constraint.Float(_)
+          | NotFloat(_) => true
+          | _ => false,
+          xis,
+        )
+      ) {
+      | (fs, []) => is_inconsistent_float(fs)
+      | (fs, other) => is_inconsistent(~may, other @ fs)
+      }
+    | String(_)
+    | NotString(_) =>
+      switch (
+        List.partition(
+          fun
+          | Constraint.String(_)
+          | NotString(_) => true
+          | _ => false,
+          xis,
+        )
+      ) {
+      | (fs, []) => is_inconsistent_string(fs)
+      | (fs, other) => is_inconsistent(~may, other @ fs)
+      }
+    /*
+     * Thoughts for porting the Pair judgment to list:
+     * Two list constraints are automatically inconsistent if they have different length.
+     * So we first find maximum and minimum list lengths, and determine if they are the same.
+     * If so, we rearrange them in item-first order, and check each of them.
+     */
+    | List(_) =>
+      switch (
+        List.partition(
+          fun
+          | Constraint.List(_) => true
+          | _ => false,
+          xis,
+        )
+      ) {
+      | (lists, []) =>
+        let lengths =
+          List.map(x => List.length(Constraint.unwrap_list(x)), lists);
+        // check if all lengths are equal
+        // This could be done with exceptions, but I found nothing related on ReasonML website.
+        let all_lengths_are_equal =
+          List.for_all(x => x == List.hd(lengths), List.tl(lengths));
+        if (all_lengths_are_equal) {
+          let order_by_index =
+            List.fold_left(
+              // ordered_by_index: list(list(t)); item: packed version of list(t)
+              (ordered_by_index, lst) =>
+                List.map2(
+                  // We need a function that maps `(list(t), t)` to list(list(t)
+                  (old_list, item) => [item, ...old_list],
+                  ordered_by_index,
+                  Constraint.unwrap_list(lst),
+                ),
+              // Initial version of empty list, in list(list(t))
+              List.map(x => [x], Constraint.unwrap_list(List.hd(lists))),
+              // Rest of items
+              List.tl(lists),
+            );
+          // Check if there are inconsistency in each element
+          List.fold_left(
+            (previous, item) => previous || is_inconsistent(~may, item),
+            may,
+            order_by_index,
+          );
+        } else {
+          true; // Automatically inconsistent
+        };
+      | (lists, other) => is_inconsistent(~may, other @ lists)
+      }
+    }
   };
 
-let rec does_not_match = (e: DHExp.t, p: DHPat.t): bool =>
-  switch (e, p) {
-  | (BoolLit(x), BoolLit(y)) => x != y
-  | (IntLit(x), IntLit(y)) => x != y
-  | (FloatLit(x), FloatLit(y)) => x != y
-  | (StringLit(x), StringLit(y)) => x != y
-  | (ListLit(_, _, _, _, []), ListLit(_, []))
-  | (Tuple([]), Tuple([])) => false
-  | (ListLit(_, _, _, _, [hd1, ...tl1]), ListLit(_, [hd2, ...tl2]))
-  | (Tuple([hd1, ...tl1]), Tuple([hd2, ...tl2])) =>
-    does_not_match(hd1, hd2) || does_not_match(Tuple(tl1), Tuple(tl2))
-  | (Inj(_, side1, x), Inj(side2, y)) =>
-    side1 != side2 || does_not_match(x, y)
-  | (_, _) => false
-  };
+let is_redundant = (xi_cur: Constraint.t, xi_pre: Constraint.t): bool =>
+  is_inconsistent(
+    ~may=false,
+    Constraint.[And(truify(xi_cur), dual(falsify(xi_pre)))],
+  );
 
-// It is difficult to write indet_match, so I used the theorem to simplify it. Probably it will execute slower.
-let indet_match = (e: DHExp.t, p: DHPat.t): bool =>
-  !(matches(e, p) || does_not_match(e, p));
-
-let rec is_val = (e: DHExp.t): bool =>
-  switch (e) {
-  | BoolLit(_)
-  | IntLit(_)
-  | StringLit(_)
-  | Fun(_, _, _, _)
-  | ListLit(_, _, _, _, [])
-  | Tuple([]) => true
-  | ListLit(_, _, _, _, inner)
-  | Tuple(inner) =>
-    List.fold_left((last_val, e) => last_val && is_val(e), true, inner)
-  | BinBoolOp(_, e1, e2)
-  | BinIntOp(_, e1, e2)
-  | BinFloatOp(_, e1, e2)
-  | BinStringOp(_, e1, e2) => is_val(e1) ? is_val(e2) : false
-  | Inj(_, _, e) => is_val(e)
-  | _ => false
-  };
-
-let rec is_indet = (e: DHExp.t): bool =>
-  switch (e) {
-  | EmptyHole(_, _) => true
-  | NonEmptyHole(_, _, _, e) => is_final(e)
-  | _ => false
-  }
-and is_final = (e: DHExp.t): bool => is_val(e) && is_indet(e);
+let is_exhaustive = (xi: Constraint.t): bool =>
+  is_inconsistent(~may=true, Constraint.[dual(truify(xi))]);
