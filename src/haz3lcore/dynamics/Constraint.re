@@ -105,7 +105,7 @@ let rec truify = (c: t): t =>
   | Or(c1, c2) => Or(truify(c1), truify(c2))
   | InjL(c) => InjL(truify(c))
   | InjR(c) => InjR(truify(c))
-  | List(l) => List.map(c => truify(c), l)
+  | List(l) => List(List.map(c => truify(c), l))
   };
 
 /** substitute Falsity for Hole */
@@ -124,7 +124,7 @@ let rec falsify = (c: t): t =>
   | Or(c1, c2) => Or(falsify(c1), falsify(c2))
   | InjL(c) => InjL(falsify(c))
   | InjR(c) => InjR(falsify(c))
-  | List(l) => List.map(c => falsify(c), l)
+  | List(l) => List(List.map(c => falsify(c), l))
   };
 
 let unwrapL =
