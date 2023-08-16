@@ -1,5 +1,6 @@
 open Util;
 
+// token classes determined by lexer.mll
 // todo: add operator class
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t =

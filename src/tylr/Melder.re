@@ -2,6 +2,7 @@ exception Incomparable(Matter.m, Matter.m);
 
 module Wald = {
   include Wald;
+  // todo return option type
   let cmp =
       (l: p, ~kid=Meld.empty(), r: p)
       : Comparator.Result.t(Slope.Dn.p, Wald.p, Slope.Up.p) => {
