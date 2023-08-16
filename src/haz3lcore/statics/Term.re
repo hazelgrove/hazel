@@ -147,6 +147,26 @@ module UTyp = {
       List.filter_map(to_variant(ctx), uts),
     );
   };
+
+  let rec get_typs = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => get_typs(typ)
+    | Tuple(typs) => Some(typs)
+    | Arrow(_)
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Var(_)
+    | Constructor(_)
+    | Ap(_)
+    | Sum(_) => None
+    };
+  };
 };
 
 module UTPat = {
@@ -418,8 +438,19 @@ module UPat = {
 
   let rec get_pats = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat)
-    | TypeAnn(pat, _) => get_pats(pat)
+    | Parens(pat) => get_pats(pat)
+    | TypeAnn(pat, typ) =>
+      switch (get_pats(pat), UTyp.get_typs(typ)) {
+      | (Some(pats), Some(typs))
+          when List.length(pats) == List.length(typs) =>
+        let annotate_pat = (pat, typ: UTyp.t) => {
+          ids: pat.ids @ typ.ids,
+          term: TypeAnn(pat, typ),
+        };
+        let annotated_pats = List.map2(annotate_pat, pats, typs);
+        Some(annotated_pats);
+      | _ => None
+      }
     | Tuple(pats) => Some(pats)
     | Var(_)
     | Invalid(_)

@@ -49,8 +49,7 @@ let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
 
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: UPat.t, pat_ctx: Ctx.t, def: UExp.t): Ctx.t =>
-  // if (UPat.is_tuple_of_arrows(pat) && UExp.is_tuple_of_functions(def)) {
-  if (Option.is_some(UExp.get_recursive_bindings(pat, def))) {
+  if (UPat.is_tuple_of_arrows(pat) && UExp.is_tuple_of_functions(def)) {
     pat_ctx;
   } else {
     ctx;
