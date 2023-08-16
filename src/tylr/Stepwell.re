@@ -50,11 +50,6 @@ let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t(_)) =>
   | S(s) => cons_space(~onto, s)
   | T(p) => cons(~onto, Terrace.of_piece(p))
   };
-let cons_opt_lexeme = (~onto: Dir.t, lx) =>
-  switch (lx) {
-  | None => Fun.id
-  | Some(lx) => cons_lexeme(~onto, lx)
-  };
 
 let pull_lexeme = (~char=false, ~from: Dir.t, well) =>
   switch (Slopes.pull_lexeme(~char, ~from, get_slopes(well))) {
@@ -66,17 +61,15 @@ let pull_lexeme = (~char=false, ~from: Dir.t, well) =>
     let well = well |> cons_slopes(Slopes.cat(sib, par)) |> assemble;
     (a, well);
   };
-let uncons_opt_lexeme = (~char=false, ~from, rel) =>
-  switch (uncons_lexeme(~from, rel)) {
-  | None => (None, rel)
-  | Some((l, rel)) => (Some(l), rel)
+
+let pull_lexable = (~from: Dir.t, ctx: t): (option(Piece.t), Stepwell.t) =>
+  switch (pull_lexeme(~from=L, ctx)) {
+  | Some((T(p), ctx)) when Piece.(is_finished(p) || is_grout(p)) => (
+      Some(p),
+      ctx,
+    )
+  | _ => (None, ctx)
   };
-let uncons_opt_lexemes =
-    (~char=false, rel: t): ((option(Lexeme.t(Piece.t)) as 'l, 'l), t) => {
-  let (l, rel) = uncons_opt_lexeme(~from=L, rel);
-  let (r, rel) = uncons_opt_lexeme(~from=R, rel);
-  ((l, r), rel);
-};
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.

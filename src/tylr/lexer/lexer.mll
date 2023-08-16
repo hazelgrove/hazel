@@ -64,32 +64,8 @@ rule next_lexeme = parse
     go (); List.rev(!rev)
 
   (* returns label of s if lexed as single token *)
-  let label = fun s ->
+  let label s =
     match lex s with
     | [(lbl, T t)] -> Some lbl
     | _ -> None
-
-  module Relexed = struct
-    open Sexplib.Std
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = (Lexeme.s, int)
-
-    let empty = ([], 0)
-  end
-
-  let relex_post_delete = fun well ->
-    match Stepwell.uncons_opt_lexemes(well) with
-    | ((None | Some (S _ | T {matter: Grout, token: "", _}), _), _)
-    | ((_, None | Some (S _ | T {matter: Grout, token: "", _})), _) ->
-      (Relexed.empty, well)
-    | ((Some (T l), Some (T r)), well') ->
-      begin match lex (l.token ^ r.token) with
-      | T l'::T r'::[] when l' = l.token && r' = r.token ->
-        (Relexed.empty, well)
-      | ls -> ((ls, Token.length r.token), well')
-      end
-
-  let relex_post_insert =
-
 }
