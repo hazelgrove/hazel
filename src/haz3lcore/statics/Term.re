@@ -681,7 +681,7 @@ module UExp = {
   };
 
   let get_fun_var = (pat: UPat.t, e: t) =>
-    if (UPat.is_fun_var(pat) || UPat.is_var(pat) && is_fun(e)) {
+    if ((UPat.is_var(pat) || UPat.is_fun_var(pat)) && is_fun(e)) {
       UPat.get_var(pat);
     } else {
       None;
@@ -724,6 +724,7 @@ module UExp = {
       | Seq(_)
       | Test(_)
       | Cons(_)
+      | ListConcat(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)
