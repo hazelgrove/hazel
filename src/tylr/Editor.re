@@ -84,6 +84,38 @@ let insert_lexeme =
   | T(t) => insert_token(t, well)
   };
 
+// let mark = (rel: t): t => {
+//   switch (uncons_lexeme(~from=R, rel)) {
+//   | None => cons_space(~onto=R, Space.mk(~paths=[0], []), rel)
+//   | Some((lx, rel)) =>
+//     switch (Lexeme.to_piece(lx)) {
+//     | Error(s) =>
+//       let marked = Space.add_paths([0], s);
+//       cons_space(~onto=R, marked, rel);
+//     | Ok(p) =>
+//       let marked = Piece.add_paths([0], p);
+//       cons_r(Terrace.of_piece(marked), rel);
+//     }
+//   };
+// };
+let mark = _ => failwith("todo: implement after grout molding");
+
+let rec remold = (ctx: Stepwell.t): Stepwell.t =>
+  switch (Stepwell.get_slopes(ctx)) {
+  | (_, {terrs: [], _}) => insert_complement(ctx)
+  | (pre, {terrs: [hd, ...tl], space}) =>
+    ctx
+    |> put_slopes((pre, Slope.Up.mk(tl)))
+    |> insert_space(~complement=true, space)
+    // note: insertion may break bridges, in which case
+    // additional elements may be added to suffix to be remolded.
+    // this recursion is safe bc ctx is always decreasing in
+    // either suffix length or number of bridges.
+    |> insert_wald(hd.wald)
+    |> insert_meld(hd.meld)
+    |> remold
+  };
+
 let insert = (s: string, z: Zipper.t): Zipper.t => {
   let tok =
     fun
@@ -108,11 +140,17 @@ let insert = (s: string, z: Zipper.t): Zipper.t => {
     | _ => (ls, ctx)
     };
 
-  // insert remaining lexemes
   ls
+  // insert remaining lexemes
   |> List.fold_left((ctx, lx) => insert_lexeme(lx, ctx), ctx)
+  // save cursor position
+  |> mark
+  |> remold
   |> Zipper.mk
-  // restore cursor position
+  // restore post-insertion cursor position
+  |> Zipper.zip
+  |> Zipper.unzip
+  // restore original cursor position wrt r
   |> move_n(- Token.length(tok(r)))
   |> OptUtil.get_or_fail("bug: lost cursor position");
 };
