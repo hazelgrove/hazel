@@ -450,9 +450,10 @@ module rec Typ: {
       ctrs,
     );
 
-  let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
     switch (ty) {
+    | Member(_, ty) => get_sum_constructors(ctx, ty)
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
