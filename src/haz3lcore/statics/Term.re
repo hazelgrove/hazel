@@ -35,6 +35,7 @@ module UTyp = {
     | List
     | Var
     | Module
+    | ModuleVar
     | Constructor
     | Parens
     | Dot
@@ -90,6 +91,7 @@ module UTyp = {
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
     | Module => "Module type"
+    | ModuleVar => "Module path"
     | Dot => "Member type"
     | Ap => "Constructor application";
 
@@ -651,6 +653,7 @@ module UExp = {
     | Var
     | Let
     | Module
+    | ModuleVar
     | Dot
     | TyAlias
     | Ap
@@ -780,6 +783,7 @@ module UExp = {
     | Var => "Variable reference"
     | Let => "Let expression"
     | Module => "Module expression"
+    | ModuleVar => "Module path"
     | Dot => "Dot access"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"

@@ -30,7 +30,7 @@ let rec get_module =
   switch (ty.term) {
   | Constructor(tag_name)
   | Var(tag_name) =>
-    switch (Ctx.lookup_ctr(ctx, tag_name)) {
+    switch (Ctx.lookup_var(ctx, tag_name)) {
     | Some({typ: Module(inner_ctx), _}) =>
       Some((name ++ tag_name ++ ".", Some(inner_ctx)))
     | _ => Some((name ++ tag_name ++ ".", None))
@@ -40,7 +40,7 @@ let rec get_module =
     let+ (name, ctx) = get_module(name, ctx, t1);
     let inner_ctx = {
       let* ctx = ctx;
-      switch (Ctx.lookup_ctr(ctx, tag_name)) {
+      switch (Ctx.lookup_var(ctx, tag_name)) {
       | Some({typ: Module(inner_ctx), _}) => Some(inner_ctx)
       | _ => None
       };

@@ -226,11 +226,21 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
-  /*
-   Now Tags are not only Constructors but also possibly modules,
-   don't know if necessary to add to free as Var.
-   */
+  | Constructor(ctr) =>
+    /*
+     Now Tags are not only Constructors but also possibly modules,
+     don't know if necessary to add to free as Var.
+     */
+    let self = Self.of_exp_var(ctx, ctr);
+    switch (self) {
+    | Common(_) =>
+      add'(
+        ~self,
+        ~co_ctx=CoCtx.singleton(ctr, UExp.rep_id(uexp), Mode.ty_of(mode)),
+        m,
+      )
+    | Free(_) => atomic(Self.of_ctr(ctx, ctr))
+    };
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -472,11 +482,7 @@ and upat_to_info_map =
         };
       };
       let entry =
-        Ctx.ConstructorEntry({
-          name: ctr,
-          id: UPat.rep_id(upat),
-          typ: ctx_typ,
-        });
+        Ctx.VarEntry({name: ctr, id: UPat.rep_id(upat), typ: ctx_typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
     } else {
       atomic(Self.of_ctr(ctx, ctr));

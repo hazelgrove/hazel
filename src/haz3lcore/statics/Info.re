@@ -472,8 +472,13 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self: Self.exp, ~co_ctx): exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
+  let cls =
+    switch (self, cls) {
+    | (Common(_), Exp(Constructor)) => Cls.Exp(ModuleVar)
+    | _ => cls
+    };
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
   {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
@@ -493,6 +498,7 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
     /* Hack to improve CI display */
     switch (expects, UTyp.cls_of_term(utyp.term)) {
     | (VariantExpected(_), Var) => Cls.Typ(Constructor)
+    | (ModuleExpected, Var) => Cls.Typ(ModuleVar)
     | (_, cls) => Cls.Typ(cls)
     };
   let ty = UTyp.to_typ(ctx, utyp);
