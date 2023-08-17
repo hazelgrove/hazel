@@ -63,7 +63,8 @@ module Deco =
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
       // filter out dark ids (see MakeTerm)
-      |> List.filter(id => id >= 0)
+      //TODO(andrew): dark_id: restore filter?
+      //|> List.filter(id => id >= 0)
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
@@ -129,21 +130,6 @@ module Deco =
         | None => (-1)
         | Some(i) => i
         };
-      //TODO(andrew): get this working
-      // let _segs =
-      //   switch (p) {
-      //   | Tile({children, mold, _}) =>
-      //     children
-      //     |> List.flatten
-      //     |> List.filter(
-      //          fun
-      //          | Piece.Secondary(w) when Secondary.is_linebreak(w) =>
-      //            false
-      //          | _ => true,
-      //        )
-      //     |> List.map(p => (mold, Measured.find_p(p, M.map)))
-      //   | _ => []
-      //   };
       switch (range) {
       | None => []
       | Some(range) =>
@@ -262,7 +248,7 @@ module Deco =
     );
   };
 
-  let color_highlights = (colorings: list((int, string))) => {
+  let color_highlights = (colorings: list((Id.t, string))) => {
     List.map(
       ((id, color)) => {
         term_highlight(~clss=["highlight-code-" ++ color], id)

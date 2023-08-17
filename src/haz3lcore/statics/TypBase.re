@@ -44,7 +44,7 @@ module rec Typ: {
      for type debugging UI. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type source = {
-    id: int,
+    id: Id.t,
     ty: t,
   };
 
@@ -99,7 +99,7 @@ module rec Typ: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type source = {
-    id: int,
+    id: Id.t,
     ty: t,
   };
 
@@ -451,7 +451,7 @@ and Ctx: {
   let extend_dummy_tvar: (t, TypVar.t) => t;
   let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
-  let get_id: entry => int;
+  let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
@@ -510,7 +510,7 @@ and Ctx: {
     | None => None
     };
 
-  let get_id: entry => int =
+  let get_id: entry => Id.t =
     fun
     | VarEntry({id, _})
     | ConstructorEntry({id, _})
