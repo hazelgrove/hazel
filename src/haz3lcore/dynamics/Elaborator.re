@@ -255,8 +255,14 @@ let rec dhexp_of_uexp =
                    if (Term.UExp.is_deferral(arg)) {
                      let name =
                        "~deferred" ++ string_of_int(List.length(pats));
-                     let pat: Term.UPat.t = {ids: [Id.mk()], term: Var(name)};
-                     let arg: Term.UExp.t = {ids: [Id.mk()], term: Var(name)};
+                     let pat: Term.UPat.t = {
+                       ids: [Id.mk()],
+                       term: Var(name),
+                     };
+                     let arg: Term.UExp.t = {
+                       ids: [Id.mk()],
+                       term: Var(name),
+                     };
                      (pats @ [pat], args @ [arg]);
                    } else {
                      (pats, args @ [arg]);
@@ -272,7 +278,7 @@ let rec dhexp_of_uexp =
           let (_info, m) =
             Statics.uexp_to_info_map(~ctx, ~mode, ~ancestors, uexp, m);
           dhexp_of_uexp(m, uexp);
-        };
+        }
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);
