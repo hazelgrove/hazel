@@ -70,7 +70,7 @@ module Terrace = {
     let hd_molded = mold(~eq_only, R.face(terr).mold, ~kid?, t);
     let tl_molded =
       switch (R.unlink(terr)) {
-      | Some((terr, kid', {matter: Tile(_), _} as p))
+      | Some((terr, kid', {material: Tile(_), _} as p))
           when !Piece.is_complete(p) =>
         // let mold = Mold.grout_of_tile(mold);
         // let grout = {...p, mold: Grout(mold)};
