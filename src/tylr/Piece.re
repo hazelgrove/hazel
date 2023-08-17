@@ -22,7 +22,7 @@ module Path = {
 type t = {
   id: Id.t,
   paths: list(Path.t),
-  matter: Matter.m,
+  matter: Material.molded,
   token: Token.t,
 };
 

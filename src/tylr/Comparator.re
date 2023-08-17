@@ -1,7 +1,7 @@
 module Ineq = {
   type t = {
-    eq: list(Slope.t(Matter.m)),
-    neq: list(Slope.t(Matter.m)),
+    eq: list(Slope.t(Material.molded)),
+    neq: list(Slope.t(Material.molded)),
   };
   let empty = {eq: [], lt: []};
   let cat = ({eq, neq}, {eq: eq', neq: neq'}) => {
@@ -16,19 +16,24 @@ module Ineq = {
 
 module Leq = {
   include Ineq; // slopes are dn
-  let pick: (Matter.m, t) => option(Slope.Dn.t(Matter.m)) =
+  let pick: (Material.molded, t) => option(Slope.Dn.t(Material.molded)) =
     failwith("todo");
 };
 
 module Geq = {
   include Ineq; // slopes are up
   let pick:
-    (~to_: Matter.m, ~over: Matter.s, ~from: Matter.m, t) =>
-    option(Slope.Up.t(Matter.m)) =
+    (
+      ~to_: Material.molded,
+      ~over: Material.sorted,
+      ~from: Material.molded,
+      t
+    ) =>
+    option(Slope.Up.t(Material.molded)) =
     failwith("todo");
 };
 
-let step = (d: Dir.t, m: Matter.m): Ineq.t => {
+let step = (d: Dir.t, m: Material.molded): Ineq.t => {
   let rec go = (z: Gram.Zipper.t(Atom.t)) =>
     z.zipper |> Regex.step(d) |> List.map(stop_or_go) |> Result.concat
   and stop_or_go = z =>
@@ -72,7 +77,8 @@ module Result = {
 // to those concluding with `r` and accommodating `kid`
 // postcond: slope is nonempty, top terrace has empty mold
 let leq =
-    (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Dn.m) =>
+    (l: Material.molded, ~kid: option(Material.sorted)=?, r: Material.molded)
+    : option(Slope.Dn.m) =>
   step(R, l)
   |> Leq.filter(failwith("todo only steps ending with r"))
   |> Leq.filter(failwith("todo only slopes that take kid"))
@@ -82,14 +88,15 @@ let leq =
 // to those concluding with `l` and accommodating `kid`
 // postcond: slope is nonempty, top terrace has empty mold
 let geq =
-    (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m): option(Slope.Up.m) =>
+    (l: Material.molded, ~kid: option(Material.sorted)=?, r: Material.molded)
+    : option(Slope.Up.m) =>
   step(L, r)
   |> Geq.filter(failwith("todo only steps ending with r"))
   |> Geq.filter(failwith("todo only slopes that take kid"))
   |> Geq.pick(r);
 
 let cmp =
-    (l: Matter.m, ~kid: option(Matter.s)=?, r: Matter.m)
+    (l: Material.molded, ~kid: option(Material.sorted)=?, r: Material.molded)
     : option(Result.t(Slope.Dn.m, Wald.m, Slope.Up.m)) =>
   switch (leq(l, ~kid?, r), geq(l, ~kid?, r)) {
   | (None, None) => None

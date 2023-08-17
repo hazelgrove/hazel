@@ -1,7 +1,7 @@
 exception Empty_slope;
 
 let mold =
-    (~eq_only, m: Mold.t, ~kid: option(Matter.t(Sort.t))=?, t: Token.t)
+    (~eq_only, m: Mold.t, ~kid: option(Material.t(Sort.t))=?, t: Token.t)
     : option(Slope.Dn.m) =>
   Molds.of_token(t)
   |> List.map(n =>
@@ -45,7 +45,7 @@ let mold =
 
 module Result = {
   include Result;
-  type t = Result.t(Slope.Dn.m, option(Matter.s));
+  type t = Result.t(Slope.Dn.m, option(Material.sorted));
 
   // if both error, then return r
   let pick = (l, r) =>
@@ -60,7 +60,12 @@ module Result = {
 module Terrace = {
   include Terrace;
   let rec mold =
-          (~eq_only=false, terr: R.p, ~kid: option(Matter.s)=?, t: Token.t)
+          (
+            ~eq_only=false,
+            terr: R.p,
+            ~kid: option(Material.sorted)=?,
+            t: Token.t,
+          )
           : Result.t => {
     let hd_molded = mold(~eq_only, R.face(terr).mold, ~kid?, t);
     let tl_molded =
@@ -81,7 +86,8 @@ module Terrace = {
 module Slope = {
   include Slope;
   let rec mold =
-          (slope: Dn.p, ~kid: option(Matter.s)=?, t: Token.t): Result.t =>
+          (slope: Dn.p, ~kid: option(Material.sorted)=?, t: Token.t)
+          : Result.t =>
     switch (slope.terrs) {
     | [] => Error(kid)
     | [hd, ...tl] =>
@@ -101,7 +107,8 @@ module Slope = {
 
 module Stepwell = {
   let rec mold =
-          (well: Stepwell.t, ~kid: option(Matter.s)=?, t: Token.t): Result.t => {
+          (well: Stepwell.t, ~kid: option(Material.sorted)=?, t: Token.t)
+          : Result.t => {
     let (pre, _) = Stepwell.get_slopes(well);
     switch (Slope.mold(pre, ~kid?, t)) {
     | Ok(_) as r => r

@@ -1,4 +1,4 @@
-exception Incomparable(Matter.m, Matter.m);
+exception Incomparable(Material.molded, Material.molded);
 
 module Wald = {
   include Wald;

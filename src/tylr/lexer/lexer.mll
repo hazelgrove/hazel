@@ -35,20 +35,20 @@ rule next_lexeme = parse
     Some (Lexeme.S (Space.of_string (Lexing.lexeme lexbuf)))
   }
 | id_lower {
-    Some (Label.Id_lower, Lexeme.T (Lexing.lexeme lexbuf))
+    Some (Lexeme.T (Label.Id_lower, Lexing.lexeme lexbuf))
   }
 | id_upper {
-    Some (Label.Id_upper, Lexeme.T (Lexing.lexeme lexbuf))
+    Some (Lexeme.T (Label.Id_upper, Lexing.lexeme lexbuf))
   }
 | int_lit {
-    Some (Label.Int_lit, Lexeme.T (Lexing.lexeme lexbuf))
+    Some (Lexeme.T (Label.Int_lit, Lexing.lexeme lexbuf))
   }
 | float_lit {
-    Some (Label.Float_lit, Lexeme.T (Lexing.lexeme lexbuf))
+    Some (Lexeme.T (Label.Float_lit, Lexing.lexeme lexbuf))
   }
 | const {
     let t = Lexing.lexeme lexbuf in
-    Some (Label.Const t, Lexeme.T t)
+    Some (Lexeme.T (Label.Const t, t))
   }
 | eof { None }
 
@@ -58,7 +58,7 @@ rule next_lexeme = parse
     let rev = ref [] in
     let rec go () =
       match next_lexeme buf with
-      | None -> ()
+      | None -> print_endline "unrecognized token"; ()
       | Some lx -> rev := lx::!rev; go ()
     in
     go (); List.rev(!rev)
@@ -66,6 +66,6 @@ rule next_lexeme = parse
   (* returns label of s if lexed as single token *)
   let label s =
     match lex s with
-    | [(lbl, T t)] -> Some lbl
+    | [T (lbl, _)] -> Some lbl
     | _ -> None
 }
