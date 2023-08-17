@@ -487,6 +487,11 @@ let derived_exp =
 /* Add derivable attributes for pattern terms */
 let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
+  let cls =
+    switch (Mode.is_module_ana(mode), cls) {
+    | (true, Pat(Constructor)) => Cls.Pat(ModuleVar)
+    | _ => cls
+    };
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
   {cls, self, mode, ty, status, ctx, ancestors, term: upat};

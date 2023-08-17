@@ -560,7 +560,7 @@ let get_doc =
   };
 
   switch (info) {
-  | Some(InfoExp({term, _})) =>
+  | Some(InfoExp({term, cls, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
@@ -2225,6 +2225,19 @@ let get_doc =
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
+      | Constructor(_) when cls == Exp(ModuleVar) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.module_var_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.module_var_group,
+          doc.explanation.message,
+          [],
+        );
       | Constructor(v) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -2243,7 +2256,7 @@ let get_doc =
         );
       };
     get_message_exp(term.term);
-  | Some(InfoPat({term, _})) =>
+  | Some(InfoPat({term, cls, _})) =>
     switch (bypass_parens_pat(term).term) {
     | EmptyHole =>
       let (doc, options) =
@@ -2572,6 +2585,19 @@ let get_doc =
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
+    | Constructor(_) when cls == Pat(ModuleVar) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.module_var_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.module_var_pat_group,
+        doc.explanation.message,
+        [],
+      );
     | Constructor(con) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2834,6 +2860,19 @@ let get_doc =
           );
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
+    | Constructor(_) when cls == Typ(ModuleVar) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.module_var_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.module_var_group,
+        doc.explanation.message,
+        [],
+      );
     | Constructor(_) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(_) when cls == Typ(Constructor) =>

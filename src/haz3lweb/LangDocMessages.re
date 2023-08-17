@@ -867,6 +867,35 @@ let var_exp: form = {
   };
 };
 
+let module_var_group = "module_var_group";
+let module_var: form = {
+  let explanation = {
+    message: "Module Variable. Retrieves the encapsulated functionality and data elements from a module, obtaining the value and attributes associated with the module's expression that it was linked to.",
+    feedback: Unselected,
+  };
+  {
+    id: "module_var",
+    syntactic_form: [exp("M")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let module_var_pat_group = "module_var_pat_group";
+let module_var_pat: form = {
+  let explanation = {
+    message: "Module variable pattern. All expressions match the *variable pattern*. The matching expression will be packaged as a module and bound to variable `%s`.",
+    feedback: Unselected,
+  };
+  {
+    id: "module_var_pat",
+    syntactic_form: [exp("M")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let ctr_exp_group = "ctr_exp_group";
 let ctr_exp: form = {
   let explanation = {
@@ -3282,7 +3311,7 @@ let module_typ_ex = {
 let module_typ_group = "module_typ_group";
 let module_typ: form = {
   let explanation = {
-    message: "Module type. The module type classifies modules. It restrict the interface of a given module.",
+    message: "Module Signature Type. Specifies the structure and specifications of a module, detailing the types and relationships of its members, including variables and type aliases.",
     feedback: Unselected,
   };
   {
@@ -3659,6 +3688,8 @@ let init = {
     tuple_exp_size2,
     tuple_exp_size3,
     var_exp,
+    module_var,
+    module_var_pat,
     dot_exp,
     ctr_exp,
     let_base_exp,
@@ -3922,6 +3953,8 @@ let init = {
       ]),
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
+    (module_var_group, init_options([(module_var.id, [])])),
+    (module_var_pat_group, init_options([(module_var_pat.id, [])])),
     (dot_exp_group, init_options([(dot_exp.id, [])])),
     (ctr_exp_group, init_options([(ctr_exp.id, [])])),
     (let_base_exp_group, init_options([(let_base_exp.id, [])])),

@@ -387,6 +387,7 @@ module UPat = {
     | Constructor
     | Cons
     | Var
+    | ModuleVar
     | Tuple
     | Parens
     | Ap
@@ -442,6 +443,7 @@ module UPat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | ModuleVar => "Module variable binding"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
