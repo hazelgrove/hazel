@@ -1630,7 +1630,7 @@ let deferred_funapp_exp_coloring_ids =
 ];
 let deferred_funapp_exp: form = {
   let explanation = {
-    message: "Partial function application. Apply the [*function*](%i) to the [*supplied arguments*](%i). The [*deferred arguments*](%i) can be applied in future applications.",
+    message: "Partial function application. Apply the [*function*](%s) to the [*supplied arguments*](%s). The [*deferred arguments*](%s) can be applied in future applications.",
     feedback: Unselected,
   };
   let comma = comma_exp();

@@ -1922,7 +1922,7 @@ let get_doc =
         };
       | DeferredAp(x, args) =>
         let x_id = List.nth(x.ids, 0);
-        let supplied_id = (-1);
+        let supplied_id = Id.mk();
         let deferred_id = {
           let deferral = List.find(Term.UExp.is_deferral, args);
           List.nth(deferral.ids, 0);
@@ -1939,10 +1939,10 @@ let get_doc =
             options,
             LangDocMessages.deferred_funapp_exp_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-              x_id,
-              supplied_id,
-              deferred_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+              x_id |> Id.to_string,
+              supplied_id |> Id.to_string,
+              deferred_id |> Id.to_string,
             ),
             LangDocMessages.deferred_funapp_exp_coloring_ids(
               ~x_id,
