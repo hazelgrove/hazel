@@ -118,7 +118,7 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
 let rec dhexp_of_uexp =
         (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -243,47 +243,35 @@ let rec dhexp_of_uexp =
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
       | DeferredAp(fn, args) =>
-        let* c_fn = dhexp_of_uexp(m, fn);
         switch (err_status) {
-        | InHole(BadPartialAp(NoDeferredArgs)) => Some(c_fn)
+        | InHole(BadPartialAp(NoDeferredArgs)) => dhexp_of_uexp(m, fn)
         | InHole(BadPartialAp(ArityMismatch(_))) =>
           Some(DHExp.InvalidText(id, 0, "<inv partial ap>"))
         | _ =>
-          // let mk_tuple = (ctor, xs) =>
-          //   List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
-          // let* ty_fn = fixed_exp_typ(m, fn);
-          // let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
-          // let ty_ins = Typ.matched_args(List.length(args), ty_arg);
-          // /* Substitute all deferrals for new variables */
-          // let+ (pats, c_args, ty_args) =
-          //   List.combine(args, ty_ins)
-          //   |> List.fold_left(
-          //        (acc, (e: Term.UExp.t, ty)) => {
-          //          let* (pats, c_args, ty_args) = acc;
-          //          if (Term.UExp.is_deferral(e)) {
-          //            // Internal variable name for deferrals
-          //            let name =
-          //              "~deferred" ++ string_of_int(List.length(pats));
-          //            Some((
-          //              pats @ [DHPat.Var(name)],
-          //              c_args @ [DHExp.BoundVar(name)],
-          //              ty_args @ [ty],
-          //            ));
-          //          } else {
-          //            let+ c_arg = dhexp_of_uexp(m, e);
-          //            (pats, c_args @ [c_arg], ty_args);
-          //          };
-          //        },
-          //        Some(([], [], [])),
-          //      );
-          // let (pat, c_arg, ty_arg) = (
-          //   mk_tuple(x => DHPat.Tuple(x), pats),
-          //   mk_tuple(x => DHExp.Tuple(x), c_args),
-          //   mk_tuple(x => Typ.Prod(x), ty_args),
-          // );
-          // DHExp.Fun(pat, Arrow(ty_arg, ty_ret), Ap(c_fn, c_arg), None);
-          // let uexp: Term.UExp.t = {ids: [Id.mk()], term: Fun()};
-          dhexp_of_uexp(m, uexp)
+          let (pats, args) =
+            args
+            |> List.fold_left(
+                 ((pats, args), arg) =>
+                   if (Term.UExp.is_deferral(arg)) {
+                     let name =
+                       "~deferred" ++ string_of_int(List.length(pats));
+                     let pat: Term.UPat.t = {ids: [Id.mk()], term: Var(name)};
+                     let arg: Term.UExp.t = {ids: [Id.mk()], term: Var(name)};
+                     (pats @ [pat], args @ [arg]);
+                   } else {
+                     (pats, args @ [arg]);
+                   },
+                 ([], []),
+               );
+          let pat: Term.UPat.t =
+            List.length(pats) == 1
+              ? List.hd(pats) : {ids: [Id.mk()], term: Tuple(pats)};
+          let arg: Term.UExp.t = {ids: [Id.mk()], term: Tuple(args)};
+          let body: Term.UExp.t = {ids: [Id.mk()], term: Ap(fn, arg)};
+          let uexp: Term.UExp.t = {ids: [Id.mk()], term: Fun(pat, body)};
+          let (_info, m) =
+            Statics.uexp_to_info_map(~ctx, ~mode, ~ancestors, uexp, m);
+          dhexp_of_uexp(m, uexp);
         };
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
