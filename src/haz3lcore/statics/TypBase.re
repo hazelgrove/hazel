@@ -432,7 +432,8 @@ and Ctx: {
   type entry =
     | VarEntry(var_entry)
     | ConstructorEntry(var_entry)
-    | TVarEntry(tvar_entry);
+    | TVarEntry(tvar_entry)
+    | TConstructorEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
@@ -471,7 +472,8 @@ and Ctx: {
   type entry =
     | VarEntry(var_entry)
     | ConstructorEntry(var_entry)
-    | TVarEntry(tvar_entry);
+    | TVarEntry(tvar_entry)
+    | TConstructorEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
@@ -480,10 +482,14 @@ and Ctx: {
 
   let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
     extend(ctx, TVarEntry(tvar_entry));
+  //let extend_tConstructor = (ctx: t, tvar_entry: tvar_entry): t =>
+  //  extend(ctx, TConstructorEntry(tvar_entry));
+  //let extend_ctr =
+  //    (ctx: t, name: TypVar.t, id: Id.t, ty1: Typ.t, ty2: Typ.t): t =>
+  //  extend_tConstructor(ctx, {name, id, kind: Arrow(ty1, ty2)});
 
   let extend_alias = (ctx: t, name: TypVar.t, id: Id.t, ty: Typ.t): t =>
     extend_tvar(ctx, {name, id, kind: Singleton(ty)});
-
   let extend_dummy_tvar = (ctx: t, name: TypVar.t) =>
     extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
 
@@ -494,9 +500,17 @@ and Ctx: {
       | _ => None,
       ctx,
     );
+  //let lookup_tctr = (ctx: t, name: TypVar.t): option(tvar_entry) =>
+  //  List.find_map(
+  //    fun
+  //    | TConstructorEntry(v) when v.name == name => Some(v)
+  //    | _ => None,
+  //    ctx,
+  //  );
 
   let lookup_alias = (ctx: t, t: TypVar.t): option(Typ.t) =>
     switch (lookup_tvar(ctx, t)) {
+    | Some({kind: Arrow(ty_in, ty_out), _}) => Some(Arrow(ty_in, ty_out))
     | Some({kind: Singleton(ty), _}) => Some(ty)
     | Some({kind: Abstract, _})
     | None => None
@@ -506,7 +520,8 @@ and Ctx: {
     fun
     | VarEntry({id, _})
     | ConstructorEntry({id, _})
-    | TVarEntry({id, _}) => id;
+    | TVarEntry({id, _}) => id
+    | TConstructorEntry({id, _}) => id;
 
   let lookup_var = (ctx: t, name: string): option(var_entry) =>
     List.find_map(
@@ -583,7 +598,8 @@ and Ctx: {
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
-           | TVarEntry({name, _}) =>
+           | TVarEntry({name, _})
+           | TConstructorEntry({name, _}) =>
              VarSet.mem(name, typ_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
@@ -599,11 +615,13 @@ and Ctx: {
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Arrow(Typ.t, Typ.t)
     | Singleton(Typ.t)
     | Abstract;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Arrow(Typ.t, Typ.t)
     | Singleton(Typ.t)
     | Abstract;
 };

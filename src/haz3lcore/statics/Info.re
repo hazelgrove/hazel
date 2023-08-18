@@ -337,7 +337,11 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    free, and whether a ctr name is a dupe. */
 let status_typ =
     (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
-    : status_typ =>
+    : status_typ => {
+  //Printf.printf("status_ctx: %s\n", TermBase.UTyp.show(term));
+  //Printf.printf("status_expects: %s\n", Typ.show(ty));
+  //Printf.printf("status_term: %s\n", TermBase.UTyp.show(term));
+  //Printf.printf("status_ty: %s\n", Typ.show(ty));
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type(ty))
@@ -375,7 +379,7 @@ let status_typ =
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
   };
-
+};
 let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
@@ -385,6 +389,16 @@ let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))
+  | Ap(t, _) =>
+    switch (t.term) {
+    | Var(name) =>
+      if (Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None) {
+        InHole(ShadowsType(name));
+      } else {
+        NotInHole(Var(name));
+      }
+    | _ => InHole(NotAVar(Other))
+    }
   };
 
 /* Determines whether any term is in an error hole. */

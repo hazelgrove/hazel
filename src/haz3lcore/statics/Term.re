@@ -155,8 +155,8 @@ module UTPat = {
     | Invalid
     | EmptyHole
     | MultiHole
-    | Var;
-
+    | Var
+    | Ap;
   include TermBase.UTPat;
 
   let rep_id = ({ids, _}) => {
@@ -175,14 +175,15 @@ module UTPat = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
+    | Var(_) => Var
+    | Ap(_) => Ap;
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid type alias"
     | MultiHole => "Broken type alias"
     | EmptyHole => "Empty type alias hole"
-    | Var => "Type alias";
+    | Var => "Type alias"
+    | Ap => "Type Application";
 };
 
 module UPat = {

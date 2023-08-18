@@ -379,6 +379,7 @@ and UTPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(TypVar.t)
+    | Ap(t, t)
   and t = {
     ids: list(Id.t),
     term,
@@ -390,6 +391,7 @@ and UTPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(TypVar.t)
+    | Ap(t, t)
   and t = {
     ids: list(Id.t),
     term,

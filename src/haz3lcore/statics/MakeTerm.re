@@ -228,7 +228,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
-          TyAlias(tpat, def, r)
+          Printf.printf(
+            "tpat: %s, def: %s\n",
+            UTPat.show(tpat),
+            UTyp.show(def),
+          );
+          TyAlias(tpat, def, r);
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
@@ -297,10 +302,10 @@ and pat = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(p => Pat(p), ids, {ids, term});
 }
-and pat_term: unsorted => (UPat.term, list(Id.t)) = {
+and pat_term = (unsorted: unsorted): (UPat.term, list(Id.t)) => {
   let ret = (term: UPat.term) => (term, []);
   let hole = unsorted => Term.UPat.hole(kids_of_unsorted(unsorted));
-  fun
+  switch (unsorted) {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
@@ -356,17 +361,19 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | tm => ret(hole(tm));
+  | tm => ret(hole(tm))
+  };
 }
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(ty => Typ(ty), ids, {ids, term});
 }
-and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
+and typ_term = (unsorted: unsorted): (UTyp.term, list(Id.t)) => {
   let ret = (term: UTyp.term) => (term, []);
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
-  fun
+  //Printf.printf("typ_term: %s\n", show_unsorted(unsorted));
+  switch (unsorted) {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
@@ -378,6 +385,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Float"], []) => Float
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when Form.is_type_input(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " => Invalid(t)
@@ -417,17 +425,18 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | tm => ret(hole(tm));
+  | tm => ret(hole(tm))
+  };
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
   return(ty => TPat(ty), ids, {ids, term});
 }
-and tpat_term: unsorted => UTPat.term = {
+and tpat_term = (unsorted: unsorted): UTPat.term => {
   let ret = (term: UTPat.term) => term;
   let hole = unsorted => Term.UTPat.hole(kids_of_unsorted(unsorted));
-  fun
+  switch (unsorted) {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
@@ -440,10 +449,26 @@ and tpat_term: unsorted => UTPat.term = {
       )
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
-  | tm => ret(hole(tm));
+  | Post(TPat(l), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | (["(", ")"], [TPat(arg)]) =>
+          switch (arg.term) {
+          | Invalid(s) when Form.is_type_input(s) =>
+            Ap(l, {ids: arg.ids, term: Var(s)})
+          | _ => ret(hole(tm))
+          }
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Pre(_) as tm => ret(hole(tm))
+  | tm => ret(hole(tm))
+  };
 }
-
 // and rul = unsorted => {
 //   let term = rul_term(unsorted);
 //   let ids = ids(unsorted);
@@ -468,7 +493,6 @@ and rul = (unsorted: unsorted): URul.t => {
   | e => {ids: [], term: Rules(e, [])}
   };
 }
-
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {

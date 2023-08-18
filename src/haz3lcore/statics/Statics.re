@@ -326,6 +326,60 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
+    | Ap(t1, _) =>
+      let constructor =
+        switch (t1.term) {
+        | Var(s) => s
+        | _ => ""
+        };
+      //let arg =
+      //  switch (t2.term) {
+      //  | Var(s) => s
+      //  | _ => ""
+      //  };
+      Printf.printf(
+        "typat: %s, utyp: %s, body:%s \n",
+        UTPat.show(typat),
+        UTyp.show(utyp),
+        UExp.show(body),
+      );
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre =
+          UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, constructor), utyp);
+        switch (utyp.term) {
+        | Sum(_) when List.mem(constructor, Typ.free_vars(ty_pre)) =>
+          let ty_rec =
+            Typ.Rec("α", Typ.subst(Var("α"), constructor, ty_pre));
+          let ctx_def =
+            Ctx.extend_alias(ctx, constructor, UTPat.rep_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+        | _ =>
+          let ty = UTyp.to_typ(ctx, utyp);
+          (
+            ty,
+            ctx,
+            Ctx.extend_alias(ctx, constructor, UTPat.rep_id(typat), ty),
+          );
+        };
+      };
+      //Printf.printf(
+      //  "ty_def: %s, ctx_def: %s, ctx_body: %s \n",
+      //  Typ.show(ty_def),
+      //  Ctx.show(ctx_def),
+      //  Ctx.show(ctx_body),
+      //);
+      let ctx_body =
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) =>
+          Ctx.add_ctrs(ctx_body, constructor, UTyp.rep_id(utyp), sm)
+        | None => ctx_body
+        };
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx=ctx_body, ~mode, body, m);
+      /* Make sure types don't escape their scope */
+      let ty_escape = Typ.subst(ty_def, constructor, ty_body);
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_escape), ~co_ctx, m);
     | Var(_)
     | Invalid(_)
     | EmptyHole
@@ -488,6 +542,7 @@ and utpat_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Invalid(_)
+  | Ap(_)
   | EmptyHole
   | Var(_) => add(m)
   };

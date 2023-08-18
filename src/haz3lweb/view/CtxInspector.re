@@ -25,7 +25,8 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
         Type.view(typ),
       ],
     )
-  | TVarEntry({name, kind, _}) =>
+  | TVarEntry({name, kind, _})
+  | TConstructorEntry({name, kind, _}) =>
     div_c(
       "context-entry",
       [
