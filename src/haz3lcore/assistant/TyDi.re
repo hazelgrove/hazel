@@ -324,7 +324,7 @@ let suggest_variable = (ci: Info.t): list(suggestion) => {
     */
 
 let suggest_lookahead_variable = (ci: Info.t): list(suggestion) => {
-  let fix_ahead = (suffix, {content, strategy}) => {
+  let restrategize = (suffix, {content, strategy}) => {
     content: content ++ suffix,
     strategy,
   };
@@ -339,16 +339,22 @@ let suggest_lookahead_variable = (ci: Info.t): list(suggestion) => {
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (Mode.ty_of(mode)) {
     | List(ty) =>
-      List.map(fix_ahead(" )::"), exp_aps(ty))
-      @ List.map(fix_ahead("::"), exp_refs(ty))
-    | Prod([ty, _]) =>
-      List.map(fix_ahead(" ),"), exp_aps(ty))
-      @ List.map(fix_ahead(","), exp_refs(ty))
-    | Prod([ty, ...rest]) =>
+      List.map(restrategize(" )::"), exp_aps(ty))
+      @ List.map(restrategize("::"), exp_refs(ty))
+    | Prod([ty, ...tys]) =>
       let commas =
-        List.init(List.length(rest), _ => ",") |> String.concat(" ");
-      List.map(fix_ahead(" )" ++ commas), exp_aps(ty))
-      @ List.map(fix_ahead("" ++ commas), exp_refs(ty));
+        List.init(List.length(tys), _ => ",") |> String.concat(" ");
+      List.map(restrategize(" )" ++ commas), exp_aps(ty))
+      @ List.map(restrategize(commas), exp_refs(ty));
+    | Bool =>
+      /* TODO(andrew): these feel like they should at least
+       * be downrated in sort order, or possibly nixed entirely */
+      exp_refs(Int)
+      @ exp_refs(Float)
+      @ exp_refs(String)
+      @ exp_aps(Int)
+      @ exp_aps(Float)
+      @ exp_aps(String)
     | _ => []
     };
   | InfoPat({mode, co_ctx, _}) =>
@@ -358,16 +364,13 @@ let suggest_lookahead_variable = (ci: Info.t): list(suggestion) => {
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
     switch (Mode.ty_of(mode)) {
     | List(ty) =>
-      List.map(fix_ahead(" )::"), pat_aps(ty))
-      @ List.map(fix_ahead("::"), pat_refs(ty))
-    | Prod([ty, _]) =>
-      List.map(fix_ahead(" ),"), pat_aps(ty))
-      @ List.map(fix_ahead(","), pat_refs(ty))
-    | Prod([ty, ...rest]) =>
+      List.map(restrategize(" )::"), pat_aps(ty))
+      @ List.map(restrategize("::"), pat_refs(ty))
+    | Prod([ty, ...tys]) =>
       let commas =
-        List.init(List.length(rest), _ => ",") |> String.concat(" ");
-      List.map(fix_ahead(" )" ++ commas), pat_aps(ty))
-      @ List.map(fix_ahead("" ++ commas), pat_refs(ty));
+        List.init(List.length(tys), _ => ",") |> String.concat(" ");
+      List.map(restrategize(" )" ++ commas), pat_aps(ty))
+      @ List.map(restrategize(commas), pat_refs(ty));
     | _ => []
     };
   | InfoTyp(_) => []
