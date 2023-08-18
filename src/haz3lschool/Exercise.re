@@ -587,6 +587,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
+  /* Multiple stitchings are needed for each exercise
+     (see comments in the stitched type above)
+
+     Stitching is necessary to concatenate terms
+     from different editors, which are then typechecked. */
   let stitch_static = ({eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
@@ -728,7 +733,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       simple_result: ModelResult.simple,
     };
   };
-  let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
+
+  /* Given the evaluation results, collects the
+     relevant information for producing dynamic
+     feedback*/
+  let stitch_dynamic =
+      (state: state, results: option(ModelResults.t))
+      : stitched(DynamicsItem.t) => {
     let {
       test_validation,
       user_impl,

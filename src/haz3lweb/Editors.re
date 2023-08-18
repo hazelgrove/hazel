@@ -69,6 +69,13 @@ let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
+/* Each mode (e.g. Scratch, School) requires
+   elaborating on some number of expressions
+   that are spliced together from the editors
+   in the mode. Each elaborated expression
+   is given a key for later lookup by the mode.
+
+   Used in the Update module */
 let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   switch (editors) {
   | DebugLoad => []
