@@ -59,12 +59,12 @@ module Deco =
   let root_piece_profile =
       (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
     let tiles =
-      // TermIds.find(Piece.id(p), M.terms)
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
-      // filter out dark ids (see MakeTerm)
-      //TODO(andrew): dark_id: restore filter?
-      //|> List.filter(id => id >= 0)
+      /* NOTE(andrew): dark_ids were originally filtered here.
+       * Leaving this comment in place in case issues in the
+       * future are traced back to here.
+       * |> List.filter(id => id >= 0)*/
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));

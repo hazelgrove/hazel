@@ -94,7 +94,6 @@ let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
-let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
