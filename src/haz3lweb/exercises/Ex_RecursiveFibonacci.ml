@@ -3080,4 +3080,6 @@ let exercise : Exercise.spec =
           };
         hints = [];
       };
+    syntax_tests =
+      [ ("fib is recursive", Haz3lschool.SyntaxTest.is_recursive "fib") ];
   }
