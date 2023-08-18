@@ -85,7 +85,11 @@ module Main = {
     let impl_grading = {
       max: point_distribution.impl_grading,
       src: exercise.eds.your_impl.state.zipper |> zipper_pp,
-      percentage: details.impl_grading_report |> ImplGradingReport.percentage,
+      percentage:
+        ImplGradingReport.percentage(
+          details.impl_grading_report,
+          details.syntax_report,
+        ),
     };
     let overall = grading_report |> GradingReport.overall_score;
     let (a, b) = overall;
