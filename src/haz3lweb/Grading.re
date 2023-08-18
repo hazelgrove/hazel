@@ -283,8 +283,9 @@ module SyntaxReport = {
       ~classes=["test-panel"],
       [
         Cell.bolded_caption(
-          "Syntax Report",
-          ~rest=": Syntax of your implementation",
+          "Syntax Validation",
+          ~rest=
+            ": Does your implementation satisfy the syntactic requirements?",
         ),
         individual_reports(syntax_report.hinted_results),
       ],
@@ -298,7 +299,9 @@ module SyntaxReport = {
                   ~attr=Attr.class_("test-text"),
                   [
                     percentage_view(syntax_report.percentage),
-                    text(" of the points will be earned"),
+                    text(
+                      " of the Implementation Validation points will be earned",
+                    ),
                   ],
                 ),
               ],
