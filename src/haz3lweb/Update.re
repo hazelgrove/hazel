@@ -126,12 +126,15 @@ let evaluate_and_schedule =
     ...model,
     results:
       Util.TimeUtil.measure_time(
-        "ModelResults.init", model.settings.benchmark, () =>
-        ModelResults.init(
-          model.settings.dynamics
-            ? Editors.get_spliced_elabs(model.editors) : [],
-        )
-      ),
+        "ModelResults.init", model.settings.benchmark, ()
+        //ModelResults.init performs evaluation on the DHExp value.
+        =>
+          ModelResults.init(
+            model.settings.dynamics
+              //Editors.get_spliced_elabs generates the DHExp.t of the editor.
+              ? Editors.get_spliced_elabs(model.editors) : [],
+          )
+        ),
   };
 
   // if (model.settings.dynamics) {
