@@ -102,6 +102,7 @@ let is_wild = regexp("^" ++ wild ++ "$");
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
+//TODO(andrew): how much of below crap is necessary?
 let is_bad_lit = str =>
   regexp({|^![a-z]*$|}, str)
   || is_bad_int(str)

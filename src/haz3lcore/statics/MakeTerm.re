@@ -34,42 +34,6 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
-type dark_id = Id.t; //TODO(andrew): does this still make sense?
-
-let dark_hole = (~ids=[], s: Sort.t): t => {
-  print_endline("making dark hole");
-  let id =
-    "66666666-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
-  switch (s) {
-  // put dark id last to avoid messing with rep id
-  | Exp => Exp({ids: ids @ [id], term: EmptyHole})
-  | _ => failwith("dark_hole todo")
-  };
-};
-
-// TODO flesh out incomplete cases
-// TODO review dark hole
-let _complete_root =
-  fun
-  | Op(_) as root => root
-  | Pre(tiles, r) as root =>
-    switch (tiles) {
-    | ([(id, tile)], []) =>
-      switch (tile) {
-      | (["("], []) => Op(single(id, (["(", ")"], [r])))
-      | (["let"], []) =>
-        Pre(
-          single(id, (Labels.let_, [r, dark_hole(Exp)])),
-          dark_hole(Exp),
-        )
-      | (["let", "="], [pat]) =>
-        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
-      | _ => root
-      }
-    | _ => root
-    }
-  | root => root;
-
 let is_nary =
     (is_sort: any => option('sort), delim: Token.t, (delims, kids): tiles)
     : option(list('sort)) =>
@@ -137,11 +101,6 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
-let return_dark_hole = (~ids=[], s) => {
-  let hole = dark_hole(~ids, s);
-  map := TermMap.add_all(Term.ids(hole), hole, map^);
-  hole;
-};
 
 let parse_sum_term: UTyp.t => UTyp.variant =
   fun
@@ -162,13 +121,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
-    | None => return_dark_hole(Exp)
+    | None => Exp(exp(unsorted(skel, seg)))
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => return_dark_hole(Exp)
+      | None => Exp(exp(unsorted(skel, seg)))
       | Some(t) =>
         if (t.mold.out == Any) {
-          return_dark_hole(Exp);
+          Exp(exp(unsorted(skel, seg)));
         } else {
           go_s(t.mold.out, skel, seg);
         }
