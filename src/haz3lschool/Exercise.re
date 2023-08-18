@@ -24,6 +24,18 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type predicate = Term.UExp.t => bool;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type hint = string;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_test = (hint, predicate);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_tests = list(syntax_test);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type your_tests('code) = {
     tests: 'code,
     required: int,
@@ -57,6 +69,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     your_impl: 'code,
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
+    syntax_tests,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -114,6 +127,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
       },
+      syntax_tests: p.syntax_tests,
     };
   };
 
@@ -299,6 +313,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       },
     ) => {
       let id = 0;
@@ -344,6 +359,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       };
     };
 
@@ -363,6 +379,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       },
     ) => {
       let prelude = editor_of_serialization(prelude);
@@ -396,6 +413,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       };
     };
 
@@ -560,6 +578,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
           },
+          syntax_tests: spec.syntax_tests,
         },
       },
       instructor_mode,
@@ -942,6 +961,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: hidden_tests_tests,
         hints: [],
       },
+      syntax_tests: [],
     };
   };
 
