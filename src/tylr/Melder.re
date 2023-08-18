@@ -1,21 +1,77 @@
 exception Incomparable(Material.molded, Material.molded);
 
+module Piece = {
+  include Piece;
+
+  let replace = (l: t, r: t): option(t) => {
+    let replaced_l = add_paths(List.map(_ => 0, l.paths), r);
+    let replaced_r = add_paths(List.map(_ => length(l), r.paths), l);
+    switch (l.material, r.material) {
+    | (Grout((l, _)), Grout((r, _))) when Tip.consistent(l, r) =>
+      Some(replaced_l)
+    | (Grout((_, l)), Grout((_, r))) when Tip.consistent(l, r) =>
+      Some(replaced_r)
+    | (Grout((l, _)), Tile(m)) when Mold.consistent(~l, m) =>
+      Some(replaced_l)
+    | (Tile(m), Grout((_, r))) when Mold.consistent(m, ~r) =>
+      Some(replaced_r)
+    | (Tile(m), Tile(r)) when !is_finished(l) && Mold.eq(m, r) =>
+      Some(replaced_l)
+    | (Tile(l), Tile(m)) when Mold.eq(l, m) && !is_finished(r) =>
+      Some(replaced_r)
+    | _ => None
+    };
+  };
+
+  let merge = (l: t, r: t): option(t) =>
+    switch (l.material, r.material) {
+    | (Grout((l, _)), Grout((_, r))) =>
+      Some({...l, material: Grout((l, r)), token: l.token ++ r.token})
+    | _ => None
+    };
+
+  let fuse = (l: t, r: t): option(t) => {
+    open OptUtil.Syntax;
+    let/ () = zip(l, r);
+    let/ () = replace(l, r);
+    merge(l, r);
+  };
+};
+
 module Wald = {
   include Wald;
+
+  let fuse = (l: p, r: p): option(p) =>
+    l
+    |> Chain.fold_right(
+         (p, kid) => Option.map(Padded.link(p, kid)),
+         p_l =>
+           switch (Chain.unlink(r)) {
+           | None => Piece.fuse(p_l, Chain.fst(r)) |> Option.map(of_piece)
+           | Some((p_r, kid_r, tl_r)) =>
+             fuse(p_l, p_r) |> Option.map(p => Chain.link(p, kid_r, tl_r))
+           },
+       );
+
   // todo return option type
   let cmp =
       (l: p, ~kid=Meld.empty(), r: p)
-      : Comparator.Result.t(Slope.Dn.p, Wald.p, Slope.Up.p) => {
-    let m_l = Piece.mold(face(R, l));
-    let m_r = Piece.mold(face(L, r));
-    Comparator.cmp(m_l, ~kid=?Meld.sort(kid), m_r)
-    |> OptUtil.get_or_raise(Incomparable(m_l, m_r))
-    |> Comparator.Result.map(
-         Slope.Dn.bake(~l, ~kid, ~r),
-         Wald.bake(~l=l.wal, ~kid, ~r=r.wal),
-         Slope.Up.bake(~l, ~kid, ~r),
-       );
-  };
+      : Comparator.Result.t(Slope.Dn.p, Wald.p, Slope.Up.p) =>
+    switch (fuse(l, r)) {
+    | Some(w) when Meld.has_no_tokens(kid) =>
+      // note: current behavior removes whitespace between fused pieces
+      Eq(w)
+    | _ =>
+      let m_l = Piece.mold(face(R, l));
+      let m_r = Piece.mold(face(L, r));
+      Comparator.cmp(m_l, ~kid=?Meld.sort(kid), m_r)
+      |> OptUtil.get_or_raise(Incomparable(m_l, m_r))
+      |> Comparator.Result.map(
+           Slope.Dn.bake(~l, ~kid, ~r),
+           Wald.bake(~l=l.wal, ~kid, ~r=r.wal),
+           Slope.Up.bake(~l, ~kid, ~r),
+         );
+    };
 };
 
 module Slope = {
