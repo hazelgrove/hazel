@@ -135,6 +135,13 @@ let get_env_init = (~settings: Settings.t, editors: t): Environment.t =>
   | Examples(_) => Builtins.env_init
   };
 
+/* Each mode (e.g. Scratch, School) requires
+   elaborating on some number of expressions
+   that are spliced together from the editors
+   in the mode. Each elaborated expression
+   is given a key for later lookup by the mode.
+
+   Used in the Update module */
 let get_spliced_elabs =
     (~settings: Settings.t, editors: t)
     : list((ModelResults.key, DHExp.t, Environment.t)) => {

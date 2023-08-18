@@ -66,11 +66,6 @@ module Deco =
       // TermIds.find(Piece.id(p), M.terms)
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
-      // filter out dark ids (see MakeTerm)
-      //TODO(andrew): dark_id: restore filter?
-      //|> List.filter(id => id >= 0)
-      //TODO(andrew): rm this?
-      //|> List.filter(id => id != Hyper.export_id)
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
