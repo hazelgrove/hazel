@@ -35,8 +35,14 @@ let get = (label: Label.t): list(Mold.t) =>
        jank, which is alleviated if we correctly guess that it will
        become an operator. Alternatively, this could be based on
        logic which checks if the token is the prefix of whatever. */
-    Form.regexp("^[a-zA-Z0-9_]$", String.sub(t, 0, 1))
-      ? [Mold.mk_op(Any, [])] : [Mold.mk_bin(Precedence.min, Any, [])]
+    switch (Form.is_potential_operand(t), Form.is_potential_operator(t)) {
+    | (true, false) => [Mold.mk_op(Any, [])]
+    | (false, true) => [Mold.mk_bin(Precedence.min, Any, [])]
+    | (true, true) => failwith("Molds.get: Impossible")
+    | (false, false) => []
+    }
+  //Form.regexp("^[a-zA-Z0-9_]+$", t)
+  //  ? [Mold.mk_op(Any, [])] : [Mold.mk_bin(Precedence.min, Any, [])]
   | (_lbl, None) => [Mold.mk_op(Any, [])]
   };
 
@@ -96,33 +102,36 @@ let instant_expansion: Token.t => (list(Token.t), Direction.t) =
 
 let is_delayed = kw => List.length(delayed_expansion(kw) |> fst) > 1;
 
-let is_instant = kw => List.length(instant_expansion(kw) |> fst) > 1;
+//let is_instant = kw => List.length(instant_expansion(kw) |> fst) > 1;
 
-let append_safe = char =>
-  !is_instant(char)
-  && !Form.is_secondary(char)
-  && !(Form.is_string_delim(char) || Form.is_comment_delim(char));
+//let append_safe = char =>
+//  !is_instant(char)
+//  && !Form.is_secondary(char)
+//  && !(Form.is_string_delim(char) || Form.is_comment_delim(char));
 
 let allow_merge = (l: Token.t, r: Token.t): bool =>
-  Form.is_valid_token(l ++ r)
-  || !(Form.is_valid_token(l) && Form.is_valid_token(r));
+  Form.is_potential_token(l ++ r);
+//  Form.is_valid_token(l ++ r)
+//  || !(Form.is_valid_token(l) && Form.is_valid_token(r));
 // alternatively, require l++r is valid (simpler, more restrictiive)
 
 let allow_append_right = (t: Token.t, char: string): bool =>
-  Form.is_valid_token(t ++ char)
-  || (
-    !Form.is_valid_token(t ++ char)
-    && !(Form.is_valid_token(t) && Form.is_valid_token(char))
-  )
-  && append_safe(char);
+  Form.is_potential_token(t ++ char); //&& append_safe(char);
+/*
+ Form.is_valid_token(t ++ char)
+ || (
+   !Form.is_valid_token(t ++ char)
+   && !(Form.is_valid_token(t) && Form.is_valid_token(char))
+ ) && append_safe(char)*/
 
 let allow_append_left = (char: string, t: Token.t): bool =>
-  Form.is_valid_token(char ++ t)
-  || (!Form.is_valid_token(t) && !Form.is_valid_token(char))
-  && append_safe(char);
+  Form.is_potential_token(t ++ char); // && append_safe(char);
+//  Form.is_valid_token(char ++ t)
+//  || (!Form.is_valid_token(t) && !Form.is_valid_token(char)) && append_safe(char)
 
-let allow_insertion = (char: string, t: Token.t, new_t: Token.t): bool =>
-  Form.is_valid_token(new_t) || !Form.is_valid_token(t) && append_safe(char);
+let allow_insertion = (_char: string, _t: Token.t, new_t: Token.t): bool =>
+  Form.is_potential_token(new_t); // && append_safe(char);
+//  Form.is_valid_token(new_t) || !Form.is_valid_token(t) && append_safe(char);
 
 let delayed_leading_delims = (sort: Sort.t): list(Token.t) =>
   Form.delims

@@ -106,6 +106,7 @@ let infix_delim_tys: list((Token.t, Typ.t)) = [
   ("$==", Bool),
   ("==.", Bool),
   ("==", Bool),
+  ("!", Bool), // maybe doesnt belong here? but blocks autocomplete of ! to !=
   ("!=", Bool),
   ("!=.", Bool),
   ("<", Bool),
