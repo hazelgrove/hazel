@@ -37,7 +37,7 @@ let get = (label: Label.t): list(Mold.t) =>
        logic which checks if the token is the prefix of whatever. */
     switch (Form.is_potential_operand(t), Form.is_potential_operator(t)) {
     | (true, false) => [Mold.mk_op(Any, [])]
-    | (false, true) => [Mold.mk_bin(Precedence.min, Any, [])]
+    | (false, true) => [Mold.mk_bin(Precedence.max, Any, [])]
     | (true, true) => failwith("Molds.get: Impossible")
     | (false, false) => []
     }
