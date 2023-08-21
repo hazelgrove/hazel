@@ -33,6 +33,8 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | TypeConstructorAp(TypVar.t, t)
+
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,6 +93,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | TypeConstructorAp(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -157,6 +160,7 @@ module rec Typ: {
     | Var(_)
     | Rec(_)
     | Sum(_) => precedence_Sum
+    | TypeConstructorAp(_, _)
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
@@ -176,6 +180,7 @@ module rec Typ: {
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
+    | TypeConstructorAp(y, ty) => TypeConstructorAp(y, subst(s, x, ty))
     };
   };
 
@@ -212,6 +217,9 @@ module rec Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (TypeConstructorAp(n1, t1), TypeConstructorAp(n2, t2)) =>
+      n1 == n2 && eq(t1, t2)
+    | (TypeConstructorAp(_), _) => false
     };
   };
 
@@ -234,6 +242,7 @@ module rec Typ: {
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | TypeConstructorAp(_, ty) => free_vars(~bound, ty)
     };
 
   /* Lattice join on types. This is a LUB join in the hazel2
@@ -319,6 +328,14 @@ module rec Typ: {
       let+ ty = join'(ty1, ty2);
       List(ty);
     | (List(_), _) => None
+    | (TypeConstructorAp(name1, ty1), TypeConstructorAp(name2, ty2)) =>
+      if (name1 == name2) {
+        let+ ty = join'(ty1, ty2);
+        TypeConstructorAp(name1, ty);
+      } else {
+        None;
+      }
+    | (TypeConstructorAp(_), _) => None
     };
   }
   and join_sum_entries =
@@ -381,6 +398,8 @@ module rec Typ: {
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | TypeConstructorAp(name, ty) =>
+      TypeConstructorAp(name, normalize(ctx, ty))
     };
   };
 
@@ -417,6 +436,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
     name: Var.t,
+    parameter: Var.t,
     id: Id.t,
     typ: Typ.t,
   };
@@ -424,6 +444,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type tvar_entry = {
     name: TypVar.t,
+    parameter: TypVar.t,
     id: Id.t,
     kind: Kind.t,
   };
@@ -432,15 +453,14 @@ and Ctx: {
   type entry =
     | VarEntry(var_entry)
     | ConstructorEntry(var_entry)
-    | TVarEntry(tvar_entry)
-    | TConstructorEntry(tvar_entry);
+    | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
 
   let extend: (t, entry) => t;
   let extend_tvar: (t, tvar_entry) => t;
-  let extend_alias: (t, TypVar.t, Id.t, Typ.t) => t;
+  let extend_alias: (t, TypVar.t, TypVar.t, Id.t, Typ.t) => t;
   let extend_dummy_tvar: (t, TypVar.t) => t;
   let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
@@ -448,7 +468,7 @@ and Ctx: {
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
-  let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
+  let add_ctrs: (t, TypVar.t, TypVar.t, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
@@ -457,6 +477,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
     name: Var.t,
+    parameter: Var.t,
     id: Id.t,
     typ: Typ.t,
   };
@@ -464,6 +485,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type tvar_entry = {
     name: TypVar.t,
+    parameter: TypVar.t,
     id: Id.t,
     kind: Kind.t,
   };
@@ -472,9 +494,7 @@ and Ctx: {
   type entry =
     | VarEntry(var_entry)
     | ConstructorEntry(var_entry)
-    | TVarEntry(tvar_entry)
-    | TConstructorEntry(tvar_entry);
-
+    | TVarEntry(tvar_entry);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
 
@@ -482,16 +502,25 @@ and Ctx: {
 
   let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
     extend(ctx, TVarEntry(tvar_entry));
-  //let extend_tConstructor = (ctx: t, tvar_entry: tvar_entry): t =>
-  //  extend(ctx, TConstructorEntry(tvar_entry));
-  //let extend_ctr =
-  //    (ctx: t, name: TypVar.t, id: Id.t, ty1: Typ.t, ty2: Typ.t): t =>
-  //  extend_tConstructor(ctx, {name, id, kind: Arrow(ty1, ty2)});
-
-  let extend_alias = (ctx: t, name: TypVar.t, id: Id.t, ty: Typ.t): t =>
-    extend_tvar(ctx, {name, id, kind: Singleton(ty)});
+  let extend_alias =
+      (ctx: t, name: TypVar.t, parameter: TypVar.t, id: Id.t, ty: Typ.t): t => {
+    let ctx = extend_tvar(ctx, {name, parameter, id, kind: Singleton(ty)});
+    if (parameter != "") {
+      extend_tvar(
+        ctx,
+        {
+          name: parameter,
+          parameter: "",
+          id,
+          kind: Singleton(Unknown(TypeHole)),
+        },
+      );
+    } else {
+      ctx;
+    };
+  };
   let extend_dummy_tvar = (ctx: t, name: TypVar.t) =>
-    extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
+    extend_tvar(ctx, {kind: Abstract, name, parameter: "", id: Id.invalid});
 
   let lookup_tvar = (ctx: t, name: TypVar.t): option(tvar_entry) =>
     List.find_map(
@@ -500,13 +529,6 @@ and Ctx: {
       | _ => None,
       ctx,
     );
-  //let lookup_tctr = (ctx: t, name: TypVar.t): option(tvar_entry) =>
-  //  List.find_map(
-  //    fun
-  //    | TConstructorEntry(v) when v.name == name => Some(v)
-  //    | _ => None,
-  //    ctx,
-  //  );
 
   let lookup_alias = (ctx: t, t: TypVar.t): option(Typ.t) =>
     switch (lookup_tvar(ctx, t)) {
@@ -520,8 +542,7 @@ and Ctx: {
     fun
     | VarEntry({id, _})
     | ConstructorEntry({id, _})
-    | TVarEntry({id, _}) => id
-    | TConstructorEntry({id, _}) => id;
+    | TVarEntry({id, _}) => id;
 
   let lookup_var = (ctx: t, name: string): option(var_entry) =>
     List.find_map(
@@ -545,11 +566,20 @@ and Ctx: {
     | None => false
     };
 
-  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
+  let add_ctrs =
+      (
+        ctx: t,
+        name: TypVar.t,
+        parameter: TypVar.t,
+        id: Id.t,
+        ctrs: Typ.sum_map,
+      )
+      : t =>
     List.map(
       ((ctr, typ)) =>
         ConstructorEntry({
           name: ctr,
+          parameter,
           id,
           typ:
             switch (typ) {
@@ -598,8 +628,7 @@ and Ctx: {
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
-           | TVarEntry({name, _})
-           | TConstructorEntry({name, _}) =>
+           | TVarEntry({name, _}) =>
              VarSet.mem(name, typ_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))

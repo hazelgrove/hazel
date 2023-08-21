@@ -129,8 +129,25 @@ module UTyp = {
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
-      | Constructor(_)
-      | Ap(_) => Unknown(Internal)
+      | Ap(t1, t2) =>
+        let name =
+          switch (t1.term) {
+          | Var(s) => s
+          | _ => ""
+          };
+        switch (Ctx.lookup_tvar(ctx, name)) {
+        | Some(ty) =>
+          let arg = ty.parameter;
+          let res_ty =
+            switch (ty.kind) {
+            | Arrow(ty_in, ty_out) => Typ.Arrow(ty_in, ty_out)
+            | Singleton(ty) => ty
+            | Abstract => Unknown(Internal)
+            };
+          Typ.subst(to_typ(ctx, t2), arg, res_ty);
+        | None => Unknown(Free(name))
+        };
+      | Constructor(_) => Unknown(Internal)
       }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =

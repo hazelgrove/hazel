@@ -65,6 +65,11 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
+  | TypeConstructorAp(t, ts) =>
+    div(
+      ~attr=clss(["typ-view", "TypeConstructorAp"]),
+      [text(t), text("("), view_ty(ts), text(")")],
+    )
   | Sum(ts) =>
     div(
       ~attr=clss(["typ-view", "Sum"]),

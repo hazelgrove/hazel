@@ -45,6 +45,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | String
   | Var(_)
   | Rec(_)
+  | TypeConstructorAp(_, _)
   | Arrow(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
   | Prod(tys) =>

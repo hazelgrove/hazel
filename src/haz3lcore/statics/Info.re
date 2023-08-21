@@ -338,10 +338,6 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
 let status_typ =
     (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
     : status_typ => {
-  //Printf.printf("status_ctx: %s\n", TermBase.UTyp.show(term));
-  //Printf.printf("status_expects: %s\n", Typ.show(ty));
-  //Printf.printf("status_term: %s\n", TermBase.UTyp.show(term));
-  //Printf.printf("status_ty: %s\n", Typ.show(ty));
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type(ty))
@@ -370,7 +366,17 @@ let status_typ =
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | TypeExpected => InHole(WantTypeFoundAp)
+    | TypeExpected =>
+      let constructor =
+        switch (t1.term) {
+        | Var(s) => s
+        | _ => ""
+        };
+      switch (Ctx.is_alias(ctx, constructor)) {
+      | false => InHole(FreeTypeVariable(constructor))
+      | true =>
+        NotInHole(TypeAlias(constructor, Typ.weak_head_normalize(ctx, ty)))
+      };
     }
   | _ =>
     switch (expects) {
@@ -405,20 +411,23 @@ let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
 let is_error = (ci: t): bool => {
   switch (ci) {
   | InfoExp({mode, self, ctx, _}) =>
-    switch (status_exp(ctx, mode, self)) {
+    let status = status_exp(ctx, mode, self);
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    }
+    };
   | InfoPat({mode, self, ctx, _}) =>
-    switch (status_pat(ctx, mode, self)) {
+    let status = status_pat(ctx, mode, self);
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    }
+    };
   | InfoTyp({expects, ctx, term, ty, _}) =>
-    switch (status_typ(ctx, expects, term, ty)) {
+    let status = status_typ(ctx, expects, term, ty);
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    }
+    };
   | InfoTPat({term, ctx, _}) =>
     switch (status_tpat(ctx, term)) {
     | InHole(_) => true

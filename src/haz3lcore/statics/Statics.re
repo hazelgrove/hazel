@@ -308,16 +308,20 @@ and uexp_to_info_map =
         | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ctx_def =
-            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+            Ctx.extend_alias(ctx, name, "", UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
+          (
+            ty,
+            ctx,
+            Ctx.extend_alias(ctx, name, "", UTPat.rep_id(typat), ty),
+          );
         };
       };
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
-        | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, "", UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
@@ -326,52 +330,52 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
-    | Ap(t1, _) =>
+    | Ap(t1, t2) =>
       let constructor =
         switch (t1.term) {
         | Var(s) => s
         | _ => ""
         };
-      //let arg =
-      //  switch (t2.term) {
-      //  | Var(s) => s
-      //  | _ => ""
-      //  };
-      Printf.printf(
-        "typat: %s, utyp: %s, body:%s \n",
-        UTPat.show(typat),
-        UTyp.show(utyp),
-        UExp.show(body),
-      );
+      let arg =
+        switch (t2.term) {
+        | Var(s) => s
+        | _ => ""
+        };
       let (ty_def, ctx_def, ctx_body) = {
         let ty_pre =
-          UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, constructor), utyp);
+          UTyp.to_typ(
+            Ctx.extend_dummy_tvar(
+              Ctx.extend_dummy_tvar(ctx, constructor),
+              arg,
+            ),
+            utyp,
+          );
         switch (utyp.term) {
         | Sum(_) when List.mem(constructor, Typ.free_vars(ty_pre)) =>
           let ty_rec =
             Typ.Rec("α", Typ.subst(Var("α"), constructor, ty_pre));
           let ctx_def =
-            Ctx.extend_alias(ctx, constructor, UTPat.rep_id(typat), ty_rec);
+            Ctx.extend_alias(
+              ctx,
+              constructor,
+              arg,
+              UTPat.rep_id(typat),
+              ty_rec,
+            );
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
           (
             ty,
             ctx,
-            Ctx.extend_alias(ctx, constructor, UTPat.rep_id(typat), ty),
+            Ctx.extend_alias(ctx, constructor, arg, UTPat.rep_id(typat), ty),
           );
         };
       };
-      //Printf.printf(
-      //  "ty_def: %s, ctx_def: %s, ctx_body: %s \n",
-      //  Typ.show(ty_def),
-      //  Ctx.show(ctx_def),
-      //  Ctx.show(ctx_body),
-      //);
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
         | Some(sm) =>
-          Ctx.add_ctrs(ctx_body, constructor, UTyp.rep_id(utyp), sm)
+          Ctx.add_ctrs(ctx_body, constructor, arg, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
@@ -445,7 +449,13 @@ and upat_to_info_map =
        Unknown(Internal) is used in this case */
     let ctx_typ =
       Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+    let entry =
+      Ctx.VarEntry({
+        name,
+        parameter: "",
+        id: UPat.rep_id(upat),
+        typ: ctx_typ,
+      });
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));

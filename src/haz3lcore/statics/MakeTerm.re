@@ -228,12 +228,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
-          Printf.printf(
-            "tpat: %s, def: %s\n",
-            UTPat.show(tpat),
-            UTyp.show(def),
-          );
-          TyAlias(tpat, def, r);
+          TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
@@ -372,7 +367,6 @@ and typ = unsorted => {
 and typ_term = (unsorted: unsorted): (UTyp.term, list(Id.t)) => {
   let ret = (term: UTyp.term) => (term, []);
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
-  //Printf.printf("typ_term: %s\n", show_unsorted(unsorted));
   switch (unsorted) {
   | Op(tiles) as tm =>
     switch (tiles) {
