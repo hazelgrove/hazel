@@ -104,6 +104,11 @@ let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Left, r_sibs),
 );
 
+let trim_grout = ((l_sibs, r_sibs): t) => (
+  Segment.trim_grout(Right, l_sibs),
+  Segment.trim_grout(Left, r_sibs),
+);
+
 let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary_and_grout(Right, l_sibs),
   Segment.trim_secondary_and_grout(Left, r_sibs),
