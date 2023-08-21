@@ -14,7 +14,7 @@ let tests_raw: list(test) = [
     sketch: {|let update: (Model, Action) -> Model =
   FILL_ME
 in
-%EXPORT|},
+EXPORT|},
     options: FillerOptions.init,
   },
   /*

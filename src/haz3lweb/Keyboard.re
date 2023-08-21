@@ -85,13 +85,18 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") =>
-      //TODO(andrew): remove logic from here (potential Incr_dom bug)
+      /*TODO(andrew): Consider more advanced movement logic. Instead
+       * of simply moving to next hole, if the backpack is non-empty
+       * but can't immediately put down, move to next position of
+       * interest, which is closet of: nearest position where can
+       * put down, farthest position where can put down, next hole */
       Some(
         Selection.is_buffer(zipper.selection)
           ? Assistant(AcceptSuggestion)
           : Zipper.can_put_down(zipper)
               ? PerformAction(Put_down) : MoveToNextHole(Right),
       )
+    //TODO(andrew): remove logic from here (potential Incr_dom bug)
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
@@ -101,7 +106,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
     | (_, "Enter") => now(Insert(Form.linebreak))
-    | _ when /*Form.is_valid_char(key) &&*/ String.length(key) == 1 =>
+    | _ when String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things
          like F5 which are now valid tokens and also weird
          unicode shit which is multichar i guess */

@@ -69,10 +69,16 @@ let export_env =
       z: Zipper.t,
     ) => {
   let tests =
-    Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, z)
-    |> ProgramResult.get_state
-    |> EvaluatorState.get_tests
-    |> TestMap.lookup(Hyper.export_id);
+    try(
+      Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, z)
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_tests
+      |> TestMap.lookup(Hyper.export_id)
+    ) {
+    | _ =>
+      print_endline("exception in export_env");
+      None;
+    };
   switch (tests) {
   | None
   | Some([]) => env_init
@@ -147,14 +153,28 @@ let get_spliced_elabs =
     : list((ModelResults.key, DHExp.t, Environment.t)) => {
   settings.core.dynamics
     ? {
-      let ctx_init = get_ctx_init(~settings, editors);
-      let env_init = get_env_init(~settings, editors);
+      let ctx_init =
+        try(get_ctx_init(~settings, editors)) {
+        | _ =>
+          print_endline("exception in get_ctx_init");
+          failwith("exception in get_ctx_init");
+        };
+      let env_init =
+        try(get_env_init(~settings, editors)) {
+        | _ =>
+          print_endline("exception in get_env_init");
+          failwith("exception in get_env_init");
+        };
       switch (editors) {
       | DebugLoad => []
       | Scratch(idx, slides) =>
         let current_slide = List.nth(slides, idx);
         let (key, d) =
-          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+          try(ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide)) {
+          | _ =>
+            print_endline("exception in ScratchSlide.spliced_elab");
+            failwith("exception in ScratchSlide.spliced_elab");
+          };
         [(key, d, env_init)];
       | Examples(name, slides) =>
         let current_slide = List.assoc(name, slides);
