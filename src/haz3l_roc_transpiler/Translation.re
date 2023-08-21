@@ -3,13 +3,15 @@ open Haz3lcore;
 exception UnsupportedInput;
 
 let rec get_roc_exp =
-        (t: Haz3lcore.TermBase.UExp.t, m: Haz3lcore.Statics.map)
+        (t: Haz3lcore.TermBase.UExp.t, m: Haz3lcore.Statics.Map.t)
         : TermRoc.UExp.t =>
   switch (t.term) {
   | Invalid(_) => raise(UnsupportedInput)
   | EmptyHole => raise(UnsupportedInput)
   | MultiHole(_) => raise(UnsupportedInput)
-  | Tag(_) => raise(UnsupportedInput)
+  | Constructor(_) => raise(UnsupportedInput)
+  | TyAlias(_) => raise(UnsupportedInput)
+  | ListConcat(_) => raise(UnsupportedInput)
   | Triv => Record([])
   | Bool(b) => Bool(b)
   | Int(n) => Int(n)
@@ -26,7 +28,9 @@ let rec get_roc_exp =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | Tag(_)
+      | Constructor(_)
+      | TyAlias(_)
+      | ListConcat(_)
       | Triv
       | Bool(_)
       | Int(_)
@@ -53,7 +57,7 @@ let rec get_roc_exp =
       if (indent_flag) {
         Seq([
           p,
-          SeqIndent(
+          SeqLetIndent(
             Assign(get_pat_var(pat, m), get_roc_exp(def, m)),
             get_roc_exp(body, m),
           ),
@@ -67,7 +71,7 @@ let rec get_roc_exp =
       }
     | None =>
       if (indent_flag) {
-        SeqIndent(
+        SeqLetIndent(
           Assign(get_pat_var(pat, m), get_roc_exp(def, m)),
           get_roc_exp(body, m),
         );
@@ -111,12 +115,12 @@ let rec get_roc_exp =
     Match(scrut, get_roc_exp_match(l, scrut, m));
   }
 and get_roc_exp_list =
-    (list: list(Haz3lcore.TermBase.UExp.t), m: Haz3lcore.Statics.map) =>
+    (list: list(Haz3lcore.TermBase.UExp.t), m: Haz3lcore.Statics.Map.t) =>
   switch (list) {
   | [] => []
   | [x, ...xs] => [get_roc_exp(x, m), ...get_roc_exp_list(xs, m)]
   }
-and get_name = (map: Haz3lcore.Statics.map, name: string) =>
+and get_name = (map: Haz3lcore.Statics.Map.t, name: string) =>
   if (!String.contains(name, '_')) {
     name;
   } else {
@@ -135,12 +139,13 @@ and get_camel_case = (name: string) => {
   let capitalizedParts = List.map(String.capitalize_ascii, List.tl(parts));
   List.hd(parts) ++ String.concat("", capitalizedParts);
 }
-and iterate_map = (map: Statics.map, name: ref(string), tmp: ref(string)) => {
+and iterate_map =
+    (map: Haz3lcore.Statics.Map.t, name: ref(string), tmp: ref(string)) => {
   let flag = ref(false);
   Id.Map.iter(
     (_, value) => {
       switch (value) {
-      | Statics.InfoExp(infoExp) =>
+      | Info.InfoExp(infoExp) =>
         switch (infoExp.term.term) {
         | Var(s) =>
           if (String.equal(s, name^) || String.equal(s, tmp^)) {
@@ -148,7 +153,7 @@ and iterate_map = (map: Statics.map, name: ref(string), tmp: ref(string)) => {
           }
         | _ => ()
         }
-      | Statics.InfoPat(infoPat) =>
+      | Info.InfoPat(infoPat) =>
         switch (infoPat.term.term) {
         | Var(s) =>
           if (String.equal(s, name^) || String.equal(s, tmp^)) {
@@ -164,12 +169,13 @@ and iterate_map = (map: Statics.map, name: ref(string), tmp: ref(string)) => {
   );
   flag^;
 }
-and get_pat_var_list = (list: list(TermBase.UPat.t), m: Statics.map) =>
+and get_pat_var_list =
+    (list: list(TermBase.UPat.t), m: Haz3lcore.Statics.Map.t) =>
   switch (list) {
   | [] => []
   | [x, ...xs] => [get_pat_var(x, m), ...get_pat_var_list(xs, m)]
   }
-and get_pat_var = (pat: TermBase.UPat.t, m: Statics.map) =>
+and get_pat_var = (pat: TermBase.UPat.t, m: Haz3lcore.Statics.Map.t) =>
   switch (pat.term) {
   | TypeAnn(p, _) => get_pat_var(p, m)
   | Parens(p) =>
@@ -190,10 +196,10 @@ and get_pat_var = (pat: TermBase.UPat.t, m: Statics.map) =>
   | Bool(_)
   | String(_)
   | Triv
-  | Tag(_)
+  | Constructor(_)
   | Ap(_) => String("Invalid")
   }
-and get_typ_ann = (pat: TermBase.UPat.t, m: Statics.map) =>
+and get_typ_ann = (pat: TermBase.UPat.t, m: Haz3lcore.Statics.Map.t) =>
   switch (pat.term) {
   | Parens(pat) => get_typ_ann(pat, m)
   | TypeAnn(v, typ) => Some(TypeAnn(get_var(v, m), get_roc_typ(typ, m)))
@@ -208,12 +214,12 @@ and get_typ_ann = (pat: TermBase.UPat.t, m: Statics.map) =>
   | String(_)
   | Triv
   | ListLit(_)
-  | Tag(_)
+  | Constructor(_)
   | Cons(_)
   | Tuple(_)
   | Ap(_) => None
   }
-and get_var = (pat: TermBase.UPat.t, m: Statics.map): string =>
+and get_var = (pat: TermBase.UPat.t, m: Haz3lcore.Statics.Map.t): string =>
   switch (pat.term) {
   | Parens(pat) => get_var(pat, m)
   | Var(x) => get_name(m, x)
@@ -228,7 +234,7 @@ and get_var = (pat: TermBase.UPat.t, m: Statics.map): string =>
   | String(_)
   | Triv
   | ListLit(_)
-  | Tag(_)
+  | Constructor(_)
   | Cons(_)
   | Tuple(_)
   | Ap(_) => "None"
@@ -236,6 +242,7 @@ and get_var = (pat: TermBase.UPat.t, m: Statics.map): string =>
 and get_roc_op_un = (op_un_hazel: TermBase.UExp.op_un): TermRoc.UExp.op_un =>
   switch (op_un_hazel) {
   | Int(Minus) => Int(Minus)
+  | Bool(Not) => Bool(Not)
   }
 and get_roc_op_bin = (op_bin_hazel: TermBase.UExp.op_bin): TermRoc.UExp.op_bin =>
   switch (op_bin_hazel) {
@@ -251,6 +258,7 @@ and get_roc_op_bin = (op_bin_hazel: TermBase.UExp.op_bin): TermRoc.UExp.op_bin =
     | GreaterThan => Int_Float(GreaterThan)
     | GreaterThanOrEqual => Int_Float(GreaterThanOrEqual)
     | Equals => Int_Float(Equals)
+    | NotEquals => Int_Float(NotEquals)
     }
   | Float(op_bin_float) =>
     switch (op_bin_float) {
@@ -264,6 +272,7 @@ and get_roc_op_bin = (op_bin_hazel: TermBase.UExp.op_bin): TermRoc.UExp.op_bin =
     | GreaterThan => Int_Float(GreaterThan)
     | GreaterThanOrEqual => Int_Float(GreaterThanOrEqual)
     | Equals => Int_Float(Equals)
+    | NotEquals => Int_Float(NotEquals)
     }
   | Bool(op_bin_bool) =>
     switch (op_bin_bool) {
@@ -273,13 +282,14 @@ and get_roc_op_bin = (op_bin_hazel: TermBase.UExp.op_bin): TermRoc.UExp.op_bin =
   | String(op_bin_string) =>
     switch (op_bin_string) {
     | Equals => String(Equals)
+    | Concat => raise(UnsupportedInput)
     }
   }
 and get_roc_exp_match =
     (
       list: list((TermBase.UPat.t, TermBase.UExp.t)),
       scrut: TermRoc.UExp.t,
-      m: Statics.map,
+      m: Haz3lcore.Statics.Map.t,
     ) =>
   switch (list) {
   | [] => []
@@ -367,12 +377,13 @@ and get_roc_exp_tl = (tl: TermBase.UPat.t, c: int): (bool, string, int) => {
   | _ => (false, "", 0)
   };
 }
-and get_roc_pat = (t: TermBase.UPat.t, m: Statics.map): TermRoc.UPat.t =>
+and get_roc_pat =
+    (t: TermBase.UPat.t, m: Haz3lcore.Statics.Map.t): TermRoc.UPat.t =>
   switch (t.term) {
   | Invalid(_) => raise(UnsupportedInput)
   | EmptyHole => raise(UnsupportedInput)
   | MultiHole(_) => raise(UnsupportedInput)
-  | Tag(_) => raise(UnsupportedInput)
+  | Constructor(_) => raise(UnsupportedInput)
   | Ap(_) => raise(UnsupportedInput)
   | Triv => Record([])
   | Wild => Wild
@@ -391,13 +402,15 @@ and get_roc_pat = (t: TermBase.UPat.t, m: Statics.map): TermRoc.UPat.t =>
     }
   | TypeAnn(v, _) => get_roc_pat(v, m)
   }
-and get_roc_pat_list = (list: list(TermBase.UPat.t), m: Statics.map) =>
+and get_roc_pat_list =
+    (list: list(TermBase.UPat.t), m: Haz3lcore.Statics.Map.t) =>
   switch (list) {
   | [] => []
   | [x, ...xs] => [get_roc_pat(x, m), ...get_roc_pat_list(xs, m)]
   }
 and get_roc_pat_cons =
-    (hd: TermBase.UPat.t, tl: TermBase.UPat.t, m: Statics.map): TermRoc.UPat.t => {
+    (hd: TermBase.UPat.t, tl: TermBase.UPat.t, m: Haz3lcore.Statics.Map.t)
+    : TermRoc.UPat.t => {
   switch (get_roc_pat(tl, m)) {
   | ListLit([]) => ListLit([get_roc_pat(hd, m)])
   | ListLit(l) => ListLit(List.append([get_roc_pat(hd, m)], l))
@@ -406,11 +419,15 @@ and get_roc_pat_cons =
   | _ => Bool(false)
   };
 }
-and get_roc_typ = (t: TermBase.UTyp.t, m: Statics.map): TermRoc.UTyp.t =>
+and get_roc_typ =
+    (t: TermBase.UTyp.t, m: Haz3lcore.Statics.Map.t): TermRoc.UTyp.t =>
   switch (t.term) {
   | Invalid(_) => raise(UnsupportedInput)
   | EmptyHole => raise(UnsupportedInput)
   | MultiHole(_) => raise(UnsupportedInput)
+  | Constructor(_) => raise(UnsupportedInput)
+  | Sum(_) => raise(UnsupportedInput)
+  | Ap(_) => raise(UnsupportedInput)
   | Int => Int
   | Float => Float
   | Bool => Bool
@@ -425,7 +442,8 @@ and get_roc_typ = (t: TermBase.UTyp.t, m: Statics.map): TermRoc.UTyp.t =>
     | _ => Parens(get_roc_typ(t2, m))
     }
   }
-and get_roc_typ_list = (list: list(TermBase.UTyp.t), m: Statics.map) =>
+and get_roc_typ_list =
+    (list: list(TermBase.UTyp.t), m: Haz3lcore.Statics.Map.t) =>
   switch (list) {
   | [] => []
   | [x, ...xs] => [get_roc_typ(x, m), ...get_roc_typ_list(xs, m)]

@@ -27,7 +27,7 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
     ++ " else "
     ++ generate_code(false_branch, i)
   | Seq(l) => seqlist_to_string(l, i)
-  | SeqIndent(expr1, expr2) =>
+  | SeqLetIndent(expr1, expr2) =>
     generate_code(expr1, i + 1)
     ++ "\n"
     ++ String.make(i, ' ')
@@ -159,6 +159,7 @@ and get_match_body =
 and get_code_un = (op: TermRoc.UExp.op_un): string =>
   switch (op) {
   | Int(Minus) => "-"
+  | Bool(Not) => "!"
   }
 and get_code_bin = (op: TermRoc.UExp.op_bin): string =>
   switch (op) {
@@ -174,6 +175,7 @@ and get_code_bin = (op: TermRoc.UExp.op_bin): string =>
     | GreaterThan => ">"
     | GreaterThanOrEqual => ">="
     | Equals => "=="
+    | NotEquals => "!="
     }
   | Bool(op_bin_bool) =>
     switch (op_bin_bool) {

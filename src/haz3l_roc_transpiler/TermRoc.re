@@ -2,6 +2,10 @@ open Sexplib.Std;
 
 module rec UExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_bool =
+    | Not;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -21,7 +25,8 @@ module rec UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_string =
@@ -29,7 +34,8 @@ module rec UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
-    | Int(op_un_int);
+    | Int(op_un_int)
+    | Bool(op_un_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
@@ -51,7 +57,7 @@ module rec UExp: {
     | Ap
     | If
     | Seq
-    | SeqIndent
+    | SeqLetIndent
     | SeqMatchIndent
     | SeqNoBreak
     | Expect
@@ -75,7 +81,7 @@ module rec UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(list(t))
-    | SeqIndent(t, t)
+    | SeqLetIndent(t, t)
     | SeqMatchIndent(t, t)
     | SeqNoBreak(list(t))
     | Expect(t)
@@ -86,6 +92,10 @@ module rec UExp: {
     | TypeAnn(string, UTyp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_bool =
+    | Not;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -105,7 +115,8 @@ module rec UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_string =
@@ -113,7 +124,8 @@ module rec UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
-    | Int(op_un_int);
+    | Int(op_un_int)
+    | Bool(op_un_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
@@ -135,7 +147,7 @@ module rec UExp: {
     | Ap
     | If
     | Seq
-    | SeqIndent
+    | SeqLetIndent
     | SeqMatchIndent
     | SeqNoBreak
     | Expect
@@ -159,7 +171,7 @@ module rec UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(list(t))
-    | SeqIndent(t, t)
+    | SeqLetIndent(t, t)
     | SeqMatchIndent(t, t)
     | SeqNoBreak(list(t))
     | Expect(t)
