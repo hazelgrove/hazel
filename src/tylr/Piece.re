@@ -38,7 +38,6 @@ let mk = (~id=?, ~paths=[], material, token) => {
     };
   {id, paths, material, token};
 };
-
 let id_ = p => p.id;
 let label = p => Material.map(Mold.label, p.material);
 let sort = p => Material.map(Mold.sort_, p.material);
@@ -127,24 +126,6 @@ let unzip = (n: int, p: t): Result.t((t, t), Dir.t) => {
     }
   };
 };
-
-let zip = (l: t, r: t): option(t) => {
-  open OptUtil.Syntax;
-  let* () = OptUtil.of_bool(Id.eq(l.id, r.id));
-  let+ l =
-    switch (label(l), label(r)) {
-    | (Grout, Tile(_))
-    | (Tile(_), Grout) => None
-    | (Grout, Grout) => Some(l)
-    | (Tile(lbl_l), Tile(lbl_r)) =>
-      let+ lbl = Label.zip(lbl_l, lbl_r);
-      put_label(lbl, l);
-    };
-  l
-  |> put_token(l.token ++ r.token)
-  |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
-};
-let zips = (l, r) => Option.is_some(zip(l, r));
 
 let complement_beyond = (~side as _, _) =>
   failwith("todo: Piece.complement_beyond");
