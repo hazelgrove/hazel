@@ -197,7 +197,7 @@ and uexp_to_info_map =
   // TODO: Fix this
   | TupLabel(p, e) =>
     let (e, m) = go(~mode=Syn, e, m);
-    let (_, m) =
+    let (p, m) =
       upat_to_info_map(
         ~is_synswitch=true,
         ~ctx,
@@ -206,7 +206,7 @@ and uexp_to_info_map =
         p,
         m,
       );
-    add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+    add(~self=Just(e.ty), ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | Tuple(es) =>
     let modes = Mode.of_prod(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);

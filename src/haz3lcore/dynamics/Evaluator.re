@@ -900,7 +900,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
 
-    | TupLabel(_) => BoxedValue(d) |> return
+    | TupLabel(_) => BoxedValue(d) |> return //TODO: Fix this?
 
     | Tuple(ds) =>
       let+ lst = ds |> List.map(evaluate(env)) |> sequence;
