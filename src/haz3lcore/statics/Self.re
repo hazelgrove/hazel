@@ -21,9 +21,14 @@ open Sexplib.Std;
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type join_type =
+  | Id
+  | List;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
@@ -40,6 +45,12 @@ type exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
   | Common(t);
+
+let join_of = (j: join_type, ty: Typ.t): Typ.t =>
+  switch (j) {
+  | Id => ty
+  | List => List(ty)
+  };
 
 /* What the type would be if the position had been
    synthetic, so no hole fixing. Returns none if
@@ -89,18 +100,18 @@ let add_source = List.map2((id, ty) => Typ.{id, ty});
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
-  | None => NoJoin(ty => ty, add_source(ids, tys))
+  | None => NoJoin(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty, ctx, tys)) {
-  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(List(ty))
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
-  | None => NoJoin(ty => List(ty), add_source(ids, tys))
+  | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };

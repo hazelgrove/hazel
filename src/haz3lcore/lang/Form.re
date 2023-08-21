@@ -127,13 +127,15 @@ let is_reserved_keyword =
   * should the character be appended to an existing token or create
   * a new one? Basically if there is no other mold, we
   * TODO(andrew): finish description
+  TODO(andrew): ? below is temporary addition to allow ? as explicit hole
  */
-let is_potential_operand = regexp("^[a-zA-Z0-9_.]+$");
+let is_potential_operand = regexp("^[a-zA-Z0-9_\\.?]+$");
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_\"#⏎\\s|\\[\\]\\(\\)]+$");
+let is_potential_operator =
+  regexp("^[^a-zA-Z0-9_\\.?\"#⏎\\s|\\[\\]\\(\\)]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)

@@ -321,7 +321,7 @@ let rec status_common =
     // TODO(andrew): making these errors for now for llm purposes
     InHole(NoType(MultiError))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = wrap(Unknown(Internal));
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
