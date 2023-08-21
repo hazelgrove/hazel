@@ -7,7 +7,8 @@ type chat_models =
   | GPT4
   | GPT3_5Turbo
   | Azure_GPT4
-  | Azure_GPT3_5Turbo;
+  | Azure_GPT3_5Turbo
+  | Llama2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
@@ -31,7 +32,8 @@ let string_of_chat_model =
   | GPT4 => "gpt-4"
   | GPT3_5Turbo => "gpt-3.5-turbo"
   | Azure_GPT4 => "azure-gpt-4"
-  | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo";
+  | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo"
+  | Llama2 => "llama-2";
 
 let string_of_role =
   fun
@@ -93,6 +95,15 @@ let chat = (~body, ~handler): unit =>
     );
   };
 
+let local_chat = (~body, ~handler): unit =>
+  request(
+    ~method=POST,
+    ~url="http://127.0.0.1:8081/chat/completions",
+    ~headers=[("Content-Type", "application/json")],
+    ~body,
+    handler,
+  );
+
 module Azure = {
   let chat =
       (~key, ~resource, ~deployment, ~api_version, ~body, ~handler): unit =>
@@ -152,6 +163,7 @@ let start_chat = (~llm, prompt: prompt, handler): unit => {
   | Azure_GPT4 => AzureGPT4.chat(~body, ~handler)
   | GPT3_5Turbo
   | GPT4 => chat(~body, ~handler)
+  | Llama2 => local_chat(~body, ~handler)
   };
 };
 
@@ -167,6 +179,7 @@ let reply_chat = (~llm, prompt: prompt, ~assistant, ~user, handler): unit => {
   | Azure_GPT4 => AzureGPT4.chat(~body, ~handler)
   | GPT3_5Turbo
   | GPT4 => chat(~body, ~handler)
+  | Llama2 => local_chat(~body, ~handler)
   };
 };
 

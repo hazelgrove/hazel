@@ -79,7 +79,7 @@ let apply =
     switch (Oracle.ask(model)) {
     | None => print_endline("Oracle: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.start_chat(~llm=Azure_GPT4, prompt, req =>
+      OpenAI.start_chat(~llm=Llama2, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(response) => schedule_action(Oracle.react(response))
         | None => print_endline("Assistant: response parse failed")

@@ -11,7 +11,7 @@ type t = {
 };
 
 let init: t = {
-  llm: Azure_GPT4,
+  llm: Llama2,
   instructions: true,
   syntax_notes: true,
   num_samples: 9,
