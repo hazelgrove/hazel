@@ -254,34 +254,49 @@ let rec dhexp_of_uexp =
           let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
           let ty_ins = Typ.matched_args(List.length(args), ty_arg);
           /* Substitute all deferrals for new variables */
-          let+ (pats, c_args, ty_args) =
+          let (pats, ty_args, ap_args, ap_ctx) =
             List.combine(args, ty_ins)
             |> List.fold_left(
-                 (acc, (e: Term.UExp.t, ty)) => {
-                   let* (pats, c_args, ty_args) = acc;
+                 ((pats, ty_args, ap_args, ap_ctx), (e: Term.UExp.t, ty)) =>
                    if (Term.UExp.is_deferral(e)) {
                      // Internal variable name for deferrals
                      let name =
-                       "~deferred" ++ string_of_int(List.length(pats));
-                     Some((
+                       "__deferred__" ++ string_of_int(List.length(pats));
+                     let var: Term.UExp.t = {ids: e.ids, term: Var(name)};
+                     let var_entry =
+                       Ctx.VarEntry({
+                         name,
+                         id: Term.UExp.rep_id(e),
+                         typ: ty,
+                       });
+                     (
                        pats @ [DHPat.Var(name)],
-                       c_args @ [DHExp.BoundVar(name)],
                        ty_args @ [ty],
-                     ));
+                       ap_args @ [var],
+                       Ctx.extend(ap_ctx, var_entry),
+                     );
                    } else {
-                     let+ c_arg = dhexp_of_uexp(m, e);
-                     (pats, c_args @ [c_arg], ty_args);
-                   };
-                 },
-                 Some(([], [], [])),
+                     (pats, ty_args, ap_args @ [e], ap_ctx);
+                   },
+                 ([], [], [], ctx),
                );
-          let (pat, c_arg, ty_arg) = (
+          let (pat, ty_arg) = (
             mk_tuple(x => DHPat.Tuple(x), pats),
-            mk_tuple(x => DHExp.Tuple(x), c_args),
             mk_tuple(x => Typ.Prod(x), ty_args),
           );
-          DHExp.Fun(pat, Arrow(ty_arg, ty_ret), Ap(c_fn, c_arg), None);
-        };
+          let arg: Term.UExp.t = {ids: [Id.mk()], term: Tuple(ap_args)};
+          let body: Term.UExp.t = {ids: [Id.mk()], term: Ap(fn, arg)};
+          let (_info, m) =
+            Statics.uexp_to_info_map(
+              ~ctx=ap_ctx,
+              ~mode=Ana(ty_ret),
+              ~ancestors,
+              body,
+              m,
+            );
+          let+ dbody = dhexp_of_uexp(m, body);
+          DHExp.Fun(pat, Arrow(ty_arg, ty_ret), dbody, None);
+        }
       | If(scrut, e1, e2) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);
