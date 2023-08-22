@@ -26,22 +26,29 @@ EXPORT|},
    },*/
 ];
 
-let mk_script = (~options, ~sketch: string): list(UpdateAction.t) => {
-  [
-    Reset,
-    SwitchScratchSlide(5),
-    PerformAction(Move(Extreme(Up))),
-    PerformAction(Select(Resize(Extreme(Down)))),
-    Paste(sketch),
-    PerformAction(Move(Goal(Piece(FillMarker, Left)))),
-    PerformAction(Select(Term(Current))),
-    Paste(Form.expliciter_hole),
-    PerformAction(Select(Term(Current))),
-    Assistant(Prompt(Filler(options))),
-  ];
+[@deriving (show({with_path: false}), sexp, yojson)]
+type single_run = (FillerOptions.t, list(UpdateAction.t));
+
+let mk_script = (~options, ~sketch: string): single_run => {
+  let sketch_slide = 4;
+  (
+    options,
+    [
+      Reset,
+      SwitchScratchSlide(sketch_slide),
+      PerformAction(Move(Extreme(Up))),
+      PerformAction(Select(Resize(Extreme(Down)))),
+      Paste(sketch),
+      PerformAction(Move(Goal(Piece(FillMarker, Left)))),
+      PerformAction(Select(Term(Current))),
+      Paste(Form.expliciter_hole),
+      PerformAction(Select(Term(Current))),
+      Assistant(Prompt(Filler(options))),
+    ],
+  );
 };
 
-let test_scripts =
+let test_scripts: list((string, single_run)) =
   List.map(
     ({name, sketch, options}) => (name, mk_script(~sketch, ~options)),
     tests_raw,

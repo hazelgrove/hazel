@@ -16,7 +16,7 @@ type error_report =
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type round_report = {
-  filling: string,
+  reply: OpenAI.reply,
   error_report,
 };
 
@@ -145,7 +145,7 @@ let hazel_syntax_notes = [
   "- Hazel uses C-style function application syntax, with parenthesis around comma-separated arguments",
   "- Function application is ALWAYS written using parentheses and commas: use 'function(arg1, arg2)'. DO NOT just use spaces between the function name and arguments.",
   "- Function parameters are ALWAYS commas separated: 'fun arg1, arg2 -> <exp>'. DO NOT use spaces to separate function arguments.",
-  "- There is no dot accessor notation for fields; use pattern matching for destructuring",
+  "- There is no dot accessor notation for tuples; DO NOT use tuple.field. use pattern matching for destructuring: let (field, _) = tuple in ...",
   "- The following ARE NOT Hazel keywords. DO NOT use these keywords: switch, with, of, rec. ALWAYS omit these keywords",
   "- Pattern matching is ALWAYS written a 'case ... end' expression. Cases MUST END in an 'end' keyword. DO NOT USE any other keyword besides 'case' to do pattern matching.  DO NOT USE a 'with' or 'of' keyword with 'case', just start the list of rules. Pattern matching rules use syntax '| pattern => expression'. Note the '=>' arrow.",
   "- The ONLY way to define a named function is by using a function expression nested in a let expression like 'let <pat> = fun <pat> -> <exp> in <exp'. There is no support for specifying the function arguments directly as part of the let. DO NOT write function arguments in the let pattern.",
@@ -224,8 +224,8 @@ let init_prompt = (~expected_ty, ~sketch, samples, system_prompt) =>
     )
   @ [{role: User, content: mk_user_message(sketch, ~expected_ty)}];
 
-let get_samples = (num_samples, samples) =>
-  switch (Util.ListUtil.split_n_opt(num_samples, samples)) {
+let get_samples = (num_examples, samples) =>
+  switch (Util.ListUtil.split_n_opt(num_examples, samples)) {
   | Some(samples) =>
     samples |> fst |> List.map(((s, t, u)) => (s, Some(t), u))
   | None => []
@@ -233,7 +233,7 @@ let get_samples = (num_samples, samples) =>
 
 let prompt =
     (
-      {instructions, syntax_notes, num_samples, expected_type, _}: FillerOptions.t,
+      {instructions, syntax_notes, num_examples, expected_type, _}: FillerOptions.t,
       ~settings: Settings.t,
       ~ctx_init,
       editor: Editor.t,
@@ -246,7 +246,7 @@ let prompt =
   let system_prompt =
     (instructions ? main_prompt : [])
     @ (syntax_notes ? hazel_syntax_notes : []);
-  let samples = get_samples(num_samples, samples);
+  let samples = get_samples(num_examples, samples);
   let expected_ty =
     expected_type ? Some(ChatLSP.Type.expected(~ctx, mode)) : None;
   //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
@@ -290,9 +290,9 @@ let get_parse_err = (filling): Result.t(Zipper.t, string) =>
   };
 
 let mk_round_report =
-    (~settings, ~init_ctx, ~mode, filling: string): round_report =>
-  switch (get_parse_err(filling)) {
-  | Error(err) => {filling, error_report: ParseError(err)}
+    (~settings, ~init_ctx, ~mode, reply: OpenAI.reply): round_report =>
+  switch (get_parse_err(reply.content)) {
+  | Error(err) => {reply, error_report: ParseError(err)}
   | Ok(filling_z) =>
     let (top_ci, info_map) =
       ChatLSP.get_info_and_top_ci_from_zipper(
@@ -301,7 +301,7 @@ let mk_round_report =
         filling_z,
       );
     {
-      filling,
+      reply,
       error_report:
         StaticErrors(
           get_top_level_errs(init_ctx, mode, top_ci)
@@ -311,7 +311,13 @@ let mk_round_report =
   };
 
 let error_reply =
-    (~settings: Settings.t, response: string, ~init_ctx: Ctx.t, ~mode: Mode.t) => {
+    (
+      ~settings: Settings.t,
+      ~init_ctx: Ctx.t,
+      ~mode: Mode.t,
+      reply: OpenAI.reply,
+    )
+    : option(string) => {
   //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
     Some(
@@ -323,7 +329,7 @@ let error_reply =
       ]
       |> String.concat("\n"),
     );
-  switch (mk_round_report(~settings, ~init_ctx, ~mode, response).error_report) {
+  switch (mk_round_report(~settings, ~init_ctx, ~mode, reply).error_report) {
   | ParseError(err) => wrap("The following parse error occured:", [err])
   | StaticErrors(errs) =>
     wrap("The following static errors were discovered:", errs)

@@ -37,9 +37,9 @@ type test_results = list(TestStatus.t);
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type updater =
-  | Init
-  | AddRoundOne(Settings.t, Ctx.t, Mode.t, string)
-  | AddRoundTwo(Settings.t, Ctx.t, Mode.t, string)
+  | Init(FillerOptions.t)
+  | AddRoundOne(Settings.t, Ctx.t, Mode.t, OpenAI.reply)
+  | AddRoundTwo(Settings.t, Ctx.t, Mode.t, OpenAI.reply)
   | Complete(option(test_results));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,7 +54,7 @@ type action('report) =
 [@deriving (show({with_path: false}), yojson, sexp)]
 type t('action, 'report) = {
   current_script: option(string),
-  to_run: list((string, list('action))),
+  to_run: list((string, (FillerOptions.t, list('action)))),
   reports: reports('report),
 };
 
@@ -66,6 +66,7 @@ let init: t('action, 'report) = {
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type llm_report = {
+  options: option(FillerOptions.t),
   time_start: option(float),
   time_end: option(float),
   first_round: option(Filler.round_report),
@@ -78,6 +79,7 @@ type llm_reports = VarMap.t_(llm_report);
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type final_report = {
+  options: FillerOptions.t,
   time_elapsed: float,
   rounds: list(Filler.round_report),
   tests: test_results,
@@ -87,6 +89,7 @@ type final_report = {
   num_tests_passing: int,
   num_tests_failing: int,
   num_tests_indet: int,
+  total_prompt_tokens: int,
 };
 
 [@deriving (show({with_path: false}), yojson, sexp)]
@@ -99,6 +102,7 @@ type final_statuses = VarMap.t_(final_status);
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 let blank_llm_report = {
+  options: None,
   time_start: None,
   time_end: None,
   first_round: None,
@@ -106,7 +110,8 @@ let blank_llm_report = {
   tests: None,
 };
 
-let init_llm_report = _ => {
+let init_llm_report = (options, _) => {
+  options: Some(options),
   time_start: Some(Sys.time()),
   time_end: None,
   first_round: None,
@@ -131,16 +136,25 @@ let complete_llm_reports = (tests, report: llm_report) => {
 };
 
 let final_report =
-    ({time_start, time_end, first_round, second_round, tests, _}: llm_report)
+    (
+      {time_start, time_end, first_round, second_round, tests, options, _}: llm_report,
+    )
     : final_status => {
-  switch (time_start, time_end, tests) {
-  | (Some(time_start), Some(time_end), Some(tests)) =>
+  switch (time_start, time_end, tests, options) {
+  | (Some(time_start), Some(time_end), Some(tests), Some(options)) =>
     //NOTE: head is last round
     let rounds =
       switch (first_round, second_round) {
       | (None, _) => []
       | (Some(first), None) => [first]
       | (Some(first), Some(second)) => [second, first]
+      };
+    let total_prompt_tokens =
+      switch (first_round, second_round) {
+      | (None, _) => 0
+      | (Some(first), None) => first.reply.usage.prompt_tokens
+      | (Some(first), Some(second)) =>
+        first.reply.usage.prompt_tokens + second.reply.usage.prompt_tokens
       };
     let num_rounds = List.length(rounds);
     switch (rounds) {
@@ -152,8 +166,10 @@ let final_report =
         | StaticErrors(errors) => (false, errors |> List.length)
         };
       Ok({
+        options,
         rounds,
         parse_error,
+        total_prompt_tokens,
         num_rounds,
         num_static_errors,
         num_tests_passing:
