@@ -2,7 +2,7 @@ let prompt = Ex_OddlyRecursive_prompt.prompt
 
 let exercise : Exercise.spec =
   {
-    next_id = 5134;
+    next_id = 683;
     title = "Oddly Recursive";
     version = 1;
     module_name = "Ex_OddlyRecursive";
@@ -17,140 +17,26 @@ let exercise : Exercise.spec =
           {
             siblings =
               ( [
-                  Secondary { id = 4466; content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = 4470;
-                      label = [ "fun"; "->" ];
+                      id = 3;
+                      label = [ "let"; "="; "in" ];
                       mold =
                         {
                           out = Exp;
-                          in_ = [ Pat ];
+                          in_ = [ Pat; Exp ];
                           nibs =
                             ( { shape = Convex; sort = Exp },
-                              { shape = Concave 14; sort = Exp } );
-                        };
-                      shards = [ 0; 1 ];
-                      children =
-                        [
-                          [
-                            Secondary { id = 4471; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4474;
-                                label = [ "x" ];
-                                mold =
-                                  {
-                                    out = Pat;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Pat },
-                                        { shape = Convex; sort = Pat } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4475; content = Whitespace " " };
-                          ];
-                        ];
-                    };
-                  Secondary { id = 4478; content = Whitespace "\226\143\142" };
-                  Tile
-                    {
-                      id = 4481;
-                      label = [ "if"; "then"; "else" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [ Exp; Exp ];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Concave 12; sort = Exp } );
+                              { shape = Concave 5; sort = Exp } );
                         };
                       shards = [ 0; 1; 2 ];
                       children =
                         [
                           [
-                            Secondary { id = 4482; content = Whitespace " " };
+                            Secondary { id = 4; content = Whitespace " " };
                             Tile
                               {
-                                id = 4485;
-                                label = [ "x" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4488; content = Whitespace " " };
-                          ];
-                          [
-                            Secondary { id = 4492; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4498;
-                                label = [ "false" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4501; content = Whitespace " " };
-                          ];
-                        ];
-                    };
-                  Secondary { id = 4505; content = Whitespace " " };
-                  Tile
-                    {
-                      id = 4510;
-                      label = [ "true" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Convex; sort = Exp } );
-                        };
-                      shards = [ 0 ];
-                      children = [];
-                    };
-                  Secondary { id = 4513; content = Whitespace " " };
-                  Secondary { id = 5062; content = Whitespace "\226\143\142" };
-                ],
-                [] );
-            ancestors =
-              [
-                ( {
-                    id = 4436;
-                    label = [ "let"; "="; "in" ];
-                    mold =
-                      {
-                        out = Exp;
-                        in_ = [ Pat; Exp ];
-                        nibs =
-                          ( { shape = Convex; sort = Exp },
-                            { shape = Concave 14; sort = Exp } );
-                      };
-                    shards = ([ 0; 1 ], [ 2 ]);
-                    children =
-                      ( [
-                          [
-                            Secondary { id = 4437; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4442;
+                                id = 8;
                                 label = [ "not" ];
                                 mold =
                                   {
@@ -163,10 +49,10 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 4443; content = Whitespace " " };
+                            Secondary { id = 9; content = Whitespace " " };
                             Tile
                               {
-                                id = 4446;
+                                id = 10;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -179,10 +65,10 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 4447; content = Whitespace " " };
+                            Secondary { id = 12; content = Whitespace " " };
                             Tile
                               {
-                                id = 4452;
+                                id = 16;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -195,26 +81,26 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 4453; content = Whitespace " " };
+                            Secondary { id = 17; content = Whitespace " " };
                             Tile
                               {
-                                id = 4457;
+                                id = 20;
                                 label = [ "->" ];
                                 mold =
                                   {
                                     out = Typ;
                                     in_ = [];
                                     nibs =
-                                      ( { shape = Concave 6; sort = Typ },
-                                        { shape = Concave 6; sort = Typ } );
+                                      ( { shape = Concave 16; sort = Typ },
+                                        { shape = Concave 16; sort = Typ } );
                                   };
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 4458; content = Whitespace " " };
+                            Secondary { id = 21; content = Whitespace " " };
                             Tile
                               {
-                                id = 4463;
+                                id = 25;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -227,17 +113,141 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 4464; content = Whitespace " " };
+                            Secondary { id = 26; content = Whitespace " " };
                           ];
-                        ],
-                        [] );
-                  },
-                  ( [],
-                    [
-                      Secondary { id = 4515; content = Whitespace " " };
-                      Grout { id = 4514; shape = Convex };
-                    ] ) );
-              ];
+                          [
+                            Secondary
+                              { id = 28; content = Whitespace "\226\143\142" };
+                            Tile
+                              {
+                                id = 32;
+                                label = [ "fun"; "->" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Pat ];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Concave 7; sort = Exp } );
+                                  };
+                                shards = [ 0; 1 ];
+                                children =
+                                  [
+                                    [
+                                      Secondary
+                                        { id = 33; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 35;
+                                          label = [ "x" ];
+                                          mold =
+                                            {
+                                              out = Pat;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Pat },
+                                                  { shape = Convex; sort = Pat }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 36; content = Whitespace " " };
+                                    ];
+                                  ];
+                              };
+                            Secondary
+                              { id = 39; content = Whitespace "\226\143\142" };
+                            Tile
+                              {
+                                id = 42;
+                                label = [ "if"; "then"; "else" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Exp; Exp ];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Concave 9; sort = Exp } );
+                                  };
+                                shards = [ 0; 1; 2 ];
+                                children =
+                                  [
+                                    [
+                                      Secondary
+                                        { id = 43; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 45;
+                                          label = [ "x" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 48; content = Whitespace " " };
+                                    ];
+                                    [
+                                      Secondary
+                                        { id = 52; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 57;
+                                          label = [ "false" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 60; content = Whitespace " " };
+                                    ];
+                                  ];
+                              };
+                            Secondary { id = 64; content = Whitespace " " };
+                            Tile
+                              {
+                                id = 68;
+                                label = [ "true" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary { id = 72; content = Whitespace " " };
+                            Secondary { id = 69; content = Whitespace " " };
+                            Secondary
+                              { id = 70; content = Whitespace "\226\143\142" };
+                          ];
+                        ];
+                    };
+                  Secondary { id = 74; content = Whitespace " " };
+                  Secondary { id = 75; content = Whitespace " " };
+                ],
+                [ Grout { id = 73; shape = Convex } ] );
+            ancestors = [];
           };
         caret = Outer;
       };
@@ -249,425 +259,26 @@ let exercise : Exercise.spec =
           {
             siblings =
               ( [
-                  Secondary { id = 4544; content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = 4548;
-                      label = [ "fun"; "->" ];
+                      id = 79;
+                      label = [ "let"; "="; "in" ];
                       mold =
                         {
                           out = Exp;
-                          in_ = [ Pat ];
+                          in_ = [ Pat; Exp ];
                           nibs =
                             ( { shape = Convex; sort = Exp },
-                              { shape = Concave 14; sort = Exp } );
-                        };
-                      shards = [ 0; 1 ];
-                      children =
-                        [
-                          [
-                            Secondary { id = 4549; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4552;
-                                label = [ "x" ];
-                                mold =
-                                  {
-                                    out = Pat;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Pat },
-                                        { shape = Convex; sort = Pat } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4553; content = Whitespace " " };
-                          ];
-                        ];
-                    };
-                  Secondary { id = 4556; content = Whitespace "\226\143\142" };
-                  Tile
-                    {
-                      id = 4559;
-                      label = [ "if"; "then"; "else" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [ Exp; Exp ];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Concave 12; sort = Exp } );
+                              { shape = Concave 5; sort = Exp } );
                         };
                       shards = [ 0; 1; 2 ];
                       children =
                         [
                           [
-                            Secondary { id = 4560; content = Whitespace " " };
+                            Secondary { id = 80; content = Whitespace " " };
                             Tile
                               {
-                                id = 4563;
-                                label = [ "x" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4564; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4567;
-                                label = [ "<" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Concave 5; sort = Exp },
-                                        { shape = Concave 5; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4568; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4570;
-                                label = [ "0" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4573; content = Whitespace " " };
-                            Secondary
-                              { id = 4571; content = Whitespace "\226\143\142" };
-                          ];
-                          [
-                            Secondary { id = 4577; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4581;
-                                label = [ "odd" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Tile
-                              {
-                                id = 4582;
-                                label = [ "("; ")" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [ Exp ];
-                                    nibs =
-                                      ( { shape = Concave 1; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0; 1 ];
-                                children =
-                                  [
-                                    [
-                                      Tile
-                                        {
-                                          id = 4585;
-                                          label = [ "-" ];
-                                          mold =
-                                            {
-                                              out = Exp;
-                                              in_ = [];
-                                              nibs =
-                                                ( { shape = Convex; sort = Exp },
-                                                  {
-                                                    shape = Concave 2;
-                                                    sort = Exp;
-                                                  } );
-                                            };
-                                          shards = [ 0 ];
-                                          children = [];
-                                        };
-                                      Tile
-                                        {
-                                          id = 4587;
-                                          label = [ "x" ];
-                                          mold =
-                                            {
-                                              out = Exp;
-                                              in_ = [];
-                                              nibs =
-                                                ( { shape = Convex; sort = Exp },
-                                                  { shape = Convex; sort = Exp }
-                                                );
-                                            };
-                                          shards = [ 0 ];
-                                          children = [];
-                                        };
-                                    ];
-                                  ];
-                              };
-                            Secondary { id = 4590; content = Whitespace " " };
-                            Secondary
-                              { id = 4588; content = Whitespace "\226\143\142" };
-                          ];
-                        ];
-                    };
-                  Secondary { id = 4594; content = Whitespace " " };
-                  Tile
-                    {
-                      id = 4597;
-                      label = [ "if"; "then"; "else" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [ Exp; Exp ];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Concave 12; sort = Exp } );
-                        };
-                      shards = [ 0; 1; 2 ];
-                      children =
-                        [
-                          [
-                            Secondary { id = 4598; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4601;
-                                label = [ "x" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4602; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4606;
-                                label = [ "==" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Concave 7; sort = Exp },
-                                        { shape = Concave 7; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4607; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4609;
-                                label = [ "0" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4612; content = Whitespace " " };
-                          ];
-                          [
-                            Secondary { id = 4616; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4622;
-                                label = [ "false" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Secondary { id = 4625; content = Whitespace " " };
-                            Secondary
-                              { id = 4623; content = Whitespace "\226\143\142" };
-                          ];
-                        ];
-                    };
-                  Secondary { id = 4629; content = Whitespace " " };
-                  Tile
-                    {
-                      id = 4633;
-                      label = [ "not" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Convex; sort = Exp } );
-                        };
-                      shards = [ 0 ];
-                      children = [];
-                    };
-                  Tile
-                    {
-                      id = 4634;
-                      label = [ "("; ")" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [ Exp ];
-                          nibs =
-                            ( { shape = Concave 1; sort = Exp },
-                              { shape = Convex; sort = Exp } );
-                        };
-                      shards = [ 0; 1 ];
-                      children =
-                        [
-                          [
-                            Tile
-                              {
-                                id = 4639;
-                                label = [ "odd" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [];
-                                    nibs =
-                                      ( { shape = Convex; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0 ];
-                                children = [];
-                              };
-                            Tile
-                              {
-                                id = 4640;
-                                label = [ "("; ")" ];
-                                mold =
-                                  {
-                                    out = Exp;
-                                    in_ = [ Exp ];
-                                    nibs =
-                                      ( { shape = Concave 1; sort = Exp },
-                                        { shape = Convex; sort = Exp } );
-                                  };
-                                shards = [ 0; 1 ];
-                                children =
-                                  [
-                                    [
-                                      Tile
-                                        {
-                                          id = 4643;
-                                          label = [ "x" ];
-                                          mold =
-                                            {
-                                              out = Exp;
-                                              in_ = [];
-                                              nibs =
-                                                ( { shape = Convex; sort = Exp },
-                                                  { shape = Convex; sort = Exp }
-                                                );
-                                            };
-                                          shards = [ 0 ];
-                                          children = [];
-                                        };
-                                      Tile
-                                        {
-                                          id = 4646;
-                                          label = [ "-" ];
-                                          mold =
-                                            {
-                                              out = Exp;
-                                              in_ = [];
-                                              nibs =
-                                                ( {
-                                                    shape = Concave 4;
-                                                    sort = Exp;
-                                                  },
-                                                  {
-                                                    shape = Concave 4;
-                                                    sort = Exp;
-                                                  } );
-                                            };
-                                          shards = [ 0 ];
-                                          children = [];
-                                        };
-                                      Tile
-                                        {
-                                          id = 4648;
-                                          label = [ "1" ];
-                                          mold =
-                                            {
-                                              out = Exp;
-                                              in_ = [];
-                                              nibs =
-                                                ( { shape = Convex; sort = Exp },
-                                                  { shape = Convex; sort = Exp }
-                                                );
-                                            };
-                                          shards = [ 0 ];
-                                          children = [];
-                                        };
-                                    ];
-                                  ];
-                              };
-                          ];
-                        ];
-                    };
-                  Secondary { id = 4651; content = Whitespace " " };
-                  Secondary { id = 5063; content = Whitespace "\226\143\142" };
-                ],
-                [] );
-            ancestors =
-              [
-                ( {
-                    id = 4519;
-                    label = [ "let"; "="; "in" ];
-                    mold =
-                      {
-                        out = Exp;
-                        in_ = [ Pat; Exp ];
-                        nibs =
-                          ( { shape = Convex; sort = Exp },
-                            { shape = Concave 14; sort = Exp } );
-                      };
-                    shards = ([ 0; 1 ], [ 2 ]);
-                    children =
-                      ( [
-                          [
-                            Secondary { id = 4520; content = Whitespace " " };
-                            Tile
-                              {
-                                id = 4525;
+                                id = 84;
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -682,7 +293,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = 4528;
+                                id = 85;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -697,7 +308,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = 4532;
+                                id = 89;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -712,22 +323,22 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = 4536;
+                                id = 92;
                                 label = [ "->" ];
                                 mold =
                                   {
                                     out = Typ;
                                     in_ = [];
                                     nibs =
-                                      ( { shape = Concave 6; sort = Typ },
-                                        { shape = Concave 6; sort = Typ } );
+                                      ( { shape = Concave 16; sort = Typ },
+                                        { shape = Concave 16; sort = Typ } );
                                   };
                                 shards = [ 0 ];
                                 children = [];
                               };
                             Tile
                               {
-                                id = 4541;
+                                id = 96;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -740,17 +351,473 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 4542; content = Whitespace " " };
+                            Secondary { id = 97; content = Whitespace " " };
                           ];
-                        ],
-                        [] );
-                  },
-                  ( [],
-                    [
-                      Secondary { id = 4653; content = Whitespace " " };
-                      Grout { id = 4652; shape = Convex };
-                    ] ) );
-              ];
+                          [
+                            Secondary
+                              { id = 99; content = Whitespace "\226\143\142" };
+                            Tile
+                              {
+                                id = 103;
+                                label = [ "fun"; "->" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Pat ];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Concave 7; sort = Exp } );
+                                  };
+                                shards = [ 0; 1 ];
+                                children =
+                                  [
+                                    [
+                                      Secondary
+                                        { id = 104; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 106;
+                                          label = [ "x" ];
+                                          mold =
+                                            {
+                                              out = Pat;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Pat },
+                                                  { shape = Convex; sort = Pat }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 107; content = Whitespace " " };
+                                    ];
+                                  ];
+                              };
+                            Secondary
+                              { id = 110; content = Whitespace "\226\143\142" };
+                            Tile
+                              {
+                                id = 113;
+                                label = [ "if"; "then"; "else" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Exp; Exp ];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Concave 9; sort = Exp } );
+                                  };
+                                shards = [ 0; 1; 2 ];
+                                children =
+                                  [
+                                    [
+                                      Secondary
+                                        { id = 114; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 116;
+                                          label = [ "x" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 117; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 118;
+                                          label = [ "<" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( {
+                                                    shape = Concave 13;
+                                                    sort = Exp;
+                                                  },
+                                                  {
+                                                    shape = Concave 13;
+                                                    sort = Exp;
+                                                  } );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 120; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 121;
+                                          label = [ "0" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 125; content = Whitespace " " };
+                                      Secondary
+                                        { id = 122; content = Whitespace " " };
+                                      Secondary
+                                        {
+                                          id = 123;
+                                          content = Whitespace "\226\143\142";
+                                        };
+                                    ];
+                                    [
+                                      Secondary
+                                        { id = 129; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 132;
+                                          label = [ "odd" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Tile
+                                        {
+                                          id = 133;
+                                          label = [ "("; ")" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [ Exp ];
+                                              nibs =
+                                                ( {
+                                                    shape = Concave 21;
+                                                    sort = Exp;
+                                                  },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0; 1 ];
+                                          children =
+                                            [
+                                              [
+                                                Tile
+                                                  {
+                                                    id = 135;
+                                                    label = [ "-" ];
+                                                    mold =
+                                                      {
+                                                        out = Exp;
+                                                        in_ = [];
+                                                        nibs =
+                                                          ( {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            },
+                                                            {
+                                                              shape = Concave 20;
+                                                              sort = Exp;
+                                                            } );
+                                                      };
+                                                    shards = [ 0 ];
+                                                    children = [];
+                                                  };
+                                                Tile
+                                                  {
+                                                    id = 136;
+                                                    label = [ "x" ];
+                                                    mold =
+                                                      {
+                                                        out = Exp;
+                                                        in_ = [];
+                                                        nibs =
+                                                          ( {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            },
+                                                            {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            } );
+                                                      };
+                                                    shards = [ 0 ];
+                                                    children = [];
+                                                  };
+                                              ];
+                                            ];
+                                        };
+                                      Secondary
+                                        { id = 140; content = Whitespace " " };
+                                      Secondary
+                                        { id = 137; content = Whitespace " " };
+                                      Secondary
+                                        {
+                                          id = 138;
+                                          content = Whitespace "\226\143\142";
+                                        };
+                                    ];
+                                  ];
+                              };
+                            Secondary { id = 144; content = Whitespace " " };
+                            Tile
+                              {
+                                id = 147;
+                                label = [ "if"; "then"; "else" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Exp; Exp ];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Concave 9; sort = Exp } );
+                                  };
+                                shards = [ 0; 1; 2 ];
+                                children =
+                                  [
+                                    [
+                                      Secondary
+                                        { id = 148; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 150;
+                                          label = [ "x" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 151; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 154;
+                                          label = [ "==" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( {
+                                                    shape = Concave 13;
+                                                    sort = Exp;
+                                                  },
+                                                  {
+                                                    shape = Concave 13;
+                                                    sort = Exp;
+                                                  } );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 155; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 156;
+                                          label = [ "0" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 159; content = Whitespace " " };
+                                    ];
+                                    [
+                                      Secondary
+                                        { id = 163; content = Whitespace " " };
+                                      Tile
+                                        {
+                                          id = 168;
+                                          label = [ "false" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        { id = 172; content = Whitespace " " };
+                                      Secondary
+                                        { id = 169; content = Whitespace " " };
+                                      Secondary
+                                        {
+                                          id = 170;
+                                          content = Whitespace "\226\143\142";
+                                        };
+                                    ];
+                                  ];
+                              };
+                            Secondary { id = 176; content = Whitespace " " };
+                            Tile
+                              {
+                                id = 179;
+                                label = [ "not" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Tile
+                              {
+                                id = 180;
+                                label = [ "("; ")" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Exp ];
+                                    nibs =
+                                      ( { shape = Concave 21; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0; 1 ];
+                                children =
+                                  [
+                                    [
+                                      Tile
+                                        {
+                                          id = 184;
+                                          label = [ "odd" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Exp },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Tile
+                                        {
+                                          id = 185;
+                                          label = [ "("; ")" ];
+                                          mold =
+                                            {
+                                              out = Exp;
+                                              in_ = [ Exp ];
+                                              nibs =
+                                                ( {
+                                                    shape = Concave 21;
+                                                    sort = Exp;
+                                                  },
+                                                  { shape = Convex; sort = Exp }
+                                                );
+                                            };
+                                          shards = [ 0; 1 ];
+                                          children =
+                                            [
+                                              [
+                                                Tile
+                                                  {
+                                                    id = 187;
+                                                    label = [ "x" ];
+                                                    mold =
+                                                      {
+                                                        out = Exp;
+                                                        in_ = [];
+                                                        nibs =
+                                                          ( {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            },
+                                                            {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            } );
+                                                      };
+                                                    shards = [ 0 ];
+                                                    children = [];
+                                                  };
+                                                Grout
+                                                  { id = 191; shape = Concave };
+                                                Tile
+                                                  {
+                                                    id = 190;
+                                                    label = [ "-1" ];
+                                                    mold =
+                                                      {
+                                                        out = Exp;
+                                                        in_ = [];
+                                                        nibs =
+                                                          ( {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            },
+                                                            {
+                                                              shape = Convex;
+                                                              sort = Exp;
+                                                            } );
+                                                      };
+                                                    shards = [ 0 ];
+                                                    children = [];
+                                                  };
+                                              ];
+                                            ];
+                                        };
+                                    ];
+                                  ];
+                              };
+                            Secondary { id = 195; content = Whitespace " " };
+                            Secondary { id = 192; content = Whitespace " " };
+                            Secondary
+                              { id = 193; content = Whitespace "\226\143\142" };
+                          ];
+                        ];
+                    };
+                  Secondary { id = 197; content = Whitespace " " };
+                  Secondary { id = 198; content = Whitespace " " };
+                ],
+                [ Grout { id = 196; shape = Convex } ] );
+            ancestors = [];
           };
         caret = Outer;
       };
@@ -758,7 +825,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            selection = { focus = Right; content = [] };
+            selection = { focus = Left; content = [] };
             backpack = [];
             relatives =
               {
@@ -766,7 +833,7 @@ let exercise : Exercise.spec =
                   ( [
                       Tile
                         {
-                          id = 225;
+                          id = 203;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -780,10 +847,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 226; content = Whitespace " " };
+                                Secondary { id = 204; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 231;
+                                    id = 208;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -798,14 +865,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 232;
+                                    id = 209;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -814,7 +881,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 239;
+                                              id = 215;
                                               label = [ "false" ];
                                               mold =
                                                 {
@@ -836,30 +903,30 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 242; content = Whitespace " " };
+                                Secondary { id = 218; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 246;
+                          id = 220;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
                       Secondary
-                        { id = 247; content = Whitespace "\226\143\142" };
+                        { id = 222; content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 252;
+                          id = 227;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -873,10 +940,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 253; content = Whitespace " " };
+                                Secondary { id = 228; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 258;
+                                    id = 232;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -891,14 +958,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 259;
+                                    id = 233;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -907,7 +974,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 264;
+                                              id = 237;
                                               label = [ "not" ];
                                               mold =
                                                 {
@@ -928,7 +995,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 265;
+                                              id = 238;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -936,7 +1003,7 @@ let exercise : Exercise.spec =
                                                   in_ = [ Exp ];
                                                   nibs =
                                                     ( {
-                                                        shape = Concave 1;
+                                                        shape = Concave 21;
                                                         sort = Exp;
                                                       },
                                                       {
@@ -950,7 +1017,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 271;
+                                                        id = 243;
                                                         label = [ "true" ];
                                                         mold =
                                                           {
@@ -975,30 +1042,31 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 274; content = Whitespace " " };
+                                Secondary { id = 246; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 278;
+                          id = 248;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary { id = 279; content = Whitespace " " };
+                      Secondary { id = 250; content = Whitespace " " };
                       Secondary
-                        { id = 5065; content = Whitespace "\226\143\142" };
+                        { id = 251; content = Whitespace "\226\143\142" };
+                      Secondary { id = 252; content = Whitespace " " };
                     ],
-                    [ Grout { id = 5064; shape = Convex } ] );
+                    [ Grout { id = 249; shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;
@@ -1016,7 +1084,7 @@ let exercise : Exercise.spec =
               ( [
                   Tile
                     {
-                      id = 283;
+                      id = 256;
                       label = [ "let"; "="; "in" ];
                       mold =
                         {
@@ -1024,16 +1092,16 @@ let exercise : Exercise.spec =
                           in_ = [ Pat; Exp ];
                           nibs =
                             ( { shape = Convex; sort = Exp },
-                              { shape = Concave 14; sort = Exp } );
+                              { shape = Concave 5; sort = Exp } );
                         };
                       shards = [ 0; 1; 2 ];
                       children =
                         [
                           [
-                            Secondary { id = 284; content = Whitespace " " };
+                            Secondary { id = 257; content = Whitespace " " };
                             Tile
                               {
-                                id = 289;
+                                id = 261;
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -1048,7 +1116,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = 292;
+                                id = 262;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -1061,10 +1129,10 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 293; content = Whitespace " " };
+                            Secondary { id = 264; content = Whitespace " " };
                             Tile
                               {
-                                id = 297;
+                                id = 267;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -1077,26 +1145,26 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 298; content = Whitespace " " };
+                            Secondary { id = 268; content = Whitespace " " };
                             Tile
                               {
-                                id = 302;
+                                id = 271;
                                 label = [ "->" ];
                                 mold =
                                   {
                                     out = Typ;
                                     in_ = [];
                                     nibs =
-                                      ( { shape = Concave 6; sort = Typ },
-                                        { shape = Concave 6; sort = Typ } );
+                                      ( { shape = Concave 16; sort = Typ },
+                                        { shape = Concave 16; sort = Typ } );
                                   };
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 303; content = Whitespace " " };
+                            Secondary { id = 272; content = Whitespace " " };
                             Tile
                               {
-                                id = 308;
+                                id = 276;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -1109,14 +1177,14 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 309; content = Whitespace " " };
+                            Secondary { id = 277; content = Whitespace " " };
                           ];
                           [
                             Secondary
-                              { id = 311; content = Whitespace "\226\143\142" };
+                              { id = 279; content = Whitespace "\226\143\142" };
                             Tile
                               {
-                                id = 315;
+                                id = 283;
                                 label = [ "fun"; "->" ];
                                 mold =
                                   {
@@ -1124,17 +1192,17 @@ let exercise : Exercise.spec =
                                     in_ = [ Pat ];
                                     nibs =
                                       ( { shape = Convex; sort = Exp },
-                                        { shape = Concave 14; sort = Exp } );
+                                        { shape = Concave 7; sort = Exp } );
                                   };
                                 shards = [ 0; 1 ];
                                 children =
                                   [
                                     [
                                       Secondary
-                                        { id = 316; content = Whitespace " " };
+                                        { id = 284; content = Whitespace " " };
                                       Tile
                                         {
-                                          id = 319;
+                                          id = 286;
                                           label = [ "n" ];
                                           mold =
                                             {
@@ -1149,21 +1217,22 @@ let exercise : Exercise.spec =
                                           children = [];
                                         };
                                       Secondary
-                                        { id = 320; content = Whitespace " " };
+                                        { id = 287; content = Whitespace " " };
                                     ];
                                   ];
                               };
-                            Secondary { id = 5067; content = Whitespace " " };
-                            Grout { id = 325; shape = Convex };
-                            Secondary { id = 323; content = Whitespace " " };
+                            Grout { id = 295; shape = Convex };
+                            Secondary { id = 291; content = Whitespace " " };
+                            Secondary { id = 292; content = Whitespace " " };
                             Secondary
-                              { id = 5068; content = Whitespace "\226\143\142" };
+                              { id = 293; content = Whitespace "\226\143\142" };
                           ];
                         ];
                     };
-                  Secondary { id = 5069; content = Whitespace " " };
+                  Secondary { id = 297; content = Whitespace " " };
+                  Secondary { id = 298; content = Whitespace " " };
                 ],
-                [ Grout { id = 326; shape = Convex } ] );
+                [ Grout { id = 296; shape = Convex } ] );
             ancestors = [];
           };
         caret = Outer;
@@ -1181,7 +1250,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = 4657;
+                            id = 302;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1189,17 +1258,17 @@ let exercise : Exercise.spec =
                                 in_ = [ Pat; Exp ];
                                 nibs =
                                   ( { shape = Convex; sort = Exp },
-                                    { shape = Concave 14; sort = Exp } );
+                                    { shape = Concave 5; sort = Exp } );
                               };
                             shards = [ 0; 1; 2 ];
                             children =
                               [
                                 [
                                   Secondary
-                                    { id = 4658; content = Whitespace " " };
+                                    { id = 303; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4663;
+                                      id = 307;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1214,7 +1283,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4666;
+                                      id = 308;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1229,10 +1298,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4667; content = Whitespace " " };
+                                    { id = 310; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4671;
+                                      id = 313;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1246,28 +1315,28 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4672; content = Whitespace " " };
+                                    { id = 314; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4676;
+                                      id = 317;
                                       label = [ "->" ];
                                       mold =
                                         {
                                           out = Typ;
                                           in_ = [];
                                           nibs =
-                                            ( { shape = Concave 6; sort = Typ },
-                                              { shape = Concave 6; sort = Typ }
+                                            ( { shape = Concave 16; sort = Typ },
+                                              { shape = Concave 16; sort = Typ }
                                             );
                                         };
                                       shards = [ 0 ];
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4677; content = Whitespace " " };
+                                    { id = 318; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4682;
+                                      id = 322;
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1281,17 +1350,17 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4683; content = Whitespace " " };
+                                    { id = 323; content = Whitespace " " };
                                 ];
                                 [
                                   Secondary
                                     {
-                                      id = 4685;
+                                      id = 325;
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 4689;
+                                      id = 329;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1299,7 +1368,7 @@ let exercise : Exercise.spec =
                                           in_ = [ Pat ];
                                           nibs =
                                             ( { shape = Convex; sort = Exp },
-                                              { shape = Concave 14; sort = Exp }
+                                              { shape = Concave 7; sort = Exp }
                                             );
                                         };
                                       shards = [ 0; 1 ];
@@ -1308,12 +1377,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 4690;
+                                                id = 330;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4693;
+                                                id = 332;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1334,17 +1403,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4694;
+                                                id = 333;
                                                 content = Whitespace " ";
                                               };
                                           ];
                                         ];
                                     };
                                   Secondary
-                                    { id = 4697; content = Whitespace " " };
+                                    { id = 336; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4703;
+                                      id = 341;
                                       label = [ "false" ];
                                       mold =
                                         {
@@ -1358,18 +1427,21 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4706; content = Whitespace " " };
+                                    { id = 345; content = Whitespace " " };
+                                  Secondary
+                                    { id = 342; content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 4704;
+                                      id = 343;
                                       content = Whitespace "\226\143\142";
                                     };
                                 ];
                               ];
                           };
-                        Secondary { id = 4708; content = Whitespace " " };
+                        Secondary { id = 347; content = Whitespace " " };
+                        Secondary { id = 348; content = Whitespace " " };
                       ],
-                      [ Grout { id = 4707; shape = Convex } ] );
+                      [ Grout { id = 346; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1387,7 +1459,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = 4712;
+                            id = 352;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1395,17 +1467,17 @@ let exercise : Exercise.spec =
                                 in_ = [ Pat; Exp ];
                                 nibs =
                                   ( { shape = Convex; sort = Exp },
-                                    { shape = Concave 14; sort = Exp } );
+                                    { shape = Concave 5; sort = Exp } );
                               };
                             shards = [ 0; 1; 2 ];
                             children =
                               [
                                 [
                                   Secondary
-                                    { id = 4713; content = Whitespace " " };
+                                    { id = 353; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4718;
+                                      id = 357;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1420,7 +1492,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4721;
+                                      id = 358;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1435,10 +1507,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4722; content = Whitespace " " };
+                                    { id = 360; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4726;
+                                      id = 363;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1452,28 +1524,28 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4727; content = Whitespace " " };
+                                    { id = 364; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4731;
+                                      id = 367;
                                       label = [ "->" ];
                                       mold =
                                         {
                                           out = Typ;
                                           in_ = [];
                                           nibs =
-                                            ( { shape = Concave 6; sort = Typ },
-                                              { shape = Concave 6; sort = Typ }
+                                            ( { shape = Concave 16; sort = Typ },
+                                              { shape = Concave 16; sort = Typ }
                                             );
                                         };
                                       shards = [ 0 ];
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4732; content = Whitespace " " };
+                                    { id = 368; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4737;
+                                      id = 372;
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1487,17 +1559,17 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4738; content = Whitespace " " };
+                                    { id = 373; content = Whitespace " " };
                                 ];
                                 [
                                   Secondary
                                     {
-                                      id = 4740;
+                                      id = 375;
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 4744;
+                                      id = 379;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1505,7 +1577,7 @@ let exercise : Exercise.spec =
                                           in_ = [ Pat ];
                                           nibs =
                                             ( { shape = Convex; sort = Exp },
-                                              { shape = Concave 14; sort = Exp }
+                                              { shape = Concave 7; sort = Exp }
                                             );
                                         };
                                       shards = [ 0; 1 ];
@@ -1514,12 +1586,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 4745;
+                                                id = 380;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4748;
+                                                id = 382;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1540,17 +1612,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4749;
+                                                id = 383;
                                                 content = Whitespace " ";
                                               };
                                           ];
                                         ];
                                     };
                                   Secondary
-                                    { id = 4752; content = Whitespace " " };
+                                    { id = 386; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4757;
+                                      id = 390;
                                       label = [ "true" ];
                                       mold =
                                         {
@@ -1564,18 +1636,21 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4760; content = Whitespace " " };
+                                    { id = 394; content = Whitespace " " };
+                                  Secondary
+                                    { id = 391; content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 4758;
+                                      id = 392;
                                       content = Whitespace "\226\143\142";
                                     };
                                 ];
                               ];
                           };
-                        Secondary { id = 5066; content = Whitespace " " };
+                        Secondary { id = 396; content = Whitespace " " };
+                        Secondary { id = 397; content = Whitespace " " };
                       ],
-                      [ Grout { id = 4761; shape = Convex } ] );
+                      [ Grout { id = 395; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1593,7 +1668,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = 4765;
+                            id = 401;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1601,17 +1676,17 @@ let exercise : Exercise.spec =
                                 in_ = [ Pat; Exp ];
                                 nibs =
                                   ( { shape = Convex; sort = Exp },
-                                    { shape = Concave 14; sort = Exp } );
+                                    { shape = Concave 5; sort = Exp } );
                               };
                             shards = [ 0; 1; 2 ];
                             children =
                               [
                                 [
                                   Secondary
-                                    { id = 4766; content = Whitespace " " };
+                                    { id = 402; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4771;
+                                      id = 406;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1626,7 +1701,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4774;
+                                      id = 407;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1641,10 +1716,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4775; content = Whitespace " " };
+                                    { id = 409; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4779;
+                                      id = 412;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1658,28 +1733,28 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4780; content = Whitespace " " };
+                                    { id = 413; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4784;
+                                      id = 416;
                                       label = [ "->" ];
                                       mold =
                                         {
                                           out = Typ;
                                           in_ = [];
                                           nibs =
-                                            ( { shape = Concave 6; sort = Typ },
-                                              { shape = Concave 6; sort = Typ }
+                                            ( { shape = Concave 16; sort = Typ },
+                                              { shape = Concave 16; sort = Typ }
                                             );
                                         };
                                       shards = [ 0 ];
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4785; content = Whitespace " " };
+                                    { id = 417; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4790;
+                                      id = 421;
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1693,17 +1768,17 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 4791; content = Whitespace " " };
+                                    { id = 422; content = Whitespace " " };
                                 ];
                                 [
                                   Secondary
                                     {
-                                      id = 4793;
+                                      id = 424;
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 4797;
+                                      id = 428;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1711,7 +1786,7 @@ let exercise : Exercise.spec =
                                           in_ = [ Pat ];
                                           nibs =
                                             ( { shape = Convex; sort = Exp },
-                                              { shape = Concave 14; sort = Exp }
+                                              { shape = Concave 7; sort = Exp }
                                             );
                                         };
                                       shards = [ 0; 1 ];
@@ -1720,12 +1795,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 4798;
+                                                id = 429;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4801;
+                                                id = 431;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1746,17 +1821,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4802;
+                                                id = 432;
                                                 content = Whitespace " ";
                                               };
                                           ];
                                         ];
                                     };
                                   Secondary
-                                    { id = 4805; content = Whitespace " " };
+                                    { id = 435; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4808;
+                                      id = 438;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1764,7 +1839,7 @@ let exercise : Exercise.spec =
                                           in_ = [ Exp; Exp ];
                                           nibs =
                                             ( { shape = Convex; sort = Exp },
-                                              { shape = Concave 12; sort = Exp }
+                                              { shape = Concave 9; sort = Exp }
                                             );
                                         };
                                       shards = [ 0; 1; 2 ];
@@ -1773,12 +1848,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 4809;
+                                                id = 439;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4812;
+                                                id = 441;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1799,12 +1874,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4813;
+                                                id = 442;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4816;
+                                                id = 443;
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1812,11 +1887,11 @@ let exercise : Exercise.spec =
                                                     in_ = [];
                                                     nibs =
                                                       ( {
-                                                          shape = Concave 5;
+                                                          shape = Concave 13;
                                                           sort = Exp;
                                                         },
                                                         {
-                                                          shape = Concave 5;
+                                                          shape = Concave 13;
                                                           sort = Exp;
                                                         } );
                                                   };
@@ -1825,12 +1900,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4817;
+                                                id = 445;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4819;
+                                                id = 446;
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -1851,19 +1926,19 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4822;
+                                                id = 449;
                                                 content = Whitespace " ";
                                               };
                                           ];
                                           [
                                             Secondary
                                               {
-                                                id = 4826;
+                                                id = 453;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4830;
+                                                id = 456;
                                                 label = [ "odd" ];
                                                 mold =
                                                   {
@@ -1884,7 +1959,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = 4831;
+                                                id = 457;
                                                 label = [ "("; ")" ];
                                                 mold =
                                                   {
@@ -1892,7 +1967,7 @@ let exercise : Exercise.spec =
                                                     in_ = [ Exp ];
                                                     nibs =
                                                       ( {
-                                                          shape = Concave 1;
+                                                          shape = Concave 21;
                                                           sort = Exp;
                                                         },
                                                         {
@@ -1906,7 +1981,7 @@ let exercise : Exercise.spec =
                                                     [
                                                       Tile
                                                         {
-                                                          id = 4834;
+                                                          id = 459;
                                                           label = [ "-" ];
                                                           mold =
                                                             {
@@ -1920,7 +1995,7 @@ let exercise : Exercise.spec =
                                                                   },
                                                                   {
                                                                     shape =
-                                                                      Concave 2;
+                                                                      Concave 20;
                                                                     sort = Exp;
                                                                   } );
                                                             };
@@ -1929,7 +2004,7 @@ let exercise : Exercise.spec =
                                                         };
                                                       Tile
                                                         {
-                                                          id = 4836;
+                                                          id = 460;
                                                           label = [ "x" ];
                                                           mold =
                                                             {
@@ -1955,12 +2030,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4839;
+                                                id = 464;
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 4837;
+                                                id = 461;
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = 462;
                                                 content =
                                                   Whitespace "\226\143\142";
                                               };
@@ -1968,10 +2048,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 4843; content = Whitespace " " };
+                                    { id = 468; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4846;
+                                      id = 471;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1979,7 +2059,7 @@ let exercise : Exercise.spec =
                                           in_ = [ Exp; Exp ];
                                           nibs =
                                             ( { shape = Convex; sort = Exp },
-                                              { shape = Concave 12; sort = Exp }
+                                              { shape = Concave 9; sort = Exp }
                                             );
                                         };
                                       shards = [ 0; 1; 2 ];
@@ -1988,12 +2068,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 4847;
+                                                id = 472;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4850;
+                                                id = 474;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2014,12 +2094,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4851;
+                                                id = 475;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4855;
+                                                id = 478;
                                                 label = [ "==" ];
                                                 mold =
                                                   {
@@ -2027,11 +2107,11 @@ let exercise : Exercise.spec =
                                                     in_ = [];
                                                     nibs =
                                                       ( {
-                                                          shape = Concave 7;
+                                                          shape = Concave 13;
                                                           sort = Exp;
                                                         },
                                                         {
-                                                          shape = Concave 7;
+                                                          shape = Concave 13;
                                                           sort = Exp;
                                                         } );
                                                   };
@@ -2040,12 +2120,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4856;
+                                                id = 479;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4858;
+                                                id = 480;
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -2066,19 +2146,19 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4861;
+                                                id = 483;
                                                 content = Whitespace " ";
                                               };
                                           ];
                                           [
                                             Secondary
                                               {
-                                                id = 4865;
+                                                id = 487;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4870;
+                                                id = 491;
                                                 label = [ "true" ];
                                                 mold =
                                                   {
@@ -2099,12 +2179,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4873;
+                                                id = 495;
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 4871;
+                                                id = 492;
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = 493;
                                                 content =
                                                   Whitespace "\226\143\142";
                                               };
@@ -2112,10 +2197,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 4877; content = Whitespace " " };
+                                    { id = 499; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4880;
+                                      id = 502;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -2123,7 +2208,7 @@ let exercise : Exercise.spec =
                                           in_ = [ Exp; Exp ];
                                           nibs =
                                             ( { shape = Convex; sort = Exp },
-                                              { shape = Concave 12; sort = Exp }
+                                              { shape = Concave 9; sort = Exp }
                                             );
                                         };
                                       shards = [ 0; 1; 2 ];
@@ -2132,12 +2217,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 4881;
+                                                id = 503;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4884;
+                                                id = 505;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2158,12 +2243,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4885;
+                                                id = 506;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4889;
+                                                id = 509;
                                                 label = [ "==" ];
                                                 mold =
                                                   {
@@ -2171,11 +2256,11 @@ let exercise : Exercise.spec =
                                                     in_ = [];
                                                     nibs =
                                                       ( {
-                                                          shape = Concave 7;
+                                                          shape = Concave 13;
                                                           sort = Exp;
                                                         },
                                                         {
-                                                          shape = Concave 7;
+                                                          shape = Concave 13;
                                                           sort = Exp;
                                                         } );
                                                   };
@@ -2184,12 +2269,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4890;
+                                                id = 510;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4892;
+                                                id = 511;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -2210,19 +2295,19 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4895;
+                                                id = 514;
                                                 content = Whitespace " ";
                                               };
                                           ];
                                           [
                                             Secondary
                                               {
-                                                id = 4899;
+                                                id = 518;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4904;
+                                                id = 522;
                                                 label = [ "true" ];
                                                 mold =
                                                   {
@@ -2243,12 +2328,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4907;
+                                                id = 526;
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 4905;
+                                                id = 523;
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = 524;
                                                 content =
                                                   Whitespace "\226\143\142";
                                               };
@@ -2256,10 +2346,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 4911; content = Whitespace " " };
+                                    { id = 530; content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 4915;
+                                      id = 533;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -2274,14 +2364,14 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4916;
+                                      id = 534;
                                       label = [ "("; ")" ];
                                       mold =
                                         {
                                           out = Exp;
                                           in_ = [ Exp ];
                                           nibs =
-                                            ( { shape = Concave 1; sort = Exp },
+                                            ( { shape = Concave 21; sort = Exp },
                                               { shape = Convex; sort = Exp } );
                                         };
                                       shards = [ 0; 1 ];
@@ -2290,7 +2380,7 @@ let exercise : Exercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = 4919;
+                                                id = 536;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2311,12 +2401,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4920;
+                                                id = 537;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4923;
+                                                id = 538;
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -2324,11 +2414,11 @@ let exercise : Exercise.spec =
                                                     in_ = [];
                                                     nibs =
                                                       ( {
-                                                          shape = Concave 4;
+                                                          shape = Concave 17;
                                                           sort = Exp;
                                                         },
                                                         {
-                                                          shape = Concave 4;
+                                                          shape = Concave 17;
                                                           sort = Exp;
                                                         } );
                                                   };
@@ -2337,12 +2427,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 4924;
+                                                id = 540;
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 4926;
+                                                id = 541;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -2365,14 +2455,15 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 4929; content = Whitespace " " };
+                                    { id = 544; content = Whitespace " " };
                                 ];
                               ];
                           };
                         Secondary
-                          { id = 4931; content = Whitespace "\226\143\142" };
+                          { id = 546; content = Whitespace "\226\143\142" };
+                        Secondary { id = 547; content = Whitespace " " };
                       ],
-                      [ Grout { id = 4930; shape = Convex } ] );
+                      [ Grout { id = 545; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -2392,7 +2483,7 @@ let exercise : Exercise.spec =
                   ( [
                       Tile
                         {
-                          id = 4936;
+                          id = 552;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2406,11 +2497,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary
-                                  { id = 4937; content = Whitespace " " };
+                                Secondary { id = 553; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 4942;
+                                    id = 557;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2425,14 +2515,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 4943;
+                                    id = 558;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -2441,7 +2531,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 4948;
+                                              id = 562;
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2462,7 +2552,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 4949;
+                                              id = 563;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2470,7 +2560,7 @@ let exercise : Exercise.spec =
                                                   in_ = [ Exp ];
                                                   nibs =
                                                     ( {
-                                                        shape = Concave 1;
+                                                        shape = Concave 21;
                                                         sort = Exp;
                                                       },
                                                       {
@@ -2484,7 +2574,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 4952;
+                                                        id = 565;
                                                         label = [ "0" ];
                                                         mold =
                                                           {
@@ -2509,31 +2599,30 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary
-                                  { id = 4955; content = Whitespace " " };
+                                Secondary { id = 568; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 4959;
+                          id = 570;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
                       Secondary
-                        { id = 4960; content = Whitespace "\226\143\142" };
+                        { id = 572; content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 4965;
+                          id = 577;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2547,11 +2636,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary
-                                  { id = 4966; content = Whitespace " " };
+                                Secondary { id = 578; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 4971;
+                                    id = 582;
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2566,14 +2654,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 4972;
+                                    id = 583;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -2582,7 +2670,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 4975;
+                                              id = 585;
                                               label = [ "1" ];
                                               mold =
                                                 {
@@ -2604,31 +2692,30 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary
-                                  { id = 4978; content = Whitespace " " };
+                                Secondary { id = 588; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 4982;
+                          id = 590;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
                       Secondary
-                        { id = 4983; content = Whitespace "\226\143\142" };
+                        { id = 592; content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 4988;
+                          id = 597;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2642,11 +2729,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary
-                                  { id = 4989; content = Whitespace " " };
+                                Secondary { id = 598; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 4994;
+                                    id = 602;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2661,14 +2747,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 4995;
+                                    id = 603;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -2677,7 +2763,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5000;
+                                              id = 607;
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2698,7 +2784,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 5001;
+                                              id = 608;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2706,7 +2792,7 @@ let exercise : Exercise.spec =
                                                   in_ = [ Exp ];
                                                   nibs =
                                                     ( {
-                                                        shape = Concave 1;
+                                                        shape = Concave 21;
                                                         sort = Exp;
                                                       },
                                                       {
@@ -2720,7 +2806,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 5004;
+                                                        id = 610;
                                                         label = [ "2" ];
                                                         mold =
                                                           {
@@ -2745,31 +2831,30 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary
-                                  { id = 5007; content = Whitespace " " };
+                                Secondary { id = 613; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 5070;
+                          id = 615;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
                       Secondary
-                        { id = 5071; content = Whitespace "\226\143\142" };
+                        { id = 617; content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 5077;
+                          id = 622;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2783,11 +2868,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary
-                                  { id = 5078; content = Whitespace " " };
+                                Secondary { id = 623; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 5083;
+                                    id = 627;
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2802,14 +2886,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 5084;
+                                    id = 628;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -2818,7 +2902,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5087;
+                                              id = 630;
                                               label = [ "3" ];
                                               mold =
                                                 {
@@ -2840,31 +2924,30 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary
-                                  { id = 5090; content = Whitespace " " };
+                                Secondary { id = 633; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 5092;
+                          id = 635;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
                       Secondary
-                        { id = 5012; content = Whitespace "\226\143\142" };
+                        { id = 637; content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 5017;
+                          id = 642;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2878,11 +2961,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary
-                                  { id = 5018; content = Whitespace " " };
+                                Secondary { id = 643; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 5023;
+                                    id = 647;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2897,14 +2979,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 5024;
+                                    id = 648;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -2913,7 +2995,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5029;
+                                              id = 652;
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2934,7 +3016,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 5030;
+                                              id = 653;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2942,7 +3024,7 @@ let exercise : Exercise.spec =
                                                   in_ = [ Exp ];
                                                   nibs =
                                                     ( {
-                                                        shape = Concave 1;
+                                                        shape = Concave 21;
                                                         sort = Exp;
                                                       },
                                                       {
@@ -2956,7 +3038,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 5034;
+                                                        id = 656;
                                                         label = [ "42" ];
                                                         mold =
                                                           {
@@ -2981,32 +3063,31 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary
-                                  { id = 5037; content = Whitespace " " };
+                                Secondary { id = 659; content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 5095;
+                          id = 661;
                           label = [ ";" ];
                           mold =
                             {
                               out = Exp;
                               in_ = [];
                               nibs =
-                                ( { shape = Concave 10; sort = Exp },
-                                  { shape = Concave 10; sort = Exp } );
+                                ( { shape = Concave 8; sort = Exp },
+                                  { shape = Concave 8; sort = Exp } );
                             };
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary { id = 5096; content = Whitespace " " };
+                      Secondary { id = 663; content = Whitespace " " };
                       Secondary
-                        { id = 5097; content = Whitespace "\226\143\142" };
+                        { id = 664; content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 5102;
+                          id = 669;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -3020,11 +3101,10 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary
-                                  { id = 5103; content = Whitespace " " };
+                                Secondary { id = 670; content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 5133;
+                                    id = 674;
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -3039,14 +3119,14 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 5115;
+                                    id = 675;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
                                         out = Exp;
                                         in_ = [ Exp ];
                                         nibs =
-                                          ( { shape = Concave 1; sort = Exp },
+                                          ( { shape = Concave 21; sort = Exp },
                                             { shape = Convex; sort = Exp } );
                                       };
                                     shards = [ 0; 1 ];
@@ -3055,7 +3135,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5129;
+                                              id = 678;
                                               label = [ "27" ];
                                               mold =
                                                 {
@@ -3077,8 +3157,7 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary
-                                  { id = 5121; content = Whitespace " " };
+                                Secondary { id = 681; content = Whitespace " " };
                               ];
                             ];
                         };
