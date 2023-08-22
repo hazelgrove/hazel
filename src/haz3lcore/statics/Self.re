@@ -80,8 +80,10 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
     name,
     syn_ty:
       switch (Ctx.lookup_ctr(ctx, name)) {
+      | Some({kind: Abstract, _})
       | None => None
-      | Some({typ, _}) => Some(typ)
+      | Some({kind: Singleton(typ), _}) => Some(typ)
+      | Some({kind: Arrow(_, t2), _}) => Some(t2)
       },
   });
 

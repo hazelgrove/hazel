@@ -279,7 +279,7 @@ module Pervasives = {
 let ctx_init: Ctx.t =
   List.map(
     ((name, Builtin.{typ, _})) =>
-      Ctx.VarEntry({name, parameter: "", typ, id: Id.invalid}),
+      Ctx.VarEntry({name, typ, id: Id.invalid}),
     Pervasives.builtins,
   );
 

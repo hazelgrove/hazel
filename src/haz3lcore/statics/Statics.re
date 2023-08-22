@@ -248,10 +248,49 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
+    let def_ctx =
+      switch (def.term) {
+      | Ap(fn, arg) =>
+        switch (fn.term) {
+        | Constructor(ctr) =>
+          switch (Ctx.lookup_higher_alias(def_ctx, ctr)) {
+          | Some((name_in, ty_in1)) =>
+            let (ty_in2, _) = go(~mode=Syn, arg, m);
+            let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
+            let ctx' = Ctx.revise_tvar(def_ctx, name_in, ty);
+            ctx';
+          | None => def_ctx
+          }
+        | _ => def_ctx
+        }
+      | _ => def_ctx
+      };
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
-    let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
+    let (body, m) =
+      go'(
+        ~ctx=
+          switch (def.term.term) {
+          | Ap(fn, arg) =>
+            switch (fn.term) {
+            | Constructor(ctr) =>
+              switch (Ctx.lookup_higher_alias(p_ana.ctx, ctr)) {
+              | Some((name_in, ty_in1)) =>
+                let (ty_in2, _) = go(~mode=Syn, arg, m);
+                let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
+                let ctx' = Ctx.revise_tvar(p_ana.ctx, name_in, ty);
+                ctx';
+              | None => p_ana.ctx
+              }
+            | _ => p_ana.ctx
+            }
+          | _ => p_ana.ctx
+          },
+        ~mode,
+        body,
+        m,
+      );
     add(
       ~self=Just(body.ty),
       ~co_ctx=
@@ -308,20 +347,16 @@ and uexp_to_info_map =
         | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ctx_def =
-            Ctx.extend_alias(ctx, name, "", UTPat.rep_id(typat), ty_rec);
+            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
-          (
-            ty,
-            ctx,
-            Ctx.extend_alias(ctx, name, "", UTPat.rep_id(typat), ty),
-          );
+          (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
         };
       };
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
-        | Some(sm) => Ctx.add_ctrs(ctx_body, name, "", UTyp.rep_id(utyp), sm)
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
@@ -341,6 +376,7 @@ and uexp_to_info_map =
         | Var(s) => s
         | _ => ""
         };
+      let utyp = UTyp.remove_ap_in_def(constructor, arg, utyp);
       let (ty_def, ctx_def, ctx_body) = {
         let ty_pre =
           UTyp.to_typ(
@@ -355,7 +391,7 @@ and uexp_to_info_map =
           let ty_rec =
             Typ.Rec("α", Typ.subst(Var("α"), constructor, ty_pre));
           let ctx_def =
-            Ctx.extend_alias(
+            Ctx.extend_higher_alias(
               ctx,
               constructor,
               arg,
@@ -364,18 +400,27 @@ and uexp_to_info_map =
             );
           (ty_rec, ctx_def, ctx_def);
         | _ =>
-          let ty = UTyp.to_typ(ctx, utyp);
-          (
-            ty,
-            ctx,
-            Ctx.extend_alias(ctx, constructor, arg, UTPat.rep_id(typat), ty),
-          );
+          let ctx_def =
+            Ctx.extend_higher_alias(
+              ctx,
+              constructor,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            );
+          (ty_pre, ctx_def, ctx_def);
         };
       };
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
         | Some(sm) =>
-          Ctx.add_ctrs(ctx_body, constructor, arg, UTyp.rep_id(utyp), sm)
+          Ctx.add_higher_ctrs(
+            ctx_body,
+            constructor,
+            arg,
+            UTyp.rep_id(utyp),
+            sm,
+          )
         | None => ctx_body
         };
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
@@ -449,13 +494,7 @@ and upat_to_info_map =
        Unknown(Internal) is used in this case */
     let ctx_typ =
       Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry =
-      Ctx.VarEntry({
-        name,
-        parameter: "",
-        id: UPat.rep_id(upat),
-        typ: ctx_typ,
-      });
+    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));

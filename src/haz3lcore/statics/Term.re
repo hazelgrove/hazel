@@ -109,46 +109,50 @@ module UTyp = {
 
   /* Converts a syntactic type into a semantic type */
   let rec to_typ: (Ctx.t, t) => Typ.t =
-    (ctx, utyp) =>
-      switch (utyp.term) {
-      | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(TypeHole)
-      | Bool => Bool
-      | Int => Int
-      | Float => Float
-      | String => String
-      | Var(name) =>
-        switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(_) => Var(name)
-        | None => Unknown(Free(name))
-        }
-      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | Sum(uts) => Sum(to_ctr_map(ctx, uts))
-      | List(u) => List(to_typ(ctx, u))
-      | Parens(u) => to_typ(ctx, u)
-      /* The below cases should occur only inside sums */
-      | Ap(t1, t2) =>
-        let name =
-          switch (t1.term) {
-          | Var(s) => s
-          | _ => ""
-          };
-        switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(ty) =>
-          let arg = ty.parameter;
-          let res_ty =
-            switch (ty.kind) {
-            | Arrow(ty_in, ty_out) => Typ.Arrow(ty_in, ty_out)
-            | Singleton(ty) => ty
-            | Abstract => Unknown(Internal)
+    (ctx, utyp) => {
+      let res: Typ.t =
+        switch (utyp.term) {
+        | Invalid(_)
+        | MultiHole(_) => Unknown(Internal)
+        | EmptyHole => Unknown(TypeHole)
+        | Bool => Bool
+        | Int => Int
+        | Float => Float
+        | String => String
+        | Var(name) =>
+          switch (Ctx.lookup_tvar(ctx, name)) {
+          | Some(_) => Var(name)
+          | None => Unknown(Free(name))
+          }
+        | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+        | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+        | Sum(uts) => Sum(to_ctr_map(ctx, uts))
+        | List(u) => List(to_typ(ctx, u))
+        | Parens(u) => to_typ(ctx, u)
+        /* The below cases should occur only inside sums */
+        | Ap(t1, t2) =>
+          let name =
+            switch (t1.term) {
+            | Var(s) => s
+            | _ => ""
             };
-          Typ.subst(to_typ(ctx, t2), arg, res_ty);
-        | None => Unknown(Free(name))
+          switch (Ctx.lookup_tvar(ctx, name)) {
+          | Some(ty) =>
+            switch (ty.kind) {
+            | Arrow(ty_in, ty_out) =>
+              switch (ty_in) {
+              | Var(arg) => Typ.subst(to_typ(ctx, t2), arg, ty_out)
+              | _ => Unknown(Internal)
+              }
+            | Singleton(_)
+            | Abstract => Unknown(Internal)
+            }
+          | None => Unknown(Free(name))
+          };
+        | Constructor(_) => Unknown(Internal)
         };
-      | Constructor(_) => Unknown(Internal)
-      }
+      res;
+    }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
     ctx =>
@@ -163,6 +167,54 @@ module UTyp = {
       [],
       List.filter_map(to_variant(ctx), uts),
     );
+  };
+  let rec remove_ap_in_def = (ctr: string, arg: string, ty: t): t => {
+    let res: term =
+      switch (ty.term) {
+      | Invalid(s) => Invalid(s)
+      | EmptyHole => EmptyHole
+      | MultiHole(l) => MultiHole(l)
+      | Int => Int
+      | Float => Float
+      | Bool => Bool
+      | String => String
+      | List(t) => List(remove_ap_in_def(ctr, arg, t))
+      | Var(string) => Var(string)
+      | Constructor(string) => Constructor(string)
+      | Arrow(t1, t2) =>
+        Arrow(
+          remove_ap_in_def(ctr, arg, t1),
+          remove_ap_in_def(ctr, arg, t2),
+        )
+      | Tuple(lst) => Tuple(List.map(remove_ap_in_def(ctr, arg), lst))
+      | Parens(t) => Parens(remove_ap_in_def(ctr, arg, t))
+      | Ap(ctr2, arg2) =>
+        let name =
+          switch (ctr2.term) {
+          | Var(s) => s
+          | _ => ""
+          };
+        if (name == ctr) {
+          Var(ctr);
+        } else {
+          Ap(
+            remove_ap_in_def(ctr, arg, ctr2),
+            remove_ap_in_def(ctr, arg, arg2),
+          );
+        };
+      | Sum(lst) =>
+        let lst =
+          List.map(
+            fun
+            | Variant(a, b, Some(t)) =>
+              Variant(a, b, Some(remove_ap_in_def(ctr, arg, t)))
+            | Variant(a, b, None) => Variant(a, b, None)
+            | BadEntry(t) => BadEntry(remove_ap_in_def(ctr, arg, t)),
+            lst,
+          );
+        Sum(lst);
+      };
+    {term: res, ids: ty.ids};
   };
 };
 

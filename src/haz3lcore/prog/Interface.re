@@ -1,5 +1,5 @@
 exception DoesNotElaborate;
-let elaborate = (map, term): DHExp.t =>
+let elaborate = (map, term): DHExp.t => {
   switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
     let error = "Internal error: Elaboration returns None";
@@ -7,7 +7,7 @@ let elaborate = (map, term): DHExp.t =>
     InvalidText(-666, -666, error);
   | Elaborates(d, _, _) => d
   };
-
+};
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
 let evaluate =

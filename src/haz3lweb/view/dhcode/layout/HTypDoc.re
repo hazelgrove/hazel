@@ -51,7 +51,6 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
     | Var(name) => (text(name), parenthesize)
-    | TypeConstructorAp(name, _) => (text(name), parenthesize)
     | List(ty) => (
         hcats([
           mk_delim("["),
