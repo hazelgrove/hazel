@@ -78,15 +78,15 @@ let go =
       let json_report = Auto.yojson_of_final_statuses(statuses);
       JsUtil.download_json("hazel-llm-auto-results", json_report);
       meta;
-    | {to_run: [(name, s1), ...to_run], reports, _} =>
+    | {to_run: [(name, (options, actions)), ...to_run], reports, _} =>
       print_endline("AUTO: StartTest: Starting script: " ++ name);
-      List.iter(schedule_action, s1);
+      List.iter(schedule_action, actions);
       let auto: UpdateAction.auto_llm = {
         current_script: Some(name),
         to_run,
         reports,
       };
-      schedule_action(SetMeta(Auto(UpdateResult(name, Init))));
+      schedule_action(SetMeta(Auto(UpdateResult(name, Init(options)))));
       {...meta, auto};
     }
   | EndTest () =>
@@ -104,15 +104,15 @@ let go =
   | UpdateResult(name, updater) =>
     let updater =
       switch (updater) {
-      | Init => Auto.init_llm_report
+      | Init(options) => Auto.init_llm_report(options)
       | Complete(tests) => Auto.complete_llm_reports(tests)
-      | AddRoundOne(settings, init_ctx, mode, filling) =>
+      | AddRoundOne(settings, init_ctx, mode, reply) =>
         Auto.add_first_round_results(
-          Filler.mk_round_report(~settings, ~init_ctx, ~mode, filling),
+          Filler.mk_round_report(~settings, ~init_ctx, ~mode, reply),
         )
-      | AddRoundTwo(settings, init_ctx, mode, filling) =>
-        Auto.add_first_round_results(
-          Filler.mk_round_report(~settings, ~init_ctx, ~mode, filling),
+      | AddRoundTwo(settings, init_ctx, mode, reply) =>
+        Auto.add_second_round_results(
+          Filler.mk_round_report(~settings, ~init_ctx, ~mode, reply),
         )
       };
     let reports =
@@ -142,7 +142,7 @@ let go =
     switch (meta.auto) {
     | {current_script: Some(name), to_run, reports, _} =>
       print_endline("AUTO: LogTest: Logging script: " ++ name);
-      let test_slide = 7; //TODO(andrew): put somewhere better
+      let test_slide = 6; //TODO(andrew): put somewhere better
       let tests = get_test_results(model, ~test_slide);
       //TODO(andrew): use Printer.selection at an opportune time to get just the completion? or could diff it out
       schedule_action(SetMeta(Auto(UpdateResult(name, Complete(tests)))));

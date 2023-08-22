@@ -81,7 +81,7 @@ let apply =
     | Some(prompt) =>
       OpenAI.start_chat(~llm=Azure_GPT4, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
-        | Some(response) => schedule_action(Oracle.react(response))
+        | Some({content, _}) => schedule_action(Oracle.react(content))
         | None => print_endline("Assistant: response parse failed")
         }
       )
@@ -101,30 +101,32 @@ let apply =
       print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
       OpenAI.start_chat(~llm, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
-        | Some(response) =>
+        | Some(reply) =>
           switch (
             ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
             ChatLSP.Type.mode(~settings, ~ctx_init, editor),
           ) {
           | (Some(init_ctx), Some(mode)) =>
-            add_round(AddRoundOne(settings, init_ctx, mode, response));
-            switch (Filler.error_reply(~settings, response, ~init_ctx, ~mode)) {
+            add_round(AddRoundOne(settings, init_ctx, mode, reply));
+            switch (Filler.error_reply(~settings, ~init_ctx, ~mode, reply)) {
             | None =>
-              print_endline("first round response:\n " ++ response);
+              print_endline("first round response:\n " ++ reply.content);
               schedule_action(
-                Assistant(SetBuffer(trim_indents(response))),
+                Assistant(SetBuffer(trim_indents(reply.content))),
               );
               schedule_if_auto(_ => EndTest());
-            | Some(reply) =>
-              print_endline("first round: errors detected:" ++ reply);
+            | Some(err_msg) =>
+              print_endline("first round: errors detected:" ++ err_msg);
               OpenAI.reply_chat(
-                ~llm, prompt, ~assistant=response, ~user=reply, req =>
+                ~llm, prompt, ~assistant=reply.content, ~user=err_msg, req =>
                 switch (OpenAI.handle_chat(req)) {
-                | Some(response) =>
-                  add_round(AddRoundTwo(settings, init_ctx, mode, response));
-                  print_endline("second round response:\n " ++ response);
+                | Some(reply2) =>
+                  add_round(AddRoundTwo(settings, init_ctx, mode, reply2));
+                  print_endline(
+                    "second round response:\n " ++ reply2.content,
+                  );
                   schedule_action(
-                    Assistant(SetBuffer(trim_indents(response))),
+                    Assistant(SetBuffer(trim_indents(reply2.content))),
                   );
                   schedule_if_auto(_ => EndTest());
                 | None => print_endline("Filler: handler failed")

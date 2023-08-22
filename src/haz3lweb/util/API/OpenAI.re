@@ -26,6 +26,19 @@ type message = {
 type prompt = list(message);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type usage = {
+  prompt_tokens: int,
+  completion_tokens: int,
+  total_tokens: int,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type reply = {
+  content: string,
+  usage,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 let string_of_chat_model =
   fun
   | GPT4 => "gpt-4"
@@ -170,15 +183,34 @@ let reply_chat = (~llm, prompt: prompt, ~assistant, ~user, handler): unit => {
   };
 };
 
-let handle_chat = (request: request): option(string) =>
+let int_field = (json: Json.t, field: string) => {
+  let* num = Json.dot(field, json);
+  Json.int(num);
+};
+
+let of_usage = (choices: Json.t): option(usage) => {
+  let* prompt_tokens = int_field(choices, "prompt_tokens");
+  let* completion_tokens = int_field(choices, "completion_tokens");
+  let+ total_tokens = int_field(choices, "total_tokens");
+  {prompt_tokens, completion_tokens, total_tokens};
+};
+
+let first_message_content = (choices: Json.t): option(string) => {
+  let* choices = Json.list(choices);
+  let* hd = Util.ListUtil.hd_opt(choices);
+  let* message = Json.dot("message", hd);
+  let* content = Json.dot("content", message);
+  Json.str(content);
+};
+
+let handle_chat = (request: request): option(reply) =>
   switch (receive(request)) {
   | Some(json) =>
     let* choices = Json.dot("choices", json);
-    let* choices = Json.list(choices);
-    let* hd = Util.ListUtil.hd_opt(choices);
-    let* message = Json.dot("message", hd);
-    let* content = Json.dot("content", message);
-    Json.str(content);
+    let* usage = Json.dot("usage", json);
+    let* content = first_message_content(choices);
+    let+ usage = of_usage(usage);
+    {content, usage};
   | _ =>
     print_endline("API: handle_chat: no response");
     None;

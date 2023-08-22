@@ -22,6 +22,21 @@ module Json = {
   type t = Yojson.Safe.t;
   let to_string = Yojson.Safe.to_string;
   let from_string = Yojson.Safe.from_string;
+  let bool = (json: t): option(bool) =>
+    switch (json) {
+    | `Bool(b) => Some(b)
+    | _ => None
+    };
+  let int = (json: t): option(int) =>
+    switch (json) {
+    | `Int(n) => Some(n)
+    | _ => None
+    };
+  let float = (json: t): option(float) =>
+    switch (json) {
+    | `Float(f) => Some(f)
+    | _ => None
+    };
   let str = (json: t): option(string) =>
     switch (json) {
     | `String(str) => Some(str)
