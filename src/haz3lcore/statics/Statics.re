@@ -47,13 +47,27 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
-let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: UPat.t, pat_ctx: Ctx.t, def: UExp.t): Ctx.t =>
-  if (UPat.is_tuple_of_arrows(pat) && UExp.is_tuple_of_functions(def)) {
-    pat_ctx;
-  } else {
-    ctx;
+let is_recursive = (ctx, p, def, syn: Typ.t) => {
+  switch (Term.UPat.get_num_of_vars(p), Term.UExp.get_num_of_functions(def)) {
+  | (Some(num_vars), Some(num_fns))
+      when num_vars != 0 && num_vars == num_fns =>
+    switch (Typ.weak_head_normalize(ctx, syn)) {
+    | Unknown(_) => true
+    | Arrow(_) when num_vars == 1 => true
+    | Prod(syns) when List.length(syns) == num_vars =>
+      syns
+      |> List.for_all(syn =>
+           switch (Typ.weak_head_normalize(ctx, syn)) {
+           | Unknown(_)
+           | Arrow(_) => true
+           | _ => false
+           }
+         )
+    | _ => false
+    }
+  | _ => false
   };
+};
 
 let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
   fun
@@ -260,10 +274,8 @@ and uexp_to_info_map =
     );
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
-    let is_tuple_of_functions =
-      Option.is_some(Term.UExp.get_recursive_bindings(p, def));
     let (def, p_ana, m) =
-      if (!is_tuple_of_functions) {
+      if (!is_recursive(ctx, p, def, p_syn.ty)) {
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
@@ -272,7 +284,24 @@ and uexp_to_info_map =
         let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def_base.ty), p, m);
-        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_ana.ty), def, m);
+        // let (def_base2, m) =
+        //   go'(~ctx=p_ana.ctx, ~mode=Ana(p_syn.ty), def, m);
+        // let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+        //   print_endline(Typ.show(ty_fn1));
+        //   print_endline(Typ.show(ty_fn2));
+        //   print_endline("==========");
+        //   Typ.eq(ty_fn1, ty_fn2) ? ty_p : ty_fn1;
+        // };
+        // let ana =
+        //   switch ((def_base.ty, def_base2.ty), p_syn.ty) {
+        //   | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+        //     let tys =
+        //       List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+        //     Typ.Prod(tys);
+        //   | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
+        //   };
+        // let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(ana), def, m);
+        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_syn.ty), def, m);
         (def, p_ana, m);
       };
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
