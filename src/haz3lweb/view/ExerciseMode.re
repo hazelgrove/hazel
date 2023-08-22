@@ -24,6 +24,7 @@ let mk =
     Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
       Exercise.stitch_dynamic(exercise, results)
     );
+
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   {
@@ -276,6 +277,9 @@ let view =
   let testing_results =
     ModelResult.unwrap_test_results(user_tests.simple_result);
 
+  let syntax_grading_view =
+    Always(Grading.SyntaxReport.view(grading_report.syntax_report));
+
   let impl_validation_view =
     Always(
       editor_view(
@@ -322,6 +326,7 @@ let view =
       Grading.ImplGradingReport.view(
         ~inject,
         ~report=grading_report.impl_grading_report,
+        ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );
@@ -368,6 +373,7 @@ let view =
               @ [
                 mutation_testing_view,
                 your_impl_view,
+                syntax_grading_view,
                 impl_validation_view,
                 hidden_tests_view,
                 impl_grading_view,

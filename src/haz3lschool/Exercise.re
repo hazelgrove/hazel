@@ -24,6 +24,18 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type predicate = Term.UExp.t => bool;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type hint = string;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_test = (hint, predicate);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_tests = list(syntax_test);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type your_tests('code) = {
     tests: 'code,
     required: int,
@@ -56,6 +68,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     your_impl: 'code,
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
+    syntax_tests,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -112,6 +125,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
       },
+      syntax_tests: p.syntax_tests,
     };
   };
 
@@ -285,6 +299,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       },
     ) => {
       let prelude = zipper_of_code(prelude);
@@ -320,6 +335,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       };
     };
 
@@ -338,6 +354,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       },
     ) => {
       let prelude = editor_of_serialization(prelude);
@@ -370,6 +387,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       };
     };
 
@@ -530,6 +548,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
           },
+          syntax_tests: spec.syntax_tests,
         },
       },
       instructor_mode,
@@ -557,6 +576,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
+  /* Multiple stitchings are needed for each exercise
+     (see comments in the stitched type above)
+
+     Stitching is necessary to concatenate terms
+     from different editors, which are then typechecked. */
   let stitch_static = ({eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
@@ -698,7 +722,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       simple_result: ModelResult.simple,
     };
   };
-  let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
+
+  /* Given the evaluation results, collects the
+     relevant information for producing dynamic
+     feedback*/
+  let stitch_dynamic =
+      (state: state, results: option(ModelResults.t))
+      : stitched(DynamicsItem.t) => {
     let {
       test_validation,
       user_impl,
@@ -898,6 +928,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: hidden_tests_tests,
         hints: [],
       },
+      syntax_tests: [],
     };
   };
 
