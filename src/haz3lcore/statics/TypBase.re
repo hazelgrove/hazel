@@ -33,6 +33,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | Parameter(TypVar.t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,6 +92,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | Parameter(TypVar.t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -157,6 +159,7 @@ module rec Typ: {
     | Var(_)
     | Rec(_)
     | Sum(_) => precedence_Sum
+    | Parameter(_)
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
@@ -176,6 +179,7 @@ module rec Typ: {
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
+    | Parameter(y) => Parameter(y)
     };
   };
 
@@ -189,6 +193,8 @@ module rec Typ: {
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
     switch (t1, t2) {
+    | (_, Parameter(_))
+    | (Parameter(_), _) => true
     | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
     | (Rec(_), _) => false
     | (Int, Int) => true
@@ -234,6 +240,7 @@ module rec Typ: {
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Parameter(v) => List.mem(v, bound) ? [] : [v]
     };
 
   /* Lattice join on types. This is a LUB join in the hazel2
@@ -254,6 +261,8 @@ module rec Typ: {
       Some(Unknown(join_type_provenance(p1, p2)))
     | (Unknown(_), ty)
     | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
+    | (Parameter(_), ty) => Some(ty)
+    | (ty, Parameter(_)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));
@@ -381,6 +390,7 @@ module rec Typ: {
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | Parameter(_) => ty
     };
   };
 
@@ -518,6 +528,7 @@ and Ctx: {
     //| (Sum(sm1), Sum(sm2)) =>
     | (Sum(_), _) => Unknown(Internal)
     | (Var(_), _) => Unknown(Internal)
+    | (Parameter(_), _) => Unknown(Internal)
     };
   };
   let extend = (ctx, entry) => List.cons(entry, ctx);
@@ -530,7 +541,7 @@ and Ctx: {
   let extend_higher_alias =
       (ctx: t, name: TypVar.t, arg: TypVar.t, id: Id.t, ty: Typ.t): t => {
     let ctx = extend_tvar(ctx, {name, id, kind: Arrow(Var(arg), ty)});
-    extend_tvar(ctx, {name: arg, id, kind: Singleton(Unknown(SynSwitch))});
+    extend_tvar(ctx, {name: arg, id, kind: Singleton(Parameter(arg))});
   };
   let extend_dummy_tvar = (ctx: t, name: TypVar.t) =>
     extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});

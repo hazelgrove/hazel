@@ -46,6 +46,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Var(_)
   | Rec(_)
   | Arrow(Unknown(_), Unknown(_))
+  | Parameter(_) => Hole
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
     if (List.for_all(

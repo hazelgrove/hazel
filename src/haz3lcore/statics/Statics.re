@@ -248,45 +248,45 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let def_ctx =
-      switch (def.term) {
-      | Ap(fn, arg) =>
-        switch (fn.term) {
-        | Constructor(ctr) =>
-          switch (Ctx.lookup_higher_alias(def_ctx, ctr)) {
-          | Some((name_in, ty_in1)) =>
-            let (ty_in2, _) = go(~mode=Syn, arg, m);
-            let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
-            let ctx' = Ctx.revise_tvar(def_ctx, name_in, ty);
-            ctx';
-          | None => def_ctx
-          }
-        | _ => def_ctx
-        }
-      | _ => def_ctx
-      };
+    //let def_ctx =
+    //  switch (def.term) {
+    //  | Ap(fn, arg) =>
+    //    switch (fn.term) {
+    //    | Constructor(ctr) =>
+    //      switch (Ctx.lookup_higher_alias(def_ctx, ctr)) {
+    //      | Some((name_in, ty_in1)) =>
+    //        let (ty_in2, _) = go(~mode=Syn, arg, m);
+    //        let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
+    //        let ctx' = Ctx.revise_tvar(def_ctx, name_in, ty);
+    //        ctx';
+    //      | None => def_ctx
+    //      }
+    //    | _ => def_ctx
+    //    }
+    //  | _ => def_ctx
+    //  };
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
     let (body, m) =
       go'(
-        ~ctx=
-          switch (def.term.term) {
-          | Ap(fn, arg) =>
-            switch (fn.term) {
-            | Constructor(ctr) =>
-              switch (Ctx.lookup_higher_alias(p_ana.ctx, ctr)) {
-              | Some((name_in, ty_in1)) =>
-                let (ty_in2, _) = go(~mode=Syn, arg, m);
-                let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
-                let ctx' = Ctx.revise_tvar(p_ana.ctx, name_in, ty);
-                ctx';
-              | None => p_ana.ctx
-              }
-            | _ => p_ana.ctx
-            }
-          | _ => p_ana.ctx
-          },
+        ~ctx=p_ana.ctx,
+        //switch (def.term.term) {
+        //| Ap(fn, arg) =>
+        //  switch (fn.term) {
+        //  | Constructor(ctr) =>
+        //    switch (Ctx.lookup_higher_alias(p_ana.ctx, ctr)) {
+        //    | Some((name_in, ty_in1)) =>
+        //      let (ty_in2, _) = go(~mode=Syn, arg, m);
+        //      let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
+        //      let ctx' = Ctx.revise_tvar(p_ana.ctx, name_in, ty);
+        //      ctx';
+        //    | None => p_ana.ctx
+        //    }
+        //  | _ => p_ana.ctx
+        //  }
+        //| _ => p_ana.ctx
+        //},
         ~mode,
         body,
         m,

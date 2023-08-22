@@ -33,6 +33,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
+  | Parameter(name) => ty_view("Parameter", name)
   | Var(name) => ty_view("Var", name)
   | Rec(x, t) =>
     div(
