@@ -487,9 +487,9 @@ let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
 and potential_typ_set_to_ityp_no_unroll = (id: Id.t, pts: t): ITyp.t => {
   switch (pts) {
   // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
-  | [] => ITyp.Unknown(Anonymous)
+  | [] => ITyp.Unknown(NoProvenance)
   | [hd] => potential_typ_to_ityp(id, hd)
-  | _ => ITyp.Unknown(Anonymous)
+  | _ => ITyp.Unknown(NoProvenance)
   };
 }
 and potential_typ_to_ityp = (id: Id.t, ptyp: potential_typ): ITyp.t => {

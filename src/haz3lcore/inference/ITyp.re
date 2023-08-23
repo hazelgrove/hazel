@@ -38,7 +38,7 @@ let rec typ_to_ityp: Typ.t => t =
   | Prod([hd_ty, ...tl_tys]) =>
     Prod(typ_to_ityp(hd_ty), typ_to_ityp(Prod(tl_tys)))
   | Prod([]) => Unit
-  | Var(_) => Unknown(Anonymous);
+  | Var(_) => Unknown(NoProvenance);
 
 let unwrap_if_prod = (typ: Typ.t): list(Typ.t) => {
   switch (typ) {
@@ -64,7 +64,7 @@ let rec ityp_to_typ: t => Typ.t =
 let to_ityp_constraints = (constraints: Typ.constraints): constraints => {
   constraints
   |> List.filter(((t1, t2)) =>
-       t1 != Typ.Unknown(Anonymous) && t2 != Typ.Unknown(Anonymous)
+       t1 != Typ.Unknown(NoProvenance) && t2 != Typ.Unknown(NoProvenance)
      )
   |> List.map(((t1, t2)) => (typ_to_ityp(t1), typ_to_ityp(t2)));
 };

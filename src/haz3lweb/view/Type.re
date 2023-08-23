@@ -105,7 +105,7 @@ and view_of_potential_typ_set =
     view(
       ~font_metrics=Some(font_metrics),
       ~with_cls,
-      Typ.Unknown(Anonymous),
+      Typ.Unknown(NoProvenance),
     )
   | [hd] => view_of_potential_typ(~font_metrics, ~with_cls, outermost, hd)
   | _ =>

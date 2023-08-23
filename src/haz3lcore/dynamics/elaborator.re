@@ -382,5 +382,5 @@ let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   | None => DoesNotElaborate
   | Some(d) =>
     let d = uexp_elab_wrap_builtins(d);
-    Elaborates(d, Typ.Unknown(Anonymous), Delta.empty); //TODO: get type from ci
+    Elaborates(d, Typ.Unknown(NoProvenance), Delta.empty); //TODO: get type from ci
   };

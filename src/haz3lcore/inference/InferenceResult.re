@@ -100,7 +100,7 @@ let condense =
 
 let rec prov_to_priority = (prov: Typ.type_provenance): int => {
   switch (prov) {
-  | Anonymous => (-1)
+  | NoProvenance => (-1)
   | SynSwitch(id)
   | AstNode(id) => id
   | Inference(_, prov) => prov_to_priority(prov)

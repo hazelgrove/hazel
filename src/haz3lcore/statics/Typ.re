@@ -16,13 +16,13 @@ open Sexplib.Std;
                  Generally, will always link to some form with its own unique Id.t
                  Currently supports matched list, arrow, and prod.
 
-     Anonymous:  Generated for unknown types not linked to any UExp/UPat, wildcards,
-                   and other generally 'unconstrainable' unknown types
-                   Consequently, Anonymous unknown types do not accumulate constraints
+     NoProvenance:  Generated for unknown types with no provenance. They did not originate from
+                   any expression/pattern/type in the source program, directly or indirectly.
+                   Consequently, NoProvenance unknown types do not accumulate constraints
                    or receive inference results.*/
 [@deriving (show({with_path: false}), sexp, yojson)]
 type type_provenance =
-  | Anonymous
+  | NoProvenance
   | SynSwitch(Id.t)
   | AstNode(Id.t)
   | Inference(matched_provenance, type_provenance)
@@ -103,23 +103,23 @@ let source_tys = List.map((source: source) => source.ty);
   joining unknown types. This probably requires more thought,
   but right now TypeHole strictly predominates over Internal
   which strictly predominates over SynSwitch, which
-  strictly predominates over Anonymous.
+  strictly predominates over NoProvenance.
   If two provenances have different Ids, either can be taken as a
   representative of the other in later computations regarding the
   type as a whole.
   Similarly, if two Internal provenances have different matched provenance
   strucutres, either structure can be taken. Precedence:
-  TypeHole > Internal > SynSwitch > Inference > Anonymous*/
+  TypeHole > Internal > SynSwitch > Inference > NoProvenance*/
 let join_type_provenance =
     (p1: type_provenance, p2: type_provenance): type_provenance =>
   switch (p1, p2) {
-  | (AstNode(_) as t, Inference(_) | AstNode(_) | SynSwitch(_) | Anonymous)
-  | (Inference(_) | SynSwitch(_) | Anonymous, AstNode(_) as t) => t
-  | (SynSwitch(_) as s, Inference(_) | SynSwitch(_) | Anonymous)
-  | (Inference(_) | Anonymous, SynSwitch(_) as s) => s
-  | (Inference(_) as inf, Anonymous | Inference(_))
-  | (Anonymous, Inference(_) as inf) => inf
-  | (Anonymous, Anonymous) => Anonymous
+  | (AstNode(_) as t, Inference(_) | AstNode(_) | SynSwitch(_) | NoProvenance)
+  | (Inference(_) | SynSwitch(_) | NoProvenance, AstNode(_) as t) => t
+  | (SynSwitch(_) as s, Inference(_) | SynSwitch(_) | NoProvenance)
+  | (Inference(_) | NoProvenance, SynSwitch(_) as s) => s
+  | (Inference(_) as inf, NoProvenance | Inference(_))
+  | (NoProvenance, Inference(_) as inf) => inf
+  | (NoProvenance, NoProvenance) => NoProvenance
   };
 
 /* Lattice join on types. This is a LUB join in the hazel2
@@ -173,7 +173,7 @@ let rec join = (ty1: t, ty2: t): option(t) =>
 let join_all: list(t) => option(t) =
   List.fold_left(
     (acc, ty) => Util.OptUtil.and_then(join(ty), acc),
-    Some(Unknown(Anonymous)),
+    Some(Unknown(NoProvenance)),
   );
 
 let join_or_fst = (ty: t, ty': t): t =>
@@ -196,11 +196,11 @@ let t_of_self =
   | Just(t) => t
   | Joined(wrap, ss) =>
     switch (ss |> List.map(s => s.ty) |> join_all) {
-    | None => Unknown(Anonymous)
+    | None => Unknown(NoProvenance)
     | Some(t) => wrap(t)
     }
   | Multi
-  | Free(_) => Unknown(Anonymous);
+  | Free(_) => Unknown(NoProvenance);
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is

@@ -109,7 +109,9 @@ type error_status =
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (SynFun, Just(ty)) =>
-    switch (Typ.join(Arrow(Unknown(Anonymous), Unknown(Anonymous)), ty)) {
+    switch (
+      Typ.join(Arrow(Unknown(NoProvenance), Unknown(NoProvenance)), ty)
+    ) {
     | None => InHole(NoFun(ty))
     | Some(_) => NotInHole(SynConsistent(ty))
     }
@@ -119,7 +121,10 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) =>
       switch (
-        Typ.join(Arrow(Unknown(Anonymous), Unknown(Anonymous)), ty_joined)
+        Typ.join(
+          Arrow(Unknown(NoProvenance), Unknown(NoProvenance)),
+          ty_joined,
+        )
       ) {
       | None => InHole(NoFun(ty_joined))
       | Some(_) => NotInHole(SynConsistent(ty_joined))
@@ -127,7 +132,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     };
   | (Syn | SynFun | Ana(_), Free(free_error)) => InHole(Free(free_error))
   | (Syn | SynFun | Ana(_), Multi) =>
-    NotInHole(SynConsistent(Unknown(Anonymous)))
+    NotInHole(SynConsistent(Unknown(NoProvenance)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
     let tys_syn = Typ.source_tys(tys_syn);
@@ -381,7 +386,7 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
-  | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
+  | ListLit([]) => atomic(Just(List(Unknown(NoProvenance))))
   | ListLit(es) =>
     let (modes, list_of_match_constraints) =
       List.init(List.length(es), _ =>
@@ -647,7 +652,7 @@ and upat_to_info_map =
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
-  | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
+  | ListLit([]) => atomic(Just(List(Unknown(NoProvenance))))
   | ListLit(ps) =>
     let (modes, list_of_match_constraints) =
       List.init(List.length(ps), _ =>
@@ -706,7 +711,7 @@ and upat_to_info_map =
     | None => atomic(Free(Tag))
     | Some(typ) => atomic(Just(typ))
     }
-  | Wild => atomic(Just(Unknown(Anonymous)))
+  | Wild => atomic(Just(Unknown(NoProvenance)))
   | Var(name) =>
     let upat_rep_id = Term.UPat.rep_id(upat);
     let typ =

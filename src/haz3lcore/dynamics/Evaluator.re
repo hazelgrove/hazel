@@ -20,14 +20,14 @@ type match_result =
   | IndetMatch;
 
 let grounded_Arrow =
-  NotGroundOrHole(Arrow(Unknown(Anonymous), Unknown(Anonymous)));
+  NotGroundOrHole(Arrow(Unknown(NoProvenance), Unknown(NoProvenance)));
 let grounded_Sum =
-  NotGroundOrHole(Sum(Unknown(Anonymous), Unknown(Anonymous)));
+  NotGroundOrHole(Sum(Unknown(NoProvenance), Unknown(NoProvenance)));
 let grounded_Prod = length =>
   NotGroundOrHole(
-    Prod(ListUtil.replicate(length, Typ.Unknown(Anonymous))),
+    Prod(ListUtil.replicate(length, Typ.Unknown(NoProvenance))),
   );
-let grounded_List = NotGroundOrHole(List(Unknown(Anonymous)));
+let grounded_List = NotGroundOrHole(List(Unknown(NoProvenance)));
 
 let ground_cases_of = (ty: Typ.t): ground_cases =>
   switch (ty) {
@@ -189,7 +189,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
         p => [p],
         List.combine(
           tys,
-          List.init(List.length(tys), _ => Typ.Unknown(Anonymous)),
+          List.init(List.length(tys), _ => Typ.Unknown(NoProvenance)),
         ),
       ),
     )
@@ -200,7 +200,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       List.map(
         p => [p],
         List.combine(
-          List.init(List.length(tys'), _ => Typ.Unknown(Anonymous)),
+          List.init(List.length(tys'), _ => Typ.Unknown(NoProvenance)),
           tys',
         ),
       ),
@@ -210,9 +210,9 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp, d, [(ty1, ty2)])
   | (Cons(_) | ListLit(_), Cast(d, Unknown(_), List(ty2))) =>
-    matches_cast_Cons(dp, d, [(Unknown(Anonymous), ty2)])
+    matches_cast_Cons(dp, d, [(Unknown(NoProvenance), ty2)])
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), Unknown(_))) =>
-    matches_cast_Cons(dp, d, [(ty1, Unknown(Anonymous))])
+    matches_cast_Cons(dp, d, [(ty1, Unknown(NoProvenance))])
   | (Cons(_, _), Cons(_, _))
   | (ListLit(_, _), Cons(_, _))
   | (Cons(_, _), ListLit(_))
@@ -254,14 +254,14 @@ and matches_cast_Inj =
       side,
       dp,
       d',
-      [(tyL1, tyR1, Unknown(Anonymous), Unknown(Anonymous))],
+      [(tyL1, tyR1, Unknown(NoProvenance), Unknown(NoProvenance))],
     )
   | Cast(d', Unknown(_), Sum(tyL2, tyR2)) =>
     matches_cast_Inj(
       side,
       dp,
       d',
-      [(Unknown(Anonymous), Unknown(Anonymous), tyL2, tyR2)],
+      [(Unknown(NoProvenance), Unknown(NoProvenance), tyL2, tyR2)],
     )
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
@@ -339,14 +339,14 @@ and matches_cast_Tuple =
       );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
-    let tys' = List.init(List.length(tys), _ => Typ.Unknown(Anonymous));
+    let tys' = List.init(List.length(tys), _ => Typ.Unknown(NoProvenance));
     matches_cast_Tuple(
       dps,
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(d', Unknown(_), Prod(tys')) =>
-    let tys = List.init(List.length(tys'), _ => Typ.Unknown(Anonymous));
+    let tys = List.init(List.length(tys'), _ => Typ.Unknown(NoProvenance));
     matches_cast_Tuple(
       dps,
       d',
@@ -486,9 +486,9 @@ and matches_cast_Cons =
   | Cast(d', List(ty1), List(ty2)) =>
     matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
   | Cast(d', List(ty1), Unknown(_)) =>
-    matches_cast_Cons(dp, d', [(ty1, Unknown(Anonymous)), ...elt_casts])
+    matches_cast_Cons(dp, d', [(ty1, Unknown(NoProvenance)), ...elt_casts])
   | Cast(d', Unknown(_), List(ty2)) =>
-    matches_cast_Cons(dp, d', [(Unknown(Anonymous), ty2), ...elt_casts])
+    matches_cast_Cons(dp, d', [(Unknown(NoProvenance), ty2), ...elt_casts])
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
