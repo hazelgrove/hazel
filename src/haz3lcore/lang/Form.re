@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Mold;
+open Regexp;
 module P = Precedence;
 
 /* FORM
@@ -10,10 +11,6 @@ module P = Precedence;
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
    shape, precedence, and expansion behavior of the form. */
-
-let regexp = (r, s) =>
-  Js_of_ocaml.Regexp.string_match(Js_of_ocaml.Regexp.regexp(r), s, 0)
-  |> Option.is_some;
 
 /* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
