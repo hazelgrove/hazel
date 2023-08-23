@@ -21,7 +21,7 @@ and constraints = list(equivalence);
 let rec prov_to_iprov: Typ.type_provenance => Typ.type_provenance =
   fun
   | SynSwitch(u) => AstNode(u)
-  | Inference(mprov, prov) => Inference(mprov, prov_to_iprov(prov))
+  | Matched(mprov, prov) => Matched(mprov, prov_to_iprov(prov))
   | _ as prov => prov;
 
 let rec typ_to_ityp: Typ.t => t =
