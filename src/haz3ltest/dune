@@ -2,4 +2,4 @@
 
 (test
  (name haz3ltest)
- (libraries haz3lcore haz3lweb tezt))
+ (libraries haz3lcore tezt regexp_ocaml))

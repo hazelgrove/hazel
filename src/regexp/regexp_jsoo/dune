@@ -1,0 +1,7 @@
+(include_subdirs unqualified)
+
+(library
+ (name regexp_jsoo)
+ (preprocess
+  (pps js_of_ocaml-ppx))
+ (implements regexp))
