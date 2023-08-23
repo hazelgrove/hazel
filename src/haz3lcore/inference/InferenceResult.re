@@ -56,14 +56,14 @@ let empty_info = (): global_inference_info =>
 
 let get_desired_solutions =
     (inference_results: list(t)): type_hole_to_solution => {
-  let id_and_status_if_type_hole = (result: t): option((Id.t, status)) => {
+  let id_and_status_if_ast_node = (result: t): option((Id.t, status)) => {
     switch (result) {
-    | (Unknown(TypeHole(id)), status) => Some((id, status))
+    | (Unknown(AstNode(id)), status) => Some((id, status))
     | _ => None
     };
   };
 
-  let elts = List.filter_map(id_and_status_if_type_hole, inference_results);
+  let elts = List.filter_map(id_and_status_if_ast_node, inference_results);
   let new_map = Hashtbl.create(List.length(elts));
 
   List.iter(((id, annot)) => Hashtbl.add(new_map, id, annot), elts);
@@ -102,8 +102,7 @@ let rec prov_to_priority = (prov: Typ.type_provenance): int => {
   switch (prov) {
   | Anonymous => (-1)
   | SynSwitch(id)
-  | TypeHole(id)
-  | Internal(id) => id
+  | AstNode(id) => id
   | Inference(_, prov) => prov_to_priority(prov)
   };
 };

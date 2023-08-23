@@ -20,7 +20,7 @@ and constraints = list(equivalence);
 
 let rec prov_to_iprov: Typ.type_provenance => Typ.type_provenance =
   fun
-  | SynSwitch(u) => Internal(u)
+  | SynSwitch(u) => AstNode(u)
   | Inference(mprov, prov) => Inference(mprov, prov_to_iprov(prov))
   | _ as prov => prov;
 

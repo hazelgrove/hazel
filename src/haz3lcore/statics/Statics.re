@@ -182,7 +182,7 @@ let is_error = (ci: t): bool => {
    non-empty holes', i.e. assigned Unknown type. */
 let typ_after_fix = (mode: Typ.mode, self: Typ.self, termId: Id.t): Typ.t =>
   switch (error_status(mode, self)) {
-  | InHole(_) => Unknown(Internal(termId))
+  | InHole(_) => Unknown(AstNode(termId))
   | NotInHole(SynConsistent(t)) => t
   | NotInHole(AnaConsistent(_, _, ty_join)) => ty_join
   | NotInHole(AnaExternalInconsistent(ty_ana, _)) => ty_ana
@@ -356,7 +356,7 @@ and uexp_to_info_map =
     );
   switch (term) {
   | Invalid(msg) =>
-    let final_typ: Typ.t = Unknown(Internal(Term.UExp.rep_id(uexp)));
+    let final_typ: Typ.t = Unknown(AstNode(Term.UExp.rep_id(uexp)));
     (
       final_typ,
       [],
@@ -375,7 +375,7 @@ and uexp_to_info_map =
           typ_after_fix(mode, Multi, Term.UExp.rep_id(uexp)),
         );
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps), constraints);
-  | EmptyHole => atomic(Just(Unknown(Internal(Term.UExp.rep_id(uexp)))))
+  | EmptyHole => atomic(Just(Unknown(AstNode(Term.UExp.rep_id(uexp)))))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -594,7 +594,7 @@ and upat_to_info_map =
     Typ.Unknown(
       is_synswitch
         ? SynSwitch(Term.UPat.rep_id(upat))
-        : Internal(Term.UPat.rep_id(upat)),
+        : AstNode(Term.UPat.rep_id(upat)),
     );
   let cls = Term.UPat.cls_of_term(term);
   let add = (~self: Typ.self, ~ctx, m, constraints) => {
@@ -623,7 +623,7 @@ and upat_to_info_map =
     );
   switch (term) {
   | Invalid(msg) =>
-    let final_typ: Typ.t = Unknown(Internal(Term.UPat.rep_id(upat)));
+    let final_typ: Typ.t = Unknown(AstNode(Term.UPat.rep_id(upat)));
     (
       final_typ,
       ctx,
@@ -712,7 +712,7 @@ and upat_to_info_map =
     let typ =
       typ_after_fix(
         mode,
-        Just(Unknown(Internal(upat_rep_id))),
+        Just(Unknown(AstNode(upat_rep_id))),
         upat_rep_id,
       );
     let entry = Ctx.VarEntry({name, id: upat_rep_id, typ});
@@ -775,7 +775,7 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let just = m => (ty, add(Just(ty), m));
   switch (term) {
   | Invalid(msg) => (
-      Unknown(Internal(Term.UTyp.rep_id(utyp))),
+      Unknown(AstNode(Term.UTyp.rep_id(utyp))),
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | EmptyHole
@@ -797,7 +797,7 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   | Var(name) =>
     switch (BuiltinADTs.is_typ_var(name)) {
     | None => (
-        Unknown(Internal(Term.UTyp.rep_id(utyp))),
+        Unknown(AstNode(Term.UTyp.rep_id(utyp))),
         add(Free(TypeVariable), Id.Map.empty),
       )
     | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))

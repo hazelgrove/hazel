@@ -426,8 +426,7 @@ let comp_potential_typ =
   let strip_id_from_prov: Typ.type_provenance => float =
     fun
     | SynSwitch(id)
-    | TypeHole(id)
-    | Internal(id) =>
+    | AstNode(id) =>
       id == 0 ? (-2.0) : Float.sub(0.0, Float.div(1.0, float_of_int(id)))
     | _ => 0.0;
 
@@ -480,7 +479,7 @@ let string_of_btyp = (btyp: base_typ): string => {
 let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
   switch (pts) {
   // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
-  | [] => [ITyp.Unknown(Internal(id))]
+  | [] => [ITyp.Unknown(AstNode(id))]
   | [hd] => [potential_typ_to_ityp(id, hd)]
   | _ => List.map(potential_typ_to_ityp(id), pts)
   };
