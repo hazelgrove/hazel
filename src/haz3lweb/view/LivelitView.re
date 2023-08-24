@@ -55,7 +55,7 @@ let view =
             ),
             stop_mousedown_propagation,
           ]),
-        (),
+        [],
       ),
     ]
   | "^checkbox" =>
@@ -84,7 +84,7 @@ let view =
             ]
             @ (checkbox_state ? [Attr.checked] : []),
           ),
-        (),
+        [],
       ),
     ];
   | _ => []
