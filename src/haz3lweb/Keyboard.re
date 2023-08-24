@@ -107,9 +107,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
     | (_, "Enter") => now(Insert(Form.linebreak))
     | _ when String.length(key) == 1 =>
-      /* TODO(andrew): length==1 is hack to prevent things
-         like F5 which are now valid tokens and also weird
-         unicode shit which is multichar i guess */
+      /* Note: length==1 prevent specials like
+       * SHIFT from being captured here */
       now(Insert(key))
     | _ => None
     }
