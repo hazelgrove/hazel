@@ -53,8 +53,8 @@ let sorted_children = (a: t) => {
 //   List.length(prefix);
 // };
 
-//let remold = (a: t): list(t) =>
-//  Molds.get(a.label) |> List.map(mold => {...a, mold});
+let remold = (a: t): list(t) =>
+  Molds.get(a.label) |> List.map(mold => {...a, mold});
 
 // let sort = (frame: t): Sort.t => {
 //   assert(step(frame) >= 0 && step(frame) < List.length(frame.mold.in_));

@@ -383,7 +383,7 @@ let editor_with_result_view =
           ~elab=
             settings.core.elaborate
               ? Interface.elaborate(~settings=settings.core, info_map, term)
-              : InvalidText(Id.invalid, -666, "Elaboration disabled"),
+              : Interface.dh_err("Elaboration disabled"),
           result,
         )
       : None;

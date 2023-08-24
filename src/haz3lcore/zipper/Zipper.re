@@ -135,9 +135,10 @@ let clear_amorphous_buffer = (z: t) =>
   };
 
 let unselect = (~erase_buffer=false, z: t): t => {
-  /*TODO(andrew): document selection clearing. Right now
-    we're only doing it for amorphous buffer; solid buffer is a bit more complicated
-    as we can't just empty the selection without regrouting. */
+  /* NOTE(andrew): Erase buffer flag only applies to amorphous buffer,
+   * that is, the buffer style that just contains a single flat token.
+   * Erasing a buffer the contains arbitrary tiles would be more complex
+   * as we can't just empty the selection without regrouting */
   let z = erase_buffer ? clear_amorphous_buffer(z) : z;
   let relatives =
     z.relatives
