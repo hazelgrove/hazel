@@ -51,6 +51,7 @@ type error_no_type =
   | MultiError
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
 
@@ -317,6 +318,7 @@ let rec status_common =
     | _ => InHole(NoType(FreeConstructor(name)))
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
+  | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) =>
     // TODO(andrew): making these errors for now for llm purposes
     InHole(NoType(MultiError))

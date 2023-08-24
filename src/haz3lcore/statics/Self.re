@@ -30,6 +30,7 @@ type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
+  | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
@@ -61,6 +62,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Just(typ) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
+    | BadTrivAp(_)
     | IsMulti
     | NoJoin(_) => None;
 

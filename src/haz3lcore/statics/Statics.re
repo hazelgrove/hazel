@@ -252,11 +252,11 @@ and uexp_to_info_map =
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
-    add(
-      ~self=Just(ty_out),
-      ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-      m,
-    );
+    let self: Self.t =
+      Id.is_nullary_ap_flag(arg.term.ids)
+      && !Typ.is_consistent(ctx, ty_in, Prod([]))
+        ? BadTrivAp(ty_in) : Just(ty_out);
+    add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =

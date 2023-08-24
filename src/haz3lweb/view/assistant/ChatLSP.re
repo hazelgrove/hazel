@@ -117,8 +117,13 @@ module Errors = {
       )
 
     | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
-    | Inconsistent(WithArrow(typ)) =>
-      prn("type %s is not consistent with arrow type", Typ.to_string(typ))
+    | NoType(BadTrivAp(ty)) =>
+      prn(
+        "Function input type \"%s\" inconsistent with ()",
+        Typ.to_string(ty),
+      )
+    | Inconsistent(WithArrow(ty)) =>
+      prn("type %s is not consistent with arrow type", Typ.to_string(ty))
     | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
     | Inconsistent(Internal(tys)) =>
       prn(
