@@ -198,9 +198,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) => ret(Ap(l, {ids: [Id.mk()], term: Tuple([])}))
-      /*(l.term, [] l.ids) */
-      //TODO(andrew): new ap error
+      | (["()"], []) =>
+        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
       | _ => ret(hole(tm))
       }

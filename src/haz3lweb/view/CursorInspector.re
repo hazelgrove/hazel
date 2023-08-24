@@ -75,6 +75,12 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     | BadInt => [text("Integer is too large or too small")]
     | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
     }
+  | NoType(BadTrivAp(ty)) => [
+      text("Function input type"),
+      Type.view(ty),
+      text("inconsistent with"),
+      Type.view(Prod([])),
+    ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
