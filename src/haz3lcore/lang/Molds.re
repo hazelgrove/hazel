@@ -45,8 +45,9 @@ let get = (label: Label.t): list(Mold.t) =>
       );
       [Mold.mk_op(Any, [])];
     | (false, false) =>
-      Printf.printf("Warning: Molds.get: unhandled mono: '%s'\n", t);
-      [Mold.mk_op(Any, [])];
+      //TODO(andrew): this is triggered in all instant expand cases ([]()|, etc)
+      //Printf.printf("Warning: Molds.get: unhandled mono: '%s'\n", t);
+      [Mold.mk_op(Any, [])]
     }
   | (lbl, None) =>
     Printf.printf(
@@ -114,41 +115,41 @@ let is_delayed = kw => List.length(delayed_expansion(kw) |> fst) > 1;
 
 /*
 
-TODO(andrew): cleanup
+ TODO(andrew): cleanup
 
-Maybe more advanced token allow logic:
+ Maybe more advanced token allow logic:
 
-Goal: Try to preserve the prefix-validity of tokens as much as possible
-when inserting/deleting characters, but allow the creation of prefix-
-invalid tokens as a fallthrough. Always be willing to split on insert
-to maintain prefix-validity, but allow the creation of prefix-invalid
-tokens for deletes which would otherwise be no-ops.
+ Goal: Try to preserve the prefix-validity of tokens as much as possible
+ when inserting/deleting characters, but allow the creation of prefix-
+ invalid tokens as a fallthrough. Always be willing to split on insert
+ to maintain prefix-validity, but allow the creation of prefix-invalid
+ tokens for deletes which would otherwise be no-ops.
 
-Or: if insert/delete results in a thing which is no longer a prefix
-of a valid token, then we split it into the largest prefix of
-a valid token and up to two more tokens; if there are two, one is
-a single character (doesn't quite work for delete; we can't guarantee
-the existence of such a split eg if lang consists of single "yo", deleting
-the "y" leaves no possible prefixes)
+ Or: if insert/delete results in a thing which is no longer a prefix
+ of a valid token, then we split it into the largest prefix of
+ a valid token and up to two more tokens; if there are two, one is
+ a single character (doesn't quite work for delete; we can't guarantee
+ the existence of such a split eg if lang consists of single "yo", deleting
+ the "y" leaves no possible prefixes)
 
-for this to be nice if we could establish that the split
-must always occur at the caret; otherwise it might be confusing.
+ for this to be nice if we could establish that the split
+ must always occur at the caret; otherwise it might be confusing.
 
-precondition: caret is either inside a token, or between two tokens
-any tokens are prefix-valid
+ precondition: caret is either inside a token, or between two tokens
+ any tokens are prefix-valid
 
-insert between case: attempt to append to left, then the right, otherwise new
-(so everything always prefix-valid)
+ insert between case: attempt to append to left, then the right, otherwise new
+ (so everything always prefix-valid)
 
-insert inside case: attempt to insert. otherwise go to between case
-(so everything always prefix-valid)
-delete from right: can't effect prefix-validity
-delete from left/inside: ??? allow create prefix-invalid ???
-delete-merge (when delete an intervening seg, pushing two tokens together):
-  if the result is a valid token, great; otherwise ??? allow create prefix-invalid ???
+ insert inside case: attempt to insert. otherwise go to between case
+ (so everything always prefix-valid)
+ delete from right: can't effect prefix-validity
+ delete from left/inside: ??? allow create prefix-invalid ???
+ delete-merge (when delete an intervening seg, pushing two tokens together):
+   if the result is a valid token, great; otherwise ??? allow create prefix-invalid ???
 
 
-*/
+ */
 
 //let is_instant = kw => List.length(instant_expansion(kw) |> fst) > 1;
 

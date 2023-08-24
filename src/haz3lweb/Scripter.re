@@ -8,22 +8,29 @@ type test = {
   options: FillerOptions.t,
 };
 
-let tests_raw: list(test) = [
-  {
-    name: "one",
-    sketch: {|let update: (Model, Action) -> Model =
+let sketch_one = {|let update: (Model, Action) -> Model =
   FILL_ME
 in
-EXPORT|},
-    options: FillerOptions.init,
-  },
-  /*
-   {
-     name: "two",
-     sketch: "let lol = FILL_ME in lol + 666",
-     llm: Azure_GPT3_5Turbo,
-     prompt_builder: Filler.prompt(~settings,~ctx_init),
-   },*/
+EXPORT|};
+
+let opt = (~expected_type): FillerOptions.t => {
+  llm: Azure_GPT4,
+  instructions: true,
+  syntax_notes: true,
+  num_examples: 9,
+  expected_type,
+  error_round: true,
+};
+
+let tests_raw: list(test) = [
+  {name: "1", sketch: sketch_one, options: opt(~expected_type=true)},
+  {name: "2", sketch: sketch_one, options: opt(~expected_type=true)},
+  {name: "3", sketch: sketch_one, options: opt(~expected_type=true)},
+  {name: "4", sketch: sketch_one, options: opt(~expected_type=true)},
+  {name: "5", sketch: sketch_one, options: opt(~expected_type=false)},
+  {name: "6", sketch: sketch_one, options: opt(~expected_type=false)},
+  {name: "7", sketch: sketch_one, options: opt(~expected_type=false)},
+  {name: "8", sketch: sketch_one, options: opt(~expected_type=false)},
 ];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
