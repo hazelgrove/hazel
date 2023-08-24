@@ -276,7 +276,7 @@ and uexp_to_info_map =
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let (def, p_ana, m) =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
-        let (def, m) = go(~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
+        let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
         (def, p_ana, m);
@@ -284,24 +284,21 @@ and uexp_to_info_map =
         let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def_base.ty), p, m);
-        // let (def_base2, m) =
-        //   go'(~ctx=p_ana.ctx, ~mode=Ana(p_syn.ty), def, m);
-        // let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-        //   print_endline(Typ.show(ty_fn1));
-        //   print_endline(Typ.show(ty_fn2));
-        //   print_endline("==========");
-        //   Typ.eq(ty_fn1, ty_fn2) ? ty_p : ty_fn1;
-        // };
-        // let ana =
-        //   switch ((def_base.ty, def_base2.ty), p_syn.ty) {
-        //   | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
-        //     let tys =
-        //       List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-        //     Typ.Prod(tys);
-        //   | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
-        //   };
-        // let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(ana), def, m);
-        let (def, m) = go'(~ctx=p_ana.ctx, ~mode=Ana(p_syn.ty), def, m);
+        let def_ctx = p_ana.ctx;
+        let (def_base2, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+          ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
+            ? ty_fn1 : ty_p;
+        };
+        let ana =
+          switch ((def_base.ty, def_base2.ty), p_syn.ty) {
+          | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+            let tys =
+              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+            Typ.Prod(tys);
+          | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
+          };
+        let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
         (def, p_ana, m);
       };
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
