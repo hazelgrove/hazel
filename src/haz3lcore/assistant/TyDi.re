@@ -404,16 +404,15 @@ let suggest = (ci: Info.t, z: Zipper.t): list(suggestion) => {
 
 let left_of_mono = (z: Zipper.t): option(string) =>
   switch (
+    z.caret,
     z.relatives.siblings |> fst |> List.rev,
     z.relatives.siblings |> snd,
   ) {
-  | ([Tile({label: [tok_to_left], _}), ..._], _) => Some(tok_to_left)
-  //below is an attempt to support [],(); not sure why it doesnt work (causes exception blah)
-  /* this doesnt work because fit_of actually needs more info to determine nib shape
-     if this isnt a monotile; we would need to return the label here as well to figure
-     out the fit */
-  | ([Tile({label: [tok_to_left, ..._], shards: [0], _}), ..._], _) =>
+  | (Outer, [Tile({label: [tok_to_left], _}), ..._], _) =>
     Some(tok_to_left)
+  //TODO(andrew): cleanup
+  /*| (Outer,[Tile({label: [tok_to_left, ..._], shards: [0], _}), ..._], _) =>
+    Some(tok_to_left)*/
   | _ => None
   };
 

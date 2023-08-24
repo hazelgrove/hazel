@@ -129,13 +129,13 @@ let is_reserved_keyword =
   * TODO(andrew): finish description
   TODO(andrew): ? below is temporary addition to allow ? as explicit hole
  */
-let is_potential_operand = regexp("^[a-zA-Z0-9_\\.?]+$");
+let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let is_potential_operator =
-  regexp("^[^a-zA-Z0-9_\\.?\"#⏎\\s|\\[\\]\\(\\)]+$");
+  regexp("^[^a-zA-Z0-9_'\\.?\"#⏎\\s|\\[\\]\\(\\)]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -168,7 +168,7 @@ let is_var = str =>
   //&& !is_keyword(str)
   //&& !is_reserved(str)
   && regexp(
-       {|(^[a-z][A-Za-z0-9_]*$)|(^[A-Z][A-Za-z0-9_]*\.[a-z][A-Za-z0-9_]*$)|},
+       {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
        str,
      );
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
@@ -314,6 +314,7 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
+  ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
