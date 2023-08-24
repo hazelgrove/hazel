@@ -480,11 +480,15 @@ module Trim = {
       let new_spaces =
         List.filter_map(
           (g: Grout.t) => {
-            switch (d) {
+            switch (g.shape, d) {
             /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
-            //HACK(andrew): Not sure why d here seems reversed
-            | Right => Some(Secondary.mk_space(g.id))
-            | Left => None
+            /* NOTE(andrew): Not sure why d here seems reversed. Also not sure why
+             * restriction to concave is necessary but seems to prevent addition
+             * of needless whitespace in some situation such as when inserting
+             * on `(|)`, which seems to add whitespace after the right parens
+             * without this shape restirction */
+            | (Concave, Right) => Some(Secondary.mk_space(g.id))
+            | _ => None
             }
           },
           gs,

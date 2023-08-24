@@ -318,9 +318,7 @@ module Make = (M: Editor.Meta.S) => {
 
   let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(Piece(p, d)) =>
-      let p = Action.of_piece_goal(p);
-      do_until_wrap(p, d, z);
+    | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
     | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
       do_towards(primary(ByChar), goal, z);

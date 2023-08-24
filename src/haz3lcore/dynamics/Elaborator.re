@@ -287,13 +287,15 @@ let rec dhexp_of_uexp =
       };
     wrap(ctx, id, mode, self, d);
   | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
-    print_endline("Elaborate: Exp: Infomap returned wrong sort:");
-    print_endline(ci |> Info.show);
+    Printf.printf(
+      "Elaborate: Exp: Infomap returned wrong sort: %s\n",
+      ci |> Info.show,
+    );
     None;
   | None =>
-    print_endline(
-      "Elaborate: Exp: Infomap lookup failed; id: "
-      ++ Id.to_string(Term.UExp.rep_id(uexp)),
+    Printf.printf(
+      "Elaborate: Exp: Infomap lookup failed for: %s\n",
+      Id.to_string(Term.UExp.rep_id(uexp)),
     );
     None;
   };

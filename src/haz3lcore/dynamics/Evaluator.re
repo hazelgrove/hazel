@@ -704,6 +704,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') =>
+          /* ap cast rule */
           evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
         };
       | BoxedValue(d1') =>

@@ -52,7 +52,7 @@ let nut_menu =
       toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
         inject(Set(Dynamics))
       ),
-      toggle("e", ~tooltip="Show Elaboration", elaborate, _ =>
+      toggle("𝑒", ~tooltip="Show Elaboration", elaborate, _ =>
         inject(Set(Elaborate))
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
