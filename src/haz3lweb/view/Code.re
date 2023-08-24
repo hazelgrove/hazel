@@ -6,7 +6,7 @@ open Util.Web;
 
 let of_delim' =
   Core.Memo.general(
-    ~cache_size_bound=100000,
+    ~cache_size_bound=10000,
     ((sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
@@ -33,7 +33,7 @@ let of_grout = [Node.text(Unicode.nbsp)];
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
+    ~cache_size_bound=10000, ((secondary_icons, indent, content)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? Form.linebreak : "";
       [
@@ -51,12 +51,16 @@ let of_secondary =
     }
   );
 
-/* PERF(andrew): Tile memoization makes a >2X difference. I've left
+/* PERF: Tile memoization makes a >2X difference. I've left
    the memoization in place for delims and secondary above as it still
    seems like a marginal positive (5-10% difference).
 
-   TODO(andrew): Consider setting a limit for the hashtbl size */
-let piece_hash: Hashtbl.t((Sort.t, Piece.t), list(t)) =
+   WARNING: Note that this the table is stored outside the Text functor.
+   This means that if there are data dependencies on the functor argument
+   values, they will need to be explictly encoded in the key.
+
+   TODO: Consider setting a limit for the hashtbl size */
+let piece_hash: Hashtbl.t((Sort.t, Piece.t, int, ModelSettings.t), list(t)) =
   Hashtbl.create(10000);
 
 module Text = (M: {
@@ -89,7 +93,10 @@ module Text = (M: {
     };
   }
   and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
-    let arg = (expected_sort, p);
+    /* Last two elements of arg track the functorial args which
+       can effect the code layout; without these the first,
+       indentation can get out of sync */
+    let arg = (expected_sort, p, m(p).last.col, M.settings);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
       let res = of_piece'(expected_sort, p);
