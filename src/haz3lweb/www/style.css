@@ -521,7 +521,7 @@ select {
 .editor {
   display: flex;
   justify-content: space-between;
-  padding-bottom: 3em;
+  padding-bottom: 1em;
 }
 
 .editor.column {
@@ -803,7 +803,6 @@ svg.tile-selected {
 
 /* TOKEN COLORS */
 
-
 .code .token.Nul { color: var(--nul-text-color); }
 .code .token.Any { color: var(--any-text-color); }
 .code .token.Exp { color: var(--exp-text-color); }
@@ -1083,7 +1082,6 @@ svg.tile-selected {
   display: flex;
   gap: 0.5em;
   color: #0006;
-  /*text-transform: uppercase;*/
   align-items: center;
   white-space: nowrap;
 }
@@ -1308,33 +1306,6 @@ svg.tile-selected {
 
 .comment {
   color: #a0c1aa;
-}
-
-/* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though...*/
-.lang-doc .content {
-  padding-bottom: 8em;
-}
-
-/* TODO seems like should be better way to ignore inconsistentcy colorings...*/
-.lang-doc .code .text-Pat.mono-inconsistent {
-  color: var(--pat-text-color);
-}
-
-.lang-doc .code .text-Exp.mono-inconsistent {
-  color: var(--exp-text-color);
-}
-
-.lang-doc .code .text-Typ.mono-inconsistent {
-  color: var(--typ-text-color);
-}
-
-.lang-doc .code .text-Rul.mono-inconsistent {
-  color: var(--rul-text-color);
-}
-
-.lang-doc .code .token.delim-inconsistent {
-  color: var(--exp-token-color);
-  font-weight: bold;
 }
 
 .lang-doc #examples {
@@ -1979,11 +1950,6 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
-}
-
-#main {
-  overflow: auto;
-  flex: 1;
 }
 
 /* Assistant */
