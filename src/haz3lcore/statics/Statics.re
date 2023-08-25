@@ -51,17 +51,16 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   switch (Term.UPat.get_num_of_vars(p), Term.UExp.get_num_of_functions(def)) {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
-    switch (Typ.weak_head_normalize(ctx, syn)) {
+    switch (Typ.normalize(ctx, syn)) {
     | Unknown(_) => true
     | Arrow(_) when num_vars == 1 => true
     | Prod(syns) when List.length(syns) == num_vars =>
       syns
-      |> List.for_all(syn =>
-           switch (Typ.weak_head_normalize(ctx, syn)) {
-           | Unknown(_)
+      |> List.for_all(
+           fun
+           | Typ.Unknown(_)
            | Arrow(_) => true
-           | _ => false
-           }
+           | _ => false,
          )
     | _ => false
     }
