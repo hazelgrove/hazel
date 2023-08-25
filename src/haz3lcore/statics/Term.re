@@ -18,6 +18,43 @@
 
 include TermBase.Any;
 type any = t;
+
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Var;
+
+  include TermBase.UTPat;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid type alias"
+    | MultiHole => "Broken type alias"
+    | EmptyHole => "Empty type alias hole"
+    | Var => "Type alias";
+};
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -112,7 +149,8 @@ module UTyp = {
     | Forall(_)
     | Rec(_) => false
     };
-    
+  };
+
   let rec is_forall = (typ: t) => {
     switch (typ.term) {
     | Parens(typ) => is_forall(typ)
@@ -157,13 +195,21 @@ module UTyp = {
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       | Forall({term: Var(name), _} as utpat, tbody) =>
-        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
-        Forall({item: to_typ(ctx, tbody), name});
+        let ctx =
+          Ctx.extend_tvar(
+            ctx,
+            {name, id: UTPat.rep_id(utpat), kind: Abstract},
+          );
+        Forall(name, to_typ(ctx, tbody));
       | Forall(_, tbody) => to_typ(ctx, tbody)
       // Forall is same as Rec
       | Rec({term: Var(name), _} as utpat, tbody) =>
-        let ctx = Ctx.add_abstract(ctx, name, UTPat.rep_id(utpat));
-        Rec({item: to_typ(ctx, tbody), name});
+        let ctx =
+          Ctx.extend_tvar(
+            ctx,
+            {name, id: UTPat.rep_id(utpat), kind: Abstract},
+          );
+        Rec(name, to_typ(ctx, tbody));
       | Rec(_, tbody) => to_typ(ctx, tbody)
       /* The below cases should occur only inside sums */
       | Constructor(_)
@@ -184,42 +230,6 @@ module UTyp = {
       List.filter_map(to_variant(ctx), uts),
     );
   };
-};
-
-module UTPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Var;
-
-  include TermBase.UTPat;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid type alias"
-    | MultiHole => "Broken type alias"
-    | EmptyHole => "Empty type alias hole"
-    | Var => "Type alias";
 };
 
 module UPat = {

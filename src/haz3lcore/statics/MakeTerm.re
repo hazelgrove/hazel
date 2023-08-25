@@ -242,13 +242,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | (["@<", ">"], [Typ(ty)]) => TypAp(l, ty)
-        | _ => hole(tm)
-        },
-      )
+      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -296,7 +293,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;

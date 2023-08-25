@@ -237,15 +237,11 @@ and uexp_to_info_map =
       m,
     );
   | TypAp(fn, utyp) =>
-    /* Might need something similar to Ap's case where we check analysis mode when tagged? */
-    let typfn_mode = /* switch(fn) {
-                          | {term: Tag(name), _} => Typ.tag_typap_mode(ctx, mode, name)
-                          | _ => Typ.typap_mode
-                        }; */ Typ.typap_mode;
-    let (fn, m_fn) = go(~mode=typfn_mode, fn);
-    let Typ.{item: ty_body, _} = Typ.matched_forall(fn.ty);
+    let typfn_mode = Mode.typap_mode;
+    let (fn, m_fn) = go(~mode=typfn_mode, fn, m);
+    let (name, ty_body) = Typ.matched_forall(fn.ty);
     let ty = Term.UTyp.to_typ(ctx, utyp);
-    add(~self=Just(Typ.subst(ty, ty_body)), ~free=fn.free, m_fn);
+    add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m_fn);
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
@@ -256,7 +252,7 @@ and uexp_to_info_map =
       m,
     );
   | TypFun({term: Var(name), _} as utpat, body) =>
-    let mode_body = Typ.matched_forall_mode(mode);
+    let mode_body = Mode.of_forall(mode);
     let m_typat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
     let ctx_body = Ctx.add_abstract(ctx, name, Term.UTPat.rep_id(utpat));
     let (body, m_body) = go'(~ctx=ctx_body, ~mode=mode_body, body);
@@ -266,7 +262,7 @@ and uexp_to_info_map =
       union_m([m_typat, m_body]),
     );
   | TypFun(utpat, body) =>
-    let mode_body = Typ.matched_forall_mode(mode);
+    let mode_body = Mode.of_forall(mode);
     let m_typat = utpat_to_info_map(~ctx, ~ancestors, utpat) |> snd;
     let (body, m_body) = go(~mode=mode_body, body);
     add(

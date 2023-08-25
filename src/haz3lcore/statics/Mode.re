@@ -31,13 +31,13 @@ let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
   | Syn => Unknown(SynSwitch)
-  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
-  | SynTypFun => Forall("syntypfun", Unknown(SynSwitch)) /* TODO: naming the type variable? */
+  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch))
+  | SynTypFun => Forall("syntypfun", Unknown(SynSwitch)); /* TODO: naming the type variable? */
 
 let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
-  | SynFun 
+  | SynFun
   | SynTypFun => (Syn, Syn)
   | Ana(ty) =>
     ty
@@ -46,10 +46,20 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
     |> TupleUtil.map2(ana)
   };
 
+let of_forall = (mode: t): t =>
+  switch (mode) {
+  | Syn
+  | SynFun
+  | SynTypFun => Syn
+  | Ana(ty) =>
+    let (_, item) = Typ.matched_forall(ty);
+    Ana(item);
+  };
+
 let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   switch (mode) {
   | Syn
-  | SynFun 
+  | SynFun
   | SynTypFun => List.init(length, _ => Syn)
   | Ana(ty) =>
     ty
@@ -64,7 +74,7 @@ let matched_list_normalize = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun 
+  | SynFun
   | SynTypFun => Syn
   | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
   };
@@ -72,7 +82,7 @@ let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
 let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
-  | SynFun 
+  | SynFun
   | SynTypFun => Ana(List(hd_ty))
   | Ana(ty) => Ana(List(matched_list_normalize(ctx, ty)))
   };
@@ -80,7 +90,7 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
 let of_list = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun 
+  | SynFun
   | SynTypFun => Syn
   | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
   };
@@ -88,7 +98,7 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
 let of_list_concat = (mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun 
+  | SynFun
   | SynTypFun => Ana(List(Unknown(SynSwitch)))
   | Ana(ty) => Ana(List(Typ.matched_list(ty)))
   };
@@ -139,3 +149,5 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
     }
   | None => SynFun
   };
+
+let typap_mode: t = SynTypFun;

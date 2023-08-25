@@ -261,27 +261,22 @@ let rec status_common =
   switch (self, mode) {
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
-    switch (Typ.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    switch (
+      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)
+    ) {
     | Some(_) => NotInHole(Syn(ty))
-    | None => InHole(InconsistentWithArrow(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
     }
   | (Just(ty), SynTypFun) =>
     /* Use ty first to preserve name if it exists. */
-    switch (Typ.join(ctx, ty, Forall({item: Unknown(Internal), name: "_"}))) {
+    switch (Typ.join_fix(ctx, ty, Forall("_", Unknown(Internal)))) {
     | Some(_) => NotInHole(Syn(ty))
-    | None => InHole(InconsistentWithArrow(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
     }
   | (Just(syn), Ana(ana)) =>
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
-    }
-  | (Just(syn), SynFun) =>
-    switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
-    ) {
-    | None => InHole(Inconsistent(WithArrow(syn)))
-    | Some(_) => NotInHole(Syn(syn))
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -310,7 +305,7 @@ let rec status_common =
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
-  | (Syn | Ana(_), Common(self_pat))
+  | (Syn | SynTypFun | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we

@@ -400,16 +400,12 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-<<<<<<< HEAD
     | Sum(list(variant))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
-=======
-    | USum(list(t))
-    | Forall(UTPat.t, t)
-    | Rec(UTPat.t, t)
->>>>>>> 4c7587694 (merge in poly-adt)
   and t = {
     ids: list(Id.t),
     term,
@@ -431,16 +427,12 @@ and UTyp: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-<<<<<<< HEAD
     | Sum(list(variant))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
-=======
-    | USum(list(t))
-    | Forall(UTPat.t, t)
-    | Rec(UTPat.t, t)
->>>>>>> 4c7587694 (merge in poly-adt)
   and t = {
     ids: list(Id.t),
     term,
