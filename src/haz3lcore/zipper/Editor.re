@@ -54,7 +54,7 @@ module Meta = {
     let unselected = Zipper.unselect_and_zip(z);
     let (term, _) = MakeTerm.go(unselected);
     // TODO Raef: add in flow for the enabled flag
-    let (_, global_inference_solutions) =
+    let (_, global_inference_solutions, ctx) =
       Statics.mk_map_and_inference_solutions(term);
     let measured =
       Measured.of_segment(
@@ -64,6 +64,7 @@ module Meta = {
           InferenceResult.mk_global_inference_info(
             inference_enabled,
             global_inference_solutions,
+            ctx,
           ),
         unselected,
       );

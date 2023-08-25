@@ -84,6 +84,7 @@ let view =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
       global_inference_info.solution_statuses,
+      global_inference_info.ctx,
     );
 
   let color_highlighting: option(ColorSteps.colorMap) =

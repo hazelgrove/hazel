@@ -826,12 +826,23 @@ let mk_map_and_inference_solutions =
       let global_inference_solutions =
         InferenceResult.get_desired_solutions(inference_results);
 
-      (info_map, global_inference_solutions);
+      // rewrite is here
+      let ctx = Infer.Ctx.create();
+      let _ =
+        List.iter(
+          c => {
+            let (typ1, typ2) = c;
+            Infer.constrain(ctx, typ1, typ2);
+          },
+          constraints,
+        );
+
+      (info_map, global_inference_solutions, ctx);
     },
   );
 
 let mk_map = e => {
-  let (info_map, _) = mk_map_and_inference_solutions(e);
+  let (info_map, _, _) = mk_map_and_inference_solutions(e);
   info_map;
 };
 
