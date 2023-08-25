@@ -8,7 +8,7 @@ let trim_indents = s =>
     "\n",
   );
 
-//TODO(andrew): this is duplicated from Update
+/* NOTE: this is duplicated from Update */
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let ed_init = Editors.get_editor(model.editors);
   switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init)) {
@@ -52,8 +52,6 @@ let reset_buffer = (model: Model.t) => {
   | _ => model
   };
 };
-
-//TODO(andrew): add special case for when it just returns the whole sketch instead of completion
 
 let apply =
     (
@@ -157,12 +155,12 @@ let apply =
   | AcceptSuggestion =>
     switch (z.selection.mode) {
     | Normal => Ok(model)
-    | Buffer(Solid) => perform_action(model, Unselect(Some(Right)))
-    | Buffer(Amorphous) =>
-      switch (TyDi.get_amorphous_buffer_text(z)) {
+    | Buffer(Parsed) => perform_action(model, Unselect(Some(Right)))
+    | Buffer(Unparsed) =>
+      switch (TyDi.get_buffer(z)) {
       | None => Ok(model)
       /* This case shouldn't happen if we assume that we prevalidate
-       * everything we put in the amorphous buffer*/
+       * everything we put in the unparsed buffer*/
       | Some(completion) when String.contains(completion, ' ') =>
         /* Slightly hacky. We assume that if a completion string has
          * spaces in it, that means it will have a hole in it. This
@@ -198,22 +196,15 @@ let apply =
       }
     }
   | SetBuffer(response) =>
-    print_endline("SetBuffer: response: " ++ response);
-    // print_endline("paste into selection: " ++ str);
     switch (Printer.paste_into_zip(Zipper.init(), response)) {
-    | None =>
-      print_endline("SetBuffer: A");
-      Error(CantSuggest);
+    | None => Error(CantSuggest)
     | Some(response_z) =>
-      print_endline("SetBuffer: B");
       let content = Zipper.unselect_and_zip(response_z);
-      let z = Zipper.set_buffer(editor.state.zipper, ~content, ~mode=Solid);
-      //print_endline("paste into selection suceeds: " ++ Zipper.show(z));
+      let z = Zipper.set_buffer(editor.state.zipper, ~content, ~mode=Parsed);
       //HACK(andrew): below is not strictly a insert action...
-      let ed = Editor.new_state(Insert(response), z, editor);
-      let editors = Editors.put_editor(ed, model.editors);
-      print_endline("SetBuffer: C");
+      let editor = Editor.new_state(Insert(response), z, editor);
+      let editors = Editors.put_editor(editor, model.editors);
       Ok({...model, editors});
-    };
+    }
   };
 };

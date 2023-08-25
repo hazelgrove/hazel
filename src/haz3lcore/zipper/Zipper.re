@@ -128,18 +128,18 @@ let remold = (z: t): t => {
 
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
-let clear_amorphous_buffer = (z: t) =>
+let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
-  | Buffer(Amorphous) => {...z, selection: Selection.empty}
+  | Buffer(Unparsed) => {...z, selection: Selection.empty}
   | _ => z
   };
 
 let unselect = (~erase_buffer=false, z: t): t => {
-  /* NOTE(andrew): Erase buffer flag only applies to amorphous buffer,
+  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
    * that is, the buffer style that just contains a single flat token.
    * Erasing a buffer the contains arbitrary tiles would be more complex
    * as we can't just empty the selection without regrouting */
-  let z = erase_buffer ? clear_amorphous_buffer(z) : z;
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
@@ -450,7 +450,7 @@ let try_to_dump_backpack = (zipper: t) => {
 };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
-  let z = erase_buffer ? clear_amorphous_buffer(z) : z; //need to do this before trying to dump backpack
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z; //need to do this before trying to dump backpack
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
   unselect_and_zip(~erase_buffer, z);
 };
