@@ -2,7 +2,7 @@
 1. Make a copy of src/haz3lweb/exercises/BlankTemplate.ml, filling in the arguments for your exercise. 
 Make sure the module_name argument matches your module name. Use the .ml extension (for technical reasons).
 
-2. Add your exercise to the exercise list in SchoolSettings_base.re.
+2. Add your exercise to the exercise list in ExerciseSettings_base.re.
 
 3. Compile and load Hazel, select your exercise, make sure Instructor Mode is on.
 

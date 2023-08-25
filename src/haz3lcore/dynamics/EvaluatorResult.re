@@ -1,12 +1,10 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | BoxedValue(DHExp.t)
-  | Indet(DHExp.t)
-  | Error(EvaluatorError.t);
+  | Indet(DHExp.t);
 
 let unbox =
   fun
-  | Error(err) => raise(EvaluatorError.Exception(err))
   | BoxedValue(d)
   | Indet(d) => d;
 

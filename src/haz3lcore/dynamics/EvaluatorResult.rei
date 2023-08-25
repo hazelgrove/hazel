@@ -9,8 +9,7 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | BoxedValue(DHExp.t)
-  | Indet(DHExp.t)
-  | Error(EvaluatorError.t);
+  | Indet(DHExp.t);
 
 /**
   [unbox r] is the inner expression.

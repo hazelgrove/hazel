@@ -23,7 +23,9 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
           on_mouseup(_ => inject(Update.Mouseup)),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(Update.PerformAction(Select(Resize(Goal(goal)))));
+            inject(
+              Update.PerformAction(Select(Resize(Goal(Point(goal))))),
+            );
           }),
         ],
       ),
@@ -39,7 +41,7 @@ let mousedown_handler =
       Update.(
         [Mousedown]
         @ additional_updates
-        @ [PerformAction(Move(Goal(goal)))]
+        @ [PerformAction(Move(Goal(Point(goal))))]
       ),
     ),
   );
@@ -109,7 +111,7 @@ let code_cell_view =
                 let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
 
                 let events = [
-                  inject(PerformAction(Move(Goal(goal)))),
+                  inject(PerformAction(Move(Goal(Point(goal))))),
                   inject(
                     Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
                   ),
@@ -216,27 +218,10 @@ let eval_result_footer_view =
   let d_view =
     switch (simple) {
     | None
-    | Some({eval_results: [], _}) => [
-        Node.text("No result available. Elaboration follows:"),
-        DHCode.view_tylr(
-          ~inject,
-          ~settings={
-            ...Settings.Evaluation.init,
-            evaluate: true,
-            show_case_clauses: true,
-            show_fn_bodies: true,
-            show_casts: true,
-            show_unevaluated_elaboration: false,
-          },
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
-      ]
+    | Some({eval_results: [], _})
     | Some({eval_results: [InvalidText(0, 0, "EXCEPTION")], _}) => [
-        Node.text("No result available (exception). Elaboration follows:"),
-        DHCode.view_tylr(
+        Node.text("No result available. Elaboration follows:"),
+        DHCode.view(
           ~inject,
           ~settings={
             ...Settings.Evaluation.init,
@@ -253,66 +238,59 @@ let eval_result_footer_view =
         ),
       ]
     | Some({eval_results: [hd, ...tl], _}) =>
+      let hd_view =
+        DHCode.view(
+          ~inject,
+          ~settings={...settings.dynamics, postprocess: false},
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          hd,
+        );
       if (settings.dynamics.show_record) {
-        [
-          DHCode.view_tylr(
-            ~inject,
-            ~settings={...settings.dynamics, postprocess: false},
-            ~selected_hole_instance=None,
-            ~font_metrics,
-            ~width=80,
-            hd,
-          ),
-        ]
-        @ List.map(
-            DHCode.view_tylr(
-              ~inject,
-              ~settings={
-                ...settings.dynamics,
-                stepping: false,
-                postprocess: false,
-              },
-              ~selected_hole_instance=None,
-              ~font_metrics,
-              ~width=80,
-            ),
-            tl,
-          );
+        let tl_view =
+          tl
+          |> List.map(
+               DHCode.view(
+                 ~inject,
+                 ~settings={
+                   ...settings.dynamics,
+                   stepping: false,
+                   postprocess: false,
+                 },
+                 ~selected_hole_instance=None,
+                 ~font_metrics,
+                 ~width=80,
+               ),
+             );
+        [hd_view] @ tl_view;
       } else {
-        [
-          DHCode.view_tylr(
-            ~inject,
-            ~settings={...settings.dynamics, postprocess: false},
-            ~selected_hole_instance=None,
-            ~font_metrics,
-            ~width=80,
-            hd,
-          ),
-        ];
-      }
+        [hd_view];
+      };
     };
   switch (d_view) {
   | [] => failwith("empty d_view")
   | [hd] =>
     if (settings.dynamics.stepping) {
+      let equiv =
+        Node.(
+          div(
+            ~attr=
+              settings.dynamics.stepping
+                ? Attr.many([
+                    Attr.title("Go back to previous step"),
+                    Attr.classes(["equiv", "step-back"]),
+                    Attr.on_click(_ => inject(UpdateAction.StepBackward)),
+                  ])
+                : Attr.class_("equiv"),
+            [span([Node.text("≡")])],
+          )
+        );
       let current =
         Node.(
           div(
             ~attr=Attr.classes(["cell-result"]),
-            [
-              div(
-                ~attr=
-                  settings.dynamics.stepping
-                    ? Attr.many([
-                        Attr.title("Go back to previous step"),
-                        Attr.classes(["equiv", "step-back"]),
-                        Attr.on_click(_ => inject(UpdateAction.StepBackward)),
-                      ])
-                    : Attr.class_("equiv"),
-                [span([Node.text("≡")])],
-              ),
-              div(~attr=Attr.classes(["result"]), [hd]),
-            ],
+            [equiv, div(~attr=Attr.classes(["result"]), [hd])],
           )
         );
       let ellipsis =
@@ -326,7 +304,11 @@ let eval_result_footer_view =
             ]),
           [Node.text("...")],
         );
-      Node.(div(~attr=Attr.class_("cell-item"), [ellipsis, current]));
+      if (settings.dynamics.show_record) {
+        Node.(div(~attr=Attr.class_("cell-item"), [current]));
+      } else {
+        Node.(div(~attr=Attr.class_("cell-item"), [ellipsis, current]));
+      };
     } else {
       Node.(
         div(
@@ -396,7 +378,7 @@ let editor_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
@@ -409,7 +391,14 @@ let editor_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
   let code_base_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+    Code.view(
+      ~sort=Sort.root,
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings,
+    );
   let deco_view =
     deco(
       ~zipper,
@@ -461,7 +450,7 @@ let editor_with_result_view =
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {

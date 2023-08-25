@@ -13,7 +13,7 @@ let test_instance_view =
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
     [
-      DHCode.view_tylr(
+      DHCode.view(
         ~inject,
         ~settings=Settings.Evaluation.init,
         ~selected_hole_instance=None,

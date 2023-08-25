@@ -1,6 +1,6 @@
 let prompt = Ex_OddlyRecursive_prompt.prompt
 
-let exercise : SchoolExercise.spec =
+let exercise : Exercise.spec =
   {
     next_id = 5134;
     title = "Oddly Recursive";
@@ -3090,4 +3090,9 @@ let exercise : SchoolExercise.spec =
           };
         hints = [ "zero" ];
       };
+    syntax_tests =
+      [
+        ("not is applied", Haz3lschool.SyntaxTest.var_applied "not");
+        ("odd is recursive", Haz3lschool.SyntaxTest.is_recursive "odd");
+      ];
   }
