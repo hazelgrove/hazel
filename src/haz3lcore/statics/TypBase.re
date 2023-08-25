@@ -199,11 +199,16 @@ module rec Typ: {
 
   /* Type Equality: At the moment, this coincides with alpha equivalence,
      but this will change when polymorphic types are implemented */
-  let rec eq = (t1: t, t2: t): bool => {
+  let rec eq_internal = (n: int, t1: t, t2: t) => {
     switch (t1, t2) {
-    | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
+    | (Rec(x1, t1), Rec(x2, t2))
+    | (Forall(x1, t1), Forall(x2, t2)) =>
+      eq_internal(
+        n + 1,
+        subst(Var("@" ++ string_of_int(n)), x1, t1),
+        subst(Var("@" ++ string_of_int(n)), x2, t2),
+      )
     | (Rec(_), _) => false
-    | (Forall(x1, t1), Forall(x2, t2)) => eq(t1, subst(Var(x1), x2, t2)) /* TODO: correct? */
     | (Forall(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
@@ -215,19 +220,22 @@ module rec Typ: {
     | (String, _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
-    | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
+    | (Arrow(t1, t2), Arrow(t1', t2')) =>
+      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
     | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq(t1, t2)
+    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
-      ConstructorMap.equal(Option.equal(eq), sm1, sm2)
+      ConstructorMap.equal(Option.equal(eq_internal(n)), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
     };
   };
+
+  let eq = (t1: t, t2: t): bool => eq_internal(0, t1, t2);
 
   let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
     switch (ty) {
