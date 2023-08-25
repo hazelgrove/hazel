@@ -2,10 +2,10 @@ open Sexplib.Std;
 
 /* FIXME: Make more obvious names. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type instance_report = (DHExp.t, TestStatus.t, Environment.t);
+type instance_report = (DHExp.t, TestStatus.t);
 
 let joint_status: list(instance_report) => TestStatus.t =
-  reports => TestStatus.join_all(List.map(((_, x, _)) => x, reports));
+  reports => TestStatus.join_all(List.map(snd, reports));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type report = (KeywordID.t, list(instance_report));

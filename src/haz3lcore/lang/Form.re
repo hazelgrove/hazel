@@ -112,30 +112,15 @@ let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
 let is_reserved_keyword =
   regexp("^(" ++ String.concat("|", reserved_keywords) ++ ")$");
 
-//let partial_symbolic_delims = ["\\[", "\\]", "\\(", "\\)", "|"];
-//let exceptional_symbol_delims = ["=", "=>", "->"];
-
-/*
- TODO(andrew): weird examples
- insert '=' in 'let a><|!true' (get bad op '=!')
- insert '-' in 1+|1 (get bad op '+-')
- should we allow '=>' or '->' or '|' inside operators? currently implictly yes
-  */
-
 /* Potential tokens: These are fallthrough classes which determine
-  * the behavior when inserting a character in contact with a token;
-  * should the character be appended to an existing token or create
-  * a new one? Basically if there is no other mold, we
-  * TODO(andrew): finish description
-  TODO(andrew): ? below is temporary addition to allow ? as explicit hole
- */
+ * the behavior when inserting a character in contact with a token */
 let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let is_potential_operator =
-  regexp("^[^a-zA-Z0-9_'\\.?\"#⏎\\s|\\[\\]\\(\\)]+$");
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s|\\[\\]\\(\\)]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -193,11 +178,6 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
 
-/* TODO(andrew): docuement */
-let is_filler_prompt = regexp("^\\?\\?$");
-let is_oracle_prompt = regexp("^\".*\\?\\?\"$");
-let is_prompt = str => is_filler_prompt(str) || is_oracle_prompt(str);
-
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
    the empty list and empty tuple. Technically this should be derivable from
@@ -221,8 +201,7 @@ let const_mono_delims =
   base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
-let expliciter_hole = "??";
-let is_explicit_hole = t => t == explicit_hole || t == expliciter_hole;
+let is_explicit_hole = t => t == explicit_hole;
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {
@@ -234,7 +213,6 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
-  ("export", (Hyper.is_export, [mk_op(Exp, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",
@@ -355,7 +333,6 @@ let is_atomic = t => atomic_molds(t) != [];
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
-let is_valid_nonpoly_token = t => is_valid_token(t) && t != "=";
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));

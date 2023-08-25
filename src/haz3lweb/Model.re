@@ -37,16 +37,9 @@ let ui_state_init = {
 type meta = {
   ui_state,
   results: ModelResults.t,
-  auto: UpdateAction.auto_llm,
-  mvu_states: VarMap.t_(DHExp.t),
 };
 
-let meta_init = {
-  ui_state: ui_state_init,
-  results: ModelResults.empty,
-  mvu_states: VarMap.empty,
-  auto: Auto.init,
-};
+let meta_init = {ui_state: ui_state_init, results: ModelResults.empty};
 
 type t = {
   editors: Editors.t,

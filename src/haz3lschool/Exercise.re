@@ -673,7 +673,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let spliced_elabs =
       (~settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, DHExp.t, Environment.t)) => {
+      : list((ModelResults.key, DHExp.t)) => {
     let {
       test_validation,
       user_impl,
@@ -694,22 +694,18 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           test_validation.info_map,
           test_validation.term,
         ),
-        Environment.empty,
       ),
       (
         user_impl_key,
         Interface.elaborate(~settings, user_impl.info_map, user_impl.term),
-        Environment.empty,
       ),
       (
         user_tests_key,
         Interface.elaborate(~settings, user_tests.info_map, user_tests.term),
-        Environment.empty,
       ),
       (
         instructor_key,
         Interface.elaborate(~settings, instructor.info_map, instructor.term),
-        Environment.empty,
       ),
       (
         hidden_tests_key,
@@ -718,7 +714,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           hidden_tests.info_map,
           hidden_tests.term,
         ),
-        Environment.empty,
       ),
     ]
     @ (
@@ -731,7 +726,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
                hidden_bug.info_map,
                hidden_bug.term,
              ),
-             Environment.empty,
            )
          )
     );
