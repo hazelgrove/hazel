@@ -41,11 +41,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     switch (self_ty) {
     | Unknown(prov) =>
       /* ? |> forall _. ? */
-      DHExp.cast(
-        d,
-        Unknown(prov),
-        Forall({item: Unknown(prov), name: "_"}),
-      )
+      DHExp.cast(d, Unknown(prov), Forall("_", Unknown(prov)))
     | Forall(_) => d
     | _ => failwith("Elaborator.wrap: SynTypFun non-forall-type")
     }
@@ -68,11 +64,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | TypFun(_) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        DHExp.cast(
-          d,
-          Forall({item: Unknown(prov), name: "grounded_forall"}),
-          ana_ty,
-        )
+        DHExp.cast(d, Forall("grounded_forall", Unknown(prov)), ana_ty)
       | _ => d
       }
     | Tuple(ds) =>
@@ -86,7 +78,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | TypAp(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
-      | (Unknown(prov), Rec({item: Sum(_), _}))
+      | (Unknown(prov), Rec(_, Sum(_)))
       | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
       | _ => d
       }
