@@ -1,39 +1,48 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type parse_flag =
-  | Secondary // Not really an error
-  | MalformedGrout // Should never happen
-  | UnrecognizedTerm // Reminder to add term to MakeTerm
-  | IncompleteTile; // Remove in future
-
-let show_parse_flag: parse_flag => string =
-  fun
-  | Secondary => "Secondary"
-  | MalformedGrout => "Malformed Grout"
-  | UnrecognizedTerm => "Unrecognized Term"
-  | IncompleteTile => "Incomplete Tile";
-
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Exp(UExp.t)
     | Pat(UPat.t)
     | Typ(UTyp.t)
+    | TPat(UTPat.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
+
+  let is_exp: t => option(UExp.t);
+  let is_pat: t => option(UPat.t);
+  let is_typ: t => option(UTyp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Exp(UExp.t)
     | Pat(UPat.t)
     | Typ(UTyp.t)
+    | TPat(UTPat.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
+
+  let is_exp: t => option(UExp.t) =
+    fun
+    | Exp(e) => Some(e)
+    | _ => None;
+  let is_pat: t => option(UPat.t) =
+    fun
+    | Pat(p) => Some(p)
+    | _ => None;
+  let is_typ: t => option(UTyp.t) =
+    fun
+    | Typ(t) => Some(t)
+    | _ => None;
 }
 and UExp: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_bool =
+    | Not;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
@@ -54,7 +63,8 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_float =
@@ -67,15 +77,18 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_string =
+    | Concat
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
-    | Int(op_un_int);
+    | Int(op_un_int)
+    | Bool(op_un_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
@@ -112,13 +125,14 @@ and UExp: {
     | Filter
     | Parens
     | Cons
+    | ListConcat
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
@@ -127,12 +141,12 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
-    | Var(Token.t)
+    | Var(Var.t)
     | Let(UPat.t, t, t)
-    // Let_pat(UPat.t, t)
+    | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -140,6 +154,7 @@ and UExp: {
     | Filter(filter_action, t, t)
     | Parens(t) // (
     | Cons(t, t)
+    | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -148,7 +163,16 @@ and UExp: {
     ids: list(Id.t),
     term,
   };
+
+  let bool_op_to_string: op_bin_bool => string;
+  let int_op_to_string: op_bin_int => string;
+  let float_op_to_string: op_bin_float => string;
+  let string_op_to_string: op_bin_string => string;
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_bool =
+    | Not;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
@@ -169,7 +193,8 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_float =
@@ -182,15 +207,18 @@ and UExp: {
     | LessThanOrEqual
     | GreaterThan
     | GreaterThanOrEqual
-    | Equals;
+    | Equals
+    | NotEquals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin_string =
+    | Concat
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
-    | Int(op_un_int);
+    | Int(op_un_int)
+    | Bool(op_un_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
@@ -227,13 +255,14 @@ and UExp: {
     | Filter
     | Parens
     | Cons
+    | ListConcat
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
@@ -242,12 +271,12 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
-    | Var(Token.t)
+    | Var(Var.t)
     | Let(UPat.t, t, t)
-    // Let_pat(UPat.t, t)
+    | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -255,6 +284,7 @@ and UExp: {
     | Filter(filter_action, t, t)
     | Parens(t) // (
     | Cons(t, t)
+    | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -262,12 +292,58 @@ and UExp: {
     // invariant: nonempty
     ids: list(Id.t),
     term,
+  };
+
+  let bool_op_to_string = (op: op_bin_bool): string => {
+    switch (op) {
+    | And => "&&"
+    | Or => "\\/"
+    };
+  };
+
+  let int_op_to_string = (op: op_bin_int): string => {
+    switch (op) {
+    | Plus => "+"
+    | Minus => "-"
+    | Times => "*"
+    | Power => "**"
+    | Divide => "/"
+    | LessThan => "<"
+    | LessThanOrEqual => "<="
+    | GreaterThan => ">"
+    | GreaterThanOrEqual => ">="
+    | Equals => "=="
+    | NotEquals => "!="
+    };
+  };
+
+  let float_op_to_string = (op: op_bin_float): string => {
+    switch (op) {
+    | Plus => "+."
+    | Minus => "-."
+    | Times => "*."
+    | Power => "**."
+    | Divide => "/."
+    | LessThan => "<."
+    | LessThanOrEqual => "<=."
+    | GreaterThan => ">."
+    | GreaterThanOrEqual => ">=."
+    | Equals => "==."
+    | NotEquals => "!=."
+    };
+  };
+
+  let string_op_to_string = (op: op_bin_string): string => {
+    switch (op) {
+    | Concat => "++"
+    | Equals => "$=="
+    };
   };
 }
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Wild
@@ -277,9 +353,9 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
-    | Var(Token.t)
+    | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -291,7 +367,7 @@ and UPat: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Wild
@@ -301,9 +377,9 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
-    | Tag(string)
+    | Constructor(string)
     | Cons(t, t)
-    | Var(Token.t)
+    | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -316,7 +392,7 @@ and UPat: {
 and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Int
@@ -325,9 +401,15 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Ap(t, t)
+    | Sum(list(variant))
+  and variant =
+    | Variant(Constructor.t, list(Id.t), option(t))
+    | BadEntry(t)
   and t = {
     ids: list(Id.t),
     term,
@@ -335,7 +417,7 @@ and UTyp: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Int
@@ -344,9 +426,38 @@ and UTyp: {
     | String
     | List(t)
     | Var(string)
+    | Constructor(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Ap(t, t)
+    | Sum(list(variant))
+  and variant =
+    | Variant(Constructor.t, list(Id.t), option(t))
+    | BadEntry(t)
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+}
+and UTPat: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(string)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    | Var(TypVar.t)
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(string)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    | Var(TypVar.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -355,7 +466,7 @@ and UTyp: {
 and URul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | Hole(list(Any.t))
     | Rules(UExp.t, list((UPat.t, UExp.t)))
   and t = {
@@ -365,7 +476,7 @@ and URul: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Invalid(string)
     | Hole(list(Any.t))
     | Rules(UExp.t, list((UPat.t, UExp.t)))
   and t = {

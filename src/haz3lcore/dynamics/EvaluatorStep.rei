@@ -26,8 +26,9 @@ module EvalCtx: {
     | ListLit(int)
     | Cons1
     | Cons2
+    | ListConcat1
+    | ListConcat2
     | Prj
-    | Inj
     | NonEmptyHole
     | Cast
     | FailedCast
@@ -44,27 +45,27 @@ module EvalCtx: {
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
     | Ap2(DHExp.t, t)
-    | BinBoolOp1(DHExp.BinBoolOp.t, t, DHExp.t)
-    | BinBoolOp2(DHExp.BinBoolOp.t, DHExp.t, t)
-    | BinIntOp1(DHExp.BinIntOp.t, t, DHExp.t)
-    | BinIntOp2(DHExp.BinIntOp.t, DHExp.t, t)
-    | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
-    | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
-    | BinStringOp1(DHExp.BinStringOp.t, t, DHExp.t)
-    | BinStringOp2(DHExp.BinStringOp.t, DHExp.t, t)
+    | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
+    | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
+    | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
+    | BinIntOp2(TermBase.UExp.op_bin_int, DHExp.t, t)
+    | BinFloatOp1(TermBase.UExp.op_bin_float, t, DHExp.t)
+    | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
+    | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
+    | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
     | Tuple(t, (list(DHExp.t), list(DHExp.t)))
     | ListLit(
         MetaVar.t,
         MetaVarInst.t,
-        ListErrStatus.t,
         Typ.t,
         t,
         (list(DHExp.t), list(DHExp.t)),
       )
     | Cons1(t, DHExp.t)
     | Cons2(DHExp.t, t)
+    | ListConcat1(t, DHExp.t)
+    | ListConcat2(DHExp.t, t)
     | Prj(t, int)
-    | Inj(Typ.t, InjSide.t, t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)

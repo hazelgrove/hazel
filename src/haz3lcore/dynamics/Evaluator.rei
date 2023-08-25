@@ -23,16 +23,17 @@ let ground_cases_of: Typ.t => ground_cases;
 
 let matches: (DHPat.t, DHExp.t) => match_result;
 
-let eval_bin_bool_op: (DHExp.BinBoolOp.t, bool, bool) => DHExp.t;
+let eval_bin_bool_op: (TermBase.UExp.op_bin_bool, bool, bool) => DHExp.t;
 
 let eval_bin_bool_op_short_circuit:
-  (DHExp.BinBoolOp.t, bool) => option(DHExp.t);
+  (TermBase.UExp.op_bin_bool, bool) => option(DHExp.t);
 
-let eval_bin_int_op: (DHExp.BinIntOp.t, int, int) => DHExp.t;
+let eval_bin_int_op: (TermBase.UExp.op_bin_int, int, int) => DHExp.t;
 
-let eval_bin_float_op: (DHExp.BinFloatOp.t, float, float) => DHExp.t;
+let eval_bin_float_op: (TermBase.UExp.op_bin_float, float, float) => DHExp.t;
 
-let eval_bin_string_op: (DHExp.BinStringOp.t, string, string) => DHExp.t;
+let eval_bin_string_op:
+  (TermBase.UExp.op_bin_string, string, string) => DHExp.t;
 
 let evaluate_extend_env:
   (Environment.t, ClosureEnvironment.t) =>

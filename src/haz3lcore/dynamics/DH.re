@@ -1,56 +1,9 @@
 open Sexplib.Std;
 
 module rec DHExp: {
-  module BinBoolOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | And
-      | Or;
-  };
-
-  module BinIntOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals;
-  };
-
-  module BinFloatOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | FPlus
-      | FMinus
-      | FTimes
-      | FPower
-      | FDivide
-      | FLessThan
-      | FLessThanOrEqual
-      | FGreaterThan
-      | FGreaterThanOrEqual
-      | FEquals;
-  };
-
-  module BinStringOp: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | SEquals;
-  };
-
   module FilterAction: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Step
-      | Eval;
-
-    let t_of_uexp: TermBase.UExp.filter_action => t;
+    type t = TermBase.UExp.filter_action;
   };
 
   module Filter: {
@@ -84,7 +37,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | Filter(FilterEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -98,16 +51,16 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
-    | BinStringOp(BinStringOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
+    | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Inj(Typ.t, InjSide.t, t)
-    | Tag(string)
+    | Constructor(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -116,8 +69,6 @@ module rec DHExp: {
     | Case(t, list(rule), int)
   and rule =
     | Rule(DHPat.t, t);
-
-  let descriptive_string: t => string;
 
   let constructor_string: t => string;
 
@@ -130,61 +81,9 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 } = {
-  module BinBoolOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | And
-      | Or;
-  };
-
-  module BinIntOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals;
-  };
-
-  module BinFloatOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | FPlus
-      | FMinus
-      | FTimes
-      | FPower
-      | FDivide
-      | FLessThan
-      | FLessThanOrEqual
-      | FGreaterThan
-      | FGreaterThanOrEqual
-      | FEquals;
-  };
-
-  module BinStringOp = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | SEquals;
-  };
-
   module FilterAction = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Step
-      | Eval;
-
-    let t_of_uexp = (act: TermBase.UExp.filter_action): t => {
-      switch (act) {
-      | Step => Step
-      | Eval => Eval
-      };
-    };
+    type t = TermBase.UExp.filter_action;
   };
 
   module Filter = {
@@ -211,7 +110,7 @@ module rec DHExp: {
       | (FloatLit(dv), FloatLit(fv)) => dv == fv
       | (StringLit(dv), StringLit(fv)) => dv == fv
 
-      | (Tag(dt), Tag(ft)) => dt == ft
+      | (Constructor(dt), Constructor(ft)) => dt == ft
 
       | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
         matches_pat(dp1, fp1)
@@ -298,7 +197,7 @@ module rec DHExp: {
         | exception (Invalid_argument(_)) => false
         | res => matches_typ(dty1, fty1) && res
         }
-      | (Tag(dt), Tag(ft)) => dt == ft
+      | (Constructor(dt), Constructor(ft)) => dt == ft
       | (Var(dx), Var(fx)) => dx == fx
       | (Tuple(dl), Tuple(fl)) =>
         switch (
@@ -381,7 +280,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | Filter(FilterEnvironment.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
@@ -396,16 +295,16 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
-    | BinStringOp(BinStringOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
+    | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Inj(Typ.t, InjSide.t, t)
-    | Tag(string)
+    | Constructor(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -414,44 +313,6 @@ module rec DHExp: {
     | Case(t, list(rule), int)
   and rule =
     | Rule(DHPat.t, t);
-
-  let descriptive_string = (d: t): string =>
-    switch (d) {
-    | EmptyHole(_, _) => "EmptyHole"
-    | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
-    | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
-    | FreeVar(_, _, _) => "FreeVar"
-    | InvalidText(_) => "InvalidText"
-    | BoundVar(_) => "BoundVar"
-    | Sequence(_, _) => "Sequence"
-    | Filter(_, _) => "Filter"
-    | Let(_, _, _) => "Let"
-    | FixF(_, _, _) => "FixF"
-    | Fun(_, _, _, _) => "Fun"
-    | Closure(_, _) => "Closure"
-    | Ap(_, _) => "Ap"
-    | ApBuiltin(_, _) => "ApBuiltin"
-    | TestLit(_) => "TestLit"
-    | BoolLit(_) => "BoolLit"
-    | IntLit(_) => "IntLit"
-    | FloatLit(_) => "FloatLit"
-    | StringLit(_) => "StringLit"
-    | BinBoolOp(_, _, _) => "BinBoolOp"
-    | BinIntOp(_, _, _) => "BinIntOp"
-    | BinFloatOp(_, _, _) => "BinFloatOp"
-    | BinStringOp(_, _, _) => "BinStringOp"
-    | ListLit(_) => "ListLit"
-    | Cons(_, _) => "Cons"
-    | Tuple(_) => "Tuple"
-    | Prj(_) => "Prj"
-    | Inj(_, _, _) => "Inj"
-    | Tag(_) => "Tag"
-    | ConsistentCase(_) => "ConsistentCase"
-    | InconsistentBranches(_, _, _) => "InconsistentBranches"
-    | Cast(_, _, _) => "Cast"
-    | FailedCast(_, _, _) => "FailedCast"
-    | InvalidOperation(_) => "InvalidOperation"
-    };
 
   let constructor_string = (d: t): string =>
     switch (d) {
@@ -480,10 +341,10 @@ module rec DHExp: {
     | BinStringOp(_, _, _) => "BinStringOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
+    | ListConcat(_, _) => "ListConcat"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
-    | Inj(_, _, _) => "Inj"
-    | Tag(_) => "Tag"
+    | Constructor(_) => "Constructor"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
@@ -512,12 +373,11 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
-    | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
-    | ListLit(a, b, c, d, ds) =>
-      ListLit(a, b, c, d, List.map(strip_casts, ds))
+    | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
+    | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
     | Filter(fenv, b) =>
@@ -552,7 +412,7 @@ module rec DHExp: {
     | IntLit(_) as d
     | FloatLit(_) as d
     | StringLit(_) as d
-    | Tag(_) as d
+    | Constructor(_) as d
     | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
@@ -565,7 +425,7 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
-    | (Tag(_), _) => d1 == d2
+    | (Constructor(_), _) => d1 == d2
     | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
     | (StringLit(_), _) => false
 
@@ -583,13 +443,15 @@ module rec DHExp: {
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)
-    | (ListLit(_, _, _, _, ds1), ListLit(_, _, _, _, ds2)) =>
+    | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
       List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -599,8 +461,6 @@ module rec DHExp: {
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (Inj(ty1, side1, d1), Inj(ty2, side2, d2)) =>
-      ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
@@ -618,6 +478,7 @@ module rec DHExp: {
     | (Ap(_), _)
     | (ApBuiltin(_), _)
     | (Cons(_), _)
+    | (ListConcat(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)
@@ -625,7 +486,6 @@ module rec DHExp: {
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
     | (BinStringOp(_), _)
-    | (Inj(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)

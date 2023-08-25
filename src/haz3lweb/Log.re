@@ -22,17 +22,18 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | DebugAction(_)
   | StepForward(_)
-  | StepBackward => false
-  | ResetCurrentEditor
+  | StepBackward
+  | ExportPersistentData => false
+  | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
-  | ToggleMode
-  | SwitchSlide(_)
+  | ResetCurrentEditor
+  | SetMode(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
   | SwitchEditor(_)
   | PerformAction(_)
-  | FailedInput(_)
   | Cut
   | Copy
   | Paste(_)
@@ -41,7 +42,7 @@ let is_action_logged: UpdateAction.t => bool =
   | MoveToNextHole(_)
   | UpdateLangDocMessages(_) => true;
 
-let storage_key = "LOG_" ++ SchoolSettings.log_key;
+let storage_key = "LOG_" ++ ExerciseSettings.log_key;
 let max_log_string_length = 4_750_000; // based on 5MB limit on localstore in browser
 
 module Entry = {

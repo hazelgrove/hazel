@@ -10,7 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-           let info_map: Statics.map;
+           let info_map: Statics.Map.t;
            let tiles: TileMap.t;
          },
        ) => {
@@ -62,8 +62,6 @@ module Deco =
       // TermIds.find(Piece.id(p), M.terms)
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
-      // filter out dark ids (see MakeTerm)
-      |> List.filter(id => id >= 0)
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
@@ -277,7 +275,7 @@ module Deco =
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
       | None => false
-      | Some(info) => Statics.is_error(info)
+      | Some(info) => Info.is_error(info)
       };
     let is_rep = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.terms)) {

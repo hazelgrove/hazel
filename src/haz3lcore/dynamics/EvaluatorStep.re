@@ -32,8 +32,9 @@ module EvalCtx = {
     | ListLit(int)
     | Cons1
     | Cons2
+    | ListConcat1
+    | ListConcat2
     | Prj
-    | Inj
     | NonEmptyHole
     | Cast
     | FailedCast
@@ -50,27 +51,27 @@ module EvalCtx = {
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
     | Ap2(DHExp.t, t)
-    | BinBoolOp1(DHExp.BinBoolOp.t, t, DHExp.t)
-    | BinBoolOp2(DHExp.BinBoolOp.t, DHExp.t, t)
-    | BinIntOp1(DHExp.BinIntOp.t, t, DHExp.t)
-    | BinIntOp2(DHExp.BinIntOp.t, DHExp.t, t)
-    | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
-    | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
-    | BinStringOp1(DHExp.BinStringOp.t, t, DHExp.t)
-    | BinStringOp2(DHExp.BinStringOp.t, DHExp.t, t)
+    | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
+    | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
+    | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
+    | BinIntOp2(TermBase.UExp.op_bin_int, DHExp.t, t)
+    | BinFloatOp1(TermBase.UExp.op_bin_float, t, DHExp.t)
+    | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
+    | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
+    | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
     | Tuple(t, (list(DHExp.t), list(DHExp.t)))
     | ListLit(
         MetaVar.t,
         MetaVarInst.t,
-        ListErrStatus.t,
         Typ.t,
         t,
         (list(DHExp.t), list(DHExp.t)),
       )
     | Cons1(t, DHExp.t)
     | Cons2(DHExp.t, t)
+    | ListConcat1(t, DHExp.t)
+    | ListConcat2(DHExp.t, t)
     | Prj(t, int)
-    | Inj(Typ.t, InjSide.t, t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -128,15 +129,16 @@ module EvalObj = {
     | (BinStringOp2, BinStringOp2(_, _, c))
     | (Cons1, Cons1(c, _))
     | (Cons2, Cons2(_, c))
-    | (Prj, Prj(c, _))
-    | (Inj, Inj(_, _, c)) => Some({...obj, ctx: c})
+    | (ListConcat1, ListConcat1(c, _))
+    | (ListConcat2, ListConcat2(_, c))
+    | (Prj, Prj(c, _)) => Some({...obj, ctx: c})
     | (Tuple(n), Tuple(c, (ld, _))) =>
       if (List.length(ld) == n) {
         Some({...obj, ctx: c});
       } else {
         None;
       }
-    | (ListLit(n), ListLit(_, _, _, _, c, (ld, _))) =>
+    | (ListLit(n), ListLit(_, _, _, c, (ld, _))) =>
       if (List.length(ld) == n) {
         Some({...obj, ctx: c});
       } else {
@@ -159,7 +161,9 @@ module EvalObj = {
     | (BinStringOp1, BinStringOp2(_))
     | (BinStringOp2, BinStringOp1(_))
     | (Cons1, Cons2(_))
-    | (Cons2, Cons1(_)) => None
+    | (Cons2, Cons1(_))
+    | (ListConcat1, ListConcat2(_))
+    | (ListConcat2, ListConcat1(_)) => None
     | (Closure, _) => Some(obj)
     | (tag, Closure(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Filter, _) => Some(obj)
@@ -206,7 +210,6 @@ module Capture = {
   let rec provides = (dp: DHPat.t): t => {
     switch (dp) {
     | Var(x) => Environment.extend(Environment.empty, (x, ()))
-    | Inj(_, dp) => provides(dp)
     | Ap(dp1, dp2) => Environment.union(provides(dp2), provides(dp1))
     | Tuple(dps) =>
       dps
@@ -257,7 +260,7 @@ module Capture = {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Tag(_) => Environment.empty
+    | Constructor(_) => Environment.empty
 
     | BinBoolOp(_, d1, d2) =>
       Environment.union(analyze(env, d1), analyze(env, d2))
@@ -267,7 +270,8 @@ module Capture = {
       Environment.union(analyze(env, d1), analyze(env, d2))
     | BinStringOp(_, d1, d2) =>
       Environment.union(analyze(env, d1), analyze(env, d2))
-    | Inj(_, _, d1) => analyze(env, d1)
+    | ListConcat(d1, d2) =>
+      Environment.union(analyze(env, d1), analyze(env, d2))
     | Tuple(ds) =>
       ds
       |> List.fold_left(
@@ -277,7 +281,7 @@ module Capture = {
 
     | Prj(targ, _) => analyze(env, targ)
     | Cons(d1, d2) => Environment.union(analyze(env, d2), analyze(env, d1))
-    | ListLit(_, _, _, _, lst) =>
+    | ListLit(_, _, _, lst) =>
       lst
       |> List.fold_left(
            (acc, d) => {acc |> Environment.union(analyze(env, d))},
@@ -333,7 +337,6 @@ module Capture = {
 module Transition = {
   // [@deriving show({with_path: false})]
   type t =
-    | Error(EvaluatorError.t)
     | Indet(DHExp.t)
     | BoxedValue(DHExp.t)
     | Step(DHExp.t);
@@ -370,7 +373,6 @@ module Transition = {
         /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
         /* }; */
         Step(d2) |> return
-      | Error(error) => Error(error) |> return
       };
 
     | Let(dp, d1, d2) =>
@@ -387,7 +389,6 @@ module Transition = {
             env |> Capture.capture(d2) |> Evaluator.evaluate_extend_env(env');
           Step(Closure(env, d2)) |> return;
         }
-      | Error(error) => Error(error) |> return
       };
 
     | FixF(f, _, d') =>
@@ -408,15 +409,13 @@ module Transition = {
         switch (r2) {
         | Indet(r2) => Indet(r2) |> return
         | BoxedValue(r2) => Step(r2) |> return
-        | Error(error) => Error(error) |> return
         };
-      | BoxedValue(Tag(_)) =>
+      | BoxedValue(Constructor(_)) =>
         let* r2 = transition(env, d2);
         switch (r2) {
         | Step(d2) => Step(Ap(d1, d2)) |> return
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
-        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
         let* r2 = transition(env, d2);
@@ -436,7 +435,6 @@ module Transition = {
               |> Evaluator.evaluate_extend_env(env');
             Step(Closure(env, d3)) |> return;
           }
-        | Error(error) => Error(error) |> return
         };
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
@@ -450,7 +448,6 @@ module Transition = {
             Closure(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2')),
           )
           |> return
-        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
@@ -461,9 +458,7 @@ module Transition = {
         | Step(d2') => Step(Ap(d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(Ap(d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
-      | Error(error) => Error(error) |> return
       };
 
     | ApBuiltin(ident, args) =>
@@ -471,7 +466,6 @@ module Transition = {
       switch (r) {
       | BoxedValue(d) => Step(d) |> return
       | Indet(d) => Indet(d) |> return
-      | Error(error) => Error(error) |> return
       };
 
     | TestLit(_)
@@ -479,7 +473,7 @@ module Transition = {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Tag(_) => BoxedValue(d) |> return
+    | Constructor(_) => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = transition(env, d1);
@@ -498,7 +492,6 @@ module Transition = {
             print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
-          | Error(error) => Error(error) |> return
           };
         }
       | BoxedValue(d1') =>
@@ -510,9 +503,7 @@ module Transition = {
         | Step(d2') => Step(BinBoolOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
-      | Error(error) => Error(error) |> return
       };
 
     | BinIntOp(op, d1, d2) =>
@@ -547,7 +538,6 @@ module Transition = {
           print_endline("InvalidBoxedIntLit1");
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
@@ -558,9 +548,7 @@ module Transition = {
         | Step(d2') => Step(BinIntOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
-      | Error(error) => Error(error) |> return
       };
 
     | BinFloatOp(op, d1, d2) =>
@@ -577,7 +565,6 @@ module Transition = {
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFloatLit");
@@ -588,9 +575,7 @@ module Transition = {
         | Step(d2') => Step(BinFloatOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
-      | Error(error) => Error(error) |> return
       };
 
     | BinStringOp(op, d1, d2) =>
@@ -607,7 +592,6 @@ module Transition = {
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedStringLit");
@@ -618,18 +602,34 @@ module Transition = {
         | Step(d2') => Step(BinStringOp(op, d1, d2')) |> return
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
-        | Error(error) => Error(error) |> return
         };
-      | Error(error) => Error(error) |> return
       };
 
-    | Inj(ty, side, d1) =>
+    | ListConcat(d1, d2) =>
       let* r1 = transition(env, d1);
       switch (r1) {
-      | Step(d1') => Step(Inj(ty, side, d1')) |> return
-      | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1')) |> return
-      | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
-      | Error(error) => Error(error) |> return
+      | Step(d1') => Step(ListConcat(d1', d2)) |> return
+      | BoxedValue(d1') =>
+        let* r2 = transition(env, d2);
+        switch (r2) {
+        | Step(d2') => Step(ListConcat(d1', d2')) |> return
+        | BoxedValue(d2') =>
+          switch (d1', d2') {
+          | (ListLit(u, i, ty, ds1), ListLit(_, _, _, ds2)) =>
+            BoxedValue(ListLit(u, i, ty, ds1 @ ds2)) |> return
+          | (Cast(d1, List(ty), List(ty')), d2)
+          | (d1, Cast(d2, List(ty), List(ty'))) =>
+            transition(env, Cast(ListConcat(d1, d2), List(ty), List(ty')))
+          | (ListLit(_), _) =>
+            print_endline("InvalidBoxedListLit: " ++ DHExp.show(d2));
+            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+          | _ =>
+            print_endline("InvalidBoxedListLit: " ++ DHExp.show(d1));
+            raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
+          }
+        | Indet(d2') => Indet(ListConcat(d1', d2')) |> return
+        };
+      | Indet(d1') => Step(ListConcat(d1', d2)) |> return
       };
 
     | Tuple(ds) =>
@@ -649,8 +649,6 @@ module Transition = {
                 BoxedValue(empty),
                 [el', ...dst],
               )
-            | (Error(error), _) => (Error(error), [])
-            | (_, Error(error)) => (Error(error), [])
             }
           },
           drs,
@@ -662,7 +660,6 @@ module Transition = {
       | Step(_) => Step(d')
       | Indet(_) => Indet(d')
       | BoxedValue(_) => BoxedValue(d')
-      | Error(error) => Error(error)
       };
 
     | Prj(targ, n) =>
@@ -735,8 +732,8 @@ module Transition = {
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
-        | ListLit(u, i, err, ty, ds) =>
-          BoxedValue(ListLit(u, i, err, ty, [d1, ...ds])) |> return
+        | ListLit(u, i, ty, ds) =>
+          BoxedValue(ListLit(u, i, ty, [d1, ...ds])) |> return
         | Cons(_)
         | Cast(ListLit(_), List(_), List(_)) =>
           BoxedValue(Cons(d1, d2)) |> return
@@ -744,11 +741,9 @@ module Transition = {
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
-      | (Error(error), _) => Error(error) |> return
-      | (_, Error(error)) => Error(error) |> return
       };
 
-    | ListLit(u, i, err, ty, ds) =>
+    | ListLit(u, i, ty, ds) =>
       let+ drs =
         ds |> List.map(d => transition(env, d) >>| (r => (d, r))) |> sequence;
 
@@ -765,21 +760,18 @@ module Transition = {
                 BoxedValue(empty),
                 [el', ...dst],
               )
-            | (Error(error), _) => (Error(error), [])
-            | (_, Error(error)) => (Error(error), [])
             }
           },
           drs,
           (BoxedValue(empty), []),
         );
 
-      let d' = DHExp.ListLit(u, i, err, ty, ds');
+      let d' = DHExp.ListLit(u, i, ty, ds');
 
       switch (tag) {
       | Step(_) => Step(d')
       | Indet(_) => Indet(d')
       | BoxedValue(_) => BoxedValue(d')
-      | Error(error) => Error(error)
       };
 
     | ConsistentCase(Case(d1, rules, n)) =>
@@ -802,7 +794,6 @@ module Transition = {
           }
         | BoxedValue(d) => BoxedValue(d) |> return
         | Indet(d) => Indet(d) |> return
-        | Error(error) => Error(error) |> return
         };
       }
 
@@ -820,9 +811,7 @@ module Transition = {
         | BoxedValue(_)
         | Indet(_) => Step(d') |> return
         | Step(_) => Step(Filter(fenv, d')) |> return
-        | Error(error) => Error(error) |> return
         };
-      | Error(error) => Error(error) |> return
       };
 
     /* Hole expressions */
@@ -841,7 +830,6 @@ module Transition = {
       | BoxedValue(d1')
       | Indet(d1') =>
         Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))) |> return
-      | Error(error) => Error(error) |> return
       };
 
     | FreeVar(u, i, x) => Indet(Closure(env, FreeVar(u, i, x))) |> return
@@ -943,7 +931,6 @@ module Transition = {
             Indet(Cast(d1', ty, ty')) |> return;
           }
         }
-      | Error(error) => Error(error) |> return
       };
 
     | FailedCast(d1, ty, ty') =>
@@ -952,7 +939,6 @@ module Transition = {
       | Step(d1') => Step(FailedCast(d1', ty, ty')) |> return
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
-      | Error(error) => Error(error) |> return
       };
 
     | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
@@ -968,14 +954,40 @@ module Transition = {
       : m(t) => {
     let* rscrut = transition(env, scrut);
     switch (rscrut) {
-    | BoxedValue(scrut)
+    | BoxedValue(scrut) => transition_rule(env, scrut, rules, current_rule_index)
     | Indet(scrut) => eval_rule(env, scrut, rules, current_rule_index)
     | Step(scrut) =>
       Step(ConsistentCase(Case(scrut, rules, current_rule_index)))
       |> Monad.return
-    | Error(error) => Error(error) |> return
     };
   }
+  and transition_rule =
+      (
+        env: ClosureEnvironment.t,
+        scrut: DHExp.t,
+        rules: list(DHExp.rule),
+        current_rule_index: int,
+      )
+      : m(t) => {
+      switch (List.nth_opt(rules, current_rule_index)) {
+      | None =>
+        let case = DHExp.Case(scrut, rules, current_rule_index);
+        Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
+      | Some(Rule(dp, d)) =>
+        switch (Evaluator.matches(dp, scrut)) {
+        | IndetMatch =>
+          let case = DHExp.Case(scrut, rules, current_rule_index);
+          Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
+        | Matches(env') =>
+          // extend environment with new bindings introduced
+          let* env =
+            env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
+          Step(Closure(env, d)) |> Monad.return;
+        // by the rule and evaluate the expression.
+        | DoesNotMatch => transition_rule(env, scrut, rules, current_rule_index + 1)
+        }
+      }
+    }
   and eval_rule =
       (
         env: ClosureEnvironment.t,
@@ -1173,7 +1185,7 @@ module Decompose = {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Tag(_) => Return.boxed
+    | Constructor(_) => Return.boxed
     | BinBoolOp(op, d1, d2) =>
       let* r1 = decompose(d1);
       let* r2 = decompose(d2);
@@ -1206,8 +1218,6 @@ module Decompose = {
         (r2, (c => BinStringOp2(op, d1, c))),
       ]
       |> Return.merge(Return.Operator);
-    | Inj(ty, side, d1) =>
-      decompose(d1) >>| Return.wrap(c => Inj(ty, side, c))
     | Tuple(ds) =>
       let rec walk = (ld, rd, rs) => {
         switch (rd) {
@@ -1227,7 +1237,12 @@ module Decompose = {
       let* r2 = decompose(d2);
       [(r1, (c => Cons1(c, d2))), (r2, (c => Cons2(d1, c)))]
       |> Return.merge(Return.Operator);
-    | ListLit(u, i, err, ty, lst) =>
+    | ListConcat(d1, d2) =>
+      let* r1 = decompose(d1);
+      let* r2 = decompose(d2);
+      [(r1, (c => ListConcat1(c, d2))), (r2, (c => ListConcat2(d1, c)))]
+      |> Return.merge(Return.Operator);
+    | ListLit(u, i, ty, lst) =>
       let rec walk = (ld, rd, rs) => {
         switch (rd) {
         | [] => rs
@@ -1235,7 +1250,7 @@ module Decompose = {
           let* r = decompose(d);
           let* rs = rs;
           let rs = [
-            (r, (c => EvalCtx.ListLit(u, i, err, ty, c, (ld, rd)))),
+            (r, (c => EvalCtx.ListLit(u, i, ty, c, (ld, rd)))),
             ...rs,
           ];
           walk([d, ...ld], rd, return(rs));
@@ -1243,7 +1258,16 @@ module Decompose = {
       };
       let* rs = walk([], lst, return([]));
       rs |> Return.merge(Return.Constructor);
-    | _ => Return.mark(act)
+    | ConsistentCase(Case(d1, rules, i)) =>
+      let* r1 = decompose(d1);
+      switch (r1) {
+      | BoxedValue
+      | Eval(_) => Return.mark(act)
+      | _ =>
+        r1
+        |> Return.wrap(c => ConsistentCase(Case(c, rules, i)))
+        |> Monad.return
+      };
     };
   };
 };
@@ -1314,21 +1338,24 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): m(DHExp.t) => {
   | Cons2(d1, ctx) =>
     let+ d2 = compose(ctx, d);
     Cons(d1, d2);
+  | ListConcat1(ctx, d2) =>
+    let+ d1 = compose(ctx, d);
+    ListConcat(d1, d2);
+  | ListConcat2(d1, ctx) =>
+    let+ d2 = compose(ctx, d);
+    ListConcat(d1, d2);
   | Tuple(ctx, (ld, rd)) =>
     let+ d = compose(ctx, d);
     Tuple(rev_concat(ld, [d, ...rd]));
-  | ListLit(m, i, e, t, ctx, (ld, rd)) =>
+  | ListLit(m, i, t, ctx, (ld, rd)) =>
     let+ d = compose(ctx, d);
-    ListLit(m, i, e, t, rev_concat(ld, [d, ...rd]));
+    ListLit(m, i, t, rev_concat(ld, [d, ...rd]));
   | Let(dp, ctx, d1) =>
     let+ d = compose(ctx, d);
     Let(dp, d, d1);
   | Prj(ctx, n) =>
     let+ d = compose(ctx, d);
     Prj(d, n);
-  | Inj(ty, side, ctx) =>
-    let+ d = compose(ctx, d);
-    Inj(ty, side, d);
   | Cast(ctx, ty1, ty2) =>
     let+ d = compose(ctx, d);
     Cast(d, ty1, ty2);
@@ -1360,14 +1387,12 @@ let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
       | Step(d)
       | BoxedValue(d) => EvaluatorResult.BoxedValue(d) |> return
       | Indet(d) => EvaluatorResult.Indet(d) |> return
-      | Error(error) => EvaluatorResult.Error(error) |> return
       };
     };
   let* d = compose(obj.ctx, EvaluatorResult.unbox(r));
   switch (r) {
   | BoxedValue(_) => EvaluatorResult.BoxedValue(d) |> return
   | Indet(_) => EvaluatorResult.Indet(d) |> return
-  | Error(error) => EvaluatorResult.Error(error) |> return
   };
 };
 
