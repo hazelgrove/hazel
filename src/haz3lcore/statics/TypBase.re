@@ -473,6 +473,7 @@ and Ctx: {
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
+  let is_tvar: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
@@ -552,6 +553,12 @@ and Ctx: {
 
   let is_alias = (ctx: t, name: TypVar.t): bool =>
     switch (lookup_alias(ctx, name)) {
+    | Some(_) => true
+    | None => false
+    };
+
+  let is_tvar = (ctx: t, name: TypVar.t): bool =>
+    switch (lookup_tvar(ctx, name)) {
     | Some(_) => true
     | None => false
     };
