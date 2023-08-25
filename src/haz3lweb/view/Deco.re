@@ -55,7 +55,8 @@ module Deco =
     let caret = (id, (-1));
     let style: PieceDec.Profile.style =
       buffer
-        ? SelectedBuffer((id, l), (id, r)) : Selected((id, l), (id, r));
+        ? SelectedEphemeral((id, l), (id, r))
+        : Selected((id, l), (id, r));
     PieceDec.Profile.{tiles, caret, style};
   };
 
@@ -271,6 +272,11 @@ module Deco =
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
       | None => false
+      //TODO(andrew): supress drawing holes for multis
+      | Some(InfoExp({status: InHole(Common(NoType(MultiError))), _})) =>
+        false
+      | Some(InfoPat({status: InHole(Common(NoType(MultiError))), _})) =>
+        false
       | Some(info) => Info.is_error(info)
       };
     let is_rep = (id: Id.t) =>
@@ -311,15 +317,24 @@ module Deco =
     Id.Map.fold(
       (id, info: Info.t, acc) =>
         (
-          switch (Id.Map.find_opt(id, M.term_ranges)) {
-          | None =>
-            /*Printf.printf(
+          switch (info) {
+          //TODO(andrew): supress drawing holes for multis
+          | InfoExp({status: InHole(Common(NoType(MultiError))), _})
+          | InfoPat({status: InHole(Common(NoType(MultiError))), _}) =>
+            false
+          | _ =>
+            //TODO(andrew): figure out why this fails for some multihole situations
+            switch (Id.Map.find_opt(id, M.term_ranges)) {
+            | None =>
+              Printf.printf(
                 "WARN: err_holes: No term range %s\n",
                 Id.to_string(id),
               );
-              Printf.printf("info: %s\n",Info.show(info));*/
-            false
-          | Some(_) => Info.is_error(info)
+              //Printf.printf("info: %s\n",Info.show(info));
+              false;
+
+            | Some(_) => Info.is_error(info)
+            }
           }
         )
           ? [term_highlight(~clss=["err-hole"], id), ...acc] : acc,

@@ -48,16 +48,93 @@ let put_editor = (ed: Editor.t, eds: t): t =>
 let active_zipper = (editors: t): Zipper.t =>
   get_editor(editors).state.zipper;
 
-let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
+let export_ctx = (~settings: Settings.t, init_ctx: Ctx.t, z: Zipper.t): Ctx.t => {
+  let info =
+    z
+    |> MakeTerm.from_zip_for_sem
+    |> fst
+    |> Interface.Statics.mk_map_ctx(settings.core, init_ctx)
+    |> Id.Map.find_opt(Hyper.export_id);
+  switch (info) {
+  | None => init_ctx
+  | Some(info) => Info.ctx_of(info)
+  };
+};
+
+let export_env =
+    (
+      ~settings: Settings.t,
+      ctx_init: Ctx.t,
+      env_init: Environment.t,
+      z: Zipper.t,
+    ) => {
+  let tests =
+    try(
+      Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, z)
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_tests
+      |> TestMap.lookup(Hyper.export_id)
+    ) {
+    | _ =>
+      print_endline("exception in export_env");
+      None;
+    };
+  switch (tests) {
+  | None
+  | Some([]) => env_init
+  | Some([(_, _, env), ..._]) => env
+  };
+};
+
+let deps = (fn: ('a, 'b) => 'a, acc_0: 'a, slides, idx) => {
+  let get = idx => List.nth(slides, idx);
+  let acc_1 = 1 |> get |> fn(acc_0);
+  let acc_2 = 2 |> get |> fn(acc_1);
+  let acc_3 = 3 |> get |> fn(acc_2);
+  let acc_4 = 4 |> get |> fn(acc_3);
+  let acc_5 = 5 |> get |> fn(acc_4);
+  let acc_6 = 6 |> get |> fn(acc_5);
+  switch (idx) {
+  | 0 => acc_0
+  | 1 => acc_0
+  | 2 => acc_1
+  | 3 => acc_2
+  | 4 => acc_3
+  | 5 => acc_4
+  | 6 => acc_5
+  | _ => acc_6
+  };
+};
+
+let get_ctx_init_slides = (~settings: Settings.t, editors, idx) =>
+  settings.core.statics
+    ? deps(export_ctx(~settings), Builtins.ctx_init, editors, idx)
+    : Builtins.ctx_init;
+
+let get_env_init_slides = (~settings: Settings.t, ctx_init, editors, idx) =>
+  settings.core.dynamics
+    ? deps(export_env(~settings, ctx_init), Builtins.env_init, editors, idx)
+    : Builtins.env_init;
+
+let get_ctx_init = (~settings: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
+  | Scratch(idx, slides) when settings.core.statics =>
+    get_ctx_init_slides(~settings, List.map(Editor.get_z, slides), idx)
   | Scratch(_)
   | DebugLoad
   | Exercise(_)
   | Examples(_) => Builtins.ctx_init
   };
 
-let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
+let get_env_init = (~settings: Settings.t, editors: t): Environment.t =>
   switch (editors) {
+  | Scratch(idx, slides) when settings.core.dynamics =>
+    get_env_init_slides(
+      ~settings,
+      get_ctx_init(~settings, editors),
+      List.map(Editor.get_z, slides),
+      idx,
+    )
   | Scratch(_)
   | DebugLoad
   | Exercise(_)
@@ -72,22 +149,38 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
 
    Used in the Update module */
 let get_spliced_elabs =
-    (~settings: Settings.t, editors: t): list((ModelResults.key, DHExp.t)) => {
+    (~settings: Settings.t, editors: t)
+    : list((ModelResults.key, DHExp.t, Environment.t)) => {
   settings.core.dynamics
     ? {
-      let ctx_init = get_ctx_init(~settings, editors);
+      let ctx_init =
+        try(get_ctx_init(~settings, editors)) {
+        | _ =>
+          print_endline("exception in get_ctx_init");
+          failwith("exception in get_ctx_init");
+        };
+      let env_init =
+        try(get_env_init(~settings, editors)) {
+        | _ =>
+          print_endline("exception in get_env_init");
+          failwith("exception in get_env_init");
+        };
       switch (editors) {
       | DebugLoad => []
       | Scratch(idx, slides) =>
         let current_slide = List.nth(slides, idx);
         let (key, d) =
-          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
-        [(key, d)];
+          try(ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide)) {
+          | _ =>
+            print_endline("exception in ScratchSlide.spliced_elab");
+            failwith("exception in ScratchSlide.spliced_elab");
+          };
+        [(key, d, env_init)];
       | Examples(name, slides) =>
         let current_slide = List.assoc(name, slides);
         let (key, d) =
           ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
-        [(key, d)];
+        [(key, d, env_init)];
       | Exercise(_, _, exercise) =>
         Exercise.spliced_elabs(~settings=settings.core, exercise)
       };

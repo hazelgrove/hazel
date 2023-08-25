@@ -126,10 +126,20 @@ let rec dhexp_of_uexp =
       | Invalid(t) => Some(DHExp.InvalidText(id, 0, t))
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
       | MultiHole(_tms) =>
+        let+ ds =
+          _tms
+          |> List.map(
+               fun
+               | Term.Exp(t) => dhexp_of_uexp(m, t)
+               | _ => Some(EmptyHole(id, 0)),
+             )
+          |> OptUtil.sequence;
+        //TODO(andrew): turning this into tuples for now; yolo
         /* TODO: add a dhexp case and eval logic for multiholes.
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
-        Some(EmptyHole(id, 0))
+        //Some(EmptyHole(id, 0))
+        DHExp.Tuple(ds);
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
@@ -192,6 +202,8 @@ let rec dhexp_of_uexp =
         }
       | Constructor(name) =>
         switch (err_status) {
+        | _ when Hyper.is_export(name) =>
+          Some(DHExp.Ap(TestLit(Hyper.export_id), Tuple([])))
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
         | _ => Some(Constructor(name))
@@ -274,8 +286,18 @@ let rec dhexp_of_uexp =
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
-  | None => None
+  | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    Printf.printf(
+      "Elaborate: Exp: Infomap returned wrong sort: %s\n",
+      ci |> Info.show,
+    );
+    None;
+  | None =>
+    Printf.printf(
+      "Elaborate: Exp: Infomap lookup failed for: %s\n",
+      Id.to_string(Term.UExp.rep_id(uexp)),
+    );
+    None;
   };
 }
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
@@ -332,18 +354,23 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
-  | None => None
+  | Some((InfoExp(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    print_endline("Elaborate: Pat: Infomap returned wrong sort:");
+    print_endline(ci |> Info.show);
+    None;
+  | None =>
+    print_endline(
+      "Elaborate: Pat: Infomap lookup failed; id: "
+      ++ Id.to_string(Term.UPat.rep_id(upat)),
+    );
+    None;
   };
 };
-
-//let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
-    //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty

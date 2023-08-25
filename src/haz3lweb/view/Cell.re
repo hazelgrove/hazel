@@ -40,6 +40,21 @@ let mousedown_handler =
       ~mousedown_updates,
       evt,
     ) =>
+  /*
+   new behavior concept:
+   for atomic forms:
+   doubleclick: select term ie token
+   tripleclick: select parent term (e.g. ap for fnpos token)
+   for non-atomic concave/convex forms:
+   doubleclick: select token
+   tripleclick: select term
+   for chevron forms:
+   doubleclick: select tile (eg. {let _ = _ in} _)
+   tripleclick: select term
+
+   possibly additional level if already indicated:
+   singleclick: select individual token always
+   */
   switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
   | (true, _) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
@@ -63,6 +78,7 @@ let mousedown_handler =
     );
   | (false, 2) => inject(PerformAction(Select(Tile(Current))))
   | (false, 3 | _) => inject(PerformAction(Select(Smart)))
+  //| (false, 4 | _) => inject(PerformAction(Select(All)))
   };
 
 let narrative_cell = (content: Node.t) =>
@@ -212,8 +228,9 @@ let deco =
 
 let eval_result_footer_view =
     (
-      ~settings as _: Settings.t,
-      ~inject as _,
+      ~settings: Settings.t,
+      ~mvu_states,
+      ~inject,
       ~font_metrics,
       ~elab,
       results: ModelResult.simple,
@@ -231,6 +248,24 @@ let eval_result_footer_view =
         Node.text("Evaluation disabled. Elaboration follows:"),
         dhcode_view(~show_casts=true, elab),
       ]
+    | Some({
+        eval_result:
+          Ap(
+            Constructor("Render"),
+            Tuple([StringLit(name), init_model, view, update]),
+          ),
+        _,
+      }) =>
+      MVU.go(
+        ~settings,
+        ~mvu_states,
+        ~name,
+        ~init_model,
+        ~inject,
+        ~view,
+        ~update,
+        ~font_metrics,
+      )
     | Some({eval_result, _}) =>
       /* Disabling casts in this case as large casts
        * can blow up UI perf unexpectedly */
@@ -271,9 +306,7 @@ let editor_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
   let buffer_ids: list(Uuidm.t) = {
-    /* Collect ids of tokens in buffer for styling purposes. This is
-     * currently necessary as the selection is not persisted through
-     * unzipping for display */
+    //TODO(andrew): document or improve
     let buffer =
       Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
     Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
@@ -323,6 +356,7 @@ let editor_view =
 
 let editor_with_result_view =
     (
+      ~mvu_states,
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,
@@ -343,6 +377,7 @@ let editor_with_result_view =
     settings.core.statics
       ? eval_result_footer_view(
           ~settings,
+          ~mvu_states,
           ~inject,
           ~font_metrics,
           ~elab=

@@ -7,6 +7,7 @@ let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let settings = model.settings;
   let zipper = Editors.active_zipper(model.editors);
+  let restricted = Backpack.restricted(zipper.backpack);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
   let print = str => str |> print_endline |> (_ => None);
@@ -21,6 +22,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
+    //TODO(andrew): clarify when we drop and show buffer
+    let get_term = z => z |> MakeTerm.from_zip_for_view |> fst;
+
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
@@ -33,12 +37,12 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "F4" =>
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       zipper
-      |> MakeTerm.from_zip_for_view
-      |> fst
+      |> get_term
       |> Interface.Statics.mk_map_ctx(settings.core, ctx_init)
       |> Statics.Map.show
       |> print;
     | "F5" =>
+      //TODO(andrew): simplify below
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       let env_init = Editors.get_env_init(~settings, model.editors);
       Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, zipper)
@@ -49,8 +53,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       let map =
         zipper
-        |> MakeTerm.from_zip_for_view
-        |> fst
+        |> get_term
         |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
       switch (index) {
       | Some(index) =>
@@ -61,8 +64,15 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       | _ => print("DEBUG: No indicated index")
       };
     | "F7" => Some(Benchmark(Start))
+    | "F8" => Some(SetMeta(Auto(StartTest())))
+    | "F9" => Some(SetMeta(Auto(StartRun())))
+    | "F10" =>
+      print_endline(
+        "DEBUG: F10: Zipper with dump_backpack=true, erase_buffer=false",
+      );
+      zipper |> Zipper.seg_for_sem |> Segment.show |> print;
     | _ => None
-    }
+    };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))
@@ -131,6 +141,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
     | "k" => Some(ReparseCurrentEditor)
+    | "e" => Some(Execute)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
@@ -146,6 +157,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
     | "k" => Some(ReparseCurrentEditor)
+    | "e" => Some(Execute)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
@@ -161,7 +173,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | _ => None
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    let restricted = Backpack.restricted(zipper.backpack);
     switch (sys, key) {
     | (_, "ArrowLeft") when restricted =>
       now(MoveToBackpackTarget(Left(ByToken)))
@@ -173,7 +184,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
     | _ => None
-    };
+    }
   | _ => None
   };
 };

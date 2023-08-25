@@ -110,6 +110,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | ShowBackpackTargets(_)
     | FontMetrics(_)
     | Result(_) => false
+    | MVU(_)
+    | Auto(_) => true
     }
   | PerformAction(
       Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
@@ -122,7 +124,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | StoreKey(_) => false
   | ExportPersistentData => false
   | Benchmark(_)
   // may not be necessary on all of these
@@ -138,6 +141,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | Cut
   | Paste(_)
   | Assistant(_)
+  | Execute
   | Undo
   | Redo
   | Reset => true;
@@ -262,7 +266,7 @@ let rec apply =
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       Model.save(model);
-      // NOTE: Load here necessary to load editors on switching mode
+      // TODO(andrew): hacky; loading here to load editors if switch
       Ok(Model.load(model));
     | SetMeta(action) =>
       Ok({...model, meta: meta_update(model, action, ~schedule_action)})
@@ -273,6 +277,20 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | StoreKey(k, v) =>
+      Store.Generic.save(k, v);
+      Ok(model);
+    | Execute =>
+      let editor = model.editors |> Editors.get_editor;
+      let str = Printer.to_string_selection(editor);
+      print_endline("Execute: Parsing action: " ++ str);
+      let update: UpdateAction.t =
+        try(str |> Sexplib.Sexp.of_string |> t_of_sexp) {
+        | _ =>
+          print_endline("Execute: Action not recognized");
+          Save;
+        };
+      apply(model, update, state, ~schedule_action);
     | Save => Model.save_and_return(model)
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
@@ -316,10 +334,17 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
+    | PerformAction(Insert("?") as a) =>
+      let editor = model.editors |> Editors.get_editor;
+      /*let ctx_init =
+        Editors.get_ctx_init(~settings=model.settings, model.editors);*/
+      UpdateAssistant.schedule_prompt(editor.state.zipper, ~schedule_action);
+      perform_action(model, a);
     | PerformAction(a) when model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
       switch (perform_action(model, a)) {
       | Ok(model) when Action.is_edit(a) =>
+        //TODO(andrew): cleanup, document
         UpdateAssistant.apply(
           model,
           Prompt(TyDi),
@@ -398,7 +423,7 @@ let rec apply =
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
 }
 and meta_update =
-    (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
+    (model: Model.t, update: set_meta, ~schedule_action): Model.meta => {
   switch (update) {
   | Mousedown => {
       ...model.meta,
@@ -428,6 +453,10 @@ and meta_update =
         font_metrics,
       },
     }
+  | MVU(name, dh) => {
+      ...model.meta,
+      mvu_states: VarMap.extend(model.meta.mvu_states, (name, dh)),
+    }
   | Result(key, res) =>
     /* If error, print a message. */
     switch (res) {
@@ -447,5 +476,6 @@ and meta_update =
       |> ModelResult.update_current(res);
     let results = model.meta.results |> ModelResults.add(key, r);
     {...model.meta, results};
+  | Auto(action) => UpdateAuto.go(model, action, ~schedule_action)
   };
 };

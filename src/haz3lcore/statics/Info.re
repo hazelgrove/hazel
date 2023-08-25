@@ -48,9 +48,9 @@ type error_inconsistent =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
+  | MultiError
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
-  /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
@@ -268,6 +268,13 @@ let ancestors_of: t => ancestors =
   | InfoTyp({ancestors, _})
   | InfoTPat({ancestors, _}) => ancestors;
 
+let term_string_of: t => string =
+  fun
+  | InfoExp({term, _}) => UExp.to_string(term)
+  | InfoPat({term, _}) => UPat.to_string(term)
+  | InfoTyp({term, _}) => UTyp.to_string(term)
+  | InfoTPat({term, _}) => UTPat.to_string(term);
+
 let error_of: t => option(error) =
   fun
   | InfoExp({status: NotInHole(_), _})
@@ -312,7 +319,9 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
+  | (IsMulti, _) =>
+    // TODO(andrew): making these errors for now for llm purposes
+    InHole(NoType(MultiError))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {

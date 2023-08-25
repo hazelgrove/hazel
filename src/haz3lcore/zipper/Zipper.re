@@ -359,16 +359,16 @@ let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
 
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
+  ...z,
+  selection: Selection.mk_buffer(mode, content),
+};
+
 let can_put_down = z =>
   switch (pop_backpack(z)) {
   | Some(_) => z.caret == Outer
   | None => false
   };
-
-let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
-  ...z,
-  selection: Selection.mk_buffer(mode, content),
-};
 
 let is_linebreak_to_right_of_caret =
     ({relatives: {siblings: (_, r), _}, _}: t): bool => {
@@ -377,19 +377,33 @@ let is_linebreak_to_right_of_caret =
   | _ => false
   };
 };
+//TODO(andrew): document
+//TODO(andrew): generalize to actually get everything down
+//TODO(andrew): for going back and adding lets... maybe incorporate newlines
+/*
+ IDEA: maybe case on situation where there's nothing to the righ of the caret
+ except whitespace/grout until the next newline. in that case use existing
+ logic, but if there is something, try to drop as soon as possible?
+ idea is youre targetting the restructuring case where you just
+ picked something up
 
-/* Try to complete the syntax to give better semantic feeback.
- * This is a best-effort approach focussed on adding new definitions
- * as opposed to restructuring; it does not complete the syntax in
- * all cases.
- *
- * NOTE: Setting the caret to outer was necessary to 'get it past'
- * string literals, i.e. offer live feeback when typing inside a
- * string; not sure if this is a hack or not, it may be compensating
- * for the put_down logic not working right with string lits. To test,
- * try to look at live evaluation while typing inside a string lit with
- * stuff left to drop in backpack with below set: Outer disabled. */
+ IDEA: above logic works well for as-you-type, but not restructuring.
+  for example, if the top of the backpack is a leading delimiter,
+  which means you must have picked it up. maybe you want to drop those
+  as soon as possible?
+
+  */
 let try_to_dump_backpack = (zipper: t) => {
+  /*NOTE(andrew): setting caret to outer
+    was necessary to 'get it past' string literals, i.e.
+    offer live feeback when typing inside a string;
+    not sure if this is a hack or not, it may be
+    compensating with the put_down logic not working
+    right with string lits or something. to test,
+    try to look at live evaluation while typing inside a
+    strring lit with stuff left to drop in backpack
+    with below set: Outer disabled.
+    */
   switch (zipper.backpack) {
   | [] => zipper
   | _ =>
@@ -436,7 +450,7 @@ let try_to_dump_backpack = (zipper: t) => {
 };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
-  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z; //need to do this before trying to dump backpack
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
   unselect_and_zip(~erase_buffer, z);
 };
