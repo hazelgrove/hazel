@@ -53,7 +53,7 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: t => (t, t);
-  let matched_forall: t => t;
+  let matched_forall: t => (string, t);
   let matched_prod: (int, t) => list(t);
   let matched_cons: t => (t, t);
   let matched_list: t => t;
@@ -136,7 +136,7 @@ module rec Typ: {
     | Forall(t, ty) => (t, ty)
     | Unknown(prov) => ("matched_forall", Unknown(prov))
     | _ => ("matched_forall", Unknown(Internal)); /* TODO: Might need to be fresh? */
-  
+
   let matched_prod: (int, t) => list(t) =
     length =>
       fun
@@ -248,8 +248,8 @@ module rec Typ: {
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
-    | Forall({item: inside, name: n}) => [] /* free_vars(~bound=[x, ...bound], ty) */ 
-      /* TODO: unclear how to finish this until Typ is fully rebased. */
+    | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    /* TODO: check that these are correct. */
     };
 
   /* Lattice join on types. This is a LUB join in the hazel2
@@ -297,10 +297,10 @@ module rec Typ: {
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Rec(x1, ty_body);
-    | (Forall({item: t1, name}), Forall({item: t2, _})) =>
+    | (Forall(name, t1), Forall(_, t2)) =>
       /* See note above in Rec case */
-      switch (join(Ctx.add_abstract(ctx, name, -1), t1, t2)) {
-      | Some(t) => Some(Forall({item: t, name}))
+      switch (join(~resolve, ~fix, Ctx.extend_dummy_tvar(ctx, name), t1, t2)) {
+      | Some(t) => Some(Forall(name, t))
       | None => None
       }
     | (Rec(_), _) => None
@@ -632,35 +632,33 @@ and Kind: {
   type t =
     | Singleton(Typ.t)
     | Abstract;
-
-/* Is not needed as not using debrujin indices */
-/*
-  let rec incr = (ty: t, i: int): t => {
-    switch (ty) {
-    | Var({item: Some(j), name}) => Var({item: Some(i + j), name})
-    | Var(_) => ty
-    | List(ty) => List(incr(ty, i))
-    | Arrow(ty1, ty2) => Arrow(incr(ty1, i), incr(ty2, i))
-    | Sum(map) =>
-      Sum(
-        VarMap.map(
-          ((_, ty)) =>
-            switch (ty) {
-            | Some(ty) => Some(incr(ty, i))
-            | None => None
-            },
-          map,
-        ),
-      )
-    | Prod(tys) => Prod(List.map(ty => incr(ty, i), tys))
-    | Rec({item, name}) => Rec({item: incr(item, i), name})
-    | Forall({item, name}) => Forall({item: incr(item, i), name})
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | String => String
-    | Unknown(_) => ty
-    };
-*/
-
+  /* Is not needed as not using debrujin indices */
+  /*
+     let rec incr = (ty: t, i: int): t => {
+       switch (ty) {
+       | Var({item: Some(j), name}) => Var({item: Some(i + j), name})
+       | Var(_) => ty
+       | List(ty) => List(incr(ty, i))
+       | Arrow(ty1, ty2) => Arrow(incr(ty1, i), incr(ty2, i))
+       | Sum(map) =>
+         Sum(
+           VarMap.map(
+             ((_, ty)) =>
+               switch (ty) {
+               | Some(ty) => Some(incr(ty, i))
+               | None => None
+               },
+             map,
+           ),
+         )
+       | Prod(tys) => Prod(List.map(ty => incr(ty, i), tys))
+       | Rec({item, name}) => Rec({item: incr(item, i), name})
+       | Forall({item, name}) => Forall({item: incr(item, i), name})
+       | Int => Int
+       | Float => Float
+       | Bool => Bool
+       | String => String
+       | Unknown(_) => ty
+       };
+   */
 };
