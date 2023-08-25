@@ -289,7 +289,7 @@ let rec dhexp_of_uexp =
   | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
     Printf.printf(
       "Elaborate: Exp: Infomap returned wrong sort: %s\n",
-      ci |> Info.show,
+      Info.show(ci),
     );
     None;
   | None =>
@@ -355,13 +355,15 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       wrap(dp);
     };
   | Some((InfoExp(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
-    print_endline("Elaborate: Pat: Infomap returned wrong sort:");
-    print_endline(ci |> Info.show);
+    Printf.printf(
+      "Elaborate: Pat: Infomap returned wrong sort: %s\n",
+      Info.show(ci),
+    );
     None;
   | None =>
-    print_endline(
-      "Elaborate: Pat: Infomap lookup failed; id: "
-      ++ Id.to_string(Term.UPat.rep_id(upat)),
+    Printf.printf(
+      "Elaborate: Pat: Infomap lookup failed for: %s\n",
+      Id.to_string(Term.UPat.rep_id(upat)),
     );
     None;
   };
