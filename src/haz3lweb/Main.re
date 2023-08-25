@@ -51,7 +51,10 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
       new_model;
     }) {
     | exc =>
-      print_endline("ERROR: Exception during apply:");
+      Printf.printf(
+        "ERROR: Exception during apply: %s\n",
+        Printexc.to_string(exc),
+      );
       Error(Exception(Printexc.to_string(exc)));
     }
   ) {
@@ -127,13 +130,6 @@ module App = {
         Js.string("MAC"),
       )
       >= 0;
-
-    switch (JsUtil.Fragment.get_current()) {
-    | Some("auto") =>
-      print_endline("AUTO: Starting script");
-      schedule_action(SetMeta(Auto(StartRun())));
-    | _ => ()
-    };
 
     Async_kernel.Deferred.return(state);
   };
