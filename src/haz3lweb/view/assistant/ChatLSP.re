@@ -119,7 +119,7 @@ module Errors = {
     | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
     | NoType(BadTrivAp(ty)) =>
       prn(
-        "Function input type \"%s\" inconsistent with ()",
+        "Function argument type \"%s\" inconsistent with ()",
         Typ.to_string(ty),
       )
     | Inconsistent(WithArrow(ty)) =>
