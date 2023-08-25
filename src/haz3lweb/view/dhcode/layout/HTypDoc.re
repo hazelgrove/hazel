@@ -50,7 +50,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
-    | Var({name, _}) => (text(name), parenthesize)
+    | Var(name) => (text(name), parenthesize)
     | List(ty) => (
         hcats([
           mk_delim("["),
@@ -106,7 +106,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Rec({item: ty, name}) => (
+    | Rec(name, ty) => (
         hcats([
           text("Rec " ++ name ++ ".{"),
           (
@@ -118,7 +118,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
-    | Forall({item: ty, name}) => (
+    | Forall(name, ty) => (
         hcats([
           text("Forall " ++ name ++ ".{"),
           (

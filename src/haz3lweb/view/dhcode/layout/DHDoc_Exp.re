@@ -269,8 +269,7 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3)
-          when Typ.eq_syntactic(ty2, ty2') =>
+      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
