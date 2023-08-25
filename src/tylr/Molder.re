@@ -38,7 +38,7 @@ module Piece = {
          let candidate = (m, t);
          switch (Comparator.cmp(molder, ~kid?, candidate)) {
          | None
-         | Some(Gt(_)) => Error
+         | Some(Gt(_)) => Error()
          | Some(Eq(w)) => Ok((m, Scorer.score(Slope.mk(Terrace.mk(w)))))
          | Some(Lt(s)) => Ok((m, Scorer.score(s)))
          };

@@ -140,25 +140,26 @@ let gt = (l: Molded.t, ~kid=?, r: Molded.t): option(Slope.Up.m) =>
 
 module Result = {
   type t('lt, 'eq, 'gt) =
+    | In
     | Lt('lt)
     | Eq('eq)
     | Gt('gt);
 
   let map = (f_lt, f_eq, f_gt) =>
     fun
+    | In => In
     | Lt(lt) => f_lt(lt)
     | Eq(eq) => f_eq(eq)
     | Gt(gt) => f_gt(gt);
 };
 
 let cmp =
-    (l: Molded.t, ~kid=?, r: Molded.t)
-    : option(Result.t(Slope.Dn.m, Wald.m, Slope.Up.m)) =>
+    (l: Molded.t, ~kid=?, r: Molded.t): Ziggurat.m =>
   switch (lt(l, ~kid, r), eq(l, ~kid, r), gt(l, ~kid, r)) {
-  | (_, Some(eq), _) => Some(Eq(eq))
-  | (Some(lt), _, _) => Some(Lt(lt))
-  | (_, _, Some(gt)) => Some(Gt(gt))
-  | (None, None, None) => None
+  | (_, Some(eq), _) => Ziggurat.mk(eq)
+  | (Some(lt), _, _) =>
+  | (_, _, Some(gt)) => Gt(gt)
+  | (None, None, None) => In
   };
 
 // let matches = (~side: Dir.t, m: Material.t(Mold.t)): list(Wald.m) => {
