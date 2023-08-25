@@ -138,7 +138,7 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
       Type.view(ty_lookup),
     ]
   | Variant(name, sum_ty) => [
-      Type.view(Var({name, item: None})),
+      Type.view(Var(name)),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
     ]
@@ -146,8 +146,6 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
       text("An incomplete sum type constuctor of type"),
       Type.view(sum_ty),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
-  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
