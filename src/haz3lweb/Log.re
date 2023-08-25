@@ -16,9 +16,7 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportScratchpad(_)
   | DebugAction(_)
   | ExportPersistentData => false
-  | StoreKey(_)
   | Reset
-  | Execute
   | ResetCurrentEditor
   | Benchmark(_) => false
   | ReparseCurrentEditor

@@ -276,52 +276,12 @@ module Pervasives = {
     |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
 };
 
-let styles: Typ.sum_map =
-  [
-    ("AlignItems", Some(Typ.String)),
-    ("BackgroundColor", Some(String)),
-    ("Border", Some(String)),
-    ("BorderRadius", Some(String)),
-    ("BoxShadow", Some(String)),
-    ("Color", Some(String)),
-    ("Cursor", Some(String)),
-    ("Display", Some(String)),
-    ("FlexDirection", Some(String)),
-    ("FontFamily", Some(String)),
-    ("FontSize", Some(String)),
-    ("FontStyle", Some(String)),
-    ("Gap", Some(String)),
-    ("Height", Some(String)),
-    ("JustifyContent", Some(String)),
-    ("Margin", Some(String)),
-    ("Opacity", Some(String)),
-    ("Outline", Some(String)),
-    ("Overflow", Some(String)),
-    ("Padding", Some(String)),
-    ("Position", Some(String)),
-    ("Width", Some(String)),
-    ("S", Some(Prod([String, String]))),
-  ]
-  |> ConstructorMap.of_list;
-
-let add_alias = (name, ty, ctx: Ctx.t) =>
-  Ctx.extend_alias(ctx, name, Id.invalid, ty);
-
-let add_constructors = (name, sum_map: Typ.sum_map, ctx: Ctx.t) =>
-  Ctx.add_ctrs(ctx, name, Id.invalid, sum_map);
-
-let add_sum_alias = (name: string, sum_map: Typ.sum_map, ctx: Ctx.t) =>
-  ctx |> add_alias(name, Sum(sum_map)) |> add_constructors(name, sum_map);
-
-let mvu_builtins: Ctx.t = add_sum_alias("StyleAttr", styles, []);
-
 let ctx_init: Ctx.t =
-  mvu_builtins
-  @ List.map(
-      ((name, Builtin.{typ, _})) =>
-        Ctx.VarEntry({name, typ, id: Id.invalid}),
-      Pervasives.builtins,
-    );
+  List.map(
+    ((name, Builtin.{typ, _})) =>
+      Ctx.VarEntry({name, typ, id: Id.invalid}),
+    Pervasives.builtins,
+  );
 
 let forms_init: forms =
   List.map(

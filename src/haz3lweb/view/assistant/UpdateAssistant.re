@@ -1,13 +1,6 @@
 open Haz3lcore;
 include UpdateAction;
 
-let trim_indents = s =>
-  Js_of_ocaml.Regexp.global_replace(
-    Js_of_ocaml.Regexp.regexp("\n(\\s)*"),
-    s,
-    "\n",
-  );
-
 /* NOTE: this is duplicated from Update */
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let ed_init = Editors.get_editor(model.editors);
@@ -16,26 +9,6 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
   };
 };
-
-let schedule_prompt = (zipper: Zipper.t, ~schedule_action): unit =>
-  switch (
-    zipper.caret,
-    zipper.relatives.siblings |> snd,
-    zipper.relatives.siblings |> fst |> List.rev,
-  ) {
-  | (Inner(_, c), [Tile({label: [s], _}), ..._], _)
-      when
-        Str.string_match(Str.regexp("^\".*\\?\"$"), s, 0)
-        && c == String.length(s)
-        - 2 =>
-    schedule_action(PerformAction(Select(Term(Current))));
-    schedule_action(Assistant(Prompt(Oracle)));
-  | (Outer, _, [Tile({label: [s], _}), ..._])
-      when Str.string_match(Str.regexp("^\\?$"), s, 0) =>
-    schedule_action(PerformAction(Select(Term(Current))));
-    schedule_action(Assistant(Prompt(Filler(FillerOptions.init))));
-  | _ => ()
-  };
 
 let reset_buffer = (model: Model.t) => {
   let ed = model.editors |> Editors.get_editor;
@@ -65,83 +38,6 @@ let apply =
   let editor = model.editors |> Editors.get_editor;
   let z = editor.state.zipper;
   switch (update) {
-  | Prompt(Weather) =>
-    WeatherAPI.request(req =>
-      switch (WeatherAPI.handle(req)) {
-      | Some(str) => schedule_action(Paste(Form.string_quote(str)))
-      | None => print_endline("WeatherAPI: response parse failed")
-      }
-    );
-    Ok(model);
-  | Prompt(Oracle) =>
-    switch (Oracle.ask(model)) {
-    | None => print_endline("Oracle: prompt generation failed")
-    | Some(prompt) =>
-      OpenAI.start_chat(~llm=Azure_GPT4, prompt, req =>
-        switch (OpenAI.handle_chat(req)) {
-        | Some({content, _}) => schedule_action(Oracle.react(content))
-        | None => print_endline("Assistant: response parse failed")
-        }
-      )
-    };
-    Ok(model);
-  | Prompt(Filler({llm, _} as filter_otions)) =>
-    let schedule_if_auto = action =>
-      switch (model.meta.auto.current_script) {
-      | None => ()
-      | Some(name) => schedule_action(SetMeta(Auto(action(name))))
-      };
-    let ctx_init = Editors.get_ctx_init(~settings, model.editors);
-    let add_round = add => schedule_if_auto(name => UpdateResult(name, add));
-    switch (Filler.prompt(filter_otions, ~settings, ~ctx_init, editor)) {
-    | None => print_endline("Filler: prompt generation failed")
-    | Some(prompt) =>
-      print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-      OpenAI.start_chat(~llm, prompt, req =>
-        switch (OpenAI.handle_chat(req)) {
-        | Some(reply) =>
-          switch (
-            ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
-            ChatLSP.Type.mode(~settings, ~ctx_init, editor),
-          ) {
-          | (Some(init_ctx), Some(mode)) =>
-            add_round(AddRoundOne(settings, init_ctx, mode, reply));
-            switch (Filler.error_reply(~settings, ~init_ctx, ~mode, reply)) {
-            | None =>
-              print_endline("first round response:\n " ++ reply.content);
-              schedule_action(
-                Assistant(SetBuffer(trim_indents(reply.content))),
-              );
-              schedule_if_auto(_ => EndTest());
-            | Some(err_msg) =>
-              print_endline("first round: errors detected:" ++ err_msg);
-              OpenAI.reply_chat(
-                ~llm, prompt, ~assistant=reply.content, ~user=err_msg, req =>
-                switch (OpenAI.handle_chat(req)) {
-                | Some(reply2) =>
-                  add_round(AddRoundTwo(settings, init_ctx, mode, reply2));
-                  print_endline(
-                    "second round response:\n " ++ reply2.content,
-                  );
-                  schedule_action(
-                    Assistant(SetBuffer(trim_indents(reply2.content))),
-                  );
-                  schedule_if_auto(_ => EndTest());
-                | None => print_endline("Filler: handler failed")
-                }
-              );
-            };
-          | _ =>
-            print_endline(
-              "ERROR: UpdateAssistant: Filler: prompt generation failed",
-            );
-            ();
-          }
-        | None => print_endline("Filler: handler failed")
-        }
-      );
-    };
-    Ok(model);
   | Prompt(TyDi) =>
     let ctx_init = Editors.get_ctx_init(~settings, model.editors);
     switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z)) {
@@ -194,17 +90,6 @@ let apply =
       | Some(completion) =>
         main(model, Paste(completion), state, ~schedule_action)
       }
-    }
-  | SetBuffer(response) =>
-    switch (Printer.paste_into_zip(Zipper.init(), response)) {
-    | None => Error(CantSuggest)
-    | Some(response_z) =>
-      let content = Zipper.unselect_and_zip(response_z);
-      let z = Zipper.set_buffer(editor.state.zipper, ~content, ~mode=Parsed);
-      //HACK(andrew): below is not strictly a insert action...
-      let editor = Editor.new_state(Insert(response), z, editor);
-      let editors = Editors.put_editor(editor, model.editors);
-      Ok({...model, editors});
     }
   };
 };

@@ -38,10 +38,9 @@ module Sync: M with type response = response = {
   let init = () => ();
 
   let get_response = ((): t, (key, d): request) => {
-    /* NOTE(andrew): I'm not sure how to properly route settings
-       through the abstractions here; this should be done if this is renabled
-        */
     let lwt = {
+      /* NOTE(andrew): I'm not sure how to properly route settings
+         through the abstractions here; this should be done if this is renabled */
       let+ r =
         Lwt.wrap(() => d |> Interface.evaluate(~settings=CoreSettings.on));
       let res =

@@ -16,15 +16,11 @@ type settings_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
-  | TyDi
-  | Weather
-  | Oracle
-  | Filler(FillerOptions.t);
+  | TyDi;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent_action =
   | Prompt(agent)
-  | SetBuffer(string)
   | AcceptSuggestion;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -33,9 +29,7 @@ type set_meta =
   | Mouseup
   | ShowBackpackTargets(bool)
   | FontMetrics(FontMetrics.t)
-  | MVU(string, DHExp.t)
-  | Result(ModelResults.Key.t, ModelResult.current)
-  | Auto(Auto.action(Auto.llm_report));
+  | Result(ModelResults.Key.t, ModelResult.current);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type benchmark_action =
@@ -50,8 +44,6 @@ type t =
   | SetMeta(set_meta)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | StoreKey(string, string)
-  | Execute /* Attempt to parse selection as sexp UpdateAction */
   | ExportPersistentData
   /* editors */
   | ResetCurrentEditor
@@ -75,9 +67,6 @@ type t =
   | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
   | Assistant(agent_action);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type auto_llm = Auto.t(t, Auto.llm_report);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

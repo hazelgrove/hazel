@@ -88,16 +88,6 @@ let go_z =
   | Select(Smart) =>
     /* If the current tile is not coincident with the term,
        select the term. Otherwise, select the parent term. */
-    /* TODO(andrew): Maybe a better logic for this: Next
-       reasonable enclosure. Define 'enclosures' of a token to
-       be terms and tiles that include that token. Then for a
-       given token, itsenclosures are totally ordered by inclusion.
-       Doubleclicking gives the minimum enclosure, triple-clicking
-       gives the second-most minimum enclosure, which will be
-       (check) either the current term, the parent tile, or the
-       parent term. But would need to be careful to force that
-       the original tile is included; e.g. in an Ap the parent
-       tile doesn't include the funpos. */
     let tile_is_term =
       switch (Indicated.index(z)) {
       | None => false
@@ -106,7 +96,7 @@ let go_z =
     if (!tile_is_term) {
       select_term_current(z);
     } else {
-      //TODO: perf
+      //PERF: this is expensive
       let (term, _) = MakeTerm.from_zip_for_view(z);
       let statics = Interface.Statics.mk_map(settings, term);
       let target =

@@ -234,18 +234,6 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Constructor(ctr) when Hyper.is_export(ctr) =>
-    //TODO(andrew): hack
-    let info =
-      Info.derived_exp(
-        ~uexp,
-        ~ctx,
-        ~mode,
-        ~ancestors,
-        ~self=Common(Self.of_ctr(ctx, ctr)),
-        ~co_ctx=[],
-      );
-    (info, add_info([Hyper.export_id] @ ids, InfoExp(info), m));
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));

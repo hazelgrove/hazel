@@ -19,10 +19,15 @@ include M;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
-let init = (~settings, ds: list((Key.t, DHExp.t, Environment.t))): t =>
+let init = (~settings, ds: list((Key.t, DHExp.t))): t =>
   ds
-  |> List.map(((key, d, env)) =>
-       (key, ModelResult.init(Interface.evaluate(~settings, ~env, d)))
+  |> List.map(((key, d)) =>
+       (
+         key,
+         ModelResult.init(
+           Interface.evaluate(~settings, ~env=Builtins.env_init, d),
+         ),
+       )
      )
   |> List.to_seq
   |> of_seq;

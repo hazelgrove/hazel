@@ -128,7 +128,6 @@ let exercises_view =
         meta: {
           ui_state: {font_metrics, show_backpack_targets, mousedown, _},
           results,
-          mvu_states,
           _,
         },
         _,
@@ -138,7 +137,7 @@ let exercises_view =
     ExerciseMode.mk(
       ~settings,
       ~exercise,
-      ~results=settings.core.dynamics ? Some(results) : None, //TODO(andrew)
+      ~results=settings.core.dynamics ? Some(results) : None,
       ~langDocMessages,
     );
   let toolbar_buttons =
@@ -152,7 +151,6 @@ let exercises_view =
       ~font_metrics,
       ~mousedown,
       ~show_backpack_targets,
-      ~mvu_states,
       exercise_mode,
     );
 };

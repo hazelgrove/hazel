@@ -53,14 +53,7 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 };
 
 let view =
-    (
-      ~mvu_states,
-      ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      self: t,
-    ) => {
+    (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
   let {
     exercise,
     results: _,
@@ -267,7 +260,6 @@ let view =
           Some(
             Cell.eval_result_footer_view(
               ~settings,
-              ~mvu_states,
               ~inject,
               ~font_metrics,
               ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder

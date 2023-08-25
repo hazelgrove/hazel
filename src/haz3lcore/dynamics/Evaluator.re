@@ -1244,8 +1244,7 @@ and evaluate_test =
     | _ => Indet
     };
 
-  let* _ =
-    add_test(n, (arg_show, test_status, ClosureEnvironment.map_of(env)));
+  let* _ = add_test(n, (arg_show, test_status));
   let r: EvaluatorResult.t =
     switch (arg_result) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Tuple([]))
