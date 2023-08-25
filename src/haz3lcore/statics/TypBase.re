@@ -152,7 +152,7 @@ module rec Typ: {
     default_arity =>
       fun
       | Prod([_, ..._] as tys) => tys
-      | Unknown(_) as ty_unknown => List.init(default_arity, _ => ty_unknown)
+      | Unknown(_) as ty => matched_prod(default_arity, ty)
       | _ as ty => [ty];
 
   let precedence = (ty: t): int =>
