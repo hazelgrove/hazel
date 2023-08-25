@@ -358,7 +358,11 @@ let status_typ =
       InHole(DuplicateConstructor(name))
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
-      | false => InHole(FreeTypeVariable(name))
+      | false =>
+        switch (Ctx.is_tvar(ctx, name)) {
+        | false => InHole(FreeTypeVariable(name))
+        | true => NotInHole(Type(Var(name)))
+        }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
