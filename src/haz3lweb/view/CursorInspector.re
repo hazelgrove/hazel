@@ -76,7 +76,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
     }
   | NoType(BadTrivAp(ty)) => [
-      text("Function input type"),
+      text("Function argument type"),
       Type.view(ty),
       text("inconsistent with"),
       Type.view(Prod([])),

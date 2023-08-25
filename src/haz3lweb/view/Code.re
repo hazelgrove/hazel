@@ -43,7 +43,7 @@ let of_grout = [Node.text(Unicode.nbsp)];
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
+    ~cache_size_bound=10000, ((secondary_icons, indent, content)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? Form.linebreak : "";
       [
@@ -61,7 +61,7 @@ let of_secondary =
     }
   );
 
-/* PERF(andrew): Tile memoization makes a >2X difference. I've left
+/* PERF: Tile memoization makes a >2X difference. I've left
    the memoization in place for delims and secondary above as it still
    seems like a marginal positive (5-10% difference).
 
