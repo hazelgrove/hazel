@@ -281,14 +281,15 @@ and uexp_to_info_map =
           go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
         (def, p_ana, m);
       } else {
-        let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
+        let p_syn_ty = p_syn.ty;
+        let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn_ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def_base.ty), p, m);
         let def_ctx = p_ana.ctx;
-        let (def_base2, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let (def_base2, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn_ty), def, m);
         let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
           ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
-            ? ty_fn1 : ty_p;
+            ? ty_fn1 : Unknown(SynSwitch);
         };
         let ana =
           switch ((def_base.ty, def_base2.ty), p_syn.ty) {
