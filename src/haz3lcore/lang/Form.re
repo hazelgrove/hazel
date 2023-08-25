@@ -112,23 +112,8 @@ let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
 let is_reserved_keyword =
   regexp("^(" ++ String.concat("|", reserved_keywords) ++ ")$");
 
-//let partial_symbolic_delims = ["\\[", "\\]", "\\(", "\\)", "|"];
-//let exceptional_symbol_delims = ["=", "=>", "->"];
-
-/*
- TODO(andrew): weird examples
- insert '=' in 'let a><|!true' (get bad op '=!')
- insert '-' in 1+|1 (get bad op '+-')
- should we allow '=>' or '->' or '|' inside operators? currently implictly yes
-  */
-
 /* Potential tokens: These are fallthrough classes which determine
-  * the behavior when inserting a character in contact with a token;
-  * should the character be appended to an existing token or create
-  * a new one? Basically if there is no other mold, we
-  * TODO(andrew): finish description
-  TODO(andrew): ? below is temporary addition to allow ? as explicit hole
- */
+ * the behavior when inserting a character in contact with a token */
 let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
@@ -193,7 +178,7 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
 
-/* TODO(andrew): docuement */
+/* TODO(andrew): document or remove */
 let is_filler_prompt = regexp("^\\?\\?$");
 let is_oracle_prompt = regexp("^\".*\\?\\?\"$");
 let is_prompt = str => is_filler_prompt(str) || is_oracle_prompt(str);
@@ -355,7 +340,6 @@ let is_atomic = t => atomic_molds(t) != [];
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
-let is_valid_nonpoly_token = t => is_valid_token(t) && t != "=";
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));

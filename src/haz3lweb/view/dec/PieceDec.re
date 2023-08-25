@@ -11,7 +11,7 @@ module Profile = {
   type style =
     | Root(Measured.Point.t, Measured.Point.t)
     | Selected(shard, shard)
-    | SelectedEphemeral(shard, shard);
+    | SelectedBuffer(shard, shard);
 
   type t = {
     style,
@@ -416,7 +416,7 @@ let view =
         tiles,
       ),
     ]
-  | SelectedEphemeral(i, j) => [
+  | SelectedBuffer(i, j) => [
       chunky_shard(
         ~style_cls="selected-buffer",
         ~font_metrics,

@@ -55,8 +55,7 @@ module Deco =
     let caret = (id, (-1));
     let style: PieceDec.Profile.style =
       buffer
-        ? SelectedEphemeral((id, l), (id, r))
-        : Selected((id, l), (id, r));
+        ? SelectedBuffer((id, l), (id, r)) : Selected((id, l), (id, r));
     PieceDec.Profile.{tiles, caret, style};
   };
 

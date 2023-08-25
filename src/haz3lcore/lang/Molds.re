@@ -113,71 +113,14 @@ let instant_expansion: Token.t => (list(Token.t), Direction.t) =
 
 let is_delayed = kw => List.length(delayed_expansion(kw) |> fst) > 1;
 
-/*
-
- TODO(andrew): cleanup
-
- Maybe more advanced token allow logic:
-
- Goal: Try to preserve the prefix-validity of tokens as much as possible
- when inserting/deleting characters, but allow the creation of prefix-
- invalid tokens as a fallthrough. Always be willing to split on insert
- to maintain prefix-validity, but allow the creation of prefix-invalid
- tokens for deletes which would otherwise be no-ops.
-
- Or: if insert/delete results in a thing which is no longer a prefix
- of a valid token, then we split it into the largest prefix of
- a valid token and up to two more tokens; if there are two, one is
- a single character (doesn't quite work for delete; we can't guarantee
- the existence of such a split eg if lang consists of single "yo", deleting
- the "y" leaves no possible prefixes)
-
- for this to be nice if we could establish that the split
- must always occur at the caret; otherwise it might be confusing.
-
- precondition: caret is either inside a token, or between two tokens
- any tokens are prefix-valid
-
- insert between case: attempt to append to left, then the right, otherwise new
- (so everything always prefix-valid)
-
- insert inside case: attempt to insert. otherwise go to between case
- (so everything always prefix-valid)
- delete from right: can't effect prefix-validity
- delete from left/inside: ??? allow create prefix-invalid ???
- delete-merge (when delete an intervening seg, pushing two tokens together):
-   if the result is a valid token, great; otherwise ??? allow create prefix-invalid ???
-
-
- */
-
-//let is_instant = kw => List.length(instant_expansion(kw) |> fst) > 1;
-
-//let append_safe = char =>
-//  !is_instant(char)
-//  && !Form.is_secondary(char)
-//  && !(Form.is_string_delim(char) || Form.is_comment_delim(char));
-
 let allow_merge = (l: Token.t, r: Token.t): bool =>
   Form.is_potential_token(l ++ r);
-//  Form.is_valid_token(l ++ r)
-//  || !(Form.is_valid_token(l) && Form.is_valid_token(r));
-// alternatively, require l++r is valid (simpler, more restrictiive)
 
 let allow_append_right = (t: Token.t, char: string): bool =>
-  Form.is_potential_token(t ++ char); //&& append_safe(char);
-/*
- Form.is_valid_token(t ++ char)
- || (
-   !Form.is_valid_token(t ++ char)
-   && !(Form.is_valid_token(t) && Form.is_valid_token(char))
- ) && append_safe(char)*/
+  Form.is_potential_token(t ++ char);
 
 let allow_append_left = (char: string, t: Token.t): bool =>
-  Form.is_potential_token(t ++ char); // && append_safe(char);
-//  Form.is_valid_token(char ++ t)
-//  || (!Form.is_valid_token(t) && !Form.is_valid_token(char)) && append_safe(char)
+  Form.is_potential_token(t ++ char);
 
 let allow_insertion = (_char: string, _t: Token.t, new_t: Token.t): bool =>
-  Form.is_potential_token(new_t); // && append_safe(char);
-//  Form.is_valid_token(new_t) || !Form.is_valid_token(t) && append_safe(char);
+  Form.is_potential_token(new_t);

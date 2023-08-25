@@ -240,7 +240,6 @@ let view =
       ),
     ]);
   switch (zipper.backpack, Indicated.index(zipper)) {
-  //| ([_, ..._], _) => err_view("No information while backpack in use")
   | _ when !settings.core.statics => div_empty
   | _ when Id.Map.is_empty(info_map) =>
     err_view("No Static information available")
@@ -249,12 +248,6 @@ let view =
     switch (Id.Map.find_opt(id, info_map)) {
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
-      /*if (zipper.backpack != []) {
-          print_endline("TESTING: ChatLSP.Errors backpack not empty:");
-          print_endline(
-            ChatLSP.Errors.collect_static(info_map) |> String.concat("\n"),
-          );
-        };*/
       bar_view([
         inspector_view(~inject, ~settings, ~show_lang_doc, ci),
         div(

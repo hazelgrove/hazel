@@ -40,21 +40,6 @@ let mousedown_handler =
       ~mousedown_updates,
       evt,
     ) =>
-  /*
-   new behavior concept:
-   for atomic forms:
-   doubleclick: select term ie token
-   tripleclick: select parent term (e.g. ap for fnpos token)
-   for non-atomic concave/convex forms:
-   doubleclick: select token
-   tripleclick: select term
-   for chevron forms:
-   doubleclick: select tile (eg. {let _ = _ in} _)
-   tripleclick: select term
-
-   possibly additional level if already indicated:
-   singleclick: select individual token always
-   */
   switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
   | (true, _) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
@@ -78,7 +63,6 @@ let mousedown_handler =
     );
   | (false, 2) => inject(PerformAction(Select(Tile(Current))))
   | (false, 3 | _) => inject(PerformAction(Select(Smart)))
-  //| (false, 4 | _) => inject(PerformAction(Select(All)))
   };
 
 let narrative_cell = (content: Node.t) =>
@@ -306,7 +290,9 @@ let editor_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
   let buffer_ids: list(Uuidm.t) = {
-    //TODO(andrew): document or improve
+    /* Collect ids of tokens in buffer for styling purposes. This is
+     * currently necessary as the selection is not persisted through
+     * unzipping for display */
     let buffer =
       Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
     Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);

@@ -51,7 +51,10 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
       new_model;
     }) {
     | exc =>
-      print_endline("ERROR: Exception during apply:");
+      Printf.printf(
+        "ERROR: Exception during apply: %s\n",
+        Printexc.to_string(exc),
+      );
       Error(Exception(Printexc.to_string(exc)));
     }
   ) {

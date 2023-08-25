@@ -266,7 +266,7 @@ let rec apply =
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       Model.save(model);
-      // TODO(andrew): hacky; loading here to load editors if switch
+      // NOTE: Load here necessary to load editors on switching mode
       Ok(Model.load(model));
     | SetMeta(action) =>
       Ok({...model, meta: meta_update(model, action, ~schedule_action)})
@@ -336,15 +336,12 @@ let rec apply =
       };
     | PerformAction(Insert("?") as a) =>
       let editor = model.editors |> Editors.get_editor;
-      /*let ctx_init =
-        Editors.get_ctx_init(~settings=model.settings, model.editors);*/
       UpdateAssistant.schedule_prompt(editor.state.zipper, ~schedule_action);
       perform_action(model, a);
     | PerformAction(a) when model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
       switch (perform_action(model, a)) {
       | Ok(model) when Action.is_edit(a) =>
-        //TODO(andrew): cleanup, document
         UpdateAssistant.apply(
           model,
           Prompt(TyDi),

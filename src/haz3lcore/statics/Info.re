@@ -51,6 +51,7 @@ type error_no_type =
   | MultiError
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);

@@ -138,7 +138,7 @@ let exercises_view =
     ExerciseMode.mk(
       ~settings,
       ~exercise,
-      ~results=settings.core.dynamics ? Some(results) : None, //TODO(andrew)
+      ~results=settings.core.dynamics ? Some(results) : None,
       ~langDocMessages,
     );
   let toolbar_buttons =

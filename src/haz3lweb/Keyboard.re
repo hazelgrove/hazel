@@ -22,9 +22,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    //TODO(andrew): clarify when we drop and show buffer
-    let get_term = z => z |> MakeTerm.from_zip_for_view |> fst;
-
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
@@ -37,7 +34,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "F4" =>
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       zipper
-      |> get_term
+      |> MakeTerm.from_zip_for_view
+      |> fst
       |> Interface.Statics.mk_map_ctx(settings.core, ctx_init)
       |> Statics.Map.show
       |> print;
@@ -53,7 +51,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       let map =
         zipper
-        |> get_term
+        |> MakeTerm.from_zip_for_view
+        |> fst
         |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
       switch (index) {
       | Some(index) =>
@@ -72,7 +71,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       );
       zipper |> Zipper.seg_for_sem |> Segment.show |> print;
     | _ => None
-    };
+    }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))

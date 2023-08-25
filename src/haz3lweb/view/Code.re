@@ -6,7 +6,7 @@ open Util.Web;
 
 let of_delim' =
   Core.Memo.general(
-    ~cache_size_bound=100000,
+    ~cache_size_bound=10000,
     ((is_in_buffer, sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
@@ -69,7 +69,7 @@ let of_secondary =
    This means that if there are data dependencies on the functor argument
    values, they will need to be explictly encoded in the key.
 
-   TODO(andrew): Consider setting a limit for the hashtbl size */
+   TODO: Consider setting a limit for the hashtbl size  */
 let piece_hash:
   Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t, int, Settings.t), list(t)) =
   Hashtbl.create(10000);

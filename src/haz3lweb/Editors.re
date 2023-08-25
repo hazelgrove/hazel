@@ -153,28 +153,14 @@ let get_spliced_elabs =
     : list((ModelResults.key, DHExp.t, Environment.t)) => {
   settings.core.dynamics
     ? {
-      let ctx_init =
-        try(get_ctx_init(~settings, editors)) {
-        | _ =>
-          print_endline("exception in get_ctx_init");
-          failwith("exception in get_ctx_init");
-        };
-      let env_init =
-        try(get_env_init(~settings, editors)) {
-        | _ =>
-          print_endline("exception in get_env_init");
-          failwith("exception in get_env_init");
-        };
+      let ctx_init = get_ctx_init(~settings, editors);
+      let env_init = get_env_init(~settings, editors);
       switch (editors) {
       | DebugLoad => []
       | Scratch(idx, slides) =>
         let current_slide = List.nth(slides, idx);
         let (key, d) =
-          try(ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide)) {
-          | _ =>
-            print_endline("exception in ScratchSlide.spliced_elab");
-            failwith("exception in ScratchSlide.spliced_elab");
-          };
+          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
         [(key, d, env_init)];
       | Examples(name, slides) =>
         let current_slide = List.assoc(name, slides);
