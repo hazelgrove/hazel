@@ -25,9 +25,7 @@ let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 // TODO (typfun): Maybe the Forall should allow a hole in the variable position?
 let grounded_Forall =
-  NotGroundOrHole(
-    Forall({item: Unknown(Internal), name: "grounded_forall"}),
-  );
+  NotGroundOrHole(Forall("grounded_forall", Unknown(Internal)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
@@ -51,7 +49,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Var(_)
   | Rec(_)
   | Arrow(Unknown(_), Unknown(_))
-  | Forall({item: Unknown(_), name: _})
+  | Forall(_, Unknown(_))
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
     if (List.for_all(
@@ -184,8 +182,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | None => DoesNotMatch
     }
 
-  | (Ap(_, _), Cast(d, Sum(_) | Rec({item: Sum(_), _}), Unknown(_)))
-  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec({item: Sum(_), _}))) =>
+  | (Ap(_, _), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_)))
+  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
     matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
@@ -292,11 +290,7 @@ and matches_cast_Sum =
       matches(dp, DHExp.apply_casts(d', side_casts))
     | _ => DoesNotMatch
     }
-  | Cast(
-      d',
-      Sum(sm1) | Rec({item: Sum(sm1), _}),
-      Sum(sm2) | Rec({item: Sum(sm2), _}),
-    ) =>
+  | Cast(d', Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))) =>
     switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
@@ -638,26 +632,27 @@ let eval_bin_string_op =
   };
 
 let rec ty_subst =
-        (~idx=0, exp, targ)
+        (s: Typ.t, x: TypVar.t, exp)
         : DHExp.t /* TODO: Maybe just keep error instead of recursing? */ => {
   open DH.DHExp;
-  let re = e2 => ty_subst(~idx, e2, targ);
+  let re = e2 => ty_subst(s, x, e2);
+  let t_re = ty => Typ.subst(s, x, ty);
   switch (exp) {
-  | Cast(t, t1, t2) =>
-    Cast(re(t), Typ.subst(targ, ~x=idx, t1), Typ.subst(targ, ~x=idx, t2))
-  | FixF(arg, ty, body) => FixF(arg, Typ.subst(targ, ~x=idx, ty), re(body))
-  | Fun(arg, ty, body, var) =>
-    Fun(arg, Typ.subst(targ, ~x=idx, ty), re(body), var)
-  | TypAp(tfun, ty) => TypAp(re(tfun), Typ.subst(targ, ~x=idx, ty))
-  | ListLit(mv, mvi, lerr, t, lst) =>
-    ListLit(mv, mvi, lerr, Typ.subst(targ, ~x=idx, t), List.map(re, lst))
-
-  | TypFun(utpat, body) => TypFun(utpat, ty_subst(~idx=idx + 1, body, targ))
-
+  | Cast(t, t1, t2) => Cast(re(t), t_re(t1), t_re(t2))
+  | FixF(arg, ty, body) => FixF(arg, t_re(ty), re(body))
+  | Fun(arg, ty, body, var) => Fun(arg, t_re(ty), re(body), var)
+  | TypAp(tfun, ty) => TypAp(re(tfun), t_re(ty))
+  | ListLit(mv, mvi, t, lst) =>
+    ListLit(mv, mvi, t_re(t), List.map(re, lst))
+  | TypFun(utpat, body) =>
+    switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+    | Some(x') when x == x' => exp
+    | _ => TypFun(utpat, re(body))
+    }
   | NonEmptyHole(errstat, mv, hid, t) =>
     NonEmptyHole(errstat, mv, hid, re(t))
   | InconsistentBranches(mv, hid, case) =>
-    InconsistentBranches(mv, hid, ty_subst_case(~idx, case, targ))
+    InconsistentBranches(mv, hid, ty_subst_case(s, x, case))
   | Closure(ce, t) => Closure(ce, re(t))
   | Sequence(t1, t2) => Sequence(re(t1), re(t2))
   | Let(dhpat, t1, t2) => Let(dhpat, re(t1), re(t2))
@@ -668,32 +663,33 @@ let rec ty_subst =
   | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
   | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
   | Cons(t1, t2) => Cons(re(t1), re(t2))
+  | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
   | Tuple(args) => Tuple(List.map(re, args))
   | Prj(t, n) => Prj(re(t), n)
-  | ConsistentCase(case) => ConsistentCase(ty_subst_case(~idx, case, targ))
+  | ConsistentCase(case) => ConsistentCase(ty_subst_case(s, x, case))
   | InvalidOperation(t, err) => InvalidOperation(re(t), err)
 
   | EmptyHole(_)
   | ExpandingKeyword(_, _, _)
   | FreeVar(_, _, _)
   | InvalidText(_, _, _)
+  | Constructor(_)
   | BoundVar(_)
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_)
   | FailedCast(_, _, _) => exp
   };
 } //TODO: is this correct?
 //TODO: Inconsistent cases: need to check again for inconsistency?
 
-and ty_subst_case = (~idx=0, Case(t, rules, n), targ) =>
+and ty_subst_case = (s, x, Case(t, rules, n)) =>
   Case(
-    ty_subst(~idx, t, targ),
+    ty_subst(s, x, t),
     List.map(
-      (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(~idx, t, targ)),
+      (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(s, x, t)),
       rules,
     ),
     n,
@@ -756,26 +752,23 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | TypAp(d1, tau) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
-      | BoxedValue(Closure(closure_env, TypFun(_, d2))) =>
+      | BoxedValue(Closure(closure_env, TypFun(utpat, d2))) =>
         // TODO: Maybe additional cases to be done?
-        evaluate(closure_env, ty_subst(d2, tau))
-      | BoxedValue(
-          Cast(
-            d1',
-            Forall({item: t, name: _}),
-            Forall({item: t', name: _}),
-          ),
-        )
-      | Indet(
-          Cast(
-            d1',
-            Forall({item: t, name: _}),
-            Forall({item: t', name: _}),
-          ),
-        ) =>
+        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+        | Some(tyvar) => evaluate(closure_env, ty_subst(tau, tyvar, d2))
+        | None =>
+          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
+          evaluate(closure_env, d2)
+        }
+      | BoxedValue(Cast(d1', Forall(x, t), Forall(x', t')))
+      | Indet(Cast(d1', Forall(x, t), Forall(x', t'))) =>
         evaluate(
           env,
-          Cast(TypAp(d1', tau), Typ.subst(t, tau), Typ.subst(t', tau)),
+          Cast(
+            TypAp(d1', tau),
+            Typ.subst(tau, x, t),
+            Typ.subst(tau, x', t'),
+          ),
         )
       | Indet(_) => r1 |> return
       | _ => failwith("InvalidBoxedTypFun: " ++ show(r1))
@@ -1132,7 +1125,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           switch (d1') {
           | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq_syntactic(ty'', ty')) {
+            if (Typ.eq(ty'', ty')) {
               BoxedValue(d1'') |> return;
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
@@ -1154,7 +1147,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           BoxedValue(Cast(d1', ty, ty')) |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
-          if (Typ.eq_syntactic(ty, ty')) {
+          if (Typ.eq(ty, ty')) {
             result |> return;
           } else {
             BoxedValue(Cast(d1', ty, ty')) |> return;
@@ -1172,7 +1165,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | (Hole, Ground) =>
           switch (d1') {
           | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq_syntactic(ty'', ty')) {
+            if (Typ.eq(ty'', ty')) {
               Indet(d1'') |> return;
             } else {
               Indet(FailedCast(d1', ty, ty')) |> return;
@@ -1194,7 +1187,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           Indet(Cast(d1', ty, ty')) |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* it might be eq in this case, so remove cast if so */
-          if (Typ.eq_syntactic(ty, ty')) {
+          if (Typ.eq(ty, ty')) {
             result |> return;
           } else {
             Indet(Cast(d1', ty, ty')) |> return;
