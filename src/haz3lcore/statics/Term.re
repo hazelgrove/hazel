@@ -53,6 +53,12 @@ module UTPat = {
     | MultiHole => "Broken type alias"
     | EmptyHole => "Empty type alias hole"
     | Var => "Type alias";
+
+  let tyvar_of_utpat = ({ids: _, term}) =>
+    switch (term) {
+    | Var(x) => Some(x)
+    | _ => None
+    };
 };
 
 module UTyp = {
