@@ -20,13 +20,13 @@
 
 module Result = {
   include Result;
-  type t('err) = Result.t((Mold.t, int), 'err);
+  type t('err) = Result.t(Ziggurat.m, 'err);
   // prioritizes second arg error
   let pick = (l, r) =>
     switch (l, r) {
-    | (Error(_), Error(_) | Ok(_)) => r
+    | (Error(_), _) => r
     | (Ok(_), Error(_)) => l
-    | (Ok((_, s_l)), Ok((_, s_r))) => Score.compare(s_l, s_r) <= 0 ? l : r
+    | (Ok(l), Ok(r)) => Ok(Scorer.compare(l, r) <= 0 ? l : r)
     };
 };
 
@@ -36,42 +36,34 @@ module Piece = {
     Molds.of_token(t)
     |> List.filter_map(m => {
          let candidate = (m, t);
-         switch (Comparator.cmp(molder, ~kid?, candidate)) {
-         | None
-         | Some(Gt(_)) => Error()
-         | Some(Eq(w)) => Ok((m, Scorer.score(Slope.mk(Terrace.mk(w)))))
-         | Some(Lt(s)) => Ok((m, Scorer.score(s)))
-         };
+         Comparator.cmp(molder, ~kid?, candidate);
        })
-    |> List.hd_opt;
+    |> List.stable_sort(Scorer.compare)
+    |> ListUtil.hd_opt
+    |> Result.of_option(~error=());
   };
 };
 
 module Terrace = {
   include Terrace;
-  let rec mold =
-          (~eq_only=false, terr: R.p, ~kid=None, t: Token.t)
-          : Result.t(Kid.Profile.t) => {
+  let rec mold = (terr: R.p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) => {
+    let err =
+      Terrace.profile(terr) |> Kid.Profile.add_tokens(kid.has_tokens);
     let hd_molded =
-      Piece.mold(~eq_only, R.face(terr), ~kid, t)
-      |> Result.of_option(
-           ~error=
-             Kid.Profile.mk(
-               ~has_tokens=
-                 !Terrace.has_tokens(terr) || Kid.Profile.has_tokens(kid),
-               Terrace.sort(terr),
-             ),
-         );
+      Piece.mold(R.face(terr), ~kid, t) |> Result.map_error(() => err);
     let tl_molded =
       switch (R.unlink(terr)) {
-      | Some((terr, kid', p)) when !Piece.has_token(p) =>
-        // let mold = Mold.grout_of_tile(mold);
-        // let grout = {...p, mold: Grout(mold)};
-        // todo: prune away unnecessary prefix/postfix grout
-        // let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
-        let kid = Kid.Profile.merge(kid', kid);
-        mold(~eq_only=true, terr, ~kid, t);
-      | _ => None
+      | Some((terr, k, p)) when !Piece.has_token(p) =>
+        open // let mold = Mold.grout_of_tile(mold);
+             // let grout = {...p, mold: Grout(mold)};
+             // todo: prune away unnecessary prefix/postfix grout
+             // let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
+             Result.Syntax;
+        let kid = Kid.(Profile.merge(profile(k), kid));
+        let* z = mold(terr, ~kid, t);
+        // take only eq molds from tl
+        Ziggurat.is_singleton(z) ? Ok(z) : Error(err);
+      | _ => Error(err)
       };
     Result.pick(hd_molded, tl_molded);
   };
@@ -79,44 +71,42 @@ module Terrace = {
 
 module Slope = {
   include Slope;
-  let rec mold =
-          (slope: Dn.p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) =>
-    switch (slope.terrs) {
+  let rec mold = (dn: Dn.p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) =>
+    switch (dn) {
     | [] => Error(kid)
     | [hd, ...tl] =>
       let hd_molded = Terrace.mold(hd, ~kid, t);
-      let tl_molded =
-        mold(
-          Slope.Dn.mk(tl),
-          ~kid=
-            Kid.Profile.mk(
-              ~has_tokens=
-                !Terrace.has_tokens(terr) || Kid.Profile.has_tokens(kid),
-              Terrace.sort(terr),
-            ),
-          t,
-        );
+      let kid =
+        Terrace.profile(hd) |> Kid.Profile.add_tokens(kid.has_tokens);
+      let tl_molded = mold(tl, ~kid, t);
       Result.pick(hd_molded, tl_molded);
+    };
+};
+
+module Ziggurat = {
+  include Ziggurat;
+  let mold = (zigg: Ziggurat.p, t: Token.t): Mold.t =>
+    switch (Slope.mold(dn, t)) {
+    | Ok(z) => Piece.mold(Ziggurat.face(R, z))
+    | Error(kid) =>
+      switch (Terrace.(mold(mk(zigg.top), ~kid, t))) {
+      | Ok(z) => Piece.mold(Ziggurat.face(R, z))
+      | Error(_) => default(t)
+      }
     };
 };
 
 module Stepwell = {
   include Stepwell;
-  // does not attempt to mold beyond first bridge
-  let rec mold =
-          (well: Stepwell.t, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) => {
-    let (pre, _) = Stepwell.get_slopes(well);
-    let pre_molded = Slope.mold(pre, ~kid, t);
-    switch (pre_molded) {
-    | Ok(_) => pre_molded
-    | Error(kid) =>
-      switch (Stepwell.unlink(well)) {
-      | None => pre_molded
-      | Some((_, (l, _r), _well)) => Terrace.mold(l, ~kid, t)
-      }
-    };
+  let mold = (well: Stepwell.t, ~kid=None, t: Token.t): Mold.t => {
+    let top =
+      switch (unlink(well)) {
+      | Error(_) => Wald.root
+      | Ok((_, (l, _), _)) => l
+      };
+    let (dn, _) = get_slopes(well);
+    Ziggurat.(mold(mk(top, ~dn), t));
   };
 };
 
-let mold = (well: Stepwell.t, t: Token.t): option(Mold.t) =>
-  Stepwell.mold(well, t) |> Result.to_option |> Option.map(fst);
+let mold = Stepwell.mold;
