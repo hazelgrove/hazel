@@ -232,12 +232,10 @@ let main_ui_view =
     let zipper = Editors.get_editor(editors).state.zipper;
     let unselected = Zipper.unselect_and_zip(zipper);
     let (term, _) = MakeTerm.go(unselected);
-    let (_, global_inference_solutions, ctx) =
-      Statics.mk_map_and_inference_solutions(term);
+    let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
     let global_inference_info =
       InferenceResult.mk_global_inference_info(
         langDocMessages.annotations,
-        global_inference_solutions,
         ctx,
       );
     [top_bar_view]

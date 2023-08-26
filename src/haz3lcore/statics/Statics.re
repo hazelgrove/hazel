@@ -822,10 +822,6 @@ let mk_map_and_inference_solutions =
       let (_, _, info_map, constraints) =
         uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
 
-      let inference_results = Inference.unify_and_report_status(constraints);
-      let global_inference_solutions =
-        InferenceResult.get_desired_solutions(inference_results);
-
       // rewrite is here
       let ctx = Infer.Ctx.create();
       let _ =
@@ -837,12 +833,12 @@ let mk_map_and_inference_solutions =
           constraints,
         );
 
-      (info_map, global_inference_solutions, ctx);
+      (info_map, ctx);
     },
   );
 
 let mk_map = e => {
-  let (info_map, _, _) = mk_map_and_inference_solutions(e);
+  let (info_map, _) = mk_map_and_inference_solutions(e);
   info_map;
 };
 

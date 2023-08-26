@@ -19,12 +19,10 @@ let view =
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let (info_map, global_inference_solutions, ctx) =
-    Statics.mk_map_and_inference_solutions(term);
+  let (info_map, ctx) = Statics.mk_map_and_inference_solutions(term);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
-      global_inference_solutions,
       ctx,
     );
 

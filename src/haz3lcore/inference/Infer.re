@@ -17,11 +17,12 @@ module Ctx = {
 
   let lookup_or_create = (ctx: t, p: Typ.type_provenance): pts => {
     // get rid of SynSwitch
-    let p =
-      switch (p) {
-      | Typ.SynSwitch(id) => Typ.AstNode(id)
-      | _ => p
-      };
+    let rec prov_to_iprov: Typ.type_provenance => Typ.type_provenance =
+      fun
+      | SynSwitch(u) => AstNode(u)
+      | Matched(mprov, prov) => Matched(mprov, prov_to_iprov(prov))
+      | _ as prov => prov;
+    let p = prov_to_iprov(p);
     let lookup = Hashtbl.find_opt(ctx, p);
     switch (lookup) {
     | Some(pts) => pts

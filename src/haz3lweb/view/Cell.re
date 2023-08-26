@@ -289,13 +289,11 @@ let editor_view =
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let (_, global_inference_solutions, ctx) =
-    Statics.mk_map_and_inference_solutions(term);
+  let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
   let measured = editor.state.meta.measured;
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
-      global_inference_solutions,
       ctx,
     );
   let code_base_view =
