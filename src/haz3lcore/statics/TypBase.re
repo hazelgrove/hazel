@@ -185,7 +185,7 @@ module rec Typ: {
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
-    | Forall(y, ty) => Forall(y, subst(s, x, ty))
+    | Forall(y, ty) => Forall(y, subst(s, x, ty)) /* TODO: Need to implement capture avoiding subst */
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
     };
@@ -305,12 +305,12 @@ module rec Typ: {
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Rec(x1, ty_body);
-    | (Forall(name, t1), Forall(_, t2)) =>
+    | (Forall(x1, ty1), Forall(x2, ty2)) =>
       /* See note above in Rec case */
-      switch (join(~resolve, ~fix, Ctx.extend_dummy_tvar(ctx, name), t1, t2)) {
-      | Some(t) => Some(Forall(name, t))
-      | None => None
-      }
+      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+      let+ ty_body =
+        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
+      Forall(x1, ty_body);
     | (Rec(_), _) => None
     | (Forall(_), _) => None
     | (Int, Int) => Some(Int)
