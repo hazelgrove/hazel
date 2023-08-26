@@ -138,7 +138,7 @@ let rec get_status_pts = (ctx: Ctx.t, pts: pts): status => {
   let tys = UnionFind.get(pts);
   switch (tys) {
   | [ty] => get_status_ptyp(ctx, ty)
-  | [] => Unsolved([Typ.String]) // TODO remove this
+  | [] => Unsolved([])
   | [_, ..._] as xs =>
     Unsolved(
       xs |> List.map(get_status_ptyp(ctx)) |> List.map(unwrap_solution),

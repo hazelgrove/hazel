@@ -22,22 +22,38 @@ and reason_for_silence =
   | OnlyHoleSolutions
   | InconsistentSet;
 
+// let get_suggestion_text_for_id =
+//     (id: Id.t, global_inference_info: global_inference_info)
+//     : suggestion(string) =>
+//   if (global_inference_info.enabled) {
+//     let status_opt =
+//       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
+//     switch (status_opt) {
+//     | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
+//     | Some(Solved(ityp)) =>
+//       Solvable(ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string)
+//     | Some(Unsolved([potential_typ])) =>
+//       NestedInconsistency(
+//         PotentialTypeSet.string_of_potential_typ(false, potential_typ),
+//       )
+//     | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+//     | None => NoSuggestion(NonTypeHoleId)
+//     };
+//   } else {
+//     NoSuggestion(SuggestionsDisabled);
+//   };
+
 let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
     : suggestion(string) =>
   if (global_inference_info.enabled) {
-    let status_opt =
-      Hashtbl.find_opt(global_inference_info.solution_statuses, id);
-    switch (status_opt) {
-    | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
-    | Some(Solved(ityp)) =>
-      Solvable(ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string)
-    | Some(Unsolved([potential_typ])) =>
-      NestedInconsistency(
-        PotentialTypeSet.string_of_potential_typ(false, potential_typ),
-      )
-    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
-    | None => NoSuggestion(NonTypeHoleId)
+    let status = Infer.get_status(global_inference_info.ctx, id);
+    switch (status) {
+    | Solved(Unknown(_)) => NoSuggestion(OnlyHoleSolutions)
+    | Solved(typ) => Solvable(typ |> Typ.typ_to_string)
+    | Unsolved([]) => NoSuggestion(NonTypeHoleId)
+    | Unsolved([typ]) => NestedInconsistency(typ |> Typ.typ_to_string)
+    | Unsolved(_) => NoSuggestion(InconsistentSet)
     };
   } else {
     NoSuggestion(SuggestionsDisabled);
