@@ -166,63 +166,113 @@ let view_of_global_inference_info =
       id: int,
     ) => {
   let font_metrics = Some(font_metrics);
-  switch (InferenceView.get_cursor_inspect_result(~global_inference_info, id)) {
-  | Some((true, solution)) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        text("consistent constraints"),
-        Type.view(~font_metrics, List.nth(solution, 0)),
-      ],
-    )
-  | Some((false, [typ_with_nested_conflict])) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [Type.view(~font_metrics, typ_with_nested_conflict)],
-    )
-  | Some((false, conflicting_typs)) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        text("conflicting constraints"),
-        ...List.map(
-             typ =>
-               div(
-                 ~attr=clss(["typ-view-conflict"]),
-                 [
-                   Widgets.hoverable_button(
-                     [Type.view(~font_metrics, typ)],
-                     _mouse_event => {
-                       State.set_considering_suggestion(false);
-                       inject(Update.Mouseup);
-                     },
-                     _mouse_event => {
-                       State.set_considering_suggestion(true);
-                       if (!State.get_suggestion_pasted()) {
-                         State.set_suggestion_pasted(true);
-                         inject(
-                           Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
-                         );
-                       } else {
-                         inject(Update.Mouseup);
-                       };
-                     },
-                     _mouse_event =>
-                       if (State.get_considering_suggestion()) {
-                         State.set_suggestion_pasted(false);
+  // switch (InferenceView.get_cursor_inspect_result(~global_inference_info, id)) {
+  // | Some((true, solution)) =>
+  //   div(
+  //     ~attr=clss([infoc, "typ"]),
+  //     [
+  //       text("consistent constraints"),
+  //       Type.view(~font_metrics, List.nth(solution, 0)),
+  //     ],
+  //   )
+  // | Some((false, [typ_with_nested_conflict])) =>
+  //   div(
+  //     ~attr=clss([infoc, "typ"]),
+  //     [Type.view(~font_metrics, typ_with_nested_conflict)],
+  //   )
+  // | Some((false, conflicting_typs)) =>
+  //   div(
+  //     ~attr=clss([infoc, "typ"]),
+  //     [
+  //       text("conflicting constraints"),
+  //       ...List.map(
+  //            typ =>
+  //              div(
+  //                ~attr=clss(["typ-view-conflict"]),
+  //                [
+  //                  Widgets.hoverable_button(
+  //                    [Type.view(~font_metrics, typ)],
+  //                    _mouse_event => {
+  //                      State.set_considering_suggestion(false);
+  //                      inject(Update.Mouseup);
+  //                    },
+  //                    _mouse_event => {
+  //                      State.set_considering_suggestion(true);
+  //                      if (!State.get_suggestion_pasted()) {
+  //                        State.set_suggestion_pasted(true);
+  //                        inject(
+  //                          Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
+  //                        );
+  //                      } else {
+  //                        inject(Update.Mouseup);
+  //                      };
+  //                    },
+  //                    _mouse_event =>
+  //                      if (State.get_considering_suggestion()) {
+  //                        State.set_suggestion_pasted(false);
+  //                        State.set_considering_suggestion(false);
+  //                        inject(Update.Undo);
+  //                      } else {
+  //                        inject(Update.Mouseup);
+  //                      },
+  //                  ),
+  //                ],
+  //              ),
+  //            conflicting_typs,
+  //          ),
+  //     ],
+  //   )
+  // | None => div([])
+  // };
+  if (global_inference_info.enabled) {
+    let status = Haz3lcore.Infer.get_status(global_inference_info.ctx, id);
+    switch (status) {
+    | Solved(ty) => div([Type.view(~font_metrics, ty)])
+    | Unsolved(conflicting_typs) =>
+      div(
+        ~attr=clss([infoc, "typ"]),
+        [
+          text("conflicting constraints"),
+          ...List.map(
+               typ =>
+                 div(
+                   ~attr=clss(["typ-view-conflict"]),
+                   [
+                     Widgets.hoverable_button(
+                       [Type.view(~font_metrics, typ)],
+                       _mouse_event => {
                          State.set_considering_suggestion(false);
-                         inject(Update.Undo);
-                       } else {
                          inject(Update.Mouseup);
                        },
-                   ),
-                 ],
-               ),
-             conflicting_typs,
-           ),
-      ],
-    )
-  | None => div([])
+                       _mouse_event => {
+                         State.set_considering_suggestion(true);
+                         if (!State.get_suggestion_pasted()) {
+                           State.set_suggestion_pasted(true);
+                           inject(
+                             Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
+                           );
+                         } else {
+                           inject(Update.Mouseup);
+                         };
+                       },
+                       _mouse_event =>
+                         if (State.get_considering_suggestion()) {
+                           State.set_suggestion_pasted(false);
+                           State.set_considering_suggestion(false);
+                           inject(Update.Undo);
+                         } else {
+                           inject(Update.Mouseup);
+                         },
+                     ),
+                   ],
+                 ),
+               conflicting_typs,
+             ),
+        ],
+      )
+    };
+  } else {
+    div([]);
   };
 };
 
