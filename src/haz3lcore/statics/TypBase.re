@@ -213,6 +213,9 @@ module rec Typ: {
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
     | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
+    | Rec(y, ty) when List.mem(y, free_vars(s)) =>
+      let fresh = fresh_var();
+      Rec(fresh, subst(s, x, subst(Var(fresh), y, ty)));
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
     | Forall(y, ty) when List.mem(y, free_vars(s)) =>
