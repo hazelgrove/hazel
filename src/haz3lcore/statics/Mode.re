@@ -46,14 +46,17 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
     |> TupleUtil.map2(ana)
   };
 
-let of_forall = (mode: t): t =>
+let of_forall = (name_opt: option(TypVar.t), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => Syn
   | Ana(ty) =>
-    let (_, item) = Typ.matched_forall(ty);
-    Ana(item);
+    let (name_expected, item) = Typ.matched_forall(ty);
+    switch (name_opt) {
+    | Some(name) => Ana(Typ.subst(Var(name), name_expected, item))
+    | None => Ana(item)
+    };
   };
 
 let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>

@@ -252,7 +252,7 @@ and uexp_to_info_map =
       m,
     );
   | TypFun({term: Var(name), _} as utpat, body) =>
-    let mode_body = Mode.of_forall(mode);
+    let mode_body = Mode.of_forall(Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let ctx_body =
       Ctx.extend_tvar(
@@ -262,7 +262,7 @@ and uexp_to_info_map =
     let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
     add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
   | TypFun(utpat, body) =>
-    let mode_body = Mode.of_forall(mode);
+    let mode_body = Mode.of_forall(None, mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let (body, m) = go(~mode=mode_body, body, m);
     add(
