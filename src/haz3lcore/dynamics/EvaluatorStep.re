@@ -954,7 +954,8 @@ module Transition = {
       : m(t) => {
     let* rscrut = transition(env, scrut);
     switch (rscrut) {
-    | BoxedValue(scrut) => transition_rule(env, scrut, rules, current_rule_index)
+    | BoxedValue(scrut) =>
+      transition_rule(env, scrut, rules, current_rule_index)
     | Indet(scrut) => eval_rule(env, scrut, rules, current_rule_index)
     | Step(scrut) =>
       Step(ConsistentCase(Case(scrut, rules, current_rule_index)))
@@ -969,25 +970,26 @@ module Transition = {
         current_rule_index: int,
       )
       : m(t) => {
-      switch (List.nth_opt(rules, current_rule_index)) {
-      | None =>
+    switch (List.nth_opt(rules, current_rule_index)) {
+    | None =>
+      let case = DHExp.Case(scrut, rules, current_rule_index);
+      Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
+    | Some(Rule(dp, d)) =>
+      switch (Evaluator.matches(dp, scrut)) {
+      | IndetMatch =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
-      | Some(Rule(dp, d)) =>
-        switch (Evaluator.matches(dp, scrut)) {
-        | IndetMatch =>
-          let case = DHExp.Case(scrut, rules, current_rule_index);
-          Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
-        | Matches(env') =>
-          // extend environment with new bindings introduced
-          let* env =
-            env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
-          Step(Closure(env, d)) |> Monad.return;
-        // by the rule and evaluate the expression.
-        | DoesNotMatch => transition_rule(env, scrut, rules, current_rule_index + 1)
-        }
+      | Matches(env') =>
+        // extend environment with new bindings introduced
+        let* env =
+          env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
+        Step(Closure(env, d)) |> Monad.return;
+      // by the rule and evaluate the expression.
+      | DoesNotMatch =>
+        transition_rule(env, scrut, rules, current_rule_index + 1)
       }
-    }
+    };
+  }
   and eval_rule =
       (
         env: ClosureEnvironment.t,
