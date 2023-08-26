@@ -140,156 +140,120 @@ module Wald = {
 //   //     (l: R.p, ~kid=None, r: L.p): Comparator.Result.t()
 // };
 
-let rec hsup =
-    (z: Ziggurat.p, ~kid=None, w: Wald.p): Ziggurat.p =>
-  // todo: handle whitespace on z.dn
-  switch (z.dn) {
-  | [] =>
-    let c = Wald.cmp(top, ~kid, w);
-    switch (c.up) {
-    | [] => {...c, up: z.up}
-    | [_, ..._] => Ziggurat.map_up((@)(z.up), c)
-    };
-  | [hd, ...tl] =>
-    // left to right: z.up z.top tl hd.mel hd.wal kid w
-    let c = Wald.cmp(hd.wal, ~kid, w);
-    // left to right: z.up z.top tl hd.mel c.up c.top c.dn
-    switch (c.up) {
+module Ziggurat = {
+  include Ziggurat;
+
+  let rec hsup =
+      (z: Ziggurat.p, ~kid=None, w: Wald.p): Ziggurat.p =>
+    // todo: handle whitespace on z.dn
+    switch (z.dn) {
     | [] =>
-      let dn = c.dn @ [{...hd, wal: c.top}, ...tl];
-      {...z, dn};
-    | [_, ..._] =>
-      let z_tl = {...z, dn: tl};
-      Slope.Up.to_walds(c.up) @ [top]
-      |> List.fold_left((z, w) => hsup_wald(z, w), z_tl)
-      |> Ziggurat.map_dn(dn' => dn' @ dn)
-    }
-  };
-
-let rec push =
-    (w: Wald.p, ~kid=None, z: Ziggurat.p): Ziggurat.p =>
-  // todo: handle whitespace on z.dn
-  switch (z.up) {
-  | [] =>
-    let c = Wald.cmp(w, ~kid, top);
-    switch (c.dn) {
-    | [] => {...c, dn: z.dn}
-    | [_, ..._] => Ziggurat.map_dn(dn' => dn' @ z.dn, c)
-    };
-  | [hd, ...tl] =>
-    // left to right: w kid hd.wal hd.mel tl z.top z.dn
-    let c = Wald.cmp(w, ~kid, hd.wal);
-    // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
-    switch (c.dn) {
-    | [] =>
-      let up = c.up @ [{...hd, wal: c.top}, ...tl];
-      {...z, up};
-    | [_, ..._] =>
-      let z_tl = {...z, up: tl};
-      List.fold_right(
-        (w, z) => push(w, z),
-        [top, ...Slope.Dn.to_walds(dn)],
-        z_tl,
-      )
-      |> Ziggurat.map_up(up' => dn' @ dn)
-    }
-  };
-
-module Slope = {
-  module Dn = {
-    include Slope.Dn;
-
-    let rec push_terr = (dn: p, ~kid=None, t: Terrace.L.p): Result.t(p, Meld.p) => {
-      let kid = Meld.pad(~l=dn.space, kid);
-      switch (dn.terrs) {
-      | [] => Error(kid)
-      | [hd, ...tl] =>
-        switch (Terrace.cmp(hd, ~kid, t)) {
-        | In =>
-          let g = Terrace.mk(Wald.singleton(g, failwith("mk concave grout piece")));
-
-          let (s, m) =
-            Terrace.lt(g, t)
-            |> OptUtil.get_or_fail("think incomparability enforces this but not 100% confident");
-          let
-            |> Slope.top
-            |> OptUtil.get_or_fail(Empty_slope);
-          push_terr(dn, ~kid, t);
-        | Lt(lt) =>
-
-        }
-      }
-    };
-
-
-
-    let rec push_wald =
-            (dn: p, ~kid=Meld.empty(), ~in_=false, w: Wald.p): Result.t(p, Meld.p) => {
-      let kid = Meld.pad(~l=dn.space, kid);
-      switch (dn.terrs) {
-      | [] => Error(kid)
-      | [hd, ...tl] when in_ =>
-        if (Comparator.has_match(R, Terrace.face(Piece.molded(r)))) {
-
-        } else {
-        }
-
-
-        let tl = Slope.Dn.mk(tl);
-        // left-to-right: tl hd kid w
-        switch (Wald.cmp(hd.wal, ~kid, w)) {
-        | In(kid) =>
-          In()
-
-        }
-
-
-        switch (Wald.cmp(hd.wal, ~kid, w)) {
-        | Lt(lt) =>
-          let lt = Slope.map_top(Terrace.put_mel(hd.mel), lt);
-          Ok(Slope.Dn.cat(tl, lt));
-        | Eq(eq) => Ok(Slope.Dn.cons(tl, Terrace.put_mel(hd.mel, eq)))
-        | Gt(gt) =>
-          let (gt, _w) = Slope.Up.split_top(gt);
-          // connectedness invariant ensures that gt has single terrace
-          // combine this terrace with hd.mel to form new kid
-          let kid = failwith("todo");
-          push_wald(tl, ~kid, w);
-        };
+      let c = Wald.cmp(top, ~kid, w);
+      switch (c.up) {
+      | [] => {...c, up: z.up}
+      | [_, ..._] => Ziggurat.map_up((@)(z.up), c)
       };
-    };
-  };
-  module Up = {
-    include Slope.Up;
-  };
+    | [hd, ...tl] =>
+      // left to right: z.up z.top tl hd.mel hd.wal kid w
+      let c = Wald.cmp(hd.wal, ~kid, w);
+      // left to right: z.up z.top tl hd.mel c.up c.top c.dn
+      switch (c.up) {
+      | [] =>
+        let dn = c.dn @ [{...hd, wal: c.top}, ...tl];
+        {...z, dn};
+      | [_, ..._] => hsup_zigg({...z, dn: tl}, c)
+      }
+    }
+  and hsup_zigg = (z: Ziggurat.p, {up, top, dn}: Ziggurat.p) =>
+    Slope.Up.to_walds(up) @ [top]
+    |> List.fold_left((z, w) => hsup(z, w), z)
+    |> Ziggurat.map_dn(Slope.cat(dn));
+
+  let rec push =
+      (w: Wald.p, ~kid=None, z: Ziggurat.p): Ziggurat.p =>
+    // todo: handle whitespace on z.dn
+    switch (z.up) {
+    | [] =>
+      let c = Wald.cmp(w, ~kid, top);
+      switch (c.dn) {
+      | [] => {...c, dn: z.dn}
+      | [_, ..._] => Ziggurat.map_dn(dn' => dn' @ z.dn, c)
+      };
+    | [hd, ...tl] =>
+      // left to right: w kid hd.wal hd.mel tl z.top z.dn
+      let c = Wald.cmp(w, ~kid, hd.wal);
+      // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
+      switch (c.dn) {
+      | [] =>
+        let up = c.up @ [{...hd, wal: c.top}, ...tl];
+        {...z, up};
+      | [_, ..._] => push_zigg(c, {...z, up: tl});
+      }
+    }
+  and push_zigg = ({up, top, dn}: Ziggurat.p, z: Ziggurat.p) =>
+    List.fold_right(
+      (w, z) => push(w, z),
+      [top, ...Slope.Dn.to_walds(dn)],
+      z,
+    )
+    |> Ziggurat.map_up(Slope.cat(up))
 };
 
+// module Slope = {
+//   include Slope;
+//   module Dn = {
+//     include Slope.Dn;
+//     let push = (dn: p, w: Wald.p):
+//   }
+// }
+
 module Stepwell = {
-  exception Pushed_beyond_slopes;
-
-  let push_space = (~onto: Dir.t, s) =>
-    Stepwell.map_slopes(Slopes.push_space(~onto, s));
-
-  // doesn't bother pushing beyond nearest slopes bc any pushed content
-  // should have been molded by or melded to something in nearest prefix slope
-  // (possibly put there by deconstructing some previously existing bridge)
-  let push_wald = (~onto: Dir.t, w: Wald.t, well: Stepwell.t): Stepwell.t => {
-    let (dn, up) = get_slopes(well);
+  include Stepwell;
+  let push = (~onto: Dir.t, w: Wald.t, well: t): t =>
+    switch (unlink(well)) {
+    | Error((dn, up))=>
+      let root = failwith("todo: mk synthetic root wald");
+      switch (onto) {
+      | L =>
+        let z = Ziggurat.(hsup(mk(root, ~dn), w));
+        assert(Slope.is_empty(z.up));
+        assert(Wald.eq(root, z.top));
+        singleton((z.dn, up));
+      | R =>
+        let z = Ziggurat.(push(w, mk(~up, root)));
+        assert(Wald.eq(root, z.top));
+        assert(Slope.is_empty(z.dn));
+        singleton((dn, z.up));
+      }
+    | Ok(((dn, up), (l, r), well)) =>
+      switch (onto) {
+      | L =>
+        let z = Ziggurat.(hsup(mk(l, ~dn), w));
+        switch (z.up) {
+        | [] when Wald.eq(z.top, l) =>
+          // lt root
+          link((z.dn, up), (z.top, r), well)
+        | _ =>
+          well
+          |> push_zigg(~onto=L, z)
+          |> push_zigg(~onto=R, Ziggurat.mk(~up, r))
+        }
+      }
+    }
+  and push_zigg = (~onto: Dir.t, z: Ziggurat.p, well: t): t =>
     switch (onto) {
     | L =>
-      let dn =
-        Slope.Dn.push_wald(dn, w)
-        |> Result.to_option
-        |> OptUtil.get_or_raise(Pushed_beyond_slopes);
-      Stepwell.put_slopes((dn, up), well);
+      Slope.Up.to_walds(z.up) @ [z.top]
+      |> List.fold_left((well, w) => hsup(~onto, w, well), well)
+      |> map_slopes(((dn, up)) => (Slope.cat(z.dn, dn), up))
     | R =>
-      let dn =
-        Slope.Up.push_wald(w, up)
-        |> Result.to_option
-        |> OptUtil.get_or_raise(Pushed_beyond_slopes);
-      Stepwell.put_slopes((dn, up), well);
+      List.fold_right(
+        (w, well) => push(~onto, w, well),
+        [z.top, ...Slope.Dn.to_walds(z.dn)],
+        well,
+      )
+      |> map_slopes(((dn, up)) => (dn, Slope.cat(z.up, up)));
     };
-  };
 
   let push_lexeme = (~onto: Dir.t, lx: Lexeme.t(Piece.t)) =>
     switch (lx) {
