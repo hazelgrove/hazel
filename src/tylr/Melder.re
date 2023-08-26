@@ -62,24 +62,35 @@ module Wald = {
     failwith("todo bake");
   };
 
-
-  let eq = (l: p, ~kid=None, r: p): option(p) =>
-    l
-    |> Chain.fold_right(
-         (p, kid) => Option.map(link(p, kid)),
-         p_l => {
-          let p_r = Wald.fst(r);
-          let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-           Comparator.eq(m_l, ~kid=Kid.profile(kid), m_r)
-           |> Option.map(Wald.bake(~l, ~lt, ~kid, ~gt, ~r))
-           |> Option.map(w =>
-             switch (Chain.unlink(r)) {
-             | None => w
-             | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
-             }
-           )
-         },
-       );
+  let rec eq = (l: p, ~kid=None, r: p): option(p) => {
+    open OptUtil.Syntax;
+    let/ () =
+      l
+      |> Chain.fold_right(
+          (p, kid) => Option.map(link(p, kid)),
+          p_l => {
+            let p_r = Wald.fst(r);
+            let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
+            Comparator.eq(m_l, ~kid=Kid.profile(kid), m_r)
+            |> Option.map(bake(~l, ~kid, ~r))
+            |> Option.map(w =>
+              switch (Chain.unlink(r)) {
+              | None => w
+              | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
+              }
+            )
+          },
+        );
+    switch (unknil(l), unlink(r)) {
+    | (Some((tl, k, p)), _) when !Piece.is_finished(p) =>
+      let kid = Kid.merge(k, kid);
+      eq(tl, ~kid, r);
+    | (_, Some((p, k, tl))) when !Piece.is_finished(p) =>
+      let kid = Kid.merge(kid, k);
+      eq(l, ~kid, tl);
+    | _ => None
+    };
+  };
 
   let cmp =
       (l: p, ~kid=None, r: p): Ziggurat.p =>
