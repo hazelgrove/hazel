@@ -128,130 +128,21 @@ let lt = (l: Molded.t, ~kid=?, r: Molded.t): option(Slope.Dn.m) =>
   step(R, l).neq
   |> List.filter(t => Terrace.R.face(t) == r.material)
   |> List.filter(failwith("todo: only terraces taking kid"))
-  |> Scorer.pick
-  |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(l))));
+  |> Scorer.pick;
+// |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(l))));
 
 let gt = (l: Molded.t, ~kid=?, r: Molded.t): option(Slope.Up.m) =>
   step(L, r).neq
   |> List.filter(t => Terrace.L.face(t) == l.material)
   |> List.filter(failwith("todo: only terraces taking kid"))
-  |> Scorer.pick
-  |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(r))));
+  |> Scorer.pick;
+// |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(r))));
 
-module Result = {
-  type t('lt, 'eq, 'gt) =
-    | In
-    | Lt('lt)
-    | Eq('eq)
-    | Gt('gt);
-
-  let map = (f_lt, f_eq, f_gt) =>
-    fun
-    | In => In
-    | Lt(lt) => f_lt(lt)
-    | Eq(eq) => f_eq(eq)
-    | Gt(gt) => f_gt(gt);
-};
-
-let cmp =
-    (l: Molded.t, ~kid=?, r: Molded.t): Ziggurat.m =>
+// todo: rename meld
+let cmp = (l: Molded.t, ~kid=?, r: Molded.t): Ziggurat.m =>
   switch (lt(l, ~kid, r), eq(l, ~kid, r), gt(l, ~kid, r)) {
-  | (_, Some(eq), _) => Ziggurat.mk(eq)
-  | (Some(lt), _, _) =>
-  | (_, _, Some(gt)) => Gt(gt)
-  | (None, None, None) => In
-  };
-
-// let matches = (~side: Dir.t, m: Material.t(Mold.t)): list(Wald.m) => {
-//   let rec go = (z: G.Zipper.t(Atom.t)) => {
-//     let kid =
-//       switch (z.zipper) {
-//       | (Kid(_), _) =>
-//         failwith("todo mk meld of convex grout")
-//       | _ => Meld.empty()
-//       };
-//     z.zipper
-//     |> Regex.step(side)
-//     |> List.concat_map(stop_or_go)
-//     |> List.map(w =>
-//       switch (side) {
-//       | L => Wald.knil(w, ~kid, m)
-//       | R => Wald.link(m, ~kid, w)
-//       }
-//     );
-//   }
-//   and stop_or_go = z =>
-//     switch (Mold.of_atom(z)) {
-//     | Some(m) => [Wald.singleton(m)]
-//     | None => go(z)
-//     };
-//   go(Mold.to_atom(z));
-// };
-
-// let takes = (~side: Dir.t, m: Material.t(Mold.t)): list(Slope.m) => {
-//   let rec go = (~entered=false, z: G.Zipper.t(Atom.t)) =>
-//     z.zipper
-//     |> Regex.step(side)
-//     |> List.concat_map(
-//       fun
-//       | (Kid(s), ctx) =>
-
-//       | (Tok(lbl), ctx) =>
-//         entered
-//         ?
-//     )
-//     |> List.map(failwith("todo"))
-//   and stop_or_go = (~entered, z) =>
-//     switch (z.zipper) {
-//     | (Tok(lbl), ctx) =>
-//       let p = failwith("mk piece with lbl ctx");
-//       entered
-//       ? [Slope.mk([Terrace.mk(Wald.singleton(p))])]
-//       : []
-//     | (Kid(s), ctx) =>
-
-//     }
-// };
-
-let rec eq = (l: t, ~kid=Meld.empty(), r: t): option(Padded.t) => {
-  open OptUtil.Syntax;
-  let/ () = fuses(l, ~kid, r);
-  let/ () = matches(l, ~kid, r);
-  let* (tl_l, kid_l, p_l) = Chain.unknil(l);
-  let* (p_r, kid_r, tl_r) = Chain.unlink(r);
-  switch (p_l.shape, Meld.is_porous(kid), p_r.shape) {
-  | (G(_), Some(s), _) => eq(tl_l, ~kid=Meld.pad(kid_l, ~r=s), r)
-  | (_, Some(s), G(_)) => eq(l, ~kid=Meld.pad(~l=s, kid_r), tl_r)
-  | _ => None
-  };
-};
-
-let cmp =
-    (l: Piece.t, ~kid=?, r: Piece.t)
-    : option(Result.t(Slope.Dn.t, Wald.t, Slope.Up.t)) =>
-  switch (eq(l, ~kid?, r)) {
-  | Some(eq) => Some(Eq(eq))
-  | None =>
-    let kid = Option.map(fst, kid);
-    switch (lt(l, ~kid?, r), gt(l, ~kid?, r)) {
-    | (Some(lt), _) => Some(Lt(lt))
-    | (_, Some(gt)) => Some(Gt(gt))
-    | (None, None) => None
-    };
-  };
-
-let cmp =
-    (l: Material.molded, ~kid: option(Material.sorted)=?, r: Material.molded)
-    : option(Result.t(Slope.Dn.m, Wald.m, Slope.Up.m)) =>
-  switch (leq(l, ~kid?, r), geq(l, ~kid?, r)) {
-  | (None, None) => None
-  | (
-      Some({terrs: [{wal: leq, _}], _}),
-      Some({terrs: [{wal: geq, _}], _}),
-    )
-      when Wald.eq(leq, geq) =>
-    Some(Eq(leq))
-  // may need to validate some unique precedence relation invariant here
-  | (Some(lt), _) => Some(Lt(lt))
-  | (_, Some(gt)) => Some(Gt(gt))
+  | (_, Some(top), _) => Ziggurat.mk(top)
+  | (Some(dn), _, _) => Ziggurat.mk(l, ~dn)
+  | (_, _, Some(up)) => Ziggurat.mk(~up, r)
+  | (None, None, None) => failwith("todo: return incomparable zigg")
   };

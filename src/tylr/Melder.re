@@ -47,15 +47,15 @@ module Wald = {
     let (p_l, p_r) = Wald.(face(R, l), face(L, r));
     let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
     Comparator.lt(m_l, ~kid=Kid.profile(kid), m_r)
-    |> Option.map(bake(~top=l, ~kid, ~bot=r));
+    |> Option.map(bake(~kid, ~face=r));
   }
   and gt = (l: p, ~kid=None, r: p): option(Slope.Up.p) => {
     let (p_l, p_r) = Wald.(face(R, l), face(L, r));
     let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
     Comparator.gt(m_l, ~kid=Kid.profile(kid), m_r)
-    |> Option.map(bake(~bot=l, ~kid, ~top=r));
+    |> Option.map(bake(~face=l, ~kid));
   }
-  and bake = (~top, ~kid, ~bot, s: Slope.m): Slope.p => {
+  and bake = (~kid, ~face, s: Slope.m): Slope.p => {
     // upgrades molded tokens to pieces
     // replaces top and bottom walds with top and bot
     // finds slot to insert kid and applies lt and gt with neighbors to complete
@@ -94,12 +94,13 @@ module Wald = {
     };
   };
 
+  // todo: rename meld
   let cmp = (l: p, ~kid=None, r: p): Ziggurat.p =>
     switch (lt(l, ~kid, p), eq(l, ~kid, p), gt(l, ~kid, p)) {
-    | (_, Some(eq), _) => Ziggurat.mk(eq)
-    | (Some(lt), _, _) => Lt(lt)
-    | (_, _, Some(gt)) => Gt(gt)
-    | (None, None, None) => In
+    | (_, Some(top), _) => Ziggurat.mk(top)
+    | (Some(dn), _, _) => Ziggurat.mk(top, ~dn)
+    | (_, _, Some(up)) => Ziggurat.mk(~up, top)
+    | (None, None, None) => failwith("todo: incomparable meld")
     };
 };
 

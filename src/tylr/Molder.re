@@ -44,23 +44,22 @@ module Piece = {
   };
 };
 
-module Terrace = {
-  include Terrace;
-  let rec mold = (terr: R.p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) => {
-    let err =
-      Terrace.profile(terr) |> Kid.Profile.add_tokens(kid.has_tokens);
+module Wald = {
+  include Wald;
+  let rec mold = (w: p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) => {
+    let err = profile(terr) |> Kid.Profile.add_tokens(kid.has_tokens);
     let hd_molded =
-      Piece.mold(R.face(terr), ~kid, t) |> Result.map_error(() => err);
+      Piece.mold(face(R, w), ~kid, t) |> Result.map_error(() => err);
     let tl_molded =
-      switch (R.unlink(terr)) {
-      | Some((terr, k, p)) when !Piece.has_token(p) =>
-        open // let mold = Mold.grout_of_tile(mold);
-             // let grout = {...p, mold: Grout(mold)};
-             // todo: prune away unnecessary prefix/postfix grout
-             // let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
-             Result.Syntax;
+      switch (unknil(terr)) {
+      | Some((w, k, p)) when !Piece.has_token(p) =>
+        open Result.Syntax; // let mold = Mold.grout_of_tile(mold);
+        // let grout = {...p, mold: Grout(mold)};
+        // todo: prune away unnecessary prefix/postfix grout
+        // let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
+
         let kid = Kid.(Profile.merge(profile(k), kid));
-        let* z = mold(terr, ~kid, t);
+        let* z = mold(w, ~kid, t);
         // take only eq molds from tl
         Ziggurat.is_singleton(z) ? Ok(z) : Error(err);
       | _ => Error(err)
@@ -75,9 +74,9 @@ module Slope = {
     switch (dn) {
     | [] => Error(kid)
     | [hd, ...tl] =>
-      let hd_molded = Terrace.mold(hd, ~kid, t);
+      let hd_molded = Wald.mold(hd.wal, ~kid, t);
       let kid =
-        Terrace.profile(hd) |> Kid.Profile.add_tokens(kid.has_tokens);
+        Wald.profile(hd.wal) |> Kid.Profile.add_tokens(kid.has_tokens);
       let tl_molded = mold(tl, ~kid, t);
       Result.pick(hd_molded, tl_molded);
     };
