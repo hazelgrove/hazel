@@ -172,6 +172,36 @@ module rec Typ: {
     | Arrow(_, _) => precedence_Arrow
     };
 
+  let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool
+    | String => []
+    | Var(v) => List.mem(v, bound) ? [] : [v]
+    | List(ty) => free_vars(~bound, ty)
+    | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+    | Sum(sm) =>
+      ListUtil.flat_map(
+        fun
+        | None => []
+        | Some(typ) => free_vars(~bound, typ),
+        List.map(snd, sm),
+      )
+    | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+    | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    /* TODO: check that these are correct. */
+    };
+
+  let var_count = ref(0);
+  let fresh_var = () => {
+    let x = var_count^;
+    var_count := x + 1;
+    "@" ++ string_of_int(x);
+  };
+
   let rec subst = (s: t, x: TypVar.t, ty: t) => {
     switch (ty) {
     | Int => Int
@@ -185,7 +215,10 @@ module rec Typ: {
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
-    | Forall(y, ty) => Forall(y, subst(s, x, ty)) /* TODO: Need to implement capture avoiding subst */
+    | Forall(y, ty) when List.mem(y, free_vars(s)) =>
+      let fresh = fresh_var();
+      Forall(fresh, subst(s, x, subst(Var(fresh), y, ty)));
+    | Forall(y, ty) => Forall(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
     };
@@ -205,8 +238,8 @@ module rec Typ: {
     | (Forall(x1, t1), Forall(x2, t2)) =>
       eq_internal(
         n + 1,
-        subst(Var("@" ++ string_of_int(n)), x1, t1),
-        subst(Var("@" ++ string_of_int(n)), x2, t2),
+        subst(Var("=" ++ string_of_int(n)), x1, t1),
+        subst(Var("=" ++ string_of_int(n)), x2, t2),
       )
     | (Rec(_), _) => false
     | (Forall(_), _) => false
@@ -236,29 +269,6 @@ module rec Typ: {
   };
 
   let eq = (t1: t, t2: t): bool => eq_internal(0, t1, t2);
-
-  let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
-    switch (ty) {
-    | Unknown(_)
-    | Int
-    | Float
-    | Bool
-    | String => []
-    | Var(v) => List.mem(v, bound) ? [] : [v]
-    | List(ty) => free_vars(~bound, ty)
-    | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-    | Sum(sm) =>
-      ListUtil.flat_map(
-        fun
-        | None => []
-        | Some(typ) => free_vars(~bound, typ),
-        List.map(snd, sm),
-      )
-    | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
-    | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
-    | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
-    /* TODO: check that these are correct. */
-    };
 
   /* Lattice join on types. This is a LUB join in the hazel2
      sense in that any type dominates Unknown. The optional
