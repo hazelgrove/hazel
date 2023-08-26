@@ -59,7 +59,9 @@ module Wald = {
     // upgrades molded tokens to pieces
     // replaces top and bottom walds with top and bot
     // finds slot to insert kid and applies lt and gt with neighbors to complete
-    failwith("todo bake");
+    failwith(
+      "todo bake",
+    );
   };
 
   let rec eq = (l: p, ~kid=None, r: p): option(p) => {
@@ -67,20 +69,20 @@ module Wald = {
     let/ () =
       l
       |> Chain.fold_right(
-          (p, kid) => Option.map(link(p, kid)),
-          p_l => {
-            let p_r = Wald.fst(r);
-            let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-            Comparator.eq(m_l, ~kid=Kid.profile(kid), m_r)
-            |> Option.map(bake(~l, ~kid, ~r))
-            |> Option.map(w =>
-              switch (Chain.unlink(r)) {
-              | None => w
-              | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
-              }
-            )
-          },
-        );
+           (p, kid) => Option.map(link(p, kid)),
+           p_l => {
+             let p_r = Wald.fst(r);
+             let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
+             Comparator.eq(m_l, ~kid=Kid.profile(kid), m_r)
+             |> Option.map(bake(~l, ~kid, ~r))
+             |> Option.map(w =>
+                  switch (Chain.unlink(r)) {
+                  | None => w
+                  | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
+                  }
+                );
+           },
+         );
     switch (unknil(l), unlink(r)) {
     | (Some((tl, k, p)), _) when !Piece.is_finished(p) =>
       let kid = Kid.merge(k, kid);
@@ -92,8 +94,7 @@ module Wald = {
     };
   };
 
-  let cmp =
-      (l: p, ~kid=None, r: p): Ziggurat.p =>
+  let cmp = (l: p, ~kid=None, r: p): Ziggurat.p =>
     switch (lt(l, ~kid, p), eq(l, ~kid, p), gt(l, ~kid, p)) {
     | (_, Some(eq), _) => Ziggurat.mk(eq)
     | (Some(lt), _, _) => Lt(lt)
@@ -154,8 +155,7 @@ module Wald = {
 module Ziggurat = {
   include Ziggurat;
 
-  let rec hsup =
-      (z: Ziggurat.p, ~kid=None, w: Wald.p): Ziggurat.p =>
+  let rec hsup = (z: Ziggurat.p, ~kid=None, w: Wald.p): Ziggurat.p =>
     // todo: handle whitespace on z.dn
     switch (z.dn) {
     | [] =>
@@ -173,15 +173,15 @@ module Ziggurat = {
         let dn = c.dn @ [{...hd, wal: c.top}, ...tl];
         {...z, dn};
       | [_, ..._] => hsup_zigg({...z, dn: tl}, c)
-      }
+      };
     }
   and hsup_zigg = (z: Ziggurat.p, {up, top, dn}: Ziggurat.p) =>
-    Slope.Up.to_walds(up) @ [top]
+    Slope.Up.to_walds(up)
+    @ [top]
     |> List.fold_left((z, w) => hsup(z, w), z)
     |> Ziggurat.map_dn(Slope.cat(dn));
 
-  let rec push =
-      (w: Wald.p, ~kid=None, z: Ziggurat.p): Ziggurat.p =>
+  let rec push = (w: Wald.p, ~kid=None, z: Ziggurat.p): Ziggurat.p =>
     // todo: handle whitespace on z.dn
     switch (z.up) {
     | [] =>
@@ -198,8 +198,8 @@ module Ziggurat = {
       | [] =>
         let up = c.up @ [{...hd, wal: c.top}, ...tl];
         {...z, up};
-      | [_, ..._] => push_zigg(c, {...z, up: tl});
-      }
+      | [_, ..._] => push_zigg(c, {...z, up: tl})
+      };
     }
   and push_zigg = ({up, top, dn}: Ziggurat.p, z: Ziggurat.p) =>
     List.fold_right(
@@ -207,7 +207,7 @@ module Ziggurat = {
       [top, ...Slope.Dn.to_walds(dn)],
       z,
     )
-    |> Ziggurat.map_up(Slope.cat(up))
+    |> Ziggurat.map_up(Slope.cat(up));
 };
 
 // module Slope = {
@@ -222,7 +222,7 @@ module Stepwell = {
   include Stepwell;
   let push = (~onto: Dir.t, w: Wald.t, well: t): t =>
     switch (unlink(well)) {
-    | Error((dn, up))=>
+    | Error((dn, up)) =>
       let root = failwith("todo: mk synthetic root wald");
       switch (onto) {
       | L =>
@@ -235,7 +235,7 @@ module Stepwell = {
         assert(Wald.eq(root, z.top));
         assert(Slope.is_empty(z.dn));
         singleton((dn, z.up));
-      }
+      };
     | Ok(((dn, up), (l, r), well)) =>
       switch (onto) {
       | L =>
@@ -248,13 +248,14 @@ module Stepwell = {
           well
           |> push_zigg(~onto=L, z)
           |> push_zigg(~onto=R, Ziggurat.mk(~up, r))
-        }
+        };
       }
     }
   and push_zigg = (~onto: Dir.t, z: Ziggurat.p, well: t): t =>
     switch (onto) {
     | L =>
-      Slope.Up.to_walds(z.up) @ [z.top]
+      Slope.Up.to_walds(z.up)
+      @ [z.top]
       |> List.fold_left((well, w) => hsup(~onto, w, well), well)
       |> map_slopes(((dn, up)) => (Slope.cat(z.dn, dn), up))
     | R =>
@@ -263,7 +264,7 @@ module Stepwell = {
         [z.top, ...Slope.Dn.to_walds(z.dn)],
         well,
       )
-      |> map_slopes(((dn, up)) => (dn, Slope.cat(z.up, up)));
+      |> map_slopes(((dn, up)) => (dn, Slope.cat(z.up, up)))
     };
 
   let push_lexeme = (~onto: Dir.t, lx: Lexeme.t(Piece.t)) =>
