@@ -16,6 +16,8 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
+    | TypFun(Term.UTPat.t, t)
+    | TypAp(t, Typ.t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
     | BoolLit(bool)
@@ -70,6 +72,8 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
+    | TypFun(Term.UTPat.t, t)
+    | TypAp(t, Typ.t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
     | BoolLit(bool)
@@ -109,6 +113,8 @@ module rec DHExp: {
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
+    | TypFun(_, _) => "TypFun"
+    | TypAp(_) => "TypAp"
     | ApBuiltin(_, _) => "ApBuiltin"
     | TestLit(_) => "TestLit"
     | BoolLit(_) => "BoolLit"
@@ -164,6 +170,8 @@ module rec DHExp: {
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+    | TypFun(a, b) => TypFun(a, strip_casts(b))
+    | TypAp(a, b) => TypAp(strip_casts(a), b)
     | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
@@ -216,6 +224,9 @@ module rec DHExp: {
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
+    | (TypFun(ty1, d1), TypFun(ty2, d2)) =>
+      ty1 == ty2 && fast_equal(d1, d2)
+    | (TypAp(d1, ty1), TypAp(d2, ty2)) => fast_equal(d1, d2) && ty1 == ty2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -251,6 +262,8 @@ module rec DHExp: {
     | (FixF(_), _)
     | (Fun(_), _)
     | (Ap(_), _)
+    | (TypFun(_), _)
+    | (TypAp(_), _)
     | (ApBuiltin(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)

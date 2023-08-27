@@ -20,6 +20,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | SynFun /* Used only in function position of applications */
+  | SynTypFun
   | Syn
   | Ana(Typ.t);
 
@@ -30,11 +31,13 @@ let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
   | Syn => Unknown(SynSwitch)
-  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
+  | SynFun
+  | SynTypFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
 
 let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
+  | SynTypFun
   | SynFun => (Syn, Syn)
   | Ana(ty) =>
     ty
@@ -42,10 +45,19 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
     |> Typ.matched_arrow
     |> TupleUtil.map2(ana)
   };
-
+let of_forall: t => t =
+  fun
+  | SynFun
+  | SynTypFun
+  | Syn => Syn
+  | Ana(ty) => {
+      let (_, body) = Typ.matched_forall(ty);
+      Ana(body);
+    };
 let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   switch (mode) {
   | Syn
+  | SynTypFun
   | SynFun => List.init(length, _ => Syn)
   | Ana(ty) =>
     ty
@@ -60,6 +72,7 @@ let matched_list_normalize = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
+  | SynTypFun
   | SynFun => Syn
   | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
   };
@@ -67,6 +80,7 @@ let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
 let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
+  | SynTypFun
   | SynFun => Ana(List(hd_ty))
   | Ana(ty) => Ana(List(matched_list_normalize(ctx, ty)))
   };
@@ -74,6 +88,7 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
 let of_list = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
+  | SynTypFun
   | SynFun => Syn
   | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
   };
@@ -81,6 +96,7 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
 let of_list_concat = (mode: t): t =>
   switch (mode) {
   | Syn
+  | SynTypFun
   | SynFun => Ana(List(Unknown(SynSwitch)))
   | Ana(ty) => Ana(List(Typ.matched_list(ty)))
   };

@@ -15,6 +15,7 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
         ]),
     );
   switch (entry) {
+  | ConstructorEntry({name, typ, _})
   | VarEntry({name, typ, _}) =>
     div_c(
       "context-entry",
@@ -24,7 +25,6 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
         Type.view(typ),
       ],
     )
-  | ConstructorEntry({name, kind, _})
   | TVarEntry({name, kind, _}) =>
     div_c(
       "context-entry",

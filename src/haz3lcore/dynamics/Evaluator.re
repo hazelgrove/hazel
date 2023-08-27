@@ -30,7 +30,10 @@ let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
   NotGroundOrHole(Sum(sm'));
 };
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
-
+let grounded_Forall =
+  NotGroundOrHole(Forall("grounded_forall", Unknown(Internal)));
+let grounded_Ap =
+  NotGroundOrHole(Ap(Unknown(Internal), Unknown(Internal)));
 let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   let is_ground_arg: option(Typ.t) => bool =
     fun
@@ -46,7 +49,6 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Var(_)
   | Rec(_)
   | Arrow(Unknown(_), Unknown(_))
-  | Parameter(_) => Hole
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
     if (List.for_all(
@@ -63,6 +65,8 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     sm |> ConstructorMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
   | Arrow(_, _) => grounded_Arrow
   | List(_) => grounded_List
+  | Forall(_) => grounded_Forall
+  | Ap(_) => grounded_Ap
   };
 };
 
@@ -299,6 +303,7 @@ and matches_cast_Sum =
   | InvalidText(_)
   | Let(_)
   | Ap(_)
+  | TypAp(_)
   | ApBuiltin(_)
   | BinBoolOp(_)
   | BinIntOp(_)
@@ -313,6 +318,7 @@ and matches_cast_Sum =
   | BoundVar(_)
   | FixF(_)
   | Fun(_)
+  | TypFun(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -390,7 +396,9 @@ and matches_cast_Tuple =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
+  | Closure(_, Fun(_) | TypFun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -527,6 +535,8 @@ and matches_cast_Cons =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -621,6 +631,67 @@ let eval_bin_string_op =
   | Equals => BoolLit(s1 == s2)
   };
 
+let rec ty_subst =
+        (str, exp, targ)
+        : DHExp.t /* TODO: Maybe just keep error instead of recursing? */ => {
+  open DH.DHExp;
+  let re = e2 => ty_subst(str, e2, targ);
+  switch (exp) {
+  | Cast(t, t1, t2) =>
+    Cast(re(t), Typ.subst(targ, str, t1), Typ.subst(targ, str, t2))
+  | FixF(arg, ty, body) => FixF(arg, Typ.subst(targ, str, ty), re(body))
+  | Fun(arg, ty, body, var) =>
+    Fun(arg, Typ.subst(targ, str, ty), re(body), var)
+  | TypAp(tfun, ty) => TypAp(re(tfun), Typ.subst(targ, str, ty))
+  | ListLit(mv, mvi, t, lst) =>
+    ListLit(mv, mvi, Typ.subst(targ, str, t), List.map(re, lst))
+
+  | TypFun(utpat, body) => TypFun(utpat, ty_subst(str, body, targ))
+
+  | NonEmptyHole(errstat, mv, hid, t) =>
+    NonEmptyHole(errstat, mv, hid, re(t))
+  | InconsistentBranches(mv, hid, case) =>
+    InconsistentBranches(mv, hid, ty_subst_case(str, case, targ))
+  | Closure(ce, t) => Closure(ce, re(t))
+  | Sequence(t1, t2) => Sequence(re(t1), re(t2))
+  | Let(dhpat, t1, t2) => Let(dhpat, re(t1), re(t2))
+  | Ap(t1, t2) => Ap(re(t1), re(t2))
+  | ApBuiltin(s, args) => ApBuiltin(s, List.map(re, args))
+  | BinBoolOp(op, t1, t2) => BinBoolOp(op, re(t1), re(t2))
+  | BinIntOp(op, t1, t2) => BinIntOp(op, re(t1), re(t2))
+  | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
+  | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
+  | Cons(t1, t2) => Cons(re(t1), re(t2))
+  | Tuple(args) => Tuple(List.map(re, args))
+  | Prj(t, n) => Prj(re(t), n)
+  | ConsistentCase(case) => ConsistentCase(ty_subst_case(str, case, targ))
+  | InvalidOperation(t, err) => InvalidOperation(re(t), err)
+  | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
+  | Constructor(_)
+  | EmptyHole(_)
+  | ExpandingKeyword(_, _, _)
+  | FreeVar(_, _, _)
+  | InvalidText(_, _, _)
+  | BoundVar(_)
+  | TestLit(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | FailedCast(_, _, _) => exp
+  };
+} //TODO: is this correct?
+//TODO: Inconsistent cases: need to check again for inconsistency?
+
+and ty_subst_case = (str, Case(t, rules, n), targ) =>
+  Case(
+    ty_subst(str, t, targ),
+    List.map(
+      (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(str, t, targ)),
+      rules,
+    ),
+    n,
+  );
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
@@ -673,7 +744,28 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       evaluate(env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
+    | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
+    | TypAp(d1, tau) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(Closure(closure_env, TypFun({term: Var(name), _}, d2))) =>
+        // TODO: Maybe additional cases to be done?
+        evaluate(closure_env, ty_subst(name, d2, tau))
+      | BoxedValue(Constructor(name)) => evaluate(env, Constructor(name))
+      | BoxedValue(Cast(d1', Forall("_", t), Forall("_", t')))
+      | Indet(Cast(d1', Forall("_", t), Forall("_", t'))) =>
+        evaluate(
+          env,
+          Cast(
+            TypAp(d1', tau),
+            Typ.subst(t, "_", tau),
+            Typ.subst(t', "_", tau),
+          ),
+        )
+      | Indet(_) => r1 |> return
+      | _ => failwith("InvalidBoxedTypFun: " ++ show(r1))
+      };
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
@@ -980,6 +1072,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Closure(_, d') =>
       switch (d') {
       | Fun(_) => BoxedValue(d) |> return
+      | TypFun(_) => BoxedValue(d) |> return
       | _ => Indet(d) |> return
       }
 

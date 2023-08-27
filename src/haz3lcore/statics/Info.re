@@ -272,6 +272,13 @@ let rec status_common =
     | None => InHole(Inconsistent(WithArrow(syn)))
     | Some(_) => NotInHole(Syn(syn))
     }
+  | (Just(ty), SynTypFun) =>
+    /* Use ty first to preserve name if it exists. */
+    switch (Typ.join_fix(ctx, ty, Forall("_", Unknown(Internal)))) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
+    }
+
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
        a sum type having that ctr as a variant, its self type is
@@ -293,13 +300,13 @@ let rec status_common =
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun) =>
+  | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat => {
   switch (mode, self) {
-  | (Syn | Ana(_), Common(self_pat))
+  | (SynTypFun | Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
@@ -313,7 +320,7 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
     }
   | (SynFun, _) => InHole(ExpectedConstructor)
   };
-
+};
 /* Determines whether an expression or pattern is in an error hole,
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
@@ -352,7 +359,12 @@ let status_typ =
       InHole(DuplicateConstructor(name))
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
-      | false => InHole(FreeTypeVariable(name))
+      | false =>
+        switch (Ctx.is_tyVar(ctx, name)) {
+        | false => InHole(FreeTypeVariable(name))
+        | true =>
+          NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+        }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
@@ -372,7 +384,7 @@ let status_typ =
         | Var(s) => s
         | _ => ""
         };
-      switch (Ctx.is_alias(ctx, constructor)) {
+      switch (Ctx.is_tyVar(ctx, constructor)) {
       | false => InHole(FreeTypeVariable(constructor))
       | true =>
         NotInHole(TypeAlias(constructor, Typ.weak_head_normalize(ctx, ty)))

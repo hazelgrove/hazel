@@ -667,6 +667,21 @@ let get_doc =
           ),
           [],
         );
+      | TypFun(_, _) =>
+        // TODO (typfun)
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.triv_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.triv_exp_group,
+          doc.explanation.message,
+          [],
+        );
+
       | Fun(pat, body) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
@@ -1902,6 +1917,20 @@ let get_doc =
             LangDocMessages.funapp_exp_coloring_ids,
           );
         };
+      | TypAp(_, _) =>
+        // TODO (typfun)
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.triv_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.triv_exp_group,
+          doc.explanation.message,
+          [],
+        );
       | If(cond, then_, else_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
