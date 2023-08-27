@@ -139,13 +139,10 @@ module UTyp = {
           switch (Ctx.lookup_tvar(ctx, name)) {
           | Some(ty) =>
             switch (ty.kind) {
-            | Arrow(ty_in, ty_out) =>
-              switch (ty_in) {
-              | Var(arg) => Typ.subst(to_typ(ctx, t2), arg, ty_out)
-              | _ => Unknown(Internal)
-              }
-            | Singleton(_)
-            | Abstract => Unknown(Internal)
+            | Arrow(Singleton(Var(arg)), Singleton(ty_out)) =>
+              Typ.subst(to_typ(ctx, t2), arg, ty_out)
+            | Abstract => Ap(Var(name), to_typ(ctx, t2))
+            | _ => Unknown(Internal)
             }
           | None => Unknown(Free(name))
           };
@@ -501,11 +498,13 @@ module UExp = {
     | ListLit
     | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
     | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -540,11 +539,13 @@ module UExp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -626,11 +627,13 @@ module UExp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | TypAp => "Type Application"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -644,7 +647,8 @@ module UExp = {
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
-    | Fun(_) => true
+    | Fun(_)
+    | TypFun(_) => true
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -659,6 +663,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -687,10 +692,12 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | If(_)
       | Seq(_)
       | Test(_)

@@ -236,6 +236,21 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
       m,
     );
+  | TypAp(fn, utyp) =>
+    /* Might need something similar to Ap's case where we check analysis mode when tagged? */
+    let typfn_mode =
+      /* switch(fn) {
+           | {term: Tag(name), _} => Typ.tag_typap_mode(ctx, mode, name)
+           | _ => Typ.typap_mode
+         }; */ Mode.SynTypFun;
+    let (fn, m_fn) = go(~mode=typfn_mode, fn, m);
+    let (name, ty_body) = Typ.matched_forall(fn.ty);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    add(
+      ~self=Just(Typ.subst(ty, name, ty_body)),
+      ~co_ctx=CoCtx.union([fn.co_ctx]),
+      m_fn,
+    );
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
@@ -245,52 +260,28 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
+  | TypFun({term: Var(name), _} as utpat, body) =>
+    let mode_body = Mode.of_forall(mode);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let ctx_body = Ctx.extend_dummy_tvar(ctx, name);
+    let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
+    add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
+  | TypFun(utpat, body) =>
+    let mode_body = Mode.of_forall(mode);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let (body, m) = go(~mode=mode_body, body, m);
+    add(
+      ~self=Just(Forall("expected_type_variable", body.ty)),
+      ~co_ctx=body.co_ctx,
+      m,
+    );
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    //let def_ctx =
-    //  switch (def.term) {
-    //  | Ap(fn, arg) =>
-    //    switch (fn.term) {
-    //    | Constructor(ctr) =>
-    //      switch (Ctx.lookup_higher_alias(def_ctx, ctr)) {
-    //      | Some((name_in, ty_in1)) =>
-    //        let (ty_in2, _) = go(~mode=Syn, arg, m);
-    //        let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
-    //        let ctx' = Ctx.revise_tvar(def_ctx, name_in, ty);
-    //        ctx';
-    //      | None => def_ctx
-    //      }
-    //    | _ => def_ctx
-    //    }
-    //  | _ => def_ctx
-    //  };
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
-    let (body, m) =
-      go'(
-        ~ctx=p_ana.ctx,
-        //switch (def.term.term) {
-        //| Ap(fn, arg) =>
-        //  switch (fn.term) {
-        //  | Constructor(ctr) =>
-        //    switch (Ctx.lookup_higher_alias(p_ana.ctx, ctr)) {
-        //    | Some((name_in, ty_in1)) =>
-        //      let (ty_in2, _) = go(~mode=Syn, arg, m);
-        //      let ty = Ctx.find_parameter_type(name_in, ty_in1, ty_in2.ty);
-        //      let ctx' = Ctx.revise_tvar(p_ana.ctx, name_in, ty);
-        //      ctx';
-        //    | None => p_ana.ctx
-        //    }
-        //  | _ => p_ana.ctx
-        //  }
-        //| _ => p_ana.ctx
-        //},
-        ~mode,
-        body,
-        m,
-      );
+    let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),
       ~co_ctx=
@@ -308,6 +299,15 @@ and uexp_to_info_map =
       m,
     );
   | Match(scrut, rules) =>
+    List.iter(
+      a =>
+        Printf.printf(
+          "Upat: %s, UExp: %s\n",
+          UPat.show(fst(a)),
+          UExp.show(snd(a)),
+        ),
+      rules,
+    );
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
@@ -366,7 +366,7 @@ and uexp_to_info_map =
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
     | Ap(t1, t2) =>
-      let constructor =
+      let name =
         switch (t1.term) {
         | Var(s) => s
         | _ => ""
@@ -376,57 +376,68 @@ and uexp_to_info_map =
         | Var(s) => s
         | _ => ""
         };
-      let utyp = UTyp.remove_ap_in_def(constructor, arg, utyp);
+      let utyp_without_ap = UTyp.remove_ap_in_def(name, arg, utyp);
       let (ty_def, ctx_def, ctx_body) = {
         let ty_pre =
           UTyp.to_typ(
-            Ctx.extend_dummy_tvar(
-              Ctx.extend_dummy_tvar(ctx, constructor),
-              arg,
-            ),
+            Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
             utyp,
           );
+        Printf.printf("ty_pre: %s\n", Typ.show(ty_pre));
         switch (utyp.term) {
-        | Sum(_) when List.mem(constructor, Typ.free_vars(ty_pre)) =>
-          let ty_rec =
-            Typ.Rec("α", Typ.subst(Var("α"), constructor, ty_pre));
+        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_pre =
+            UTyp.to_typ(
+              Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+              utyp_without_ap,
+            );
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ctx_def =
-            Ctx.extend_higher_alias(
+            Ctx.extend_higher_kind(
               ctx,
-              constructor,
+              name,
               arg,
               UTPat.rep_id(typat),
               ty_rec,
             );
           (ty_rec, ctx_def, ctx_def);
         | _ =>
-          let ctx_def =
-            Ctx.extend_higher_alias(
-              ctx,
-              constructor,
-              arg,
-              UTPat.rep_id(typat),
-              ty_pre,
-            );
-          (ty_pre, ctx_def, ctx_def);
+          let ty = UTyp.to_typ(ctx, utyp);
+          (
+            ty,
+            ctx,
+            Ctx.extend_higher_kind(ctx, name, arg, UTPat.rep_id(typat), ty),
+          );
         };
       };
       let ctx_body =
-        switch (Typ.get_sum_constructors(ctx, ty_def)) {
-        | Some(sm) =>
-          Ctx.add_higher_ctrs(
-            ctx_body,
-            constructor,
-            arg,
-            UTyp.rep_id(utyp),
-            sm,
-          )
-        | None => ctx_body
-        };
+        Ctx.add_ctr_with_typ_parameter(
+          ctx_body,
+          name,
+          UTyp.rep_id(utyp),
+          [
+            ("Nil", None),
+            ("Cons", Some(Prod([Var(arg), Ap(Var(name), Var(arg))]))),
+          ],
+          arg,
+        );
+      //switch (Typ.get_sum_constructors(ctx, ty_def)) {
+      //| Some(sm) =>
+      //  Printf.printf("sm: %s\n", Typ.show_sum_map(sm));
+      //  Ctx.add_ctr_with_typ_parameter(
+      //    ctx_body,
+      //    name,
+      //    UTyp.rep_id(utyp),
+      //    sm,
+      //    arg,
+      //  );
+      //| None => ctx_body
+      //};
+      Printf.printf("ctx_body: %s\n", Ctx.show(ctx_body));
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */
-      let ty_escape = Typ.subst(ty_def, constructor, ty_body);
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
     | Var(_)

@@ -57,7 +57,9 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     ts
     |> List.map(
          fun
-         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
+         | (_, (["|", "=>"], [Pat(p)])) => {
+             Some(p);
+           }
          | _ => None,
        )
     |> OptUtil.sequence
@@ -182,6 +184,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
@@ -198,6 +201,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       switch (t) {
       | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
