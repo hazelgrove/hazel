@@ -19,10 +19,7 @@ type t =
 
 // How to replace this function?
 let rec constrains = (c: t, ty: Typ.t): bool =>
-  switch (
-    c,
-    Typ.weak_head_normalize(Builtins.ctx(Builtins.Pervasives.builtins), ty),
-  ) {
+  switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
   | (Truth, _)
   | (Falsity, _)
   | (Hole, _) => true
