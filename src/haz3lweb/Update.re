@@ -14,6 +14,7 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.statics,
+          assist: !settings.core.statics,
           elaborate: settings.core.elaborate,
           dynamics: !settings.core.statics && settings.core.dynamics,
         },
@@ -25,6 +26,7 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.elaborate || settings.core.statics,
+          assist: settings.core.assist,
           elaborate: !settings.core.elaborate,
           dynamics: settings.core.dynamics,
         },
@@ -36,8 +38,21 @@ let update_settings =
         ...settings,
         core: {
           statics: !settings.core.dynamics || settings.core.statics,
+          assist: settings.core.assist,
           elaborate: settings.core.elaborate,
           dynamics: !settings.core.dynamics,
+        },
+      },
+    }
+  | Assist => {
+      ...model,
+      settings: {
+        ...settings,
+        core: {
+          statics: !settings.core.assist || settings.core.statics,
+          assist: !settings.core.assist,
+          elaborate: settings.core.elaborate,
+          dynamics: settings.core.dynamics,
         },
       },
     }
@@ -97,6 +112,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | SecondaryIcons
     | Benchmark => false
     | Statics
+    | Assist
     | Elaborate
     | Dynamics
     | InstructorMode
@@ -316,7 +332,8 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
-    | PerformAction(a) when model.settings.core.statics =>
+    | PerformAction(a)
+        when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
       switch (perform_action(model, a)) {
       | Ok(model) when Action.is_edit(a) =>
