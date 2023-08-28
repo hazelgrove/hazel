@@ -1,42 +1,21 @@
-exception Incomparable(Material.molded, Material.molded);
-
-exception Empty_slope;
-
 module Piece = {
   include Piece;
 
-  let replace = (l: t, r: t): option(t) => {
-    let replaced_l = add_paths(List.map(_ => 0, l.paths), r);
-    let replaced_r = add_paths(List.map(_ => length(l), r.paths), l);
-    switch (l.material, r.material) {
-    | (Grout((l, _)), Grout((r, _))) when Tip.consistent(l, r) =>
-      Some(replaced_l)
-    | (Grout((_, l)), Grout((_, r))) when Tip.consistent(l, r) =>
-      Some(replaced_r)
-    | (Grout((l, _)), Tile(m)) when Mold.consistent(~l, m) =>
-      Some(replaced_l)
-    | (Tile(m), Grout((_, r))) when Mold.consistent(m, ~r) =>
-      Some(replaced_r)
-    | (Tile(m), Tile(r)) when !is_finished(l) && Mold.eq(m, r) =>
-      Some(replaced_l)
-    | (Tile(l), Tile(m)) when Mold.eq(l, m) && !is_finished(r) =>
-      Some(replaced_r)
-    | _ => None
-    };
-  };
-
-  let merge = (l: t, r: t): option(t) =>
-    switch (l.material, r.material) {
-    | (Grout((l, _)), Grout((_, r))) =>
-      Some({...l, material: Grout((l, r)), token: l.token ++ r.token})
-    | _ => None
-    };
-
-  let fuse = (l: t, r: t): option(t) => {
+  let zips = (l: Piece.t, r: Piece.t): option(Piece.t) => {
     open OptUtil.Syntax;
-    let/ () = zip(l, r);
-    let/ () = replace(l, r);
-    merge(l, r);
+    let* () = OptUtil.of_bool(Id.eq(l.id, r.id));
+    let+ l =
+      switch (Piece.label(l), Piece.label(r)) {
+      | (Grout, Tile(_))
+      | (Tile(_), Grout) => None
+      | (Grout, Grout) => Some(l)
+      | (Tile(lbl_l), Tile(lbl_r)) =>
+        let+ lbl = Label.zip(lbl_l, lbl_r);
+        put_label(lbl, l);
+      };
+    l
+    |> put_token(l.token ++ r.token)
+    |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
   };
 };
 
@@ -64,32 +43,42 @@ module Wald = {
     );
   };
 
+  let zips = (l: p, r: p): option(p) => {
+    open OptUtil.Syntax;
+    let+ p = Piece.zips(p_l, p_r);
+    l
+    |> Chain.fold_right(
+      (p, kid) => link(p, ~kid),
+      _ => put_face(~side=L, p, r),
+    );
+  };
+
   let rec eq = (l: p, ~kid=None, r: p): option(p) => {
     open OptUtil.Syntax;
+    // check whether they zip
+    let/ () = {
+      let+ w = zips(l, r);
+      assert(kid == None);
+      w;
+    };
+    // check whether they eq
+    let (p_l, p_r) = (face(~side=R, l), face(~side=L, r));
+    let (m_l, m_r) = Piece.(molded(p_l, p_r));
     let/ () =
-      l
-      |> Chain.fold_right(
-           (p, kid) => Option.map(link(p, kid)),
-           p_l => {
-             let p_r = Wald.fst(r);
-             let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-             Comparator.eq(m_l, ~kid=Kid.profile(kid), m_r)
-             |> Option.map(bake(~l, ~kid, ~r))
-             |> Option.map(w =>
-                  switch (Chain.unlink(r)) {
-                  | None => w
-                  | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
-                  }
-                );
-           },
-         );
+      Comparator.eq(m_l, ~kid, m_r)
+      |> Option.map(bake(~l, ~kid, ~r))
+      |> Option.map(w =>
+          switch (Chain.unlink(r)) {
+          | None => w
+          | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
+          }
+        );
+    // strip unfinished faces and try again
     switch (unknil(l), unlink(r)) {
     | (Some((tl, k, p)), _) when !Piece.is_finished(p) =>
-      let kid = Kid.merge(k, kid);
-      eq(tl, ~kid, r);
+      eq(tl, ~kid=Kid.merge(k, kid), r);
     | (_, Some((p, k, tl))) when !Piece.is_finished(p) =>
-      let kid = Kid.merge(kid, k);
-      eq(l, ~kid, tl);
+      eq(l, ~kid=Kid.merge(kid, k), tl);
     | _ => None
     };
   };
@@ -126,32 +115,6 @@ module Wald = {
 // rest of system:
 // rework transformation to view
 // rework make term
-
-// module Terrace = {
-//   include Terrace;
-
-//   let lt = (l: R.p, ~kid=None, r: L.p): option((Slope.Dn.p, Kid.p)) =>
-//     Wald.lt(l.wal, ~kid, r.wal)
-//     |> Option.map(Slope.map_top(Terrace.put_mel(l.mel)))
-//     |> Option.map(s => (s, r.mel));
-
-//   let gt = (l: R.p, ~kid=None, r: L.p): option((Kid.p, Slope.Up.p)) =>
-//     Wald.gt(l.wal, ~kid, r.wal)
-//     |> Option.map(Slope.map_top(Terrace.put_mel(r.mel)))
-//     |> Option.map(s => (l.mel, s));
-
-//   let eq = (l: R.p, ~kid=None, r: L.p): option((Meld.p, Wald.p, Meld.p)) =>
-//     Wald.eq(l.wal, ~kid, r.wal)
-//     |> Option.map(w => (l.mel, w, r.mel));
-
-//   module L = {
-//     include L;
-//     let patch = (t: p): Slope.Dn.p
-//   }
-
-//   // let cmp =
-//   //     (l: R.p, ~kid=None, r: L.p): Comparator.Result.t()
-// };
 
 module Ziggurat = {
   include Ziggurat;
@@ -210,14 +173,6 @@ module Ziggurat = {
     )
     |> Ziggurat.map_up(Slope.cat(up));
 };
-
-// module Slope = {
-//   include Slope;
-//   module Dn = {
-//     include Slope.Dn;
-//     let push = (dn: p, w: Wald.p):
-//   }
-// }
 
 module Stepwell = {
   include Stepwell;

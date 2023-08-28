@@ -1,6 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) =
-  | Grout
+  | Grout(Tip.t, Tip.t)
   | Tile('a);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -12,5 +12,5 @@ type molded = t(Mold.t);
 
 let map = f =>
   fun
-  | Grout => Grout
+  | Grout(_) as m => m
   | Tile(a) => Tile(f(a));

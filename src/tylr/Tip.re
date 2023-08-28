@@ -1,9 +1,8 @@
-// open Util;
-// // todo: add must_match flag
-// type t =
-//   // Flat?
-//   | Convex
-//   | Concave(Sort.o, Prec.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  // Flat
+  | Convex
+  | Concave;
 // let is_concave =
 //   fun
 //   | Convex => None

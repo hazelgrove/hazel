@@ -1,1 +1,4 @@
-type t = (Material.t(Mold.t), Token.t);
+type t = {
+  mold: Material.t(Mold.t),
+  token: Token.t,
+};

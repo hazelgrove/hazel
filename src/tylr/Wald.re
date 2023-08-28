@@ -2,9 +2,13 @@ open Util;
 
 // "walled" meld, wario to meld's mario
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Chain.t(Piece.t, Meld.t);
+type t('a) = Chain.t('a, Meld.t('a));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m = t(Material.t(Mold.t));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type p = t(Piece.t);
 
-let of_piece: _ => t = Chain.of_loop;
+let singleton: _ => t = Chain.of_loop;
 let mk = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
   Option.bind(Meld.distribute(mel).chain, Chain.trim);
 
