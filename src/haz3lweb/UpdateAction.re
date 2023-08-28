@@ -57,6 +57,7 @@ type t =
   | FinishImportScratchpad(option(string))
   | SwitchScratchSlide(int)
   /* editor */
+  | DoTheThing
   | Save
   | PerformAction(Action.t)
   | ReparseCurrentEditor

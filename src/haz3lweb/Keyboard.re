@@ -5,7 +5,6 @@ let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
 let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
-  let settings = model.settings;
   let zipper = Editors.active_zipper(model.editors);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
@@ -21,6 +20,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
+    //TODO: Remove model dependency
+    let settings = model.settings;
     switch (key) {
     | "F1" => zipper |> Zipper.show |> print
     | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
@@ -62,7 +63,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       };
     | "F7" => Some(Benchmark(Start))
     | _ => None
-    }
+    };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))
@@ -74,19 +75,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "Tab") =>
-      /*TODO(andrew): Consider more advanced movement logic. Instead
-       * of simply moving to next hole, if the backpack is non-empty
-       * but can't immediately put down, move to next position of
-       * interest, which is closet of: nearest position where can
-       * put down, farthest position where can put down, next hole */
-      Some(
-        Selection.is_buffer(zipper.selection)
-          ? Assistant(AcceptSuggestion)
-          : Zipper.can_put_down(zipper)
-              ? PerformAction(Put_down) : MoveToNextHole(Right),
-      )
-    //TODO(andrew): remove logic from here (potential Incr_dom bug)
+    | (Up, "Tab") => Some(DoTheThing)
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
@@ -161,6 +150,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | _ => None
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    //TODO: Remove model dependency
     let restricted = Backpack.restricted(zipper.backpack);
     switch (sys, key) {
     | (_, "ArrowLeft") when restricted =>

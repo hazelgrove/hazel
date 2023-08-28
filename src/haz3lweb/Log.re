@@ -34,7 +34,8 @@ let is_action_logged: UpdateAction.t => bool =
   | Redo
   | Assistant(_)
   | MoveToNextHole(_)
-  | UpdateLangDocMessages(_) => true;
+  | UpdateLangDocMessages(_)
+  | DoTheThing => true;
 
 let storage_key = "LOG_" ++ ExerciseSettings.log_key;
 let max_log_string_length = 4_750_000; // based on 5MB limit on localstore in browser

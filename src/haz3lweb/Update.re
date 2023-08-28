@@ -138,7 +138,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | DoTheThing => false
   | ExportPersistentData => false
   | Benchmark(_)
   // may not be necessary on all of these
@@ -332,6 +333,23 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
+    | DoTheThing =>
+      /* Attempt to act intelligently when TAB is pressed.
+       * TODO(andrew): Consider more advanced TAB logic. Instead
+       * of simply moving to next hole, if the backpack is non-empty
+       * but can't immediately put down, move to next position of
+       * interest, which is closet of: nearest position where can
+       * put down, farthest position where can put down, next hole */
+      let z =
+        model.editors
+        |> Editors.get_editor
+        |> ((ed: Editor.t) => ed.state.zipper);
+      let a =
+        Selection.is_buffer(z.selection)
+          ? Assistant(AcceptSuggestion)
+          : Zipper.can_put_down(z)
+              ? PerformAction(Put_down) : MoveToNextHole(Right);
+      apply(model, a, state, ~schedule_action);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
