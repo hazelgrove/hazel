@@ -7,6 +7,7 @@ type settings_action =
   | Captions
   | SecondaryIcons
   | Statics
+  | Assist
   | Elaborate
   | Dynamics
   | Benchmark
