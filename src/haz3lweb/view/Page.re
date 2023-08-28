@@ -40,7 +40,12 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
 let nut_menu =
     (
       ~inject: Update.t => 'a,
-      {core: {statics, elaborate, dynamics}, benchmark, instructor_mode, _}: Settings.t,
+      {
+        core: {statics, elaborate, assist, dynamics},
+        benchmark,
+        instructor_mode,
+        _,
+      }: Settings.t,
     ) => [
   menu_icon,
   div(
@@ -48,6 +53,9 @@ let nut_menu =
     [
       toggle("τ", ~tooltip="Toggle Statics", statics, _ =>
         inject(Set(Statics))
+      ),
+      toggle("𝑐", ~tooltip="Code Completion", assist, _ =>
+        inject(Set(Assist))
       ),
       toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
         inject(Set(Dynamics))
