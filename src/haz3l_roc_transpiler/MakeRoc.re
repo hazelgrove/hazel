@@ -7,6 +7,14 @@ let rec generate_code = (t: TermRoc.UExp.t, i: int): string =>
   | Float(f) => string_of_float(f)
   | String(s) => "\"" ++ s ++ "\""
   | ListLit(lst) => "[" ++ list_to_string(lst, i) ++ "]"
+  | ListConcat(l1, l2) =>
+    "("
+    ++ "List.concat"
+    ++ " "
+    ++ generate_code(l1, i)
+    ++ " "
+    ++ generate_code(l2, i)
+    ++ ")"
   | Fun(pat, body) =>
     "\\ "
     ++ get_code_pat(pat, i)

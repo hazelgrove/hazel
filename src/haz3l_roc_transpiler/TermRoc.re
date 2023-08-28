@@ -50,6 +50,7 @@ module rec UExp: {
     | Float
     | String
     | ListLit
+    | ListConcat
     | Fun
     | Record
     | Var
@@ -74,6 +75,7 @@ module rec UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
+    | ListConcat(t, t)
     | Fun(UPat.t, t)
     | Record(list(t))
     | Var(string)
@@ -140,6 +142,7 @@ module rec UExp: {
     | Float
     | String
     | ListLit
+    | ListConcat
     | Fun
     | Record
     | Var
@@ -164,6 +167,7 @@ module rec UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
+    | ListConcat(t, t)
     | Fun(UPat.t, t)
     | Record(list(t))
     | Var(string)
