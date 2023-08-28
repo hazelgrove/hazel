@@ -52,7 +52,7 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
     switch (Typ.normalize(ctx, syn)) {
-    | Arrow(_) when num_vars == 1 => true
+    | Arrow(_) => num_vars == 1
     | Prod(syns) when List.length(syns) == num_vars =>
       syns
       |> List.for_all(
@@ -279,12 +279,12 @@ and uexp_to_info_map =
           go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
         (def, p_ana, m);
       } else {
-        let p_syn_ty = p_syn.ty;
-        let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn_ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
+        let (def_base, _m) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m) /* Analyze pattern to incorporate def type into ctx */;
         let (p_ana, m) =
           go_pat(~is_synswitch=false, ~mode=Ana(def_base.ty), p, m);
         let def_ctx = p_ana.ctx;
-        let (def_base2, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn_ty), def, m);
+        let (def_base2, _m) =
+          go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
         let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
           ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
             ? ty_fn1 : Unknown(SynSwitch);
