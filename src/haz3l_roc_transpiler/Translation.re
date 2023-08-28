@@ -1,6 +1,7 @@
 open Haz3lcore;
 
 exception UnsupportedInput;
+exception ListConcatError;
 
 let rec get_roc_exp =
         (t: Haz3lcore.TermBase.UExp.t, m: Haz3lcore.Statics.Map.t)
@@ -11,7 +12,7 @@ let rec get_roc_exp =
   | MultiHole(_) => raise(UnsupportedInput)
   | Constructor(_) => raise(UnsupportedInput)
   | TyAlias(_) => raise(UnsupportedInput)
-  | ListConcat(_) => raise(UnsupportedInput)
+  | ListConcat(t1, t2) => ListLit(get_roc_concat_list(t1, t2, m))
   | Triv => Record([])
   | Bool(b) => Bool(b)
   | Int(n) => Int(n)
@@ -120,6 +121,26 @@ and get_roc_exp_list =
   | [] => []
   | [x, ...xs] => [get_roc_exp(x, m), ...get_roc_exp_list(xs, m)]
   }
+and get_roc_concat_list =
+    (
+      t1: Haz3lcore.TermBase.UExp.t,
+      t2: Haz3lcore.TermBase.UExp.t,
+      m: Haz3lcore.Statics.Map.t,
+    ) =>
+  switch (t1.term, t2.term) {
+  | (ListLit(l1), ListLit(l2)) => get_roc_exp_list(List.concat([l1, l2]), m)
+  | (ListLit(l1), ListConcat(t2, t3)) =>
+    List.concat([get_roc_exp_list(l1, m), get_roc_concat_list(t2, t3, m)])
+  | (ListConcat(t1, t2), ListLit(l3)) =>
+    List.concat([get_roc_concat_list(t1, t2, m), get_roc_exp_list(l3, m)])
+  | (ListConcat(t1, t2), ListConcat(t3, t4)) =>
+    List.concat([
+      get_roc_concat_list(t1, t2, m),
+      get_roc_concat_list(t3, t4, m),
+    ])
+  | _ => raise(ListConcatError)
+  }
+
 and get_name = (map: Haz3lcore.Statics.Map.t, name: string) =>
   if (!String.contains(name, '_')) {
     name;
