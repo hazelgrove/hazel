@@ -239,6 +239,90 @@ let post_tile_indent = (t: Tile.t) => {
 
 let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
 
+let is_incrementor = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label, _} as t) when Tile.is_complete(t) =>
+    switch (label) {
+    | ["fun", "->"] => true
+    | ["if", "then", "else"] => true
+    | ["|", "->"] => true
+    | _ => false
+    }
+  | Tile({label, shards, _}) =>
+    /* Incomplete case: does the incomplete tile end
+     * in what will become a bidelimited context? */
+    List.length(label) == 2
+    && shards == [0]
+    || List.length(label) == 3
+    && shards == [0]
+    || List.length(label) == 3
+    && shards == [0, 1]
+  | _ => false
+  };
+
+let is_resetter = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label, _} as t) when Tile.is_complete(t) =>
+    switch (label) {
+    | ["|", "->"] => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+let indent_level_map = (seg: Segment.t): Id.Map.t(int) => {
+  let rec go =
+          ((level: int, map: Id.Map.t(int)), seg: Segment.t)
+          : (int, Id.Map.t(int)) => {
+    switch (seg) {
+    | [] => (level, map)
+    | [hd, ...tl] =>
+      let prev = level;
+      let (level, map) =
+        switch (hd) {
+        | Secondary(w) when Secondary.is_linebreak(w) =>
+          let level = level + 1;
+          (level, Id.Map.add(w.id, level, map));
+        | _ => (level, map)
+        };
+      let is_prev_incrementor = (idx: int) =>
+        switch (List.nth_opt(tl, idx - 1)) {
+        | Some(p) => is_incrementor(p)
+        | None => false
+        };
+      let is_next_resetter = (idx: int) =>
+        switch (List.nth_opt(tl, idx + 1)) {
+        | Some(p) => is_resetter(p)
+        | None => false
+        };
+      List.fold_left2(
+        ((level: int, map: Id.Map.t(int)), p: Piece.t, idx: int) => {
+          switch (p) {
+          | Secondary(w) when Secondary.is_linebreak(w) =>
+            let level =
+              switch (is_next_resetter(idx), is_prev_incrementor(idx)) {
+              | (true, false) => prev
+              | (true, true) => prev + 1
+              | (false, true) => level + 1
+              | (false, false) => level
+              };
+            (level, Id.Map.add(w.id, level, map));
+          | Secondary(_)
+          | Grout(_) => (level, map)
+          | Tile(t) =>
+            let (level, map) = List.fold_left(go, (level, map), t.children);
+            (level, map);
+          }
+        },
+        (level, map),
+        tl,
+        List.init(List.length(tl), Fun.id),
+      );
+    };
+  };
+  go((0, Id.Map.empty), seg) |> snd;
+};
+
 let is_indented_map = (seg: Segment.t) => {
   let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t) =>
     seg
