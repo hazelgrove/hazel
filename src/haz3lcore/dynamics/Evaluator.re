@@ -647,7 +647,9 @@ let rec ty_subst =
   | TypFun(utpat, body) =>
     switch (Term.UTPat.tyvar_of_utpat(utpat)) {
     | Some(x') when x == x' => exp
-    | _ => TypFun(utpat, re(body))
+    | _ =>
+      /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
+      TypFun(utpat, re(body))
     }
   | NonEmptyHole(errstat, mv, hid, t) =>
     NonEmptyHole(errstat, mv, hid, re(t))
