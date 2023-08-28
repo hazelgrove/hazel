@@ -243,7 +243,8 @@ and uexp_to_info_map =
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
     let num_args = List.length(args);
-    let ty_ins = Typ.matched_args(num_args, ty_in);
+    let ty_ins =
+      ty_in |> Typ.weak_head_normalize(ctx) |> Typ.matched_args(num_args);
     let self: Self.exp = Self.of_deferred_ap(args, ty_ins, ty_out);
     let modes = Mode.of_deferred_ap_args(num_args, ty_ins);
     let (args, m) = map_m_go(m, modes, args);
