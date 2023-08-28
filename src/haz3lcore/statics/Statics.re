@@ -52,7 +52,6 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
     switch (Typ.normalize(ctx, syn)) {
-    | Unknown(_) => true
     | Arrow(_) when num_vars == 1 => true
     | Prod(syns) when List.length(syns) == num_vars =>
       syns
