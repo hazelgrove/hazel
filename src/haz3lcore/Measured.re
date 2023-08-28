@@ -245,10 +245,10 @@ let is_incrementor = (p: Piece.t): bool =>
     switch (label) {
     | ["fun", "->"] => true
     | ["if", "then", "else"] => true
-    | ["|", "->"] => true
+    | ["|", "=>"] => true
     | _ => false
     }
-  | Tile({label, shards, _}) =>
+  /*| Tile({label, shards, _}) =>
     /* Incomplete case: does the incomplete tile end
      * in what will become a bidelimited context? */
     List.length(label) == 2
@@ -256,7 +256,7 @@ let is_incrementor = (p: Piece.t): bool =>
     || List.length(label) == 3
     && shards == [0]
     || List.length(label) == 3
-    && shards == [0, 1]
+    && shards == [0, 1]*/
   | _ => false
   };
 
@@ -264,7 +264,7 @@ let is_resetter = (p: Piece.t): bool =>
   switch (p) {
   | Tile({label, _} as t) when Tile.is_complete(t) =>
     switch (label) {
-    | ["|", "->"] => true
+    | ["|", "=>"] => true
     | _ => false
     }
   | _ => false
@@ -274,51 +274,43 @@ let indent_level_map = (seg: Segment.t): Id.Map.t(int) => {
   let rec go =
           ((level: int, map: Id.Map.t(int)), seg: Segment.t)
           : (int, Id.Map.t(int)) => {
-    switch (seg) {
-    | [] => (level, map)
-    | [hd, ...tl] =>
-      let prev = level;
-      let (level, map) =
-        switch (hd) {
+    let prev = level;
+    let is_prev_incrementor = (idx: int) =>
+      switch (idx == 0 ? None : List.nth_opt(seg, idx - 1)) {
+      | Some(p) => is_incrementor(p)
+      | None => false
+      };
+    let is_next_resetter = (idx: int) =>
+      switch (List.nth_opt(seg, idx + 1)) {
+      | Some(p) => is_resetter(p)
+      | None => false
+      };
+    List.fold_left2(
+      ((level: int, map: Id.Map.t(int)), p: Piece.t, idx: int) => {
+        switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
-          let level = level + 1;
-          (level, Id.Map.add(w.id, level, map));
-        | _ => (level, map)
-        };
-      let is_prev_incrementor = (idx: int) =>
-        switch (List.nth_opt(tl, idx - 1)) {
-        | Some(p) => is_incrementor(p)
-        | None => false
-        };
-      let is_next_resetter = (idx: int) =>
-        switch (List.nth_opt(tl, idx + 1)) {
-        | Some(p) => is_resetter(p)
-        | None => false
-        };
-      List.fold_left2(
-        ((level: int, map: Id.Map.t(int)), p: Piece.t, idx: int) => {
-          switch (p) {
-          | Secondary(w) when Secondary.is_linebreak(w) =>
-            let level =
-              switch (is_next_resetter(idx), is_prev_incrementor(idx)) {
-              | (true, false) => prev
-              | (true, true) => prev + 1
-              | (false, true) => level + 1
-              | (false, false) => level
-              };
-            (level, Id.Map.add(w.id, level, map));
-          | Secondary(_)
-          | Grout(_) => (level, map)
-          | Tile(t) =>
-            let (level, map) = List.fold_left(go, (level, map), t.children);
-            (level, map);
-          }
-        },
-        (level, map),
-        tl,
-        List.init(List.length(tl), Fun.id),
-      );
-    };
+          let level = idx == 0 ? level + 1 : level;
+          let level = is_prev_incrementor(idx) ? level + 1 : level;
+          let level = idx == List.length(seg) - 1 ? prev : level;
+          let level = is_next_resetter(idx) ? prev : level;
+          let map = Id.Map.add(w.id, level, map);
+          (level, map);
+        | Secondary(_)
+        | Grout(_) => (level, map)
+        | Tile(t) =>
+          let map =
+            List.fold_left(
+              (map, seg) => go((level, map), seg) |> snd,
+              map,
+              t.children,
+            );
+          (level, map);
+        }
+      },
+      (level, map),
+      seg,
+      List.init(List.length(seg), Fun.id),
+    );
   };
   go((0, Id.Map.empty), seg) |> snd;
 };
@@ -353,6 +345,7 @@ let is_indented_map = (seg: Segment.t) => {
 
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
+  let indent_level = indent_level_map(seg);
 
   // recursive across seg's bidelimited containers
   let rec go_nested =
@@ -407,7 +400,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
             let row_indent = container_indent + contained_indent;
-            let indent =
+            let _indent =
               if (Segment.sameline_secondary(tl)) {
                 0;
               } else {
@@ -421,6 +414,14 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                 | _ =>
                   contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
                 };
+              };
+            let indent =
+              try(2 * Id.Map.find(w.id, indent_level)) {
+              | _ =>
+                print_endline(
+                  "LOL: this is an error, it actually needs fixing. do not ignore",
+                );
+                0;
               };
             let last =
               Point.{row: origin.row + 1, col: container_indent + indent};
@@ -461,8 +462,9 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                    ((origin, map), child, shard) => {
                      let (child_last, child_map) =
                        go_nested(
+                         //TODO(andrew): commented out below
                          ~map,
-                         ~container_indent=container_indent + contained_indent,
+                         ~container_indent /*=container_indent + contained_indent*/,
                          ~origin,
                          child,
                        );
