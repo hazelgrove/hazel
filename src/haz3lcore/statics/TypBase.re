@@ -452,6 +452,11 @@ module rec Typ: {
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
     | Forall(name, ty) =>
       Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | Ap(Var(name), t2) =>
+      switch (Ctx.lookup_higher_kind(ctx, name)) {
+      | Some((arg, ty_out)) => normalize(ctx, subst(t2, arg, ty_out))
+      | None => Ap(Var(name), normalize(ctx, t2))
+      }
     | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2))
     };
   };

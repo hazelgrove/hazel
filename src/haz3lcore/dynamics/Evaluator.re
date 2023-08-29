@@ -699,8 +699,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
-    //Printf.printf("env: %s\n", ClosureEnvironment.show(env));
-    //Printf.printf("d: %s\n", DHExp.show(d));
     switch (d) {
     | BoundVar(x) =>
       let d =
@@ -751,9 +749,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
     | TypAp(d1, tau) =>
-      //Printf.printf("TypAp, env: %s\n", ClosureEnvironment.show(env));
       let* r1 = evaluate(env, d1);
-      //Printf.printf("r1: %s\n", EvaluatorResult.show(r1));
       switch (r1) {
       | BoxedValue(Closure(closure_env, TypFun({term: Var(name), _}, d2))) =>
         // TODO: Maybe additional cases to be done?
