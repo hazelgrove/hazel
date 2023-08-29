@@ -391,13 +391,23 @@ and uexp_to_info_map =
               ty_rec,
             );
           (ty_rec, ctx_def, ctx_def);
-        | _ =>
-          let ty = UTyp.to_typ(ctx, utyp);
-          (
-            ty,
-            ctx,
-            Ctx.extend_higher_kind(ctx, name, arg, UTPat.rep_id(typat), ty),
-          );
+        | _ => (
+            ty_pre,
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            ),
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            ),
+          )
         };
       };
       let ctx_body = {
@@ -415,7 +425,6 @@ and uexp_to_info_map =
             UTyp.rep_id(utyp),
             sm_map,
             arg,
-            ty_def,
           )
         | _ => ctx_body
         };

@@ -468,8 +468,9 @@ module rec Typ: {
       ctrs,
     );
 
-  let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
+    Printf.printf("get_sum_constructors: %s\n", show(ty));
     switch (ty) {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
@@ -478,6 +479,11 @@ module rec Typ: {
       switch (unroll(ty)) {
       | Sum(sm) => Some(sm)
       | _ => None
+      }
+    | Ap(Var(name), ty_arg) =>
+      switch (Ctx.lookup_higher_kind(ctx, name)) {
+      | Some((arg, ty)) => get_sum_constructors(ctx, subst(ty_arg, arg, ty))
+      | None => None
       }
     | _ => None
     };
@@ -529,7 +535,7 @@ and Ctx: {
   let is_tyVar: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let add_ctr_with_typ_parameter:
-    (t, TypVar.t, Id.t, Typ.sum_map, TypVar.t, Typ.t) => t;
+    (t, TypVar.t, Id.t, Typ.sum_map, TypVar.t) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
@@ -657,15 +663,7 @@ and Ctx: {
     )
     @ ctx;
   let add_ctr_with_typ_parameter =
-      (
-        ctx: t,
-        name: TypVar.t,
-        id: Id.t,
-        ctrs: Typ.sum_map,
-        arg: TypVar.t,
-        ty: Typ.t,
-      )
-      : t =>
+      (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map, arg: TypVar.t): t =>
     List.map(
       ((ctr, typ)) =>
         ConstructorEntry({
@@ -675,13 +673,7 @@ and Ctx: {
             switch (typ) {
             | None => Forall(arg, Ap(Var(name), Var(arg)))
             | Some(typ) =>
-              Forall(
-                arg,
-                Arrow(
-                  Typ.subst_ap(ty, name, arg, typ),
-                  Ap(Var(name), Var(arg)),
-                ),
-              )
+              Forall(arg, Arrow(typ, Ap(Var(name), Var(arg))))
             },
         }),
       ctrs,

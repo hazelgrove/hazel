@@ -3,7 +3,6 @@ open Node;
 open Util.Web;
 open Util;
 open Haz3lcore;
-
 let errc = "error";
 let okc = "ok";
 let div_err = div(~attr=clss([errc]));
@@ -182,6 +181,8 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([Type.alias_view(name)])
+  | NotInHole(Ap(name1, name2)) =>
+    div_ok([Type.alias_view(name1), Type.alias_view(name2)])
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
