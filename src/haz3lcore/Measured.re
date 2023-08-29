@@ -270,29 +270,86 @@ let is_resetter = (p: Piece.t): bool =>
   | _ => false
   };
 
+let trim_non_things = (seg: Segment.t) => {
+  /* For our purposes here, non-things are spaces and concave grout */
+  let rec trim_l: list(Base.piece) => list(Base.piece) =
+    xs =>
+      switch (xs) {
+      | [] => []
+      | [Grout({shape: Concave, _}), ...xs] => trim_l(xs)
+      | [Secondary(s), ...xs] when Secondary.is_space(s) => trim_l(xs)
+      | [_, ..._] => xs
+      };
+  Segment.trim_f(trim_l, Left, seg);
+};
+
+let last_thing_before = (idx: int, seg: Segment.t): option(Piece.t) =>
+  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
+  | Some((pre, _, _)) =>
+    switch (pre |> List.rev |> trim_non_things) {
+    | [] => None
+    | [p, ..._] => Some(p)
+    }
+  | _ => None
+  };
+
+let next_thing_after = (idx: int, seg: Segment.t): option(Piece.t) =>
+  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
+  | Some((_, _, suf)) =>
+    switch (suf |> trim_non_things) {
+    | [] => None
+    | [p, ..._] => Some(p)
+    }
+  | _ => None
+  };
+
+let prev_thing_is_incrementor = (idx: int, seg: Segment.t): bool => {
+  switch (last_thing_before(idx, seg)) {
+  | Some(p) => is_incrementor(p)
+  | None => false
+  };
+};
+
+let next_thing_is_resetter = (idx: int, seg: Segment.t) =>
+  switch (next_thing_after(idx, seg)) {
+  | Some(p) => is_resetter(p)
+  | None => false
+  };
+
+let is_first_thing = (idx: int, seg: Segment.t) =>
+  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
+  | Some((pre, _, _)) =>
+    switch (pre |> trim_non_things) {
+    | [] => true
+    | _ => false
+    }
+  | None => false
+  };
+
+let is_last_thing = (idx: int, seg: Segment.t) =>
+  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
+  | Some((_, _, suf)) =>
+    switch (suf |> trim_non_things) {
+    | [] => true
+    | _ => false
+    }
+  | None => false
+  };
+
 let indent_level_map = (seg: Segment.t): Id.Map.t(int) => {
   let rec go =
-          ((level: int, map: Id.Map.t(int)), seg: Segment.t)
+          (base_level: int, map: Id.Map.t(int), seg: Segment.t)
           : (int, Id.Map.t(int)) => {
-    let prev = level;
-    let is_prev_incrementor = (idx: int) =>
-      switch (idx == 0 ? None : List.nth_opt(seg, idx - 1)) {
-      | Some(p) => is_incrementor(p)
-      | None => false
-      };
-    let is_next_resetter = (idx: int) =>
-      switch (List.nth_opt(seg, idx + 1)) {
-      | Some(p) => is_resetter(p)
-      | None => false
-      };
     List.fold_left2(
       ((level: int, map: Id.Map.t(int)), p: Piece.t, idx: int) => {
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
-          let level = idx == 0 ? level + 1 : level;
-          let level = is_prev_incrementor(idx) ? level + 1 : level;
-          let level = idx == List.length(seg) - 1 ? prev : level;
-          let level = is_next_resetter(idx) ? prev : level;
+          let level =
+            is_first_thing(idx, seg) || prev_thing_is_incrementor(idx, seg)
+              ? level + 1 : level;
+          let level =
+            is_last_thing(idx, seg) || next_thing_is_resetter(idx, seg)
+              ? base_level : level;
           let map = Id.Map.add(w.id, level, map);
           (level, map);
         | Secondary(_)
@@ -300,19 +357,19 @@ let indent_level_map = (seg: Segment.t): Id.Map.t(int) => {
         | Tile(t) =>
           let map =
             List.fold_left(
-              (map, seg) => go((level, map), seg) |> snd,
+              (map, seg) => go(level, map, seg) |> snd,
               map,
               t.children,
             );
           (level, map);
         }
       },
-      (level, map),
+      (base_level, map),
       seg,
       List.init(List.length(seg), Fun.id),
     );
   };
-  go((0, Id.Map.empty), seg) |> snd;
+  go(0, Id.Map.empty, seg) |> snd;
 };
 
 let is_indented_map = (seg: Segment.t) => {
@@ -343,94 +400,42 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
-  let is_indented = is_indented_map(seg);
+let of_segment =
+    (~old as _: t=empty, ~touched as _=Touched.empty, seg: Segment.t): t => {
   let indent_level = indent_level_map(seg);
-
   // recursive across seg's bidelimited containers
   let rec go_nested =
-          (
-            ~map,
-            ~container_indent: abs_indent=0,
-            ~origin=Point.zero,
-            seg: Segment.t,
-          )
+          (~map, ~prev_indent=0, ~origin=Point.zero, seg: Segment.t)
           : (Point.t, t) => {
-    let first_touched_incomplete =
-      switch (Segment.incomplete_tiles(seg)) {
-      | [] => None
-      | ts =>
-        ts
-        |> List.map((t: Tile.t) => Touched.find_opt(t.id, touched))
-        |> List.fold_left(
-             (acc, touched) =>
-               switch (acc, touched) {
-               | (Some(time), Some(time')) => Some(Time.min(time, time'))
-               | (Some(time), _)
-               | (_, Some(time)) => Some(time)
-               | _ => None
-               },
-             None,
-           )
-      };
-
     // recursive across seg's list structure
     let rec go_seq =
-            (
-              ~map,
-              ~contained_indent: rel_indent=0,
-              ~origin: Point.t,
-              seg: Segment.t,
-            )
-            : (Point.t, t) =>
+            (~map, ~origin: Point.t, ~prev_indent: int, seg: Segment.t)
+            : (int, Point.t, t) =>
       switch (seg) {
       | [] =>
         let map =
-          map
-          |> add_row(
-               origin.row,
-               {
-                 indent: container_indent + contained_indent,
-                 max_col: origin.col,
-               },
-             );
-        (origin, map);
+          map |> add_row(origin.row, {indent: 0, max_col: origin.col});
+        (prev_indent, origin, map);
       | [hd, ...tl] =>
-        let (contained_indent, origin, map) =
+        let (prev_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
-            let row_indent = container_indent + contained_indent;
-            let _indent =
-              if (Segment.sameline_secondary(tl)) {
-                0;
-              } else {
-                switch (
-                  Touched.find_opt(w.id, touched),
-                  first_touched_incomplete,
-                  find_opt_lb(w.id, old),
-                ) {
-                | (Some(touched), Some(touched'), Some(indent))
-                    when Time.lt(touched, touched') => indent
-                | _ =>
-                  contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
-                };
-              };
             let indent =
               try(2 * Id.Map.find(w.id, indent_level)) {
               | _ =>
-                print_endline(
-                  "LOL: this is an error, it actually needs fixing. do not ignore",
+                Printf.printf(
+                  "ERROR: Measured ID not found: %s\n",
+                  Id.to_string(w.id),
                 );
                 0;
               };
-            let last =
-              Point.{row: origin.row + 1, col: container_indent + indent};
+            let last = Point.{row: origin.row + 1, col: indent};
             let map =
               map
               |> add_w(w, {origin, last})
               |> add_row(
                    origin.row,
-                   {indent: row_indent, max_col: origin.col},
+                   {indent: prev_indent, max_col: origin.col},
                  )
               |> add_lb(w.id, indent);
             (indent, last, map);
@@ -439,11 +444,11 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               Unicode.length(Secondary.get_string(w.content));
             let last = {...origin, col: origin.col + wspace_length};
             let map = map |> add_w(w, {origin, last});
-            (contained_indent, last, map);
+            (prev_indent, last, map);
           | Grout(g) =>
             let last = {...origin, col: origin.col + 1};
             let map = map |> add_g(g, {origin, last});
-            (contained_indent, last, map);
+            (prev_indent, last, map);
           | Tile(t) =>
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
@@ -461,22 +466,16 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                    shard => add_shard(origin, shard, map),
                    ((origin, map), child, shard) => {
                      let (child_last, child_map) =
-                       go_nested(
-                         //TODO(andrew): commented out below
-                         ~map,
-                         ~container_indent /*=container_indent + contained_indent*/,
-                         ~origin,
-                         child,
-                       );
+                       go_nested(~map, ~prev_indent, ~origin, child);
                      add_shard(child_last, shard, child_map);
                    },
                  );
-            (contained_indent, last, map);
+            (prev_indent, last, map);
           };
-        let (tl_last, map) = go_seq(~map, ~contained_indent, ~origin, tl);
-        (tl_last, map);
+        go_seq(~map, ~prev_indent, ~origin, tl);
       };
-    go_seq(~map, ~origin, seg);
+    let (_, tl_last, map) = go_seq(~map, ~origin, ~prev_indent, seg);
+    (tl_last, map);
   };
   snd(go_nested(~map=empty, seg));
 };
