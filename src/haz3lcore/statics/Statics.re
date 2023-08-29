@@ -299,15 +299,6 @@ and uexp_to_info_map =
       m,
     );
   | Match(scrut, rules) =>
-    List.iter(
-      a =>
-        Printf.printf(
-          "Upat: %s, UExp: %s\n",
-          UPat.show(fst(a)),
-          UExp.show(snd(a)),
-        ),
-      rules,
-    );
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
@@ -409,30 +400,25 @@ and uexp_to_info_map =
           );
         };
       };
-      let ctx_body =
-        Ctx.add_ctr_with_typ_parameter(
-          ctx_body,
-          name,
-          UTyp.rep_id(utyp),
-          [
-            ("Nil", None),
-            ("Cons", Some(Prod([Var(arg), Ap(Var(name), Var(arg))]))),
-          ],
-          arg,
-        );
-      //switch (Typ.get_sum_constructors(ctx, ty_def)) {
-      //| Some(sm) =>
-      //  Printf.printf("sm: %s\n", Typ.show_sum_map(sm));
-      //  Ctx.add_ctr_with_typ_parameter(
-      //    ctx_body,
-      //    name,
-      //    UTyp.rep_id(utyp),
-      //    sm,
-      //    arg,
-      //  );
-      //| None => ctx_body
-      //};
-      Printf.printf("ctx_body: %s\n", Ctx.show(ctx_body));
+      let ctx_body = {
+        let ty_pre =
+          UTyp.to_typ(
+            Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+            utyp,
+          );
+
+        switch (ty_pre) {
+        | Sum(sm_map) =>
+          Ctx.add_ctr_with_typ_parameter(
+            ctx_body,
+            name,
+            UTyp.rep_id(utyp),
+            sm_map,
+            arg,
+          )
+        | _ => ctx_body
+        };
+      };
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */

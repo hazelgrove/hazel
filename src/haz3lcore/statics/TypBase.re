@@ -434,7 +434,6 @@ module rec Typ: {
     | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2))
     };
   };
-
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
     List.find_map(
       fun
