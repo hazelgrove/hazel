@@ -372,34 +372,6 @@ let indent_level_map = (seg: Segment.t): Id.Map.t(int) => {
   go(0, Id.Map.empty, seg) |> snd;
 };
 
-let is_indented_map = (seg: Segment.t) => {
-  let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t) =>
-    seg
-    |> List.fold_left(
-         ((is_indented, map), p: Piece.t) =>
-           switch (p) {
-           | Secondary(w) when Secondary.is_linebreak(w) => (
-               false,
-               Id.Map.add(w.id, is_indented, map),
-             )
-           | Secondary(_)
-           | Grout(_) => (is_indented, map)
-           | Tile(t) =>
-             let is_indented = is_indented || post_tile_indent(t);
-             let map =
-               t.children
-               |> List.fold_left(
-                    (map, child) => go(~is_indented=true, ~map, child),
-                    map,
-                  );
-             (is_indented, map);
-           },
-         (is_indented, map),
-       )
-    |> snd;
-  go(seg);
-};
-
 let of_segment =
     (
       ~indent_level=Id.Map.empty,

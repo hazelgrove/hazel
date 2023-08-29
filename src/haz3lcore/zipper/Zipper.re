@@ -441,7 +441,4 @@ let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
   unselect_and_zip(~erase_buffer, z);
 };
 
-let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
-let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
-
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
