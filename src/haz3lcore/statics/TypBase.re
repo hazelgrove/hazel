@@ -289,23 +289,30 @@ module rec Typ: {
       let+ ty_join = join'(ty_name, ty);
       !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+    | (Ap(ty1, ty2), Ap(ty1', ty2')) =>
+      let* ty1 = join'(ty1, ty1');
+      let+ ty2 = join'(ty2, ty2');
+      Ap(ty1, ty2);
     | (ty2, Ap(Var(name), ty))
     | (Ap(Var(name), ty), ty2) =>
       switch (Ctx.lookup_higher_kind(ctx, name)) {
       | Some((arg, ty_out)) => join'(subst(ty, arg, ty_out), ty2)
-
       | _ => None
       }
     | (ty, Ap(Forall(name, t1), t2))
     | (Ap(Forall(name, t1), t2), ty) =>
       join(~resolve, ~fix, ctx, Typ.subst(t2, name, t1), ty)
-    | (Ap(ty1, ty2), Ap(ty1', ty2')) =>
-      let* ty1 = join'(ty1, ty1');
-      let+ ty2 = join'(ty2, ty2');
-      Ap(ty1, ty2);
     | (Ap(_), _) => None
-    | (Forall(name, t1), Forall(_, t2)) =>
-      switch (join(~resolve, ~fix, Ctx.extend_dummy_tvar(ctx, name), t1, t2)) {
+    | (Forall(name, t1), Forall(name2, t2)) =>
+      switch (
+        join(
+          ~resolve,
+          ~fix,
+          Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name2), name),
+          t1,
+          t2,
+        )
+      ) {
       | Some(t) => Some(Forall(name, t))
       | None => None
       }

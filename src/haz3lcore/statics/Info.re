@@ -314,10 +314,19 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat => {
        we catch them here, diverting to an ExpectedConstructor error. But we
        avoid capturing the second case above, as these will ultimately
        get a (more precise) unbound ctr  via status_common */
+    let self_pat: Self.t =
+      switch (self_pat) {
+      | IsConstructor({name, syn_ty: Some(Forall(name2, ty))}) =>
+        IsConstructor({
+          name,
+          syn_ty: Some(Typ.subst(Unknown(Internal), name2, ty)),
+        })
+      | _ => self_pat
+      };
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
-    }
+    };
   | (SynFun, _) => InHole(ExpectedConstructor)
   };
 };

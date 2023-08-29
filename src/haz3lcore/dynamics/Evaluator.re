@@ -183,7 +183,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     }
 
   | (Ap(_, _), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_)))
-  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+  | (Ap(_, _), Cast(d, Unknown(_) | Ap(_), Sum(_) | Rec(_, Sum(_)))) =>
     matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
@@ -201,6 +201,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches(dp, d)
   | (Constructor(_), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
     matches(dp, d)
+  | (Constructor(_) as a, TypAp(Constructor(_) as b, _)) => matches(a, b)
   | (Constructor(_), _) => DoesNotMatch
 
   | (Tuple(dps), Tuple(ds)) =>

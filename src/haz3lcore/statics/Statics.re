@@ -383,7 +383,6 @@ and uexp_to_info_map =
             Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
             utyp,
           );
-        Printf.printf("ty_pre: %s\n", Typ.show(ty_pre));
         switch (utyp.term) {
         | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           let ty_pre =
