@@ -18,9 +18,9 @@ let uncons_lexeme = (~char=false, ~from: Dir.t, (l, r): t) =>
     (lx, Slope.(Dn.of_terr(l), Up.mk(~s, r)));
   };
 
-let mold = (~kid=?, t, (l, _)) => Terrace.R.mold(l, ~kid?, t);
+let mold = (~slot=?, t, (l, _)) => Terrace.R.mold(l, ~slot?, t);
 
-let zip = ((l, r): t, kid: Meld.t) => Option.get(Terrace.eq(l, ~kid, r));
+let zip = ((l, r): t, kid: Meld.t) => Option.get(Terrace.eq(l, ~slot, r));
 
 let unzip = (n, mel: Meld.t) => {
   open OptUtil.Syntax;

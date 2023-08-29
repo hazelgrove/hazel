@@ -22,19 +22,19 @@ module Piece = {
 module Wald = {
   include Wald;
 
-  let rec lt = (l: p, ~kid=None, r: p): option(Slope.Dn.p) => {
+  let rec lt = (l: p, ~slot=None, r: p): option(Slope.Dn.p) => {
     let (p_l, p_r) = Wald.(face(R, l), face(L, r));
     let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-    Comparator.lt(m_l, ~kid=Kid.profile(kid), m_r)
-    |> Option.map(bake(~kid, ~face=r));
+    Comparator.lt(m_l, ~slot=Kid.profile(kid), m_r)
+    |> Option.map(bake(~slot, ~face=r));
   }
-  and gt = (l: p, ~kid=None, r: p): option(Slope.Up.p) => {
+  and gt = (l: p, ~slot=None, r: p): option(Slope.Up.p) => {
     let (p_l, p_r) = Wald.(face(R, l), face(L, r));
     let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-    Comparator.gt(m_l, ~kid=Kid.profile(kid), m_r)
-    |> Option.map(bake(~face=l, ~kid));
+    Comparator.gt(m_l, ~slot=Kid.profile(kid), m_r)
+    |> Option.map(bake(~face=l, ~slot));
   }
-  and bake = (~kid, ~face, s: Slope.m): Slope.p => {
+  and bake = (~slot, ~face, s: Slope.m): Slope.p => {
     // upgrades molded tokens to pieces
     // replaces top and bottom walds with top and bot
     // finds slot to insert kid and applies lt and gt with neighbors to complete
@@ -48,12 +48,12 @@ module Wald = {
     let+ p = Piece.zips(p_l, p_r);
     l
     |> Chain.fold_right(
-      (p, kid) => link(p, ~kid),
-      _ => put_face(~side=L, p, r),
-    );
+         (p, kid) => link(p, ~slot),
+         _ => put_face(~side=L, p, r),
+       );
   };
 
-  let rec eq = (l: p, ~kid=None, r: p): option(p) => {
+  let rec eq = (l: p, ~slot=None, r: p): option(p) => {
     open OptUtil.Syntax;
     // check whether they zip
     let/ () = {
@@ -65,27 +65,27 @@ module Wald = {
     let (p_l, p_r) = (face(~side=R, l), face(~side=L, r));
     let (m_l, m_r) = Piece.(molded(p_l, p_r));
     let/ () =
-      Comparator.eq(m_l, ~kid, m_r)
-      |> Option.map(bake(~l, ~kid, ~r))
+      Comparator.eq(m_l, ~slot, m_r)
+      |> Option.map(bake(~l, ~slot, ~r))
       |> Option.map(w =>
-          switch (Chain.unlink(r)) {
-          | None => w
-          | Some((_, kid, tl)) => Wald.append(w, ~kid, tl)
-          }
-        );
+           switch (Chain.unlink(r)) {
+           | None => w
+           | Some((_, kid, tl)) => Wald.append(w, ~slot, tl)
+           }
+         );
     // strip unfinished faces and try again
     switch (unknil(l), unlink(r)) {
     | (Some((tl, k, p)), _) when !Piece.is_finished(p) =>
-      eq(tl, ~kid=Kid.merge(k, kid), r);
+      eq(tl, ~slot=Kid.merge(k, kid), r)
     | (_, Some((p, k, tl))) when !Piece.is_finished(p) =>
-      eq(l, ~kid=Kid.merge(kid, k), tl);
+      eq(l, ~slot=Kid.merge(kid, k), tl)
     | _ => None
     };
   };
 
   // todo: rename meld
-  let cmp = (l: p, ~kid=None, r: p): Ziggurat.p =>
-    switch (lt(l, ~kid, p), eq(l, ~kid, p), gt(l, ~kid, p)) {
+  let cmp = (l: p, ~slot=None, r: p): Ziggurat.p =>
+    switch (lt(l, ~slot, p), eq(l, ~slot, p), gt(l, ~slot, p)) {
     | (_, Some(top), _) => Ziggurat.mk(top)
     | (Some(dn), _, _) => Ziggurat.mk(top, ~dn)
     | (_, _, Some(up)) => Ziggurat.mk(~up, top)
@@ -119,18 +119,18 @@ module Wald = {
 module Ziggurat = {
   include Ziggurat;
 
-  let rec hsup = (z: Ziggurat.p, ~kid=None, w: Wald.p): Ziggurat.p =>
+  let rec hsup = (z: Ziggurat.p, ~slot=None, w: Wald.p): Ziggurat.p =>
     // todo: handle whitespace on z.dn
     switch (z.dn) {
     | [] =>
-      let c = Wald.cmp(top, ~kid, w);
+      let c = Wald.cmp(top, ~slot, w);
       switch (c.up) {
       | [] => {...c, up: z.up}
       | [_, ..._] => Ziggurat.map_up((@)(z.up), c)
       };
     | [hd, ...tl] =>
       // left to right: z.up z.top tl hd.mel hd.wal kid w
-      let c = Wald.cmp(hd.wal, ~kid, w);
+      let c = Wald.cmp(hd.wal, ~slot, w);
       // left to right: z.up z.top tl hd.mel c.up c.top c.dn
       switch (c.up) {
       | [] =>
@@ -145,18 +145,18 @@ module Ziggurat = {
     |> List.fold_left((z, w) => hsup(z, w), z)
     |> Ziggurat.map_dn(Slope.cat(dn));
 
-  let rec push = (w: Wald.p, ~kid=None, z: Ziggurat.p): Ziggurat.p =>
+  let rec push = (w: Wald.p, ~slot=None, z: Ziggurat.p): Ziggurat.p =>
     // todo: handle whitespace on z.dn
     switch (z.up) {
     | [] =>
-      let c = Wald.cmp(w, ~kid, top);
+      let c = Wald.cmp(w, ~slot, top);
       switch (c.dn) {
       | [] => {...c, dn: z.dn}
       | [_, ..._] => Ziggurat.map_dn(dn' => dn' @ z.dn, c)
       };
     | [hd, ...tl] =>
       // left to right: w kid hd.wal hd.mel tl z.top z.dn
-      let c = Wald.cmp(w, ~kid, hd.wal);
+      let c = Wald.cmp(w, ~slot, hd.wal);
       // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
       switch (c.dn) {
       | [] =>

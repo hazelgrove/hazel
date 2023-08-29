@@ -84,7 +84,7 @@ let push = (terr: Terrace.R.t, zigg: t) =>
       let dn = Dn.mk(~s=Space.cat(zigg.up.space, zigg.dn.space), []);
       Error(mk(~up, ~top=terr.wal, ~dn, ()));
     | Some(top) =>
-      switch (Terrace.cmp(terr, ~kid, Terrace.of_wald(top))) {
+      switch (Terrace.cmp(terr, ~slot, Terrace.of_wald(top))) {
       | None => failwith("expected fit")
       | Some(Gt(terr_kid)) => Ok(put_up(Up.of_meld(terr_kid), zigg))
       | Some(Eq(terr_kid_top)) =>
@@ -118,7 +118,7 @@ let hsup = (zigg: t, terr: Terrace.L.t) =>
       let dn = Dn.of_meld(terr.mel);
       Error(mk(~up, ~top=terr.wal, ~dn, ()));
     | Some(top) =>
-      switch (Terrace.cmp(Terrace.of_wald(top), ~kid, terr)) {
+      switch (Terrace.cmp(Terrace.of_wald(top), ~slot, terr)) {
       | None => failwith("expected fit")
       | Some(Lt(kid_terr)) => Ok(put_dn(Dn.of_meld(kid_terr), zigg))
       | Some(Eq(top_kid_terr)) =>

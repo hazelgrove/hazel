@@ -1,27 +1,26 @@
 open Sexplib.Std;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  chain: option(Chain.t(t, Piece.t)),
-  [@opaque]
-  paths: Paths.t,
-  [@opaque]
-  space: (Space.t, Space.t),
+module Base = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a) =
+    | M(slot('a), wald('a), slot('a))
+  and wald('a) =
+    | W(Chain.t('a, slot('a)))
+  and slot('a) = option(t('a));
+};
+include Base;
+
+module Profile = {
+  type t = {
+    has_tokens: bool,
+    sort: Sort.t,
+  };
 };
 
-// for use in submodules below
-[@deriving (show({with_path: false}), sexp, yojson)]
-type meld = t;
-
-// we expect a kid to be constructed only when there is
-// a concrete parent piece inducing kidhood, hence we should
-// never encounter a meld consisting solely of Some(kid).
-exception Orphaned_kid;
 // we expect kids to have higher precedence than their
 // parent tips (which may be min prec in bidelim containers)
 exception Invalid_prec;
-exception Missing_root;
 
 let mk = (~l=Space.empty, ~r=Space.empty, ~paths=[], chain) => {
   space: (l, r),
@@ -189,7 +188,7 @@ let end_piece = (~side: Dir.t, mel: t): option(Piece.t) =>
 let fst_id = mel => Option.map(Piece.id_, end_piece(~side=L, mel));
 let lst_id = mel => Option.map(Piece.id_, end_piece(~side=R, mel));
 
-let link = (~kid=empty(), p: Piece.t, mel) => {
+let link = (~slot=empty(), p: Piece.t, mel) => {
   let mel = distribute(mel);
   let linked =
     switch (mel.chain) {
@@ -198,7 +197,7 @@ let link = (~kid=empty(), p: Piece.t, mel) => {
     };
   aggregate(linked);
 };
-let knil = (~kid=empty(), mel, p: Piece.t) => {
+let knil = (~slot=empty(), mel, p: Piece.t) => {
   let mel = distribute(mel);
   let linked =
     switch (mel.chain) {
@@ -233,107 +232,6 @@ let unknil = mel =>
     |> Result.of_option(~error=Some(Chain.lst(c)))
   };
 
-// todo: clean up
-// let is_hole = (mel: t): option((t, (Id.t, Grout.t), t)) => {
-//   open OptUtil.Syntax;
-//   let* c = distribute(mel).chain;
-//   switch (c) {
-//   // todo: don't drop paths
-//   | ([l, r], [{shape: G(g), id, _}]) when Grout.is_empty(g) =>
-//     Some((l, (id, g), r))
-//   | _ => None
-//   };
-// };
-
-// let patch_sort = (~id=?, s: Sort.o, mel: t) => {
-//   let of_grout = of_grout(~id?);
-//   switch (sort(mel)) {
-//   | None => of_grout(Grout.mk_operand(None))
-//   | Some(s') when Sort.eq(s, s') => mel
-//   | Some(s') =>
-//     let e: SortDeps.Edge.t =
-//       SortDeps.takes(s, s')
-//       |> OptUtil.get_or_fail("probably this means grammar isn't LR");
-//     e.l
-//       // todo: confirm use of prec max here is ok
-//       ? of_grout(~l=mel, Grout.mk_postfix(~l=s', s, Prec.max))
-//       : of_grout(Grout.mk_prefix(s, Prec.max, ~r=s'), ~r=mel);
-//   };
-// };
-// let patch_sort = (s: Sort.o, mel: t) =>
-//   switch (is_hole(mel)) {
-//   | None => patch_sort(s, mel)
-//   | Some((l, (id, g), r)) =>
-//     switch (is_empty(l), is_empty(r)) {
-//     | (None, None) =>
-//       let mold =
-//         s == g.proto.mold.sort
-//           ? g.proto.mold
-//           // check that max prec is fine
-//           : {...g.proto.mold, sort: s, prec: Prec.max};
-//       let g = Grout.mk(mold);
-//       of_grout(~id, ~l, g, ~r);
-//     | (Some(l), None) => patch_sort(~id, s, r) |> pad(~l)
-//     | (None, Some(r)) => patch_sort(~id, s, l) |> pad(~r)
-//     | (Some(l), Some(r)) => patch_sort(~id, s, empty()) |> pad(~l, ~r)
-//     }
-//   };
-
-// let patch = (~l=?, ~r=?, mel: t): t =>
-//   switch (l, r) {
-//   | (None, None) => mel
-//   | (Some(l), _) =>
-//     let m = Piece.mold(l);
-//     if (Mold.convexable(R, m) && is_empty_(mel)) {
-//       mel;
-//     } else {
-//       let (s, _) =
-//         Mold.concavable(R, m) |> OptUtil.get_or_raise(Invalid_prec);
-//       patch_sort(s, mel);
-//     };
-//   | (_, Some(r)) =>
-//     let m = Piece.mold(r);
-//     if (Mold.convexable(L, m) && is_empty_(mel)) {
-//       mel;
-//     } else {
-//       let (s, _) =
-//         Mold.concavable(L, m) |> OptUtil.get_or_raise(Invalid_prec);
-//       patch_sort(s, mel);
-//     };
-//   };
-
-let append = (_, _, _) => failwith("todo append");
-
-// let rec to_lexemes = (mel): Lexeme.s => {
-//   let (l, r) = mel.space;
-//   let (l, r) = Lexeme.(S(l), S(r));
-//   (
-//     switch (mel.chain) {
-//     | None => []
-//     | Some(c) => Chain.to_list(to_lexemes, p => [Lexeme.of_piece(p)], c)
-//     }
-//   )
-//   |> List.cons([l])
-//   |> Fun.flip((@), [[r]])
-//   |> List.concat;
-// };
-
-// let tip = (side: Dir.t, mel: t): option(Tip.t) => {
-//   let tip = (kid, p) =>
-//     switch (is_empty(kid)) {
-//     | Some(_) => Piece.tip(side, p)
-//     | None => Tip.Convex
-//     };
-//   switch (side) {
-//   | L =>
-//     Result.to_option(unlink(mel))
-//     |> Option.map(((kid, p, _)) => tip(kid, p))
-//   | R =>
-//     Result.to_option(unknil(mel))
-//     |> Option.map(((_, p, kid)) => tip(kid, p))
-//   };
-// };
-
 let split_piece = (n, mel) =>
   try({
     let c = Option.get(distribute(mel).chain);
@@ -343,17 +241,17 @@ let split_piece = (n, mel) =>
   | Invalid_argument(_) => raise(Invalid_argument("Meld.split_piece"))
   };
 
-let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
-  open OptUtil.Syntax;
-  let* (kid, p_r, tl) = Result.to_option(unlink(mel));
-  let+ p = Piece.zip(p_l, p_r);
-  assert(Option.is_some(is_empty(kid)));
-  link(p, tl);
-};
-let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
-  open OptUtil.Syntax;
-  let* (tl, p_l, kid) = Result.to_option(unknil(mel));
-  let+ p = Piece.zip(p_l, p_r);
-  assert(Option.is_some(is_empty(kid)));
-  knil(tl, p);
-};
+// let zip_piece_l = (p_l: Piece.t, mel: t): option(t) => {
+//   open OptUtil.Syntax;
+//   let* (kid, p_r, tl) = Result.to_option(unlink(mel));
+//   let+ p = Piece.zip(p_l, p_r);
+//   assert(Option.is_some(is_empty(kid)));
+//   link(p, tl);
+// };
+// let zip_piece_r = (mel: t, p_r: Piece.t): option(t) => {
+//   open OptUtil.Syntax;
+//   let* (tl, p_l, kid) = Result.to_option(unknil(mel));
+//   let+ p = Piece.zip(p_l, p_r);
+//   assert(Option.is_some(is_empty(kid)));
+//   knil(tl, p);
+// };

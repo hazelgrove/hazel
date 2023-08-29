@@ -31,12 +31,13 @@ module Result = {
 };
 
 module Piece = {
-  let mold = ({mold, token, _}: Piece.t, ~kid=?, t: Token.t): Result.t(unit) => {
+  let mold =
+      ({mold, token, _}: Piece.t, ~slot=?, t: Token.t): Result.t(unit) => {
     let molder = (mold, token);
     Molds.of_token(t)
     |> List.filter_map(m => {
          let candidate = (m, t);
-         Comparator.cmp(molder, ~kid?, candidate);
+         Comparator.cmp(molder, ~slot?, candidate);
        })
     |> List.stable_sort(Scorer.compare)
     |> ListUtil.hd_opt
@@ -46,10 +47,10 @@ module Piece = {
 
 module Wald = {
   include Wald;
-  let rec mold = (w: p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) => {
+  let rec mold = (w: p, ~slot=None, t: Token.t): Result.t(Kid.Profile.t) => {
     let err = profile(terr) |> Kid.Profile.add_tokens(kid.has_tokens);
     let hd_molded =
-      Piece.mold(face(R, w), ~kid, t) |> Result.map_error(() => err);
+      Piece.mold(face(R, w), ~slot, t) |> Result.map_error(() => err);
     let tl_molded =
       switch (unknil(terr)) {
       | Some((w, k, p)) when !Piece.has_token(p) =>
@@ -59,7 +60,7 @@ module Wald = {
         // let kid = Meld.of_piece(~l=kid', grout, ~r=kid);
 
         let kid = Kid.(Profile.merge(profile(k), kid));
-        let* z = mold(w, ~kid, t);
+        let* z = mold(w, ~slot, t);
         // take only eq molds from tl
         Ziggurat.is_singleton(z) ? Ok(z) : Error(err);
       | _ => Error(err)
@@ -70,14 +71,14 @@ module Wald = {
 
 module Slope = {
   include Slope;
-  let rec mold = (dn: Dn.p, ~kid=None, t: Token.t): Result.t(Kid.Profile.t) =>
+  let rec mold = (dn: Dn.p, ~slot=None, t: Token.t): Result.t(Kid.Profile.t) =>
     switch (dn) {
     | [] => Error(kid)
     | [hd, ...tl] =>
-      let hd_molded = Wald.mold(hd.wal, ~kid, t);
+      let hd_molded = Wald.mold(hd.wal, ~slot, t);
       let kid =
         Wald.profile(hd.wal) |> Kid.Profile.add_tokens(kid.has_tokens);
-      let tl_molded = mold(tl, ~kid, t);
+      let tl_molded = mold(tl, ~slot, t);
       Result.pick(hd_molded, tl_molded);
     };
 };
@@ -88,7 +89,7 @@ module Ziggurat = {
     switch (Slope.mold(dn, t)) {
     | Ok(z) => Piece.mold(Ziggurat.face(R, z))
     | Error(kid) =>
-      switch (Terrace.(mold(mk(zigg.top), ~kid, t))) {
+      switch (Terrace.(mold(mk(zigg.top), ~slot, t))) {
       | Ok(z) => Piece.mold(Ziggurat.face(R, z))
       | Error(_) => default(t)
       }
@@ -97,7 +98,7 @@ module Ziggurat = {
 
 module Stepwell = {
   include Stepwell;
-  let mold = (well: Stepwell.t, ~kid=None, t: Token.t): Mold.t => {
+  let mold = (well: Stepwell.t, ~slot=None, t: Token.t): Mold.t => {
     let top =
       switch (unlink(well)) {
       | Error(_) => Wald.root

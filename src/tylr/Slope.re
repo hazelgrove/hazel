@@ -64,7 +64,7 @@ module Dn = {
 
   let push_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
 
-  // let rec push = (dn: t, ~kid=Meld.empty(), w: Wald.t): Result.t(t, Meld.t) => {
+  // let rec push = (dn: t, ~slot=Meld.empty(), w: Wald.t): Result.t(t, Meld.t) => {
   //   let kid = Meld.pad(~l=dn.space, kid);
   //   switch (dn.terrs) {
   //   | [] => Error(kid)
@@ -74,13 +74,13 @@ module Dn = {
   // };
 
   let rec push =
-          (dn: t, ~kid=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
+          (dn: t, ~slot=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
     let kid = Meld.pad(~l=dn.space, kid);
     switch (dn.terrs) {
     | [] => Error(kid)
     | [hd, ...tl] =>
       // left-to-right: tl hd kid terr
-      switch (Terrace.cmp(hd, ~kid, terr)) {
+      switch (Terrace.cmp(hd, ~slot, terr)) {
       | Some(Lt(kid_terr)) => Ok(cat(mk(dn.terrs), of_meld(kid_terr)))
       | Some(Eq(hd_kid_terr)) =>
         // todo: tighten this check to sort and left tip change
@@ -95,7 +95,7 @@ module Dn = {
         } else {
           Ok(cat(mk(tl), of_meld(hd_kid_terr)));
         }
-      | Some(Gt(hd_kid)) => snoc(mk(tl), ~kid=hd_kid, terr)
+      | Some(Gt(hd_kid)) => snoc(mk(tl), ~slot=hd_kid, terr)
       | None =>
         let s =
           Meld.is_empty(kid)
@@ -126,31 +126,31 @@ module Dn = {
     );
 
   let rec mold =
-          (~match, dn: t, ~kid: option(Sort.o)=?, t: Token.t)
+          (~match, dn: t, ~slot: option(Sort.o)=?, t: Token.t)
           : Result.t(Mold.t, option(Sort.o)) =>
     switch (dn.terrs) {
     | [] => Error(kid)
     | [terr, ...terrs] =>
       open Result.Syntax;
-      let/ kid = Terrace.R.mold(terr, ~kid?, t);
-      mold(~match, {...dn, terrs}, ~kid?, t);
+      let/ kid = Terrace.R.mold(terr, ~slot?, t);
+      mold(~match, {...dn, terrs}, ~slot?, t);
     };
 
-  let rec mold_lt = (dn: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+  let rec mold_lt = (dn: t, ~slot: option(Sort.o)=?, t: Token.t) =>
     switch (dn.terrs) {
     | [] => Error(kid)
     | [terr, ...terrs] =>
       open Result.Syntax;
-      let/ kid = Terrace.R.mold_lt(terr, ~kid?, t);
-      mold_lt({...dn, terrs}, ~kid?, t);
+      let/ kid = Terrace.R.mold_lt(terr, ~slot?, t);
+      mold_lt({...dn, terrs}, ~slot?, t);
     };
-  let rec mold_eq = (dn: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+  let rec mold_eq = (dn: t, ~slot: option(Sort.o)=?, t: Token.t) =>
     switch (dn.terrs) {
     | [] => Error(kid)
     | [terr, ...terrs] =>
       open Result.Syntax;
-      let/ kid = Terrace.R.mold_eq(terr, ~kid?, t);
-      mold_eq({...dn, terrs}, ~kid?, t);
+      let/ kid = Terrace.R.mold_eq(terr, ~slot?, t);
+      mold_eq({...dn, terrs}, ~slot?, t);
     };
 
   let complement = dn => List.concat_map(Terrace.R.complement, dn.terrs);
@@ -192,14 +192,14 @@ module Up = {
   let cons_space = s => map_space(Space.cat(s));
 
   let rec cons =
-          (terr: Terrace.R.t, ~kid=Meld.empty(), up: t): Result.t(t, Meld.t) => {
+          (terr: Terrace.R.t, ~slot=Meld.empty(), up: t): Result.t(t, Meld.t) => {
     let kid = Meld.pad(kid, ~r=up.space);
     switch (up.terrs) {
     | [] => Error(kid)
     | [hd, ...tl] =>
       // left-to-right: terr kid hd tl
-      switch (Terrace.cmp(terr, ~kid, hd)) {
-      | Some(Lt(kid_hd)) => cons(terr, ~kid=kid_hd, mk(tl))
+      switch (Terrace.cmp(terr, ~slot, hd)) {
+      | Some(Lt(kid_hd)) => cons(terr, ~slot=kid_hd, mk(tl))
       | Some(Eq(terr_kid_hd)) =>
         if (Meld.end_piece(~side=R, terr_kid_hd) != Some(Chain.lst(hd.wal))) {
           let (tkh, r) =

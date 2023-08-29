@@ -91,13 +91,13 @@ let bounds = ((l, r): t) => ListUtil.(hd_opt(l.terrs), hd_opt(r.terrs));
 // let path = (sib: t) =>
 //   Meld.Path.mk(~offset=offset(sib), ~steps=steps(sib), ());
 
-let rec zip = ((dn, up): t, kid: Meld.t) => {
-  let kid = Meld.pad(~l=dn.space, kid, ~r=up.space);
-  switch (dn.terrs, up.terrs) {
+let rec zip = (slopes: t, kid: Meld.p) => {
+  // let kid = Meld.pad(~l=dn.space, kid, ~r=up.space);
+  switch (slopes) {
   | ([], _) => Up.zip(kid, up)
   | (_, []) => Dn.zip(dn, kid)
   | ([l, ...tl_l], [r, ...tl_r]) =>
-    switch (Terrace.cmp(l, ~kid, r)) {
+    switch (Terrace.cmp(l, ~slot, r)) {
     | None =>
       print_endline("l = " ++ Terrace.show(l));
       print_endline("r = " ++ Terrace.show(r));

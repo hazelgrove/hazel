@@ -45,7 +45,7 @@ let merges = (l: Molded.t, r: Molded.t): option(Molded.t) =>
   switch (l.mold, r.mold) {
   | (Grout, Grout) =>
     let token = Token.dedup_holes(l.token ++ r.token);
-    Some({...l, token})
+    Some({...l, token});
   | _ => None
   };
 
@@ -65,29 +65,29 @@ let replaces = (l: Molded.t, r: Molded.t): option(Ziggurat.m) => {
   };
 };
 
-let matches = (l: Molded.t, ~kid=?, r: Molded.t): option(Wald.m) =>
+let matches = (l: Molded.t, ~slot=?, r: Molded.t): option(Wald.m) =>
   Ineq.mk(R, l).eq
   |> List.filter(t => Terrace.R.face(t) == r.material)
   |> List.filter(failwith("todo: only terraces taking kid"))
   |> List.hd_opt
   |> Option.map(t => Wald.link(l, t.mel, t.wal));
 
-let eq = (l: Molded.t, ~kid=?, r: Molded.t): option(Ziggurat.m) => {
+let eq = (l: Molded.t, ~slot=?, r: Molded.t): option(Ziggurat.m) => {
   open OptUtil.Syntax;
   let has_tokens = kid |> Option.map(snd) |> Option.value(~default=false);
   let/ () = has_tokens ? None : merges(l, r);
   let/ () = has_tokens ? None : replaces(l, r);
-  Some(Ziggurat.mk(matches(l, ~kid=Option.map(fst, kid), r)));
+  Some(Ziggurat.mk(matches(l, ~slot=Option.map(fst, kid), r)));
 };
 
-let lt = (l: Molded.t, ~kid=?, r: Molded.t): option(Slope.Dn.m) =>
+let lt = (l: Molded.t, ~slot=?, r: Molded.t): option(Slope.Dn.m) =>
   Ineq.mk(R, l).neq
   |> List.filter(t => Terrace.R.face(t) == r.material)
   |> List.filter(failwith("todo: only terraces taking kid"))
   |> Scorer.pick;
 // |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(l))));
 
-let gt = (l: Molded.t, ~kid=?, r: Molded.t): option(Slope.Up.m) =>
+let gt = (l: Molded.t, ~slot=?, r: Molded.t): option(Slope.Up.m) =>
   Ineq.mk(L, r).neq
   |> List.filter(t => Terrace.L.face(t) == l.material)
   |> List.filter(failwith("todo: only terraces taking kid"))
@@ -95,8 +95,8 @@ let gt = (l: Molded.t, ~kid=?, r: Molded.t): option(Slope.Up.m) =>
 // |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(r))));
 
 // todo: rename meld
-let cmp = (l: Molded.t, ~kid=?, r: Molded.t): Ziggurat.m =>
-  switch (lt(l, ~kid, r), eq(l, ~kid, r), gt(l, ~kid, r)) {
+let cmp = (l: Molded.t, ~slot=?, r: Molded.t): Ziggurat.m =>
+  switch (lt(l, ~slot, r), eq(l, ~slot, r), gt(l, ~slot, r)) {
   | (_, Some(z), _) => z
   | (Some(dn), _, _) => Ziggurat.mk(l, ~dn)
   | (_, _, Some(up)) => Ziggurat.mk(~up, r)

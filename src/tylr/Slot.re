@@ -1,4 +1,8 @@
-type t = option(Meld.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t('a) = Meld.slot('a);
+
+let empty = None;
+let full = m => Some(m);
 
 module Profile = {
   type t = option(Meld.Profile.t);

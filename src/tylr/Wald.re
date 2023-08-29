@@ -1,8 +1,9 @@
 open Util;
+include Chain;
 
 // "walled" meld, wario to meld's mario
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = Chain.t('a, Meld.t('a));
+type t('a) = Meld.wald('a);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type m = t(Material.t(Mold.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -21,15 +22,15 @@ let sort = wal => Piece.sort(Chain.fst(wal));
 let prec = wal => Piece.prec(Chain.fst(wal));
 
 // precond: p eq wal
-let link = (p, ~kid=Meld.empty(), wal) =>
+let link = (p, ~slot=Meld.empty(), wal) =>
   // Chain.link(p, Meld.patch(~l=p, kid), wal);
   Chain.link(p, kid, wal);
-let knil = (wal, ~kid=Meld.empty(), p) =>
+let knil = (wal, ~slot=Meld.empty(), p) =>
   // Chain.knil(wal, Meld.patch(kid, ~r=p), p);
   Chain.knil(wal, kid, p);
 
-let append = (l: t, ~kid=Meld.empty(), r: t) =>
-  l |> Chain.fold_right((p, kid) => link(p, ~kid), p => link(p, ~kid, r));
+let append = (l: t, ~slot=Meld.empty(), r: t) =>
+  l |> Chain.fold_right((p, kid) => link(p, ~slot), p => link(p, ~slot, r));
 
 // let of_complement = (cmpl: Complement.t): option(t) =>
 //   List.fold_right(

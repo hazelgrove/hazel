@@ -107,7 +107,7 @@ module R = {
   // let tip = (terr: t) => Piece.tip(R, face(terr));
 
   // this function
-  // let mold_lt = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+  // let mold_lt = (terr: t, ~slot: option(Sort.o)=?, t: Token.t) =>
   //   Piece.tips(R, face(terr))
   //   |> List.fold_left(
   //        (molded, tip: Tip.t) => {
@@ -133,7 +133,7 @@ module R = {
   //        Error(Some(sort(terr))),
   //      );
 
-  // let mold_eq = (terr: t, ~kid: option(Sort.o)=?, t: Token.t) =>
+  // let mold_eq = (terr: t, ~slot: option(Sort.o)=?, t: Token.t) =>
   //   Piece.tips(R, face(terr))
   //   |> List.fold_left(
   //        (molded, tip: Tip.t) => {
@@ -163,16 +163,16 @@ module R = {
     Piece.complement_beyond(~side=Dir.R, face(terr));
 };
 
-// let lt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
-//   Wald.lt(l.wal, ~kid, r.wal)
+// let lt = (l: R.t, ~slot=Meld.empty(), r: L.t): option(Meld.t) =>
+//   Wald.lt(l.wal, ~slot, r.wal)
 //   |> Option.map(((kid, wal)) => Wald.unmk(~l=kid, wal, ~r=r.mel));
 
-// let gt = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
-//   Wald.gt(l.wal, ~kid, r.wal)
+// let gt = (l: R.t, ~slot=Meld.empty(), r: L.t): option(Meld.t) =>
+//   Wald.gt(l.wal, ~slot, r.wal)
 //   |> Option.map(((wal, kid)) => Wald.unmk(~l=l.mel, wal, ~r=kid));
 
-// let eq = (l: R.t, ~kid=Meld.empty(), r: L.t): option(Meld.t) =>
-//   Wald.eq(l.wal, ~kid, r.wal)
+// let eq = (l: R.t, ~slot=Meld.empty(), r: L.t): option(Meld.t) =>
+//   Wald.eq(l.wal, ~slot, r.wal)
 //   |> Option.map(((s_l, wal, s_r)) => {
 //        let l = Meld.pad(l.mel, ~r=s_l);
 //        let r = Meld.pad(~l=s_r, r.mel);
@@ -186,11 +186,11 @@ module R = {
 //   | Eq(Meld.t)
 //   | Gt(Meld.t);
 
-// let cmp = (l: R.t, ~kid=Meld.empty(), r: L.t) =>
-//   switch (eq(l, ~kid, r)) {
+// let cmp = (l: R.t, ~slot=Meld.empty(), r: L.t) =>
+//   switch (eq(l, ~slot, r)) {
 //   | Some(eq) => Some(Eq(eq))
 //   | None =>
-//     switch (lt(l, ~kid, r), gt(l, ~kid, r)) {
+//     switch (lt(l, ~slot, r), gt(l, ~slot, r)) {
 //     | (Some(lt), _) => Some(Lt(lt))
 //     | (_, Some(gt)) => Some(Gt(gt))
 //     | (None, None) => None
