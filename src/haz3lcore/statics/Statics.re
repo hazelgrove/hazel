@@ -415,6 +415,7 @@ and uexp_to_info_map =
             UTyp.rep_id(utyp),
             sm_map,
             arg,
+            ty_def,
           )
         | _ => ctx_body
         };

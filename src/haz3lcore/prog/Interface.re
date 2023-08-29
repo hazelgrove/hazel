@@ -56,6 +56,7 @@ let evaluate =
 // };
 
 let evaluate = (d: DHExp.t): ProgramResult.t => {
+  //Printf.printf("Evaluating: %s\n", DHExp.show(d));
   let result =
     try(evaluate(d)) {
     | EvaluatorError.Exception(reason) =>

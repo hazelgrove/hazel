@@ -60,6 +60,7 @@ module rec Typ: {
   let matched_list: t => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
+  let subst_ap: (t, TypVar.t, TypVar.t, t) => t;
   let unroll: t => t;
   let eq: (t, t) => bool;
   let free_vars: (~bound: list(Var.t)=?, t) => list(Var.t);
@@ -172,7 +173,27 @@ module rec Typ: {
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
     };
-
+  let rec subst_ap = (s: t, ctr: TypVar.t, arg: TypVar.t, ty: t) => {
+    switch (ty) {
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | Unknown(prov) => Unknown(prov)
+    | Arrow(ty1, ty2) =>
+      Arrow(subst_ap(s, ctr, arg, ty1), subst_ap(s, ctr, arg, ty2))
+    | Prod(tys) => Prod(List.map(subst_ap(s, ctr, arg), tys))
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(subst_ap(s, ctr, arg)), sm))
+    | Rec(y, ty) => Rec(y, subst_ap(s, ctr, arg, ty))
+    | List(ty) => List(subst_ap(s, ctr, arg, ty))
+    | Var(y) => Var(y)
+    | Forall(y, ty) => Forall(y, subst_ap(s, ctr, arg, ty))
+    | Ap(Var(v1), Var(v2)) when v1 == ctr && v2 == arg => s
+    | Ap(ty1, ty2) =>
+      Ap(subst_ap(s, ctr, arg, ty1), subst_ap(s, ctr, arg, ty2))
+    };
+  };
   let rec subst = (s: t, x: TypVar.t, ty: t) => {
     switch (ty) {
     | Int => Int
@@ -289,10 +310,6 @@ module rec Typ: {
       let+ ty_join = join'(ty_name, ty);
       !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-    | (Ap(ty1, ty2), Ap(ty1', ty2')) =>
-      let* ty1 = join'(ty1, ty1');
-      let+ ty2 = join'(ty2, ty2');
-      Ap(ty1, ty2);
     | (ty2, Ap(Var(name), ty))
     | (Ap(Var(name), ty), ty2) =>
       switch (Ctx.lookup_higher_kind(ctx, name)) {
@@ -302,6 +319,10 @@ module rec Typ: {
     | (ty, Ap(Forall(name, t1), t2))
     | (Ap(Forall(name, t1), t2), ty) =>
       join(~resolve, ~fix, ctx, Typ.subst(t2, name, t1), ty)
+    | (Ap(ty1, ty2), Ap(ty1', ty2')) =>
+      let* ty1 = join'(ty1, ty1');
+      let+ ty2 = join'(ty2, ty2');
+      Ap(ty1, ty2);
     | (Ap(_), _) => None
     | (Forall(name, t1), Forall(name2, t2)) =>
       switch (
@@ -395,9 +416,9 @@ module rec Typ: {
       ts,
     );
 
-  let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
+  let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
     join(~fix=false, ctx, ty1, ty2) != None;
-
+  };
   let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
     switch (ty) {
     | Var(x) =>
@@ -503,7 +524,7 @@ and Ctx: {
   let is_tyVar: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let add_ctr_with_typ_parameter:
-    (t, TypVar.t, Id.t, Typ.sum_map, TypVar.t) => t;
+    (t, TypVar.t, Id.t, Typ.sum_map, TypVar.t, Typ.t) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
@@ -631,7 +652,15 @@ and Ctx: {
     )
     @ ctx;
   let add_ctr_with_typ_parameter =
-      (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map, arg: TypVar.t): t =>
+      (
+        ctx: t,
+        name: TypVar.t,
+        id: Id.t,
+        ctrs: Typ.sum_map,
+        arg: TypVar.t,
+        ty: Typ.t,
+      )
+      : t =>
     List.map(
       ((ctr, typ)) =>
         ConstructorEntry({
@@ -641,7 +670,13 @@ and Ctx: {
             switch (typ) {
             | None => Forall(arg, Ap(Var(name), Var(arg)))
             | Some(typ) =>
-              Forall(arg, Arrow(typ, Ap(Var(name), Var(arg))))
+              Forall(
+                arg,
+                Arrow(
+                  Typ.subst_ap(ty, name, arg, typ),
+                  Ap(Var(name), Var(arg)),
+                ),
+              )
             },
         }),
       ctrs,

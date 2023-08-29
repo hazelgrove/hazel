@@ -27,7 +27,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
+let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) => {
   switch (mode) {
   | Syn => d
   | SynFun =>
@@ -74,12 +74,13 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
-    | Ap(Constructor(_), _)
+    | Ap(Constructor(_) | TypAp(_), _)
     | TypAp(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
-      | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
+      | (Unknown(prov), Ap(_) | Sum(_)) =>
+        DHExp.cast(d, self_ty, Unknown(prov))
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -116,7 +117,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
-
+};
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
 let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
