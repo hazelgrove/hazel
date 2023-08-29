@@ -401,8 +401,15 @@ let is_indented_map = (seg: Segment.t) => {
 };
 
 let of_segment =
-    (~old as _: t=empty, ~touched as _=Touched.empty, seg: Segment.t): t => {
-  let indent_level = indent_level_map(seg);
+    (
+      ~indent_level=Id.Map.empty,
+      ~old as _: t=empty,
+      ~touched as _=Touched.empty,
+      seg: Segment.t,
+    )
+    : t => {
+  let indent_level =
+    Id.Map.is_empty(indent_level) ? indent_level_map(seg) : indent_level;
   // recursive across seg's bidelimited containers
   let rec go_nested =
           (~map, ~prev_indent=0, ~origin=Point.zero, seg: Segment.t)

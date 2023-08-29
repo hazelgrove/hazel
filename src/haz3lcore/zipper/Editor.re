@@ -11,9 +11,13 @@ module Meta = {
 
   let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
+    //TODO(andrew): remove or document
+    let for_indent =
+      Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false, z);
+    let indent_level = Measured.indent_level_map(for_indent);
     {
       touched: Touched.empty,
-      measured: Measured.of_segment(unselected),
+      measured: Measured.of_segment(~indent_level, unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
     };
@@ -45,7 +49,12 @@ module Meta = {
     let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
+    //TODO(andrew): remove or document
+    let for_indent =
+      Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false, z);
+    let indent_level = Measured.indent_level_map(for_indent);
+    let measured =
+      Measured.of_segment(~indent_level, ~touched, ~old=measured, unselected);
     let term_ranges = TermRanges.mk(unselected);
     let col_target =
       switch (a) {
