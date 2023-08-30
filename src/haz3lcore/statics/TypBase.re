@@ -580,8 +580,8 @@ and Ctx: {
 
   let is_tvar = (ctx: t, name: TypVar.t): bool =>
     switch (lookup_tvar(ctx, name)) {
-    | Some(_) => true
-    | None => false
+    | Some({kind: Abstract, _}) => true
+    | _ => false
     };
 
   let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
