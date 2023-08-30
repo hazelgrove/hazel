@@ -346,10 +346,9 @@ let indent_level_map = (seg: Segment.t): Id.Map.t(int) => {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let level =
             is_first_thing(idx, seg) || prev_thing_is_incrementor(idx, seg)
-              ? level + 1 : level;
-          let level =
-            is_last_thing(idx, seg) || next_thing_is_resetter(idx, seg)
-              ? base_level : level;
+              ? level + 2
+              : is_last_thing(idx, seg) || next_thing_is_resetter(idx, seg)
+                  ? base_level : level;
           let map = Id.Map.add(w.id, level, map);
           (level, map);
         | Secondary(_)
@@ -382,25 +381,23 @@ let of_segment =
     : t => {
   let indent_level =
     Id.Map.is_empty(indent_level) ? indent_level_map(seg) : indent_level;
-  // recursive across seg's bidelimited containers
   let rec go_nested =
-          (~map, ~prev_indent=0, ~origin=Point.zero, seg: Segment.t)
-          : (Point.t, t) => {
-    // recursive across seg's list structure
+          (~map, ~prev_indent, ~origin, seg: Segment.t): (Point.t, t) => {
     let rec go_seq =
-            (~map, ~origin: Point.t, ~prev_indent: int, seg: Segment.t)
+            (~map, ~prev_indent: int, ~origin: Point.t, seg: Segment.t)
             : (int, Point.t, t) =>
       switch (seg) {
       | [] =>
         let map =
-          map |> add_row(origin.row, {indent: 0, max_col: origin.col});
+          map
+          |> add_row(origin.row, {indent: prev_indent, max_col: origin.col});
         (prev_indent, origin, map);
       | [hd, ...tl] =>
         let (prev_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
             let indent =
-              try(2 * Id.Map.find(w.id, indent_level)) {
+              try(Id.Map.find(w.id, indent_level)) {
               | _ =>
                 Printf.printf(
                   "ERROR: Measured ID not found: %s\n",
@@ -416,37 +413,37 @@ let of_segment =
                    origin.row,
                    {indent: prev_indent, max_col: origin.col},
                  )
-              |> add_lb(w.id, indent);
+              |> add_lb(w.id, 666);
             (indent, last, map);
           | Secondary(w) =>
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
             let last = {...origin, col: origin.col + wspace_length};
-            let map = map |> add_w(w, {origin, last});
+            let map = add_w(w, {origin, last}, map);
             (prev_indent, last, map);
           | Grout(g) =>
             let last = {...origin, col: origin.col + 1};
-            let map = map |> add_g(g, {origin, last});
+            let map = add_g(g, {origin, last}, map);
             (prev_indent, last, map);
           | Tile(t) =>
             let token = List.nth(t.label);
-            let add_shard = (origin, shard, map) => {
+            let add_shard = (origin, map, shard) => {
               let last =
                 Point.{
                   ...origin,
                   col: origin.col + String.length(token(shard)),
                 };
-              let map = map |> add_s(t.id, shard, {origin, last});
+              let map = add_s(t.id, shard, {origin, last}, map);
               (last, map);
             };
             let (last, map) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
-                   shard => add_shard(origin, shard, map),
+                   add_shard(origin, map),
                    ((origin, map), child, shard) => {
                      let (child_last, child_map) =
                        go_nested(~map, ~prev_indent, ~origin, child);
-                     add_shard(child_last, shard, child_map);
+                     add_shard(child_last, child_map, shard);
                    },
                  );
             (prev_indent, last, map);
@@ -456,7 +453,7 @@ let of_segment =
     let (_, tl_last, map) = go_seq(~map, ~origin, ~prev_indent, seg);
     (tl_last, map);
   };
-  snd(go_nested(~map=empty, seg));
+  snd(go_nested(~map=empty, ~prev_indent=0, ~origin=Point.zero, seg));
 };
 
 let length = (seg: Segment.t, map: t): int =>

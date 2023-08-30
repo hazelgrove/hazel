@@ -70,7 +70,10 @@ let of_secondary =
 
    TODO: Consider setting a limit for the hashtbl size  */
 let piece_hash:
-  Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t, int, Settings.t), list(t)) =
+  Hashtbl.t(
+    (Piece.t, list(Uuidm.t), Id.Map.t(int), Sort.t, bool),
+    list(t),
+  ) =
   Hashtbl.create(10000);
 
 module Text = (M: {
@@ -79,7 +82,8 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
+          (indent_level, buffer_ids, no_sorts, sort, seg: Segment.t)
+          : list(Node.t) => {
     /* note: no_sorts flag is used for backback view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -94,32 +98,53 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(buffer_ids, sort_of_p_idx(i), p)
+         of_piece(indent_level, buffer_ids, sort_of_p_idx(i), p)
        );
   }
   and of_piece' =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (
+        (
+          p: Piece.t,
+          buffer_ids,
+          indent_level: Id.Map.t(int),
+          expected_sort: Sort.t,
+          secondary_icons: bool,
+        ),
+      )
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(buffer_ids, expected_sort, t)
+    | Tile(t) => of_tile(indent_level, buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
-    | Secondary({content, _}) =>
-      of_secondary((M.settings.secondary_icons, m(p).last.col, content))
+    | Secondary({content, _} as w) when Secondary.is_linebreak(w) =>
+      let indent =
+        switch (Id.Map.find_opt(Piece.id(p), indent_level)) {
+        | None =>
+          print_endline("WARNING: indent level not found");
+          m(p).last.col;
+        | Some(i) => i
+        };
+      of_secondary((secondary_icons, indent, content));
+    | Secondary({content, _}) => of_secondary((secondary_icons, 0, content))
     };
   }
   and of_piece =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (indent_level, buffer_ids, expected_sort: Sort.t, p: Piece.t)
+      : list(Node.t) => {
+    let secondary_icons = M.settings.secondary_icons;
     /* Last two elements of arg track the functorial args which
        can effect the code layout; without these the first,
        indentation can get out of sync */
-    let arg = (buffer_ids, expected_sort, p, m(p).last.col, M.settings);
+    let arg = (p, buffer_ids, indent_level, expected_sort, secondary_icons);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
-      let res = of_piece'(buffer_ids, expected_sort, p);
+      let res = of_piece'(arg);
       Hashtbl.add(piece_hash, arg, res);
       res;
     };
   }
-  and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (indent_level, buffer_ids, expected_sort: Sort.t, t: Tile.t)
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -131,7 +156,7 @@ module Text = (M: {
     let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
-         of_segment(buffer_ids, false, sort, seg)
+         of_segment(indent_level, buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
@@ -161,20 +186,28 @@ let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
       let map = map;
       let settings = settings;
     });
+  //TODO(andrew): document
+  let indent_level = Measured.indent_level_map(unselected);
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment([], false, Sort.Any, unselected))],
+    [
+      span_c(
+        "code-text",
+        Text.of_segment(indent_level, [], false, Sort.Any, unselected),
+      ),
+    ],
   );
 };
 
 let view =
     (
-      ~buffer_ids: list(Uuidm.t),
       ~sort: Sort.t,
-      ~font_metrics,
-      ~segment,
-      ~unselected,
-      ~measured,
+      ~font_metrics: FontMetrics.t,
+      ~indent_level: Id.Map.t(int),
+      ~buffer_ids: list(Uuidm.t),
+      ~segment: Segment.t,
+      ~unselected: Segment.t,
+      ~measured: Measured.t,
       ~settings: Settings.t,
     )
     : Node.t => {
@@ -185,7 +218,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(buffer_ids, false, sort, unselected)
+      Text.of_segment(indent_level, buffer_ids, false, sort, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

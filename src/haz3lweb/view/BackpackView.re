@@ -15,6 +15,8 @@ let backpack_sel_view =
       let map = Measured.of_segment(content);
       let settings = Init.startup.settings;
     });
+  //TODO(andrew): document
+  let indent_level = Measured.indent_level_map(content);
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
     ~attr=
@@ -32,7 +34,8 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment([], true, Any, content) @ [text(Unicode.zwsp)],
+    Text.of_segment(indent_level, [], true, Any, content)
+    @ [text(Unicode.zwsp)],
   );
 };
 
