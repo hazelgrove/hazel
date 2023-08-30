@@ -198,7 +198,7 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(mode);
+    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -243,7 +243,7 @@ and uexp_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     add(
       ~self=Just(ty_out),
@@ -253,9 +253,9 @@ and uexp_to_info_map =
   | DeferredAp(fn, args) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let num_args = List.length(args);
-    let ty_ins = Typ.matched_args(num_args, ty_in);
+    let ty_ins = Typ.matched_args(ctx, num_args, ty_in);
     let self: Self.exp = Self.of_deferred_ap(args, ty_ins, ty_out);
     let modes = Mode.of_deferred_ap_args(num_args, ty_ins);
     let (args, m) = map_m_go(m, modes, args);
@@ -453,7 +453,7 @@ and upat_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>
