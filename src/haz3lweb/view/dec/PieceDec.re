@@ -10,7 +10,8 @@ module Profile = {
 
   type style =
     | Root(Measured.Point.t, Measured.Point.t)
-    | Selected(shard, shard);
+    | Selected(shard, shard)
+    | SelectedBuffer(shard, shard);
 
   type t = {
     style,
@@ -135,19 +136,34 @@ let simple_shard_child =
 let chunky_shard =
     (
       ~font_metrics: FontMetrics.t,
+      ~style_cls: string,
       ~rows: Measured.Rows.t,
       (i, j): (Profile.shard, Profile.shard),
       tiles: Profile.tiles,
     ) => {
   let (nib_l, origin) = {
     let (id, index) = i;
-    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
-    (fst(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).origin);
+    let (_, mold, shards) =
+      switch (List.find_opt(((id', _, _)) => id' == id, tiles)) {
+      | Some(x) => x
+      | None => failwith("chunky_shard 1")
+      };
+    (
+      fst(Mold.nib_shapes(~index, mold)),
+      ListUtil.assoc_err(index, shards, "chunky_shard").origin,
+    );
   };
   let (nib_r, last) = {
     let (id, index) = j;
-    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
-    (snd(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).last);
+    let (_, mold, shards) =
+      switch (List.find_opt(((id', _, _)) => id' == id, tiles)) {
+      | Some(x) => x
+      | None => failwith("chunky_shard 2")
+      };
+    (
+      snd(Mold.nib_shapes(~index, mold)),
+      ListUtil.assoc_err(index, shards, "chunky_shard").last,
+    );
   };
   let indent_col = Measured.Rows.find(origin.row, rows).indent;
   let max_col =
@@ -156,7 +172,7 @@ let chunky_shard =
     |> List.fold_left(max, 0);
   let path =
     chunky_shard_path({origin, last}, (nib_l, nib_r), indent_col, max_col);
-  let clss = ["tile-path", "selected", "raised"];
+  let clss = ["tile-path", style_cls, "raised"];
   DecUtil.code_svg_sized(
     ~font_metrics,
     ~measurement={origin, last},
@@ -391,7 +407,24 @@ let view =
     )
     : list(Node.t) =>
   switch (style) {
-  | Selected(i, j) => [chunky_shard(~font_metrics, ~rows, (i, j), tiles)]
+  | Selected(i, j) => [
+      chunky_shard(
+        ~style_cls="selected",
+        ~font_metrics,
+        ~rows,
+        (i, j),
+        tiles,
+      ),
+    ]
+  | SelectedBuffer(i, j) => [
+      chunky_shard(
+        ~style_cls="selected-buffer",
+        ~font_metrics,
+        ~rows,
+        (i, j),
+        tiles,
+      ),
+    ]
   | Root(l, r) =>
     List.concat_map(simple_shards(~font_metrics, ~caret), tiles)
     @ List.map(simple_shard_child(~font_metrics), segs)

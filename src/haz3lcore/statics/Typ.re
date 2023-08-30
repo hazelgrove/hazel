@@ -1,5 +1,6 @@
-open Sexplib.Std;
+include TypBase.Typ;
 
+<<<<<<< HEAD
 /* TYPE_PROVENANCE: From whence does an unknown type originate?
 
    Forms associated with a unique Id.t linking them to some UExp/UPat
@@ -378,3 +379,7 @@ and typ_to_string_with_parens = (is_left_child: bool, ty: t): string => {
     |> parenthesize_if_left_child
   };
 };
+=======
+/* Due to otherwise cyclic dependencies, Typ and Ctx
+   are jointly located in the TypBase module */
+>>>>>>> llmass

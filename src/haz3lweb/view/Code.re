@@ -6,29 +6,37 @@ open Util.Web;
 
 let of_delim' =
   Core.Memo.general(
-    ~cache_size_bound=100000,
-    ((sort, is_consistent, is_complete, label, i)) => {
+    ~cache_size_bound=10000,
+    ((is_in_buffer, sort, is_consistent, is_complete, label, i)) => {
       let cls =
         switch (label) {
-        | [_] when !is_consistent => "mono-inconsistent"
-        | [s] when Form.is_string(s) => "mono-string-lit"
-        | [_] => "mono"
-        | _ when !is_consistent => "delim-inconsistent"
-        | _ when !is_complete => "delim-incomplete"
-        | _ => "delim"
+        | _ when is_in_buffer => "in-buffer"
+        | _ when !is_consistent => "sort-inconsistent"
+        | _ when !is_complete => "incomplete"
+        | [s] when s == Form.explicit_hole => "explicit-hole"
+        | [s] when Form.is_string(s) => "string-lit"
+        | _ => "default"
         };
+      let plurality = List.length(label) == 1 ? "mono" : "poly";
       [
         span(
           ~attr=
-            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+            Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
           [Node.text(List.nth(label, i))],
         ),
       ];
     },
   );
 let of_delim =
-    (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
-  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
+    (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
+  of_delim'((
+    is_in_buffer,
+    t.mold.out,
+    is_consistent,
+    Tile.is_complete(t),
+    t.label,
+    i,
+  ));
 
 let of_grout =
     (
@@ -59,7 +67,7 @@ let of_grout =
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
+    ~cache_size_bound=10000, ((secondary_icons, indent, content)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? Form.linebreak : "";
       [
@@ -77,25 +85,39 @@ let of_secondary =
     }
   );
 
+/* PERF: Tile memoization makes a >2X difference. I've left
+   the memoization in place for delims and secondary above as it still
+   seems like a marginal positive (5-10% difference).
+
+   WARNING: Note that this the table is stored outside the Text functor.
+   This means that if there are data dependencies on the functor argument
+   values, they will need to be explictly encoded in the key.
+
+   TODO: Consider setting a limit for the hashtbl size  */
+let piece_hash:
+  Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t, int, Settings.t), list(t)) =
+  Hashtbl.create(10000);
+
 module Text =
        (
          M: {
            let map: Measured.t;
            let global_inference_info: InferenceResult.global_inference_info;
-           let settings: ModelSettings.t;
+           let settings: Settings.t;
          },
        ) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
           (
-            ~no_sorts=false,
-            ~sort=Sort.root,
-            ~font_metrics,
-            ~global_inference_info=M.global_inference_info,
+            buffer_ids,
+            no_sorts,
+            sort,
             seg: Segment.t,
+            ~global_inference_info=M.global_inference_info,
           )
           : list(Node.t) => {
-    //note: no_sorts flag is used for backback
+    /* note: no_sorts flag is used for backback view;
+       otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
@@ -108,32 +130,43 @@ module Text =
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~font_metrics, ~global_inference_info, sort_of_p_idx(i), p)
+         of_piece(global_inference_info, buffer_ids, sort_of_p_idx(i), p)
        );
   }
-  and of_piece =
-      (
-        ~font_metrics,
-        ~global_inference_info,
-        expected_sort: Sort.t,
-        p: Piece.t,
-      )
+  and of_piece' =
+      (global_inference_info, buffer_ids, expected_sort: Sort.t, p: Piece.t)
       : list(Node.t) => {
     switch (p) {
-    | Tile(t) =>
-      of_tile(~font_metrics, ~global_inference_info, expected_sort, t)
-    | Grout(g) => of_grout(~font_metrics, ~global_inference_info, g.id)
+    | Tile(t) => of_tile(global_inference_info, buffer_ids, expected_sort, t)
+    | Grout(_) => of_grout(global_inference_info)
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
+  and of_piece =
+      (global_inference_info, buffer_ids, expected_sort: Sort.t, p: Piece.t)
+      : list(Node.t) => {
+    /* Last two elements of arg track the functorial args which
+       can effect the code layout; without these the first,
+       indentation can get out of sync */
+    let arg = (
+      global_inference_info,
+      buffer_ids,
+      expected_sort,
+      p,
+      m(p).last.col,
+      M.settings,
+    );
+    try(Hashtbl.find(piece_hash, arg)) {
+    | _ =>
+      let res =
+        of_piece'(global_inference_info, buffer_ids, expected_sort, p);
+      Hashtbl.add(piece_hash, arg, res);
+      res;
+    };
+  }
   and of_tile =
-      (
-        ~font_metrics,
-        ~global_inference_info,
-        expected_sort: Sort.t,
-        t: Tile.t,
-      )
+      (global_inference_info, buffer_ids, expected_sort: Sort.t, t: Tile.t)
       : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
@@ -143,9 +176,10 @@ module Text =
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
+    let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, ~font_metrics, ~global_inference_info, seg)
+    |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
+         of_segment(global_inference_info, buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
@@ -187,14 +221,7 @@ let rec holes =
      );
 
 let simple_view =
-    (
-      ~unselected,
-      ~map,
-      ~font_metrics,
-      ~global_inference_info,
-      ~settings: ModelSettings.t,
-    )
-    : Node.t => {
+    (~global_inference_info, ~unselected, ~map, ~settings: Settings.t): Node.t => {
   module Text =
     Text({
       let map = map;
@@ -206,7 +233,13 @@ let simple_view =
     [
       span_c(
         "code-text",
-        Text.of_segment(~font_metrics, ~global_inference_info, unselected),
+        Text.of_segment(
+          ~global_inference_info,
+          [],
+          false,
+          Sort.Any,
+          unselected,
+        ),
       ),
     ],
   );
@@ -214,12 +247,14 @@ let simple_view =
 
 let view =
     (
-      ~font_metrics: FontMetrics.t,
+      ~buffer_ids: list(Uuidm.t),
+      ~sort: Sort.t,
+      ~font_metrics,
       ~segment,
       ~unselected,
       ~measured,
+      ~settings: Settings.t,
       ~global_inference_info,
-      ~settings: ModelSettings.t,
     )
     : Node.t => {
   module Text =
@@ -230,7 +265,13 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~font_metrics, ~global_inference_info, unselected)
+      Text.of_segment(
+        buffer_ids,
+        false,
+        sort,
+        unselected,
+        global_inference_info,
+      )
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

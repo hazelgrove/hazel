@@ -10,36 +10,34 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | UpdateDoubleTap(_)
-  | Mousedown
-  | Mouseup
+  | SetMeta(_)
   | Save
-  | SetFontMetrics(_)
-  | SetLogoFontMetrics(_)
-  | SetShowBackpackTargets(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateResult(_)
-  | DebugAction(_) => false
+  | DebugAction(_)
+  | ExportPersistentData => false
+  | Reset
   | ResetCurrentEditor
+  | Benchmark(_) => false
+  | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
-  | ToggleMode
-  | SwitchSlide(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
   | SwitchEditor(_)
   | PerformAction(_)
-  | FailedInput(_)
   | Cut
   | Copy
   | Paste(_)
   | Undo
   | Redo
+  | Assistant(_)
   | MoveToNextHole(_)
-  | UpdateLangDocMessages(_) => true;
+  | UpdateLangDocMessages(_)
+  | DoTheThing => true;
 
-let storage_key = "LOG_" ++ SchoolSettings.log_key;
+let storage_key = "LOG_" ++ ExerciseSettings.log_key;
 let max_log_string_length = 4_750_000; // based on 5MB limit on localstore in browser
 
 module Entry = {
