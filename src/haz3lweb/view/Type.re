@@ -17,8 +17,24 @@ let prov_view: Typ.type_provenance => Node.t =
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
+/* Does the type require parentheses when on the left of an arrow? */
+let needs_parens = (ty: Haz3lcore.Typ.t): bool =>
+  switch (ty) {
+  | Unknown(_)
+  | Int
+  | Float
+  | String
+  | Bool
+  | Var(_) => false
+  | Rec(_, _)
+  | Forall(_, _) => true
+  | List(_) => false /* is already wrapped in [] */
+  | Arrow(_, _) => true
+  | Prod(_)
+  | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  };
+
 let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
-  //TODO: parens on ops when ambiguous
   switch (ty) {
   | Unknown(prov) =>
     div(
@@ -37,12 +53,12 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Rec(name, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("Rec " ++ name ++ ". "), view_ty(t)],
+      [text("rec " ++ name ++ ". "), view_ty(t)],
     )
   | Forall(name, t) =>
     div(
       ~attr=clss(["typ-view", "Forall"]),
-      [text("Forall " ++ name ++ ". "), view_ty(t)],
+      [text("forall " ++ name ++ ". "), view_ty(t)],
     )
   | List(t) =>
     div(
@@ -52,7 +68,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Arrow(t1, t2) =>
     div(
       ~attr=clss(["typ-view", "Arrow"]),
-      [view_ty(t1), text(" -> "), view_ty(t2)],
+      paren_view(t1) @ [text(" -> "), view_ty(t2)],
     )
   | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("()")])
   | Prod([_]) =>
@@ -64,8 +80,11 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         text("("),
         div(
           ~attr=clss(["typ-view", "Prod"]),
-          [view_ty(t0)]
-          @ (List.map(t => [text(", "), view_ty(t)], ts) |> List.flatten),
+          paren_view(t0)
+          @ (
+            List.map(t => [text(", "), ...paren_view(t)], ts)
+            |> List.flatten
+          ),
         ),
         text(")"),
       ],
@@ -87,6 +106,12 @@ and ctr_view = ((ctr, typ)) =>
   switch (typ) {
   | None => [text(ctr)]
   | Some(typ) => [text(ctr ++ "("), view_ty(typ), text(")")]
+  }
+and paren_view = typ =>
+  if (needs_parens(typ)) {
+    [text("("), view_ty(typ), text(")")];
+  } else {
+    [view_ty(typ)];
   };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>
