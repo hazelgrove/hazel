@@ -241,7 +241,7 @@ and uexp_to_info_map =
   | DeferredAp(fn, args) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let num_args = List.length(args);
     let ty_ins = Typ.matched_args(ctx, num_args, ty_in);
     let self: Self.exp = Self.of_deferred_ap(args, ty_ins, ty_out);

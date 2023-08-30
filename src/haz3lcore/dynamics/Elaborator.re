@@ -251,7 +251,7 @@ let rec dhexp_of_uexp =
           let mk_tuple = (ctor, xs) =>
             List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
           let* ty_fn = fixed_exp_typ(m, fn);
-          let (ty_arg, ty_ret) = Typ.matched_arrow(ty_fn);
+          let (ty_arg, ty_ret) = Typ.matched_arrow(ctx, ty_fn);
           let ty_ins = Typ.matched_args(ctx, List.length(args), ty_arg);
           /* Substitute all deferrals for new variables */
           let (pats, ty_args, ap_args, ap_ctx) =
