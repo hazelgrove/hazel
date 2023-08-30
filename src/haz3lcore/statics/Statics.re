@@ -251,7 +251,8 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
-  | TypFun({term: Var(name), _} as utpat, body) =>
+  | TypFun({term: Var(name), _} as utpat, body)
+      when !Ctx.shadows_typ(ctx, name) =>
     let mode_body = Mode.of_forall(Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let ctx_body =
@@ -261,12 +262,17 @@ and uexp_to_info_map =
       );
     let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
     add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
+  | TypFun({term: Var(name), _} as utpat, body)
+      when Ctx.shadows_typ(ctx, name) =>
+    let ({co_ctx, ty: ty_body, _}: Info.exp, m) = go'(~ctx, ~mode, body, m);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(~self=Just(Forall(name, ty_body)), ~co_ctx, m);
   | TypFun(utpat, body) =>
     let mode_body = Mode.of_forall(None, mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let (body, m) = go(~mode=mode_body, body, m);
     add(
-      ~self=Just(Forall("expected_type_variable", body.ty)),
+      ~self=Just(Forall("?", body.ty)),
       ~co_ctx=body.co_ctx,
       m,
     );
