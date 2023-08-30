@@ -163,15 +163,15 @@ module R = {
     Piece.complement_beyond(~side=Dir.R, face(terr));
 };
 
-// let lt = (l: R.t, ~slot=Meld.empty(), r: L.t): option(Meld.t) =>
+// let lt = (l: R.t, ~slot=Slot.empty, r: L.t): option(Meld.t) =>
 //   Wald.lt(l.wal, ~slot, r.wal)
 //   |> Option.map(((kid, wal)) => Wald.unmk(~l=kid, wal, ~r=r.mel));
 
-// let gt = (l: R.t, ~slot=Meld.empty(), r: L.t): option(Meld.t) =>
+// let gt = (l: R.t, ~slot=Slot.empty, r: L.t): option(Meld.t) =>
 //   Wald.gt(l.wal, ~slot, r.wal)
 //   |> Option.map(((wal, kid)) => Wald.unmk(~l=l.mel, wal, ~r=kid));
 
-// let eq = (l: R.t, ~slot=Meld.empty(), r: L.t): option(Meld.t) =>
+// let eq = (l: R.t, ~slot=Slot.empty, r: L.t): option(Meld.t) =>
 //   Wald.eq(l.wal, ~slot, r.wal)
 //   |> Option.map(((s_l, wal, s_r)) => {
 //        let l = Meld.pad(l.mel, ~r=s_l);
@@ -186,7 +186,7 @@ module R = {
 //   | Eq(Meld.t)
 //   | Gt(Meld.t);
 
-// let cmp = (l: R.t, ~slot=Meld.empty(), r: L.t) =>
+// let cmp = (l: R.t, ~slot=Slot.empty, r: L.t) =>
 //   switch (eq(l, ~slot, r)) {
 //   | Some(eq) => Some(Eq(eq))
 //   | None =>

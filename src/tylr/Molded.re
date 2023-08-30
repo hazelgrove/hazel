@@ -1,4 +1,4 @@
 type t = {
-  mold: Material.t(Mold.t),
+  mold: Material.molded,
   token: Token.t,
 };

@@ -64,7 +64,7 @@ module Dn = {
 
   let push_space = (dn, s) => map_space(Fun.flip(Space.cat, s), dn);
 
-  // let rec push = (dn: t, ~slot=Meld.empty(), w: Wald.t): Result.t(t, Meld.t) => {
+  // let rec push = (dn: t, ~slot=Slot.empty, w: Wald.t): Result.t(t, Meld.t) => {
   //   let kid = Meld.pad(~l=dn.space, kid);
   //   switch (dn.terrs) {
   //   | [] => Error(kid)
@@ -74,7 +74,7 @@ module Dn = {
   // };
 
   let rec push =
-          (dn: t, ~slot=Meld.empty(), terr: Terrace.L.t): Result.t(t, Meld.t) => {
+          (dn: t, ~slot=Slot.empty, terr: Terrace.L.t): Result.t(t, Meld.t) => {
     let kid = Meld.pad(~l=dn.space, kid);
     switch (dn.terrs) {
     | [] => Error(kid)
@@ -192,7 +192,7 @@ module Up = {
   let cons_space = s => map_space(Space.cat(s));
 
   let rec cons =
-          (terr: Terrace.R.t, ~slot=Meld.empty(), up: t): Result.t(t, Meld.t) => {
+          (terr: Terrace.R.t, ~slot=Slot.empty, up: t): Result.t(t, Meld.t) => {
     let kid = Meld.pad(kid, ~r=up.space);
     switch (up.terrs) {
     | [] => Error(kid)

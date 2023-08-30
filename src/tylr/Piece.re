@@ -21,8 +21,7 @@ module Path = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
-  paths: list(Path.t),
-  material: Material.molded,
+  mold: Material.molded,
   token: Token.t,
 };
 
@@ -30,34 +29,29 @@ type t = {
 // !Label.is_empty(p.mold.label) ==> is_prefix(p.token, p.mold.label)
 exception Ill_labeled;
 
-let mk = (~id=?, ~paths=[], material, token) => {
+let mk = (~id=?, mold, token) => {
   let id =
     switch (id) {
     | None => Id.Gen.next()
     | Some(id) => id
     };
-  {id, paths, material, token};
+  {id, mold, token};
 };
 let id_ = p => p.id;
-let label = p => Material.map(Mold.label, p.material);
-let sort = p => Material.map(Mold.sort_, p.material);
-let prec = p => Material.map(Mold.prec_, p.material);
+let label = p => Material.labeled_of_molded(p.mold);
+let sort = p => Material.sorted_of_molded(p.mold);
+// let prec = p => Material.map(Mold.prec_, p.material);
 
 let put_label = (_, _) => failwith("todo Piece.put_label");
-let put_paths = (paths, p) => {...p, paths};
 let put_token = (token, p) => {...p, token};
 
-let is_constant = p =>
-  switch (label(p)) {
-  | Grout => false
-  | Tile(lbl) => Label.is_const(lbl)
-  };
+let is_const = p =>
+  Option.bind(Material.to_option(label(p)), Label.is_const);
 
-// Some(1) if grout
 // None if non constant label
 let label_length = p =>
   switch (label(p)) {
-  | Grout => Some(1)
+  | Grout () => None
   | Tile(lbl) => Label.length(lbl)
   };
 let token_length = p => Token.length(p.token);
@@ -65,7 +59,7 @@ let token_length = p => Token.length(p.token);
 // todo: review uses and replace with one of above
 let length = _ => failwith("todo: Piece.length");
 
-let is_grout = p => label_length(p) == 0;
+// let is_grout = p => label_length(p) == 0;
 
 // todo: review uses and rename
 let is_empty = _ => failwith("todo Piece.is_empty");
@@ -81,11 +75,11 @@ let is_empty = _ => failwith("todo Piece.is_empty");
 // let of_grout = (~id=?, ~paths=[], g) => mk(~id?, ~paths, G(g));
 // let of_tile = (~id=?, ~paths=[], t) => mk(~id?, ~paths, T(t));
 
-let add_paths = (ps, p) => {...p, paths: ps @ p.paths};
-let clear_paths = p => {...p, paths: []};
-
 let is_finished = p =>
-  p.material |> Material.map(_ => label_length(p) == Some(token_length(p)));
+  switch (p.mold) {
+  | Grout(_) => false
+  | Tile(_) => label_length(p) == Some(token_length(p))
+  };
 
 // let is_complete = p =>
 //   // assumes well-labeled
@@ -101,7 +95,7 @@ let is_finished = p =>
 
 let unzip = (n: int, p: t): Result.t((t, t), Dir.t) => {
   switch (label(p), Token.unzip(n, p.token)) {
-  | (Grout, Error(L)) => Error(n < 1 ? L : R)
+  | (Grout (), Error(L)) => Error(n < 1 ? L : R)
   | (Tile(_), Error(L)) => Error(L)
   | (Tile(lbl), Error(R)) when n == Token.length(p.token) =>
     switch (Label.unzip(n, lbl)) {
@@ -114,7 +108,7 @@ let unzip = (n: int, p: t): Result.t((t, t), Dir.t) => {
       Ok((l, r));
     }
   | (_, Error(R)) => Error(R)
-  | (Grout, Ok((tok_l, tok_r))) =>
+  | (Grout (), Ok((tok_l, tok_r))) =>
     Ok(({...p, token: tok_l}, {...p, token: tok_r}))
   | (Tile(lbl), Ok((tok_l, tok_r))) =>
     switch (Label.unzip(n, lbl)) {

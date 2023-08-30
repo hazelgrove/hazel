@@ -3,6 +3,9 @@ type t =
   // Flat
   | Convex
   | Concave;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type s = (t, t);
 // let is_concave =
 //   fun
 //   | Convex => None

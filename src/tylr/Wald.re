@@ -1,81 +1,39 @@
 open Util;
-include Chain;
+// include Chain;
+include Meld.Base;
 
 // "walled" meld, wario to meld's mario
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = Meld.wald('a);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = t(Material.t(Mold.t));
+type m = t(Material.molded);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p = t(Piece.t);
 
-let singleton: _ => t = Chain.of_loop;
-let mk = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
-  Option.bind(Meld.distribute(mel).chain, Chain.trim);
+let singleton = a => W(Chain.of_loop(a));
+// let mk = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
+//   Option.bind(Meld.distribute(mel).chain, Chain.trim);
 
-let unmk = (~l=Meld.empty(), ~r=Meld.empty(), wal: t) =>
-  Meld.of_chain(Chain.untrim(l, wal, r)) |> Meld.aggregate;
+// let unmk = (~l=Meld.empty(), ~r=Meld.empty(), wal: t) =>
+//   Meld.of_chain(Chain.untrim(l, wal, r)) |> Meld.aggregate;
 
-let join = (_, _, _) => failwith("todo Wald.join");
+// let join = (_, _, _) => failwith("todo Wald.join");
 
-let sort = wal => Piece.sort(Chain.fst(wal));
-let prec = wal => Piece.prec(Chain.fst(wal));
+let map = (f, W(w)) => W(f(w));
 
-// precond: p eq wal
-let link = (p, ~slot=Meld.empty(), wal) =>
-  // Chain.link(p, Meld.patch(~l=p, kid), wal);
-  Chain.link(p, kid, wal);
-let knil = (wal, ~slot=Meld.empty(), p) =>
-  // Chain.knil(wal, Meld.patch(kid, ~r=p), p);
-  Chain.knil(wal, kid, p);
+// let sort = wal => Piece.sort(Chain.fst(wal));
+// let prec = wal => Piece.prec(Chain.fst(wal));
 
-let append = (l: t, ~slot=Meld.empty(), r: t) =>
-  l |> Chain.fold_right((p, kid) => link(p, ~slot), p => link(p, ~slot, r));
+let fst = w => map(Chain.fst, w);
+let lst = w => map(Chain.lst, w);
+let face =
+  fun
+  | Dir.L => fst
+  | R => lst;
 
-// let of_complement = (cmpl: Complement.t): option(t) =>
-//   List.fold_right(
-//     (proto, wal) => {
-//       let t = Piece.of_tile(Tile.mk(proto));
-//       switch (wal) {
-//       | None => Some(of_piece(t))
-//       | Some(wal) => Some(link(t, wal))
-//       };
-//     },
-//     cmpl,
-//     None,
-//   );
+let link = (p, ~slot=Slot.empty) => map(Chain.link(p, slot));
+let knil = (W(w), ~slot=Slot.empty, p) => W(Chain.knil(w, slot, p));
 
-let face = (side: Dir.t): (t => Piece.t) =>
-  switch (side) {
-  | L => Chain.fst
-  | R => Chain.lst
-  };
-
-module Padded = {
-  type wald = t;
-  type t = (Space.t, wald, Space.t);
-  let mk = (~l=Space.empty, ~r=Space.empty, wal) => (l, wal, r);
-  let link = (p, kid, (l, wal, r): t) =>
-    mk(Chain.link(p, Meld.pad(kid, ~r=l), wal), ~r);
-};
-
-let cat =
-    (f: (Piece.t, Piece.t) => option(Padded.t), l: t, r: t)
-    : option(Padded.t) =>
+let append = (W(l): t(_), ~slot=Slot.empty, r: t(_)) =>
   l
-  |> Chain.fold_right(
-       (p, kid) => Option.map(Padded.link(p, kid)),
-       p_l =>
-         switch (Chain.unlink(r)) {
-         | None => f(p_l, Chain.fst(r))
-         | Some((p_r, kid_r, tl_r)) =>
-           f(p_l, p_r)
-           |> Option.map(((l, wal, r)) =>
-                wal
-                |> Chain.fold_right(Chain.link, p =>
-                     Chain.link(p, Meld.pad(~l=r, kid_r), tl_r)
-                   )
-                |> Padded.mk(~l)
-              )
-         },
-     );
+  |> Chain.fold_right((p, slot) => link(p, ~slot), p => link(p, ~slot, r));

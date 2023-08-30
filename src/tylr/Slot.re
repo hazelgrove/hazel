@@ -7,7 +7,7 @@ let full = m => Some(m);
 module Profile = {
   type t = option(Meld.Profile.t);
 
-  let mk = (~has_tokens=false, sort) =>
+  let mk = (~has_tokens=false, sort: Material.sorted) =>
     Some(Meld.Profile.{sort, has_tokens});
 
   let has_tokens: t => bool =
@@ -21,8 +21,6 @@ module Profile = {
     | (Some(_), None) => l
     | (None, Some(_)) => r
     | (Some(l), Some(r)) =>
-      let sort = Material.Grout(Concave, Concave);
-      let has_tokens = l.has_tokens || r.has_tokens;
-      mk(~has_tokens, sort);
+      mk(~has_tokens=l.has_tokens || r.has_tokens, Grout())
     };
 };
