@@ -103,6 +103,7 @@ let reevaluate_post_update =
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | ExportPersistentData => false
+  | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
@@ -157,14 +158,11 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
-  let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-  switch (Haz3lcore.Perform.go(a, ed_init, id)) {
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
+  switch (model.editors |> Editors.get_editor |> Haz3lcore.Perform.go(a)) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok((ed, id)) =>
-    Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
+  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
   };
-};
 
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
@@ -290,25 +288,25 @@ let apply =
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
     | Paste(clipboard) =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let ed = Editors.get_editor(model.editors);
       switch (
-        Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
+        Printer.zipper_of_string(~zipper_init=ed.state.zipper, clipboard)
       ) {
       | None => Error(CantPaste)
-      | Some((z, id)) =>
+      | Some(z) =>
         /* NOTE(andrew): These two perform calls are a hack to
            deal with the fact that pasting something like "let a = b in"
            won't trigger the barfing of the "in"; to trigger this, we
            insert a space, and then we immediately delete it. */
-        switch (Haz3lcore.Perform.go_z(Insert(" "), z, id)) {
+        switch (Haz3lcore.Perform.go_z(Insert(" "), z)) {
         | Error(_) => Error(CantPaste)
-        | Ok((z, id)) =>
-          switch (Haz3lcore.Perform.go_z(Destruct(Left), z, id)) {
+        | Ok(z) =>
+          switch (Haz3lcore.Perform.go_z(Destruct(Left), z)) {
           | Error(_) => Error(CantPaste)
-          | Ok((z, id)) =>
+          | Ok(z) =>
             let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
             //TODO: add correct action to history (Pick_up is wrong)
-            let editors = Editors.put_editor_and_id(id, ed, model.editors);
+            let editors = Editors.put_editor(ed, model.editors);
             Ok({...model, editors});
           }
         }
@@ -317,36 +315,30 @@ let apply =
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
-      let zipper_init = Zipper.init(id);
+      let ed = Editors.get_editor(model.editors);
+      let zipper_init = Zipper.init();
       let ed_str = Printer.to_string_editor(ed);
-      switch (Printer.zipper_of_string(~zipper_init, id + 1, ed_str)) {
+      switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
       | None => Error(CantReset)
-      | Some((z, id)) =>
+      | Some(z) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        let editors = Editors.put_editor_and_id(id, editor, model.editors);
+        let editors = Editors.put_editor(editor, model.editors);
         Ok({...model, editors});
       };
     | Undo =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor_and_id(id, ed, model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
-      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor_and_id(id, ed, model.editors),
-        })
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
       let p: Piece.t => bool = (
@@ -380,6 +372,13 @@ let apply =
       Ok({...model, results});
     | DebugAction(a) =>
       DebugAction.perform(a);
+      Ok(model);
+    | Benchmark(Start) =>
+      List.iter(schedule_action, Benchmark.actions_1);
+      Benchmark.start();
+      Ok(model);
+    | Benchmark(Finish) =>
+      Benchmark.finish();
       Ok(model);
     };
   reevaluate_post_update(update)
