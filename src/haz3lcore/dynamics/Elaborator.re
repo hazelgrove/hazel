@@ -230,7 +230,7 @@ let rec dhexp_of_uexp =
               | _ => ddef
               };
             let uniq_id = List.nth(def.ids, 0);
-            let self_id = "__mutual__" ++ string_of_int(uniq_id);
+            let self_id = "__mutual__" ++ Id.to_string(uniq_id);
             let self_var = DHExp.BoundVar(self_id);
             let (_, substituted_def) =
               fs
