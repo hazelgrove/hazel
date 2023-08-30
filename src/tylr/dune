@@ -3,7 +3,7 @@
 (library
  (name tylr)
  (virtual_modules sort grammar)
- (libraries util re sexplib)
+ (libraries util sedlex re sexplib)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
@@ -13,7 +13,8 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_deriving.ord
-   ppx_yojson_conv)))
+   ppx_yojson_conv
+   sedlex.ppx)))
 
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
