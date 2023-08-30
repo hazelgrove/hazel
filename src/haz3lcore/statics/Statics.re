@@ -271,11 +271,7 @@ and uexp_to_info_map =
     let mode_body = Mode.of_forall(None, mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let (body, m) = go(~mode=mode_body, body, m);
-    add(
-      ~self=Just(Forall("?", body.ty)),
-      ~co_ctx=body.co_ctx,
-      m,
-    );
+    add(~self=Just(Forall("?", body.ty)), ~co_ctx=body.co_ctx, m);
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
