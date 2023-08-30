@@ -648,7 +648,7 @@ and Ctx: {
     |> (((ctx, _, _)) => List.rev(ctx));
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
-    Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
+    Form.is_base_typ(name) || is_alias(ctx, name) || is_tvar(ctx, name);
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

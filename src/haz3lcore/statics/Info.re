@@ -389,9 +389,7 @@ let status_typ =
 let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name)
-      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
-    InHole(ShadowsType(name))
+  | Var(name) when Ctx.shadows_typ(ctx, name) => InHole(ShadowsType(name))
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))
