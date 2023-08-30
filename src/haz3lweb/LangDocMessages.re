@@ -479,7 +479,7 @@ let function_intlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_intlit_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is `%i`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
