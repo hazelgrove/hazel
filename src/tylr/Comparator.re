@@ -1,7 +1,7 @@
 module Ineq = {
   type t = {
-    eq: list(Terrace.t(Material.molded)),
-    neq: list(Slope.t(Material.molded)),
+    eq: list(Terrace.t(Material.Molded.t)),
+    neq: list(Slope.t(Material.Molded.t)),
   };
   let empty = {eq: [], lt: []};
   let cat = ({eq, neq}, {eq: eq', neq: neq'}) => {
@@ -13,7 +13,7 @@ module Ineq = {
   let concat_map: (Slope.t => list(Slope.t), t) => t = failwith("todo");
   // let complete: (~from: Terrace.R.t, t) => list(Slope.t) = failwith("todo");
 
-  let mk = (d: Dir.t, m: Material.molded): t => {
+  let mk = (d: Dir.t, m: Material.Molded.t): t => {
     let rec go = (z: Gram.Zipper.t(Atom.t)) =>
       z.zipper |> Regex.step(d) |> List.map(stop_or_go) |> Result.concat
     and stop_or_go = z =>

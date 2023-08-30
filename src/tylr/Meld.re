@@ -15,7 +15,7 @@ include Base;
 module Profile = {
   type t = {
     has_tokens: bool,
-    sort: Material.sorted,
+    sort: Material.Sorted.t,
   };
 };
 

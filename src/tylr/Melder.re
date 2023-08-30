@@ -6,9 +6,9 @@ module Piece = {
     let* () = OptUtil.of_bool(Id.eq(l.id, r.id));
     let+ l =
       switch (Piece.label(l), Piece.label(r)) {
-      | (Grout, Tile(_))
-      | (Tile(_), Grout) => None
-      | (Grout, Grout) => Some(l)
+      | (Grout (), Tile(_))
+      | (Tile(_), Grout ()) => None
+      | (Grout (), Grout ()) => Some(l)
       | (Tile(lbl_l), Tile(lbl_r)) =>
         let+ lbl = Label.zip(lbl_l, lbl_r);
         put_label(lbl, l);

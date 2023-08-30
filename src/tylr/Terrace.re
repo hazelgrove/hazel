@@ -1,198 +1,94 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  wal: Wald.t,
-  mel: Meld.t,
+module Base = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a) = {
+    wald: Wald.t('a),
+    slot: Slot.t('a),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type m = t(Material.Molded.t);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type p = t(Piece.t);
 };
-[@deriving (show({with_path: false}), sexp, yojson)]
-type terr = t;
+include Base;
 
-let of_wald = wal => {wal, mel: Meld.empty()};
-let of_piece = p => of_wald(Wald.of_piece(p));
-
-let map_wal = (f, terr) => {...terr, wal: f(terr.wal)};
-
-let sort = (t: t) => Wald.sort(t.wal);
-let prec = (t: t) => Wald.prec(t.wal);
+let mk = (~slot=None, wald) => {slot, wald};
 
 module L = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = terr; // left-to-right: wal mel
+  // left to right: wald slot
+  include Base;
 
-  let mk = (mel: Meld.t): option((Meld.t, t)) =>
-    Wald.mk(mel) |> Option.map(((kid, wal, mel)) => (kid, {wal, mel}));
-  let unmk = (kid, {wal, mel}: t) => Wald.unmk(~l=kid, wal, ~r=mel);
-  let append = (_: Meld.t, _: t) => failwith("todo append");
+  let combine = (ps: list(_), slots: list(Slot.t(_))): option(t(_)) =>
+    ListUtil.split_last_opt(slots)
+    |> Option.map(((slots, slot)) => mk(Wald.combine(ps, slots), ~slot));
 
-  let pad = (t: t, s: Space.t) => {...t, mel: Meld.pad(t.mel, ~r=s)};
+  let rec s_of_slot =
+    fun
+    | None => []
+    | Some(Meld.M(l, w, r)) => s_of_slot(l) @ [mk(w, ~slot=r)];
 
-  let split_face = ({wal, mel}: t): (Piece.t, Meld.t) =>
-    switch (Chain.unlink(wal)) {
-    | None => (Chain.fst(wal), mel)
-    | Some((face, kid, rest)) => (face, Wald.unmk(~l=kid, rest, ~r=mel))
-    };
-  let face = terr => fst(split_face(terr));
+  let split_face = (t: p): (Piece.t, Chain.t(Slot.p, Piece.t)) => {
+    let (p, (slots, ps)) = Wald.split_fst(t.wald);
+    (p, Chain.mk(slots @ [t.slot], ps));
+  };
+  let face = t => fst(split_face(t));
 
-  let rec mk_s = (mel: Meld.t): (Space.t, list(t)) =>
-    switch (mk(mel)) {
-    | None =>
-      let ((l, r), _empty) = Meld.unpad(mel);
-      (Space.cat(l, r), []);
-    | Some((kid, l)) =>
-      let (s, ls) = mk_s(kid);
-      (s, [l, ...ls]);
-    };
-
-  let uncons_lexeme = (~char=false, l: t): (Lexeme.t(_), Space.t, list(t)) => {
-    let (face, rest) = split_face(l);
+  let pull = (~char=false, t: p): (Piece.t, list(p)) => {
+    let (face, rest) = split_face(t);
     switch (Piece.unzip(1, face)) {
     | Ok((c, rest_face)) when char =>
-      let (_empty, l) = Option.get(mk(Meld.link(rest_face, rest)));
-      (Lexeme.T(c), Space.empty, [l]);
+      let (slots, ps) = Chain.(loops(rest), links(rest));
+      (c, Option.to_list(combine([rest_face, ...ps], slots)));
     | _ =>
-      let (s, ls) = mk_s(rest);
-      (Lexeme.T(face), s, ls);
+      let (slot, top) =
+        switch (Chain.unlink(rest)) {
+        | Error(slot) => (slot, [])
+        | Ok((slot, p, tl)) =>
+          let (slots, ps) = Chain.(loops(tl), links(tl));
+          (slot, Option.to_list(combine([p, ...ps], slots)));
+        };
+      (face, s_of_slot(slot) @ top);
     };
   };
-  // let tip = (terr: t) => Piece.tip(L, face(terr));
 };
 
 module R = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = terr; // left-to-right: mel wal
+  // left to right: slot wald
+  include Base;
 
-  let mk = (mel: Meld.t): option((t, Meld.t)) =>
-    Wald.mk(mel) |> Option.map(((mel, wal, kid)) => ({mel, wal}, kid));
-  let unmk = ({mel, wal}: t, kid) => Wald.unmk(~l=mel, wal, ~r=kid);
+  let combine = (slots, ps) =>
+    ListUtil.split_first_opt(slots)
+    |> Option.map(((slot, slots)) => mk(~slot, Wald.combine(ps, slots)));
 
-  [@warning "-27"]
-  let unlink = (t: t): option((t, Meld.t, Piece.t)) =>
-    failwith("todo Terrace.R.unlink");
+  let rec s_of_slot =
+    fun
+    | None => []
+    | Some(Meld.M(l, w, r)) => s_of_slot(r) @ [mk(~slot=l, w)];
 
-  let pad = (s: Space.t, t: t) => {...t, mel: Meld.pad(~l=s, t.mel)};
+  let split_face = (t: p): (Chain.t(Slot.p, Piece.t), Piece.t) => {
+    let ((ps, slots), p) = Wald.split_lst(t.wald);
+    (Chain.mk([t.slot, ...slots], ps), p);
+  };
+  let face = t => snd(split_face(t));
 
-  let split_face = ({mel, wal}: t): (Meld.t, Piece.t) =>
-    switch (Chain.unknil(wal)) {
-    | None => (mel, Chain.lst(wal))
-    | Some((rest, kid, face)) => (Wald.unmk(~r=mel, rest, ~l=kid), face)
-    };
-  let face = terr => snd(split_face(terr));
-
-  let rec mk_s = (mel: Meld.t): (list(t), Space.t) =>
-    switch (mk(mel)) {
-    | None =>
-      let ((l, r), _empty) = Meld.unpad(mel);
-      ([], Space.cat(l, r));
-    | Some((r, kid)) =>
-      let (rs, s) = mk_s(kid);
-      ([r, ...rs], s);
-    };
-
-  let prepend = (_: t, _: Meld.t) => failwith("todo prepend");
-
-  let unsnoc_lexeme = (~char=false, r: t): (list(t), Space.t, Lexeme.t(_)) => {
-    print_endline("Terrace.unsnoc_lexeme");
-    let (rest, face) = split_face(r);
-    switch (Piece.unzip(Piece.length(face) - 1, face)) {
+  let pull = (~char=false, t: p): (list(p), Piece.t) => {
+    let (rest, face) = split_face(t);
+    let n = Piece.token_length(face);
+    switch (Piece.unzip(n - 1, face)) {
     | Ok((rest_face, c)) when char =>
-      let (r, _empty) = Option.get(mk(Meld.knil(rest, rest_face)));
-      ([r], Space.empty, Lexeme.T(c));
+      let (slots, ps) = Chain.(loops(rest), links(rest));
+      (Option.to_list(combine(slots, ps @ [rest_face])), c);
     | _ =>
-      let (rs, s) = mk_s(rest);
-      (rs, s, Lexeme.T(face));
+      let (top, slot) =
+        switch (Chain.unknil(rest)) {
+        | Error(slot) => ([], slot)
+        | Ok((tl, p, slot)) =>
+          let (slots, ps) = Chain.(loops(tl), links(tl));
+          (Option.to_list(combine(slots, ps @ [p])), slot);
+        };
+      (s_of_slot(slot) @ top, face);
     };
   };
-
-  // let tip = (terr: t) => Piece.tip(R, face(terr));
-
-  // this function
-  // let mold_lt = (terr: t, ~slot: option(Sort.o)=?, t: Token.t) =>
-  //   Piece.tips(R, face(terr))
-  //   |> List.fold_left(
-  //        (molded, tip: Tip.t) => {
-  //          open Result.Syntax;
-  //          let/ _ = molded;
-  //          switch (tip) {
-  //          | Convex => Error(kid)
-  //          | Concave(s_l, p_l) =>
-  //            let* mold =
-  //              LangUtil.mold_of_token(kid, s_l, t)
-  //              |> Result.of_option(~error=kid);
-  //            Mold.tips(L, mold)
-  //            |> List.exists(
-  //                 fun
-  //                 | Tip.Convex => true
-  //                 | Concave(s_r, p_r) =>
-  //                   s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
-  //               )
-  //              ? Ok(mold) : Error(kid);
-  //          };
-  //        },
-  //        // todo: remove option, added just to get things typechecking
-  //        Error(Some(sort(terr))),
-  //      );
-
-  // let mold_eq = (terr: t, ~slot: option(Sort.o)=?, t: Token.t) =>
-  //   Piece.tips(R, face(terr))
-  //   |> List.fold_left(
-  //        (molded, tip: Tip.t) => {
-  //          switch (tip) {
-  //          | Convex => molded
-  //          | Concave(s_l, p_l) =>
-  //            open Result.Syntax;
-  //            let/ _ = molded;
-  //            let* mold =
-  //              LangUtil.mold_of_token(kid, s_l, t)
-  //              |> Result.of_option(~error=kid);
-  //            Mold.tips(L, mold)
-  //            |> List.exists(
-  //                 fun
-  //                 | Tip.Convex => true
-  //                 | Concave(s_r, p_r) =>
-  //                   s_l != s_r || Prec.lt(~a=LangUtil.assoc(s_l), p_l, p_r),
-  //               )
-  //              ? Ok(mold) : Error(kid);
-  //          }
-  //        },
-  //        // todo: remove option, added just to get things typechecking
-  //        Error(Some(sort(terr))),
-  //      );
-
-  let complement = (terr: t) =>
-    Piece.complement_beyond(~side=Dir.R, face(terr));
 };
-
-// let lt = (l: R.t, ~slot=Slot.empty, r: L.t): option(Meld.t) =>
-//   Wald.lt(l.wal, ~slot, r.wal)
-//   |> Option.map(((kid, wal)) => Wald.unmk(~l=kid, wal, ~r=r.mel));
-
-// let gt = (l: R.t, ~slot=Slot.empty, r: L.t): option(Meld.t) =>
-//   Wald.gt(l.wal, ~slot, r.wal)
-//   |> Option.map(((wal, kid)) => Wald.unmk(~l=l.mel, wal, ~r=kid));
-
-// let eq = (l: R.t, ~slot=Slot.empty, r: L.t): option(Meld.t) =>
-//   Wald.eq(l.wal, ~slot, r.wal)
-//   |> Option.map(((s_l, wal, s_r)) => {
-//        let l = Meld.pad(l.mel, ~r=s_l);
-//        let r = Meld.pad(~l=s_r, r.mel);
-//        Wald.unmk(~l, wal, ~r);
-//      });
-
-// let in_ = (_, ~s as _: Space.t, _) => failwith("todo Terrace.in_");
-
-// type cmp =
-//   | Lt(Meld.t)
-//   | Eq(Meld.t)
-//   | Gt(Meld.t);
-
-// let cmp = (l: R.t, ~slot=Slot.empty, r: L.t) =>
-//   switch (eq(l, ~slot, r)) {
-//   | Some(eq) => Some(Eq(eq))
-//   | None =>
-//     switch (lt(l, ~slot, r), gt(l, ~slot, r)) {
-//     | (Some(lt), _) => Some(Lt(lt))
-//     | (_, Some(gt)) => Some(Gt(gt))
-//     | (None, None) => None
-//     }
-//   };

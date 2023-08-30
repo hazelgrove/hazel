@@ -6,13 +6,19 @@ include Meld.Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = Meld.wald('a);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = t(Material.molded);
+type m = t(Material.Molded.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p = t(Piece.t);
 
 let singleton = a => W(Chain.of_loop(a));
 // let mk = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
 //   Option.bind(Meld.distribute(mel).chain, Chain.trim);
+
+let combine = (ps: list(_), slots: list(Slot.t(_))) =>
+  W(Chain.mk(ps, slots));
+
+let split_fst = (W(w)) => Chain.split_fst(w);
+let split_lst = (W(w)) => Chain.split_lst(w);
 
 // let unmk = (~l=Meld.empty(), ~r=Meld.empty(), wal: t) =>
 //   Meld.of_chain(Chain.untrim(l, wal, r)) |> Meld.aggregate;

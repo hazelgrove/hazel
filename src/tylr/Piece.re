@@ -21,7 +21,7 @@ module Path = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
-  mold: Material.molded,
+  mold: Material.Molded.t,
   token: Token.t,
 };
 
@@ -38,8 +38,8 @@ let mk = (~id=?, mold, token) => {
   {id, mold, token};
 };
 let id_ = p => p.id;
-let label = p => Material.labeled_of_molded(p.mold);
-let sort = p => Material.sorted_of_molded(p.mold);
+let label = p => Material.Labeled.of_molded(p.mold);
+let sort = p => Material.Sorted.of_molded(p.mold);
 // let prec = p => Material.map(Mold.prec_, p.material);
 
 let put_label = (_, _) => failwith("todo Piece.put_label");

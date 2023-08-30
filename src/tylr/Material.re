@@ -5,13 +5,6 @@ type t('g, 't) =
   | Grout('g)
   | Tile('t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type labeled = t(unit, Label.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type sorted = t(unit, Sort.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type molded = t(Tip.s, Mold.t);
-
 let map_g = f =>
   fun
   | Grout(g) => Grout(f(g))
@@ -21,10 +14,28 @@ let map_t = f =>
   | Grout(_) as m => m
   | Tile(a) => Tile(f(a));
 
-let labeled_of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.label);
-let sorted_of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.sort_);
-
 let to_option =
   fun
   | Grout () => None
   | Tile(t) => Some(t);
+
+// for use in submodules below
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m('g, 't) = t('g, 't);
+
+module Molded = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = m(Tip.s, Mold.t);
+};
+
+module Labeled = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = m(unit, Label.t);
+  let of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.label);
+};
+
+module Sorted = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = m(unit, Sort.t);
+  let of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.sort_);
+};

@@ -1,13 +1,17 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = Meld.slot('a);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m = t(Material.Molded.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type p = t(Piece.t);
 
 let empty = None;
-let full = m => Some(m);
+let full = (m: Meld.t(_)) => Some(m);
 
 module Profile = {
   type t = option(Meld.Profile.t);
 
-  let mk = (~has_tokens=false, sort: Material.sorted) =>
+  let mk = (~has_tokens=false, sort: Material.Sorted.t) =>
     Some(Meld.Profile.{sort, has_tokens});
 
   let has_tokens: t => bool =

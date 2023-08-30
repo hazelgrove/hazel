@@ -56,10 +56,10 @@ let link =
 );
 let unlink =
     ((loops, links): t('loop, 'link))
-    : option(('loop, 'link, t('loop, 'link))) =>
+    : Result.t(('loop, 'link, t('loop, 'link)), 'loop) =>
   switch (links) {
-  | [] => None
-  | [b, ...links] => Some((List.hd(loops), b, (List.tl(loops), links)))
+  | [] => Error(List.hd(loops))
+  | [b, ...links] => Ok((List.hd(loops), b, (List.tl(loops), links)))
   };
 
 let knil =
@@ -69,11 +69,12 @@ let knil =
 );
 let unknil =
     ((loops, links): t('loop, 'link))
-    : option((t('loop, 'link), 'link, 'loop)) =>
+    : Result.t((t('loop, 'link), 'link, 'loop), 'loop) =>
   ListUtil.split_last_opt(links)
-  |> Option.map(((links, b)) => {
-       let (loops, a) = ListUtil.split_last(loops);
-       ((loops, links), b, a);
+  |> Result.of_option(~error=List.hd(loops))
+  |> Result.map(~f=((links, link)) => {
+       let (loops, loop) = ListUtil.split_last(loops);
+       ((loops, links), link, loop);
      });
 
 // let rec aba_triples = (c: t('loop, 'link)): list(('loop, 'link, 'loop)) =>
