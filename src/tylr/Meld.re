@@ -15,7 +15,7 @@ include Base;
 module Profile = {
   type t = {
     has_tokens: bool,
-    sort: Sort.t,
+    sort: Material.t(Sort.t),
   };
 };
 
@@ -39,8 +39,6 @@ let mk = (~l=None, ~r=None, w) => M(l, w, r);
 
 // let fst_id = mel => Option.map(Piece.id_, end_piece(~side=L, mel));
 // let lst_id = mel => Option.map(Piece.id_, end_piece(~side=R, mel));
-
-let map = (f, M(m)) => M(f(m));
 
 let link = (~slot=None, a, M(l, W(w), r)) =>
   M(slot, W(Chain.link(a, l, w)), r);

@@ -10,19 +10,19 @@ module Profile = {
   let mk = (~has_tokens=false, sort) =>
     Some(Meld.Profile.{sort, has_tokens});
 
-  let has_tokens =
+  let has_tokens: t => bool =
     fun
     | None => false
     | Some(p) => p.has_tokens;
 
-  let merge = (l, r) =>
+  let merge = (l: t, r: t) =>
     switch (l, r) {
     | (None, None) => None
     | (Some(_), None) => l
     | (None, Some(_)) => r
     | (Some(l), Some(r)) =>
-      let p =
-        Meld.Profile.{sort: Grout, has_tokens: l.has_tokens || r.has_tokens};
-      Some(p);
+      let sort = Material.Grout(Concave, Concave);
+      let has_tokens = l.has_tokens || r.has_tokens;
+      mk(~has_tokens, sort);
     };
 };
