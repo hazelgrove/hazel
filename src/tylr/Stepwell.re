@@ -1,12 +1,14 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Chain.t(Slopes.t, Bridge.t);
+type t('a) = Chain.t(Slopes.t('a), Bridge.t('a));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type p = t(Piece.t);
 
 // base slopes
-let of_slopes: Slopes.t => t = Chain.of_loop;
-let get_slopes: t => Slopes.t = Chain.fst;
-let map_slopes: (_, t) => t = Chain.map_fst;
+let of_slopes: Slopes.t(_) => t = Chain.of_loop;
+let get_slopes: t => Slopes.t(_) = Chain.fst;
+let map_slopes: (_, t(_)) => t(_) = Chain.map_fst;
 let put_slopes = sib => map_slopes(_ => sib);
 let cons_slopes = (sib, rel) => map_slopes(Slopes.cat(sib), rel);
 
@@ -24,32 +26,6 @@ let cons_slope = (~onto: Dir.t, slope: Slope.t, rel) =>
     rel |> cons_space(~onto, slope.space),
     slope.terrs,
   );
-
-let cons_zigg = (~onto: Dir.t, {up, top, dn}: Ziggurat.t, rel) => {
-  let cons_top =
-    switch (top) {
-    | None => Fun.id
-    | Some(top) => cons(~onto, Terrace.of_wald(top))
-    };
-  switch (onto) {
-  | L =>
-    rel
-    |> cons_slope(~onto, up)
-    |> cons_top
-    |> cons_slopes(Slopes.mk(~l=dn, ()))
-  | R =>
-    rel
-    |> cons_slope(~onto, dn)
-    |> cons_top
-    |> cons_slopes(Slopes.mk(~r=up, ()))
-  };
-};
-
-let cons_lexeme = (~onto: Dir.t, lx: Lexeme.t(_)) =>
-  switch (lx) {
-  | S(s) => cons_space(~onto, s)
-  | T(p) => cons(~onto, Terrace.of_piece(p))
-  };
 
 let pull_lexeme = (~char=false, ~from: Dir.t, well) =>
   switch (Slopes.pull_lexeme(~char, ~from, get_slopes(well))) {

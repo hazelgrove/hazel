@@ -94,7 +94,6 @@ let gt = (l: Molded.t, ~slot=?, r: Molded.t): option(Slope.Up.m) =>
   |> Scorer.pick;
 // |> Option.map(Slope.push_top(Terrace.mk(Wald.singleton(r))));
 
-// todo: rename meld
 let cmp = (l: Molded.t, ~slot=?, r: Molded.t): Ziggurat.m =>
   switch (lt(l, ~slot, r), eq(l, ~slot, r), gt(l, ~slot, r)) {
   | (_, Some(z), _) => z

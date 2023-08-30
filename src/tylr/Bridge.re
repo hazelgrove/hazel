@@ -1,8 +1,10 @@
 open Util;
 
-// constituent terraces are the bridge's "base"
+// terraces connected by bridge
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Terrace.R.t, Terrace.L.t);
+type t('a) = (Terrace.R.t('a), Terrace.L.t('a));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type p = t(Piece.t);
 // <let< x >=< _kid_ >in< 1
 // -----------       ------
 

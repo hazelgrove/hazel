@@ -146,23 +146,19 @@ module Ziggurat = {
     |> Ziggurat.map_dn(Slope.cat(dn));
 
   let rec push = (w: Wald.p, ~slot=None, z: Ziggurat.p): Ziggurat.p =>
-    // todo: handle whitespace on z.dn
     switch (z.up) {
     | [] =>
-      let c = Wald.cmp(w, ~slot, top);
-      switch (c.dn) {
-      | [] => {...c, dn: z.dn}
-      | [_, ..._] => Ziggurat.map_dn(dn' => dn' @ z.dn, c)
-      };
+      Wald.cmp(w, ~slot, top)
+      |> Ziggurat.map_dn(dn' => dn' @ z.dn)
     | [hd, ...tl] =>
       // left to right: w kid hd.wal hd.mel tl z.top z.dn
       let c = Wald.cmp(w, ~slot, hd.wal);
       // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
       switch (c.dn) {
-      | [] =>
+      | [] => // geq
         let up = c.up @ [{...hd, wal: c.top}, ...tl];
         {...z, up};
-      | [_, ..._] => push_zigg(c, {...z, up: tl})
+      | [_, ..._] => push_zigg(c, {...z, up: tl}) // lt
       };
     }
   and push_zigg = ({up, top, dn}: Ziggurat.p, z: Ziggurat.p) =>
