@@ -23,7 +23,9 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
           on_mouseup(_ => inject(Update.Mouseup)),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(Update.PerformAction(Select(Resize(Goal(goal)))));
+            inject(
+              Update.PerformAction(Select(Resize(Goal(Point(goal))))),
+            );
           }),
         ],
       ),
@@ -39,7 +41,7 @@ let mousedown_handler =
       Update.(
         [Mousedown]
         @ additional_updates
-        @ [PerformAction(Move(Goal(goal)))]
+        @ [PerformAction(Move(Goal(Point(goal))))]
       ),
     ),
   );
@@ -104,15 +106,28 @@ let code_cell_view =
               @ (selected ? ["selected"] : ["deselected"]),
             ),
             Attr.on_mousedown(evt =>
-              JsUtil.is_double_click(evt)
-                ? inject(Update.PerformAction(Select(Term(Current))))
-                : mousedown_handler(
-                    ~inject,
-                    ~font_metrics,
-                    ~target_id=code_id,
-                    ~additional_updates=mousedown_updates,
-                    evt,
-                  )
+              switch (JsUtil.ctrl_held(evt), JsUtil.is_double_click(evt)) {
+              | (true, _) =>
+                let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
+
+                let events = [
+                  inject(PerformAction(Move(Goal(Point(goal))))),
+                  inject(
+                    Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
+                  ),
+                ];
+                Virtual_dom.Vdom.Effect.Many(events);
+              | (false, false) =>
+                mousedown_handler(
+                  ~inject,
+                  ~font_metrics,
+                  ~target_id=code_id,
+                  ~additional_updates=mousedown_updates,
+                  evt,
+                )
+              | (false, true) =>
+                inject(Update.PerformAction(Select(Term(Current))))
+              }
             ),
           ]),
         Option.to_list(caption) @ code,
@@ -192,15 +207,28 @@ let deco =
   };
 };
 
-let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
+let eval_result_footer_view =
+    (~font_metrics, ~elab, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
-    | None => [Node.text("No result available.")]
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
-        Node.text("No result available (exception)."),
+    | None => [
+        Node.text("No result available. Elaboration follows:"),
+        DHCode.view(
+          ~settings={
+            evaluate: true,
+            show_case_clauses: true,
+            show_fn_bodies: true,
+            show_casts: true,
+            show_unevaluated_elaboration: false,
+          },
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          elab,
+        ),
       ]
     | Some({eval_result, _}) => [
-        DHCode.view_tylr(
+        DHCode.view(
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,
@@ -228,11 +256,11 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
@@ -247,6 +275,7 @@ let editor_view =
   let tylr = editor.state.tylr;
   let code_base_view =
     Code.view(
+      ~sort=Sort.root,
       ~font_metrics,
       ~segment,
       ~unselected,
@@ -285,6 +314,13 @@ let editor_view =
   );
 };
 
+let get_elab = (editor: Editor.t): DHExp.t => {
+  let seg = Editor.get_seg(editor);
+  let (term, _) = MakeTerm.go(seg);
+  let info_map = Statics.mk_map(term);
+  Interface.elaborate(info_map, term);
+};
+
 let editor_with_result_view =
     (
       ~inject,
@@ -293,17 +329,19 @@ let editor_with_result_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: Model.settings,
+      ~settings: ModelSettings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.map,
+      ~info_map: Statics.Map.t,
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let eval_result_footer = eval_result_footer_view(~font_metrics, result);
+  let elab = get_elab(editor);
+  let eval_result_footer =
+    eval_result_footer_view(~font_metrics, ~elab, result);
   editor_view(
     ~inject,
     ~font_metrics,

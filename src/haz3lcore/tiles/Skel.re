@@ -54,7 +54,7 @@ let root =
 //     }
 //   };
 
-exception Input_contains_whitespace;
+exception Input_contains_secondary;
 exception Nonconvex_segment;
 
 [@deriving show({with_path: false})]
@@ -67,8 +67,8 @@ type rel =
 
 let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
   switch (p1, p2) {
-  | (Whitespace(_), _)
-  | (_, Whitespace(_)) => None
+  | (Secondary(_), _)
+  | (_, Secondary(_)) => None
   | (Grout({shape, _}), _) =>
     switch (shape) {
     | Convex => Some(Gt)
@@ -88,6 +88,7 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
         lbl1(case) && lbl2(rule),
         lbl1(rule) && lbl2(rule),
         lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
+        lbl1(["+"]) && lbl2(["+"]) && t1.mold == t2.mold,
       ]
       |> List.fold_left((||), false);
     if (eq) {
@@ -146,7 +147,7 @@ module Stacks = {
     };
 
   let shapes = p =>
-    Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_whitespace);
+    Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_secondary);
 
   let shapes_of_chain =
       (chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
@@ -170,7 +171,11 @@ module Stacks = {
     | (_, Some((l, r))) =>
       let is = List.map(fst, chain);
       let split_kids = n =>
-        ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev);
+        try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
+        | _ =>
+          print_endline(show(stacks));
+          failwith("Skel.push_output: split_kids: index out of bounds");
+        };
       let output =
         switch (l, r) {
         | (Convex, Convex) =>

@@ -5,13 +5,13 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
-  | WhitespaceIcons
+  | SecondaryIcons
   | Statics
   | Dynamics
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(Editors.mode);
+  | Mode(ModelSettings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -23,16 +23,17 @@ type t =
   | FinishImportAll(option(string))
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
-  | ResetSlide
+  | ExportPersistentData
+  | ResetCurrentEditor
   | Save
-  | ToggleMode
-  | SwitchSlide(int)
-  | SwitchEditor(int)
+  | SetMode(ModelSettings.mode)
+  | SwitchScratchSlide(int)
+  | SwitchExampleSlide(string)
+  | SwitchEditor(Exercise.pos)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
-  | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Cut
   | Copy
   | Paste(string)
@@ -41,7 +42,8 @@ type t =
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
-  | UpdateLangDocMessages(LangDocMessages.update);
+  | UpdateLangDocMessages(LangDocMessages.update)
+  | DebugAction(DebugAction.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -52,7 +54,6 @@ module Failure = {
     | CantReset
     | FailedToLoad
     | FailedToSwitch
-    | UnrecognizedInput(FailedInput.reason)
     | FailedToPerform(Action.Failure.t)
     | Exception(string);
 };

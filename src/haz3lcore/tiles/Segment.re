@@ -60,7 +60,7 @@ let snoc = (tiles, tile) => tiles @ [tile];
 
 let shape_affix =
     (d: Direction.t, affix: t, r: Nib.Shape.t)
-    : (Aba.t(list(Whitespace.t), Grout.t), Nib.Shape.t, t) => {
+    : (Aba.t(list(Secondary.t), Grout.t), Nib.Shape.t, t) => {
   let empty_wgw = Aba.mk([[]], []);
   let rec go = (affix: t, r: Nib.Shape.t) =>
     switch (affix) {
@@ -68,7 +68,7 @@ let shape_affix =
     | [p, ...tl] =>
       let (wgw, s, tl) = go(tl, r);
       switch (p) {
-      | Whitespace(w) =>
+      | Secondary(w) =>
         let (wss, gs) = wgw;
         let (ws, wss) = ListUtil.split_first(wss);
         (([[w, ...ws], ...wss], gs), s, tl);
@@ -89,7 +89,7 @@ let rec convex = seg => {
       (p: Piece.t, shape) => {
         let* s = shape;
         switch (p) {
-        | Whitespace(_) => shape
+        | Secondary(_) => shape
         | Grout(g) =>
           Grout.fits_shape(g, s) ? Some(fst(Grout.shapes(g))) : None
         | Tile(t) =>
@@ -121,6 +121,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Pat => remold_pat(shape, seg)
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
+  | TPat => remold_tpat(shape, seg)
   | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
@@ -162,7 +163,7 @@ and remold_typ = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
@@ -176,7 +177,7 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [] => ([], shape, [])
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) =>
       let (remolded, shape, rest) = remold_typ_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
@@ -205,7 +206,7 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [] => ([], shape, [])
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) =>
       let (remolded, shape, rest) = remold_pat_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
@@ -236,7 +237,7 @@ and remold_pat = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
@@ -251,12 +252,59 @@ and remold_pat = (shape, seg: t): t =>
       }
     }
   }
+and remold_tpat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      switch (remold_tile(TPat, shape, t)) {
+      | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_tpat_uni(snd(Tile.shapes(t)), tl);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      }
+    }
+  }
+and remold_tpat = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) => [hd, ...remold_tpat(shape, tl)]
+    | Tile(t) =>
+      switch (remold_tile(TPat, shape, t)) {
+      | None => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_tpat(shape, rest);
+        | _ => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
 and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) =>
       let (remolded, shape, rest) = remold_exp_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
@@ -270,10 +318,18 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t) =>
         switch (Tile.nibs(t)) {
+        | (_, {shape, sort: TPat}) =>
+          let (remolded_tpat, shape, rest) = remold_tpat_uni(shape, tl);
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_tpat] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Pat}) =>
           let (remolded_pat, shape, rest) = remold_pat_uni(shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
           ([Piece.Tile(t), ...remolded_pat] @ remolded_exp, shape, rest);
+        | (_, {shape, sort: Typ}) =>
+          let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_typ] @ remolded_exp, shape, rest);
         | (_, {shape, sort: Rul}) =>
           // TODO review short circuit
           ([Tile(t)], shape, tl)
@@ -290,7 +346,7 @@ and remold_rul = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) => [hd, ...remold_rul(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Rul, shape, t)) {
@@ -319,7 +375,7 @@ and remold_exp = (shape, seg: t): t =>
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
@@ -328,6 +384,12 @@ and remold_exp = (shape, seg: t): t =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Pat}) =>
           let (remolded, shape, rest) = remold_pat_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape, sort: TPat}) =>
+          let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
@@ -339,7 +401,7 @@ and remold_exp = (shape, seg: t): t =>
 let skel = seg =>
   seg
   |> List.mapi((i, p) => (i, p))
-  |> List.filter(((_, p)) => !Piece.is_whitespace(p))
+  |> List.filter(((_, p)) => !Piece.is_secondary(p))
   |> Skel.mk;
 
 let sorted_children = List.concat_map(Piece.sorted_children);
@@ -347,13 +409,13 @@ let children = seg => List.map(snd, sorted_children(seg));
 
 module Trim = {
   type seg = t;
-  type t = Aba.t(list(Whitespace.t), Grout.t);
+  type t = Aba.t(list(Secondary.t), Grout.t);
 
   let empty = Aba.mk([[]], []);
 
   let rev = Aba.rev(List.rev, Fun.id);
 
-  let cons_w = (w: Whitespace.t, (wss, gs)) => {
+  let cons_w = (w: Secondary.t, (wss, gs)) => {
     // safe bc Aba always has at least one A element
     let (ws, wss) = ListUtil.split_first(wss);
     Aba.mk([[w, ...ws], ...wss], gs);
@@ -361,7 +423,7 @@ module Trim = {
   let cons_g = (g: Grout.t, (wss, gs)) =>
     Aba.mk([[], ...wss], [g, ...gs]);
 
-  let ws = ((wss, _): t): seg => List.(map(Piece.whitespace, concat(wss)));
+  let ws = ((wss, _): t): seg => List.(map(Piece.secondary, concat(wss)));
 
   // postcond: result is either <ws> or <ws,g,ws'>
   let merge = ((wss, gs): t): t => {
@@ -373,7 +435,7 @@ module Trim = {
     };
   };
   // same as merge but type encodes postcond
-  // let merged = (trim: t): (list(Whitespace.t), option((Grout.t, list(Whitespace.t)))) => {
+  // let merged = (trim: t): (list(Secondary.t), option((Grout.t, list(Secondary.t)))) => {
   //   let (wss, gs) = merge(trim);
   //   let (ws, wss) = ListUtil.split_first(wss);
   //   switch (gs) {
@@ -382,17 +444,16 @@ module Trim = {
   //   };
   // };
   let rec rm_up_to_one_space =
-          (wss: list(list(Whitespace.t))): list(list(Whitespace.t)) =>
+          (wss: list(list(Secondary.t))): list(list(Secondary.t)) =>
     switch (wss) {
     | [] => []
-    | [[w, ...ws], ...wss] when Whitespace.is_space(w) =>
-      List.cons(ws, wss)
+    | [[w, ...ws], ...wss] when Secondary.is_space(w) => List.cons(ws, wss)
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
   let scooch_over_linebreak = wss' =>
     switch (wss') {
-    | [ws, [w, ...ws'], ...wss] when Whitespace.is_linebreak(w) => [
+    | [ws, [w, ...ws'], ...wss] when Secondary.is_linebreak(w) => [
         ws @ [w],
         ws',
         ...wss,
@@ -400,51 +461,67 @@ module Trim = {
     | _ => wss'
     };
 
-  let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
+  let add_grout =
+      (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
     let (wss, gs) = trim;
-    /* If we're adding a grout, remove a whitespace. Note that
+
+    /* If we're adding a grout, remove a secondary. Note that
        changes made to the logic here should also take into
-       account the other direction in 'regrout' below. */
-    let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
+       account the other direction in 'regrout' below.
+
+       Examples:
+       1. concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
+       2. convex left "[|]" want "[ |]"=>"[<>|]" (consume)
+       3. convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
+       */
+
+    let trim = (
+      g.shape == Concave && d == Right ? wss : rm_up_to_one_space(wss),
+      gs,
+    );
     let (wss', gs') = cons_g(g, trim);
-    /* Hack to supress the addition of leading whitespace on a line */
+    /* Hack to supress the addition of leading secondary on a line */
     //let wss' = scooch_over_linebreak(wss');
     /* ANDREW: disabled above hack; with calmer indent it seems annoying */
     (wss', gs');
   };
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
+  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
+
       /* Convert unneeded grout to spaces. Note that changes made
          to the logic here should also take into account the
          conversion of spaces to grout in 'add_grout' above. */
       let new_spaces =
         List.filter_map(
-          ({id, shape}: Grout.t) =>
+          ({id, shape}: Grout.t) => {
             switch (shape) {
-            | Concave => Some(Whitespace.mk_space(id))
-            | Convex => None
-            },
+            /* convave right case "let a = 1><in|" => "let a = 1 in |" (convert) */
+            | Concave when d == Right => Some(Secondary.mk_space(id))
+            | _ => None
+            }
+          },
           gs,
         );
+
       /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
          somewhat hacky; we may just want to remove all the spaces
          whenever there is a linebreak; not making this chance now
          as I'm worried about it introducing subtle jank */
+
       /* David PR comment:
          All these changes assume the trim is ordered left-to-right,
          but this may not be true when Trim.regrout is called by
          regrout_affix(Left, ...) below, which reverses the affix before
          processing. (This didn't pose an issue before with trim because
-         the whitespace and grout are symmetric and the existing code
+         the secondary and grout are symmetric and the existing code
          didn't affect order.)
-
          Proper fix would require threading through directional parameter
          from regrout_affix into Trim.regrout and appending to correct side.
          Similar threading for add_grout. That said, I couldn't trigger any
@@ -455,21 +532,21 @@ module Trim = {
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
-      | [] => add_grout(l, merged)
+      | [] => add_grout(~d, l, merged)
       | [_, ..._] => IdGen.return(merged)
       };
     };
 
   let to_seg = (trim: t) =>
     trim
-    |> Aba.join(List.map(Piece.whitespace), g => [Piece.Grout(g)])
+    |> Aba.join(List.map(Piece.secondary), g => [Piece.Grout(g)])
     |> List.concat;
 };
 
 let rec regrout = ((l, r), seg) => {
   open IdGen.Syntax;
   let* (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let+ trim = Trim.regrout((l, r), trim);
+  let+ trim = Trim.regrout(Direction.Right, (l, r), trim);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
@@ -481,7 +558,7 @@ and regrout_affix =
       (p: Piece.t, id_gen) => {
         let* (trim, r, tl) = id_gen;
         switch (p) {
-        | Whitespace(w) => IdGen.return((Trim.cons_w(w, trim), r, tl))
+        | Secondary(w) => IdGen.return((Trim.cons_w(w, trim), r, tl))
         | Grout(g) => IdGen.return((Trim.(merge(cons_g(g, trim))), r, tl))
         | Tile(t) =>
           let* children =
@@ -497,7 +574,7 @@ and regrout_affix =
           let p = Piece.Tile({...t, children});
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let+ trim = Trim.regrout((r', r), trim);
+          let+ trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         };
       },
@@ -511,7 +588,7 @@ and regrout_affix =
 // let flip_nibs =
 //   List.map(
 //     fun
-//     | (Piece.Whitespace(_) | Grout(_)) as p => p
+//     | (Piece.Secondary(_) | Grout(_)) as p => p
 //     | Tile(t) => Tile({...t, mold: Mold.flip_nibs(t.mold)}),
 //   );
 
@@ -545,41 +622,54 @@ let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
     };
   };
 
-let trim_whitespace: (Direction.t, t) => t =
+let trim_secondary: (Direction.t, t) => t =
   (d, ps) => {
-    /* Trims leading/trailing whitespace */
+    /* Trims leading/trailing secondary */
     let rec trim_l = xs =>
       switch (xs) {
       | [] => []
-      | [Piece.Whitespace(_), ...xs] => trim_l(xs)
+      | [Piece.Secondary(_), ...xs] => trim_l(xs)
       | [_, ..._] => xs
       };
     trim_f(trim_l, d, ps);
   };
 
-let trim_whitespace_and_grout: (Direction.t, t) => t =
+let trim_grout: (Direction.t, t) => t =
   (d, ps) => {
-    /* Trims leading/trailing whitespace, continuing
-       to trim around grout until first Tile is reached */
+    /* Trims leading/trailing grout */
     let rec trim_l: list(Base.piece) => list(Base.piece) =
       xs =>
         switch (xs) {
         | [] => []
-        | [Whitespace(_) | Grout(_), ...xs] => trim_l(xs)
+        | [Grout(_), ...xs] => trim_l(xs)
         | [_, ..._] => xs
         };
     trim_f(trim_l, d, ps);
   };
 
-let trim_grout_around_whitespace: (Direction.t, t) => t =
+let trim_secondary_and_grout: (Direction.t, t) => t =
   (d, ps) => {
-    /* Trims leading/trailing grout, skipping over whitespace,
+    /* Trims leading/trailing secondary, continuing
+       to trim around grout until first Tile is reached */
+    let rec trim_l: list(Base.piece) => list(Base.piece) =
+      xs =>
+        switch (xs) {
+        | [] => []
+        | [Secondary(_) | Grout(_), ...xs] => trim_l(xs)
+        | [_, ..._] => xs
+        };
+    trim_f(trim_l, d, ps);
+  };
+
+let trim_grout_around_secondary: (Direction.t, t) => t =
+  (d, ps) => {
+    /* Trims leading/trailing grout, skipping over secondary,
        but not skipping over other pieces. */
     let rec trim_l: list(Base.piece) => list(Base.piece) =
       xs =>
         switch (xs) {
         | [] => []
-        | [Whitespace(w), ...xs] => [Whitespace(w), ...trim_l(xs)]
+        | [Secondary(w), ...xs] => [Secondary(w), ...trim_l(xs)]
         | [Grout(_), ...xs] => trim_l(xs)
         | [_, ..._] => xs
         };
@@ -587,7 +677,7 @@ let trim_grout_around_whitespace: (Direction.t, t) => t =
   };
 
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
-  let trimmed = trim_whitespace(d, ps);
+  let trimmed = trim_secondary(d, ps);
   switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
   | (Right, _, Some(p)) => p |> Piece.shapes |> Option.map(snd)
   | (Left, Some(p), _) => p |> Piece.shapes |> Option.map(fst)
@@ -602,7 +692,7 @@ let rec serialize = (seg: t) =>
   seg
   |> List.concat_map(
        fun
-       | (Piece.Whitespace(_) | Grout(_) | Tile({shards: [_], _})) as p => [
+       | (Piece.Secondary(_) | Grout(_) | Tile({shards: [_], _})) as p => [
            p,
          ]
        | Tile(t) => {
@@ -618,10 +708,10 @@ let rec serialize = (seg: t) =>
          },
      );
 
-let sameline_whitespace =
+let sameline_secondary =
   List.for_all(
     fun
-    | Piece.Whitespace(w) => w.content != Whitespace.linebreak
+    | Piece.Secondary(w) => !Secondary.is_linebreak(w)
     | _ => false,
   );
 

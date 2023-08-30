@@ -2,6 +2,8 @@ open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
 
+let action_applied = ref(true);
+
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
     ~node=JsUtil.get_elem_by_id(id),
@@ -33,11 +35,13 @@ let restart_caret_animation = () =>
 
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
+  action_applied := true;
   switch (
-    try(
-      Update.apply(model, action, state, ~schedule_action)
-      |> Log.update(action, model)
-    ) {
+    try({
+      let new_model = Update.apply(model, action, state, ~schedule_action);
+      Log.update(action);
+      new_model;
+    }) {
     | exc => Error(Exception(Printexc.to_string(exc)))
     }
   ) {
@@ -47,11 +51,6 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(FailedToPerform(err)));
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
-  | Error(UnrecognizedInput(reason)) =>
-    // TODO(andrew): reinstate this history functionality
-    print_endline(Update.Failure.show(UnrecognizedInput(reason)));
-    model;
-  //{...model, history: ActionHistory.just_failed(reason, model.history)};
   | Error(err) =>
     print_endline(Update.Failure.show(err));
     model;
@@ -69,10 +68,7 @@ let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
 
 let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
   let key = Key.mk(dir, evt);
-  Keyboard.handle_key_event(key, ~model)
-  |> Log.keystroke(key)
-  |> List.map(inject)
-  |> do_many;
+  Keyboard.handle_key_event(key, ~model) |> List.map(inject) |> do_many;
 };
 
 let handlers = (~inject, ~model: Model.t) =>
@@ -103,7 +99,7 @@ module App = {
       State.evaluator_subscribe(
         state,
         ((key, r)) => {
-          let cr: ModelResult.current =
+          let cr: Haz3lcore.ModelResult.current =
             switch (r) {
             | Some(EvaluationOk(r)) => ResultOk(r)
             | Some(EvaluationFail(reason)) => ResultFail(reason)
@@ -123,13 +119,29 @@ module App = {
     Async_kernel.Deferred.return(state);
   };
 
-  let create = (model: Incr.t(Haz3lweb.Model.t), ~old_model as _, ~inject) => {
+  let create =
+      (
+        model: Incr.t(Haz3lweb.Model.t),
+        ~old_model: Incr.t(Haz3lweb.Model.t),
+        ~inject,
+      ) => {
     open Incr.Let_syntax;
-    let%map model = model;
+    let%map model = model
+    and old_model = old_model;
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
+      ~on_display=(_, ~schedule_action as _) =>
+      if (action_applied.contents) {
+        let old_zipper = Editors.get_editor(model.editors).state.zipper;
+        let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
+
+        action_applied := false;
+        if (old_zipper != new_zipper) {
+          JsUtil.scroll_cursor_into_view_if_needed();
+        };
+      }
     );
   };
 };
@@ -141,16 +153,9 @@ let fragment =
   };
 
 let initial_model = {
-  // NOTE: load settings first to get last editor mode
-  let model = Update.load_model(Model.blank);
   switch (fragment) {
-  | "dynamics-off" =>
-    print_endline("Turning off dynamics...");
-    let settings = {...model.settings, dynamics: false};
-    LocalStorage.Settings.save(settings);
-    let model = {...model, settings};
-    model;
-  | _ => model
+  | "debug" => Model.debug
+  | _ => Model.load(Model.blank)
   };
 };
 

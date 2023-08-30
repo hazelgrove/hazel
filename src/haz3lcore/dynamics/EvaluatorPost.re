@@ -58,7 +58,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -99,7 +99,12 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Cons(d1', d2') |> return;
 
-  | ListLit(a, b, c, d, ds) =>
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    ListConcat(d1', d2') |> return;
+
+  | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
       |> List.fold_left(
@@ -110,11 +115,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, d, ds);
-
-  | Inj(ty, side, d') =>
-    let* d'' = pp_eval(d');
-    Inj(ty, side, d'') |> return;
+    ListLit(a, b, c, ds);
 
   | Tuple(ds) =>
     let+ ds =
@@ -165,7 +166,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
      use `pp_eval` and `pp_uneval` as necessary.
      */
   | Closure(env, d) =>
-    let* env = pp_eval_env(env);
+    let* env =
+      Util.TimeUtil.measure_time("pp_eval_env/Closure", true, () =>
+        pp_eval_env(env)
+      );
     switch (d) {
     /* Non-hole constructs inside closures. */
     | Fun(dp, ty, d, s) =>
@@ -180,8 +184,14 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
 
     | ConsistentCase(Case(scrut, rules, i)) =>
       /* scrut should already be evaluated, rule bodies are not */
-      let* scrut = pp_eval(scrut);
-      let* rules = pp_uneval_rules(env, rules);
+      let* scrut =
+        Util.TimeUtil.measure_time("pp_eval(scrut)", true, () =>
+          pp_eval(scrut)
+        );
+      let* rules =
+        Util.TimeUtil.measure_time("pp_uneval_rules", true, () =>
+          pp_uneval_rules(env, rules)
+        );
       ConsistentCase(Case(scrut, rules, i)) |> return;
 
     /* Hole constructs inside closures.
@@ -199,7 +209,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      InconsistentBranches(u, i, Case(scrut, rules, case_i)) |> return;
+      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
+      |> return;
 
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -261,7 +272,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -314,7 +325,12 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Cons(d1', d2') |> return;
 
-  | ListLit(a, b, c, d, ds) =>
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    ListConcat(d1', d2') |> return;
+
+  | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
       |> List.fold_left(
@@ -325,11 +341,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, d, ds);
-
-  | Inj(ty, side, d') =>
-    let* d'' = pp_uneval(env, d');
-    Inj(ty, side, d'') |> return;
+    ListLit(a, b, c, ds);
 
   | Tuple(ds) =>
     let+ ds =
@@ -428,7 +440,7 @@ let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
   switch (d) {
-  | Tag(_)
+  | Constructor(_)
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
@@ -437,7 +449,6 @@ let rec track_children_of_hole =
   | BoundVar(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d, _)
-  | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
@@ -452,8 +463,11 @@ let rec track_children_of_hole =
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
+  | ListConcat(d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
 
-  | ListLit(_, _, _, _, ds) =>
+  | ListLit(_, _, _, ds) =>
     List.fold_right(
       (d, hii) => track_children_of_hole(hii, parent, d),
       ds,
@@ -468,8 +482,13 @@ let rec track_children_of_hole =
     )
 
   | ConsistentCase(Case(scrut, rules, _)) =>
-    let hii = track_children_of_hole(hii, parent, scrut);
-    track_children_of_hole_rules(hii, parent, rules);
+    let hii =
+      Util.TimeUtil.measure_time("track_children_of_hole(scrut)", true, () =>
+        track_children_of_hole(hii, parent, scrut)
+      );
+    Util.TimeUtil.measure_time("track_children_of_hole_rules", true, () =>
+      track_children_of_hole_rules(hii, parent, rules)
+    );
 
   | ApBuiltin(_, args) =>
     List.fold_right(
@@ -537,10 +556,15 @@ let postprocess =
     : ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t) => {
   /* Substitution and hole numbering postprocessing */
   let ((_, hii, eig), d) =
-    pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig));
+    Util.TimeUtil.measure_time("pp_eval", true, () =>
+      pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig))
+    );
 
   /* Build hole instance info. */
-  let hii = hii |> HoleInstanceInfo_.to_hole_instance_info;
+  let hii =
+    Util.TimeUtil.measure_time("to_hii", true, () =>
+      hii |> HoleInstanceInfo_.to_hole_instance_info
+    );
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */
@@ -561,7 +585,10 @@ let postprocess =
       hii,
     );
 
-  let hii = hii |> track_children;
+  let hii =
+    Util.TimeUtil.measure_time("track_children", true, () =>
+      hii |> track_children
+    );
 
   /* Perform hole parent tracking. */
   ((hii, d), eig);

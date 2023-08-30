@@ -49,11 +49,11 @@ let skel = ((a, (pre, suf)): generation): Skel.t => {
   let pre =
     pre
     |> List.mapi((i, p) => (i, p))
-    |> List.filter(((_, p)) => !Piece.is_whitespace(p));
+    |> List.filter(((_, p)) => !Piece.is_secondary(p));
   let suf =
     suf
     |> List.mapi((i, p) => (n + 1 + i, p))
-    |> List.filter(((_, p)) => !Piece.is_whitespace(p));
+    |> List.filter(((_, p)) => !Piece.is_secondary(p));
   Skel.mk(pre @ [a, ...suf]);
 };
 
@@ -79,8 +79,8 @@ let regrout = (ancs: t) =>
       let* regrouted = regrouted;
       let* ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
       let (l', r') = TupleUtil.map2(Nib.shape, Mold.nibs(a.mold));
-      let* trim_l = Segment.Trim.regrout((l, l'), trim_l);
-      let+ trim_r = Segment.Trim.regrout((r', r), trim_r);
+      let* trim_l = Segment.Trim.regrout(Left, (l, l'), trim_l);
+      let+ trim_r = Segment.Trim.regrout(Right, (r', r), trim_r);
       let pre = pre @ Segment.Trim.to_seg(trim_l);
       let suf = Segment.Trim.to_seg(trim_r) @ suf;
       [(a, (pre, suf)), ...regrouted];

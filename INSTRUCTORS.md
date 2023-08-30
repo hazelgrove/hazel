@@ -1,9 +1,8 @@
 # Creating a new exercise
-
 1. Make a copy of src/haz3lweb/exercises/BlankTemplate.ml, filling in the arguments for your exercise. 
 Make sure the module_name argument matches your module name. Use the .ml extension (for technical reasons).
 
-2. Add your exercise to the exercise list in SchoolSettings_base.re.
+2. Add your exercise to the exercise list in ExerciseSettings_base.re.
 
 3. Compile and load Hazel, select your exercise, make sure Instructor Mode is on.
 
@@ -32,3 +31,16 @@ Notably, student and instructor mode have a different serialization format, so i
 between the two without clearing your local storage (in browser dev tools).
 
 (This is also a QoL TODO that would be nice to resolve at some point.)
+
+# Generating Grade Reports (for Gradescope, etc.)
+
+1. Open the exercise in instructor mode and export a grading version (button in top bar) which generates an OCaml file.
+
+2. Move the file to `src/haz3lschool/specs`.
+
+3. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
+
+4. Run `dune exec ./src/haz3lschool/gradescope.exe <path_to_student_json>` under project root to print the grade report.
+
+To change the output format, adjust `Main.gen_grading_report` function in `Gradescope.re` .
+

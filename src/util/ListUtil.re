@@ -445,3 +445,9 @@ let partition3_map =
     xs,
     ([], [], []),
   );
+
+let assoc_err = (x, xs, err: string) =>
+  switch (List.assoc_opt(x, xs)) {
+  | None => failwith(err)
+  | Some(y) => y
+  };

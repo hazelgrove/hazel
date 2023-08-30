@@ -81,6 +81,12 @@ let get_localstore = (k: string): option(string) =>
   | _ => None
   };
 
+let clear_localstore = () => {
+  let local_store =
+    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
+  local_store##clear;
+};
+
 let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
@@ -114,6 +120,19 @@ let copy = (str: string) => {
     Js.bool(false),
     Js.Opt.empty,
   );
+};
+
+let scroll_cursor_into_view_if_needed = () => {
+  let caret_elem = get_elem_by_id("caret");
+  let main = get_elem_by_id("main");
+  let main_rect = main##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+
+  if (caret_rect##.top < main_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > main_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
 };
 
 module Fragment = {

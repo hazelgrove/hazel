@@ -1,45 +1,14 @@
 open Sexplib.Std;
+open Haz3lcore;
 
-[@deriving (show({with_path: false}), yojson)]
+[@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type settings = {
-  captions: bool,
-  whitespace_icons: bool,
-  statics: bool,
-  dynamics: bool,
-  async_evaluation: bool,
-  context_inspector: bool,
-  instructor_mode: bool,
-  benchmark: bool,
-  mode: Editors.mode,
-};
-
-let settings_init = {
-  captions: true,
-  whitespace_icons: false,
-  statics: true,
-  dynamics: true,
-  async_evaluation: false,
-  context_inspector: false,
-  instructor_mode: SchoolSettings.show_instructor,
-  benchmark: false,
-  mode: Editors.Scratch,
-};
-
-let fix_instructor_mode = settings =>
-  if (settings.instructor_mode && !SchoolSettings.show_instructor) {
-    {...settings, instructor_mode: false};
-  } else {
-    settings;
-  };
 
 type t = {
   tylr: Tylr.Meld.t,
   editors: Editors.t,
   results: ModelResults.t,
-  settings,
+  settings: ModelSettings.t,
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
@@ -57,7 +26,7 @@ let mk = editors => {
   tylr: Tylr.(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp"))))),
   editors,
   results: ModelResults.empty,
-  settings: settings_init,
+  settings: Init.startup.settings,
   // TODO: move below to 'io_state'?
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
@@ -68,3 +37,61 @@ let mk = editors => {
 };
 
 let blank = mk(Editors.Scratch(0, []));
+let debug = mk(Editors.DebugLoad);
+
+let load_editors =
+    (~mode: ModelSettings.mode, ~instructor_mode: bool): Editors.t =>
+  switch (mode) {
+  | DebugLoad => DebugLoad
+  | Scratch =>
+    let (idx, slides) = Store.Scratch.load();
+    Scratch(idx, slides);
+  | Examples =>
+    let (name, slides) = Store.Examples.load();
+    Examples(name, slides);
+  | Exercise =>
+    let (n, specs, exercise) =
+      Store.Exercise.load(
+        ~specs=ExerciseSettings.exercises,
+        ~instructor_mode,
+      );
+    Exercise(n, specs, exercise);
+  };
+
+let save_editors = (editors: Editors.t, ~instructor_mode: bool): unit =>
+  switch (editors) {
+  | DebugLoad => failwith("no editors in debug load mode")
+  | Scratch(n, slides) => Store.Scratch.save((n, slides))
+  | Examples(name, slides) => Store.Examples.save((name, slides))
+  | Exercise(n, specs, exercise) =>
+    Store.Exercise.save((n, specs, exercise), ~instructor_mode)
+  };
+
+let load = (init_model: t): t => {
+  let settings = Store.Settings.load();
+  let langDocMessages = Store.LangDocMessages.load();
+  let editors =
+    load_editors(
+      ~mode=settings.mode,
+      ~instructor_mode=settings.instructor_mode,
+    );
+  let results =
+    ModelResults.init(
+      settings.dynamics ? Editors.get_spliced_elabs(editors) : [],
+    );
+  {...init_model, editors, settings, langDocMessages, results};
+};
+
+let save = (model: t) => {
+  save_editors(
+    model.editors,
+    ~instructor_mode=model.settings.instructor_mode,
+  );
+  Store.LangDocMessages.save(model.langDocMessages);
+  Store.Settings.save(model.settings);
+};
+
+let save_and_return = (model: t) => {
+  save(model);
+  Ok(model);
+};
