@@ -17,58 +17,43 @@ type t =
   | Examples(string, list((string, ScratchSlide.state)))
   | Exercise(int, list(Exercise.spec), Exercise.state);
 
-let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
+let get_editor = (editors: t): Editor.t =>
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    let slide = List.nth(slides, n);
-    let id = ScratchSlide.id_of_state(slide);
-    let ed = ScratchSlide.editor_of_state(slide);
-    (id, ed);
+    List.nth(slides, n);
   | Examples(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    let slide = List.assoc(name, slides);
-    let id = ScratchSlide.id_of_state(slide);
-    let ed = ScratchSlide.editor_of_state(slide);
-    (id, ed);
-  | Exercise(_, _, exercise) =>
-    let id = Exercise.id_of_state(exercise);
-    let ed = Exercise.editor_of_state(exercise);
-    (id, ed);
+    List.assoc(name, slides);
+  | Exercise(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
-let get_editor = (editors: t): Editor.t => snd(get_editor_and_id(editors));
-
-let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
+let put_editor = (ed: Editor.t, eds: t): t =>
   switch (eds) {
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    let slide = List.nth(slides, n);
-    Scratch(
-      n,
-      Util.ListUtil.put_nth(
-        n,
-        ScratchSlide.put_editor_and_id(slide, id, ed),
-        slides,
-      ),
-    );
+    Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
   | Examples(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    let slide = List.assoc(name, slides);
     Examples(
       name,
-      slides
-      |> List.remove_assoc(name)
-      |> List.cons((name, ScratchSlide.put_editor_and_id(slide, id, ed))),
+      slides |> List.remove_assoc(name) |> List.cons((name, ed)),
     );
   | Exercise(n, specs, exercise) =>
-    Exercise(n, specs, Exercise.put_editor_and_id(exercise, id, ed))
+    Exercise(n, specs, Exercise.put_editor(exercise, ed))
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
+/* Each mode (e.g. Scratch, School) requires
+   elaborating on some number of expressions
+   that are spliced together from the editors
+   in the mode. Each elaborated expression
+   is given a key for later lookup by the mode.
+
+   Used in the Update module */
 let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   switch (editors) {
   | DebugLoad => []
