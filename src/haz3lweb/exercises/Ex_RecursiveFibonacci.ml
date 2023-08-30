@@ -1,8 +1,9 @@
+open Haz3lcore
+
 let prompt = Ex_RecursiveFibonacci_prompt.prompt
 
 let exercise : Exercise.spec =
   {
-    next_id = 813;
     title = "Recursive Fibonacci";
     version = 1;
     module_name = "Ex_RecursiveFibonacci";
@@ -15,7 +16,7 @@ let exercise : Exercise.spec =
         backpack = [];
         relatives =
           {
-            siblings = ([ Grout { id = 0; shape = Convex } ], []);
+            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
@@ -28,11 +29,12 @@ let exercise : Exercise.spec =
           {
             siblings =
               ( [
-                  Secondary { id = 38; content = Whitespace " " };
-                  Secondary { id = 39; content = Whitespace "\226\143\142" };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Secondary
+                    { id = Id.mk (); content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = 43;
+                      id = Id.mk ();
                       label = [ "fun"; "->" ];
                       mold =
                         {
@@ -46,10 +48,11 @@ let exercise : Exercise.spec =
                       children =
                         [
                           [
-                            Secondary { id = 44; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 47;
+                                id = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -62,15 +65,17 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 48; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                           ];
                         ];
                     };
-                  Secondary { id = 51; content = Whitespace " " };
-                  Secondary { id = 52; content = Whitespace "\226\143\142" };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Secondary
+                    { id = Id.mk (); content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = 55;
+                      id = Id.mk ();
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -84,10 +89,11 @@ let exercise : Exercise.spec =
                       children =
                         [
                           [
-                            Secondary { id = 56; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 59;
+                                id = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -100,10 +106,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 60; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 63;
+                                id = Id.mk ();
                                 label = [ "<" ];
                                 mold =
                                   {
@@ -116,10 +123,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 64; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 66;
+                                id = Id.mk ();
                                 label = [ "2" ];
                                 mold =
                                   {
@@ -132,13 +140,15 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 69; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                           ];
                           [
-                            Secondary { id = 73; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 77;
+                                id = Id.mk ();
                                 label = [ "1" ];
                                 mold =
                                   {
@@ -151,16 +161,20 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 80; content = Whitespace " " };
                             Secondary
-                              { id = 78; content = Whitespace "\226\143\142" };
+                              { id = Id.mk (); content = Whitespace " " };
+                            Secondary
+                              {
+                                id = Id.mk ();
+                                content = Whitespace "\226\143\142";
+                              };
                           ];
                         ];
                     };
-                  Secondary { id = 84; content = Whitespace " " };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
                   Tile
                     {
-                      id = 88;
+                      id = Id.mk ();
                       label = [ "fib" ];
                       mold =
                         {
@@ -175,7 +189,7 @@ let exercise : Exercise.spec =
                     };
                   Tile
                     {
-                      id = 89;
+                      id = Id.mk ();
                       label = [ "("; ")" ];
                       mold =
                         {
@@ -191,7 +205,7 @@ let exercise : Exercise.spec =
                           [
                             Tile
                               {
-                                id = 92;
+                                id = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -204,10 +218,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 93; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 96;
+                                id = Id.mk ();
                                 label = [ "-" ];
                                 mold =
                                   {
@@ -220,10 +235,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 97; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 99;
+                                id = Id.mk ();
                                 label = [ "1" ];
                                 mold =
                                   {
@@ -239,10 +255,10 @@ let exercise : Exercise.spec =
                           ];
                         ];
                     };
-                  Secondary { id = 100; content = Whitespace " " };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
                   Tile
                     {
-                      id = 103;
+                      id = Id.mk ();
                       label = [ "+" ];
                       mold =
                         {
@@ -255,10 +271,10 @@ let exercise : Exercise.spec =
                       shards = [ 0 ];
                       children = [];
                     };
-                  Secondary { id = 104; content = Whitespace " " };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
                   Tile
                     {
-                      id = 108;
+                      id = Id.mk ();
                       label = [ "fib" ];
                       mold =
                         {
@@ -273,7 +289,7 @@ let exercise : Exercise.spec =
                     };
                   Tile
                     {
-                      id = 109;
+                      id = Id.mk ();
                       label = [ "("; ")" ];
                       mold =
                         {
@@ -289,7 +305,7 @@ let exercise : Exercise.spec =
                           [
                             Tile
                               {
-                                id = 112;
+                                id = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -302,10 +318,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 113; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 116;
+                                id = Id.mk ();
                                 label = [ "-" ];
                                 mold =
                                   {
@@ -318,10 +335,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 117; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 119;
+                                id = Id.mk ();
                                 label = [ "2" ];
                                 mold =
                                   {
@@ -337,14 +355,16 @@ let exercise : Exercise.spec =
                           ];
                         ];
                     };
-                  Secondary { id = 122; content = Whitespace " " };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
                 ],
-                [ Secondary { id = 126; content = Whitespace "\226\143\142" } ]
-              );
+                [
+                  Secondary
+                    { id = Id.mk (); content = Whitespace "\226\143\142" };
+                ] );
             ancestors =
               [
                 ( {
-                    id = 11;
+                    id = Id.mk ();
                     label = [ "let"; "="; "in" ];
                     mold =
                       {
@@ -358,10 +378,10 @@ let exercise : Exercise.spec =
                     children =
                       ( [
                           [
-                            Secondary { id = 12; content = Whitespace " " };
+                            Secondary { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 17;
+                                id = Id.mk ();
                                 label = [ "fib" ];
                                 mold =
                                   {
@@ -376,7 +396,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = 20;
+                                id = Id.mk ();
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -389,10 +409,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 21; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 25;
+                                id = Id.mk ();
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -405,10 +426,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 26; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 30;
+                                id = Id.mk ();
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -421,10 +443,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 31; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 35;
+                                id = Id.mk ();
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -437,15 +460,16 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 36; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                           ];
                         ],
                         [] );
                   },
                   ( [],
                     [
-                      Secondary { id = 124; content = Whitespace " " };
-                      Grout { id = 123; shape = Convex };
+                      Secondary { id = Id.mk (); content = Whitespace " " };
+                      Grout { id = Id.mk (); shape = Convex };
                     ] ) );
               ];
           };
@@ -459,7 +483,7 @@ let exercise : Exercise.spec =
             backpack = [];
             relatives =
               {
-                siblings = ([], [ Grout { id = 2; shape = Convex } ]);
+                siblings = ([], [ Grout { id = Id.mk (); shape = Convex } ]);
                 ancestors = [];
               };
             caret = Outer;
@@ -477,7 +501,7 @@ let exercise : Exercise.spec =
               ( [
                   Tile
                     {
-                      id = 472;
+                      id = Id.mk ();
                       label = [ "let"; "="; "in" ];
                       mold =
                         {
@@ -491,10 +515,11 @@ let exercise : Exercise.spec =
                       children =
                         [
                           [
-                            Secondary { id = 473; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 478;
+                                id = Id.mk ();
                                 label = [ "fib" ];
                                 mold =
                                   {
@@ -507,10 +532,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 479; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 482;
+                                id = Id.mk ();
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -523,10 +549,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 483; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 487;
+                                id = Id.mk ();
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -539,10 +566,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 488; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 492;
+                                id = Id.mk ();
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -555,10 +583,11 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 493; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = 497;
+                                id = Id.mk ();
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -571,15 +600,20 @@ let exercise : Exercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Secondary { id = 498; content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
                           ];
                           [
-                            Secondary { id = 500; content = Whitespace " " };
                             Secondary
-                              { id = 501; content = Whitespace "\226\143\142" };
+                              { id = Id.mk (); content = Whitespace " " };
+                            Secondary
+                              {
+                                id = Id.mk ();
+                                content = Whitespace "\226\143\142";
+                              };
                             Tile
                               {
-                                id = 505;
+                                id = Id.mk ();
                                 label = [ "fun"; "->" ];
                                 mold =
                                   {
@@ -594,10 +628,13 @@ let exercise : Exercise.spec =
                                   [
                                     [
                                       Secondary
-                                        { id = 506; content = Whitespace " " };
+                                        {
+                                          id = Id.mk ();
+                                          content = Whitespace " ";
+                                        };
                                       Tile
                                         {
-                                          id = 509;
+                                          id = Id.mk ();
                                           label = [ "n" ];
                                           mold =
                                             {
@@ -612,19 +649,26 @@ let exercise : Exercise.spec =
                                           children = [];
                                         };
                                       Secondary
-                                        { id = 510; content = Whitespace " " };
+                                        {
+                                          id = Id.mk ();
+                                          content = Whitespace " ";
+                                        };
                                     ];
                                   ];
                               };
-                            Secondary { id = 521; content = Whitespace " " };
-                            Grout { id = 518; shape = Convex };
                             Secondary
-                              { id = 516; content = Whitespace "\226\143\142" };
+                              { id = Id.mk (); content = Whitespace " " };
+                            Grout { id = Id.mk (); shape = Convex };
+                            Secondary
+                              {
+                                id = Id.mk ();
+                                content = Whitespace "\226\143\142";
+                              };
                           ];
                         ];
                     };
-                  Secondary { id = 520; content = Whitespace " " };
-                  Grout { id = 519; shape = Convex };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Grout { id = Id.mk (); shape = Convex };
                 ],
                 [] );
             ancestors = [];
@@ -644,7 +688,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = 131;
+                            id = Id.mk ();
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -659,10 +703,10 @@ let exercise : Exercise.spec =
                               [
                                 [
                                   Secondary
-                                    { id = 132; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 137;
+                                      id = Id.mk ();
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -677,7 +721,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 140;
+                                      id = Id.mk ();
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -692,10 +736,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 141; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 145;
+                                      id = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -709,10 +753,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 146; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 150;
+                                      id = Id.mk ();
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -727,10 +771,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 151; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 155;
+                                      id = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -744,19 +788,19 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 156; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                 ];
                                 [
                                   Secondary
-                                    { id = 158; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 159;
+                                      id = Id.mk ();
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 163;
+                                      id = Id.mk ();
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -773,12 +817,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 164;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 167;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -799,22 +843,22 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 168;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                           ];
                                         ];
                                     };
                                   Secondary
-                                    { id = 173; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 174;
+                                      id = Id.mk ();
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 177;
+                                      id = Id.mk ();
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -831,12 +875,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 178;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 181;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -857,12 +901,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 182;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 185;
+                                                id = Id.mk ();
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -883,12 +927,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 186;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 188;
+                                                id = Id.mk ();
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -909,19 +953,19 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 191;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                           ];
                                           [
                                             Secondary
                                               {
-                                                id = 195;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 197;
+                                                id = Id.mk ();
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -942,12 +986,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 200;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 198;
+                                                id = Id.mk ();
                                                 content =
                                                   Whitespace "\226\143\142";
                                               };
@@ -955,10 +999,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 204; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 219;
+                                      id = Id.mk ();
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -975,12 +1019,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 220;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 223;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1001,12 +1045,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 224;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 227;
+                                                id = Id.mk ();
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1027,12 +1071,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 228;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 230;
+                                                id = Id.mk ();
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1053,19 +1097,19 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 233;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                           ];
                                           [
                                             Secondary
                                               {
-                                                id = 237;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 239;
+                                                id = Id.mk ();
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -1086,12 +1130,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 242;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 240;
+                                                id = Id.mk ();
                                                 content =
                                                   Whitespace "\226\143\142";
                                               };
@@ -1099,10 +1143,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 246; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 250;
+                                      id = Id.mk ();
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1117,7 +1161,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 251;
+                                      id = Id.mk ();
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1133,7 +1177,7 @@ let exercise : Exercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = 257;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1154,12 +1198,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 258;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 261;
+                                                id = Id.mk ();
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1180,12 +1224,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 262;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 264;
+                                                id = Id.mk ();
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -1208,10 +1252,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 265; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 268;
+                                      id = Id.mk ();
                                       label = [ "+" ];
                                       mold =
                                         {
@@ -1226,10 +1270,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 269; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 273;
+                                      id = Id.mk ();
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1244,7 +1288,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 274;
+                                      id = Id.mk ();
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1260,7 +1304,7 @@ let exercise : Exercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = 277;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1281,12 +1325,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 278;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 281;
+                                                id = Id.mk ();
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1307,12 +1351,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 282;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 284;
+                                                id = Id.mk ();
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1335,20 +1379,20 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 288; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    { id = 285; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 286;
+                                      id = Id.mk ();
                                       content = Whitespace "\226\143\142";
                                     };
                                 ];
                               ];
                           };
-                        Secondary { id = 290; content = Whitespace " " };
+                        Secondary { id = Id.mk (); content = Whitespace " " };
                       ],
-                      [ Grout { id = 289; shape = Convex } ] );
+                      [ Grout { id = Id.mk (); shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1366,7 +1410,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = 295;
+                            id = Id.mk ();
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1381,10 +1425,10 @@ let exercise : Exercise.spec =
                               [
                                 [
                                   Secondary
-                                    { id = 296; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 301;
+                                      id = Id.mk ();
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1399,7 +1443,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 304;
+                                      id = Id.mk ();
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1414,10 +1458,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 305; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 309;
+                                      id = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1431,10 +1475,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 310; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 314;
+                                      id = Id.mk ();
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1449,10 +1493,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 315; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 319;
+                                      id = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1466,19 +1510,19 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 320; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                 ];
                                 [
                                   Secondary
-                                    { id = 322; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 323;
+                                      id = Id.mk ();
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 327;
+                                      id = Id.mk ();
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1495,12 +1539,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 328;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 331;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1521,22 +1565,22 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 332;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                           ];
                                         ];
                                     };
                                   Secondary
-                                    { id = 335; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 336;
+                                      id = Id.mk ();
                                       content = Whitespace "\226\143\142";
                                     };
                                   Tile
                                     {
-                                      id = 339;
+                                      id = Id.mk ();
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1553,12 +1597,12 @@ let exercise : Exercise.spec =
                                           [
                                             Secondary
                                               {
-                                                id = 340;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 343;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1579,12 +1623,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 344;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 347;
+                                                id = Id.mk ();
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1605,12 +1649,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 348;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 350;
+                                                id = Id.mk ();
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1631,19 +1675,19 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 353;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                           ];
                                           [
                                             Secondary
                                               {
-                                                id = 357;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 359;
+                                                id = Id.mk ();
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -1664,17 +1708,17 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 363;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 360;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Secondary
                                               {
-                                                id = 361;
+                                                id = Id.mk ();
                                                 content =
                                                   Whitespace "\226\143\142";
                                               };
@@ -1682,10 +1726,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 409; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 415;
+                                      id = Id.mk ();
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1700,7 +1744,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 416;
+                                      id = Id.mk ();
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1716,7 +1760,7 @@ let exercise : Exercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = 419;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1737,12 +1781,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 420;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 423;
+                                                id = Id.mk ();
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1763,12 +1807,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 424;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 440;
+                                                id = Id.mk ();
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1791,10 +1835,10 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 441; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 445;
+                                      id = Id.mk ();
                                       label = [ "+" ];
                                       mold =
                                         {
@@ -1809,10 +1853,10 @@ let exercise : Exercise.spec =
                                       children = [];
                                     };
                                   Secondary
-                                    { id = 446; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = 450;
+                                      id = Id.mk ();
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1827,7 +1871,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 451;
+                                      id = Id.mk ();
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1843,7 +1887,7 @@ let exercise : Exercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = 454;
+                                                id = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1864,12 +1908,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 455;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 458;
+                                                id = Id.mk ();
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1890,12 +1934,12 @@ let exercise : Exercise.spec =
                                               };
                                             Secondary
                                               {
-                                                id = 459;
+                                                id = Id.mk ();
                                                 content = Whitespace " ";
                                               };
                                             Tile
                                               {
-                                                id = 461;
+                                                id = Id.mk ();
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1918,18 +1962,18 @@ let exercise : Exercise.spec =
                                         ];
                                     };
                                   Secondary
-                                    { id = 464; content = Whitespace " " };
+                                    { id = Id.mk (); content = Whitespace " " };
                                   Secondary
                                     {
-                                      id = 466;
+                                      id = Id.mk ();
                                       content = Whitespace "\226\143\142";
                                     };
                                 ];
                               ];
                           };
-                        Secondary { id = 467; content = Whitespace " " };
+                        Secondary { id = Id.mk (); content = Whitespace " " };
                       ],
-                      [ Grout { id = 465; shape = Convex } ] );
+                      [ Grout { id = Id.mk (); shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1949,7 +1993,7 @@ let exercise : Exercise.spec =
                   ( [
                       Tile
                         {
-                          id = 528;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -1963,10 +2007,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 529; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 534;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -1981,7 +2026,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 535;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -1997,7 +2042,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 538;
+                                              id = Id.mk ();
                                               label = [ "0" ];
                                               mold =
                                                 {
@@ -2019,10 +2064,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 539; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 543;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2035,10 +2081,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 544; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 546;
+                                    id = Id.mk ();
                                     label = [ "1" ];
                                     mold =
                                       {
@@ -2051,13 +2098,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 549; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 553;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2071,10 +2119,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 554; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 559;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2088,10 +2136,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 560; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 565;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2106,7 +2155,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 566;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2122,7 +2171,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 569;
+                                              id = Id.mk ();
                                               label = [ "1" ];
                                               mold =
                                                 {
@@ -2144,10 +2193,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 570; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 574;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2160,10 +2210,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 575; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 577;
+                                    id = Id.mk ();
                                     label = [ "1" ];
                                     mold =
                                       {
@@ -2176,13 +2227,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 580; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 584;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2196,10 +2248,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 585; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 590;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2213,10 +2265,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 591; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 596;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2231,7 +2284,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 597;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2247,7 +2300,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 600;
+                                              id = Id.mk ();
                                               label = [ "2" ];
                                               mold =
                                                 {
@@ -2269,10 +2322,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 601; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 605;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2285,10 +2339,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 606; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 612;
+                                    id = Id.mk ();
                                     label = [ "2" ];
                                     mold =
                                       {
@@ -2301,13 +2356,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 614; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 618;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2321,10 +2377,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 619; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 624;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2338,10 +2394,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 625; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 630;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2356,7 +2413,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 631;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2372,7 +2429,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 634;
+                                              id = Id.mk ();
                                               label = [ "3" ];
                                               mold =
                                                 {
@@ -2394,10 +2451,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 635; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 639;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2410,10 +2468,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 640; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 642;
+                                    id = Id.mk ();
                                     label = [ "3" ];
                                     mold =
                                       {
@@ -2426,13 +2485,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 645; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 649;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2446,10 +2506,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 650; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 655;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2463,10 +2523,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 656; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 661;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2481,7 +2542,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 662;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2497,7 +2558,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 665;
+                                              id = Id.mk ();
                                               label = [ "4" ];
                                               mold =
                                                 {
@@ -2519,10 +2580,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 666; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 670;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2535,10 +2597,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 671; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 683;
+                                    id = Id.mk ();
                                     label = [ "5" ];
                                     mold =
                                       {
@@ -2551,13 +2614,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 676; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 680;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2571,10 +2635,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 681; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 688;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2588,10 +2652,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 689; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 694;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2606,7 +2671,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 695;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2622,7 +2687,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 698;
+                                              id = Id.mk ();
                                               label = [ "5" ];
                                               mold =
                                                 {
@@ -2644,10 +2709,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 699; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 703;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2660,10 +2726,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 704; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 706;
+                                    id = Id.mk ();
                                     label = [ "8" ];
                                     mold =
                                       {
@@ -2676,13 +2743,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 709; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 713;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2696,10 +2764,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 714; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 719;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2713,10 +2781,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 720; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 725;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2731,7 +2800,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 726;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2747,7 +2816,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 729;
+                                              id = Id.mk ();
                                               label = [ "6" ];
                                               mold =
                                                 {
@@ -2769,10 +2838,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 730; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 734;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2785,10 +2855,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 735; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 738;
+                                    id = Id.mk ();
                                     label = [ "13" ];
                                     mold =
                                       {
@@ -2801,13 +2872,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 741; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 745;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2821,10 +2893,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 746; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 751;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2838,10 +2910,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 752; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 757;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2856,7 +2929,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 758;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2872,7 +2945,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 761;
+                                              id = Id.mk ();
                                               label = [ "7" ];
                                               mold =
                                                 {
@@ -2894,10 +2967,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 762; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 766;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2910,10 +2984,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 767; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 770;
+                                    id = Id.mk ();
                                     label = [ "21" ];
                                     mold =
                                       {
@@ -2926,13 +3001,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 773; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 777;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2946,10 +3022,10 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 778; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = 783;
+                          id = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2963,10 +3039,11 @@ let exercise : Exercise.spec =
                           children =
                             [
                               [
-                                Secondary { id = 784; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 789;
+                                    id = Id.mk ();
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2981,7 +3058,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 790;
+                                    id = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2997,7 +3074,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 793;
+                                              id = Id.mk ();
                                               label = [ "8" ];
                                               mold =
                                                 {
@@ -3019,10 +3096,11 @@ let exercise : Exercise.spec =
                                         ];
                                       ];
                                   };
-                                Secondary { id = 794; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 798;
+                                    id = Id.mk ();
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -3035,10 +3113,11 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 799; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = 802;
+                                    id = Id.mk ();
                                     label = [ "34" ];
                                     mold =
                                       {
@@ -3051,13 +3130,14 @@ let exercise : Exercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Secondary { id = 805; content = Whitespace " " };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 811;
+                          id = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -3071,9 +3151,9 @@ let exercise : Exercise.spec =
                           children = [];
                         };
                       Secondary
-                        { id = 812; content = Whitespace "\226\143\142" };
+                        { id = Id.mk (); content = Whitespace "\226\143\142" };
                     ],
-                    [ Grout { id = 810; shape = Convex } ] );
+                    [ Grout { id = Id.mk (); shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;

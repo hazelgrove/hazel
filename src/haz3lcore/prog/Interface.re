@@ -4,7 +4,7 @@ let elaborate = (map, term): DHExp.t => {
   | DoesNotElaborate =>
     let error = "Internal error: Elaboration returns None";
     print_endline("Interface.elaborate: " ++ error);
-    InvalidText(-666, -666, error);
+    InvalidText(Id.invalid, -666, error);
   | Elaborates(d, _, _) => d
   };
 };
@@ -61,11 +61,11 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
     | EvaluatorError.Exception(reason) =>
       let error = "Internal exception: " ++ EvaluatorError.show(reason);
       print_endline("Interface.evaluate: " ++ error);
-      (EvaluatorState.init, Indet(InvalidText(-666, -666, error)));
+      (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
     | exn =>
       let error = "System exception: " ++ Printexc.to_string(exn);
       print_endline("Interface.evaluate: " ++ error);
-      (EvaluatorState.init, Indet(InvalidText(-666, -666, error)));
+      (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
     };
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {

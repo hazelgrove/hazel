@@ -14,6 +14,11 @@ type settings_action =
   | Mode(ModelSettings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type benchmark_action =
+  | Start
+  | Finish;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
   | UpdateDoubleTap(option(float))
@@ -43,7 +48,8 @@ type t =
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t);
+  | DebugAction(DebugAction.t)
+  | Benchmark(benchmark_action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
