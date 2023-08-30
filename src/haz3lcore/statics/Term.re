@@ -49,10 +49,10 @@ module UTPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid type alias"
-    | MultiHole => "Broken type alias"
-    | EmptyHole => "Empty type alias hole"
-    | Var => "Type alias";
+    | Invalid => "Invalid type variable name"
+    | MultiHole => "Broken type name"
+    | EmptyHole => "Empty type variable hole"
+    | Var => "Type variable";
 
   let tyvar_of_utpat = ({ids: _, term}) =>
     switch (term) {
