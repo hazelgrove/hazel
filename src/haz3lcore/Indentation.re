@@ -51,9 +51,19 @@ let nexts = indents =>
   |> List.rev
   |> List.tl;
 
+/* Memoize for perf */
 let indent_hash = Hashtbl.create(10000);
 
-let rec go'' = ((base: int, map: Id.Map.t(int), seg: Segment.t)) => {
+/* While a traversal would in isolation be move efficient
+ * than unioning, we adopt the approach that avoids taking
+ * the map as an argument to make memo hits more likely. */
+let union_all =
+  List.fold_left(
+    (map, new_map) => Id.Map.union((_, a, _) => Some(a), new_map, map),
+    Id.Map.empty,
+  );
+
+let rec go' = ((base: int, seg: Segment.t)) => {
   let trimmed_seg = trim_non_content(seg);
   List.fold_left2(
     ((level: int, map: Id.Map.t(int)), p: Piece.t, (prev, next)) => {
@@ -70,23 +80,25 @@ let rec go'' = ((base: int, map: Id.Map.t(int), seg: Segment.t)) => {
         (level, Id.Map.add(w.id, level, map));
       | Secondary(_)
       | Grout(_) => (level, map)
-      | Tile(t) => (level, List.fold_left(go(level), map, t.children))
+      | Tile(t) =>
+        let map = union_all([map, ...List.map(go(level), t.children)]);
+        (level, map);
       }
     },
-    (base, map),
+    (base, Id.Map.empty),
     trimmed_seg,
     List.combine(prevs(trimmed_seg), nexts(trimmed_seg)),
   )
   |> snd;
 }
-and go = (base: int, map: Id.Map.t(int), seg: Segment.t) => {
-  let arg = (base, map, seg);
+and go = (base: int, seg: Segment.t) => {
+  let arg = (base, seg);
   try(Hashtbl.find(indent_hash, arg)) {
   | _ =>
-    let res = go''(arg);
+    let res = go'(arg);
     Hashtbl.add(indent_hash, arg, res);
     res;
   };
 };
 
-let level_map = (seg: Segment.t): Id.Map.t(int) => go(0, Id.Map.empty, seg);
+let level_map = (seg: Segment.t): Id.Map.t(int) => go(0, seg);
