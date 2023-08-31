@@ -24,102 +24,49 @@ let is_resetter = (p: Piece.t): bool =>
   | _ => false
   };
 
-/* Trim pieces that don't feel contentful, which we take
- * here to mean empty whitespace and concave grout */
-let trim_non_things = (seg: Segment.t) => {
-  let rec trim: list(Base.piece) => list(Base.piece) =
-    xs =>
-      switch (xs) {
-      | [] => []
-      | [Grout({shape: Concave, _}), ...xs] => trim(xs)
-      | [Secondary(s), ...xs] when Secondary.is_space(s) => trim(xs)
-      | [_, ..._] => xs
-      };
-  Segment.trim_f(trim, Left, seg);
-};
+/* Remove non-contentful items (whitespace and concave grout) */
+let trim_non_content: Segment.t => Segment.t =
+  List.filter_map(
+    fun
+    | Piece.Grout({shape: Concave, _}) => None
+    | Secondary(s) when Secondary.is_space(s) => None
+    | p => Some(p),
+  );
 
-/* Get the last contentful piece in seg before idx */
-let last_thing_before = (idx: int, seg: Segment.t): option(Piece.t) =>
-  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
-  | Some((pre, _, _)) =>
-    switch (pre |> List.rev |> trim_non_things) {
-    | [] => None
-    | [p, ..._] => Some(p)
-    }
-  | _ => None
-  };
+/* Cons true as an initial linebreak should always increment */
+let prevs = indents =>
+  indents
+  |> List.map(is_incrementor)
+  |> List.cons(true)
+  |> List.rev
+  |> List.tl
+  |> List.rev;
 
-/* Get the next contentful piece in seg after idx */
-let next_thing_after = (idx: int, seg: Segment.t): option(Piece.t) =>
-  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
-  | Some((_, _, suf)) =>
-    switch (suf |> trim_non_things) {
-    | [] => None
-    | [p, ..._] => Some(p)
-    }
-  | _ => None
-  };
-
-/* Is the previous contentful piece before idx
- *  an indentation incrementor? */
-let prev_thing_is_incrementor = (idx: int, seg: Segment.t): bool => {
-  switch (last_thing_before(idx, seg)) {
-  | Some(p) => is_incrementor(p)
-  | None => false
-  };
-};
-
-/* Is the next contentful piece after idx
- * an indetation resetter? */
-let next_thing_is_resetter = (idx: int, seg: Segment.t) =>
-  switch (next_thing_after(idx, seg)) {
-  | Some(p) => is_resetter(p)
-  | None => false
-  };
-
-let is_first_thing = (idx: int, seg: Segment.t) =>
-  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
-  | Some((pre, _, _)) =>
-    switch (pre |> trim_non_things) {
-    | [] => true
-    | _ => false
-    }
-  | None => false
-  };
-
-let is_last_thing = (idx: int, seg: Segment.t) =>
-  switch (Util.ListUtil.split_nth_opt(idx, seg)) {
-  | Some((_, _, suf)) =>
-    switch (suf |> trim_non_things) {
-    | [] => true
-    | _ => false
-    }
-  | None => false
-  };
-
-let should_increment = (idx: int, seg: Segment.t) =>
-  is_first_thing(idx, seg) || prev_thing_is_incrementor(idx, seg);
-
-let should_reset = (idx: int, seg: Segment.t) =>
-  is_last_thing(idx, seg) || next_thing_is_resetter(idx, seg);
-
-let update_indent = (idx, seg, level: int, base: int): int =>
-  if (should_increment(idx, seg)) {
-    level + 2;
-  } else if (should_reset(idx, seg)) {
-    base;
-  } else {
-    level;
-  };
+/* Snoc true as a final linebreak should always reset */
+let nexts = indents =>
+  indents
+  |> List.map(is_resetter)
+  |> List.rev
+  |> List.cons(true)
+  |> List.rev
+  |> List.tl;
 
 let indent_hash = Hashtbl.create(10000);
 
-let rec go' = ((base: int, map: Id.Map.t(int), seg: Segment.t)) =>
+let rec go'' = ((base: int, map: Id.Map.t(int), seg: Segment.t)) => {
+  let trimmed_seg = trim_non_content(seg);
   List.fold_left2(
-    ((level: int, map: Id.Map.t(int)), p: Piece.t, idx: int) => {
+    ((level: int, map: Id.Map.t(int)), p: Piece.t, (prev, next)) => {
       switch (p) {
       | Secondary(w) when Secondary.is_linebreak(w) =>
-        let level = update_indent(idx, seg, level, base);
+        let level =
+          if (prev) {
+            level + 2;
+          } else if (next) {
+            base;
+          } else {
+            level;
+          };
         (level, Id.Map.add(w.id, level, map));
       | Secondary(_)
       | Grout(_) => (level, map)
@@ -127,15 +74,16 @@ let rec go' = ((base: int, map: Id.Map.t(int), seg: Segment.t)) =>
       }
     },
     (base, map),
-    seg,
-    List.init(List.length(seg), Fun.id),
+    trimmed_seg,
+    List.combine(prevs(trimmed_seg), nexts(trimmed_seg)),
   )
-  |> snd
+  |> snd;
+}
 and go = (base: int, map: Id.Map.t(int), seg: Segment.t) => {
   let arg = (base, map, seg);
   try(Hashtbl.find(indent_hash, arg)) {
   | _ =>
-    let res = go'(arg);
+    let res = go''(arg);
     Hashtbl.add(indent_hash, arg, res);
     res;
   };
