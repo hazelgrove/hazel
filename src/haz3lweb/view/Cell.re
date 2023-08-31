@@ -278,17 +278,12 @@ let editor_view =
       Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
     Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
   };
-  //TODO(andrew): document
-  let indent_level =
-    Indentation.level_map(
-      Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false, zipper),
-    );
   let code_base_view =
     Code.view(
       ~sort=Sort.root,
       ~font_metrics,
       ~buffer_ids,
-      ~indent_level,
+      ~indent_level=Zipper.smart_indent_level(zipper),
       ~segment,
       ~unselected,
       ~measured,

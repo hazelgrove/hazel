@@ -442,3 +442,11 @@ let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
 };
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
+
+/* What the indent level of each linebreak would be if
+ * we attempt to complete the syntax by emptyng the backpack
+ * rightwatds from the current caret position. */
+let smart_indent_level = (z: t): Id.Map.t(int) =>
+  z
+  |> smart_seg(~dump_backpack=true, ~erase_buffer=false)
+  |> Indentation.level_map;

@@ -1,14 +1,6 @@
 open Sexplib.Std;
 open Util;
 
-//TODO(andrew): document
-let of_segment_dump = (z, unselected) => {
-  let for_indent =
-    Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false, z);
-  let indent_level = Indentation.level_map(for_indent);
-  Measured.of_segment(~indent_level, unselected);
-};
-
 module Meta = {
   type t = {
     touched: Touched.t,
@@ -19,9 +11,11 @@ module Meta = {
 
   let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
+    let indent_level = Zipper.smart_indent_level(z);
+    let measured = Measured.of_segment(~indent_level, unselected);
     {
       touched: Touched.empty,
-      measured: of_segment_dump(z, unselected),
+      measured,
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
     };
@@ -53,7 +47,8 @@ module Meta = {
     let {touched, measured: _, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
-    let measured = of_segment_dump(z, unselected);
+    let indent_level = Zipper.smart_indent_level(z);
+    let measured = Measured.of_segment(~indent_level, unselected);
     let term_ranges = TermRanges.mk(unselected);
     let col_target =
       switch (a) {

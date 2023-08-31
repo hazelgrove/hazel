@@ -82,7 +82,13 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (indent_level, buffer_ids, no_sorts, sort, seg: Segment.t)
+          (
+            seg: Segment.t,
+            ~indent_level=Indentation.level_map(seg),
+            buffer_ids,
+            no_sorts,
+            sort,
+          )
           : list(Node.t) => {
     /* note: no_sorts flag is used for backback view;
        otherwise Segment.expected_sorts call crashes for some reason */
@@ -131,9 +137,6 @@ module Text = (M: {
       (indent_level, buffer_ids, expected_sort: Sort.t, p: Piece.t)
       : list(Node.t) => {
     let secondary_icons = M.settings.secondary_icons;
-    /* Last two elements of arg track the functorial args which
-       can effect the code layout; without these the first,
-       indentation can get out of sync */
     let arg = (p, buffer_ids, indent_level, expected_sort, secondary_icons);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
@@ -156,7 +159,7 @@ module Text = (M: {
     let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
-         of_segment(indent_level, buffer_ids, false, sort, seg)
+         of_segment(~indent_level, seg, buffer_ids, false, sort)
        )
     |> List.concat;
   };
@@ -186,16 +189,9 @@ let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
       let map = map;
       let settings = settings;
     });
-  //TODO(andrew): document
-  let indent_level = Indentation.level_map(unselected);
   div(
     ~attr=Attr.class_("code"),
-    [
-      span_c(
-        "code-text",
-        Text.of_segment(indent_level, [], false, Sort.Any, unselected),
-      ),
-    ],
+    [span_c("code-text", Text.of_segment(unselected, [], false, Sort.Any))],
   );
 };
 
@@ -218,7 +214,7 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(indent_level, buffer_ids, false, sort, unselected)
+      Text.of_segment(~indent_level, unselected, buffer_ids, false, sort)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
