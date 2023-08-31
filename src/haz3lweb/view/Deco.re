@@ -302,8 +302,19 @@ module Deco =
   let err_holes = (_z: Zipper.t) => {
     Id.Map.fold(
       (id, info, acc) =>
-        Info.is_error(info)
-          ? [term_highlight(~clss=["err-hole"], id), ...acc] : acc,
+        /* Because of artefacts in Maketerm ID handling,
+         * there are be situations where ids appear in the
+         * info_map which do not occur in term_ranges. These
+         * ids should be purely duplicative, so skipping them
+         * when iterating over the info_map should have no
+         * effect, beyond supressing the resulting Not_found exs */
+        switch (Id.Map.find_opt(id, M.term_ranges)) {
+        | Some(_) when Info.is_error(info) => [
+            term_highlight(~clss=["err-hole"], id),
+            ...acc,
+          ]
+        | _ => acc
+        },
       M.info_map,
       [],
     );
