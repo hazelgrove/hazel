@@ -1,8 +1,8 @@
 // open Util;
 
-include Gram.Zipper;
+include GZipper;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t = Gram.Zipper.t(Label.t);
+type t = GZipper.t(Label.t);
 
 module Map =
   Map.Make({

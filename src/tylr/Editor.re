@@ -7,9 +7,9 @@ module Action = {
     | Insert(string);
 };
 
-let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) =>
+let move = (d: Dir.t, z: EZipper.t): option(EZipper.t) =>
   if (!Ziggurat.is_empty(z.sel)) {
-    Some(Zipper.unselect(d, z));
+    Some(EZipper.unselect(d, z));
   } else {
     open OptUtil.Syntax;
     let+ (c, ctx) = Stepwell.pull_lexeme(~char=true, ~from=d, z.ctx);
@@ -18,14 +18,14 @@ let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) =>
     |> Stepwell.assemble
     |> mk;
   };
-let rec move_n = (n: int, z: Zipper.t): option(Zipper.t) =>
+let rec move_n = (n: int, z: EZipper.t): option(EZipper.t) =>
   switch (n) {
   | _ when n < 0 => Option.bind(move(L, z), move_n(n + 1))
   | _ when n > 0 => Option.bind(move(R, z), move_n(n - 1))
   | _zero => Some(z)
   };
 
-let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
+let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
   if (d == z.foc || Ziggurat.is_empty(z.sel)) {
@@ -116,7 +116,7 @@ let rec remold = (ctx: Stepwell.t): Stepwell.t =>
     |> remold
   };
 
-let insert = (s: string, z: Zipper.t): Zipper.t => {
+let insert = (s: string, z: EZipper.t): EZipper.t => {
   let tok =
     fun
     | None => Token.empty
@@ -146,22 +146,22 @@ let insert = (s: string, z: Zipper.t): Zipper.t => {
   // save cursor position
   |> mark
   |> remold
-  |> Zipper.mk
+  |> EZipper.mk
   // restore post-insertion cursor position
-  |> Zipper.zip
-  |> Zipper.unzip
+  |> EZipper.zip
+  |> EZipper.unzip
   // restore original cursor position wrt r
   |> move_n(- Token.length(tok(r)))
   |> OptUtil.get_or_fail("bug: lost cursor position");
 };
 
-let delete = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
+let delete = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   open OptUtil.Syntax;
   let+ z = Ziggurat.is_empty(z.sel) ? select(d, z) : return(z);
   insert("", z);
 };
 
-let perform = (a: Action.t, z: Zipper.t): option(Zipper.t) =>
+let perform = (a: Action.t, z: EZipper.t): option(EZipper.t) =>
   switch (a) {
   | Move(d) => move(d, z)
   | Select(d) => select(d, z)

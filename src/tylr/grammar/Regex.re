@@ -102,88 +102,46 @@ module Ctx = {
 module Zipper = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('x) = ('x, Ctx.t);
-};
 
-let fold_zipper = (~atom, ~star, ~seq, ~alt, r: t): 'acc => {
-  let rec go = (ctx: Ctx.t, r) =>
+  let rec enter = (~ctx=Ctx.empty, ~from: Dir.t, r: regex): list(t(Atom.t)) => {
+    let go = enter(~from);
     switch (r) {
-    | Atom(a) => atom(ctx, a)
-    | Star(r) => star(ctx, go([Star_, ...ctx], r))
-    | Seq(rs) =>
-      ListUtil.elem_splits(rs)
-      |> List.map(((ls, r, rs)) => go([Seq_(ls, rs), ...ctx], r))
-      |> seq(ctx)
+    | Atom(a) => [(a, ctx)]
+    | Star(r) => go(~ctx=[Star_, ...ctx], r)
     | Alt(rs) =>
       ListUtil.elem_splits(rs)
-      |> List.map(((ls, r, rs)) => go([Alt_(ls, rs), ...ctx], r))
-      |> alt(ctx)
+      |> List.concat_map(((ls, r, rs)) =>
+           go(~ctx=[Alt_(ls, rs), ...ctx], r)
+         )
+    | Seq(rs) =>
+      switch (from) {
+      | L =>
+        switch (rs) {
+        | [] => []
+        | [hd, ...tl] =>
+          let go_hd = go(~ctx=Ctx.push_seq(~onto=R, tl, ctx), hd);
+          let go_tl =
+            nullable(hd)
+              ? go(~ctx=Ctx.push(~onto=L, hd, ctx), Seq(tl)) : [];
+          // prioritize tl in case hd nullable, assuming null by first choice.
+          // may need to revisit this in case grammar author manually includes
+          // epsilon but does not make it first element of disjunction.
+          go_tl @ go_hd;
+        }
+      | R =>
+        switch (ListUtil.split_last_opt(rs)) {
+        | None => []
+        | Some((tl, hd)) =>
+          let go_hd = go(~ctx=Ctx.push_seq(~onto=L, tl, ctx), hd);
+          let go_tl =
+            nullable(hd)
+              ? go(~ctx=Ctx.push(~onto=R, hd, ctx), Seq(tl)) : [];
+          go_tl @ go_hd;
+        }
+      }
     };
-  go(Ctx.empty, r);
-};
-
-let rec enter =
-        (~skip_nullable=true, ~from: Dir.t, r: t, uz: Ctx.t)
-        : list(Zipper.t(Atom.t)) => {
-  let go = enter(~skip_nullable, ~from);
-  switch (r) {
-  | Atom(a) => [(a, uz)]
-  | Star(r) => skip_nullable ? [] : go(r, [Star_, ...uz])
-  | Alt(rs) =>
-    ListUtil.elem_splits(rs)
-    |> List.concat_map(((ls, r, rs)) => go(r, [Alt_(ls, rs), ...uz]))
-  | Seq(rs) =>
-    switch (from) {
-    | L =>
-      switch (rs) {
-      | [] => []
-      | [hd, ...tl] =>
-        let go_hd = go(hd, Ctx.push_seq(~onto=R, tl, uz));
-        let go_tl =
-          nullable(hd) ? go(Seq(tl), Ctx.push(~onto=L, hd, uz)) : [];
-        go_hd @ go_tl;
-      }
-    | R =>
-      switch (ListUtil.split_last_opt(rs)) {
-      | None => []
-      | Some((tl, hd)) =>
-        let go_hd = go(hd, Ctx.push_seq(~onto=L, tl, uz));
-        let go_tl =
-          nullable(hd) ? go(Seq(tl), Ctx.push(~onto=R, hd, uz)) : [];
-        go_hd @ go_tl;
-      }
-    }
   };
 };
-
-// let rec step =
-//         (~skip_nullable: bool, d: Dir.t, (r, uz): Zipper.t(t))
-//         : list(Zipper.t(Atom.t)) => {
-//   let go = step(~skip_nullable, d);
-//   let enter = enter(~skip_nullable);
-//   switch (uz) {
-//   | [] => []
-//   | [r', ...uz] =>
-//     switch (d, r') {
-//     | (_, Star_)
-//     | (_, Alt_(_)) => go((Unzipped.zip(r, r'), uz))
-//     | (L, Seq_(ls, rs)) =>
-//       let uz_ls = uz |> Ctx.push_seq(~onto=R, rs) |> Ctx.push(~onto=R, r);
-//       let enter_ls = enter(~from=R, Seq(ls), uz_ls);
-//       let go_beyond =
-//         List.for_all(nullable, ls) ? go((Unzipped.zip(r, r'), uz)) : [];
-//       enter_ls @ go_beyond;
-//     | (R, Seq_(ls, rs)) =>
-//       let uz_rs =
-//         uz |> Ctx.push_seq(~onto=L, List.rev(ls)) |> Ctx.push(~onto=L, r);
-//       let enter_rs = enter(~from=L, Seq(rs), uz_rs);
-//       let go_beyond =
-//         List.for_all(nullable, rs) ? go((Unzipped.zip(r, r'), uz)) : [];
-//       enter_rs @ go_beyond;
-//     }
-//   };
-// };
-// let step = (~skip_nullable=true, d, (a, uz)) =>
-//   step(~skip_nullable, d, (Atom(a), uz));
 
 // currently assuming:
 // (1) no consecutive kids
@@ -204,12 +162,3 @@ let kids = r =>
        ~seq=List.concat,
        ~alt=List.concat,
      );
-
-// let end_toks = (side: Dir.t, r: t): list(Zipper.t(Token.Shape.t)) =>
-//   enter(~from=side, r, Unzipped.empty)
-//   |> List.concat_map((z: Zipper.t(Atom.t)) =>
-//        switch (z) {
-//        | (Tok(tok), uz) => [(tok, uz)]
-//        | (Kid(_), _) => move(~until=Atom.is_tok, Dir.toggle(side), z)
-//        }
-//      );
