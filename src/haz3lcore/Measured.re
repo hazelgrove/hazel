@@ -196,14 +196,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-let of_segment =
-    (
-      ~indent_level=Id.Map.empty,
-      ~old as _: t=empty,
-      ~touched as _=Touched.empty,
-      seg: Segment.t,
-    )
-    : t => {
+let of_segment = (~indent_level=Id.Map.empty, seg: Segment.t): t => {
   let indent_level =
     Id.Map.is_empty(indent_level)
       ? Indentation.level_map(seg) : indent_level;
