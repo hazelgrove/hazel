@@ -730,8 +730,10 @@ select {
 
 .code .token.sort-inconsistent {
   /*color: var(--err-color) !important;*/
+  /* color: #938870 !important; */
   /*TODO(andrew): less shouty for now*/
-  color: #938870 !important;
+  opacity: 0.5;
+  filter: sepia(1);
 }
   
 .code .token.incomplete {
