@@ -14,7 +14,7 @@ let backpack_sel_view =
   module Text =
     Code.Text({
       let map = Measured.of_segment(content);
-      let settings = ModelSettings.init;
+      let settings = Init.startup.settings;
     });
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
@@ -34,6 +34,7 @@ let backpack_sel_view =
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
     Text.of_segment(
+      ~sort=Any,
       ~no_sorts=true,
       content,
       ~inject=_ => Ui_effect.Ignore,

@@ -34,81 +34,19 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
-type dark_id = int;
-let dark_gen = ref(-1);
-let dark_id = () => {
-  let id = dark_gen^;
-  dark_gen := id - 1;
-  id;
-};
-let dark_hole = (~ids=[], s: Sort.t): t => {
-  let id = dark_id();
-  switch (s) {
-  // put dark id last to avoid messing with rep id
-  | Exp => Exp({ids: ids @ [id], term: EmptyHole})
-  | _ => failwith("dark_hole todo")
+let is_nary =
+    (is_sort: any => option('sort), delim: Token.t, (delims, kids): tiles)
+    : option(list('sort)) =>
+  if (delims |> List.map(snd) |> List.for_all((==)(([delim], [])))) {
+    kids |> List.map(is_sort) |> OptUtil.sequence;
+  } else {
+    None;
   };
-};
 
-// TODO flesh out incomplete cases
-// TODO review dark hole
-let _complete_root =
-  fun
-  | Op(_) as root => root
-  | Pre(tiles, r) as root =>
-    switch (tiles) {
-    | ([(id, tile)], []) =>
-      switch (tile) {
-      | (["("], []) => Op(single(id, (["(", ")"], [r])))
-      | (["let"], []) =>
-        Pre(
-          single(id, (Labels.let_, [r, dark_hole(Exp)])),
-          dark_hole(Exp),
-        )
-      | (["let", "="], [pat]) =>
-        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
-      | _ => root
-      }
-    | _ => root
-    }
-  | root => root;
-
-let is_tuple_exp = ((commas, kids): tiles): option(list(UExp.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
-    kids
-    |> List.map(
-         fun
-         | Exp(e) => Some(e)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
-  } else {
-    None;
-  };
-let is_tuple_pat = ((commas, kids): tiles): option(list(UPat.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
-    kids
-    |> List.map(
-         fun
-         | Pat(p) => Some(p)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
-  } else {
-    None;
-  };
-let is_tuple_typ = ((commas, kids): tiles): option(list(UTyp.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
-    kids
-    |> List.map(
-         fun
-         | Typ(ty) => Some(ty)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
-  } else {
-    None;
-  };
+let is_tuple_exp = is_nary(TermBase.Any.is_exp, ",");
+let is_tuple_pat = is_nary(TermBase.Any.is_pat, ",");
+let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
+let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -133,12 +71,6 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
 };
-
-// let have_sort = (tms: list(any)) =>
-//   tms
-//   |> List.map(
-
-//   )
 
 let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
 let ids =
@@ -169,15 +101,18 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
-let return_dark_hole = (~ids=[], s) => {
-  let hole = dark_hole(~ids, s);
-  map := TermMap.add_all(Term.ids(hole), hole, map^);
-  hole;
-};
+
+let parse_sum_term: UTyp.t => UTyp.variant =
+  fun
+  | {term: Var(ctr), ids} => Variant(ctr, ids, None)
+  | {term: Ap({term: Var(ctr), ids: ids_ctr}, u), ids: ids_ap} =>
+    Variant(ctr, ids_ctr @ ids_ap, Some(u))
+  | t => BadEntry(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
+  | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
@@ -186,13 +121,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
-    | None => return_dark_hole(Exp)
+    | None => Exp(exp(unsorted(skel, seg)))
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => return_dark_hole(~ids, Exp)
+      | None => Exp(exp(unsorted(skel, seg)))
       | Some(t) =>
         if (t.mold.out == Any) {
-          return_dark_hole(~ids, Exp);
+          Exp(exp(unsorted(skel, seg)));
         } else {
           go_s(t.mold.out, skel, seg);
         }
@@ -207,7 +142,6 @@ and exp = unsorted => {
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
-  let _unrecog = UExp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -215,27 +149,28 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["triv"], []) => ret(Triv)
-      | (["true"], []) => ret(Bool(true))
-      | (["false"], []) => ret(Bool(false))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+      | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
+      | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_string(t) =>
+        ret(String(Form.strip_quotes(t)))
+      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) || Form.is_livelit(t) =>
         ret(Var(t))
-      | ([t], []) when Form.is_string(t) => ret(String(t))
-      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
-      | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (["nil"], []) => ret(ListLit([]))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
+      | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
           Match(scrut, rules),
           ids,
         )
+      | ([t], []) when t != " " => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -246,8 +181,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
+        | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
+          TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
@@ -258,17 +196,16 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   | Post(Exp(l), tiles: tiles) as tm => {
       switch (tiles) {
       | ([(id, t)], []) =>
-        ret(
-          switch (t) {
-          | (["(", ")"], [Exp(arg)]) =>
-            switch (l.term) {
-            | Var(l) when Form.is_livelit(l) =>
-              LivelitAp({livelit_name: l, params: arg, tile_id: id})
-            | _ => Ap(l, arg)
-            }
-          | _ => hole(tm)
-          },
-        )
+        switch (t) {
+        | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+        | (["(", ")"], [Exp(arg)]) =>
+          switch (l.term) {
+          | Var(l) when Form.is_livelit(l) =>
+            ret(LivelitAp({livelit_name: l, params: arg, tile_id: id}))
+          | _ => ret(Ap(l, arg))
+          }
+        | _ => ret(hole(tm))
+        }
       | _ => ret(hole(tm))
       };
     }
@@ -290,6 +227,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
           | (["=="], []) => BinOp(Int(Equals), l, r)
+          | (["!="], []) => BinOp(Int(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -300,11 +238,14 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
           | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
           | (["==."], []) => BinOp(Float(Equals), l, r)
+          | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
+          | (["\\/"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
+          | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
         )
@@ -321,7 +262,6 @@ and pat = unsorted => {
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
-  let _unrecog = UPat.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -329,22 +269,25 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | (["triv"], []) => Triv
-        | (["true"], []) => Bool(true)
-        | (["false"], []) => Bool(false)
+        | ([t], []) when Form.is_empty_tuple(t) => Triv
+        | ([t], []) when Form.is_empty_list(t) => ListLit([])
+        | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
+        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
+        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
+        | ([t], []) when Form.is_string(t) =>
+          let s = Re.Str.string_after(t, 1);
+          let s = Re.Str.string_before(s, String.length(s) - 1);
+          String(s);
+        | ([t], []) when Form.is_var(t) || Form.is_livelit(t) => Var(t)
+        | ([t], []) when Form.is_wild(t) => Wild
+        | ([t], []) when Form.is_ctr(t) => Constructor(t)
+        | ([t], []) when t != " " => Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
           | term => ListLit([term])
           }
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_tag(t) => Tag(t)
-        | ([t], []) when Form.is_var(t) => Var(t)
-        | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_listnil(t) => ListLit([])
-        | ([t], []) when Form.is_string(t) => String(t)
         | _ => hole(tm)
         },
       )
@@ -378,43 +321,90 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-
 and typ = unsorted => {
-  let term = typ_term(unsorted);
-  let ids = ids(unsorted);
+  let (term, inner_ids) = typ_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
   return(ty => Typ(ty), ids, {ids, term});
 }
-and typ_term: unsorted => UTyp.term = {
-  let _unrecog = UTyp.Invalid(UnrecognizedTerm);
+and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
+  let ret = (term: UTyp.term) => (term, []);
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
-      switch (tile) {
-      | (["Unit"], []) => Tuple([])
-      | (["Bool"], []) => Bool
-      | (["Int"], []) => Int
-      | (["Float"], []) => Float
-      | (["String"], []) => String
-      | ([t], []) when Form.is_typ_var(t) => Var(t)
-      | (["(", ")"], [Typ(body)]) => Parens(body)
-      | (["[", "]"], [Typ(body)]) => List(body)
-      | _ => hole(tm)
-      }
-    | _ => hole(tm)
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
+        | (["Bool"], []) => Bool
+        | (["Int"], []) => Int
+        | (["Float"], []) => Float
+        | (["String"], []) => String
+        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (["[", "]"], [Typ(body)]) => List(body)
+        | ([t], []) when t != " " => Invalid(t)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => hole(tm)
+  | Post(Typ(t), tiles) as tm =>
+    switch (tiles) {
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
+    | _ => ret(hole(tm))
+    }
+  | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
+    /* Case for leading prefix + preceeding a sum */
+    switch (tiles) {
+    | ([(_, (["+"], []))], []) => (Sum(t0), ids)
+    | _ => ret(hole(tm))
+    }
+  | Pre(tiles, Typ(t)) as tm =>
+    switch (tiles) {
+    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
+    switch (is_typ_bsum(tiles)) {
+    | Some(between_kids) =>
+      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
+    | None => ret(hole(tm))
+    }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => Tuple([l] @ between_kids @ [r])
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
-      | ([(_id, (["->"], []))], []) => Arrow(l, r)
-      | _ => hole(tm)
+      | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | _ => ret(hole(tm))
       }
     }
-  | tm => hole(tm);
+  | tm => ret(hole(tm));
+}
+and tpat = unsorted => {
+  let term = tpat_term(unsorted);
+  let ids = ids(unsorted);
+  return(ty => TPat(ty), ids, {ids, term});
+}
+and tpat_term: unsorted => UTPat.term = {
+  let ret = (term: UTPat.term) => term;
+  let hole = unsorted => Term.UTPat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when t != " " => Invalid(t)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | tm => ret(hole(tm));
 }
 
 // and rul = unsorted => {

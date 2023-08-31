@@ -1,6 +1,6 @@
 let prompt = Ex_RecursiveFibonacci_prompt.prompt
 
-let exercise : SchoolExercise.spec =
+let exercise : Exercise.spec =
   {
     next_id = 813;
     title = "Recursive Fibonacci";
@@ -3080,4 +3080,6 @@ let exercise : SchoolExercise.spec =
           };
         hints = [];
       };
+    syntax_tests =
+      [ ("fib is recursive", Haz3lschool.SyntaxTest.is_recursive "fib") ];
   }

@@ -20,23 +20,21 @@ let of_delim' =
     ) => {
   let cls =
     switch (label) {
-    | [_] when !is_consistent => "mono-inconsistent"
-    | [s] when Form.is_string(s) => "mono-string-lit"
-    | [_] => "mono"
-    | _ when !is_consistent => "delim-inconsistent"
-    | _ when !is_complete => "delim-incomplete"
-    | _ => "delim"
+    | _ when !is_consistent => "sort-inconsistent"
+    | _ when !is_complete => "incomplete"
+    | [s] when Form.is_string(s) => "string-lit"
+    | _ => "default"
     };
+  let plurality = List.length(label) == 1 ? "mono" : "poly";
 
   let livelit_nodes = [];
   [
     span(
-      ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+      ~attr=Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
       List.append([Node.text(List.nth(label, i))], livelit_nodes),
     ),
   ];
 };
-
 let of_delim =
     (
       sort: Sort.t,
@@ -65,14 +63,14 @@ let of_grout = [Node.text(Unicode.nbsp)];
 let of_secondary =
   Core.Memo.general(
     ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
-    if (String.equal(Secondary.get_string(content), Secondary.linebreak)) {
-      let str = secondary_icons ? Secondary.linebreak : "";
+    if (String.equal(Secondary.get_string(content), Form.linebreak)) {
+      let str = secondary_icons ? Form.linebreak : "";
       [
         span_c("linebreak", [text(str)]),
         Node.br(),
         Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
       ];
-    } else if (String.equal(Secondary.get_string(content), Secondary.space)) {
+    } else if (String.equal(Secondary.get_string(content), Form.space)) {
       let str = secondary_icons ? "·" : Unicode.nbsp;
       [span_c("secondary", [text(str)])];
     } else if (Secondary.content_is_comment(content)) {
@@ -90,7 +88,7 @@ module Text = (M: {
   let rec of_segment =
           (
             ~no_sorts=false,
-            ~sort=Sort.root,
+            ~sort,
             seg: Segment.t,
             ~inject,
             ~font_metrics: FontMetrics.t,
@@ -108,7 +106,6 @@ module Text = (M: {
         LivelitView.view(font_metrics, inject, l, livelit_state, paren_id)
       | _ => []
       };
-
     //note: no_sorts flag is used for backback
     let expected_sorts: list((int, Sort.t)) =
       no_sorts
@@ -217,6 +214,7 @@ let simple_view =
         "code-text",
         Text.of_segment(
           unselected,
+          ~sort=Sort.Any,
           ~inject,
           ~font_metrics,
           ~livelit_state=Id.Map.empty,
@@ -228,6 +226,7 @@ let simple_view =
 
 let view =
     (
+      ~sort: Sort.t,
       ~font_metrics,
       ~segment,
       ~unselected,
@@ -244,7 +243,13 @@ let view =
     });
   let unselected: list(t) =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected, ~inject, ~font_metrics, ~livelit_state)
+      Text.of_segment(
+        ~sort,
+        ~inject,
+        ~font_metrics,
+        ~livelit_state,
+        unselected,
+      )
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

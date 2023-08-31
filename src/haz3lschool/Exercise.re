@@ -8,8 +8,7 @@ module type ExerciseEnv = {
 };
 
 let output_header_grading = _module_name =>
-  "module SchoolExercise = GradePrelude.SchoolExercise\n"
-  ++ "let prompt = ()\n";
+  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
 
 module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,6 +22,18 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     tests: 'code,
     hints: list(string),
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type predicate = Term.UExp.t => bool;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type hint = string;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_test = (hint, predicate);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type syntax_tests = list(syntax_test);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type your_tests('code) = {
@@ -58,6 +69,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     your_impl: 'code,
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
+    syntax_tests,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -115,6 +127,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: PersistentZipper.persist(p.hidden_tests.tests),
         hints: p.hidden_tests.hints,
       },
+      syntax_tests: p.syntax_tests,
     };
   };
 
@@ -267,10 +280,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       }
     };
 
-  let switch_editor = (idx: int, {eds, _}) => {
-    pos: pos_of_idx(eds, idx),
-    eds,
-  };
+  let switch_editor = (~pos, instructor_mode, ~exercise) =>
+    if (!instructor_mode) {
+      switch (pos) {
+      | HiddenTests
+      | HiddenBugs(_) => exercise
+      | _ => {eds: exercise.eds, pos}
+      };
+    } else {
+      {eds: exercise.eds, pos};
+    };
 
   let zipper_of_code = (id, code) => {
     switch (Printer.zipper_of_string(id, code)) {
@@ -294,6 +313,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       },
     ) => {
       let id = 0;
@@ -339,6 +359,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       };
     };
 
@@ -358,6 +379,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       },
     ) => {
       let prelude = editor_of_serialization(prelude);
@@ -391,6 +413,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         your_impl,
         hidden_bugs,
         hidden_tests,
+        syntax_tests,
       };
     };
 
@@ -555,6 +578,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             tests: hidden_tests_tests,
             hints: spec.hidden_tests.hints,
           },
+          syntax_tests: spec.syntax_tests,
         },
       },
       instructor_mode,
@@ -566,7 +590,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module StaticsItem = {
     type t = {
       term: TermBase.UExp.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
     };
   };
 
@@ -582,6 +606,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   type stitched_statics = stitched(StaticsItem.t);
 
+  /* Multiple stitchings are needed for each exercise
+     (see comments in the stitched type above)
+
+     Stitching is necessary to concatenate terms
+     from different editors, which are then typechecked. */
   let stitch_static = ({eds, _}: state): stitched_statics => {
     let test_validation_term =
       Util.TimeUtil.measure_time("test_validation_term", true, () =>
@@ -719,11 +748,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module DynamicsItem = {
     type t = {
       term: TermBase.UExp.t,
-      info_map: Statics.map,
+      info_map: Statics.Map.t,
       simple_result: ModelResult.simple,
     };
   };
-  let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
+
+  /* Given the evaluation results, collects the
+     relevant information for producing dynamic
+     feedback*/
+  let stitch_dynamic =
+      (state: state, results: option(ModelResults.t))
+      : stitched(DynamicsItem.t) => {
     let {
       test_validation,
       user_impl,
@@ -851,7 +886,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       "let prompt = "
       ++ module_name
       ++ "_prompt.prompt\n"
-      ++ "let exercise: SchoolExercise.spec = ";
+      ++ "let exercise: Exercise.spec = ";
     let record = show_p(editor_pp, eds);
     let data = prefix ++ record ++ "\n";
     data;
@@ -868,7 +903,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       "let prompt = "
       ++ module_name
       ++ "_prompt.prompt\n"
-      ++ "let exercise: SchoolExercise.spec = SchoolExercise.transition(";
+      ++ "let exercise: Exercise.spec = Exercise.transition(";
     let record = show_p(transitionary_editor_pp, eds);
     let data = prefix ++ record ++ ")\n";
     data;
@@ -876,7 +911,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let export_grading_module = (module_name, {eds, _}: state) => {
     let header = output_header_grading(module_name);
-    let prefix = "let exercise: SchoolExercise.spec = ";
+    let prefix = "let exercise: Exercise.spec = ";
     let record = show_p(editor_pp, eds);
     let data = header ++ prefix ++ record ++ "\n";
     data;
@@ -926,13 +961,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         tests: hidden_tests_tests,
         hints: [],
       },
+      syntax_tests: [],
     };
   };
 
-  // From LocalStorage
+  // From Store
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type school_export = {
+  type exercise_export = {
     cur_exercise: key,
     exercise_data: list((key, persistent_state)),
   };
@@ -950,7 +986,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> unpersist_state(~spec, ~instructor_mode);
   };
 
-  let deserialize_school_export = data => {
-    data |> Sexplib.Sexp.of_string |> school_export_of_sexp;
+  let deserialize_exercise_export = data => {
+    data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
   };
 };

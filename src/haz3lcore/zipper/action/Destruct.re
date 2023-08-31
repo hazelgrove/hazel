@@ -17,17 +17,43 @@ let destruct =
     |> Option.map(IdGen.id(id_gen));
   let delete_left = z =>
     z |> Zipper.delete(Left) |> Option.map(IdGen.id(id_gen));
+  let construct_right = (l, s) =>
+    Option.map(
+      ((z, id_gen)) =>
+        Zipper.construct(~caret=Right, ~backpack=Right, l, z, id_gen),
+      s,
+    );
+  let construct_left = (l, s) =>
+    Option.map(
+      ((z, id_gen)) =>
+        Zipper.construct(~caret=Left, ~backpack=Left, l, z, id_gen),
+      s,
+    );
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
-    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some /* Special cases for string literals and comments. When deletion would
-   remove an outer quote, we instead remove the whole string */
-
+    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
+  /* Special cases for mono forms which can split into duo forms,
+     e.g. list literals. When deletion would alter the mono form,
+     we replace it to the corresponding duo form.  */
+  | (Left, Outer, (Some(t), _)) when Form.duosplits(t) != [] =>
+    z |> delete_left |> construct_left(Form.duosplits(t))
+  | (Right, Outer, (_, Some(t))) when Form.duosplits(t) != [] =>
+    z |> delete_right |> construct_right(Form.duosplits(t))
+  | (Left, Inner(_, 0), (_, Some(t))) when Form.duosplits(t) != [] =>
+    z |> delete_right |> construct_right(Form.duosplits(t))
+  | (Right, Inner(_, n), (_, Some(t)))
+      when Form.duosplits(t) != [] && n == last_inner_pos(t) =>
+    z |> delete_right |> construct_left(Form.duosplits(t))
+  /* Special cases for string literals. When deletion would
+     remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _))
       when Form.is_string(t) || Form.is_comment(t) =>
     delete_left(z)
   | (Right, Outer, (_, Some(t)))
       when Form.is_string(t) || Form.is_comment(t) =>
+    delete_right(z)
+  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_string(t) =>
     delete_right(z)
   | (Left, Inner(_, 0), (_, Some(t)))
       when Form.is_string(t) || Form.is_comment(t) =>
@@ -77,12 +103,33 @@ let merge =
   |> OptUtil.and_then(Zipper.delete(Right))
   |> Option.map(z => Zipper.construct_mono(Right, l ++ r, z, id_gen));
 
+/* Check if containing duo form has a mono equivalent e.g. list literals */
+let parent_duomerges = (z: Zipper.t) => {
+  let* parent = Relatives.parent(z.relatives);
+  let* lbl = Piece.label(parent);
+  Form.duomerges(lbl);
+};
+
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
-  let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
-  switch (z.caret, neighbor_monotiles(z_trimmed.relatives.siblings)) {
-  | (Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
-    merge((l, r), (z_trimmed, id_gen))
+  switch (
+    parent_duomerges(z),
+    z.caret,
+    neighbor_monotiles(z.relatives.siblings),
+  ) {
+  | (Some(lbl), Outer, (None, None))
+      when Siblings.no_siblings(z.relatives.siblings) =>
+    /* Note: we must do the no_siblings check, it does not suffice
+       to check no monotile neighbors as there could be other neighbors
+       for example edge case: "((|))" */
+    z
+    |> Zipper.delete_parent
+    |> Zipper.set_caret(Inner(0, 0))
+    |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
+    /* Below regrouting important for parens/ap positioning */
+    |> (((z, id_gen)) => Zipper.regrout(Right, z, id_gen) |> Option.some)
+  | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
+    merge((l, r), (z, id_gen))
   | _ => Some((z, id_gen))
   };
 };
