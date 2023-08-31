@@ -112,7 +112,9 @@ let update_indent = (idx, seg, level: int, base: int): int =>
     level;
   };
 
-let rec go = (base: int, map: Id.Map.t(int), seg: Segment.t) =>
+let indent_hash = Hashtbl.create(10000);
+
+let rec go' = ((base: int, map: Id.Map.t(int), seg: Segment.t)) =>
   List.fold_left2(
     ((level: int, map: Id.Map.t(int)), p: Piece.t, idx: int) => {
       switch (p) {
@@ -128,6 +130,15 @@ let rec go = (base: int, map: Id.Map.t(int), seg: Segment.t) =>
     seg,
     List.init(List.length(seg), Fun.id),
   )
-  |> snd;
+  |> snd
+and go = (base: int, map: Id.Map.t(int), seg: Segment.t) => {
+  let arg = (base, map, seg);
+  try(Hashtbl.find(indent_hash, arg)) {
+  | _ =>
+    let res = go'(arg);
+    Hashtbl.add(indent_hash, arg, res);
+    res;
+  };
+};
 
 let level_map = (seg: Segment.t): Id.Map.t(int) => go(0, Id.Map.empty, seg);
