@@ -16,7 +16,7 @@ let backpack_sel_view =
       let settings = Init.startup.settings;
     });
   //TODO(andrew): document
-  let indent_level = Measured.indent_level_map(content);
+  let indent_level = Indentation.level_map(content);
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
     ~attr=

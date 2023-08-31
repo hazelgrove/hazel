@@ -280,7 +280,7 @@ let editor_view =
   };
   //TODO(andrew): document
   let indent_level =
-    Measured.indent_level_map(
+    Indentation.level_map(
       Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false, zipper),
     );
   let code_base_view =

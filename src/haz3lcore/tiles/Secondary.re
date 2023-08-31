@@ -54,3 +54,5 @@ let get_string: secondary_content => string =
     };
 
 let id = w => w.id;
+
+let length = (w: t) => Unicode.length(get_string(w.content));

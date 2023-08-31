@@ -187,7 +187,7 @@ let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
       let settings = settings;
     });
   //TODO(andrew): document
-  let indent_level = Measured.indent_level_map(unselected);
+  let indent_level = Indentation.level_map(unselected);
   div(
     ~attr=Attr.class_("code"),
     [

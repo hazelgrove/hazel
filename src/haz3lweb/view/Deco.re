@@ -312,13 +312,7 @@ module Deco =
       (id, info: Info.t, acc) =>
         (
           switch (Id.Map.find_opt(id, M.term_ranges)) {
-          | None =>
-            /*Printf.printf(
-                "WARN: err_holes: No term range %s\n",
-                Id.to_string(id),
-              );
-              Printf.printf("info: %s\n",Info.show(info));*/
-            false
+          | None => false
           | Some(_) => Info.is_error(info)
           }
         )

@@ -5,7 +5,7 @@ open Util;
 let of_segment_dump = (z, unselected) => {
   let for_indent =
     Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=false, z);
-  let indent_level = Measured.indent_level_map(for_indent);
+  let indent_level = Indentation.level_map(for_indent);
   Measured.of_segment(~indent_level, unselected);
 };
 
