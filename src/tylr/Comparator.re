@@ -1,42 +1,66 @@
+module Material = {
+  include Material;
+  type t = Material.t(option(Sort.t), Mold.t);
+  let of_molded = Material.map_g(() => None);
+};
+
 module Ineq = {
   type t = {
-    eq: list(Terrace.t(Material.Molded.t)),
-    neq: list(Slope.t(Material.Molded.t)),
+    eq: list(Terrace.t(Material.t)),
+    neq: list(Slope.t(Material.t)),
   };
   let empty = {eq: [], lt: []};
-  let cat = ({eq, neq}, {eq: eq', neq: neq'}) => {
+
+  let singleton = (t: Terrace.t(_)) => {eq: [t], lt: []};
+
+  let decrement = ({eq, neq}: t) => {
+    eq: [],
+    neq: List.map(a => [a], eq) @ neq,
+  };
+
+  let cons = (t: Terrace.t(_), ineq: t) => {...decrement(ineq), eq: [t]};
+
+  let merge2 = ({eq, neq}, {eq: eq', neq: neq'}) => {
     eq: eq @ eq',
     neq: neq @ neq',
   };
-  let concat = List.fold_left(cat, empty);
+  let merge = List.fold_left(merge2, empty);
   let filter = f => TupleUtil.map2(List.filter(f));
   let concat_map: (Slope.t => list(Slope.t), t) => t = failwith("todo");
   // let complete: (~from: Terrace.R.t, t) => list(Slope.t) = failwith("todo");
 
-  let mk = (d: Dir.t, m: Material.Molded.t): t => {
-    let rec go = (z: Gram.Zipper.t(Atom.t)) =>
-      z.zipper |> Regex.step(d) |> List.map(stop_or_go) |> Result.concat
-    and stop_or_go = z =>
+  let step = (d: Dir.t, m: Material.Molded.t): t => {
+    let b = Dir.toggle(d);
+    let rec go = (z: GZipper.t(Atom.t)) =>
+      z.zipper |> Regex.step(d) |> List.map(stop_or_go) |> merge
+    and stop_or_go = (z: GZipper.t(Atom.t)) =>
       switch (z.zipper) {
-      // stop
       | (Tok(lbl), ctx) =>
-        let m = failwith("todo mold of lbl ctx sort prec");
-        let p = failwith("todo piece of m");
-        {lt: [], eq: [Terrace.of_piece(p)]};
-      // keep going
-      | (Kid(s), _) =>
-        // todo: fix unbound `bound`, compute from kid + ctx
-        let bound = Sort.eq(l.sort, s) ? bound : Prec.min;
-        let stepped_lt =
-          G.Zipper.enter(~from=L, ~bound, s)
+        let m = GZipper.map(_ => lbl, z);
+        {lt: [], eq: [Terrace.mk(Wald.singleton(m))]};
+      | (Kid(s), ctx) =>
+        let entered = (~bound) =>
+          GZipper.enter(~from=b, ~bound, s)
           |> List.map(stop_or_go)
-          |> Result.concat
-          |> Result.newline;
-        let g = failwith("todo mk grout meld for s");
-        let stepped_eq = go(z) |> Result.map(Terrace.R.put_mel(g));
-        Result.cat(stepped_eq, stepped_lt);
+          |> concat
+          |> decrement;
+        let bound =
+          Sort.eq(s, z.sort) && Regex.Ctx.nullable(b, ctx)
+            ? z.prec : Prec.min;
+        let stepped_lt = entered(~bound);
+        let stepped_lt_g = {
+          let g = s => Terrace.mk(Wald.singleton(Material.Grout(None)));
+          let convex = singleton(g(None));
+          let concave =
+            bound == Prec.min ? cons(g(Some(s)), entered(~bound)) : empty;
+          decrement(merge2(convex, concave));
+        };
+        let stepped_eq = {
+          let m = Meld.mk(Wald.singleton(Material.Grout(Some(s))));
+          map(Terrace.put_slot(m), go(z));
+        };
+        merge([stepped_eq, stepped_lt, stepped_lt_g]);
       };
-    // todo: need to handle grout
     go(Mold.to_atom(m));
   };
 };

@@ -51,31 +51,29 @@ let nullable = r =>
        ~alt=List.exists(Fun.id),
      );
 
-module Unzipped = {
+module Frame = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t =
     | Star_
     | Seq_(s, s)
     | Alt_(s, s);
-  let zip = (r: regex, uz: t) =>
-    switch (uz) {
+  let zip = (f: t, r: regex) =>
+    switch (f) {
     | Star_ => Star(r)
     | Alt_(ls, rs) => Alt(List.rev(ls) @ [r, ...rs])
     | Seq_(ls, rs) => Seq(List.rev(ls) @ [r, ...rs])
     };
-  let nullable = (side: Dir.t) =>
-    List.for_all(uz =>
-      switch (side, uz) {
-      | (_, Star_ | Alt_(_)) => true
-      | (L, Seq_(gs_l, _)) => nullable(Seq(gs_l))
-      | (R, Seq_(_, gs_r)) => nullable(Seq(gs_r))
-      }
-    );
+  let nullable = (side: Dir.t, f: t) =>
+    switch (side, f) {
+    | (_, Star_ | Alt_(_)) => true
+    | (L, Seq_(gs_l, _)) => nullable(Seq(gs_l))
+    | (R, Seq_(_, gs_r)) => nullable(Seq(gs_r))
+    };
 };
 
 module Ctx = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = list(Unzipped.t);
+  type t = list(Frame.t);
   let empty: t = [];
   let push = (~onto: Dir.t, r: regex, ctx: t): t => {
     let rs =
@@ -90,13 +88,14 @@ module Ctx = {
     | (R, _) => [Seq_([], rs), ...ctx]
     };
   };
-  let push_seq = (~onto: Dir.t, rs: list(regex), uz: t) => {
+  let push_seq = (~onto: Dir.t, rs: list(regex), ctx: t) => {
     let push = push(~onto);
     switch (onto) {
-    | L => List.fold_left(Fun.flip(push), uz, rs)
-    | R => List.fold_right(push, rs, uz)
+    | L => List.fold_left(Fun.flip(push), ctx, rs)
+    | R => List.fold_right(push, rs, ctx)
     };
   };
+  let nullable = (side: Dir.t) => List.for_all(Frame.nullable(side));
 };
 
 module Zipper = {
