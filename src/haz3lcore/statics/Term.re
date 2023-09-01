@@ -239,34 +239,6 @@ module UPat = {
     | Ap => "Constructor application"
     | TypeAnn => "Annotation";
 
-  let rec get_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat)
-    | TypeAnn(pat, _) => get_var(pat)
-    | Var(x) => Some(x)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => None
-    };
-  };
-
-  let ctr_name = (p: t): option(Constructor.t) =>
-    switch (p.term) {
-    | Constructor(name) => Some(name)
-    | _ => None
-    };
-
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
@@ -312,6 +284,28 @@ module UPat = {
       | Ap(_) => false
       }
     );
+
+  let rec get_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat)
+    | TypeAnn(pat, _) => get_var(pat)
+    | Var(x) => Some(x)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Tuple(_)
+    | Constructor(_)
+    | Ap(_) => None
+    };
+  };
 
   let rec get_num_of_vars = (pat: t) =>
     if (is_var(pat)) {
@@ -368,6 +362,12 @@ module UPat = {
       | Constructor(_)
       | Ap(_) => None
       }
+    };
+
+  let ctr_name = (p: t): option(Constructor.t) =>
+    switch (p.term) {
+    | Constructor(name) => Some(name)
+    | _ => None
     };
 };
 
