@@ -112,7 +112,7 @@ module UTyp = {
     (ctx, utyp) =>
       switch (utyp.term) {
       | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
+      | MultiHole(_)
       | EmptyHole => Unknown(TypeHole)
       | Bool => Bool
       | Int => Int
@@ -130,7 +130,7 @@ module UTyp = {
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
       | Constructor(_)
-      | Ap(_) => Unknown(Internal)
+      | Ap(_) => Unknown(TypeHole)
       }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
