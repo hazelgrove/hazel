@@ -251,9 +251,20 @@ let eval_result_footer_view =
         ~font_metrics,
       )
     | Some({eval_result, _}) =>
+      let segment = DHExpToSeg.go(eval_result);
+      let experiemental_code_view =
+        Code.view(
+          ~sort=Exp,
+          ~font_metrics,
+          ~buffer_ids=[],
+          ~segment,
+          ~unselected=segment,
+          ~measured=Measured.of_segment(segment),
+          ~settings,
+        );
       /* Disabling casts in this case as large casts
        * can blow up UI perf unexpectedly */
-      [dhcode_view(~show_casts=false, eval_result)]
+      [dhcode_view(~show_casts=false, eval_result), experiemental_code_view];
     };
   Node.(
     div(
