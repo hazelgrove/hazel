@@ -104,3 +104,9 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   | None => NoJoin(ty => List(ty), add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
+
+let of_ann = (ctx: Ctx.t, ~p: Typ.t, ~ann: Typ.t) =>
+  switch (Typ.join_fix(ctx, ann, p)) {
+  | Some(ty) => Just(ty)
+  | None => Just(ann)
+  };

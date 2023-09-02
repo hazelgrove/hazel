@@ -120,3 +120,14 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
     }
   | None => SynFun
   };
+
+let of_ann = (ctx: Ctx.t, mode: t, ann: Typ.t) =>
+  switch (mode) {
+  | Syn
+  | SynFun => Ana(ann)
+  | Ana(ty) =>
+    switch (Typ.join_fix(ctx, ty, ann)) {
+    | Some(ty) => Ana(ty)
+    | None => Ana(ann)
+    }
+  };

@@ -112,12 +112,11 @@ module rec Typ: {
       (p1: type_provenance, p2: type_provenance): type_provenance =>
     switch (p1, p2) {
     | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
-    | (TypeHole, TypeHole | SynSwitch)
-    | (SynSwitch, TypeHole) => TypeHole
+    | (TypeHole | Free(_), _)
+    | (_, TypeHole | Free(_)) => TypeHole
     | (SynSwitch, Internal)
     | (Internal, SynSwitch) => SynSwitch
-    | (Internal | Free(_), _)
-    | (_, Internal | Free(_)) => Internal
+    | (Internal, Internal) => Internal
     | (SynSwitch, SynSwitch) => SynSwitch
     };
 

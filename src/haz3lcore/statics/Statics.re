@@ -409,8 +409,10 @@ and upat_to_info_map =
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-    let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
-    add(~self=Just(ann.ty), ~ctx=p.ctx, m);
+    let mode = Mode.of_ann(ctx, mode, ann.ty);
+    let (p, m) = go(~ctx, ~mode, p, m);
+    let self = Self.of_ann(ctx, ~p=p.ty, ~ann=ann.ty);
+    add(~self, ~ctx=p.ctx, m);
   };
 }
 and utyp_to_info_map =
