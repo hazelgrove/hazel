@@ -1,6 +1,8 @@
 open Haz3lcore;
 
 let ws = _ => Base.Secondary({id: Id.mk(), content: Whitespace(Form.space)});
+let lb = _ =>
+  Base.Secondary({id: Id.mk(), content: Whitespace(Form.linebreak)});
 let hole = _ => Base.Grout({id: Id.mk(), shape: Convex});
 
 let pad_r = child => child @ [ws()];
@@ -157,17 +159,17 @@ and go = (d: DHExp.t): Segment.t => {
   | ApBuiltin(s, ds) =>
     [atomic_operand(Exp, s)] @ [ap_tile(Exp, commas_between(ds))]
   | Fun(p, _, d, _) => [fun_tile(go_pat(p))] @ pad_l(go(d))
-  | Let(p, d1, d2) => [let_tile(go_pat(p), go(d1))] @ pad_l(go(d2))
+  | Let(p, d1, d2) => [let_tile(go_pat(p), go(d1))] @ [lb()] @ go(d2)
   | ConsistentCase(Case(d, rs, _))
   | InconsistentBranches(_, _, Case(d, rs, _)) =>
     let child =
       List.map(
-        (Rule(p, d): DHExp.rule) =>
-          pad_l([rule_tile(go_pat(p))]) @ pad_l(go(d)),
+        (DHExp.Rule(p, d)) =>
+          pad_l([rule_tile(go_pat(p))]) @ pad_l(go(d)) @ [lb()],
         rs,
       )
       |> List.flatten;
-    [case_tile(go(d) @ child)];
+    [case_tile(go(d) @ [lb()] @ child)];
   // Hacky support
   | TestLit(_) => [] // Shouldn't occur
   | Prj(d, i) => go(ApBuiltin("prj", [IntLit(i), d]))
