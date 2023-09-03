@@ -193,26 +193,11 @@ and uexp_to_info_map =
       m,
     );
   | Var(name) =>
-    switch (Ctx.lookup_var(ctx, name)) {
-    | None when Form.is_op_in_let(name) => atomic(Free(UserOpVar))
-    | None => atomic(Free(Variable))
-    | Some(var) when Form.is_op_in_let(name) =>
-      switch (var.typ) {
-      | Arrow(Prod([_, _]), _) =>
-        add'(
-          ~self=Self.of_exp_var(ctx, name),
-          ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
-          m,
-        )
-      | _ => atomic(Free(UserOp))
-      }
-    | Some(var) =>
-      add'(
-          ~self=Self.of_exp_var(ctx, name),
-          ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
-          m,
-        )
-    }
+    add'(
+      ~self=Self.of_exp_var(ctx, name),
+      ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
+      m,
+    )
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
@@ -230,25 +215,40 @@ and uexp_to_info_map =
     let ty_all =
       switch (op_var) {
       | None => None
-      | Some(var) => Some(Typ.matched_arrow(var.typ))
+      | Some(var) => Some(Typ.matched_arrow(ctx, var.typ))
       };
     switch (ty_all) {
     | Some((Unknown(_) as ty_var, _)) =>
       let (e1, m) = go(~mode=Syn, e1, m);
-    let (e2, m) = go(~mode=Syn, e2, m);
-    add(~self=Just(ty_var), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+      let (e2, m) = go(~mode=Syn, e2, m);
+      add(
+        ~self=Just(ty_var),
+        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        m,
+      );
     | Some((Prod([ty1, ty2]), ty_out)) =>
       let (e1, m) = go(~mode=Ana(ty1), e1, m);
-    let (e2, m) = go(~mode=Ana(ty2), e2, m);
-    add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+      let (e2, m) = go(~mode=Ana(ty2), e2, m);
+      add(
+        ~self=Just(ty_out),
+        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        m,
+      );
     | Some(_) =>
       let (e1, m) = go(~mode=Syn, e1, m);
-    let (e2, m) = go(~mode=Syn, e2, m);
-    add(~self=Free(UserOpVar), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+      let (e2, m) = go(~mode=Syn, e2, m);
+      add(
+        ~self=NonBinUserOp,
+        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        m,
+      );
     | None =>
-      let (e1, m) = go(~mode=syn, e1, m);
-    let (e2, m) = go(~mode=syn, e2, m);
-    add(~self=Free(UserOpVar), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+      let (e1, m) = go(~mode=Syn, e1, m);
+      let (e2, m) = go(~mode=Syn, e2, m);
+      add(
+        ~self=UnboundUserOp,
+        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        m,
       );
     };
   | Tuple(es) =>
@@ -289,14 +289,24 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+    let (def_syn, _) = go'(~ctx=def_ctx, ~mode=Syn, def, m);
+    print_endline("The pattern syn is: " ++ Info.show_pat(p_syn));
+    let e_mode =
+      switch (p) {
+      | {term: TypeAnn({term: Var(x), _}, _), _}
+      | {term: Var(x), _} when Form.is_op_in_let(x) =>
+        Mode.AnaInfix(def_syn.ty)
+      | _ => Mode.Ana(p_syn.ty)
+      };
+    let (def_ana, m) = go'(~ctx=def_ctx, ~mode=e_mode, def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
+    let (p_ana, m) =
+      go_pat(~is_synswitch=false, ~mode=Ana(def_ana.ty), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),
       ~co_ctx=
-        CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        CoCtx.union([def_ana.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
       m,
     );
   | If(e0, e1, e2) =>
@@ -435,12 +445,12 @@ and upat_to_info_map =
              String.sub(name, 1, String.length(name) - 2),
              Form.delims,
            )) {
-      atomic(Free(BuiltinOpExists));
+      atomic(BuiltinOpExists);
     } else {
-    let ctx_typ =
-      Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+      let ctx_typ =
+        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
     }
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));

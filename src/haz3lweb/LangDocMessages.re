@@ -2142,7 +2142,7 @@ let int_power_exp_coloring_ids =
   );
 let int_power_exp: form = {
   let explanation = {
-    message: "Integer exponentiation. Gives the result of raising [*left*](%i) to the [*right*](%i).",
+    message: "Integer exponentiation. Gives the result of raising [*left*](%s) to the [*right*](%s).",
     feedback: Unselected,
   };
   {
@@ -2604,7 +2604,7 @@ let userop_exp_coloring_ids =
   );
 let userop_exp: form = {
   let explanation = {
-    message: "A user-defined operator. Evaluate [*left operand*](%i) and [*right operand*](%i) based on the user-defined operator.",
+    message: "A user-defined operator. Evaluate [*left operand*](%s) and [*right operand*](%s) based on the user-defined operator.",
     feedback: Unselected,
   };
   {

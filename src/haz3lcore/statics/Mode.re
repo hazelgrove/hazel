@@ -21,13 +21,15 @@ open OptUtil.Syntax;
 type t =
   | SynFun /* Used only in function position of applications */
   | Syn
-  | Ana(Typ.t);
+  | Ana(Typ.t)
+  | AnaInfix(Typ.t);
 
 let ana: Typ.t => t = ty => Ana(ty);
 
 /* The expected type imposed by a mode */
 let ty_of: t => Typ.t =
   fun
+  | AnaInfix(ty)
   | Ana(ty) => ty
   | Syn => Unknown(SynSwitch)
   | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
@@ -36,6 +38,7 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
   | SynFun => (Syn, Syn)
+  | AnaInfix(ty)
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
@@ -43,6 +46,7 @@ let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   switch (mode) {
   | Syn
   | SynFun => List.init(length, _ => Syn)
+  | AnaInfix(ty)
   | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
   };
 
@@ -50,6 +54,7 @@ let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun => Syn
+  | AnaInfix(ty)
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
@@ -57,6 +62,7 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
   | SynFun => Ana(List(hd_ty))
+  | AnaInfix(ty)
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
@@ -64,6 +70,7 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun => Syn
+  | AnaInfix(ty)
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
@@ -71,6 +78,7 @@ let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun => Ana(List(Unknown(SynSwitch)))
+  | AnaInfix(ty)
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 

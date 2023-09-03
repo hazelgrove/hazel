@@ -2176,9 +2176,9 @@ let get_doc =
           options,
           LangDocMessages.userop_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            left_id,
-            right_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            left_id |> Id.to_string,
+            right_id |> Id.to_string,
           ),
           LangDocMessages.userop_exp_coloring_ids(~left_id, ~right_id),
         );

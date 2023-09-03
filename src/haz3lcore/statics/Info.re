@@ -44,12 +44,20 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad function position */
-  | WithArrow(Typ.t);
+  | WithArrow(Typ.t)
+  /* User-defined operator must be a binary function, treated as a hole */
+  | InvalidBinOp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  /* Non-binary user-defined operator, treated as a hole */
+  | NonBinUserOp
+  /* Unbound user-defined operator, treated as a hole */
+  | UnboundUserOp
+  /* User defined operator already exists, treated as hole */
+  | BuiltinOpExists
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
 
@@ -265,6 +273,15 @@ let rec status_common =
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
     }
+  | (Just(syn), AnaInfix(ana)) =>
+    switch (Typ.join_fix(ctx, ana, syn)) {
+    | Some(Unknown(_) as join)
+    | Some(Arrow(Unknown(_), _) as join)
+    | Some(Arrow(Prod([_, _]), _) as join) =>
+      NotInHole(Ana(Consistent({syn, ana, join})))
+    | Some(_)
+    | None => InHole(Inconsistent(InvalidBinOp))
+    }
   | (Just(syn), SynFun) =>
     switch (
       Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
@@ -284,7 +301,7 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
-  | (NoJoin(wrap, tys), Ana(ana)) =>
+  | (NoJoin(wrap, tys), Ana(ana) | AnaInfix(ana)) =>
     let syn: Typ.t = wrap(Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
@@ -295,11 +312,14 @@ let rec status_common =
     };
   | (NoJoin(_, tys), Syn | SynFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
+  | (NonBinUserOp, _) => InHole(NoType(NonBinUserOp))
+  | (UnboundUserOp, _) => InHole(NoType(UnboundUserOp))
+  | (BuiltinOpExists, _) => InHole(NoType(BuiltinOpExists))
   };
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
-  | (Syn | Ana(_), Common(self_pat))
+  | (Syn | Ana(_) | AnaInfix(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we

@@ -443,6 +443,7 @@ module UExp = {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
+    | UserOp(Var.t)
     | Match
     | ListConcat;
 

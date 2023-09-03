@@ -26,6 +26,9 @@ type t =
   | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
+  | NonBinUserOp /* Non-binary user-defined operator, treated as hole */
+  | UnboundUserOp /* Unbound user-defined operator, treated as hole */
+  | BuiltinOpExists /* User defined operator already exists, treated as hole */
   | IsConstructor({
       name: Constructor.t,
       syn_ty: option(Typ.t),
@@ -51,6 +54,9 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | IsMulti
+    | NonBinUserOp
+    | UnboundUserOp
+    | BuiltinOpExists
     | NoJoin(_) => None;
 
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
@@ -69,6 +75,11 @@ let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
   | None => Free(name)
+  | Some(var) when Form.is_op_in_let(name) =>
+    switch (var.typ) {
+    | Arrow(Prod([_, _]), _) => Common(Just(var.typ))
+    | _ => Common(NonBinUserOp)
+    }
   | Some(var) => Common(Just(var.typ))
   };
 
