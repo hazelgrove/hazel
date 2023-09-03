@@ -50,6 +50,19 @@ let go_z =
   | MoveToNextHole(d) =>
     Move.go(Goal(Piece(Grout, d)), z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | Jump(TileId(id)) =>
+    //TODO(andrew): cleanup/remove
+    //print_endline("path test starting!");
+    let segment = Zipper.unselect_and_zip(z);
+    //print_endline("path test unselect_and_zip done!");
+    let map = Measured.path_map(segment);
+    //print_endline("path test path_map done!");
+    let path = Id.Map.find(id, map);
+    //print_endline(Measured.show_piece_path(path));
+    //print_endline("path test path_map done!");
+    let z = Zipper.zip_to_path(segment, path, z.caret);
+    //print_endline("path test zip_to_path done!");
+    Ok(z);
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 

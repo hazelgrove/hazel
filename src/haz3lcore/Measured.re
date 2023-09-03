@@ -431,3 +431,36 @@ let segment_width = (seg: Segment.t): int =>
     of_segment(seg).rows,
     0,
   );
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type piece_path = list(int);
+
+let fold_lefti = (f, acc, seg) =>
+  List.fold_left2(f, acc, seg, List.init(List.length(seg), Fun.id));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+let path_map = (seg: Segment.t): Id.Map.t(piece_path) => {
+  //NOTE: paths will be in reverse order
+  let rec go = (path: piece_path, map: Id.Map.t(piece_path), seg: Segment.t) =>
+    fold_lefti(
+      (map, p: Piece.t, idx: int) => {
+        let path = [idx, ...path];
+        let map = Id.Map.add(Piece.id(p), path, map);
+        let map =
+          switch (p) {
+          | Secondary(_)
+          | Grout(_) => map
+          | Tile(t) =>
+            fold_lefti(
+              (map, child, idx) => go([idx, ...path], map, child),
+              map,
+              t.children,
+            )
+          };
+        map;
+      },
+      map,
+      seg,
+    );
+  go([], Id.Map.empty, seg);
+};
