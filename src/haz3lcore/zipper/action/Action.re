@@ -61,6 +61,7 @@ type t =
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
+  | Remote(Id.t, t)
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up

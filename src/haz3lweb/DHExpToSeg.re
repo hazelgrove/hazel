@@ -28,6 +28,15 @@ let atomic_operator = (s: string, p: Precedence.t, sort: Sort.t) => {
 let commas = (sort: Sort.t, n): list(Segment.t) =>
   List.init(n, _ => [atomic_operator(",", Precedence.prod, sort), ws()]);
 
+let tuple = (sort: Sort.t, go: 'a => Segment.t, ds: list('a)): Segment.t =>
+  Util.ListUtil.interleave(
+    List.map(go, ds),
+    List.init(List.length(ds) - 1, _ =>
+      [atomic_operator(",", Precedence.prod, sort), ws()]
+    ),
+  )
+  |> List.flatten;
+
 let parens_tile = (sort: Sort.t, child: Segment.t): Piece.t =>
   Tile({
     id: Id.mk(),
@@ -100,16 +109,10 @@ let rule_tile = (pat: Segment.t): Piece.t =>
     children: [pad(pat)],
   });
 
-let rec mk_infix = (d1, s, d2, p) =>
+let rec infix_exp = (d1, s, d2, p) =>
   go(d1) @ [atomic_operator(s, p, Exp)] @ go(d2)
-and mk_infix_pad = (d1, s, d2, p) =>
+and infix_exp_pad = (d1, s, d2, p) =>
   go(d1) @ [ws(), atomic_operator(s, p, Exp), ws()] @ go(d2)
-and commas_between = (ds: list(DHExp.t)) =>
-  Util.ListUtil.interleave(
-    List.map(go, ds),
-    commas(Exp, List.length(ds) - 1),
-  )
-  |> List.flatten
 and go = (d: DHExp.t): Segment.t => {
   let prec = DHDoc_Exp.precedence(~show_casts=false, d);
   switch (d) {
@@ -139,25 +142,25 @@ and go = (d: DHExp.t): Segment.t => {
   | Tuple([]) => [atomic_operand(Exp, "()")]
   | Tuple(ds) =>
     //TODO: only parenthesize selectively?
-    [parens_tile(Exp, commas_between(ds))]
+    [parens_tile(Exp, tuple(Exp, go, ds))]
   | ListLit(_, _, _, []) => [atomic_operand(Exp, "[]")]
-  | ListLit(_, _, _, ds) => [listlit_tile(commas_between(ds))]
+  | ListLit(_, _, _, ds) => [listlit_tile(tuple(Exp, go, ds))]
   // Composite infix operators
   // TODO(andrew): parenthesization
-  | Cons(d1, d2) => mk_infix(d1, "::", d2, prec)
-  | Sequence(d1, d2) => mk_infix(d1, ";", d2, prec)
-  | ListConcat(d1, d2) => mk_infix_pad(d1, "@", d2, prec)
+  | Cons(d1, d2) => infix_exp(d1, "::", d2, prec)
+  | Sequence(d1, d2) => infix_exp(d1, ";", d2, prec)
+  | ListConcat(d1, d2) => infix_exp_pad(d1, "@", d2, prec)
   | BinBoolOp(op, d1, d2) =>
-    mk_infix_pad(d1, Term.UExp.bool_op_to_string(op), d2, prec)
+    infix_exp_pad(d1, Term.UExp.bool_op_to_string(op), d2, prec)
   | BinIntOp(op, d1, d2) =>
-    mk_infix_pad(d1, Term.UExp.int_op_to_string(op), d2, prec)
+    infix_exp_pad(d1, Term.UExp.int_op_to_string(op), d2, prec)
   | BinFloatOp(op, d1, d2) =>
-    mk_infix_pad(d1, Term.UExp.float_op_to_string(op), d2, prec)
+    infix_exp_pad(d1, Term.UExp.float_op_to_string(op), d2, prec)
   | BinStringOp(op, d1, d2) =>
-    mk_infix_pad(d1, Term.UExp.string_op_to_string(op), d2, prec)
+    infix_exp_pad(d1, Term.UExp.string_op_to_string(op), d2, prec)
   // Other Composites
   | ApBuiltin(s, ds) =>
-    [atomic_operand(Exp, s)] @ [ap_tile(Exp, commas_between(ds))]
+    [atomic_operand(Exp, s)] @ [ap_tile(Exp, tuple(Exp, go, ds))]
   | Fun(p, _, d, _) => [fun_tile(go_pat(p))] @ pad_l(go(d))
   | Let(p, d1, d2) => [let_tile(go_pat(p), go(d1))] @ [lb()] @ go(d2)
   | ConsistentCase(Case(d, rs, _))
@@ -175,18 +178,13 @@ and go = (d: DHExp.t): Segment.t => {
   | Prj(d, i) => go(ApBuiltin("prj", [IntLit(i), d]))
   };
 }
-and commas_between_pat = (ds: list(DHPat.t)) =>
-  Util.ListUtil.interleave(
-    List.map(go_pat, ds),
-    commas(Pat, List.length(ds) - 1),
-  )
-  |> List.flatten
-and mk_infix_pat = (d1, s, d2, p) =>
+and infix_pat = (d1, s, d2, p) =>
   go_pat(d1) @ [atomic_operator(s, p, Pat)] @ go_pat(d2)
 and go_pat = (p: DHPat.t) => {
+  let prec = DHDoc_Pat.precedence(p);
   switch (p) {
   | EmptyHole(_) => [hole()]
-  | NonEmptyHole(_, _, _, d) => go_pat(d)
+  | NonEmptyHole(_, _, _, p) => go_pat(p)
   | Wild => [atomic_operand(Pat, "_")]
   | ExpandingKeyword(_, _, kw) => [
       atomic_operand(Pat, ExpandingKeyword.to_string(kw)),
@@ -199,10 +197,11 @@ and go_pat = (p: DHPat.t) => {
   | Constructor(s)
   | BadConstructor(_, _, s)
   | InvalidText(_, _, s) => [atomic_operand(Pat, s)]
-  | Ap(d1, d2) => go_pat(d1) @ [ap_tile(Pat, go_pat(d2))]
+  | Ap(p1, p2) => go_pat(p1) @ [ap_tile(Pat, go_pat(p2))]
   | ListLit(_, []) => [atomic_operand(Pat, "[]")]
-  | ListLit(_, ds) => [listlit_tile(commas_between_pat(ds))]
-  | Cons(d1, d2) => mk_infix_pat(d1, "::", d2, DHDoc_Pat.precedence(p))
-  | Tuple(ps) => [parens_tile(Pat, commas_between_pat(ps))]
+  | ListLit(_, ps) => [listlit_tile(tuple(Pat, go_pat, ps))]
+  | Cons(p1, p2) =>
+    go_pat(p1) @ [atomic_operator("::", prec, Pat)] @ go_pat(p2)
+  | Tuple(ps) => [parens_tile(Pat, tuple(Pat, go_pat, ps))]
   };
 };
