@@ -69,7 +69,7 @@ let mk_nul_infix = (t: Token.t, prec) =>
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
 let is_arbitary_float = x =>
-  x != "." && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
+  x != "." && x != "-" && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
@@ -94,14 +94,12 @@ let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
-let is_partial_base_typ = x => !is_base_typ(x) && is_capitalized_name(x);
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
-let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_base_typ(str);
+let is_bad_lit = str => is_bad_int(str) || is_bad_float(str);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */

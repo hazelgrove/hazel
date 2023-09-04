@@ -184,7 +184,7 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(mode);
+    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -229,7 +229,7 @@ and uexp_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     add(
       ~self=Just(ty_out),
@@ -239,7 +239,7 @@ and uexp_to_info_map =
   | TypAp(fn, utyp) =>
     let typfn_mode = Mode.typap_mode;
     let (fn, m_fn) = go(~mode=typfn_mode, fn, m);
-    let (name, ty_body) = Typ.matched_forall(fn.ty);
+    let (name, ty_body) = Typ.matched_forall(ctx, fn.ty);
     let ty = Term.UTyp.to_typ(ctx, utyp);
     add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m_fn);
   | Fun(p, e) =>
@@ -253,7 +253,7 @@ and uexp_to_info_map =
     );
   | TypFun({term: Var(name), _} as utpat, body)
       when !Ctx.shadows_typ(ctx, name) =>
-    let mode_body = Mode.of_forall(Some(name), mode);
+    let mode_body = Mode.of_forall(ctx, Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let ctx_body =
       Ctx.extend_tvar(
@@ -263,7 +263,7 @@ and uexp_to_info_map =
     let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
     add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
   | TypFun(utpat, body) =>
-    let mode_body = Mode.of_forall(None, mode);
+    let mode_body = Mode.of_forall(ctx, None, mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let (body, m) = go(~mode=mode_body, body, m);
     add(~self=Just(Forall("?", body.ty)), ~co_ctx=body.co_ctx, m);
@@ -439,7 +439,7 @@ and upat_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>
