@@ -14,6 +14,17 @@ let score_view = ((earned: points, max: points)) => {
   );
 };
 
+let percentage_view = (p: percentage) => {
+  div(
+    ~attr=
+      Attr.classes([
+        "test-percent",
+        Float.equal(p, 1.) ? "all-pass" : "some-fail",
+      ]),
+    [text(Printf.sprintf("%.0f%%", 100. *. p))],
+  );
+};
+
 module TestValidationReport = {
   include TestValidationReport;
   let textual_summary = (report: t) => {
@@ -86,7 +97,8 @@ module MutationTestingReport = {
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
                 Attr.on_click(
-                  TestView.jump_to_test(~inject, HiddenBugs(id), id),
+                  //TODO: wire up test ids
+                  TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
                 ),
               ]),
             [],
@@ -126,7 +138,10 @@ module MutationTestingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, HiddenBugs(id), id)),
+          //TODO: wire up test ids
+          Attr.on_click(
+            TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+          ),
         ]),
       [
         div(
@@ -236,6 +251,71 @@ module MutationTestingReport = {
     };
 };
 
+module SyntaxReport = {
+  include SyntaxReport;
+  let individual_report = (i: int, hint: string, status: bool) => {
+    let result_string = status ? "Pass" : "Indet";
+
+    div(
+      ~attr=Attr.classes(["test-report"]),
+      [
+        div(
+          ~attr=Attr.classes(["test-id", "Test" ++ result_string]),
+          [text(string_of_int(i + 1))],
+        ),
+      ]
+      @ [
+        div(
+          ~attr=Attr.classes(["test-hint", "test-instance", result_string]),
+          [text(hint)],
+        ),
+      ],
+    );
+  };
+
+  let individual_reports = (hinted_results: list((bool, string))) => {
+    div(
+      hinted_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, hint, status)
+         ),
+    );
+  };
+
+  let view = (syntax_report: t) => {
+    Cell.panel(
+      ~classes=["test-panel"],
+      [
+        Cell.bolded_caption(
+          "Syntax Validation",
+          ~rest=
+            ": Does your implementation satisfy the syntactic requirements?",
+        ),
+        individual_reports(syntax_report.hinted_results),
+      ],
+      ~footer=
+        Some(
+          Cell.report_footer_view([
+            div(
+              ~attr=Attr.classes(["test-summary"]),
+              [
+                div(
+                  ~attr=Attr.class_("test-text"),
+                  [
+                    percentage_view(syntax_report.percentage),
+                    text(
+                      " of the Implementation Validation points will be earned",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ]),
+        ),
+    );
+  };
+};
+
 module ImplGradingReport = {
   open Haz3lcore;
   include ImplGradingReport;
@@ -326,7 +406,8 @@ module ImplGradingReport = {
     };
   };
 
-  let view = (~inject, ~report: t, ~max_points: int) => {
+  let view =
+      (~inject, ~report: t, ~syntax_report: SyntaxReport.t, ~max_points: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -346,7 +427,10 @@ module ImplGradingReport = {
                   ~attr=Attr.class_("test-text"),
                   [
                     score_view(
-                      score_of_percent(percentage(report), max_points),
+                      score_of_percent(
+                        percentage(report, syntax_report),
+                        max_points,
+                      ),
                     ),
                   ]
                   @ textual_summary(report),

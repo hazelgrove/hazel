@@ -216,33 +216,12 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           );
         Some({origin: first.origin, last: last.last});
       | None =>
-        Printf.printf("Measured.WARNING: id %d not found", id);
+        Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
         None;
       }
     }
   };
 };
-
-let union2 = (map: t, map': t) => {
-  tiles:
-    Id.Map.union((_, ms, ms') => Some(ms @ ms'), map.tiles, map'.tiles),
-  grout: Id.Map.union((_, m, _) => Some(m), map.grout, map'.grout),
-  secondary:
-    Id.Map.union((_, m, _) => Some(m), map.secondary, map'.secondary),
-  rows:
-    Rows.union(
-      (_, s: Rows.shape, s': Rows.shape) =>
-        Some({
-          indent: min(s.indent, s'.indent),
-          max_col: max(s.max_col, s'.max_col),
-        }),
-      map.rows,
-      map'.rows,
-    ),
-  linebreaks:
-    Id.Map.union((_, i, _) => Some(i), map.linebreaks, map'.linebreaks),
-};
-let union = List.fold_left(union2, empty);
 
 let post_tile_indent = (t: Tile.t) => {
   // hack for indent following fun/if tiles.

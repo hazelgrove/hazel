@@ -39,20 +39,16 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   | Syn
   | SynFun
   | SynTypFun => (Syn, Syn)
-  | Ana(ty) =>
-    ty
-    |> Typ.weak_head_normalize(ctx)
-    |> Typ.matched_arrow
-    |> TupleUtil.map2(ana)
+  | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
-let of_forall = (name_opt: option(TypVar.t), mode: t): t =>
+let of_forall = (ctx: Ctx.t, name_opt: option(TypVar.t), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => Syn
   | Ana(ty) =>
-    let (name_expected, item) = Typ.matched_forall(ty);
+    let (name_expected, item) = Typ.matched_forall(ctx, ty);
     switch (name_opt) {
     | Some(name) => Ana(Typ.subst(Var(name), name_expected, item))
     | None => Ana(item)
@@ -64,22 +60,15 @@ let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   | Syn
   | SynFun
   | SynTypFun => List.init(length, _ => Syn)
-  | Ana(ty) =>
-    ty
-    |> Typ.weak_head_normalize(ctx)
-    |> Typ.matched_prod(length)
-    |> List.map(ana)
+  | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
   };
-
-let matched_list_normalize = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
-  ty |> Typ.weak_head_normalize(ctx) |> Typ.matched_list;
 
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => Syn
-  | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
+  | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
 let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
@@ -87,7 +76,7 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   | Syn
   | SynFun
   | SynTypFun => Ana(List(hd_ty))
-  | Ana(ty) => Ana(List(matched_list_normalize(ctx, ty)))
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
 let of_list = (ctx: Ctx.t, mode: t): t =>
@@ -95,15 +84,15 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
   | Syn
   | SynFun
   | SynTypFun => Syn
-  | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
+  | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
-let of_list_concat = (mode: t): t =>
+let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => Ana(List(Unknown(SynSwitch)))
-  | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
 let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>

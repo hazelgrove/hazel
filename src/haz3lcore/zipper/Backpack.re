@@ -217,6 +217,11 @@ let shard_info = (bp: t) => {
   info;
 };
 
+/* PERF: This becomes very costly when there are a lot of things
+   in the backpack; e.g. if you open 23 parens, it's almost 100%
+   of the keystoke cost, for a 55x total slowdown  */
+let shard_info = Core.Memo.general(~cache_size_bound=1000, shard_info);
+
 let push = sel => Selection.is_empty(sel) ? Fun.id : List.cons(sel);
 
 let push_s: (list(Selection.t), t) => t = List.fold_right(push);

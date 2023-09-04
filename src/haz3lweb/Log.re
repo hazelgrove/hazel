@@ -10,7 +10,6 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
   | Save
@@ -21,7 +20,8 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportScratchpad(_)
   | UpdateResult(_)
   | DebugAction(_)
-  | ExportPersistentData => false
+  | ExportPersistentData
+  | Benchmark(_) => false
   | ReparseCurrentEditor
   | Set(_)
   | FinishImportAll(_)

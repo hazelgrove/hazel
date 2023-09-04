@@ -58,8 +58,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Fun(_) =>
       /* See regression tests in Examples/Dynamics */
-      let (_, ana_out) = Typ.matched_arrow(ana_ty);
-      let (self_in, _) = Typ.matched_arrow(self_ty);
+      let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
+      let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | TypFun(_) =>
       switch (ana_ty) {
@@ -156,7 +156,7 @@ let rec dhexp_of_uexp =
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
-        let ty = Typ.matched_list(ty);
+        let ty = Typ.matched_list(ctx, ty);
         DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
@@ -245,7 +245,7 @@ let rec dhexp_of_uexp =
             | _ => ddef
             };
           let uniq_id = List.nth(def.ids, 0);
-          let self_id = "__mutual__" ++ string_of_int(uniq_id);
+          let self_id = "__mutual__" ++ Id.to_string(uniq_id);
           let self_var = DHExp.BoundVar(self_id);
           let (_, substituted_def) =
             fs
@@ -333,7 +333,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       let* ty = fixed_pat_typ(m, upat);
-      wrap(ListLit(Typ.matched_list(ty), ds));
+      wrap(ListLit(Typ.matched_list(ctx, ty), ds));
     | Constructor(name) =>
       switch (err_status) {
       | InHole(Common(NoType(FreeConstructor(_)))) =>
