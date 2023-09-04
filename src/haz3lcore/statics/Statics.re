@@ -52,6 +52,7 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
     switch (Typ.normalize(ctx, syn)) {
+    | Unknown(_)
     | Arrow(_) => num_vars == 1
     | Prod(syns) when List.length(syns) == num_vars =>
       syns
@@ -287,7 +288,7 @@ and uexp_to_info_map =
           go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
         let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
           ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
-            ? ty_fn1 : Unknown(SynSwitch);
+            ? ty_fn1 : ty_p;
         };
         let ana =
           switch ((def_base.ty, def_base2.ty), p_syn.ty) {
