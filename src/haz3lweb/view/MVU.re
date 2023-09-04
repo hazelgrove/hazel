@@ -260,6 +260,13 @@ let update =
 };
 
 let on_ = (mvu: t, handler, arg) =>
+  /*
+   alternatively: do the Ap(handler, arg) eval as above, but if
+   the resulting dhext has shape Inject(Int(id), update, action),
+   then still do Ap(update, Tuple([model, action])), but instead of
+   SetMetating that, do new action ReplaceAtId(id, model) which will
+   call RemoteAction and use DHExpToSegment to replace the model
+   */
   Effect.Many([
     Effect.Stop_propagation,
     mvu.inject(update(mvu, handler, arg)),

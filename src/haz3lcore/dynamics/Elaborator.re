@@ -249,6 +249,23 @@ let rec dhexp_of_uexp =
                );
           Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
+      | Ap(
+          {term: Constructor("Stage"), _},
+          {term: Tuple([update, model]), _},
+        ) =>
+        //TODO(andrew): casting
+        //(<init_model>, fun (action:Action) -> Inject(Int(<init_model>.uuid), <update>, action)
+        let* update = dhexp_of_uexp(m, update);
+        let+ model = dhexp_of_uexp(m, model);
+        let id_str = Term.UExp.rep_id(uexp) |> Id.to_string;
+        let body =
+          DHExp.Ap(
+            Constructor("Inject"),
+            Tuple([StringLit(id_str), update, BoundVar("action")]),
+          );
+        let inject =
+          DHExp.Fun(Var("action"), Unknown(Internal), body, None);
+        DHExp.Tuple([model, inject]);
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
