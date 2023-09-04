@@ -10,7 +10,9 @@ type m = t(Material.Molded.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p = t(Piece.t);
 
-let singleton = a => W(Chain.of_loop(a));
+let mk = (ps: list(_), slots: list(Slot.t(_))) =>
+  W(Chain.mk(ps, slots));
+let singleton = p => mk([p], []);
 // let mk = (mel: Meld.t): option((Meld.t, t, Meld.t)) =>
 //   Option.bind(Meld.distribute(mel).chain, Chain.trim);
 

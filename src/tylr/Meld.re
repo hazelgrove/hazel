@@ -1,6 +1,20 @@
 open Sexplib.Std;
 open Util;
 
+module Slot = {
+  type t('a) = option('a);
+};
+
+module Wald = {
+  type t('piece, 'slot) =
+    | W(Chain.t('piece, Slot.t('slot)));
+};
+
+type t('slot, 'piece) =
+  | M(Slot.t('slot), Wald.t('piece, 'slot), Slot.t('slot));
+
+type p = t(p, Piece.t);
+
 // for constructor inclusion in Wald and Slot modules
 module Base = {
   [@deriving (show({with_path: false}), sexp, yojson)]
