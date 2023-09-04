@@ -718,7 +718,21 @@ select {
 }
 
 .code .token.poly {
+ 
+}
+.code .token.poly.default {
+  /*text-transform: uppercase;*/
+  color: #c9bfa0;
+  /*opacity: 80%;*/
   font-weight: bold;
+}
+.code .token.poly.parens {
+  color: #b0a37b;
+  display: inline-block;
+  transform: scale(0.6);
+  /*opacity: 90%;*/
+}
+.code .token.poly.square {
 }
 
 .code .token.mono.string-lit {

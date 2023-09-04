@@ -79,19 +79,31 @@ let update_handler =
     )
     : Effect.t(unit) =>
   Effect.(
-    switch (Keyboard.handle_key_event(Key.mk(dir, evt), ~model)) {
-    | None => Ignore
-    | Some(action) =>
+    switch (
+      model.meta.ui_state.focus,
+      Keyboard.handle_key_event(Key.mk(dir, evt), ~model),
+    ) {
+    | (MVU, _)
+    | (Editor, None) => Ignore
+    | (Editor, Some(action)) =>
       Many([Prevent_default, Stop_propagation, inject(action)])
     }
   );
 
 let handlers =
-    (~inject: UpdateAction.t => Ui_effect.t(unit), ~model: Model.t) => [
-  Attr.on_keypress(_ => Effect.Prevent_default),
-  Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
-  Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
-];
+    (~inject: UpdateAction.t => Ui_effect.t(unit), ~model: Model.t) =>
+  switch (model.meta.ui_state.focus) {
+  | MVU =>
+    print_endline("Adding MVU handlers");
+    [];
+  | Editor =>
+    print_endline("Adding editor handlers");
+    [
+      Attr.on_keypress(_ => Effect.Prevent_default),
+      Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
+      Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
+    ];
+  };
 
 module App = {
   module Model = Model;
@@ -165,7 +177,7 @@ module App = {
           print_endline("Saving...");
           schedule_action(Update.Save);
         };
-        if (action_applied.contents) {
+        if (action_applied.contents && model.meta.ui_state.focus == Editor) {
           action_applied := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };

@@ -156,3 +156,30 @@ module Fragment = {
     Url.Current.get() |> Option.map(fragment_of_url);
   };
 };
+
+let contains =
+    (rt: Js.t(Dom_html.element), ct: Js.t(Dom_html.element)): bool =>
+  try(
+    Js_of_ocaml.Js.Unsafe.meth_call(
+      ct,
+      "contains",
+      [|Js_of_ocaml.Js.Unsafe.coerce(rt)|],
+    )
+    |> Js_of_ocaml.Js.to_bool
+  ) {
+  | _ => false
+  };
+
+let is_refocus_on_child =
+    (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.focusEvent)): bool =>
+  try(
+    contains(
+      Js.Opt.get(
+        Js.Optdef.get(evt##.relatedTarget, () => failwith("lol")), () =>
+        failwith("lol")
+      ),
+      Js_of_ocaml.Js.Opt.get(evt##.currentTarget, () => failwith("lol")),
+    )
+  ) {
+  | _ => false
+  };

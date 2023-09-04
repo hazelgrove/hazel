@@ -109,7 +109,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | Mouseup
     | ShowBackpackTargets(_)
     | FontMetrics(_)
-    | Result(_) => false
+    | Result(_)
+    | Focus(_) => false
     | MVU(_)
     | Auto(_) => true
     }
@@ -131,7 +132,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
-  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
+  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down | Remote(_))
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
@@ -454,6 +455,9 @@ and meta_update =
       ...model.meta,
       mvu_states: VarMap.extend(model.meta.mvu_states, (name, dh)),
     }
+  | Focus(focus) =>
+    let ui_state = {...model.meta.ui_state, focus};
+    {...model.meta, ui_state};
   | Result(key, res) =>
     /* If error, print a message. */
     switch (res) {

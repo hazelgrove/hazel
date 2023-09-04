@@ -27,6 +27,11 @@ type agent_action =
   | SetBuffer(string)
   | AcceptSuggestion;
 
+[@deriving (show({with_path: false}), yojson, sexp)]
+type focus =
+  | Editor
+  | MVU;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type set_meta =
   | Mousedown
@@ -34,6 +39,7 @@ type set_meta =
   | ShowBackpackTargets(bool)
   | FontMetrics(FontMetrics.t)
   | MVU(string, DHExp.t)
+  | Focus(focus)
   | Result(ModelResults.Key.t, ModelResult.current)
   | Auto(Auto.action(Auto.llm_report));
 

@@ -13,7 +13,7 @@ let atomic_operand = (sort: Sort.t, s: string): Piece.t => {
   let label = [s];
   let mold =
     switch (Molds.get(label) |> List.filter((m: Mold.t) => m.out == sort)) {
-    | [] => failwith("ERROR: DHExpToSeg: x:" ++ s)
+    | [] => Mold.mk_op(Any, [])
     | [hd, ..._] => hd
     };
   Piece.Tile({id: Id.mk(), label, mold, shards: [0], children: []});
@@ -131,7 +131,7 @@ and go = (d: DHExp.t): Segment.t => {
   | BoolLit(b) => [atomic_operand(Exp, string_of_bool(b))]
   | IntLit(i) => [atomic_operand(Exp, string_of_int(i))]
   | FloatLit(f) => [atomic_operand(Exp, string_of_float(f))]
-  | StringLit(s)
+  | StringLit(s) => [atomic_operand(Exp, Form.string_quote(s))]
   | BoundVar(s)
   | Constructor(s)
   | FreeVar(_, _, s)
@@ -192,7 +192,7 @@ and go_pat = (p: DHPat.t) => {
   | BoolLit(b) => [atomic_operand(Pat, string_of_bool(b))]
   | IntLit(i) => [atomic_operand(Pat, string_of_int(i))]
   | FloatLit(f) => [atomic_operand(Pat, string_of_float(f))]
-  | StringLit(s)
+  | StringLit(s) => [atomic_operand(Pat, Form.string_quote(s))]
   | Var(s)
   | Constructor(s)
   | BadConstructor(_, _, s)

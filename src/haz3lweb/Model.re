@@ -24,12 +24,14 @@ type ui_state = {
   font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   mousedown: bool,
+  focus: UpdateAction.focus,
 };
 
 let ui_state_init = {
   font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   mousedown: false,
+  focus: Editor,
 };
 
 /* Non-persistent application state */

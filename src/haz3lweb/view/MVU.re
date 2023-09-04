@@ -330,8 +330,19 @@ let rec render_div = (~elide_errors=false, context: t, d: DHExp.t): Node.t =>
   }
 and input_of = (input_type: string, mvu: t, body: DHExp.t) => {
   let (attrs, divs) = attrs_and_divs(mvu, body);
+  //TODO(andrew): Do I actually need to do this on_focus for every subcomponent?
   Node.input(
-    ~attr=Attr.many([Attr.create("type", input_type)] @ attrs),
+    ~attr=
+      Attr.many(
+        [
+          Attr.on_focus(_evt => {
+            print_endline("focus: MVU.input_of");
+            Effect.Many([mvu.inject(SetMeta(Focus(MVU)))]);
+          }),
+          Attr.create("type", input_type),
+        ]
+        @ attrs,
+      ),
     divs,
   );
 }
@@ -366,7 +377,29 @@ let go =
     Ap(view, mvu.model)
     |> Interface.eval_d2d(~settings=settings.core)
     |> DHExp.strip_casts;
-  [
-    Node.div(~attr=Attr.classes(["mvu-render"]), [render_div(mvu, result)]),
-  ];
+  let attr =
+    Attr.many([
+      Attr.tabindex(2),
+      Attr.create("style", "display: inline-block;"),
+      Attr.classes(["mvu-render"]),
+      Attr.on_focus(_evt => {
+        print_endline("focus: mvu.go");
+        Effect.Many([inject(SetMeta(Focus(MVU)))]);
+      }),
+      //TODO(andrew): cleanup
+      /*Attr.on_blur(focus_evt => {
+          print_endline(
+            "BLUR: " ++ string_of_bool(JsUtil.is_refocus_on_child(focus_evt)),
+          );
+          print_endline("Blur: if true MVU else Editor");
+          Effect.Many([
+            inject(
+              SetMeta(
+                Focus(JsUtil.is_refocus_on_child(focus_evt) ? MVU : Editor),
+              ),
+            ),
+          ]);
+        }),*/
+    ]);
+  [Node.div(~attr, [render_div(mvu, result)])];
 };

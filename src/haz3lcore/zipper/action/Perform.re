@@ -8,6 +8,7 @@ let is_write_action = (a: Action.t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
+  | Remote(_)
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -17,14 +18,14 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      ~settings: CoreSettings.t,
-      a: Action.t,
-      z: Zipper.t,
-    )
-    : Action.Result.t(Zipper.t) => {
+let rec go_z =
+        (
+          ~meta: option(Editor.Meta.t)=?,
+          ~settings: CoreSettings.t,
+          a: Action.t,
+          z: Zipper.t,
+        )
+        : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -50,19 +51,36 @@ let go_z =
   | MoveToNextHole(d) =>
     Move.go(Goal(Piece(Grout, d)), z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Jump(TileId(id)) =>
-    //TODO(andrew): cleanup/remove
-    //print_endline("path test starting!");
-    let segment = Zipper.unselect_and_zip(z);
-    //print_endline("path test unselect_and_zip done!");
-    let map = Measured.path_map(segment);
-    //print_endline("path test path_map done!");
-    let path = Id.Map.find(id, map);
-    //print_endline(Measured.show_piece_path(path));
-    //print_endline("path test path_map done!");
-    let z = Zipper.zip_to_path(segment, path, z.caret);
-    //print_endline("path test zip_to_path done!");
-    Ok(z);
+  | Remote(id, action) =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_move)
+    | Some(old_id) =>
+      let old_caret = z.caret;
+      let segment = Zipper.unselect_and_zip(z);
+      //print_endline("path test unselect_and_zip done!");
+      //TODO(andrew): perf below
+      let map = Measured.path_map(segment);
+      //print_endline("path test path_map done!");
+      let path = Id.Map.find(id, map);
+      //print_endline(Measured.show_piece_path(path));
+      //print_endline("path test path_map done!");
+      let z = Zipper.zip_to_path(segment, path, Outer);
+      //print_endline("path test zip_to_path done!");
+      switch (go_z(~meta, ~settings, action, z)) {
+      | Error(_) => Error(Action.Failure.Cant_move)
+      | Ok(z) =>
+        let segment = Zipper.unselect_and_zip(z);
+        //print_endline("path test unselect_and_zip done!");
+        //TODO(andrew): perf below
+        let map = Measured.path_map(segment);
+        //print_endline("path test path_map done!");
+        let path = Id.Map.find(old_id, map);
+        //print_endline(Measured.show_piece_path(path));
+        //print_endline("path test path_map done!");
+        let z = Zipper.zip_to_path(segment, path, old_caret);
+        Ok(z);
+      };
+    }
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 
