@@ -72,6 +72,15 @@ let go_z =
       | None => Error(Action.Failure.Cant_select)
       }
     }
+  | Select(All) =>
+    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+    | Some(z) =>
+      switch (Select.go(Extreme(Down), z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Action.Failure.Cant_select)
+      }
+    | None => Error(Action.Failure.Cant_select)
+    }
   | Select(Term(Id(id))) =>
     switch (Select.term(id, z)) {
     | Some(z) => Ok(z)
