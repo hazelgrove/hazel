@@ -7,6 +7,55 @@
  */
 
 open Sexplib.Std;
+open Ezjs_min;
+open Ezjs_idb;
+open Types;
+
+module Store = Store(StringTr, StringTr);
+
+let test_db = "test_db";
+let test_table = "test_table";
+
+let upgrade = (db: t(iDBDatabase), e) =>
+  if (e.new_version >= 1 && e.old_version == 0) {
+    ignore @@ Store.create(db, test_table);
+  };
+
+let error = _e => print_endline("error: ");
+
+let add = db => {
+  let st = Store.store(~mode=READWRITE, db, test_table);
+  let key = "test-key";
+  let value = "test-value";
+  Store.add(
+    ~key,
+    ~callback=key => print_endline("added key:" ++ key),
+    st,
+    value,
+  );
+};
+
+let get = db => {
+  let st = Store.store(~mode=READWRITE, db, test_table);
+  let key = "test-key";
+  Store.get_key(
+    ~error,
+    st,
+    v =>
+      switch (v) {
+      | None => print_endline("key not found")
+      | Some(v) => print_endline("value:" ++ v)
+      },
+    K(key),
+  );
+};
+
+let doo = {
+  print_endline("adding to db");
+  openDB(~upgrade, ~error, ~version=1, test_db, db => add(db));
+  print_endline("getting from db");
+  openDB(~upgrade, ~error, ~version=1, test_db, db => get(db));
+};
 
 let is_action_logged: UpdateAction.t => bool =
   fun
