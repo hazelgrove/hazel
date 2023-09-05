@@ -104,6 +104,8 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
+let mk_step = Example.mk_tile(Form.get("filter_step"));
+let mk_skip = Example.mk_tile(Form.get("filter_eval"));
 let linebreak = () => Example.mk_secondary(Form.linebreak);
 let space = () => Example.mk_secondary(Form.space);
 
@@ -2652,6 +2654,66 @@ let case_example_bool = {
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
   feedback: Unselected,
 };
+
+let filter_step_group = "filter_step_group";
+let filter_skip_group = "filter_skip_group";
+let filter_step_ex = {
+  sub_id: "filter_step_ex",
+  term: mk_example("step + in\n1 + 2 + 3"),
+  message: "When in stepping mode, the addition will be evaluated in step by step",
+  feedback: Unselected,
+};
+let filter_skip_ex = {
+  sub_id: "filter_skip_ex",
+  term: mk_example("skip + in\n1 + 2 + 3"),
+  message: "When in stepping mode, this will evaluate all connected plus operation altogether",
+  feedback: Unselected,
+};
+let _pat = exp("e_pat");
+let _exp_body = exp("e_body");
+let filter_step_coloring_ids = (~pat_id: Id.t) => {
+  [(Piece.id(_pat), pat_id)];
+};
+let filter_step_exp: form = {
+  let explanation = {
+    message: "Stepped exression. The all subexpressions within [*body*](%i) that match the pattern will get evaluated step by step",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_step([[space(), exp("p"), space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: "filter_step_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [filter_step_ex],
+  };
+};
+let filter_skip_coloring_ids = (~pat_id: Id.t) => {
+  [(Piece.id(_pat), pat_id)];
+};
+let filter_skip_exp: form = {
+  let explanation = {
+    message: "Skipped expression. The all subexpressions within [*body*](%i) that match the pattern will get evaluated in one go",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_skip([[space(), exp("p"), space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: "filter_skip_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [filter_skip_ex],
+  };
+};
+
 // TODO - I don't think changing specificity on the number of cases is really the most
 // beneficial specificity change - I think instead have generic at top level
 // and then have a slightly different setup for specific that is created more
@@ -3390,6 +3452,8 @@ let find = (p: 'a => bool, xs: list('a), err: string): 'a =>
   };
 
 let get_group = (group_id, doc: t) => {
+  print_endline("get group: " ++ group_id);
+  List.iter(((id, _)) => print_endline("has group: " ++ id), doc.groups);
   let (_, form_group) =
     find(
       ((id, _)) => id == group_id,
@@ -3594,6 +3658,8 @@ let init = {
     tuple3_typ,
     var_typ,
     var_typ_pat,
+    filter_step_exp,
+    filter_skip_exp,
   ],
   groups: [
     // Expressions
@@ -4007,6 +4073,8 @@ let init = {
     ),
     (var_typ_group, init_options([(var_typ.id, [])])),
     (var_typ_pat_group, init_options([(var_typ_pat.id, [])])),
+    (filter_step_group, init_options([(filter_step_exp.id, [exp("p")])])),
+    (filter_skip_group, init_options([(filter_skip_exp.id, [exp("p")])])),
   ],
 };
 

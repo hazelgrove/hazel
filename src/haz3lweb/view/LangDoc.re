@@ -1943,17 +1943,34 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
-      | Filter(_, _, body) =>
+      | Filter(Step, _, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.test_group,
+            LangDocMessages.filter_step_group,
             docs,
           );
         let body_id = List.nth(body.ids, 0);
         get_message(
           doc,
           options,
-          LangDocMessages.test_group,
+          LangDocMessages.filter_step_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            body_id,
+          ),
+          LangDocMessages.test_exp_coloring_ids(~body_id),
+        );
+      | Filter(Eval, _, body) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.filter_skip_group,
+            docs,
+          );
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.filter_skip_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i"),
             body_id,
