@@ -29,13 +29,15 @@ let commas = (sort: Sort.t, n): list(Segment.t) =>
   List.init(n, _ => [atomic_operator(",", Precedence.prod, sort), ws()]);
 
 let tuple = (sort: Sort.t, go: 'a => Segment.t, ds: list('a)): Segment.t =>
-  Util.ListUtil.interleave(
-    List.map(go, ds),
-    List.init(List.length(ds) - 1, _ =>
-      [atomic_operator(",", Precedence.prod, sort), ws()]
-    ),
-  )
-  |> List.flatten;
+  ds == []
+    ? []
+    : Util.ListUtil.interleave(
+        List.map(go, ds),
+        List.init(List.length(ds) - 1, _ =>
+          [atomic_operator(",", Precedence.prod, sort), ws()]
+        ),
+      )
+      |> List.flatten;
 
 let parens_tile = (sort: Sort.t, child: Segment.t): Piece.t =>
   Tile({
@@ -159,6 +161,9 @@ and go = (d: DHExp.t): Segment.t => {
   | BinStringOp(op, d1, d2) =>
     infix_exp_pad(d1, Term.UExp.string_op_to_string(op), d2, prec)
   // Other Composites
+  | ApBuiltin(s, []) =>
+    [atomic_operand(Exp, s)]
+    @ [ap_tile(Exp, [atomic_operand(Exp, "()")])]
   | ApBuiltin(s, ds) =>
     [atomic_operand(Exp, s)] @ [ap_tile(Exp, tuple(Exp, go, ds))]
   | Fun(p, _, d, _) => [fun_tile(go_pat(p))] @ pad_l(go(d))
@@ -202,6 +207,7 @@ and go_pat = (p: DHPat.t) => {
   | ListLit(_, ps) => [listlit_tile(tuple(Pat, go_pat, ps))]
   | Cons(p1, p2) =>
     go_pat(p1) @ [atomic_operator("::", prec, Pat)] @ go_pat(p2)
+  | Tuple([]) => [atomic_operand(Pat, "()")]
   | Tuple(ps) => [parens_tile(Pat, tuple(Pat, go_pat, ps))]
   };
 };

@@ -250,23 +250,48 @@ let render_styles = styles =>
   |> Attr.create("style");
 
 let update =
-    ({name, update, model, settings, _}: t, handler, arg): UpdateAction.t => {
-  let model =
-    Interface.eval_d2d(
-      ~settings=settings.core,
-      Ap(update, Tuple([model, Ap(handler, arg)])),
+    ({name, update, model, settings, _}: t, handler, arg): UpdateAction.t =>
+  //TODO(andrew): betterfy this trash
+  if (update == Tuple([]) && model == Tuple([])) {
+    /* TODO:
+
+        0. let Inject(id, action, update) = Ap(handler, arg)
+        0.1. let target_id = Stage 2nd child id
+
+        A. IMPL InsertSegment
+        B. IMPL ApplyToSyntax
+        C. IMPL get stage 2nd child id
+
+       ApplyToSyntax(id, update, action):
+        1. Move to stage 2nd child id
+        1.1. let term = from ci...
+        1.2. let model = elab(term)
+        1.3. let res = eval(Ap(update, Tuple([model, action]))
+        1.4. let seg = DHExpToSegment(res)
+        2. Select term
+        3. InsertSegment(seg) (clobbering term)
+        */
+    SetMeta(
+      MVU(name, model),
     );
-  SetMeta(MVU(name, model));
-};
+  } else {
+    let model =
+      Interface.eval_d2d(
+        ~settings=settings.core,
+        Ap(update, Tuple([model, Ap(handler, arg)])),
+      );
+    SetMeta(MVU(name, model));
+  };
 
 let on_ = (mvu: t, handler, arg) =>
   /*
-   alternatively: do the Ap(handler, arg) eval as above, but if
-   the resulting dhext has shape Inject(Int(id), update, action),
-   then still do Ap(update, Tuple([model, action])), but instead of
-   SetMetating that, do new action ReplaceAtId(id, model) which will
-   call RemoteAction and use DHExpToSegment to replace the model
-   */
+   TODO(andrew):
+    alternatively: do the Ap(handler, arg) eval as above, but if
+    the resulting dhext has shape Inject(Int(id), update, action),
+    then still do Ap(update, Tuple([model, action])), but instead of
+    SetMetating that, do new action ReplaceAtId(id, model) which will
+    call RemoteAction and use DHExpToSegment to replace the model
+    */
   Effect.Many([
     Effect.Stop_propagation,
     mvu.inject(update(mvu, handler, arg)),
@@ -409,4 +434,40 @@ let go =
         }),*/
     ]);
   [Node.div(~attr, [render_div(mvu, result)])];
+};
+
+let go2 = (~settings, ~inject, ~font_metrics, ~node) => {
+  let mvu = {
+    settings,
+    name: "",
+    model: Tuple([]),
+    update: Tuple([]),
+    inject,
+    font_metrics,
+  };
+  let attr =
+    Attr.many([
+      Attr.tabindex(2),
+      Attr.create("style", "display: inline-block;"),
+      Attr.classes(["mvu-render"]),
+      Attr.on_focus(_evt => {
+        print_endline("focus: mvu.go");
+        Effect.Many([inject(SetMeta(Focus(MVU)))]);
+      }),
+      //TODO(andrew): cleanup
+      /*Attr.on_blur(focus_evt => {
+          print_endline(
+            "BLUR: " ++ string_of_bool(JsUtil.is_refocus_on_child(focus_evt)),
+          );
+          print_endline("Blur: if true MVU else Editor");
+          Effect.Many([
+            inject(
+              SetMeta(
+                Focus(JsUtil.is_refocus_on_child(focus_evt) ? MVU : Editor),
+              ),
+            ),
+          ]);
+        }),*/
+    ]);
+  [Node.div(~attr, [render_div(mvu, node)])];
 };

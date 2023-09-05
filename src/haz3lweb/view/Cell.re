@@ -232,6 +232,9 @@ let eval_result_footer_view =
         Node.text("Evaluation disabled. Elaboration follows:"),
         dhcode_view(~show_casts=true, elab),
       ]
+    | Some({eval_result: Ap(Constructor("Div"), _) as node, _}) =>
+      //TODO(andrew): more general constructor catch
+      MVU.go2(~settings, ~inject, ~font_metrics, ~node)
     | Some({
         eval_result:
           Ap(
