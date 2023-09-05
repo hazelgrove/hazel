@@ -117,8 +117,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
-  | TupLabel(_) => d |> return
-
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -151,6 +149,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
   | Let(_)
+  | TupLabel(_)
   | Module(_)
   | ConsistentCase(_)
   | Fun(_)
@@ -359,7 +358,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
-  | TupLabel(_) => d |> return
+  | TupLabel(dp, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    TupLabel(dp, d1') |> return;
 
   | Tuple(ds) =>
     let+ ds =

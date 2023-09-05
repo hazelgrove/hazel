@@ -544,8 +544,10 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
-  | TupLabel(_, t) =>
+  | TupLabel(p, t) =>
     let m = go(t, m) |> snd;
+    let (_, m) =
+      upat_to_info_map(~is_synswitch=true, ~ctx, ~ancestors, ~mode=Syn, p, m);
     add(m);
   | Tuple(ts) =>
     let m = map_m(go, ts, m) |> snd;
