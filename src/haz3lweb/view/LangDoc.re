@@ -85,7 +85,7 @@ let example_feedback_view = (~inject, id, example: LangDocMessages.example) => {
 let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
 
 let highlight =
-    (~inject, msg: list(Node.t), id: Haz3lcore.Id.t, mapping: ColorSteps.t)
+    (~inject, msg: list(Node.t), id: Uuidm.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
@@ -103,14 +103,14 @@ let highlight =
   (Node.span(~attr, msg), mapping);
 };
 
-/*
- Markdown like thing:
- highlighty thing : [thing to highlight](id)
- bulleted list: - list item
-                - list item
- code: `code`
- italics: *word*
- */
+/*ds
+  Markdown like thing:
+  highlighty thing : [thing to highlight](id)
+  bulleted list: - list item
+                 - list item
+  code: `code`
+  italics: *word*
+  */
 let mk_translation =
     (~inject, text: string, show_highlight: bool)
     : (list(Node.t), ColorSteps.t) => {
@@ -137,7 +137,12 @@ let mk_translation =
         | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
         | Url(id, d, _title) =>
           let (d, mapping) = translate(d, mapping);
-          let id = int_of_string(id);
+          let id =
+            Id.of_string(id)
+            |> Util.OptUtil.get(_ => {
+                 print_endline("Error: Invalid id in markdown");
+                 Id.invalid;
+               });
           let (inner_msg, mapping) =
             if (show_highlight) {
               highlight(~inject, d, id, mapping);
@@ -522,7 +527,7 @@ let get_doc =
           ~doc=docs,
           ~colorings=
             List.map(
-              ((syntactic_form_id: int, code_id: int)) => {
+              ((syntactic_form_id, code_id)) => {
                 let (color, _) = ColorSteps.get_color(code_id, color_map);
                 (syntactic_form_id, color);
               },
@@ -581,9 +586,9 @@ let get_doc =
           options,
           LangDocMessages.tyalias_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            def_id,
-            tpat_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            def_id |> Id.to_string,
+            tpat_id |> Id.to_string,
           ),
           LangDocMessages.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
         );
@@ -677,9 +682,9 @@ let get_doc =
             options,
             group_id,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i"),
-              pat_id,
-              body_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s"),
+              pat_id |> Id.to_string,
+              body_id |> Id.to_string,
             ),
             LangDocMessages.function_exp_coloring_ids(~pat_id, ~body_id),
           );
@@ -700,10 +705,10 @@ let get_doc =
               options,
               LangDocMessages.function_empty_hole_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                pat_id,
-                body_id,
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
+                pat_id |> Id.to_string,
               ), // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
               LangDocMessages.function_empty_hole_exp_coloring_ids(
                 ~pat_id,
@@ -727,10 +732,10 @@ let get_doc =
               options,
               LangDocMessages.function_multi_hole_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                pat_id,
-                body_id,
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
+                pat_id |> Id.to_string,
               ),
               LangDocMessages.function_multi_hole_exp_coloring_ids(
                 ~pat_id,
@@ -753,8 +758,8 @@ let get_doc =
               options,
               LangDocMessages.function_wild_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i"),
-                body_id,
+                Scanf.format_from_string(doc.explanation.message, "%s"),
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_wild_exp_coloring_ids(~body_id),
             );
@@ -775,11 +780,11 @@ let get_doc =
               options,
               LangDocMessages.function_int_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%i%s%s"),
+                pat_id |> Id.to_string,
                 i,
-                pat_id,
-                body_id,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_intlit_exp_coloring_ids(
                 ~pat_id,
@@ -803,11 +808,11 @@ let get_doc =
               options,
               LangDocMessages.function_float_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%f%i%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%f%s%s"),
+                pat_id |> Id.to_string,
                 f,
-                pat_id,
-                body_id,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_floatlit_exp_coloring_ids(
                 ~pat_id,
@@ -831,11 +836,11 @@ let get_doc =
               options,
               LangDocMessages.function_bool_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%b%i%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%b%s%s"),
+                pat_id |> Id.to_string,
                 b,
-                pat_id,
-                body_id,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_boollit_exp_coloring_ids(
                 ~pat_id,
@@ -859,11 +864,11 @@ let get_doc =
               options,
               LangDocMessages.function_str_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
+                pat_id |> Id.to_string,
                 s,
-                pat_id,
-                body_id,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_strlit_exp_coloring_ids(
                 ~pat_id,
@@ -887,10 +892,10 @@ let get_doc =
               options,
               LangDocMessages.function_triv_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                pat_id,
-                pat_id,
-                body_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_triv_exp_coloring_ids(
                 ~pat_id,
@@ -915,10 +920,10 @@ let get_doc =
                 options,
                 LangDocMessages.function_listnil_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                  pat_id,
-                  pat_id,
-                  body_id,
+                  Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                  pat_id |> Id.to_string,
+                  pat_id |> Id.to_string,
+                  body_id |> Id.to_string,
                 ),
                 LangDocMessages.function_listnil_exp_coloring_ids(
                   ~pat_id,
@@ -944,12 +949,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%i%i%i%i",
+                    "%s%i%s%s",
                   ),
-                  pat_id,
+                  pat_id |> Id.to_string,
                   List.length(elements),
-                  pat_id,
-                  body_id,
+                  pat_id |> Id.to_string,
+                  body_id |> Id.to_string,
                 ),
                 LangDocMessages.function_listlit_exp_coloring_ids(
                   ~pat_id,
@@ -975,10 +980,10 @@ let get_doc =
               options,
               LangDocMessages.function_cons_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                hd_id,
-                tl_id,
-                body_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                hd_id |> Id.to_string,
+                tl_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_cons_exp_coloring_ids(
                 ~hd_id,
@@ -1003,10 +1008,10 @@ let get_doc =
               options,
               LangDocMessages.function_var_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%s%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
                 var,
-                body_id,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_var_exp_coloring_ids(
                 ~pat_id,
@@ -1025,11 +1030,11 @@ let get_doc =
               options,
               group_id,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%i%s%s"),
+                pat_id |> Id.to_string,
                 List.length(elements),
-                pat_id,
-                body_id,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_tuple_exp_coloring_ids(
                 ~pat_id,
@@ -1053,10 +1058,10 @@ let get_doc =
                 options,
                 LangDocMessages.function_tuple_2_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                  pat1_id,
-                  pat2_id,
-                  body_id,
+                  Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                  pat1_id |> Id.to_string,
+                  pat2_id |> Id.to_string,
+                  body_id |> Id.to_string,
                 ),
                 LangDocMessages.function_tuple2_exp_coloring_ids(
                   ~pat1_id,
@@ -1090,12 +1095,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%i%i%i%i",
+                    "%s%s%s%s",
                   ),
-                  pat1_id,
-                  pat2_id,
-                  pat3_id,
-                  body_id,
+                  pat1_id |> Id.to_string,
+                  pat2_id |> Id.to_string,
+                  pat3_id |> Id.to_string,
+                  body_id |> Id.to_string,
                 ),
                 LangDocMessages.function_tuple3_exp_coloring_ids(
                   ~pat1_id,
@@ -1140,10 +1145,10 @@ let get_doc =
               options,
               LangDocMessages.function_ap_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                con_id,
-                arg_id,
-                body_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                con_id |> Id.to_string,
+                arg_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_ap_exp_coloring_ids(
                 ~con_id,
@@ -1168,11 +1173,11 @@ let get_doc =
               options,
               LangDocMessages.function_ctr_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
+                pat_id |> Id.to_string,
                 v,
-                pat_id,
-                body_id,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.function_ctr_exp_coloring_ids(
                 ~pat_id,
@@ -1213,9 +1218,9 @@ let get_doc =
               options,
               LangDocMessages.tuple_exp_2_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i"),
-                exp1_id,
-                exp2_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s"),
+                exp1_id |> Id.to_string,
+                exp2_id |> Id.to_string,
               ),
               LangDocMessages.tuple_exp_size2_coloring_ids(
                 ~exp1_id,
@@ -1240,10 +1245,10 @@ let get_doc =
               options,
               LangDocMessages.tuple_exp_3_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                exp1_id,
-                exp2_id,
-                exp3_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                exp1_id |> Id.to_string,
+                exp2_id |> Id.to_string,
+                exp3_id |> Id.to_string,
               ),
               LangDocMessages.tuple_exp_size3_coloring_ids(
                 ~exp1_id,
@@ -1284,9 +1289,9 @@ let get_doc =
             options,
             group_id,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i"),
-              def_id,
-              pat_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s"),
+              def_id |> Id.to_string,
+              pat_id |> Id.to_string,
             ),
             LangDocMessages.let_base_exp_coloring_ids(~pat_id, ~def_id),
           );
@@ -1307,10 +1312,10 @@ let get_doc =
               options,
               LangDocMessages.let_empty_hole_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                pat_id,
-                def_id,
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
               ),
               LangDocMessages.let_empty_hole_exp_coloring_ids(
                 ~pat_id,
@@ -1334,10 +1339,10 @@ let get_doc =
               options,
               LangDocMessages.let_multi_hole_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                pat_id,
-                def_id,
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
               ),
               LangDocMessages.let_multi_hole_exp_coloring_ids(
                 ~pat_id,
@@ -1361,10 +1366,10 @@ let get_doc =
               options,
               LangDocMessages.let_wild_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                def_id,
-                def_id,
-                body_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                def_id |> Id.to_string,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_wild_exp_coloring_ids(~def_id, ~body_id),
             );
@@ -1388,13 +1393,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%i%i%i%i%i",
+                  "%s%s%i%s%s",
                 ),
-                def_id,
-                pat_id,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 i,
-                def_id,
-                body_id,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_int_exp_coloring_ids(
                 ~pat_id,
@@ -1428,13 +1433,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%i%i%f%i%i",
+                  "%s%s%f%s%s",
                 ),
-                def_id,
-                pat_id,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 f,
-                def_id,
-                body_id,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_float_exp_coloring_ids(
                 ~pat_id,
@@ -1467,13 +1472,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%i%i%b%i%i",
+                  "%s%s%b%s%s",
                 ),
-                def_id,
-                pat_id,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 b,
-                def_id,
-                body_id,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_bool_exp_coloring_ids(
                 ~pat_id,
@@ -1506,13 +1511,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%i%i%s%i%i",
+                  "%s%s%s%s%s",
                 ),
-                def_id,
-                pat_id,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 s,
-                def_id,
-                body_id,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_str_exp_coloring_ids(
                 ~pat_id,
@@ -1543,11 +1548,11 @@ let get_doc =
               options,
               LangDocMessages.let_triv_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
-                def_id,
-                pat_id,
-                def_id,
-                body_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_triv_exp_coloring_ids(
                 ~pat_id,
@@ -1581,12 +1586,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%i%i%i%i",
+                    "%s%s%s%s",
                   ),
-                  def_id,
-                  pat_id,
-                  def_id,
-                  body_id,
+                  def_id |> Id.to_string,
+                  pat_id |> Id.to_string,
+                  def_id |> Id.to_string,
+                  body_id |> Id.to_string,
                 ),
                 LangDocMessages.let_listnil_exp_coloring_ids(
                   ~pat_id,
@@ -1611,9 +1616,9 @@ let get_doc =
                 options,
                 LangDocMessages.let_listlit_exp_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                  def_id,
-                  pat_id,
+                  Scanf.format_from_string(doc.explanation.message, "%s%s%i"),
+                  def_id |> Id.to_string,
+                  pat_id |> Id.to_string,
                   List.length(elements),
                 ),
                 LangDocMessages.let_listlit_exp_coloring_ids(
@@ -1640,10 +1645,10 @@ let get_doc =
               options,
               LangDocMessages.let_cons_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                def_id,
-                hd_id,
-                tl_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                def_id |> Id.to_string,
+                hd_id |> Id.to_string,
+                tl_id |> Id.to_string,
               ),
               LangDocMessages.let_cons_exp_coloring_ids(
                 ~hd_id,
@@ -1669,11 +1674,11 @@ let get_doc =
               options,
               LangDocMessages.let_var_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%s%i"),
-                def_id,
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 var,
-                body_id,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_var_exp_coloring_ids(
                 ~pat_id,
@@ -1693,9 +1698,9 @@ let get_doc =
               options,
               group_id,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                def_id,
-                pat_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%i"),
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 List.length(elements),
               ),
               LangDocMessages.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
@@ -1717,10 +1722,10 @@ let get_doc =
                 options,
                 LangDocMessages.let_tuple2_exp_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                  def_id,
-                  pat1_id,
-                  pat2_id,
+                  Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                  def_id |> Id.to_string,
+                  pat1_id |> Id.to_string,
+                  pat2_id |> Id.to_string,
                 ),
                 LangDocMessages.let_tuple2_exp_coloring_ids(
                   ~pat1_id,
@@ -1751,12 +1756,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%i%i%i%i",
+                    "%s%s%s%s",
                   ),
-                  def_id,
-                  pat1_id,
-                  pat2_id,
-                  pat3_id,
+                  def_id |> Id.to_string,
+                  pat1_id |> Id.to_string,
+                  pat2_id |> Id.to_string,
+                  pat3_id |> Id.to_string,
                 ),
                 LangDocMessages.let_tuple3_exp_coloring_ids(
                   ~pat1_id,
@@ -1801,10 +1806,10 @@ let get_doc =
               options,
               LangDocMessages.let_ap_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                def_id,
-                con_id,
-                arg_id,
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                def_id |> Id.to_string,
+                con_id |> Id.to_string,
+                arg_id |> Id.to_string,
               ),
               LangDocMessages.let_ap_exp_coloring_ids(
                 ~con_id,
@@ -1832,13 +1837,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%i%i%s%i%i",
+                  "%s%s%s%s%s",
                 ),
-                def_id,
-                pat_id,
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
                 v,
-                def_id,
-                body_id,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
               ),
               LangDocMessages.let_ctr_exp_coloring_ids(
                 ~pat_id,
@@ -1878,10 +1883,10 @@ let get_doc =
             LangDocMessages.conapp_exp_group,
             options,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%i%i"),
+              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
               v,
-              x_id,
-              arg_id,
+              x_id |> Id.to_string,
+              arg_id |> Id.to_string,
             ),
             LangDocMessages.conapp_exp_coloring_ids,
           );
@@ -1896,9 +1901,9 @@ let get_doc =
             LangDocMessages.funapp_exp_group,
             options,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i"),
-              x_id,
-              arg_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s"),
+              x_id |> Id.to_string,
+              arg_id |> Id.to_string,
             ),
             LangDocMessages.funapp_exp_coloring_ids,
           );
@@ -1917,10 +1922,10 @@ let get_doc =
           options,
           LangDocMessages.if_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-            cond_id,
-            then_id,
-            else_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+            cond_id |> Id.to_string,
+            then_id |> Id.to_string,
+            else_id |> Id.to_string,
           ),
           LangDocMessages.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
         );
@@ -1937,9 +1942,9 @@ let get_doc =
           options,
           LangDocMessages.seq_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            exp1_id,
-            exp2_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            exp1_id |> Id.to_string,
+            exp2_id |> Id.to_string,
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
@@ -1955,8 +1960,8 @@ let get_doc =
           options,
           LangDocMessages.filter_step_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i"),
-            body_id,
+            Scanf.format_from_string(doc.explanation.message, "%s"),
+            body_id |> Id.to_string,
           ),
           LangDocMessages.test_exp_coloring_ids(~body_id),
         );
@@ -1972,8 +1977,8 @@ let get_doc =
           options,
           LangDocMessages.filter_skip_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i"),
-            body_id,
+            Scanf.format_from_string(doc.explanation.message, "%s"),
+            body_id |> Id.to_string,
           ),
           LangDocMessages.test_exp_coloring_ids(~body_id),
         );
@@ -1989,8 +1994,8 @@ let get_doc =
           options,
           LangDocMessages.test_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i"),
-            body_id,
+            Scanf.format_from_string(doc.explanation.message, "%s"),
+            body_id |> Id.to_string,
           ),
           LangDocMessages.test_exp_coloring_ids(~body_id),
         );
@@ -2008,9 +2013,9 @@ let get_doc =
           options,
           LangDocMessages.cons_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            hd_id,
-            tl_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            hd_id |> Id.to_string,
+            tl_id |> Id.to_string,
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
@@ -2027,9 +2032,9 @@ let get_doc =
           options,
           LangDocMessages.list_concat_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            hd_id,
-            tl_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            hd_id |> Id.to_string,
+            tl_id |> Id.to_string,
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
@@ -2047,8 +2052,8 @@ let get_doc =
             options,
             LangDocMessages.bool_unary_not_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i"),
-              exp_id,
+              Scanf.format_from_string(doc.explanation.message, "%s"),
+              exp_id |> Id.to_string,
             ),
             LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
           );
@@ -2064,8 +2069,8 @@ let get_doc =
             options,
             LangDocMessages.int_unary_minus_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i"),
-              exp_id,
+              Scanf.format_from_string(doc.explanation.message, "%s"),
+              exp_id |> Id.to_string,
             ),
             LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
           );
@@ -2187,9 +2192,9 @@ let get_doc =
           options,
           group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            left_id,
-            right_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            left_id |> Id.to_string,
+            right_id |> Id.to_string,
           ),
           coloring_ids(~left_id, ~right_id),
         );
@@ -2205,8 +2210,8 @@ let get_doc =
           options,
           LangDocMessages.case_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i"),
-            scrut_id,
+            Scanf.format_from_string(doc.explanation.message, "%s"),
+            scrut_id |> Id.to_string,
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
@@ -2390,9 +2395,9 @@ let get_doc =
           options,
           group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            hd_id,
-            tl_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            hd_id |> Id.to_string,
+            tl_id |> Id.to_string,
           ),
           LangDocMessages.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
         );
@@ -2411,10 +2416,10 @@ let get_doc =
             options,
             LangDocMessages.cons2_pat_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-              hd_id,
-              hd2_id,
-              tl2_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+              hd_id |> Id.to_string,
+              hd2_id |> Id.to_string,
+              tl2_id |> Id.to_string,
             ),
             LangDocMessages.cons2_pat_coloring_ids(
               ~fst_id=hd_id,
@@ -2476,9 +2481,9 @@ let get_doc =
             options,
             LangDocMessages.tuple_pat_2_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i"),
-              elem1_id,
-              elem2_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s"),
+              elem1_id |> Id.to_string,
+              elem2_id |> Id.to_string,
             ),
             LangDocMessages.tuple_pat_size2_coloring_ids(
               ~elem1_id,
@@ -2503,10 +2508,10 @@ let get_doc =
             options,
             LangDocMessages.tuple_pat_3_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-              elem1_id,
-              elem2_id,
-              elem3_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+              elem1_id |> Id.to_string,
+              elem2_id |> Id.to_string,
+              elem3_id |> Id.to_string,
             ),
             LangDocMessages.tuple_pat_size3_coloring_ids(
               ~elem1_id,
@@ -2538,9 +2543,9 @@ let get_doc =
         options,
         LangDocMessages.ap_pat_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%i%i"),
-          con_id,
-          arg_id,
+          Scanf.format_from_string(doc.explanation.message, "%s%s"),
+          con_id |> Id.to_string,
+          arg_id |> Id.to_string,
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
@@ -2573,9 +2578,9 @@ let get_doc =
         options,
         LangDocMessages.typann_pat_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%i%i"),
-          pat_id,
-          typ_id,
+          Scanf.format_from_string(doc.explanation.message, "%s%s"),
+          pat_id |> Id.to_string,
+          typ_id |> Id.to_string,
         ),
         LangDocMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
       );
@@ -2676,8 +2681,8 @@ let get_doc =
         options,
         LangDocMessages.list_typ_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%i"),
-          elem_id,
+          Scanf.format_from_string(doc.explanation.message, "%s"),
+          elem_id |> Id.to_string,
         ),
         LangDocMessages.list_typ_coloring_ids(~elem_id),
       );
@@ -2690,9 +2695,9 @@ let get_doc =
           options,
           group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            arg_id,
-            result_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            arg_id |> Id.to_string,
+            result_id |> Id.to_string,
           ),
           LangDocMessages.arrow_typ_coloring_ids(~arg_id, ~result_id),
         );
@@ -2711,10 +2716,10 @@ let get_doc =
             options,
             LangDocMessages.arrow3_typ_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-              arg_id,
-              arg2_id,
-              result2_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+              arg_id |> Id.to_string,
+              arg2_id |> Id.to_string,
+              result2_id |> Id.to_string,
             ),
             LangDocMessages.arrow3_typ_coloring_ids(
               ~arg1_id=arg_id,
@@ -2760,9 +2765,9 @@ let get_doc =
             options,
             LangDocMessages.tuple2_typ_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i"),
-              elem1_id,
-              elem2_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s"),
+              elem1_id |> Id.to_string,
+              elem2_id |> Id.to_string,
             ),
             LangDocMessages.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
           );
@@ -2784,10 +2789,10 @@ let get_doc =
             options,
             LangDocMessages.tuple3_typ_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-              elem1_id,
-              elem2_id,
-              elem3_id,
+              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+              elem1_id |> Id.to_string,
+              elem2_id |> Id.to_string,
+              elem3_id |> Id.to_string,
             ),
             LangDocMessages.tuple3_typ_coloring_ids(
               ~elem1_id,
@@ -2864,7 +2869,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.Map.t) => {
+    (~doc: LangDocMessages.t, index': option(Id.t), info_map: Statics.Map.t) => {
   let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
@@ -2884,7 +2889,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: ModelSettings.t,
       ~doc: LangDocMessages.t,
-      index': option(int),
+      index': option(Id.t),
       info_map: Statics.Map.t,
     ) => {
   let info: option(Statics.Info.t) =
