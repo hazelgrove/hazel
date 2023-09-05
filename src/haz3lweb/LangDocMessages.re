@@ -110,9 +110,9 @@ let linebreak = () => Example.mk_secondary(Form.linebreak);
 let space = () => Example.mk_secondary(Form.space);
 
 let mk_example = str => {
-  switch (Printer.zipper_of_string(0, str)) {
+  switch (Printer.zipper_of_string(str)) {
   | None => []
-  | Some((z, _)) => Zipper.zip(z)
+  | Some(z) => Zipper.zip(z)
   };
 };
 
@@ -383,7 +383,7 @@ let function_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_exp: form = {
   let explanation = {
-    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -401,7 +401,7 @@ let function_empty_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_empty_hole_exp: form = {
   let explanation = {
-    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.",
+    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [empty hole pattern](%s) is filled.",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -419,7 +419,7 @@ let function_multi_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_multi_hole_exp: form = {
   let explanation = {
-    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.",
+    message: "Function literal. When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [invalid argument pattern](%s) is corrected.",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -437,7 +437,7 @@ let function_wild_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => {
 };
 let function_wild_exp: form = {
   let explanation = {
-    message: "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%i).",
+    message: "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let pat = pat("_");
@@ -456,7 +456,7 @@ let function_intlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_intlit_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is `%i`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -474,7 +474,7 @@ let function_floatlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_floatlit_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%f`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is `%f`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   // TODO print out the float literal nicer
@@ -493,7 +493,7 @@ let function_boollit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_boollit_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is `%b`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -511,7 +511,7 @@ let function_strlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_strlit_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%s`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -529,7 +529,7 @@ let function_triv_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_triv_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s). This if functionally equivalent to a zero argument function.",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -547,7 +547,7 @@ let function_listnil_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listnil_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -565,7 +565,7 @@ let function_listlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listlit_exp: form = {
   let explanation = {
-    message: "Function literal. The only values that match the [*argument pattern*](%i) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only values that match the [*argument pattern*](%s) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -590,7 +590,7 @@ let function_cons_exp_coloring_ids =
 };
 let function_cons_exp: form = {
   let explanation = {
-    message: "Function literal. The only values that match the *argument pattern* are non-empty lists that match the [*head pattern*](%i) and [*tail pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
+    message: "Function literal. The only values that match the *argument pattern* are non-empty lists that match the [*head pattern*](%s) and [*tail pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let cons = cons_pat();
@@ -613,7 +613,7 @@ let function_var_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_var_exp: form = {
   let explanation = {
-    message: "Function literal. When applied to an argument which is bound to the [*variable*](%i) `%s`, evaluates to the function [*body*](%i).",
+    message: "Function literal. When applied to an argument which is bound to the [*variable*](%s) `%s`, evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -631,7 +631,7 @@ let function_tuple_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp));
 let function_tuple_exp: form = {
   let explanation = {
-    message: "Function literal. The only values that match the [*argument pattern*](%i) are %i-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only values that match the [*argument pattern*](%s) are %i-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -660,7 +660,7 @@ let function_tuple2_exp_coloring_ids =
 };
 let function_tuple2_exp: form = {
   let explanation = {
-    message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
+    message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -693,7 +693,7 @@ let function_tuple3_exp_coloring_ids =
 };
 let function_tuple3_exp: form = {
   let explanation = {
-    message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
+    message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -728,7 +728,7 @@ let function_ctr_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_ctr_exp: form = {
   let explanation = {
-    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    message: "Function literal. The only value that matches the [*argument pattern*](%s) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
@@ -753,7 +753,7 @@ let function_ap_exp_coloring_ids =
 };
 let function_ap_exp: form = {
   let explanation = {
-    message: "Function literal. The only values that match the *argument pattern* are the [*constructor*](%i) where the *constructor argument* matches the [*constructor argument pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
+    message: "Function literal. The only values that match the *argument pattern* are the [*constructor*](%s) where the *constructor argument* matches the [*constructor argument pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
     feedback: Unselected,
   };
   let ap = mk_ap_pat([[_pat_arg]]);
@@ -804,7 +804,7 @@ let tuple_exp_size2_coloring_ids =
 };
 let tuple_exp_size2: form = {
   let explanation = {
-    message: "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.",
+    message: "Tuple literal. The 2-tuple has a [first](%s) and [second](%s) element.",
     feedback: Unselected,
   };
   let comma = comma_exp();
@@ -829,7 +829,7 @@ let tuple_exp_size3_coloring_ids =
 };
 let tuple_exp_size3: form = {
   let explanation = {
-    message: "Tuple literal. The 3-tuple has a [first](%i), [second](%i), and [third](%i) element.",
+    message: "Tuple literal. The 3-tuple has a [first](%s), [second](%s), and [third](%s) element.",
     feedback: Unselected,
   };
   let comma = comma_exp();
@@ -1019,7 +1019,7 @@ let let_base_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_base_exp: form = {
   let explanation = {
-    message: "Let expression. The [*definition*](%i) is matched against the [*pattern*](%i).",
+    message: "Let expression. The [*definition*](%s) is matched against the [*pattern*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1041,7 +1041,7 @@ let let_empty_hole_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_empty_hole_exp: form = {
   let explanation = {
-    message: "Let expression. After the [*empty hole pattern*](%i) is filled, the [*definition*](%i) is matched against the [*pattern*](%i).",
+    message: "Let expression. After the [*empty hole pattern*](%s) is filled, the [*definition*](%s) is matched against the [*pattern*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1063,7 +1063,7 @@ let let_multi_hole_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_multi_hole_exp: form = {
   let explanation = {
-    message: "Let expression. After the [invalid pattern](%i) is corrected, the [*definition*](%i) is matched against the [*pattern*](%i).",
+    message: "Let expression. After the [invalid pattern](%s) is corrected, the [*definition*](%s) is matched against the [*pattern*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1088,7 +1088,7 @@ let let_wild_exp_coloring_ids =
 ];
 let let_wild_exp: form = {
   let explanation = {
-    message: "Let expression. The [*definition*](%i) is evaluated and ignored. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The [*definition*](%s) is evaluated and ignored. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let pat = pat("_");
@@ -1116,7 +1116,7 @@ let let_int_exp_coloring_ids =
   );
 let let_int_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%i`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%i`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1143,7 +1143,7 @@ let let_float_exp_coloring_ids =
   );
 let let_float_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%f`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%f`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1170,7 +1170,7 @@ let let_bool_exp_coloring_ids =
   );
 let let_bool_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%b`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%b`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1197,7 +1197,7 @@ let let_str_exp_coloring_ids =
   );
 let let_str_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%s`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1224,7 +1224,7 @@ let let_triv_exp_coloring_ids =
   );
 let let_triv_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `()`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the trivial value `()`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1246,7 +1246,7 @@ let let_listlit_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_listlit_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern.",
+    message: "Let expression. The only values for the [*definition*](%s) that match the [*pattern*](%s) are lists with %i-elements, where each element matches the corresponding element pattern.",
     feedback: Unselected,
   };
   let form = [
@@ -1273,7 +1273,7 @@ let let_listnil_exp_coloring_ids =
   );
 let let_listnil_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `[]`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the empty list `[]`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1300,7 +1300,7 @@ let let_cons_exp_coloring_ids =
 ];
 let let_cons_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are non-empty lists that match the [*head*](%i) and [*tail*](%i) patterns.",
+    message: "Let expression. The only values for the [*definition*](%s) that match the *pattern* are non-empty lists that match the [*head*](%s) and [*tail*](%s) patterns.",
     feedback: Unselected,
   };
   let cons = cons_pat();
@@ -1331,7 +1331,7 @@ let let_var_exp_coloring_ids =
   );
 let let_var_exp: form = {
   let explanation = {
-    message: "Let expression. The [*definition*](%i) is bound to the [*variable*](%i) `%s` in the [*body*](%i).",
+    message: "Let expression. The [*definition*](%s) is bound to the [*variable*](%s) `%s` in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1354,7 +1354,7 @@ let let_tuple_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp_def));
 let let_tuple_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are %i-tuples where each element matches the corresponding element pattern.",
+    message: "Let expression. The only values for the [*definition*](%s) that match the [*pattern*](%s) are %i-tuples where each element matches the corresponding element pattern.",
     feedback: Unselected,
   };
   let form = [
@@ -1384,7 +1384,7 @@ let let_tuple2_exp_coloring_ids =
 ];
 let let_tuple2_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i).",
+    message: "Let expression. The only values for the [*definition*](%s) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s).",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -1418,7 +1418,7 @@ let let_tuple3_exp_coloring_ids =
 ];
 let let_tuple3_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i).",
+    message: "Let expression. The only values for the [*definition*](%s) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s).",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -1459,7 +1459,7 @@ let let_ctr_exp_coloring_ids =
   );
 let let_ctr_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the *`%s` constructor*. The [*definition*](%s) can't be referenced in the [*body*](%s).",
     feedback: Unselected,
   };
   let form = [
@@ -1486,7 +1486,7 @@ let let_ap_exp_coloring_ids =
 ];
 let let_ap_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i).",
+    message: "Let expression. The only values for the [*definition*](%s) that match the *pattern* are the [*constructor*](%s) where the *argument* matches the [*argument pattern*](%s).",
     feedback: Unselected,
   };
   let ap = mk_ap_pat([[_pat_arg]]);
@@ -1516,7 +1516,7 @@ let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
 ];
 let tyalias_base_exp: form = {
   let explanation = {
-    message: "Type alias expression. The [*type*](%i) is bound to the [*type variable*](%i) in the body.",
+    message: "Type alias expression. The [*type*](%s) is bound to the [*type variable*](%s) in the body.",
     feedback: Unselected,
   };
   let form = [
@@ -1557,7 +1557,7 @@ let funapp_exp_coloring_ids =
 ];
 let funapp_exp: form = {
   let explanation = {
-    message: "Function application. Apply the [*function*](%i) to the [*argument*](%i).",
+    message: "Function application. Apply the [*function*](%s) to the [*argument*](%s).",
     feedback: Unselected,
   };
   {
@@ -1577,7 +1577,7 @@ let conapp_exp_coloring_ids =
 ];
 let conapp_exp: form = {
   let explanation = {
-    message: "Constructor application. Apply the [*`%s` constructor*](%i) to the [*argument*](%i).",
+    message: "Constructor application. Apply the [*`%s` constructor*](%s) to the [*argument*](%s).",
     feedback: Unselected,
   };
   {
@@ -1613,7 +1613,7 @@ let if_exp_coloring_ids =
 ];
 let if_exp: form = {
   let explanation = {
-    message: "If expression. If the [*condition*](%i) evaluates to `true`, evaluate the [*then branch*](%i). Otherwise, evaluate the [*else branch*](%i).",
+    message: "If expression. If the [*condition*](%s) evaluates to `true`, evaluate the [*then branch*](%s). Otherwise, evaluate the [*else branch*](%s).",
     feedback: Unselected,
   };
   {
@@ -1655,7 +1655,7 @@ let seq_exp_coloring_ids =
 ];
 let seq_exp: form = {
   let explanation = {
-    message: "Expression sequence. The [left expression](%i) is evaluated, then the [right expression](%i) is evaluated.",
+    message: "Expression sequence. The [left expression](%s) is evaluated, then the [right expression](%s) is evaluated.",
     feedback: Unselected,
   };
   {
@@ -1687,7 +1687,7 @@ let test_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
 ];
 let test_exp: form = {
   let explanation = {
-    message: "Test expression. If the [*body*](%i) of the test evalutes to `true`, the test passes. Otherwise, the test fails.",
+    message: "Test expression. If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails.",
     feedback: Unselected,
   };
   {
@@ -1722,7 +1722,7 @@ let cons_exp_coloring_ids = (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => 
 ];
 let cons_exp: form = {
   let explanation = {
-    message: "Cons operator. Creates a list with [*head element*](%i) and [*tail element*](%i).",
+    message: "Cons operator. Creates a list with [*head element*](%s) and [*tail element*](%s).",
     feedback: Unselected,
   };
   {
@@ -1735,7 +1735,7 @@ let cons_exp: form = {
 };
 let list_concat_exp: form = {
   let explanation = {
-    message: "List concatenation operator. Creates a list by combining the [*first operand*](%i) and the [*second operand*](%i).",
+    message: "List concatenation operator. Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).",
     feedback: Unselected,
   };
   {
@@ -2033,7 +2033,7 @@ let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
 ];
 let bool_unary_not_exp: form = {
   let explanation = {
-    message: "Unary not. Performs boolean negation of the [*operand*](%i).",
+    message: "Unary not. Performs boolean negation of the [*operand*](%s).",
     feedback: Unselected,
   };
   {
@@ -2046,7 +2046,7 @@ let bool_unary_not_exp: form = {
 };
 let int_unary_minus_exp: form = {
   let explanation = {
-    message: "Unary minus. Performs integer negation of the [*operand*](%i).",
+    message: "Unary minus. Performs integer negation of the [*operand*](%s).",
     feedback: Unselected,
   };
   {
@@ -2074,7 +2074,7 @@ let int_plus_exp_coloring_ids =
   );
 let int_plus_exp: form = {
   let explanation = {
-    message: "Integer addition. Gives the sum of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Integer addition. Gives the sum of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2097,7 +2097,7 @@ let int_minus_exp_coloring_ids =
   );
 let int_minus_exp: form = {
   let explanation = {
-    message: "Integer subtraction. Gives the difference of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Integer subtraction. Gives the difference of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2120,7 +2120,7 @@ let int_times_exp_coloring_ids =
   );
 let int_times_exp: form = {
   let explanation = {
-    message: "Integer multiplication. Gives the product of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Integer multiplication. Gives the product of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2141,7 +2141,7 @@ let int_power_exp_coloring_ids =
   );
 let int_power_exp: form = {
   let explanation = {
-    message: "Integer exponentiation. Gives the result of raising [*left*](%i) ro the [*right*](%i).",
+    message: "Integer exponentiation. Gives the result of raising [*left*](%s) ro the [*right*](%s).",
     feedback: Unselected,
   };
   {
@@ -2164,7 +2164,7 @@ let int_divide_exp_coloring_ids =
   );
 let int_divide_exp: form = {
   let explanation = {
-    message: "Integer division. Gives the quotient of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Integer division. Gives the quotient of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2187,7 +2187,7 @@ let int_lt_exp_coloring_ids =
   );
 let int_lt_exp: form = {
   let explanation = {
-    message: "Integer less than. If the [*left operand*](%i) is less than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Integer less than. If the [*left operand*](%s) is less than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2210,7 +2210,7 @@ let int_lte_exp_coloring_ids =
   );
 let int_lte_exp: form = {
   let explanation = {
-    message: "Integer less than or equal to. If the [*left operand*](%i) is less than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Integer less than or equal to. If the [*left operand*](%s) is less than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2233,7 +2233,7 @@ let int_gt_exp_coloring_ids =
   );
 let int_gt_exp: form = {
   let explanation = {
-    message: "Integer greater than. If the [*left operand*](%i) is greater than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Integer greater than. If the [*left operand*](%s) is greater than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2256,7 +2256,7 @@ let int_gte_exp_coloring_ids =
   );
 let int_gte_exp: form = {
   let explanation = {
-    message: "Integer greater than or equal to. If the [*left operand*](%i) is greater than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Integer greater than or equal to. If the [*left operand*](%s) is greater than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2279,7 +2279,7 @@ let int_eq_exp_coloring_ids =
   );
 let int_eq_exp: form = {
   let explanation = {
-    message: "Integer equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Integer equality. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2292,7 +2292,7 @@ let int_eq_exp: form = {
 };
 let int_neq_exp: form = {
   let explanation = {
-    message: "Integer inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Integer inequality. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2315,7 +2315,7 @@ let float_plus_exp_coloring_ids =
   );
 let float_plus_exp: form = {
   let explanation = {
-    message: "Floating-point addition. Gives the sum of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Floating-point addition. Gives the sum of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2338,7 +2338,7 @@ let float_minus_exp_coloring_ids =
   );
 let float_minus_exp: form = {
   let explanation = {
-    message: "Floating-point subtraction. Gives the difference of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Floating-point subtraction. Gives the difference of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2361,7 +2361,7 @@ let float_times_exp_coloring_ids =
   );
 let float_times_exp: form = {
   let explanation = {
-    message: "Floating-point multiplication. Gives the product of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Floating-point multiplication. Gives the product of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2382,7 +2382,7 @@ let float_power_exp_coloring_ids =
   );
 let float_power_exp: form = {
   let explanation = {
-    message: "Floating-point exponentiation.  Gives the result of raising [*left*](%i) to the [*right*](%i).",
+    message: "Floating-point exponentiation.  Gives the result of raising [*left*](%s) to the [*right*](%s).",
     feedback: Unselected,
   };
   {
@@ -2405,7 +2405,7 @@ let float_divide_exp_coloring_ids =
   );
 let float_divide_exp: form = {
   let explanation = {
-    message: "Floating-point division. Gives the quotient of the [*left*](%i) and [*right*](%i) operands.",
+    message: "Floating-point division. Gives the quotient of the [*left*](%s) and [*right*](%s) operands.",
     feedback: Unselected,
   };
   {
@@ -2428,7 +2428,7 @@ let float_lt_exp_coloring_ids =
   );
 let float_lt_exp: form = {
   let explanation = {
-    message: "Floating-point less than. If the [*left operand*](%i) is less than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Floating-point less than. If the [*left operand*](%s) is less than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2451,7 +2451,7 @@ let float_lte_exp_coloring_ids =
   );
 let float_lte_exp: form = {
   let explanation = {
-    message: "Floating-point less than or equal to. If the [*left operand*](%i) is less than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Floating-point less than or equal to. If the [*left operand*](%s) is less than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2474,7 +2474,7 @@ let float_gt_exp_coloring_ids =
   );
 let float_gt_exp: form = {
   let explanation = {
-    message: "Floating-point greater than. If the [*left operand*](%i) is greater than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Floating-point greater than. If the [*left operand*](%s) is greater than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2497,7 +2497,7 @@ let float_gte_exp_coloring_ids =
   );
 let float_gte_exp: form = {
   let explanation = {
-    message: "Floating-point greater than or equal to. If the [*left operand*](%i) is greater than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    message: "Floating-point greater than or equal to. If the [*left operand*](%s) is greater than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2520,7 +2520,7 @@ let float_eq_exp_coloring_ids =
   );
 let float_eq_exp: form = {
   let explanation = {
-    message: "Floating-point equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Floating-point equality. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2533,7 +2533,7 @@ let float_eq_exp: form = {
 };
 let float_neq_exp: form = {
   let explanation = {
-    message: "Floating-point inequality. If the [*left operand*](%i) is not equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Floating-point inequality. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2556,7 +2556,7 @@ let bool_and_exp_coloring_ids =
   );
 let bool_and_exp: form = {
   let explanation = {
-    message: "Boolean and. If the [*left operand*](%i) evaluates to `true`, evaluate the [*right operand*](%i). If that also evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Boolean and. If the [*left operand*](%s) evaluates to `true`, evaluate the [*right operand*](%s). If that also evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2580,7 +2580,7 @@ let bool_or_exp_coloring_ids =
 // TODO Some of the examples are evaluating weirdly and can't type the || in the editor
 let bool_or_exp: form = {
   let explanation = {
-    message: "Boolean or. If the [*left operand*](%i) evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluate the [*right operand*](%i). If that evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "Boolean or. If the [*left operand*](%s) evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluate the [*right operand*](%s). If that evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2603,7 +2603,7 @@ let str_eq_exp_coloring_ids =
   );
 let str_eq_exp: form = {
   let explanation = {
-    message: "String equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    message: "String equality. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.",
     feedback: Unselected,
   };
   {
@@ -2616,7 +2616,7 @@ let str_eq_exp: form = {
 };
 let str_concat_exp: form = {
   let explanation = {
-    message: "String concatenation. Returns the concatenation of the [*left operand*](%i) and the [*right operand*](%i),",
+    message: "String concatenation. Returns the concatenation of the [*left operand*](%s) and the [*right operand*](%s),",
     feedback: Unselected,
   };
   {
@@ -2725,7 +2725,7 @@ let case_exp_coloring_ids = (~scrut_id: Id.t): list((Id.t, Id.t)) => [
 ];
 let case_exp: form = {
   let explanation = {
-    message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%i), evaluates to the corresponding *clause*.",
+    message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%s), evaluates to the corresponding *clause*.",
     feedback: Unselected,
   };
   let case =
@@ -2937,7 +2937,7 @@ let cons_base_pat_coloring_ids =
 ];
 let cons_base_pat: form = {
   let explanation = {
-    message: "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%i) and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
+    message: "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%s) and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.",
     feedback: Unselected,
   };
   {
@@ -2959,7 +2959,7 @@ let cons2_pat_coloring_ids =
 ];
 let cons2_pat: form = {
   let explanation = {
-    message: "Non-empty list pattern. Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%i), *second element* matching the [*second element pattern*](%i), and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
+    message: "Non-empty list pattern. Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%s), *second element* matching the [*second element pattern*](%s), and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.",
     feedback: Unselected,
   };
   let c = cons_pat();
@@ -3013,7 +3013,7 @@ let tuple_pat_size2_coloring_ids =
 ];
 let tuple_pat_size2: form = {
   let explanation = {
-    message: "Tuple pattern. Only expressions that are 2-tuples with first element matching the [first element pattern](%i) and second element matching the [second element pattern](%i) match this tuple pattern.",
+    message: "Tuple pattern. Only expressions that are 2-tuples with first element matching the [first element pattern](%s) and second element matching the [second element pattern](%s) match this tuple pattern.",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -3036,7 +3036,7 @@ let tuple_pat_size3_coloring_ids =
 ];
 let tuple_pat_size3: form = {
   let explanation = {
-    message: "Tuple pattern. Only expressions that are 3-tuples with first element matching the [first element pattern](%i), second element matching the [second element pattern](%i), and third element matching the [third element pattern](%i) match this tuple pattern.",
+    message: "Tuple pattern. Only expressions that are 3-tuples with first element matching the [first element pattern](%s), second element matching the [second element pattern](%s), and third element matching the [third element pattern](%s) match this tuple pattern.",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -3081,7 +3081,7 @@ let ap_pat_coloring_ids = (~con_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => 
 ];
 let ap_pat: form = {
   let explanation = {
-    message: "Constructor application pattern. Only expressions that match the [*constructor*](%i) with an *argument* matching the [*argument pattern*](%i) match this *constructor application pattern*.",
+    message: "Constructor application pattern. Only expressions that match the [*constructor*](%s) with an *argument* matching the [*argument pattern*](%s) match this *constructor application pattern*.",
     feedback: Unselected,
   };
   {
@@ -3102,7 +3102,7 @@ let typann_pat_coloring_ids =
 ];
 let typann_pat: form = {
   let explanation = {
-    message: "Type annotation pattern. Only expressions that match the [type annotated pattern](%i) and have the [indicated type](%i) match this type annotation pattern.",
+    message: "Type annotation pattern. Only expressions that match the [type annotated pattern](%s) and have the [indicated type](%s) match this type annotation pattern.",
     feedback: Unselected,
   };
   {
@@ -3213,7 +3213,7 @@ let list_typ_coloring_ids = (~elem_id: Id.t): list((Id.t, Id.t)) => [
 ];
 let list_typ: form = {
   let explanation = {
-    message: "List type. The list type classifies lists with elements with the corresponding [*element type*](%i).",
+    message: "List type. The list type classifies lists with elements with the corresponding [*element type*](%s).",
     feedback: Unselected,
   };
   {
@@ -3236,7 +3236,7 @@ let arrow_typ_coloring_ids =
 ];
 let arrow_typ: form = {
   let explanation = {
-    message: "Arrow type. This arrow type classifies functions with [*argument type*](%i) and [*output type*](%i).",
+    message: "Arrow type. This arrow type classifies functions with [*argument type*](%s) and [*output type*](%s).",
     feedback: Unselected,
   };
   {
@@ -3258,7 +3258,7 @@ let arrow3_typ_coloring_ids =
 ];
 let arrow3_typ: form = {
   let explanation = {
-    message: "Arrow type. This arrow type classifies functions with [*first argument type*](%i), [*second argument type*](%i), and [*output type*](%i).",
+    message: "Arrow type. This arrow type classifies functions with [*first argument type*](%s), [*second argument type*](%s), and [*output type*](%s).",
     feedback: Unselected,
   };
   let arrow2 = arrow();
@@ -3360,7 +3360,7 @@ let tuple2_typ_coloring_ids =
 ];
 let tuple2_typ: form = {
   let explanation = {
-    message: "Tuple type. This tuple type classifies 2-tuples with the first element of the [first element type](%i) and second element of the [second element type](%i).",
+    message: "Tuple type. This tuple type classifies 2-tuples with the first element of the [first element type](%s) and second element of the [second element type](%s).",
     feedback: Unselected,
   };
   let comma = comma_typ();
@@ -3383,7 +3383,7 @@ let tuple3_typ_coloring_ids =
 ];
 let tuple3_typ: form = {
   let explanation = {
-    message: "Tuple type. This tuple type classifies 3-tuples with the first element of the [first element type](%i), second element of the [second element type](%i), and third element of the [third element type](%i).",
+    message: "Tuple type. This tuple type classifies 3-tuples with the first element of the [first element type](%s), second element of the [second element type](%s), and third element of the [third element type](%s).",
     feedback: Unselected,
   };
   let comma = comma_typ();

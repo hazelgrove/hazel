@@ -11,7 +11,6 @@ type t = {
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
-  double_tap: option(timestamp),
   mousedown: bool,
   langDocMessages: LangDocMessages.t,
 };
@@ -26,7 +25,6 @@ let mk = editors => {
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,
-  double_tap: None,
   mousedown: false,
   langDocMessages: LangDocMessages.init,
 };

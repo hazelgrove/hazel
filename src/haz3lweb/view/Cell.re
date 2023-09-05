@@ -174,6 +174,8 @@ let deco =
     (
       ~zipper,
       ~measured,
+      ~term_ranges,
+      ~unselected,
       ~segment,
       ~font_metrics,
       ~show_backpack_targets,
@@ -182,7 +184,6 @@ let deco =
       ~test_results: option(Interface.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
-  let unselected = Zipper.unselect_and_zip(zipper);
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
@@ -190,7 +191,7 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
-      let term_ranges = TermRanges.mk(unselected);
+      let term_ranges = term_ranges;
       let tiles = TileMap.mk(unselected);
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
@@ -218,8 +219,26 @@ let eval_result_footer_view =
   let d_view =
     switch (simple) {
     | None
-    | Some({eval_results: [], _})
-    | Some({eval_results: [InvalidText(0, 0, "EXCEPTION")], _}) => [
+    | Some({eval_results: [], _}) => [
+        Node.text("No result available. Elaboration follows:"),
+        DHCode.view(
+          ~inject,
+          ~settings={
+            ...Settings.Evaluation.init,
+            evaluate: true,
+            show_case_clauses: true,
+            show_fn_bodies: true,
+            show_casts: true,
+            show_unevaluated_elaboration: false,
+          },
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          elab,
+        ),
+      ]
+    | Some({eval_results: [InvalidText(id, 0, "EXCEPTION")], _})
+        when id == Id.invalid => [
         Node.text("No result available. Elaboration follows:"),
         DHCode.view(
           ~inject,
@@ -387,6 +406,7 @@ let editor_view =
   //~eval_result: option(option(DHExp.t))
 
   let zipper = editor.state.zipper;
+  let term_ranges = editor.state.meta.term_ranges;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
@@ -402,7 +422,9 @@ let editor_view =
   let deco_view =
     deco(
       ~zipper,
+      ~unselected,
       ~measured,
+      ~term_ranges,
       ~segment,
       ~font_metrics,
       ~show_backpack_targets,

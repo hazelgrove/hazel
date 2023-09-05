@@ -25,6 +25,7 @@ type term =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type select =
+  | All
   | Resize(move)
   | Term(term);
 

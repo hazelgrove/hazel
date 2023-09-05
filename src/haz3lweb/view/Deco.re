@@ -59,9 +59,12 @@ module Deco =
   let root_piece_profile =
       (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
     let tiles =
-      // TermIds.find(Piece.id(p), M.terms)
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
+      /* NOTE(andrew): dark_ids were originally filtered here.
+       * Leaving this comment in place in case issues in the
+       * future are traced back to here.
+       * |> List.filter(id => id >= 0)*/
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
@@ -126,21 +129,6 @@ module Deco =
         | None => (-1)
         | Some(i) => i
         };
-      //TODO(andrew): get this working
-      // let _segs =
-      //   switch (p) {
-      //   | Tile({children, mold, _}) =>
-      //     children
-      //     |> List.flatten
-      //     |> List.filter(
-      //          fun
-      //          | Piece.Secondary(w) when Secondary.is_linebreak(w) =>
-      //            false
-      //          | _ => true,
-      //        )
-      //     |> List.map(p => (mold, Measured.find_p(p, M.map)))
-      //   | _ => []
-      //   };
       switch (range) {
       | None => []
       | Some(range) =>
@@ -259,7 +247,7 @@ module Deco =
     );
   };
 
-  let color_highlights = (colorings: list((int, string))) => {
+  let color_highlights = (colorings: list((Id.t, string))) => {
     List.map(
       ((id, color)) => {
         term_highlight(~clss=["highlight-code-" ++ color], id)
@@ -270,7 +258,7 @@ module Deco =
 
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
-  let err_holes = (z: Zipper.t) => {
+  let _err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
@@ -308,6 +296,28 @@ module Deco =
       go_skel(Segment.skel(seg)) @ bi_ids;
     };
     go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
+  };
+
+  // faster infomap traversal
+  let err_holes = (_z: Zipper.t) => {
+    Id.Map.fold(
+      (id, info, acc) =>
+        /* Because of artefacts in Maketerm ID handling,
+         * there are be situations where ids appear in the
+         * info_map which do not occur in term_ranges. These
+         * ids should be purely duplicative, so skipping them
+         * when iterating over the info_map should have no
+         * effect, beyond supressing the resulting Not_found exs */
+        switch (Id.Map.find_opt(id, M.term_ranges)) {
+        | Some(_) when Info.is_error(info) => [
+            term_highlight(~clss=["err-hole"], id),
+            ...acc,
+          ]
+        | _ => acc
+        },
+      M.info_map,
+      [],
+    );
   };
 
   let all = (zipper, sel_seg) =>

@@ -88,7 +88,7 @@ let view_of_layout =
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
-             | Invalid(((-666), (-666))) =>
+             | Invalid((_, (-666))) =>
                /* Evaluation and Elaboration exceptions */
                ([with_cls("exception", txt)], ds)
              | NonEmptyHole(_)

@@ -14,9 +14,13 @@ type settings_action =
   | Mode(ModelSettings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type benchmark_action =
+  | Start
+  | Finish;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
-  | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -45,7 +49,8 @@ type t =
   | StepForward(EvaluatorStep.EvalObj.t)
   | StepBackward
   | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t);
+  | DebugAction(DebugAction.t)
+  | Benchmark(benchmark_action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -64,3 +69,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Cut
+  | Undo
+  | Redo
+  | PerformAction(Insert(_) | Destruct(_) | Pick_up | Put_down) => true
+  | _ => false;

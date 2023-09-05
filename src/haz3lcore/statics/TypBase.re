@@ -44,17 +44,16 @@ module rec Typ: {
      for type debugging UI. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type source = {
-    id: int,
+    id: Id.t,
     ty: t,
   };
 
   let of_source: list(source) => list(t);
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
-  let matched_arrow: t => (t, t);
-  let matched_prod: (int, t) => list(t);
-  let matched_cons: t => (t, t);
-  let matched_list: t => t;
+  let matched_arrow: (Ctx.t, t) => (t, t);
+  let matched_prod: (Ctx.t, int, t) => list(t);
+  let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
@@ -98,7 +97,7 @@ module rec Typ: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type source = {
-    id: int,
+    id: Id.t,
     ty: t,
   };
 
@@ -121,31 +120,6 @@ module rec Typ: {
     | (_, Internal | Free(_)) => Internal
     | (SynSwitch, SynSwitch) => SynSwitch
     };
-
-  let matched_arrow: t => (t, t) =
-    fun
-    | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
-    | _ => (Unknown(Internal), Unknown(Internal));
-
-  let matched_prod: (int, t) => list(t) =
-    length =>
-      fun
-      | Prod(tys) when List.length(tys) == length => tys
-      | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-      | _ => List.init(length, _ => Unknown(Internal));
-
-  let matched_cons: t => (t, t) =
-    fun
-    | List(ty) => (ty, List(ty))
-    | Unknown(SynSwitch) => (Unknown(SynSwitch), List(Unknown(SynSwitch)))
-    | _ => (Unknown(Internal), List(Unknown(SynSwitch)));
-
-  let matched_list: t => t =
-    fun
-    | List(ty) => ty
-    | Unknown(SynSwitch) => Unknown(SynSwitch)
-    | _ => Unknown(Internal);
 
   let precedence = (ty: t): int =>
     switch (ty) {
@@ -384,6 +358,27 @@ module rec Typ: {
     };
   };
 
+  let matched_arrow = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Arrow(ty_in, ty_out) => (ty_in, ty_out)
+    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
+    | _ => (Unknown(Internal), Unknown(Internal))
+    };
+
+  let matched_prod = (ctx, length, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Prod(tys) when List.length(tys) == length => tys
+    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
+    | _ => List.init(length, _ => Unknown(Internal))
+    };
+
+  let matched_list = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | List(ty) => ty
+    | Unknown(SynSwitch) => Unknown(SynSwitch)
+    | _ => Unknown(Internal)
+    };
+
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
     List.find_map(
       fun
@@ -443,7 +438,7 @@ and Ctx: {
   let extend_dummy_tvar: (t, TypVar.t) => t;
   let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
-  let get_id: entry => int;
+  let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
@@ -502,7 +497,7 @@ and Ctx: {
     | None => None
     };
 
-  let get_id: entry => int =
+  let get_id: entry => Id.t =
     fun
     | VarEntry({id, _})
     | ConstructorEntry({id, _})
