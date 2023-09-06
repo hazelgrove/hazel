@@ -12,6 +12,8 @@
   \
   Worker)
  (libraries
+  ezjs_min
+  ezjs_idb
   str
   incr_dom
   virtual_dom.input_widgets
