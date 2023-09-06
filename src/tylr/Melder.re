@@ -17,10 +17,69 @@ module Piece = {
     |> put_token(l.token ++ r.token)
     |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
   };
+
+  let meld = (l: p, ~slot=Slot.Empty, r: p): Ziggurat.p => {
+    let lt = (l, ~slot, r) =>
+      Ziggurat.mk(Wald.singleton(l), ~dn=[Terrace.singleton(~slot, r)]);
+    let gt = (l, ~slot, r) =>
+      Ziggurat.mk(~up=[Terrace.singleton(l, ~slot)], Wald.singleton(r));
+    let neq = (~lt_if) => lt_if ? lt: gt;
+
+    let (m_l, m_r) = Piece.(molded(l), molded(r));
+    switch (m_l.mold, m_r.mold) {
+    | (Grout((tip_l, _)), Grout((_, tip_r))) =>
+      switch (slot) {
+      | Empty =>
+        // merge grout
+        // probably handled entirely by relexing
+        let mold = Material.Grout((tip_l, tip_r));
+        let token = l.token ++ r.token;
+        Ziggurat.singleton(Molded.minimize_holes({mold, token}));
+      | Full(_) =>
+        let l = Molded.minimize_holes({...l, mold: Grout((tip_l, Concave))});
+        let r = Molded.minimize_holes({...r, mold: Grout((Concave, tip_r))});
+        Molded.is_hole(l) == Molded.is_hole(r)
+        ? Ziggurat.mk(Wald.mk([l, r], [slot]))
+        : neq(~lt_if=Molded.is_hole(l), l, ~slot, r);
+      }
+
+    | (Grout((tip_l, _)), Tile(m)) =>
+      let tip_r =
+        Slot.is_full(slot) || Mold.is_convex(L, m) ? Concave : Convex;
+      let l = Mold.minimize_holes({...l, mold: Grout((tip_l, tip_r))});
+      neq(~lt_if=Mold.is_hole(l) && tip_r == Concave, l, ~slot, r);
+
+    | (Tile(m), Grout((_, tip_r))) =>
+      let tip_l =
+        Slot.is_full(slot) || Mold.is_convex(R, m) ? Concave : Convex;
+      let r = Mold.minimize_holes({...r, mold: Grout((tip_l, tip_r))});
+      neq(~lt_if=!(Mold.is_hole(r) && tip_l == Concave), l, ~slot, r);
+
+    | (Tile(m_l), Tile(m_r)) =>
+
+    }
+  };
+
 };
 
 module Wald = {
   include Wald;
+
+  let meld = (l: p, ~slot=Slot.Empty, r: p): Ziggurat.p => {
+    let (p_l, p_r) = Wald.(face(R, l), face(L, r));
+    let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
+    let slot_all_grout =
+      switch (slot) {
+      | Empty => Some(Token.empty)
+      | Full(m) => Meld.all_grout(m)
+      };
+    switch (m_l.mold, slot_all_grout, m_r.mold) {
+    | (Grout((tip_l, _)), Some(t), Grout((_, tip_r))) =>
+
+    }
+  };
+
+
 
   let rec lt = (l: p, ~slot=None, r: p): option(Slope.Dn.p) => {
     let (p_l, p_r) = Wald.(face(R, l), face(L, r));

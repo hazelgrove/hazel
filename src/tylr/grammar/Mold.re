@@ -2,11 +2,13 @@ open Util;
 
 include GZipper;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t = GZipper.t(Label.t);
+type t =
+  | Unlabeled(Tips.t)
+  | Labeled(GZipper.t(Label.t));
 
 let of_atom = (z: GZipper.t(Atom.t)) =>
   switch (z.zipper) {
-  | (Tok(lbl), _) => Ok(GZipper.put(lbl, z))
+  | (Tok(lbl), _) => Ok(Labeled(GZipper.put(lbl, z)))
   | (Kid(s), _) => Error(s)
   };
 
