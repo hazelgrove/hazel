@@ -20,21 +20,15 @@ type all_f22 = {
 };
 
 let mk_all = (~instructor_mode, ~log) => {
-  print_endline("Mk all");
   let settings = Store.Settings.export();
-  print_endline("Settings OK");
   let langDocMessages = Store.LangDocMessages.export();
-  print_endline("LangDocMessages OK");
   let scratch = Store.Scratch.export();
-  print_endline("Scratch OK");
   let examples = Store.Examples.export();
-  print_endline("Examples OK");
   let exercise =
     Store.Exercise.export(
       ~specs=ExerciseSettings.exercises,
       ~instructor_mode,
     );
-  print_endline("Exercise OK");
   {settings, langDocMessages, scratch, examples, exercise, log};
 };
 
