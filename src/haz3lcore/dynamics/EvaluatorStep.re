@@ -335,7 +335,6 @@ module Capture = {
 };
 
 module Transition = {
-  // [@deriving show({with_path: false})]
   type t =
     | Indet(DHExp.t)
     | BoxedValue(DHExp.t)
@@ -1139,137 +1138,143 @@ module Decompose = {
       let indet = Result.Indet |> Monad.return;
     };
 
-    switch (exp) {
-    | EmptyHole(_) => Return.indet
-    | NonEmptyHole(_) => Return.indet
-    | ExpandingKeyword(_) => Return.indet
-    | FreeVar(_) => Return.indet
-    | InvalidText(_) => Return.indet
-    | InconsistentBranches(_) => Return.indet
-    | FailedCast(_) => Return.indet
-    | InvalidOperation(_) => Return.indet
-    | Closure(_, Fun(_)) => Return.boxed
-    | Closure(env', d1) =>
-      let* env = ClosureEnvironment.union(env', env) |> with_eig;
-      decompose(~env, d1) >>| Return.wrap(c => Closure(env', c));
-    | Filter(flt', d1) =>
-      let flt = DHExp.FilterEnvironment.extends(flt', flt);
-      decompose(~flt, d1) >>| Return.wrap(c => Filter(flt', c));
-    | Cast(d1, ty, ty') =>
-      decompose(d1) >>| Return.wrap(c => Cast(c, ty, ty'))
-    | BoundVar(_) => Return.mark(act)
-    | Sequence(d1, d2) =>
-      decompose(d1) >>| Return.wrap(c => Sequence(c, d2))
-    | Let(dp, d1, d2) =>
-      let* r1 = decompose(d1);
-      switch (r1) {
-      | BoxedValue
-      | Eval(_) => Return.mark(act)
-      | _ => r1 |> Return.wrap(c => Let(dp, c, d2)) |> Monad.return
-      };
-    | FixF(_) => Return.mark(act)
-    | Fun(_) => Return.mark(act)
-    | Ap(d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      switch (r1, r2) {
-      | (BoxedValue, BoxedValue)
-      | (BoxedValue, Eval(_))
-      | (Eval(_), BoxedValue)
-      | (Eval(_), Eval(_)) => Return.mark(act)
-      | _ =>
-        [(r1, (c => Ap1(c, d2))), (r2, (c => Ap2(d1, c)))]
-        |> Return.merge(Return.Operator)
-      };
-    | ApBuiltin(_) => Return.mark(act)
-    | TestLit(_)
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
-    | Constructor(_) => Return.boxed
-    | BinBoolOp(op, d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      [
-        (r1, (c => BinBoolOp1(op, c, d2))),
-        (r2, (c => BinBoolOp2(op, d1, c))),
-      ]
-      |> Return.merge(Return.Operator);
-    | BinIntOp(op, d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      [
-        (r1, (c => BinIntOp1(op, c, d2))),
-        (r2, (c => BinIntOp2(op, d1, c))),
-      ]
-      |> Return.merge(Return.Operator);
-    | BinFloatOp(op, d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      [
-        (r1, (c => BinFloatOp1(op, c, d2))),
-        (r2, (c => BinFloatOp2(op, d1, c))),
-      ]
-      |> Return.merge(Return.Operator);
-    | BinStringOp(op, d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      [
-        (r1, (c => BinStringOp1(op, c, d2))),
-        (r2, (c => BinStringOp2(op, d1, c))),
-      ]
-      |> Return.merge(Return.Operator);
-    | Tuple(ds) =>
-      let rec walk = (ld, rd, rs) => {
-        switch (rd) {
-        | [] => rs
-        | [d, ...rd] =>
-          let* r = decompose(d);
-          let* rs = rs;
-          let rs = [(r, (c => EvalCtx.Tuple(c, (ld, rd)))), ...rs];
-          walk([d, ...ld], rd, return(rs));
+    let* r = Transition.transition(env, exp);
+    switch (r) {
+    | BoxedValue(_) => Return.boxed
+    | Indet(_) => Return.indet
+    | Step(_) =>
+      switch (exp) {
+      | EmptyHole(_) => Return.indet
+      | NonEmptyHole(_) => Return.indet
+      | ExpandingKeyword(_) => Return.indet
+      | FreeVar(_) => Return.indet
+      | InvalidText(_) => Return.indet
+      | InconsistentBranches(_) => Return.indet
+      | FailedCast(_) => Return.indet
+      | InvalidOperation(_) => Return.indet
+      | Closure(_, Fun(_)) => Return.boxed
+      | Closure(env', d1) =>
+        let* env = ClosureEnvironment.union(env', env) |> with_eig;
+        decompose(~env, d1) >>| Return.wrap(c => Closure(env', c));
+      | Filter(flt', d1) =>
+        let flt = DHExp.FilterEnvironment.extends(flt', flt);
+        decompose(~flt, d1) >>| Return.wrap(c => Filter(flt', c));
+      | Cast(d1, ty, ty') =>
+        decompose(d1) >>| Return.wrap(c => Cast(c, ty, ty'))
+      | BoundVar(_) => Return.mark(act)
+      | Sequence(d1, d2) =>
+        decompose(d1) >>| Return.wrap(c => Sequence(c, d2))
+      | Let(dp, d1, d2) =>
+        let* r1 = decompose(d1);
+        switch (r1) {
+        | BoxedValue
+        | Eval(_) => Return.mark(act)
+        | _ => r1 |> Return.wrap(c => Let(dp, c, d2)) |> Monad.return
         };
-      };
-      let* rs = walk([], ds, return([]));
-      rs |> Return.merge(Return.Constructor);
-    | Prj(targ, n) => decompose(targ) >>| Return.wrap(c => Prj(c, n))
-    | Cons(d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      [(r1, (c => Cons1(c, d2))), (r2, (c => Cons2(d1, c)))]
-      |> Return.merge(Return.Operator);
-    | ListConcat(d1, d2) =>
-      let* r1 = decompose(d1);
-      let* r2 = decompose(d2);
-      [(r1, (c => ListConcat1(c, d2))), (r2, (c => ListConcat2(d1, c)))]
-      |> Return.merge(Return.Operator);
-    | ListLit(u, i, ty, lst) =>
-      let rec walk = (ld, rd, rs) => {
-        switch (rd) {
-        | [] => rs
-        | [d, ...rd] =>
-          let* r = decompose(d);
-          let* rs = rs;
-          let rs = [
-            (r, (c => EvalCtx.ListLit(u, i, ty, c, (ld, rd)))),
-            ...rs,
-          ];
-          walk([d, ...ld], rd, return(rs));
+      | FixF(_) => Return.mark(act)
+      | Fun(_) => Return.mark(act)
+      | Ap(d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        switch (r1, r2) {
+        | (BoxedValue, BoxedValue)
+        | (BoxedValue, Eval(_))
+        | (Eval(_), BoxedValue)
+        | (Eval(_), Eval(_)) => Return.mark(act)
+        | _ =>
+          [(r1, (c => Ap1(c, d2))), (r2, (c => Ap2(d1, c)))]
+          |> Return.merge(Return.Operator)
         };
-      };
-      let* rs = walk([], lst, return([]));
-      rs |> Return.merge(Return.Constructor);
-    | ConsistentCase(Case(d1, rules, i)) =>
-      let* r1 = decompose(d1);
-      switch (r1) {
-      | BoxedValue
-      | Eval(_) => Return.mark(act)
-      | _ =>
-        r1
-        |> Return.wrap(c => ConsistentCase(Case(c, rules, i)))
-        |> Monad.return
-      };
+      | ApBuiltin(_) => Return.mark(act)
+      | TestLit(_)
+      | BoolLit(_)
+      | IntLit(_)
+      | FloatLit(_)
+      | StringLit(_)
+      | Constructor(_) => Return.boxed
+      | BinBoolOp(op, d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        [
+          (r1, (c => BinBoolOp1(op, c, d2))),
+          (r2, (c => BinBoolOp2(op, d1, c))),
+        ]
+        |> Return.merge(Return.Operator);
+      | BinIntOp(op, d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        [
+          (r1, (c => BinIntOp1(op, c, d2))),
+          (r2, (c => BinIntOp2(op, d1, c))),
+        ]
+        |> Return.merge(Return.Operator);
+      | BinFloatOp(op, d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        [
+          (r1, (c => BinFloatOp1(op, c, d2))),
+          (r2, (c => BinFloatOp2(op, d1, c))),
+        ]
+        |> Return.merge(Return.Operator);
+      | BinStringOp(op, d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        [
+          (r1, (c => BinStringOp1(op, c, d2))),
+          (r2, (c => BinStringOp2(op, d1, c))),
+        ]
+        |> Return.merge(Return.Operator);
+      | Tuple(ds) =>
+        let rec walk = (ld, rd, rs) => {
+          switch (rd) {
+          | [] => rs
+          | [d, ...rd] =>
+            let* r = decompose(d);
+            let* rs = rs;
+            let rs = [(r, (c => EvalCtx.Tuple(c, (ld, rd)))), ...rs];
+            walk([d, ...ld], rd, return(rs));
+          };
+        };
+        let* rs = walk([], ds, return([]));
+        rs |> Return.merge(Return.Constructor);
+      | Prj(targ, n) => decompose(targ) >>| Return.wrap(c => Prj(c, n))
+      | Cons(d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        [(r1, (c => Cons1(c, d2))), (r2, (c => Cons2(d1, c)))]
+        |> Return.merge(Return.Operator);
+      | ListConcat(d1, d2) =>
+        let* r1 = decompose(d1);
+        let* r2 = decompose(d2);
+        [(r1, (c => ListConcat1(c, d2))), (r2, (c => ListConcat2(d1, c)))]
+        |> Return.merge(Return.Operator);
+      | ListLit(u, i, ty, lst) =>
+        let rec walk = (ld, rd, rs) => {
+          switch (rd) {
+          | [] => rs
+          | [d, ...rd] =>
+            let* r = decompose(d);
+            let* rs = rs;
+            let rs = [
+              (r, (c => EvalCtx.ListLit(u, i, ty, c, (ld, rd)))),
+              ...rs,
+            ];
+            walk([d, ...ld], rd, return(rs));
+          };
+        };
+        let* rs = walk([], lst, return([]));
+        rs |> Return.merge(Return.Constructor);
+      | ConsistentCase(Case(d1, rules, i)) =>
+        let* r1 = decompose(d1);
+        switch (r1) {
+        | BoxedValue
+        | Eval(_) => Return.mark(act)
+        | _ =>
+          r1
+          |> Return.wrap(c => ConsistentCase(Case(c, rules, i)))
+          |> Monad.return
+        };
+      }
     };
   };
 };
@@ -1408,6 +1413,5 @@ let decompose = (d: DHExp.t) => {
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
   let (es, rs) = Decompose.decompose(env, [], Step, d, es);
-  // rs |> Decompose.Result.show |> (s => print_endline("decompose => " ++ s));
   (es, Decompose.Result.unbox(rs));
 };
