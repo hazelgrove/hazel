@@ -174,6 +174,9 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+let is_not_recursive = (name: string, uexp: Term.UExp.t): bool =>
+  !is_recursive(name, uexp);
+
 let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Fun(args, body) =>
