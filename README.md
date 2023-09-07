@@ -166,6 +166,16 @@ independent of the one you sent in your home directory. This allow you to
 alternate dependencies, or test dependencies changes, without affect
 existing OCaml projects.
 
+NOTE: You may see the following warning when building:
+
+```
+Warning 58 [no-cmx-file]: no cmx file was found in path for module Ezjs_idb, and its interface was not compiled with -opaque
+```
+
+This is due to an upstream library issue and does not cause problems with Hazel: 
+
+  https://github.com/OCamlPro/ezjs_idb/issues/1
+
 ### Debugging
 
 #### Printing

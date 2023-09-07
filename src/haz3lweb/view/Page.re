@@ -5,10 +5,12 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let download_editor_state = (~instructor_mode) => {
-  let data = Export.export_all(~instructor_mode);
-  JsUtil.download_json(ExerciseSettings.filename, data);
-};
+let download_editor_state = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
 let menu_icon = {
   let attr =
     Attr.many(
