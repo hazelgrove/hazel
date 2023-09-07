@@ -2,18 +2,31 @@ open Sexplib.Std;
 open Util;
 
 module Slot = {
-  type t('a) = option('a);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a) =
+    | Empty
+    | Full('a);
 };
 
 module Wald = {
-  type t('piece, 'slot) =
-    | W(Chain.t('piece, Slot.t('slot)));
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('piece, 'slotted) =
+    | W(Chain.t('piece, Slot.t('slotted)));
 };
 
-type t('slot, 'piece) =
-  | M(Slot.t('slot), Wald.t('piece, 'slot), Slot.t('slot));
+module Base = {
+  type t('slotted, 'piece) =
+    | M(Slot.t('slotted), Wald.t('piece, 'slotted), Slot.t('slotted));
+};
+include Base;
 
-type p = t(p, Piece.t);
+module Molded = {
+  type t = Base.t(Material.t(Sort.t), Mold.t);
+};
+
+module Baked = {
+  type t = Base.t(t, Piece.t);
+};
 
 // for constructor inclusion in Wald and Slot modules
 module Base = {

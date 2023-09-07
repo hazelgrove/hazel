@@ -1,9 +1,23 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = Meld.slot('a);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type m = t(Material.Molded.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type p = t(Piece.t);
+module Base = Meld.Slot;
+include Base;
+
+let to_opt =
+  fun
+  | Empty => None
+  | Full(a) => Some(a);
+
+module Molded = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Base.t(Meld.Molded.t);
+};
+module Baked = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Base.t(Meld.Baked.t);
+  let has_no_tiles =
+    fun
+    | Empty => Some("")
+    | Full(m) => Meld.Baked.has_no_tiles(m);
+};
 
 let empty = None;
 let full = (m: Meld.t(_)) => Some(m);

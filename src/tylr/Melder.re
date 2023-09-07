@@ -18,6 +18,8 @@ module Piece = {
     |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
   };
 
+  let regrout =
+
   let meld = (l: p, ~slot=Slot.Empty, r: p): Ziggurat.p => {
     let lt = (l, ~slot, r) =>
       Ziggurat.mk(Wald.singleton(l), ~dn=[Terrace.singleton(~slot, r)]);
@@ -25,8 +27,7 @@ module Piece = {
       Ziggurat.mk(~up=[Terrace.singleton(l, ~slot)], Wald.singleton(r));
     let neq = (~lt_if) => lt_if ? lt: gt;
 
-    let (m_l, m_r) = Piece.(molded(l), molded(r));
-    switch (m_l.mold, m_r.mold) {
+    switch (l.mold, r.mold) {
     | (Grout((tip_l, _)), Grout((_, tip_r))) =>
       switch (slot) {
       | Empty =>
@@ -34,20 +35,20 @@ module Piece = {
         // probably handled entirely by relexing
         let mold = Material.Grout((tip_l, tip_r));
         let token = l.token ++ r.token;
-        Ziggurat.singleton(Molded.minimize_holes({mold, token}));
+        Ziggurat.singleton({...l, mold, token});
       | Full(_) =>
-        let l = Molded.minimize_holes({...l, mold: Grout((tip_l, Concave))});
-        let r = Molded.minimize_holes({...r, mold: Grout((Concave, tip_r))});
-        Molded.is_hole(l) == Molded.is_hole(r)
+        let l = {...l, mold: Grout((tip_l, Concave))};
+        let r = {...r, mold: Grout((Concave, tip_r))};
+        Piece.(is_hole(l) == is_hole(r))
         ? Ziggurat.mk(Wald.mk([l, r], [slot]))
-        : neq(~lt_if=Molded.is_hole(l), l, ~slot, r);
+        : neq(~lt_if=Piece.is_hole(l), l, ~slot, r);
       }
 
     | (Grout((tip_l, _)), Tile(m)) =>
       let tip_r =
         Slot.is_full(slot) || Mold.is_convex(L, m) ? Concave : Convex;
-      let l = Mold.minimize_holes({...l, mold: Grout((tip_l, tip_r))});
-      neq(~lt_if=Mold.is_hole(l) && tip_r == Concave, l, ~slot, r);
+      let l = {...l, mold: Grout((tip_l, tip_r))};
+      neq(~lt_if=Molded.is_hole(l) && tip_r == Concave, l, ~slot, r);
 
     | (Tile(m), Grout((_, tip_r))) =>
       let tip_l =
@@ -56,6 +57,57 @@ module Piece = {
       neq(~lt_if=!(Mold.is_hole(r) && tip_l == Concave), l, ~slot, r);
 
     | (Tile(m_l), Tile(m_r)) =>
+      switch (Slot.Baked.has_no_tiles(slot)) {
+      // replace l
+      | Some(t) when Token.is_empty(l.token) && Mold.eq(m_l, m_r) =>
+        if (Mold.is_convex(L, m_r)) {
+          let g = Piece.mk(~token=t, Grout((Convex, Concave)));
+          Ziggurat.singleton(g, ~dn=[Terrace.singleton(r)]);
+        } else {
+          let g = Piece.mk(~token=t, Grout((Concave, Convex)));
+          Ziggurat.singleton(~up=[Terrace.singleton(g)], r);
+        };
+      // replace r
+      | Some(t) when Token.is_empty(r.token) && Mold.eq(m_l, m_r) =>
+        if (Mold.is_convex(R, m_l)) {
+          let g = Piece.mk(~token=t, Grout((Concave, Convex)));
+          Ziggurat.singleton(~up=[Terrace.singleton(l)], g);
+        } else {
+          let g = Piece.mk(~token=t, Grout((Concave, Convex)));
+          Ziggurat.singleton(l, ~dn=[Terrace.singleton(g)]);
+        }
+      | _ =>
+        switch (Comparator.cmp(m_l, ~slot=Slot.Baked.sort(slot), m_r)) {
+        // comparable
+        | Some(zigg) => Ziggurat.bake(~l, ~slot, ~r, zigg)
+        // incomparable
+        | None =>
+          let up =
+            [Comparator.walk_gt(R, m_l)]
+            |> Terrace.bake(~face=l, ~slot)
+            |> Option.;
+          let terr_r = Comparator.walk_gt(L, m_r) |> Terrace.bake(~face=r);
+          if (Mold.(is_convex(R, m_l) && is_convex(L, m_r))) {
+            assert(Slot.is_empty(slot));
+            let g = Piece.mk(Grout((Concave, Concave)));
+            Ziggurat.singleton(~up=[terr_l], g, ~dn=[terr_r]);
+          } else if (Mold.is_convex(R, m_l)) {
+            assert(Slot.is_empty(slot));
+            let g = Piece.mk(Grout((Concave, Convex)));
+            Ziggurat.singleton(~up=[terr_l, Terrace.singleton(g)], r)
+          } else if (Mold.is_convex(R, m_r)) {
+            assert(Slot.is_empty(slot));
+            let g = Piece.mk(Grout((Convex, Concave)));
+            Ziggurat.singleton(l, ~dn=[Terrace.singleton(g), terr_r]);
+          } else {
+            let up =
+              Comparator.walk_gt(R, m_l)
+              |> Terrace.bake(~face=l, ~slot)
+              |>
+
+          }
+        }
+      }
 
     }
   };
