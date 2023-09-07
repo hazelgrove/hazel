@@ -19,28 +19,21 @@ type all_f22 = {
   log: string,
 };
 
-let mk_all = (~instructor_mode) => {
-  print_endline("Mk all");
+let mk_all = (~instructor_mode, ~log) => {
   let settings = Store.Settings.export();
-  print_endline("Settings OK");
   let langDocMessages = Store.LangDocMessages.export();
-  print_endline("LangDocMessages OK");
   let scratch = Store.Scratch.export();
-  print_endline("Scratch OK");
   let examples = Store.Examples.export();
-  print_endline("Examples OK");
   let exercise =
     Store.Exercise.export(
       ~specs=ExerciseSettings.exercises,
       ~instructor_mode,
     );
-  print_endline("Exercise OK");
-  let log = Log.export();
   {settings, langDocMessages, scratch, examples, exercise, log};
 };
 
-let export_all = (~instructor_mode) => {
-  mk_all(~instructor_mode) |> yojson_of_all;
+let export_all = (~instructor_mode, ~log) => {
+  mk_all(~instructor_mode, ~log) |> yojson_of_all;
 };
 
 let import_all = (data, ~specs) => {
