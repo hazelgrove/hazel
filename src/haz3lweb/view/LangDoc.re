@@ -2163,7 +2163,7 @@ let get_doc =
           ),
           coloring_ids(~left_id, ~right_id),
         );
-      | UserOp(_, left, right) =>
+      | UserOp(_, _, left, right) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.userop_exp_group,

@@ -278,7 +278,7 @@ let rec status_common =
     | Some(Unknown(_) as join)
     | Some(Arrow(Unknown(_), _) as join)
     | Some(Arrow(Prod([_, _]), _) as join) =>
-      NotInHole(Ana(Consistent({syn, ana, join})))
+      NotInHole(Ana(Consistent({ana, syn, join})))
     | Some(_)
     | None => InHole(Inconsistent(InvalidBinOp))
     }
