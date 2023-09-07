@@ -3452,8 +3452,6 @@ let find = (p: 'a => bool, xs: list('a), err: string): 'a =>
   };
 
 let get_group = (group_id, doc: t) => {
-  print_endline("get group: " ++ group_id);
-  List.iter(((id, _)) => print_endline("has group: " ++ id), doc.groups);
   let (_, form_group) =
     find(
       ((id, _)) => id == group_id,
