@@ -210,7 +210,7 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | UserOp(op, arg_tup, e1, e2) =>
+  | UserOp(op, arg_tup) =>
     let op_name =
       switch (op) {
       | {term: Var(x), _} => x
@@ -220,54 +220,48 @@ and uexp_to_info_map =
     let ty_all =
       switch (op_var) {
       | None => None
-      | Some(var) => Some(Typ.matched_arrow(ctx, var.typ))
+      | Some(var) => Some(var.typ)
       };
     switch (ty_all) {
-    | Some((Unknown(_) as ty_var, _)) =>
+    | Some(Unknown(_) as ty) =>
+      print_endline("Unknown: ty_in: " ++ Typ.show(ty));
       let (op, m) = go(~mode=SynFun, op, m);
-      let (e1, m) = go(~mode=Ana(ty_var), e1, m);
-      let (e2, m) = go(~mode=Ana(ty_var), e2, m);
-      let (arg_tup, m) = go(~mode=Ana(Prod([ty_var, ty_var])), arg_tup, m);
+      let (arg_tup, m) =
+        go(
+          ~mode=Ana(Prod([Unknown(Internal), Unknown(Internal)])),
+          arg_tup,
+          m,
+        );
       add(
-        ~self=Just(ty_var),
-        ~co_ctx=
-          CoCtx.union([op.co_ctx, e1.co_ctx, e2.co_ctx, arg_tup.co_ctx]),
+        ~self=Just(ty),
+        ~co_ctx=CoCtx.union([op.co_ctx, arg_tup.co_ctx]),
         m,
       );
-    | Some((Prod([ty1, ty2]) as ty_in, ty_out)) =>
+    | Some(Arrow(Prod([_, _]) as ty_in, ty_out)) =>
       print_endline(
-        "ty_in: " ++ Typ.show(ty_in) ++ " ty_out: " ++ Typ.show(ty_out),
+        "Prod: ty_in: " ++ Typ.show(ty_in) ++ " ty_out: " ++ Typ.show(ty_out),
       );
       let (op, m) = go(~mode=Ana(Arrow(ty_in, ty_out)), op, m);
-      let (e1, m) = go(~mode=Ana(ty1), e1, m);
-      let (e2, m) = go(~mode=Ana(ty2), e2, m);
-      let (arg_tup, m) = go(~mode=Ana(Prod([ty1, ty2])), arg_tup, m);
+      let (arg_tup, m) = go(~mode=Ana(ty_in), arg_tup, m);
       add(
         ~self=Just(ty_out),
-        ~co_ctx=
-          CoCtx.union([op.co_ctx, e1.co_ctx, e2.co_ctx, arg_tup.co_ctx]),
+        ~co_ctx=CoCtx.union([op.co_ctx, arg_tup.co_ctx]),
         m,
       );
     | Some(_) =>
       let (op, m) = go(~mode=SynFun, op, m);
-      let (e1, m) = go(~mode=Syn, e1, m);
-      let (e2, m) = go(~mode=Syn, e2, m);
       let (arg_tup, m) = go(~mode=Syn, arg_tup, m);
       add(
         ~self=NonBinUserOp,
-        ~co_ctx=
-          CoCtx.union([op.co_ctx, e1.co_ctx, e2.co_ctx, arg_tup.co_ctx]),
+        ~co_ctx=CoCtx.union([op.co_ctx, arg_tup.co_ctx]),
         m,
       );
     | None =>
       let (op, m) = go(~mode=SynFun, op, m);
-      let (e1, m) = go(~mode=Syn, e1, m);
-      let (e2, m) = go(~mode=Syn, e2, m);
       let (arg_tup, m) = go(~mode=Syn, arg_tup, m);
       add(
         ~self=UnboundUserOp,
-        ~co_ctx=
-          CoCtx.union([op.co_ctx, e1.co_ctx, e2.co_ctx, arg_tup.co_ctx]),
+        ~co_ctx=CoCtx.union([op.co_ctx, arg_tup.co_ctx]),
         m,
       );
     };
@@ -312,13 +306,11 @@ and uexp_to_info_map =
     let e_mode =
       switch (p) {
       | {term: TypeAnn({term: Var(x), _}, _), _}
-      | {term: Var(x), _} when Form.is_op_in_let(x) =>
-        Mode.AnaInfix(p_syn.ty)
+      | {term: Var(x), _} when Form.is_op_in_let(x) => Mode.Ana(p_syn.ty)
       | _ => Mode.Ana(p_syn.ty)
       };
     let (def_ana, m) = go'(~ctx=def_ctx, ~mode=e_mode, def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    print_endline("def_ana: " ++ Typ.show(def_ana.ty));
     let (p_ana, m) =
       go_pat(~is_synswitch=false, ~mode=Ana(def_ana.ty), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);

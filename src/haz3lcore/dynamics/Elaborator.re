@@ -178,7 +178,7 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
-      | UserOp(op, args_tup, _, _) =>
+      | UserOp(op, args_tup) =>
         let* dop = dhexp_of_uexp(m, op);
         let+ dargs_tup = dhexp_of_uexp(m, args_tup);
         DHExp.Ap(dop, dargs_tup);

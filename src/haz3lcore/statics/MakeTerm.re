@@ -243,8 +243,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
             UserOp(
               UExp.{term: Var("_" ++ t ++ "_"), ids: [Id.mk()]},
               UExp.{term: Tuple([l, r]), ids: [Id.mk()]},
-              l,
-              r,
             )
           | _ => hole(tm)
           },
