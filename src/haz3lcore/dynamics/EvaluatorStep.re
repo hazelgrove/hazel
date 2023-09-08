@@ -1163,7 +1163,12 @@ module Decompose = {
         decompose(d1) >>| Return.wrap(c => Cast(c, ty, ty'))
       | BoundVar(_) => Return.mark(act)
       | Sequence(d1, d2) =>
-        decompose(d1) >>| Return.wrap(c => Sequence(c, d2))
+        let* r1 = decompose(d1);
+        switch (r1) {
+        | BoxedValue
+        | Eval(_) => Return.mark(act)
+        | _ => r1 |> Return.wrap(c => Sequence(c, d2)) |> Monad.return
+        };
       | Let(dp, d1, d2) =>
         let* r1 = decompose(d1);
         switch (r1) {
