@@ -101,7 +101,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DHExp.cast(d, Prod([], us), Unknown(prov));
+        DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
     | Ap(Tag(_), _)

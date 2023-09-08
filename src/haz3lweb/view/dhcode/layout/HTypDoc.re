@@ -77,8 +77,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       );
-    | Prod(_, []) => (text("()"), parenthesize)
-    | Prod(_, [head, ...tail]) =>
+    | Prod([]) => (text("()"), parenthesize)
+    | Prod([head, ...tail]) =>
       let center =
         [
           annot(

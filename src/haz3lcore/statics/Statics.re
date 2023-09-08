@@ -152,7 +152,7 @@ and uexp_to_info_map =
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
-  | Triv => atomic(Just(Prod([], [])))
+  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -211,13 +211,13 @@ and uexp_to_info_map =
     let modes = Mode.of_prod(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
-      ~self=Just(Prod([], List.map(Info.exp_ty, es))),
+      ~self=Just(Prod(List.map(Info.exp_ty, es))),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
-    add(~self=Just(Prod([], [])), ~co_ctx=e.co_ctx, m);
+    add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
   | Seq(e1, e2) =>
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
@@ -419,7 +419,7 @@ and upat_to_info_map =
   | EmptyHole => atomic(Just(unknown))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
-  | Triv => atomic(Just(Prod([], [])))
+  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
@@ -452,7 +452,7 @@ and upat_to_info_map =
   | Tuple(ps) =>
     let modes = Mode.of_prod(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Just(Prod([], tys)), ~ctx, m);
+    add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
@@ -664,11 +664,11 @@ and uexp_to_module =
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {
             switch (mode, out_moded(out_mode, p)) {
-            | (Ana(Prod(_, ps)), Ana(t)) => Ana(Prod([], ps @ [t]))
+            | (Ana(Prod(ps)), Ana(t)) => Ana(Prod(ps @ [t]))
             | _ => Syn
             }
           },
-          Ana(Prod([], [])),
+          Ana(Prod([])),
           pats,
         )
       | ListLit(pats) =>
@@ -683,7 +683,7 @@ and uexp_to_module =
             | _ => Syn
             }
           },
-          Ana(Prod([], [])),
+          Ana(Prod([])),
           pats,
         )
       | TypeAnn(pat, _) => out_moded(out_mode, pat)
