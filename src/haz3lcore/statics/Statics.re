@@ -133,6 +133,7 @@ and uexp_to_info_map =
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
+    | AnaInfix(Unknown(SynSwitch))
     | Ana(Unknown(SynSwitch)) => Mode.Syn
     | _ => mode
     };
@@ -224,23 +225,14 @@ and uexp_to_info_map =
       };
     switch (ty_all) {
     | Some(Unknown(_) as ty) =>
-      print_endline("Unknown: ty_in: " ++ Typ.show(ty));
       let (op, m) = go(~mode=SynFun, op, m);
-      let (arg_tup, m) =
-        go(
-          ~mode=Ana(Prod([Unknown(Internal), Unknown(Internal)])),
-          arg_tup,
-          m,
-        );
+      let (arg_tup, m) = go(~mode=Ana(Unknown(Internal)), arg_tup, m);
       add(
         ~self=Just(ty),
         ~co_ctx=CoCtx.union([op.co_ctx, arg_tup.co_ctx]),
         m,
       );
     | Some(Arrow(Prod([_, _]) as ty_in, ty_out)) =>
-      print_endline(
-        "Prod: ty_in: " ++ Typ.show(ty_in) ++ " ty_out: " ++ Typ.show(ty_out),
-      );
       let (op, m) = go(~mode=Ana(Arrow(ty_in, ty_out)), op, m);
       let (arg_tup, m) = go(~mode=Ana(ty_in), arg_tup, m);
       add(
@@ -306,18 +298,18 @@ and uexp_to_info_map =
     let e_mode =
       switch (p) {
       | {term: TypeAnn({term: Var(x), _}, _), _}
-      | {term: Var(x), _} when Form.is_op_in_let(x) => Mode.Ana(p_syn.ty)
+      | {term: Var(x), _} when Form.is_op_in_let(x) =>
+        Mode.AnaInfix(p_syn.ty)
       | _ => Mode.Ana(p_syn.ty)
       };
-    let (def_ana, m) = go'(~ctx=def_ctx, ~mode=e_mode, def, m);
+    let (def, m) = go'(~ctx=def_ctx, ~mode=e_mode, def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) =
-      go_pat(~is_synswitch=false, ~mode=Ana(def_ana.ty), p, m);
+    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
     add(
       ~self=Just(body.ty),
       ~co_ctx=
-        CoCtx.union([def_ana.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
       m,
     );
   | If(e0, e1, e2) =>

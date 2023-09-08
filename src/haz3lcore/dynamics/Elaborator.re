@@ -170,6 +170,7 @@ let rec dhexp_of_uexp =
         let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
         /* Manually construct cast (case is not otherwise cast) */
         switch (mode) {
+        | AnaInfix(ana_ty)
         | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
         | _ => d
         };

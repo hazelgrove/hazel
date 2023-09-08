@@ -77,6 +77,7 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   | None => Free(name)
   | Some(var) when Form.is_op_in_let(name) =>
     switch (var.typ) {
+    | Unknown(_)
     | Arrow(Prod([_, _]), _) => Common(Just(var.typ))
     | _ => Common(NonBinUserOp)
     }
