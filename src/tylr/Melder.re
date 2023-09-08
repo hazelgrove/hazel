@@ -1,7 +1,7 @@
 module Piece = {
   include Piece;
 
-  let zips = (l: Piece.t, r: Piece.t): option(Piece.t) => {
+  let zip = (l: Piece.t, r: Piece.t): option(Piece.t) => {
     open OptUtil.Syntax;
     let* () = OptUtil.of_bool(Id.eq(l.id, r.id));
     let+ l =
@@ -18,9 +18,147 @@ module Piece = {
     |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
   };
 
-  let regrout =
+  let cmp = (l: Piece.t, ~slot, r: Piece.t) => {
+    let (m_l, m_r) = (l.material, r.material);
+    switch (Comparator.cmp(m_l, ~slot=Slot.Baked.sort(slot), m_r)) {
+    // comparable
+    | Some(zigg) => Ziggurat.bake(~l, ~slot, ~r, zigg)
+    // incomparable
+    | None =>
+      let up =
+        [Comparator.walk_gt(R, m_l)]
+        |> Terrace.bake(~face=l, ~slot)
+        |> Option.;
+      let terr_r = Comparator.walk_gt(L, m_r) |> Terrace.bake(~face=r);
+      if (Mold.(is_convex(R, m_l) && is_convex(L, m_r))) {
+        assert(Slot.is_empty(slot));
+        let g = Piece.mk(Grout((Concave, Concave)));
+        Ziggurat.singleton(~up=[terr_l], g, ~dn=[terr_r]);
+      } else if (Mold.is_convex(R, m_l)) {
+        assert(Slot.is_empty(slot));
+        let g = Piece.mk(Grout((Concave, Convex)));
+        Ziggurat.singleton(~up=[terr_l, Terrace.singleton(g)], r)
+      } else if (Mold.is_convex(R, m_r)) {
+        assert(Slot.is_empty(slot));
+        let g = Piece.mk(Grout((Convex, Concave)));
+        Ziggurat.singleton(l, ~dn=[Terrace.singleton(g), terr_r]);
+      } else {
+        let up =
+          Comparator.walk_gt(R, m_l)
+          |> Terrace.bake(~face=l, ~slot)
+          |>
 
-  let meld = (l: p, ~slot=Slot.Empty, r: p): Ziggurat.p => {
+      }
+    };
+  };
+
+  let regrout = (l: Piece.t, ~slot, r: Piece.t) =>
+    switch (slot) {
+    | Empty =>
+      switch (l.material, r.material) {
+      | (Grout((tip_l, _)), Tile(m)) =>
+        let tip_r = Mold.is_convex(L, m) ? Concave : Convex;
+        ({...l, material: Grout((tip_l, tip_r))}, r);
+      | (Tile(m), Grout((_, tip_r))) =>
+        let tip_l = Mold.is_convex(R, m) ? Concave : Convex;
+        (l, {...r, material: Grout((tip_l, tip_r))});
+      }
+    | Full(_) =>
+      let l =
+        switch (l.material) {
+        | Grout((t, _)) => {...l, material: Grout((t, Concave))}
+        | Tile(_) => l
+        };
+      let r =
+        switch (r.material) {
+        | Grout((_, t)) => {...r, material: Grout((Concave, t))}
+        | Tile(_) => r
+        };
+      (l, r);
+    };
+
+  let merge = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t) =>
+    switch (l.material, slot, r.material) {
+    | (Grout((tip_l, _)), Empty, Grout((_, tip_r))) =>
+      // merge grout (probably handled entirely by relexing)
+      let mold = Material.Grout((tip_l, tip_r));
+      let token = l.token ++ r.token;
+      Some(Ziggurat.singleton({...l, mold, token}));
+    | _ => None
+    };
+
+  let replace = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t) =>
+    switch (l.material, Slot.Baked.has_no_tiles(slot), r.material) {
+    | (Tile(m_l), Some(t), Tile(m_r))
+        when Token.is_empty(l.token) && Mold.eq(m_l, m_r) =>
+      if (Mold.is_convex(L, m_r)) {
+        let g = Piece.mk(~token=t, Grout((Convex, Concave)));
+        Some(Ziggurat.singleton(g, ~dn=[Terrace.singleton(r)]));
+      } else {
+        let g = Piece.mk(~token=t, Grout((Concave, Convex)));
+        Some(Ziggurat.singleton(~up=[Terrace.singleton(g)], r));
+      };
+    | (Tile(m_l), Some(t), Tile(m_r))
+        when Token.is_empty(r.token) && Mold.eq(m_l, m_r) =>
+      if (Mold.is_convex(R, m_l)) {
+        let g = Piece.mk(~token=t, Grout((Concave, Convex)));
+        Some(Ziggurat.singleton(~up=[Terrace.singleton(l)], g));
+      } else {
+        let g = Piece.mk(~token=t, Grout((Concave, Convex)));
+        Some(Ziggurat.singleton(l, ~dn=[Terrace.singleton(g)]));
+      };
+    | _ => None
+    };
+
+  let fuse = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t) => {
+    open OptUtil.Syntax;
+    let/ () = zip(l, ~slot, r);
+    let/ () = merge(l, ~slot, r);
+    replace(l, ~slot, r);
+  };
+
+  let rec meld = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t): Ziggurat.Baked.t =>
+    switch (l.material, (slot, Slot.Baked.has_tile(slot)), r.material) {
+    // zips
+    | _ when Id.eq(l.id, r.id) =>
+      assert(Slot.is_empty(slot));
+      failwith("todo zips case")
+
+    // merge grout (probably handled entirely by relexing)
+    | (Grout((tip_l, _)), , Grout((_, tip_r))) =>
+      assert(Slot.is_empty(slot));
+      let mold = Material.Grout((tip_l, tip_r));
+      let token = l.token ++ r.token;
+      Ziggurat.singleton({...l, mold, token});
+
+    // remove empty tiles
+    | (Tile(m_l), Some(t), Tile(m_r))
+        when Token.is_empty(l.token) && Mold.eq(m_l, m_r) =>
+      // to be reshaped as needed in recursive call
+      meld(Piece.mk(~token=t, Grout((Convex, Convex))), r)
+    | (Tile(m_l), Some(t), Tile(m_r))
+        when Token.is_empty(r.token) && Mold.eq(m_l, m_r) =>
+      // to be reshaped as needed in recursive call
+      meld(l, Piece.mk(~token=t, Grout((Convex, Convex))))
+
+    | _ =>
+      let (l, r) = meld;
+
+    };
+
+
+  let meld = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t) => Ziggurat.Baked.t =>
+    switch (l.material, slot, r.material) {
+    | (Grout((tip_l, _)), Empty, Grout((_, tip_r))) =>
+      // merge grout (probably handled entirely by relexing)
+      let mold = Material.Grout((tip_l, tip_r));
+      let token = l.token ++ r.token;
+      Ziggurat.singleton({...l, mold, token});
+    | (Grout((tip))) => failwith("todo")
+
+    };
+
+  let meld = (l: p, ~slot=Slot.Empty, r: p): option(Ziggurat.p) => {
     let lt = (l, ~slot, r) =>
       Ziggurat.mk(Wald.singleton(l), ~dn=[Terrace.singleton(~slot, r)]);
     let gt = (l, ~slot, r) =>
@@ -28,14 +166,13 @@ module Piece = {
     let neq = (~lt_if) => lt_if ? lt: gt;
 
     switch (l.mold, r.mold) {
-    | (Grout((tip_l, _)), Grout((_, tip_r))) =>
+    | (Grout((tip_l, _)), Grout((_, tip_r))) when Slot.is_empty(slot) =>
+      // merge grout (probably handled entirely by relexing)
+      let mold = Material.Grout((tip_l, tip_r));
+      let token = l.token ++ r.token;
+      Ziggurat.singleton({...l, mold, token});
       switch (slot) {
       | Empty =>
-        // merge grout
-        // probably handled entirely by relexing
-        let mold = Material.Grout((tip_l, tip_r));
-        let token = l.token ++ r.token;
-        Ziggurat.singleton({...l, mold, token});
       | Full(_) =>
         let l = {...l, mold: Grout((tip_l, Concave))};
         let r = {...r, mold: Grout((Concave, tip_r))};
@@ -76,37 +213,7 @@ module Piece = {
           let g = Piece.mk(~token=t, Grout((Concave, Convex)));
           Ziggurat.singleton(l, ~dn=[Terrace.singleton(g)]);
         }
-      | _ =>
-        switch (Comparator.cmp(m_l, ~slot=Slot.Baked.sort(slot), m_r)) {
-        // comparable
-        | Some(zigg) => Ziggurat.bake(~l, ~slot, ~r, zigg)
-        // incomparable
-        | None =>
-          let up =
-            [Comparator.walk_gt(R, m_l)]
-            |> Terrace.bake(~face=l, ~slot)
-            |> Option.;
-          let terr_r = Comparator.walk_gt(L, m_r) |> Terrace.bake(~face=r);
-          if (Mold.(is_convex(R, m_l) && is_convex(L, m_r))) {
-            assert(Slot.is_empty(slot));
-            let g = Piece.mk(Grout((Concave, Concave)));
-            Ziggurat.singleton(~up=[terr_l], g, ~dn=[terr_r]);
-          } else if (Mold.is_convex(R, m_l)) {
-            assert(Slot.is_empty(slot));
-            let g = Piece.mk(Grout((Concave, Convex)));
-            Ziggurat.singleton(~up=[terr_l, Terrace.singleton(g)], r)
-          } else if (Mold.is_convex(R, m_r)) {
-            assert(Slot.is_empty(slot));
-            let g = Piece.mk(Grout((Convex, Concave)));
-            Ziggurat.singleton(l, ~dn=[Terrace.singleton(g), terr_r]);
-          } else {
-            let up =
-              Comparator.walk_gt(R, m_l)
-              |> Terrace.bake(~face=l, ~slot)
-              |>
-
-          }
-        }
+      | _ => failwith("todo")
       }
 
     }
@@ -237,11 +344,11 @@ module Ziggurat = {
       Wald.cmp(top, ~slot, w) |> Ziggurat.map_up(Slope.Up.cat(z.up), c)
     | [hd, ...tl] =>
       // left to right: z.up z.top tl hd.mel hd.wal kid w
-      let c = Wald.cmp(hd.wal, ~slot, w);
+      let c = Wald.cmp(hd.wald, ~slot, w);
       // left to right: z.up z.top tl hd.mel c.up c.top c.dn
       switch (c.up) {
       | [] =>
-        let dn = c.dn @ [{...hd, wal: c.top}, ...tl];
+        let dn = c.dn @ [{...hd, wald: c.top}, ...tl];
         {...z, dn};
       | [_, ..._] => hsup_zigg({...z, dn: tl}, c)
       };
@@ -259,12 +366,12 @@ module Ziggurat = {
       |> Ziggurat.map_dn(Fun.flip(Slope.Dn.cat(z.dn)))
     | [hd, ...tl] =>
       // left to right: w kid hd.wal hd.mel tl z.top z.dn
-      let c = Wald.cmp(w, ~slot, hd.wal);
+      let c = Wald.cmp(w, ~slot, hd.wald);
       // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
       switch (c.dn) {
       | [] =>
         // geq
-        let up = c.up @ [{...hd, wal: c.top}, ...tl];
+        let up = c.up @ [{...hd, wald: c.top}, ...tl];
         {...z, up};
       | [_, ..._] => push_zigg(c, {...z, up: tl}) // lt
       };
