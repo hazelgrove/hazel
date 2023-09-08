@@ -21,7 +21,6 @@ type benchmark_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
-  | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -68,3 +67,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Cut
+  | Undo
+  | Redo
+  | PerformAction(Insert(_) | Destruct(_) | Pick_up | Put_down) => true
+  | _ => false;
