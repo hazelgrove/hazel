@@ -267,7 +267,6 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    print_endline("p: " ++ TermBase.UPat.show(p));
     let e_mode =
       switch (p) {
       | {term: TypeAnn({term: Var(x), _}, _), _}
