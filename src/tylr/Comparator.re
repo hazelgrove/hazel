@@ -122,6 +122,53 @@ let pick = (~slot=Slot.Empty, ~face, ts: list(Terrace.t(Molded.t, Material.t(Sor
   // todo: sort by score
   |> ListUtil.hd_opt;
 
+let matches = (~side: Dir.t, m: Mold.t) => walk_eq(~side, m) != [];
+
+let is_convex = (~side: Dir.t, m: Material.Molded.t) =>
+  switch (m) {
+  | Space(tips)
+  | Grout(tips) => Dir.choose(side, tips) == Convex
+  | Tile(m) => walk_lt(~side, m) == []
+  };
+
+let cmp = (l: Material.Molded.t, ~slot=Slot.Empty, r: Material.Molded.t) => {
+  let eq = Ziggurat.mk(Wald.mk([l, r], [slot]));
+  let lt = Ziggurat.singleton(l, ~dn=[Terrace.singleton(~slot, r)]);
+  switch (l, r) {
+  | (Space((_, Concave)), Space((Concave, _)))
+  | (Grout((_, Concave)), Grout((Concave, _))) => eq
+  }
+};
+
+
+// comparator assumes no merging
+let eq = (l: Material.Molded.t, ~slot=Slot.Empty, r: Material.Molded.t) =>
+  switch (l, r) {
+  | (Space((_, Concave)), Space((Concave, _)))
+  | (Grout((_, Concave)), Grout((Concave, _))) =>
+    Some(Ziggurat.mk(Wald.mk([l, r], [slot])))
+  | (Tile(m_l), Tile(m_r)) =>
+    walk_eq(R, m_l)
+    |> pick(~slot, ~face=m_r)
+    |> Option.map(t => Ziggurat.mk(Terrace.link_slot(m_l, t)))
+  | _ => None
+  };
+
+let lt = (l: Material.Molded.t, ~slot=Slot.Empty, r: Material.Molded.t) => {
+  let ok = Some();
+  switch (l, r) {
+  | (Space((_, Concave)) | Grout((_, Concave)), _) when is_convex(~side=L, r) => ok
+  | (Grout((_, Concave)), Space(_)) => ok
+  | (Grout((_, Concave)), Tile(m_r)) when !matches(~side=L, m_r) => ok
+  | (Tile(m_l), Space(_) | Grout(_)) =>
+  | (Tile(m_l), Tile(m_r)) =>
+    walk_lt(m_l, ~side=R)
+    |> pick(~slot, ~face=m_r)
+    |> Option.map(t => Ziggurat.mk(l, ~dn=[t]))
+  | _ => None
+  };
+};
+
 // not taking into account slot sort bc matching should override,
 // then later any slot content will be appropriately exited
 let eq = (l: Mold.t, r: Mold.t) =>
