@@ -45,8 +45,10 @@ type error_inconsistent =
   | Internal(list(Typ.t))
   /* Bad function position */
   | WithArrow(Typ.t)
-  /* User-defined operator must be a binary function, treated as a hole */
-  | InvalidBinOp;
+  /* User-defined operator must be a function, treated as a hole */
+  | InvalidUserOp
+  /* User-defined operator must be a function of less than two args, treated as a hole */
+  | InvalidUserOpArgs;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
@@ -54,7 +56,7 @@ type error_no_type =
   | BadToken(Token.t)
   /* Unbound user-defined operator, treated as a hole */
   | UnboundUserOp
-  /* User defined operator already exists, treated as hole */
+  /* User-defined operator already exists, treated as hole */
   | BuiltinOpExists
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
@@ -277,10 +279,19 @@ let rec status_common =
     ) {
     | None =>
       switch (syn_in) {
-      | SynInfix => InHole(Inconsistent(InvalidBinOp))
+      | SynInfix => InHole(Inconsistent(InvalidUserOp))
       | _ => InHole(Inconsistent(WithArrow(syn)))
       }
-    | Some(_) => NotInHole(Syn(syn))
+    | Some(ty) =>
+      switch (syn_in) {
+      | SynInfix =>
+        switch (ty) {
+        | Arrow(Prod(ty_list), _) when List.length(ty_list) > 2 =>
+          InHole(Inconsistent(InvalidUserOpArgs))
+        | _ => NotInHole(Syn(syn))
+        }
+      | _ => NotInHole(Syn(syn))
+      }
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)

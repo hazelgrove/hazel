@@ -90,7 +90,10 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
-  | Inconsistent(InvalidBinOp) => [text("Operators must be functions")]
+  | Inconsistent(InvalidUserOp) => [text("Operators must be functions")]
+  | Inconsistent(InvalidUserOpArgs) => [
+      text("Operators must be functions of less than three arguments"),
+    ]
   };
 
 let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
