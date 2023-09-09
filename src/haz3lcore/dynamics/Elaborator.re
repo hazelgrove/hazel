@@ -30,6 +30,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
+  | SynInfix
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
@@ -37,7 +38,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
-  | AnaInfix(ana_ty)
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -170,7 +170,6 @@ let rec dhexp_of_uexp =
         let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
         /* Manually construct cast (case is not otherwise cast) */
         switch (mode) {
-        | AnaInfix(ana_ty)
         | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
         | _ => d
         };

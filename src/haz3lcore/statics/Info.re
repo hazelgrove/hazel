@@ -53,7 +53,7 @@ type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
   /* Non-binary user-defined operator, treated as a hole */
-  | NonBinUserOp
+  | NonFunUserOp
   /* Unbound user-defined operator, treated as a hole */
   | UnboundUserOp
   /* User defined operator already exists, treated as hole */
@@ -273,20 +273,15 @@ let rec status_common =
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
     }
-  | (Just(syn), AnaInfix(ana)) =>
-    switch (Typ.join_fix(ctx, ana, syn)) {
-    | Some(Unknown(_) as join)
-    | Some(Arrow(Unknown(_), _) as join)
-    | Some(Arrow(Prod([_, _]), _) as join) =>
-      NotInHole(Ana(Consistent({ana, syn, join})))
-    | Some(_) => InHole(Inconsistent(InvalidBinOp))
-    | None => InHole(Inconsistent(Expectation({syn, ana})))
-    }
-  | (Just(syn), SynFun) =>
+  | (Just(syn), (SynFun | SynInfix) as syn_in) =>
     switch (
       Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
     ) {
-    | None => InHole(Inconsistent(WithArrow(syn)))
+    | None =>
+      switch (syn_in) {
+      | SynInfix => InHole(Inconsistent(InvalidBinOp))
+      | _ => InHole(Inconsistent(WithArrow(syn)))
+      }
     | Some(_) => NotInHole(Syn(syn))
     }
   | (IsConstructor({name, syn_ty}), _) =>
@@ -301,7 +296,7 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
-  | (NoJoin(wrap, tys), Ana(ana) | AnaInfix(ana)) =>
+  | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = wrap(Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
@@ -310,17 +305,17 @@ let rec status_common =
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun) =>
+  | (NoJoin(_, tys), Syn | SynFun | SynInfix) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
-  | (NonBinUserOp, _) => InHole(NoType(NonBinUserOp))
+  | (NonFunUserOp, _) => InHole(NoType(NonFunUserOp))
   | (UnboundUserOp, _) => InHole(NoType(UnboundUserOp))
   | (BuiltinOpExists, _) => InHole(NoType(BuiltinOpExists))
   };
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
-  | (Syn | Ana(_) | AnaInfix(_), Common(self_pat))
-  | (SynFun, Common(IsConstructor(_) as self_pat)) =>
+  | (Syn | Ana(_), Common(self_pat))
+  | (SynFun | SynInfix, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
        are prohibiting non-ctrs in ctr applications in patterns for now,
@@ -331,7 +326,7 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
-  | (SynFun, _) => InHole(ExpectedConstructor)
+  | (SynFun | SynInfix, _) => InHole(ExpectedConstructor)
   };
 
 /* Determines whether an expression or pattern is in an error hole,

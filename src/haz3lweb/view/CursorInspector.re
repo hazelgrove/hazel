@@ -76,8 +76,8 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       Type.view(typ),
       text("inconsistent with arrow type"),
     ]
-  | NoType(NonBinUserOp) => [
-      text("User-defined operator is not a binary function"),
+  | NoType(NonFunUserOp) => [
+      text("User-defined operator is not a function"),
     ]
   | NoType(UnboundUserOp) => [text("User-defined operator is not bound")]
   | NoType(BuiltinOpExists) => [
@@ -94,7 +94,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
     ]
   | Inconsistent(InvalidBinOp) => [
-      text("User-defined operators must be binary functions"),
+      text("User-defined operators must be functions"),
     ]
   };
 
