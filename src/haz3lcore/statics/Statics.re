@@ -211,14 +211,24 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | UserOp(op, args) =>
-    let (op, m) = go(~mode=Syn, op, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, op.ty);
-    let (args, m) = go(~mode=Ana(ty_in), args, m);
-    add(
-      ~self=Just(ty_out),
-      ~co_ctx=CoCtx.union([op.co_ctx, args.co_ctx]),
-      m,
-    );
+    if (Self.user_op_is_def(ctx, op)) {
+      let (op, m) = go(~mode=Syn, op, m);
+      let (ty_in, ty_out) = Typ.matched_arrow(ctx, op.ty);
+      let (args, m) = go(~mode=Ana(ty_in), args, m);
+      add(
+        ~self=Just(ty_out),
+        ~co_ctx=CoCtx.union([op.co_ctx, args.co_ctx]),
+        m,
+      );
+    } else {
+      let (op, m) = go(~mode=Syn, op, m);
+      let (args, m) = go(~mode=Syn, args, m);
+      add(
+        ~self=UnboundUserOp,
+        ~co_ctx=CoCtx.union([op.co_ctx, args.co_ctx]),
+        m,
+      );
+    }
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);

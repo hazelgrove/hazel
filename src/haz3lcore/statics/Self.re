@@ -26,7 +26,6 @@ type t =
   | NoJoin(Typ.t => Typ.t, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | IsMulti /* Multihole, treated as hole */
-  | NonFunUserOp /* Non-binary user-defined operator, treated as hole */
   | UnboundUserOp /* Unbound user-defined operator, treated as hole */
   | BuiltinOpExists /* User defined operator already exists, treated as hole */
   | IsConstructor({
@@ -54,7 +53,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | IsConstructor({syn_ty, _}) => syn_ty
     | BadToken(_)
     | IsMulti
-    | NonFunUserOp
     | UnboundUserOp
     | BuiltinOpExists
     | NoJoin(_) => None;
@@ -75,12 +73,6 @@ let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
   | None => Free(name)
-  | Some(var) when Form.is_op_in_let(name) =>
-    switch (var.typ) {
-    | Unknown(_)
-    | Arrow(_, _) => Common(Just(var.typ))
-    | _ => Common(NonFunUserOp)
-    }
   | Some(var) => Common(Just(var.typ))
   };
 
@@ -116,3 +108,16 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   | None => NoJoin(ty => List(ty), add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
+
+let user_op_is_def = (ctx: Ctx.t, op: TermBase.UExp.t): bool => {
+  let op_name =
+    switch (op) {
+    | {term: Var(x), _} => x
+    | _ => failwith("Non-Var passed into UserOp")
+    };
+  let op_var = Ctx.lookup_var(ctx, op_name);
+  switch (op_var) {
+  | Some(_) => true
+  | None => false
+  };
+};

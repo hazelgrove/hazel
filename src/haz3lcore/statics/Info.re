@@ -52,8 +52,6 @@ type error_inconsistent =
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
-  /* Non-binary user-defined operator, treated as a hole */
-  | NonFunUserOp
   /* Unbound user-defined operator, treated as a hole */
   | UnboundUserOp
   /* User defined operator already exists, treated as hole */
@@ -307,7 +305,6 @@ let rec status_common =
     };
   | (NoJoin(_, tys), Syn | SynFun | SynInfix) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
-  | (NonFunUserOp, _) => InHole(NoType(NonFunUserOp))
   | (UnboundUserOp, _) => InHole(NoType(UnboundUserOp))
   | (BuiltinOpExists, _) => InHole(NoType(BuiltinOpExists))
   };
