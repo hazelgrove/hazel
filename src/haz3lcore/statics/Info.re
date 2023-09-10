@@ -278,8 +278,7 @@ let rec status_common =
     | Some(Arrow(Prod(ty_list), _)) when List.length(ty_list) > 2 =>
       InHole(Inconsistent(InvalidUserOpArgs))
     | Some(Arrow(_, _) as join) =>
-      print_endline("join: " ++ Typ.show(join));
-      NotInHole(Ana(Consistent({ana, syn, join})));
+      NotInHole(Ana(Consistent({ana, syn, join})))
     | Some(_)
     | None => InHole(Inconsistent(InvalidUserOp))
     }
