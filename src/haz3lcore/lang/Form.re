@@ -185,7 +185,13 @@ let bad_token_cls: string => bad_token_cls =
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
-  ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  (
+    "var",
+    (
+      is_var,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(TPat, []), mk_op(Typ, [])],
+    ),
+  ),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -253,6 +259,7 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
+  ("parens_tpat", mk(ii, ["(", ")"], mk_op(TPat, [TPat]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),

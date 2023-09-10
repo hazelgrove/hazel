@@ -182,7 +182,12 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([Type.alias_view(name)])
   | NotInHole(Ap(name1, name2)) =>
-    div_ok([Type.alias_view(name1), Type.alias_view(name2)])
+    div_ok([
+      Type.alias_view(name1),
+      Type.alias_view("("),
+      Type.alias_view(name2),
+      Type.alias_view(")"),
+    ])
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])

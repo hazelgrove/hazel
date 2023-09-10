@@ -473,7 +473,6 @@ module rec Typ: {
 
   let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
-    Printf.printf("get_sum_constructors: %s\n", show(ty));
     switch (ty) {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
