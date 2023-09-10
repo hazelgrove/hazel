@@ -1,3 +1,7 @@
+module Mold = {
+  include Mold;
+};
+
 module Piece = {
   include Piece;
 
@@ -115,6 +119,64 @@ module Piece = {
     let/ () = zip(l, ~slot, r);
     let/ () = merge(l, ~slot, r);
     replace(l, ~slot, r);
+  };
+
+  let meld = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t): Ziggurat.t => {
+    let eq_ = Ziggurat.mk(Wald.mk([l, r], [slot]));
+    let lt_ = Ziggurat.singleton(l, ~dn=[Terrace.singleton(~slot, r)]);
+    let gt_ = Ziggurat.singleton(~up=[Terrace.singleton(l, ~slot)], r);
+
+    switch (l.material, r.material) {
+    // zips
+    | _ when Id.eq(l.id, r.id) =>
+      assert(Slot.is_empty(slot));
+      failwith("todo zips case")
+
+    // whitespace
+    | (Space, Space) =>
+      assert(Slot.is_empty(slot));
+      Ziggurat.singleton({...l, token: l.token ++ r.token});
+    | (Space, _) => gt_
+    | (_, Space) => lt_
+
+    // grout-grout
+    | (Grout((_, Convex)), Grout((Convex, _))) =>
+      assert(Slot.is_empty(slot));
+      let (up, dn) = Terrace.([singleton(l)], [singleton(r)]);
+      Ziggurat.singleton(~up, Piece.mk_grout(Concave, Concave), ~dn);
+    | (Grout((_, Convex)), Grout((Concave, _))) => gt_
+    | (Grout((_, Concave)), Grout((Convex, _))) => lt_
+    | (Grout((_, Concave)), Grout((Concave, _))) => eq_
+
+    // grout-tile
+    | (Grout((_, Convex)), Tile(m_r)) when !is_convex(~side=L, m_r) => gt_
+    | (Tile(m_l), Grout((Convex, _))) when !is_convex(m_l, ~side=R) => lt_
+    | (Grout((_, Concave)), Tile(m_r)) => matches(~side=L, m_r) ? gt_ : lt_
+    | (Tile(m_l), Grout((Concave, _))) => matches(m_l, ~side=R) ? lt_ : gt_
+
+    // remove unfinished tile
+    | (Tile(m_l), Tile(m_r))
+        when Mold.eq(m_l, m_r) && Piece.is_unfinished(l)
+          && Option.is_some(Slot.Baked.has_no_tiles(slot)) =>
+      let s = Option.get(Slot.Baked.has_no_tiles(slot));
+      let up =
+        Token.is_empty(s) ? [] : [Terrace.singleton(Piece.mk(~token=s, Space))];
+      Ziggurat.singleton(~up, r);
+    | (Tile(m_l), Tile(m_r))
+        when Mold.eq(m_l, m_r) && Piece.is_unfinished(r)
+          && Option.is_some(Slot.Baked.has_no_tiles(slot)) =>
+      let s = Option.get(Slot.Baked.has_no_tiles(slot));
+      let dn = Token.is_empty(s) ? [] : [Terrace.singleton(Piece.mk(~token=s, Space))];
+      Ziggurat.singleton(l, ~dn);
+
+    // compare tile molds
+    | (Tile(m_l), Tile(m_r)) =>
+      switch (Mold.compare(m_l, ~slot=Slot.map(Meld.Baked.sort, slot), m_r)) {
+      | Some(zigg) => failwith("bake zigg with slot and pieces")
+      | None =>
+
+      }
+    }
   };
 
   let rec meld = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t): Ziggurat.Baked.t =>

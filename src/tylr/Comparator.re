@@ -122,22 +122,62 @@ let pick = (~slot=Slot.Empty, ~face, ts: list(Terrace.t(Molded.t, Material.t(Sor
   // todo: sort by score
   |> ListUtil.hd_opt;
 
+// exists a match across alternatives
 let matches = (~side: Dir.t, m: Mold.t) => walk_eq(~side, m) != [];
 
-let is_convex = (~side: Dir.t, m: Material.Molded.t) =>
-  switch (m) {
-  | Space(tips)
-  | Grout(tips) => Dir.choose(side, tips) == Convex
-  | Tile(m) => walk_lt(~side, m) == []
-  };
+// is convex across all alternatives
+let is_convex = (~side: Dir.t, m: Mold.t) => walk_lt(~side, m) == [];
 
-let cmp = (l: Material.Molded.t, ~slot=Slot.Empty, r: Material.Molded.t) => {
-  let eq = Ziggurat.mk(Wald.mk([l, r], [slot]));
-  let lt = Ziggurat.singleton(l, ~dn=[Terrace.singleton(~slot, r)]);
+// not taking into account slot sort bc matching should override,
+// then later any slot content will be appropriately exited
+let eq = (l: Mold.t, r: Mold.t) =>
+  walk_eq(R, l)
+  |> pick(~face=r)
+  |> Option.map(t => Terrace.link_slot(l, t));
+
+let lt = (l: Mold.t, ~slot=Slot.Empty, r: Mold.t) =>
+  walk_lt(l)
+  |> pick(~slot, ~face=r);
+  // |> Option.map(t => Ziggurat.mk(Wald.singleton(l), ~dn=[t]));
+
+let gt = (l: Mold.t, ~slot=Slot.Empty, r: Mold.t) =>
+  walk_gt(r)
+  |> pick(~slot, ~face=l);
+  // |> Option.map(t => Ziggurat.mk(~up=[t], Wald.singleton(r)));
+
+let cmp =
+    (l: Material.Molded.t, ~slot=Slot.Empty, r: Material.Molded.t)
+    : option(Ziggurat.t(Material.Molded.t, Material.Sorted.t)) => {
+  let eq_ = Some(Ziggurat.mk(Wald.mk([l, r], [slot])));
+  let lt_ = Some(Ziggurat.singleton(l, ~dn=[Terrace.singleton(~slot, r)]));
+  let gt_ = Some(Ziggurat.singleton(~up=[Terrace.singleton(l, ~slot)], r));
   switch (l, r) {
-  | (Space((_, Concave)), Space((Concave, _)))
-  | (Grout((_, Concave)), Grout((Concave, _))) => eq
-  }
+  | (Space, Space) => None
+  | (Space, _) => gt_
+  | (_, Space) => lt_
+
+  | (Grout((_, Convex)), Grout((Convex, _))) => None
+  | (Grout((_, Convex)), Grout((Concave, _))) => gt_
+  | (Grout((_, Concave)), Grout((Convex, _))) => lt_
+  | (Grout((_, Concave)), Grout((Concave, _))) => eq_
+
+  | (Grout((_, Convex)), Tile(m_r)) =>
+    is_convex(~side=L, m_r) ? None : gt_
+  | (Grout((_, Concave)), Tile(m_r)) =>
+    matches(~side=L, m_r) ? gt_ : lt_
+  | (Tile(m_l), Grout((Convex, _))) =>
+    is_convex(m_l, ~side=R) ? None : lt_
+  | (Tile(m_l), Grout((Concave, _))) =>
+    matches(m_l, ~side=R) ? lt_ : gt_
+
+  | (Tile(m_l), Tile(m_r)) =>
+    switch (lt(m_l, ~slot, m_r), eq(m_l, m_r), gt(m_l, ~slot, m_r)) {
+    | (None, None, None) => None
+    | (_, Some(top), _) => Some(Ziggurat.mk(top));
+    | (Some(t), _, _) => Some(Ziggurat.mk(Wald.singleton(l), ~dn=[t]))
+    | (_, _, Some(t)) => Some(Ziggurat.mk(~up=[t], Wald.singleton(r)))
+    }
+  };
 };
 
 
@@ -168,23 +208,6 @@ let lt = (l: Material.Molded.t, ~slot=Slot.Empty, r: Material.Molded.t) => {
   | _ => None
   };
 };
-
-// not taking into account slot sort bc matching should override,
-// then later any slot content will be appropriately exited
-let eq = (l: Mold.t, r: Mold.t) =>
-  walk_eq(R, l)
-  |> pick(~face=r)
-  |> Option.map(t => Terrace.link_slot(l, t));
-
-let lt = (l: Mold.t, ~slot=Slot.Empty, r: Mold.t) =>
-  walk_lt(l)
-  |> pick(~slot, ~face=r);
-  // |> Option.map(t => Ziggurat.mk(Wald.singleton(l), ~dn=[t]));
-
-let gt = (l: Mold.t, ~slot=Slot.Empty, r: Mold.t) =>
-  step_gt(r)
-  |> pick(~slot, ~face=l);
-  // |> Option.map(t => Ziggurat.mk(~up=[t], Wald.singleton(r)));
 
 let cmp = (l: Mold.t, ~slot=Slot.Empty, r: Mold.t): option(Ziggurat.t(Mold.t, Material.t(Sort.t))) =>
   switch (lt(l, ~slot, r), eq(l, r), gt(l, ~slot, r)) {
