@@ -258,7 +258,7 @@ module Deco =
 
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
-  let err_holes = (z: Zipper.t) => {
+  let _err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.info_map)) {
@@ -296,6 +296,28 @@ module Deco =
       go_skel(Segment.skel(seg)) @ bi_ids;
     };
     go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
+  };
+
+  // faster infomap traversal
+  let err_holes = (_z: Zipper.t) => {
+    Id.Map.fold(
+      (id, info, acc) =>
+        /* Because of artefacts in Maketerm ID handling,
+         * there are be situations where ids appear in the
+         * info_map which do not occur in term_ranges. These
+         * ids should be purely duplicative, so skipping them
+         * when iterating over the info_map should have no
+         * effect, beyond supressing the resulting Not_found exs */
+        switch (Id.Map.find_opt(id, M.term_ranges)) {
+        | Some(_) when Info.is_error(info) => [
+            term_highlight(~clss=["err-hole"], id),
+            ...acc,
+          ]
+        | _ => acc
+        },
+      M.info_map,
+      [],
+    );
   };
 
   let all = (zipper, sel_seg) =>
