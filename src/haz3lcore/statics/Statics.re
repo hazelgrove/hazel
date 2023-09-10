@@ -212,7 +212,7 @@ and uexp_to_info_map =
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | UserOp(op, args) =>
     if (Self.user_op_is_def(ctx, op)) {
-      let (op, m) = go(~mode=Syn, op, m);
+      let (op, m) = go(~mode=SynFun, op, m);
       let (ty_in, ty_out) = Typ.matched_arrow(ctx, op.ty);
       let (args, m) = go(~mode=Ana(ty_in), args, m);
       add(
@@ -269,7 +269,8 @@ and uexp_to_info_map =
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let e_mode =
       switch (p) {
-      | {term: TypeAnn({term: Var(x), _}, _), _}
+      | {term: TypeAnn({term: Var(x), _}, _), _} when Form.is_op_in_let(x) =>
+        Mode.AnaInfix(p_syn.ty)
       | {term: Var(x), _} when Form.is_op_in_let(x) => Mode.SynInfix
       | _ => Mode.Ana(p_syn.ty)
       };

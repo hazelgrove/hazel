@@ -22,13 +22,15 @@ type t =
   | SynFun /* Used only in function position of applications */
   | SynInfix
   | Syn
-  | Ana(Typ.t);
+  | Ana(Typ.t)
+  | AnaInfix(Typ.t);
 
 let ana: Typ.t => t = ty => Ana(ty);
 
 /* The expected type imposed by a mode */
 let ty_of: t => Typ.t =
   fun
+  | AnaInfix(ty)
   | Ana(ty) => ty
   | Syn => Unknown(SynSwitch)
   | SynInfix
@@ -39,6 +41,7 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   | Syn
   | SynInfix
   | SynFun => (Syn, Syn)
+  | AnaInfix(ty)
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
@@ -47,6 +50,7 @@ let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   | Syn
   | SynInfix
   | SynFun => List.init(length, _ => Syn)
+  | AnaInfix(ty)
   | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
   };
 
@@ -55,6 +59,7 @@ let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   | Syn
   | SynInfix
   | SynFun => Syn
+  | AnaInfix(ty)
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
@@ -63,6 +68,7 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   | Syn
   | SynInfix
   | SynFun => Ana(List(hd_ty))
+  | AnaInfix(ty)
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
@@ -71,6 +77,7 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
   | Syn
   | SynInfix
   | SynFun => Syn
+  | AnaInfix(ty)
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
@@ -79,6 +86,7 @@ let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   | Syn
   | SynInfix
   | SynFun => Ana(List(Unknown(SynSwitch)))
+  | AnaInfix(ty)
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
@@ -90,7 +98,9 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
   switch (mode) {
+  | AnaInfix(Arrow(_, ty_ana))
   | Ana(Arrow(_, ty_ana))
+  | AnaInfix(ty_ana)
   | Ana(ty_ana) =>
     let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
     let+ (_, ty_entry) = Typ.sum_entry(ctr, ctrs);
