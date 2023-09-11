@@ -264,12 +264,18 @@ let update =
 
        ApplyToSyntax(id, update, action):
         1. Move to stage 2nd child id
-        1.1. let term = from ci...
-        1.2. let model = elab(term)
+        1.0. let ci = from current id
+        1.1. let term = ci.term
+        1.2. let model = elab(term, info)
         1.3. let res = eval(Ap(update, Tuple([model, action]))
         1.4. let seg = DHExpToSegment(res)
         2. Select term
         3. InsertSegment(seg) (clobbering term)
+
+        wait... step 1.2 makes assumptions about the term being closed
+        could for now make it a static error on the stage if the model
+        child has nonempty co-ctx. or simply require it to be a value
+        Q: how to canonically to check if its a value?
         */
     SetMeta(
       MVU(name, model),
@@ -384,7 +390,9 @@ and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
       List.map(render_attr(mvu), attrs),
       List.map(render_div(mvu), divs),
     )
-  | _ => ([], [])
+  | _ =>
+    print_endline("ERROR: attrs_and_divs");
+    ([], []);
   };
 
 let go =
