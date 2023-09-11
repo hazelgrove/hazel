@@ -54,26 +54,6 @@ module Piece = {
     | (Grout((_, Concave)), Grout((Convex, _))) => lt_
     | (Grout((_, Concave)), Grout((Concave, _))) => eq_
 
-    // remove redundant unfinished tiles
-    | (Tile(m_l), Tile(m_r))
-        when
-          Mold.eq(m_l, m_r)
-          && Piece.is_unfinished(l)
-          && Option.is_some(Slot.Baked.has_no_tiles(slot)) =>
-      let s = Option.get(Slot.Baked.has_no_tiles(slot));
-      let up =
-        Token.is_empty(s) ? [] : [Terrace.singleton(Piece.mk_space(s))];
-      Ziggurat.singleton(~up, r);
-    | (Tile(m_l), Tile(m_r))
-        when
-          Mold.eq(m_l, m_r)
-          && Piece.is_unfinished(r)
-          && Option.is_some(Slot.Baked.has_no_tiles(slot)) =>
-      let s = Option.get(Slot.Baked.has_no_tiles(slot));
-      let dn =
-        Token.is_empty(s) ? [] : [Terrace.singleton(Piece.mk_space(s))];
-      Ziggurat.singleton(l, ~dn);
-
     // compare tile molds
     | (Tile(m_l), Tile(m_r)) =>
       switch (Mold.compare(m_l, ~slot=Slot.map(Meld.Baked.sort, slot), m_r)) {
@@ -103,75 +83,27 @@ module Piece = {
 module Wald = {
   include Wald;
 
-  let rec lt = (l: p, ~slot=None, r: p): option(Slope.Dn.p) => {
-    let (p_l, p_r) = Wald.(face(R, l), face(L, r));
-    let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-    Comparator.lt(m_l, ~slot=Kid.profile(kid), m_r)
-    |> Option.map(bake(~slot, ~face=r));
-  }
-  and gt = (l: p, ~slot=None, r: p): option(Slope.Up.p) => {
-    let (p_l, p_r) = Wald.(face(R, l), face(L, r));
-    let (m_l, m_r) = Piece.(molded(p_l), molded(p_r));
-    Comparator.gt(m_l, ~slot=Kid.profile(kid), m_r)
-    |> Option.map(bake(~face=l, ~slot));
-  }
-  and bake = (~slot, ~face, s: Slope.m): Slope.p => {
-    // upgrades molded tokens to pieces
-    // replaces top and bottom walds with top and bot
-    // finds slot to insert kid and applies lt and gt with neighbors to complete
-    failwith(
-      "todo bake",
-    );
+  let rec meld = (l: Wald.t, ~slot=Slot.Empty, r: Wald.t): Ziggurat.t => {
+    let melded_tl_l =
+      switch (Wald.unknil(l)) {
+      | Ok((tl, s, p)) when Piece.is_unfinished(p) =>
+        [meld(tl, ~slot=Slot.merge(s, slot), r)]
+        |> List.filter(z => Ziggurat.height(z) == 1)
+      | _ => []
+      };
+    let melded_tl_r =
+      switch (Wald.unlink(r)) {
+      | Ok((p, s, tl)) when Piece.is_unfinished(p) =>
+        [meld(l, ~slot=Slot.merge(slot, s), r)]
+        |> List.filter(z => Ziggurat.height(z) == 1)
+      | _ => []
+      };
+    let melded_hds =
+      Piece.meld(Wald.face(l, ~side=R), ~slot, Wald.face(~side=L, r))
+      |> Ziggurat.extend(~side=L, tl_l)
+      |> Ziggurat.extend(~side=R, tl_r);
+    Scorer.pick([melded_hds] @ melded_tl_l @ melded_tl_r);
   };
-
-  let zips = (l: p, r: p): option(p) => {
-    open OptUtil.Syntax;
-    let+ p = Piece.zips(p_l, p_r);
-    l
-    |> Chain.fold_right(
-         (p, kid) => link(p, ~slot),
-         _ => put_face(~side=L, p, r),
-       );
-  };
-
-  let rec eq = (l: p, ~slot=None, r: p): option(p) => {
-    open OptUtil.Syntax;
-    // check whether they zip
-    let/ () = {
-      let+ w = zips(l, r);
-      assert(kid == None);
-      w;
-    };
-    // check whether they eq
-    let (p_l, p_r) = (face(~side=R, l), face(~side=L, r));
-    let (m_l, m_r) = Piece.(molded(p_l, p_r));
-    let/ () =
-      Comparator.eq(m_l, ~slot, m_r)
-      |> Option.map(bake(~l, ~slot, ~r))
-      |> Option.map(w =>
-           switch (Chain.unlink(r)) {
-           | None => w
-           | Some((_, kid, tl)) => Wald.append(w, ~slot, tl)
-           }
-         );
-    // strip unfinished faces and try again
-    switch (unknil(l), unlink(r)) {
-    | (Some((tl, k, p)), _) when !Piece.is_finished(p) =>
-      eq(tl, ~slot=Kid.merge(k, kid), r)
-    | (_, Some((p, k, tl))) when !Piece.is_finished(p) =>
-      eq(l, ~slot=Kid.merge(kid, k), tl)
-    | _ => None
-    };
-  };
-
-  // todo: rename meld
-  let cmp = (l: p, ~slot=None, r: p): Ziggurat.p =>
-    switch (lt(l, ~slot, p), eq(l, ~slot, p), gt(l, ~slot, p)) {
-    | (_, Some(top), _) => Ziggurat.mk(top)
-    | (Some(dn), _, _) => Ziggurat.mk(top, ~dn)
-    | (_, _, Some(up)) => Ziggurat.mk(~up, top)
-    | (None, None, None) => failwith("todo: incomparable meld")
-    };
 };
 
 // [(] [1 *] [2]     _     [let x =]
@@ -200,11 +132,53 @@ module Wald = {
 module Ziggurat = {
   include Ziggurat;
 
-  let rec hsup = (z: Ziggurat.p, ~slot=None, w: Wald.p): Ziggurat.p =>
+  // init flag indicates which ziggurat serves as the initial accumulator
+  // for the decomposition of the other. only impact is performance:
+  // meld(~init=L, l, r) == meld(~init=R, l, r) for all l and r
+  let rec meld = (~init=Dir.R, l: Ziggurat.t, r: Ziggurat.t) =>
+    switch (init) {
+    | L =>
+      Slope.Up.to_walds(r.up)
+      @ [r.top]
+      |> List.fold_left((z, w) => hsup(z, w), l)
+      |> Ziggurat.map_dn(Slope.cat(dn))
+    | R =>
+      List.fold_right(
+        (w, z) => push(w, z),
+        [top, ...Slope.Dn.to_walds(dn)],
+        z,
+      )
+      |> Ziggurat.map_up(Slope.cat(up))
+    }
+  and push = (w: Wald.t, ~slot=Slot.Empty, z: Ziggurat.t) =>
+    switch (z.up) {
+    | [] =>
+      Wald.meld(w, ~slot, z.top)
+      |> Ziggurat.map_dn(Fun.flip(Slope.Dn.cat(z.dn)))
+    | [hd, ...tl] =>
+      // L2R: w slot hd.wald hd.slot tl z.top z.dn
+      let melded = Wald.meld(w, ~slot, hd.wald);
+      switch (melded.dn) {
+      | []
+      };
+
+
+      let c = Wald.cmp(w, ~slot, hd.wald);
+      // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
+      switch (c.dn) {
+      | [] =>
+        // geq
+        let up = c.up @ [{...hd, wald: c.top}, ...tl];
+        {...z, up};
+      | [_, ..._] => push_zigg(c, {...z, up: tl}) // lt
+      };
+    }
+
+  let rec dlem_ = (z: Ziggurat.p, ~slot=None, w: Wald.p): Ziggurat.p =>
     // todo: handle whitespace on z.dn
     switch (z.dn) {
     | [] =>
-      Wald.cmp(top, ~slot, w) |> Ziggurat.map_up(Slope.Up.cat(z.up), c)
+      Wald.cmp(top, ~slot, w) |> Ziggurat.map_up(Slope.Up.cat(z.up))
     | [hd, ...tl] =>
       // left to right: z.up z.top tl hd.mel hd.wal kid w
       let c = Wald.cmp(hd.wald, ~slot, w);
@@ -217,10 +191,6 @@ module Ziggurat = {
       };
     }
   and hsup_zigg = (z: Ziggurat.p, {up, top, dn}: Ziggurat.p) =>
-    Slope.Up.to_walds(up)
-    @ [top]
-    |> List.fold_left((z, w) => hsup(z, w), z)
-    |> Ziggurat.map_dn(Slope.cat(dn));
 
   let rec push = (w: Wald.p, ~slot=None, z: Ziggurat.p): Ziggurat.p =>
     switch (z.up) {
