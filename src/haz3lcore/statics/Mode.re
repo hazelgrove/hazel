@@ -42,15 +42,20 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
-let of_forall = (ctx: Ctx.t, name_opt: option(TypVar.t), mode: t): t =>
+let of_forall = (ctx: Ctx.t, name: option(TypVar.t), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
   | SynTypFun => Syn
   | Ana(ty) =>
     let (name_expected, item) = Typ.matched_forall(ctx, ty);
-    switch (name_opt) {
-    | Some(name) => Ana(Typ.subst(Var(name), name_expected, item))
+    switch (name) {
+    | Some(name_given) =>
+      /* In well-typed programs, this should be a no-op. However in the case that
+       * binding names do differ (which we are choosing to disallow), doing a
+       * substitution to the name the programmer gives prevents redundant errors
+       * and also makes error messages more intuitive. */
+      Ana(Typ.subst(Var(name_given), name_expected, item))
     | None => Ana(item)
     };
   };

@@ -60,9 +60,11 @@ module rec Typ: {
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
   let eq: (t, t) => bool;
+  let eq_alpha: (t, t) => bool;
   let free_vars: (~bound: list(Var.t)=?, t) => list(Var.t);
-  let join: (~resolve: bool=?, ~fix: bool, Ctx.t, t, t) => option(t);
-  let join_fix: (~resolve: bool=?, Ctx.t, t, t) => option(t);
+  let join:
+    (~resolve: bool=?, ~alpha: bool=?, ~fix: bool, Ctx.t, t, t) => option(t);
+  let join_fix: (~resolve: bool=?, ~alpha: bool=?, Ctx.t, t, t) => option(t);
   let join_all: (~empty: t, Ctx.t, list(t)) => option(t);
   let is_consistent: (Ctx.t, t, t) => bool;
   let weak_head_normalize: (Ctx.t, t) => t;
@@ -203,11 +205,11 @@ module rec Typ: {
 
   /* Type Equality: At the moment, this coincides with alpha equivalence,
      but this will change when polymorphic types are implemented */
-  let rec eq_internal = (n: int, t1: t, t2: t) => {
+  let rec eq_alpha_internal = (n: int, t1: t, t2: t) => {
     switch (t1, t2) {
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
-      eq_internal(
+      eq_alpha_internal(
         n + 1,
         subst(Var("=" ++ string_of_int(n)), x1, t1),
         subst(Var("=" ++ string_of_int(n)), x2, t2),
@@ -225,21 +227,52 @@ module rec Typ: {
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
-      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+      eq_alpha_internal(n, t1, t1') && eq_alpha_internal(n, t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) =>
+      List.equal(eq_alpha_internal(n), tys1, tys2)
     | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
+    | (List(t1), List(t2)) => eq_alpha_internal(n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
-      ConstructorMap.equal(Option.equal(eq_internal(n)), sm1, sm2)
+      ConstructorMap.equal(Option.equal(eq_alpha_internal(n)), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
     };
   };
 
-  let eq = (t1: t, t2: t): bool => eq_internal(0, t1, t2);
+  let rec eq = (t1: t, t2: t) => {
+    switch (t1, t2) {
+    | (Rec(x1, t1), Rec(x2, t2))
+    | (Forall(x1, t1), Forall(x2, t2)) => x1 == x2 && eq(t1, t2)
+    | (Rec(_), _) => false
+    | (Forall(_), _) => false
+    | (Int, Int) => true
+    | (Int, _) => false
+    | (Float, Float) => true
+    | (Float, _) => false
+    | (Bool, Bool) => true
+    | (Bool, _) => false
+    | (String, String) => true
+    | (String, _) => false
+    | (Unknown(_), Unknown(_)) => true
+    | (Unknown(_), _) => false
+    | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
+    | (Arrow(_), _) => false
+    | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(t1), List(t2)) => eq(t1, t2)
+    | (List(_), _) => false
+    | (Sum(sm1), Sum(sm2)) =>
+      ConstructorMap.equal(Option.equal(eq), sm1, sm2)
+    | (Sum(_), _) => false
+    | (Var(n1), Var(n2)) => n1 == n2
+    | (Var(_), _) => false
+    };
+  };
+
+  let eq_alpha = eq_alpha_internal(0);
 
   /* Lattice join on types. This is a LUB join in the hazel2
      sense in that any type dominates Unknown. The optional
@@ -247,7 +280,8 @@ module rec Typ: {
      variable and a succesful join, to return the resolved join type,
      or to return the (first) type variable for readability */
   let rec join =
-          (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+          (~resolve=false, ~alpha=true, ~fix, ctx: Ctx.t, ty1: t, ty2: t)
+          : option(t) => {
     let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
     | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
@@ -274,12 +308,20 @@ module rec Typ: {
       let+ ty_join = join'(ty_name, ty);
       !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-    | (Rec(x1, ty1), Rec(x2, ty2)) =>
+    | (Rec(x1, ty1), Rec(x2, ty2)) when !alpha && x1 == x2 =>
+      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+      let+ ty_body = join(~resolve, ~fix, ctx, ty1, ty2);
+      Rec(x1, ty_body);
+    | (Forall(x1, ty1), Forall(x2, ty2)) when !alpha && x1 == x2 =>
+      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+      let+ ty_body = join(~resolve, ~fix, ctx, ty1, ty2);
+      Forall(x1, ty_body);
+    | (Rec(x1, ty1), Rec(x2, ty2)) when alpha =>
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Rec(x1, ty_body);
-    | (Forall(x1, ty1), Forall(x2, ty2)) =>
+    | (Forall(x1, ty1), Forall(x2, ty2)) when alpha =>
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));

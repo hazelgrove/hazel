@@ -44,7 +44,8 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad function position */
-  | WithArrow(Typ.t);
+  | WithArrow(Typ.t)
+  | WithTypFun(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
@@ -276,12 +277,12 @@ let rec status_common =
     }
   | (Just(ty), SynTypFun) =>
     /* Use ty first to preserve name if it exists. */
-    switch (Typ.join_fix(ctx, ty, Forall("_", Unknown(Internal)))) {
+    switch (Typ.join_fix(ctx, ty, Forall("?", Unknown(Internal)))) {
     | Some(_) => NotInHole(Syn(ty))
-    | None => InHole(Inconsistent(WithArrow(ty)))
+    | None => InHole(Inconsistent(WithTypFun(ty)))
     }
   | (Just(syn), Ana(ana)) =>
-    switch (Typ.join_fix(ctx, syn, ana)) {
+    switch (Typ.join_fix(~alpha=false, ctx, syn, ana)) {
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
     }

@@ -76,6 +76,11 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       Type.view(typ),
       text("inconsistent with arrow type"),
     ]
+  | Inconsistent(WithTypFun(typ)) => [
+      text(":"),
+      Type.view(typ),
+      text("inconsistent with polymorphic type"),
+    ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),
       Type.view(syn),
