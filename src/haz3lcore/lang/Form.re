@@ -93,7 +93,7 @@ let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
-let is_typ_var = is_capitalized_name;
+let is_typ_var = str => is_var(str) || is_capitalized_name(str);
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
