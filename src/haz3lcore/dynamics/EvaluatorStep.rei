@@ -94,6 +94,8 @@ module EvalObj: {
   let unwrap: (t, EvalCtx.cls) => option(t);
 };
 
+let evaluate_with_history: DHExp.t => list(DHExp.t);
+
 let step: EvalObj.t => (EvaluatorState.t, EvaluatorResult.t);
 
 let decompose: DHExp.t => (EvaluatorState.t, list(EvalObj.t));
