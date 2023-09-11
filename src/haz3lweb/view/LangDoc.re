@@ -417,19 +417,17 @@ let example_view =
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Statics.mk_map(uhexp);
             let result_view =
-              switch (Interface.evaluation_result(info_map, uhexp)) {
-              | None => []
-              | Some(dhexp) => [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=Settings.Evaluation.init,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    dhexp,
-                  ),
-                ]
-              };
+              Interface.evaluate_with_history(info_map, uhexp)
+              |> List.map(dhexp =>
+                   DHCode.view(
+                     ~inject,
+                     ~settings=Settings.Evaluation.init,
+                     ~selected_hole_instance=None,
+                     ~font_metrics,
+                     ~width=80,
+                     dhexp,
+                   )
+                 );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
             div(

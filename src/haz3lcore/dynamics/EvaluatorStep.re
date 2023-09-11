@@ -335,13 +335,16 @@ module Capture = {
 };
 
 module Transition = {
-  type t =
-    | Indet(DHExp.t)
-    | BoxedValue(DHExp.t)
-    | Step(DHExp.t);
+  module Result = {
+    type t =
+      | Indet(DHExp.t)
+      | BoxedValue(DHExp.t)
+      | Step(DHExp.t);
+  };
 
-  let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(t) => {
+  let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(Result.t) => {
     open Evaluator;
+    open Result;
     /* TODO: Investigate */
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
@@ -950,7 +953,8 @@ module Transition = {
         rules: list(DHExp.rule),
         current_rule_index: int,
       )
-      : m(t) => {
+      : m(Result.t) => {
+    open Result;
     let* rscrut = transition(env, scrut);
     switch (rscrut) {
     | BoxedValue(scrut) =>
@@ -968,26 +972,28 @@ module Transition = {
         rules: list(DHExp.rule),
         current_rule_index: int,
       )
-      : m(t) => {
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
-      Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
-    | Some(Rule(dp, d)) =>
-      switch (Evaluator.matches(dp, scrut)) {
-      | IndetMatch =>
+      : m(Result.t) => {
+    Result.(
+      switch (List.nth_opt(rules, current_rule_index)) {
+      | None =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
-      | Matches(env') =>
-        // extend environment with new bindings introduced
-        let* env =
-          env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
-        Step(Closure(env, d)) |> Monad.return;
-      // by the rule and evaluate the expression.
-      | DoesNotMatch =>
-        transition_rule(env, scrut, rules, current_rule_index + 1)
+      | Some(Rule(dp, d)) =>
+        switch (Evaluator.matches(dp, scrut)) {
+        | IndetMatch =>
+          let case = DHExp.Case(scrut, rules, current_rule_index);
+          Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
+        | Matches(env') =>
+          // extend environment with new bindings introduced
+          let* env =
+            env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
+          Step(Closure(env, d)) |> Monad.return;
+        // by the rule and evaluate the expression.
+        | DoesNotMatch =>
+          transition_rule(env, scrut, rules, current_rule_index + 1)
+        }
       }
-    };
+    );
   }
   and eval_rule =
       (
@@ -996,25 +1002,27 @@ module Transition = {
         rules: list(DHExp.rule),
         current_rule_index: int,
       )
-      : m(t) => {
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
-      Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
-    | Some(Rule(dp, d)) =>
-      switch (Evaluator.matches(dp, scrut)) {
-      | IndetMatch =>
+      : m(Result.t) => {
+    Result.(
+      switch (List.nth_opt(rules, current_rule_index)) {
+      | None =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
-      | Matches(env') =>
-        // extend environment with new bindings introduced
-        let* env =
-          env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
-        transition(env, d);
-      // by the rule and evaluate the expression.
-      | DoesNotMatch => eval_rule(env, scrut, rules, current_rule_index + 1)
+      | Some(Rule(dp, d)) =>
+        switch (Evaluator.matches(dp, scrut)) {
+        | IndetMatch =>
+          let case = DHExp.Case(scrut, rules, current_rule_index);
+          Indet(Closure(env, ConsistentCase(case))) |> Monad.return;
+        | Matches(env') =>
+          // extend environment with new bindings introduced
+          let* env =
+            env |> Capture.capture(d) |> Evaluator.evaluate_extend_env(env');
+          transition(env, d);
+        // by the rule and evaluate the expression.
+        | DoesNotMatch => eval_rule(env, scrut, rules, current_rule_index + 1)
+        }
       }
-    };
+    );
   };
 };
 
@@ -1401,6 +1409,26 @@ let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
   | BoxedValue(_) => EvaluatorResult.BoxedValue(d) |> return
   | Indet(_) => EvaluatorResult.Indet(d) |> return
   };
+};
+
+let evaluate_with_history = (d: DHExp.t) => {
+  let rec go =
+          (env: ClosureEnvironment.t, d: DHExp.t, rs: m(list(DHExp.t)))
+          : m(list(DHExp.t)) => {
+    let* rs = rs;
+    let* r = Transition.transition(env, d);
+    switch (r) {
+    | Step(d) => go(env, d, [d, ...rs] |> return)
+    | BoxedValue(_) => rs |> return
+    | Indet(_) => rs |> return
+    };
+  };
+  let (env, es) =
+    Environment.empty
+    |> ClosureEnvironment.of_environment
+    |> EvaluatorState.with_eig(_, EvaluatorState.init);
+  let (_, rs) = go(env, d, [] |> return, es);
+  rs;
 };
 
 let step = (obj: EvalObj.t) => {
