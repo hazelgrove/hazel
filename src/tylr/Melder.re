@@ -1,3 +1,5 @@
+open Util;
+
 module Mold = {
   include Mold;
   // exists a match across alternatives
@@ -129,97 +131,81 @@ module Wald = {
 // rework transformation to view
 // rework make term
 
+module Slope = {
+  include Slope;
+  module Up = {
+    include Up;
+    let rec push = (w: Wald.t, ~slot=Slot.Empty, up: t): Result.t(t, Slot.t) =>
+      switch (up) {
+      | [] => Error(slot)
+      | [hd, ...tl] =>
+        // L2R: w slot hd.wald hd.slot tl
+        switch (Wald.meld(w, ~slot, hd.wald)) {
+        | {up, top, dn: []} =>
+          Ok(Slope.cat(up, [{...hd, wald: top}, ...tl]))
+        | {up, top, dn: [_, ..._]} =>
+          let slot = Slot.Full(Dn.to_meld(dn, ~slot=hd.slot));
+          push(top, ~slot, tl) |> Result.map(~f=Slope.cat(up));
+        }
+      };
+  };
+  module Dn = {
+    include Dn;
+    let rec hsup = (dn: t, ~slot=Slot.Empty, w: Wald.t): Result.t(t, Slot.t) =>
+      switch (dn) {
+      | [] => Error(slot)
+      | [hd, ...tl] =>
+        // L2R: tl hd.slot hd.wald slot w
+        switch (Wald.meld(hd.wald, ~slot, w)) {
+        | {up: [], top, dn} =>
+          Ok(Slope.cat(dn, [{...hd, wald: top}, ...tl]))
+        | {up: [_, ..._], top, dn} =>
+          let slot = Slot.Full(Up.to_meld(~slot=hd.slot, up));
+          hsup(tl, ~slot, top) |> Result.map(~f=Slope.cat(dn));
+        }
+      };
+  };
+};
+
 module Ziggurat = {
   include Ziggurat;
 
+  let push = (w: Wald.t, ~slot=Slot.Empty, z: Ziggurat.t) =>
+    switch (Slope.Up.push(w, ~slot, z.up)) {
+    | Ok(up) => {...z, up}
+    | Error(slot) =>
+      Wald.meld(w, ~slot, z.top) |> Ziggurat.map_dn(Slope.cat(z.dn))
+    };
+
+  let hsup = (z: Ziggurat.t, ~slot=Slot.Empty, w: Wald.t) =>
+    switch (Slope.Dn.hsup(z.dn, ~slot, w)) {
+    | Ok(dn) => {...z, dn}
+    | Error(slot) =>
+      Wald.meld(z.top, ~slot, w) |> Ziggurat.map_up(Slope.cat(z.up))
+    };
+
   // init flag indicates which ziggurat serves as the initial accumulator
-  // for the decomposition of the other. only impact is performance:
-  // meld(~init=L, l, r) == meld(~init=R, l, r) for all l and r
-  let rec meld = (~init=Dir.R, l: Ziggurat.t, r: Ziggurat.t) =>
+  // onto which we push the decomposition of the other. only impact is
+  // performance: meld(~init=L, l, r) == meld(~init=R, l, r) for all l and r
+  let meld = (~init=Dir.R, l: Ziggurat.t, r: Ziggurat.t) =>
     switch (init) {
     | L =>
       let (ws, slots) = Slope.split(r.up);
       Chain.mk(ws @ [r.top], slots)
       |> Chain.fold_left(
-        w => hsup(l, w),
-        (l, slot, w) => hsup(l, ~slot, w),
-      )
-      |> Ziggurat.map_dn(Slope.cat(r.dn))
+           w => hsup(l, w),
+           (l, slot, w) => hsup(l, ~slot, w),
+         )
+      |> Ziggurat.map_dn(Slope.cat(r.dn));
     | R =>
       let (ws, slots) = Slope.split(l.dn);
       Chain.mk(ws @ [l.top], slots)
       |> Chain.fold_left(
-        w => push(w, r),
-        (w, slot, r) => push(w, ~slot, r),
-      )
-      |> Ziggurat.map_up(Slope.cat(l.up))
-    }
-  and push = (w: Wald.t, ~slot=Slot.Empty, z: Ziggurat.t) =>
-    switch (z.up) {
-    | [] =>
-      Wald.meld(w, ~slot, z.top)
-      |> Ziggurat.map_dn(Fun.flip(Slope.Dn.cat(z.dn)))
-    | [hd, ...tl] =>
-      // L2R: w slot hd.wald hd.slot tl z.top z.dn
-      let melded = Wald.meld(w, ~slot, hd.wald);
-      switch (melded.dn) {
-      | []
-      };
-
-
-      let c = Wald.cmp(w, ~slot, hd.wald);
-      // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
-      switch (c.dn) {
-      | [] =>
-        // geq
-        let up = c.up @ [{...hd, wald: c.top}, ...tl];
-        {...z, up};
-      | [_, ..._] => push_zigg(c, {...z, up: tl}) // lt
-      };
-    }
-
-  let rec dlem_ = (z: Ziggurat.p, ~slot=None, w: Wald.p): Ziggurat.p =>
-    // todo: handle whitespace on z.dn
-    switch (z.dn) {
-    | [] =>
-      Wald.cmp(top, ~slot, w) |> Ziggurat.map_up(Slope.Up.cat(z.up))
-    | [hd, ...tl] =>
-      // left to right: z.up z.top tl hd.mel hd.wal kid w
-      let c = Wald.cmp(hd.wald, ~slot, w);
-      // left to right: z.up z.top tl hd.mel c.up c.top c.dn
-      switch (c.up) {
-      | [] =>
-        let dn = c.dn @ [{...hd, wald: c.top}, ...tl];
-        {...z, dn};
-      | [_, ..._] => hsup_zigg({...z, dn: tl}, c)
-      };
-    }
-  and hsup_zigg = (z: Ziggurat.p, {up, top, dn}: Ziggurat.p) =>
-
-  let rec push = (w: Wald.p, ~slot=None, z: Ziggurat.p): Ziggurat.p =>
-    switch (z.up) {
-    | [] =>
-      Wald.cmp(w, ~slot, top)
-      |> Ziggurat.map_dn(Fun.flip(Slope.Dn.cat(z.dn)))
-    | [hd, ...tl] =>
-      // left to right: w kid hd.wal hd.mel tl z.top z.dn
-      let c = Wald.cmp(w, ~slot, hd.wald);
-      // left to right: c.up c.top c.dn hd.mel tl z.top z.dn
-      switch (c.dn) {
-      | [] =>
-        // geq
-        let up = c.up @ [{...hd, wald: c.top}, ...tl];
-        {...z, up};
-      | [_, ..._] => push_zigg(c, {...z, up: tl}) // lt
-      };
-    }
-  and push_zigg = ({up, top, dn}: Ziggurat.p, z: Ziggurat.p) =>
-    List.fold_right(
-      (w, z) => push(w, z),
-      [top, ...Slope.Dn.to_walds(dn)],
-      z,
-    )
-    |> Ziggurat.map_up(Slope.cat(up));
+           w => push(w, r),
+           (w, slot, r) => push(w, ~slot, r),
+         )
+      |> Ziggurat.map_up(Slope.cat(l.up));
+    };
 };
 
 module Stepwell = {
