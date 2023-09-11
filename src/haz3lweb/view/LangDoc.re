@@ -417,19 +417,17 @@ let example_view =
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Statics.mk_map(uhexp);
             let result_view =
-              switch (Interface.evaluation_result(info_map, uhexp)) {
-              | None => []
-              | Some(dhexp) => [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=Settings.Evaluation.init,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    dhexp,
-                  ),
-                ]
-              };
+              Interface.evaluate_with_history(info_map, uhexp)
+              |> List.map(dhexp =>
+                   DHCode.view(
+                     ~inject,
+                     ~settings=Settings.Evaluation.init,
+                     ~selected_hole_instance=None,
+                     ~font_metrics,
+                     ~width=80,
+                     dhexp,
+                   )
+                 );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
             div(
@@ -1948,39 +1946,43 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
-      | Filter(Step, _, body) =>
+      | Filter(Step, pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_step_group,
             docs,
           );
         let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(pat.ids, 0);
         get_message(
           doc,
           options,
           LangDocMessages.filter_step_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s"),
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
             body_id |> Id.to_string,
+            pat_id |> Id.to_string,
           ),
-          LangDocMessages.test_exp_coloring_ids(~body_id),
+          LangDocMessages.filter_step_coloring_ids(~pat_id, ~body_id),
         );
-      | Filter(Eval, _, body) =>
+      | Filter(Eval, pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_skip_group,
             docs,
           );
         let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(pat.ids, 0);
         get_message(
           doc,
           options,
           LangDocMessages.filter_skip_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s"),
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
             body_id |> Id.to_string,
+            pat_id |> Id.to_string,
           ),
-          LangDocMessages.test_exp_coloring_ids(~body_id),
+          LangDocMessages.filter_skip_coloring_ids(~pat_id, ~body_id),
         );
       | Test(body) =>
         let (doc, options) =

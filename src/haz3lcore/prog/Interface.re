@@ -120,6 +120,10 @@ let decompose = (d: DHExp.t): list(EvaluatorStep.EvalObj.t) => {
   objs;
 };
 
+let evaluate_with_history = (map, term): list(DHExp.t) => {
+  term |> elaborate(map) |> EvaluatorStep.evaluate_with_history;
+};
+
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
