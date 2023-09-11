@@ -1196,7 +1196,10 @@ module Decompose = {
         | (BoxedValue, Eval(_))
         | (Eval(_), BoxedValue)
         | (Eval(_), Eval(_)) => Return.mark(act)
-        | _ =>
+        | (Indet, _)
+        | (_, Indet)
+        | (Step(_), _)
+        | (_, Step(_)) =>
           [(r1, (c => Ap1(c, d2))), (r2, (c => Ap2(d1, c)))]
           |> Return.merge(Return.Operator)
         };
@@ -1284,7 +1287,8 @@ module Decompose = {
         switch (r1) {
         | BoxedValue
         | Eval(_) => Return.mark(act)
-        | _ =>
+        | Indet
+        | Step(_) =>
           r1
           |> Return.wrap(c => ConsistentCase(Case(c, rules, i)))
           |> Monad.return
