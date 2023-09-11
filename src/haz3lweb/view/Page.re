@@ -5,10 +5,12 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let download_editor_state = (~instructor_mode) => {
-  let data = Export.export_all(~instructor_mode);
-  JsUtil.download_json(ExerciseSettings.filename, data);
-};
+let download_editor_state = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
 let menu_icon = {
   let attr =
     Attr.many(
@@ -40,7 +42,12 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
 let nut_menu =
     (
       ~inject: Update.t => 'a,
-      {core: {statics, elaborate, dynamics}, benchmark, instructor_mode, _}: Settings.t,
+      {
+        core: {statics, elaborate, assist, dynamics},
+        benchmark,
+        instructor_mode,
+        _,
+      }: Settings.t,
     ) => [
   menu_icon,
   div(
@@ -48,6 +55,9 @@ let nut_menu =
     [
       toggle("τ", ~tooltip="Toggle Statics", statics, _ =>
         inject(Set(Statics))
+      ),
+      toggle("𝑐", ~tooltip="Code Completion", assist, _ =>
+        inject(Set(Assist))
       ),
       toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
         inject(Set(Dynamics))

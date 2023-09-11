@@ -322,7 +322,12 @@ module Deco =
           | InfoPat({status: InHole(Common(NoType(MultiError))), _}) =>
             false
           | _ =>
-            //TODO(andrew): figure out why this fails for some multihole situations
+            /* Because of artefacts in Maketerm ID handling,
+             * there are be situations where ids appear in the
+             * info_map which do not occur in term_ranges. These
+             * ids should be purely duplicative, so skipping them
+             * when iterating over the info_map should have no
+             * effect, beyond supressing the resulting Not_found exs */
             switch (Id.Map.find_opt(id, M.term_ranges)) {
             | None =>
               Printf.printf(

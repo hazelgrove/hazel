@@ -7,6 +7,7 @@ type settings_action =
   | Captions
   | SecondaryIcons
   | Statics
+  | Assist
   | Elaborate
   | Dynamics
   | Benchmark
@@ -70,6 +71,7 @@ type t =
   | FinishImportScratchpad(option(string))
   | SwitchScratchSlide(int)
   /* editor */
+  | DoTheThing
   | Save
   | PerformAction(Action.t)
   | ReparseCurrentEditor
