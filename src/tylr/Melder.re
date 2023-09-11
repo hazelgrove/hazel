@@ -138,17 +138,21 @@ module Ziggurat = {
   let rec meld = (~init=Dir.R, l: Ziggurat.t, r: Ziggurat.t) =>
     switch (init) {
     | L =>
-      Slope.Up.to_walds(r.up)
-      @ [r.top]
-      |> List.fold_left((z, w) => hsup(z, w), l)
-      |> Ziggurat.map_dn(Slope.cat(dn))
-    | R =>
-      List.fold_right(
-        (w, z) => push(w, z),
-        [top, ...Slope.Dn.to_walds(dn)],
-        z,
+      let (ws, slots) = Slope.split(r.up);
+      Chain.mk(ws @ [r.top], slots)
+      |> Chain.fold_left(
+        w => hsup(l, w),
+        (l, slot, w) => hsup(l, ~slot, w),
       )
-      |> Ziggurat.map_up(Slope.cat(up))
+      |> Ziggurat.map_dn(Slope.cat(r.dn))
+    | R =>
+      let (ws, slots) = Slope.split(l.dn);
+      Chain.mk(ws @ [l.top], slots)
+      |> Chain.fold_left(
+        w => push(w, r),
+        (w, slot, r) => push(w, ~slot, r),
+      )
+      |> Ziggurat.map_up(Slope.cat(l.up))
     }
   and push = (w: Wald.t, ~slot=Slot.Empty, z: Ziggurat.t) =>
     switch (z.up) {
