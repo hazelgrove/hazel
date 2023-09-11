@@ -12,10 +12,10 @@ let of_delim' =
         is_complete,
         label,
         i,
-        _inject,
-        _livelit_state: Id.Map.t(DHExp.t),
-        _font_metrics: FontMetrics.t,
-        _tile_id: Id.t,
+        inject,
+        livelit_state: Id.Map.t(DHExp.t),
+        font_metrics: FontMetrics.t,
+        tile_id: Id.t,
       ),
     ) => {
   let cls =
@@ -27,7 +27,23 @@ let of_delim' =
     };
   let plurality = List.length(label) == 1 ? "mono" : "poly";
 
-  let livelit_nodes = [];
+  let livelit_nodes =
+    switch (Id.Map.find_opt(tile_id, MakeTerm.map.contents)) {
+    | Some(term) =>
+      switch (i, term) {
+      | (
+          1,
+          Exp({
+            ids: _ids,
+            term: LivelitAp({livelit_name: ln, params: _p, tile_id: _tid}),
+          }),
+        ) =>
+        LivelitView.view(font_metrics, inject, ln, livelit_state, tile_id)
+      | _ => []
+      }
+    | None => []
+    };
+
   [
     span(
       ~attr=Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
@@ -95,17 +111,7 @@ module Text = (M: {
             ~livelit_state: Id.Map.t(DHExp.t),
           )
           : list(Node.t) => {
-    let livelit_nodes: list(Node.t) =
-      switch (List.filter(p => !Piece.is_secondary(p), seg)) {
-      | [
-          Tile({label: [l], id: _tile_id, _} as _a),
-          Tile({id: paren_id, _}),
-          ..._rest,
-        ]
-          when String.starts_with(~prefix="^", l) =>
-        LivelitView.view(font_metrics, inject, l, livelit_state, paren_id)
-      | _ => []
-      };
+    let livelit_nodes = [];
     //note: no_sorts flag is used for backback
     let expected_sorts: list((int, Sort.t)) =
       no_sorts
