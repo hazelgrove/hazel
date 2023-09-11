@@ -2659,31 +2659,27 @@ let filter_step_group = "filter_step_group";
 let filter_skip_group = "filter_skip_group";
 let filter_step_ex = {
   sub_id: "filter_step_ex",
-  term: mk_example("step + in\n1 + 2 + 3"),
+  term: mk_example("step + in\n(1 + 2) + (3 + 4)"),
   message: "When in stepping mode, the addition will be evaluated in step by step",
   feedback: Unselected,
 };
 let filter_skip_ex = {
   sub_id: "filter_skip_ex",
-  term: mk_example("skip + in\n1 + 2 + 3"),
+  term: mk_example("skip + in\n1 + 2 + 3 + 4"),
   message: "When in stepping mode, this will evaluate all connected plus operation altogether",
   feedback: Unselected,
 };
 let _pat = exp("e_pat");
 let _exp_body = exp("e_body");
-let filter_step_coloring_ids = (~pat_id: Id.t) => {
-  [(Piece.id(_pat), pat_id)];
+let filter_step_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
+  [(Piece.id(_pat), pat_id), (Piece.id(_exp_body), body_id)];
 };
 let filter_step_exp: form = {
   let explanation = {
-    message: "Stepped exression. The all subexpressions within [*body*](%i) that match the pattern will get evaluated step by step",
+    message: "Stepped exression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated step by step",
     feedback: Unselected,
   };
-  let form = [
-    mk_step([[space(), exp("p"), space()]]),
-    linebreak(),
-    _exp_body,
-  ];
+  let form = [mk_step([[space(), _pat, space()]]), linebreak(), _exp_body];
   {
     id: "filter_step_exp",
     syntactic_form: form,
@@ -2692,12 +2688,12 @@ let filter_step_exp: form = {
     examples: [filter_step_ex],
   };
 };
-let filter_skip_coloring_ids = (~pat_id: Id.t) => {
-  [(Piece.id(_pat), pat_id)];
+let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
+  [(Piece.id(_pat), pat_id), (Piece.id(_exp_body), body_id)];
 };
 let filter_skip_exp: form = {
   let explanation = {
-    message: "Skipped expression. The all subexpressions within [*body*](%i) that match the pattern will get evaluated in one go",
+    message: "Skipped expression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
     feedback: Unselected,
   };
   let form = [
