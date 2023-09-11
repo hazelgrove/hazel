@@ -139,7 +139,7 @@ and go = (d: DHExp.t): Segment.t => {
   | FreeVar(_, _, s)
   | InvalidText(_, _, s) => [atomic_operand(Exp, s)]
   // Composite value forms
-  | Ap(TestLit(_), d2) => [test_tile(go(d2))]
+  | Ap(Monitor(_), d2) => [test_tile(go(d2))]
   | Ap(d1, d2) => go(d1) @ [ap_tile(Exp, go(d2))]
   | Tuple([]) => [atomic_operand(Exp, "()")]
   | Tuple(ds) =>
@@ -179,7 +179,7 @@ and go = (d: DHExp.t): Segment.t => {
       |> List.flatten;
     [case_tile(go(d) @ [lb()] @ child)];
   // Hacky support
-  | TestLit(_) => [] // Shouldn't occur
+  | Monitor(_) => [] // Shouldn't occur
   | Prj(d, i) => go(ApBuiltin("prj", [IntLit(i), d]))
   };
 }

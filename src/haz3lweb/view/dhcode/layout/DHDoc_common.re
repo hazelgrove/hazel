@@ -100,8 +100,6 @@ let mk_InvalidText = (t, hc) =>
 
 let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
 
-let mk_TestLit = _n => Doc.text(ExpandingKeyword.to_string(Test));
-
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));

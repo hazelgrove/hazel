@@ -322,7 +322,7 @@ and matches_cast_Sum =
   | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)
-  | TestLit(_)
+  | Monitor(_)
   | Cons(_)
   | ListConcat(_) => DoesNotMatch
   }
@@ -400,7 +400,7 @@ and matches_cast_Tuple =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
-  | TestLit(_) => DoesNotMatch
+  | Monitor(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
@@ -537,7 +537,7 @@ and matches_cast_Cons =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
-  | TestLit(_) => DoesNotMatch
+  | Monitor(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
@@ -676,7 +676,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
-      | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
+      | BoxedValue(Monitor(Test, id)) => evaluate_test(env, id, d2)
+      | BoxedValue(Monitor(Probe, id)) =>
+        let* res = evaluate(env, d2);
+        let+ _ = add_probe(id, {env, res});
+        res;
       | BoxedValue(Constructor(_)) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
@@ -720,7 +724,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
 
-    | TestLit(_)
+    | Monitor(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -1194,8 +1198,7 @@ and evaluate_ap_builtin =
 }
 
 and evaluate_test =
-    (env: ClosureEnvironment.t, n: KeywordID.t, arg: DHExp.t)
-    : m(EvaluatorResult.t) => {
+    (env: ClosureEnvironment.t, n: Id.t, arg: DHExp.t): m(EvaluatorResult.t) => {
   let* (arg_show, arg_result) =
     switch (DHExp.strip_casts(arg)) {
     | BinBoolOp(op, arg_d1, arg_d2) =>
@@ -1250,7 +1253,7 @@ and evaluate_test =
     switch (arg_result) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Tuple([]))
     | BoxedValue(arg)
-    | Indet(arg) => Indet(Ap(TestLit(n), arg))
+    | Indet(arg) => Indet(Ap(Monitor(Test, n), arg))
     };
   r |> return;
 }

@@ -36,24 +36,30 @@ let dh_err = (error: string): DHExp.t =>
   InvalidText(Id.invalid, -666, error);
 
 let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab');
 
 exception DoesNotElaborate;
-let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
+let elaborate = (~probe_ids=[], ~settings: CoreSettings.t, map, term): DHExp.t =>
   switch (settings.statics) {
   | false => dh_err("Statics disabled: No elaboration")
   | true =>
-    switch (elaborate(map, term)) {
+    switch (elaborate(probe_ids, map, term)) {
     | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
     | Elaborates(d, _, _) => d
     }
   };
 
 let elaborate_editor =
-    (~settings: CoreSettings.t, ~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
+    (
+      ~probe_ids=[],
+      ~settings: CoreSettings.t,
+      ~ctx_init: Ctx.t,
+      editor: Editor.t,
+    )
+    : DHExp.t => {
   let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
   let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  elaborate(~settings, info_map, term);
+  elaborate(~probe_ids, ~settings, info_map, term);
 };
 
 exception EvalError(EvaluatorError.t);

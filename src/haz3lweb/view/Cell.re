@@ -175,6 +175,7 @@ let test_result_layer =
 let deco =
     (
       ~zipper,
+      ~settings,
       ~measured,
       ~term_ranges,
       ~unselected,
@@ -188,6 +189,7 @@ let deco =
     ) => {
   module Deco =
     Deco.Deco({
+      let settings = settings;
       let font_metrics = font_metrics;
       let map = measured;
       let show_backpack_targets = show_backpack_targets;
@@ -325,6 +327,7 @@ let editor_view =
   let deco_view =
     deco(
       ~zipper,
+      ~settings,
       ~unselected,
       ~measured,
       ~term_ranges,
@@ -343,6 +346,7 @@ let editor_view =
     );
   code_cell_view(
     ~inject,
+    //~settings,
     ~font_metrics,
     ~clss,
     ~selected,
@@ -383,7 +387,12 @@ let editor_with_result_view =
           ~font_metrics,
           ~elab=
             settings.core.elaborate
-              ? Interface.elaborate(~settings=settings.core, info_map, term)
+              ? Interface.elaborate(
+                  ~probe_ids=editor |> Editor.get_indicated |> Option.to_list,
+                  ~settings=settings.core,
+                  info_map,
+                  term,
+                )
               : Interface.dh_err("Elaboration disabled"),
           result,
         )

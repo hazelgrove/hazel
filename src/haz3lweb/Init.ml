@@ -8,6 +8,7 @@ let startup : PersistentData.t =
           { statics = true; elaborate = false; assist = true; dynamics = true };
         async_evaluation = false;
         context_inspector = false;
+        live_inspector = Settings.live_inspector_init;
         instructor_mode = true;
         benchmark = false;
         mode = Scratch;

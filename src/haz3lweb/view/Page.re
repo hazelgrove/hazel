@@ -46,6 +46,7 @@ let nut_menu =
         core: {statics, elaborate, assist, dynamics},
         benchmark,
         instructor_mode,
+        live_inspector,
         _,
       }: Settings.t,
     ) => [
@@ -64,6 +65,9 @@ let nut_menu =
       ),
       toggle("𝑒", ~tooltip="Show Elaboration", elaborate, _ =>
         inject(Set(Elaborate))
+      ),
+      toggle("L", ~tooltip="Toggle Live Inspector", live_inspector.on, _ =>
+        inject(Set(LiveInspector(ToggleOn)))
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))

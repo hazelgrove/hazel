@@ -70,6 +70,17 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
         "DEBUG: F10: Zipper with dump_backpack=true, erase_buffer=false",
       );
       zipper |> Zipper.seg_for_sem |> Segment.show |> print;
+    | "F11" =>
+      /* TODO(andrew): cleanup. testing for probe */
+      /*zipper
+        |> get_elab
+        |> Interface.evaluate
+        |> ProgramResult.get_state
+        |> EvaluatorState.get_probes
+        |> ProbeMap.process
+        |> ProbeMap.show_processed_map
+        |> print*/
+      None
     | _ => None
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

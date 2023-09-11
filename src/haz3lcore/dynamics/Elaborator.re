@@ -97,7 +97,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Monitor(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -116,7 +116,8 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+        (~probe_ids, m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+  let dhexp_of_uexp = dhexp_of_uexp(~probe_ids);
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
@@ -194,7 +195,7 @@ let rec dhexp_of_uexp =
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Ap(TestLit(id), dtest);
+        DHExp.Ap(Monitor(Test, id), dtest);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -203,7 +204,7 @@ let rec dhexp_of_uexp =
       | Constructor(name) =>
         switch (err_status) {
         | _ when Hyper.is_export(name) =>
-          Some(DHExp.Ap(TestLit(Hyper.export_id), Tuple([])))
+          Some(DHExp.Ap(Monitor(Test, Hyper.export_id), Tuple([])))
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
         | _ => Some(Constructor(name))
@@ -302,7 +303,9 @@ let rec dhexp_of_uexp =
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
+    let d = wrap(ctx, id, mode, self, d);
+    /* Wrap with probe if indicated by id */
+    List.mem(id, probe_ids) ? DHExp.Ap(Monitor(Probe, id), d) : d;
   | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
     Printf.printf(
       "Elaborate: Exp: Infomap returned wrong sort: %s\n",
@@ -386,8 +389,9 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   };
 };
 
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+let uexp_elab =
+    (~probe_ids=[], m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+  switch (dhexp_of_uexp(~probe_ids, m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
     let ty =
@@ -397,3 +401,8 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       };
     Elaborates(d, ty, Delta.empty);
   };
+
+//TODO(andrew): cleanup
+let uexp_elab' =
+    (probe_ids, m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+  uexp_elab(~probe_ids, m, uexp);

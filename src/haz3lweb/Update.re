@@ -5,6 +5,33 @@ include UpdateAction; // to prevent circularity
 let update_settings =
     (a: settings_action, {settings, _} as model: Model.t): Model.t =>
   switch (a) {
+  | LiveInspector(a) =>
+    let live_inspector = settings.live_inspector;
+    let live_inspector =
+      switch (a) {
+      | ToggleOn => {...live_inspector, on: !live_inspector.on}
+      | ToggleCursor => {
+          ...live_inspector,
+          use_cursor: !live_inspector.use_cursor,
+        }
+      | ToggleShowFnsInEnv => {
+          ...live_inspector,
+          show_fns_in_env: !live_inspector.show_fns_in_env,
+        }
+      | UpdateIds(f) => {...live_inspector, ids: f(live_inspector.ids)}
+      | SetCurrentEnvIdx(i) => {...live_inspector, cur_env_idx: i}
+      | UpdateCurrentEnv(f) => {
+          ...live_inspector,
+          cur_env: f(live_inspector.cur_env),
+        }
+      };
+    {
+      ...model,
+      settings: {
+        ...settings,
+        live_inspector,
+      },
+    };
   | Statics =>
     /* NOTE: dynamics depends on statics, so if dynamics is on and
        we're turning statics off, turn dynamics off as well */
@@ -117,7 +144,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | Dynamics
     | InstructorMode
     | ContextInspector
-    | Mode(_) => true
+    | Mode(_)
+    | LiveInspector(_) => true
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
