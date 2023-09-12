@@ -173,11 +173,15 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | DoTheThing
   | StoreKey(_)
   | ExportPersistentData => false
+  | MUVSyntax(_)
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
-  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down | Remote(_))
+  | PerformAction(
+      Destruct(_) | Insert(_) | Pick_up | Put_down | Remote(_) |
+      InsertSegment(_),
+    )
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
@@ -479,6 +483,47 @@ let rec apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
+    | MUVSyntax(id, update, action) =>
+      let settings = model.settings;
+      let ctx = Editors.get_ctx_init(~settings, model.editors);
+      let map =
+        model.editors
+        |> Editors.active_zipper
+        |> MakeTerm.from_zip_for_sem
+        |> fst
+        |> Interface.Statics.mk_map_ctx(settings.core, ctx);
+      let ci = Id.Map.find_opt(id, map);
+      //get id of end child of stage
+      switch (ci) {
+      | Some(
+          InfoExp({
+            term: {
+              term:
+                Ap(
+                  _,
+                  {
+                    term: Tuple([_, {ids: [id, ..._], _} as model_uexp]),
+                    _,
+                  },
+                ),
+              _,
+            },
+            _,
+          }),
+        ) =>
+        let init_model =
+          Interface.elaborate(~settings=settings.core, map, model_uexp);
+        let res =
+          Interface.eval_d2d(
+            ~settings=settings.core,
+            Ap(update, Tuple([init_model, action])),
+          );
+        print_endline("id:" ++ Id.to_string(id));
+        let seg = DHExpToSeg.go(res);
+        let action: Action.t = Remote(id, InsertSegment(seg));
+        perform_action(model, action);
+      | _ => Ok(model)
+      };
     };
   reevaluate_post_update(model.settings, update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

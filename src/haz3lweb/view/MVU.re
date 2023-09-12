@@ -249,10 +249,23 @@ let render_styles = styles =>
   |> String.concat(";")
   |> Attr.create("style");
 
+let syntax_action = (id, _update, _action): Action.t => {
+  let a: Action.t = Pick_up; //TODO(andrew)
+  Remote(id, a);
+};
+
 let update =
     ({name, update, model, settings, _}: t, handler, arg): UpdateAction.t =>
   //TODO(andrew): betterfy this trash
   if (update == Tuple([]) && model == Tuple([])) {
+    let inj = Interface.eval_d2d(~settings=settings.core, Ap(handler, arg));
+    switch (inj) {
+    | Ap(Constructor("Inject"), Tuple([StringLit(id), update, action])) =>
+      MUVSyntax(id |> Id.of_string |> Option.get, update, action)
+    | _ =>
+      //TODO: better error handling
+      SetMeta(MVU(name, model))
+    };
     /* TODO:
 
         0. let Inject(id, action, update) = Ap(handler, arg)
@@ -277,9 +290,6 @@ let update =
         child has nonempty co-ctx. or simply require it to be a value
         Q: how to canonically to check if its a value?
         */
-    SetMeta(
-      MVU(name, model),
-    );
   } else {
     let model =
       Interface.eval_d2d(

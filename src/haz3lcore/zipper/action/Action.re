@@ -62,6 +62,7 @@ type t =
   | Destruct(Direction.t)
   | Insert(string)
   | Remote(Id.t, t)
+  | InsertSegment(Segment.t)
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up

@@ -9,6 +9,7 @@ let is_write_action = (a: Action.t) => {
   | Jump(_)
   | Select(_) => false
   | Remote(_)
+  | InsertSegment(_)
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -79,6 +80,16 @@ let rec go_z =
         //print_endline("path test path_map done!");
         let z = Zipper.zip_to_path(segment, path, old_caret);
         Ok(z);
+      };
+    }
+  | InsertSegment(segment) =>
+    switch (go_z(~meta, ~settings, Select(Term(Current)), z)) {
+    | Error(e) => Error(e)
+    | Ok(z) =>
+      let z = {...z, selection: Selection.mk(segment)};
+      switch (go_z(~meta, ~settings, Unselect(Some(Left)), z)) {
+      | Error(e) => Error(e)
+      | Ok(z) => Ok(z)
       };
     }
   | Jump(jump_target) =>

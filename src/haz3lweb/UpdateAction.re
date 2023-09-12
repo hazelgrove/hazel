@@ -81,6 +81,7 @@ type t =
   | FinishImportScratchpad(option(string))
   | SwitchScratchSlide(int)
   /* editor */
+  | MUVSyntax(Id.t, DHExp.t, DHExp.t)
   | DoTheThing
   | Save
   | PerformAction(Action.t)
