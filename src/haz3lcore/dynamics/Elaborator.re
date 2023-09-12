@@ -280,20 +280,6 @@ let rec dhexp_of_uexp =
           term: Tuple([model, inject]),
           ids: [Id.mk()],
         };
-        let inject_typ: Typ.t =
-          Arrow(
-            Prod([
-              String,
-              Arrow(Prod([Var("Model"), Var("Action")]), Var("Model")),
-              Var("Action"),
-            ]),
-            Var("Event"),
-          );
-        let ctx =
-          Ctx.extend(
-            ctx,
-            ConstructorEntry({name: "Inject", id: Id.mk(), typ: inject_typ}),
-          );
         //(<init_model>, fun (action:Action) -> Inject(Int(<init_model>.uuid), <update>, action)
         /*let* update = dhexp_of_uexp(m, update);
           let+ model = dhexp_of_uexp(m, model);

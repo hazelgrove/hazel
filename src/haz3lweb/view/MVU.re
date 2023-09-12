@@ -384,8 +384,9 @@ and input_of = (input_type: string, mvu: t, body: DHExp.t) => {
     divs,
   );
 }
-and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
-  switch (body) {
+and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
+  //TODO(andrew): not sure why other strip casts is necessary here?
+  switch (DHExp.strip_casts(body)) {
   | Tuple([ListLit(_, _, _, attrs), ListLit(_, _, _, divs)]) => (
       List.map(render_attr(mvu), attrs),
       List.map(render_div(mvu), divs),
@@ -393,8 +394,9 @@ and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
   | _ =>
     print_endline("ERROR: attrs_and_divs");
     print_endline(DHExp.show(body));
-    ([], []);
+    ([], [dhexp_view(~font_metrics=mvu.font_metrics, body)]);
   };
+};
 
 let go =
     (
