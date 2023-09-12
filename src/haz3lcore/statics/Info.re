@@ -285,23 +285,22 @@ let rec status_common =
     | Some(_)
     | None => InHole(Inconsistent(InvalidUserOp))
     }
-  | (Just(syn), (SynFun | SynInfix) as syn_in) =>
+  | (Just(syn), SynFun) =>
     switch (
       Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
     ) {
-    | None =>
-      switch (syn_in) {
-      | SynInfix => InHole(Inconsistent(InvalidUserOp))
-      | _ => InHole(Inconsistent(WithArrow(syn)))
-      }
+    | None => InHole(Inconsistent(WithArrow(syn)))
+    | Some(_) => NotInHole(Syn(syn))
+    }
+  | (Just(syn), SynInfix) =>
+    switch (
+      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
+    ) {
+    | None => InHole(Inconsistent(InvalidUserOp))
     | Some(ty) =>
-      switch (syn_in) {
-      | SynInfix =>
-        switch (ty) {
-        | Arrow(Prod(ty_list), _) when List.length(ty_list) > 2 =>
-          InHole(Inconsistent(InvalidUserOpArgs))
-        | _ => NotInHole(Syn(syn))
-        }
+      switch (ty) {
+      | Arrow(Prod(ty_list), _) when List.length(ty_list) > 2 =>
+        InHole(Inconsistent(InvalidUserOpArgs))
       | _ => NotInHole(Syn(syn))
       }
     }
