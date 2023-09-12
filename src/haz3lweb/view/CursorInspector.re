@@ -92,7 +92,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     ]
   | Inconsistent(InvalidUserOp) => [text("Operators must be functions")]
   | Inconsistent(InvalidUserOpArgs) => [
-      text("Operators must be functions of less than three arguments"),
+      text("Operators must be functions of two arguments or fewer"),
     ]
   };
 

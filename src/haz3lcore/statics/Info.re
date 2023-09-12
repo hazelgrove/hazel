@@ -277,8 +277,11 @@ let rec status_common =
     switch (Typ.join_fix(ctx, ana, syn)) {
     | Some(Arrow(Prod(ty_list), _)) when List.length(ty_list) > 2 =>
       InHole(Inconsistent(InvalidUserOpArgs))
-    | Some(Arrow(_, _) as join) =>
+    | Some(Unknown(_) as join)
+    | Some(Arrow(Unknown(_), _) as join)
+    | Some(Arrow(Prod([_, _]), _) as join) =>
       NotInHole(Ana(Consistent({ana, syn, join})))
+    | Some(Arrow(_, _)) => InHole(Inconsistent(InvalidUserOpArgs))
     | Some(_)
     | None => InHole(Inconsistent(InvalidUserOp))
     }

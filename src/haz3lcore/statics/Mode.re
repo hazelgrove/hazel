@@ -138,3 +138,19 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
     }
   | None => SynFun
   };
+
+let of_op = (ctx: Ctx.t, op: TermBase.UExp.t): (t, t) => {
+  /* Extracts the type of a operator name and wraps it ina Mode.t. If
+     there is no variable found, return SynInfix. */
+  let op_name =
+    switch (op) {
+    | {term: Var(name), _} => name
+    | _ => failwith("Non-Var passed to UserOp")
+    };
+  switch (Ctx.lookup_var(ctx, op_name)) {
+  | Some(var) =>
+    let (ty_in, _) = Typ.matched_arrow(ctx, var.typ);
+    (AnaInfix(var.typ), Ana(ty_in));
+  | None => (SynInfix, Syn)
+  };
+};
