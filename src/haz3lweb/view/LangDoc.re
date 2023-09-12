@@ -2829,8 +2829,8 @@ let get_doc =
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default
     // TODO (typfun): Add langdoc
-    | Forall(_) => default
-    | Rec(_) => default
+    | Forall(_, _) => basic_info(LangDocMessages.forall_typ_group)
+    | Rec(_) => basic_info(LangDocMessages.rec_typ_group)
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {

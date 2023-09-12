@@ -60,6 +60,8 @@ let mk_parens_typ = Example.mk_tile(Form.get("parens_typ"));
 let mk_list_exp = Example.mk_tile(Form.get("list_lit_exp"));
 let mk_list_pat = Example.mk_tile(Form.get("list_lit_pat"));
 let mk_list_typ = Example.mk_tile(Form.get("list_typ"));
+let mk_forall_typ = Example.mk_tile(Form.get("forall"));
+let mk_rec_typ = Example.mk_tile(Form.get("rec"));
 let arrow = () => Example.mk_monotile(Form.get("type-arrow"));
 let unary_minus = () => Example.mk_monotile(Form.get("unary_minus"));
 let unary_not = () => Example.mk_monotile(Form.get("not"));
@@ -95,6 +97,7 @@ let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("[]");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
+let mk_typfun = Example.mk_tile(Form.get("typfun"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
@@ -367,6 +370,21 @@ let ap_fun_ex = {
   sub_id: "ap_fun_ex",
   term: mk_example("fun Some(a) -> a"),
   message: "When given a Some constructor argument, the function evaluates to the constructor's argument.",
+  feedback: Unselected,
+};
+let poly_id_ex = {
+  sub_id: "poly_id_ex",
+  term:
+    mk_example(
+      "let id : \n forall X . (X -> X) = \n typfun X -> \n fun x : X -> x \n in id",
+    ),
+  message: "The polymorphic identity function. It may be instantiated at any type X, after which the function acts as type (X -> X).",
+  feedback: Unselected,
+};
+let peano_ex = {
+  sub_id: "peano_ex",
+  term: mk_example("type Peano = \n rec P . Z + S(P) \n in S(S(S(Z)))"),
+  message: "The type of the Peano numbers and the representation of the number 3.",
   feedback: Unselected,
 };
 // TODO for shared examples, should the feedback be stored separately for each "instance"?
@@ -3163,6 +3181,44 @@ let list_typ: form = {
   };
 };
 
+let forall_typ_group = "forall_typ_group";
+let forall_typ: form = {
+  let explanation = {
+    message: "Polymorphic type. The forall binds a type variable that can later be instantiated at a concrete type.",
+    feedback: Unselected,
+  };
+  {
+    id: "forall_typ",
+    syntactic_form: [
+      mk_forall_typ([[space(), _tpat, space()]]),
+      space(),
+      typ("ty_body"),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [poly_id_ex],
+  };
+};
+
+let rec_typ_group = "rec_typ_group";
+let rec_typ: form = {
+  let explanation = {
+    message: "Recursive type. The type this represents is the least fixed point of a type constructor operating on the bound type variable.",
+    feedback: Unselected,
+  };
+  {
+    id: "rec_typ",
+    syntactic_form: [
+      mk_rec_typ([[space(), _tpat, space()]]),
+      space(),
+      typ("ty_body"),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [peano_ex],
+  };
+};
+
 let arrow_typ_group = "arrow_typ_group";
 let arrow3_typ_group = "arrow3_typ_group";
 let _typ_arg = typ("ty_arg");
@@ -3584,6 +3640,8 @@ let init = {
     bool_typ,
     str_typ,
     list_typ,
+    forall_typ,
+    rec_typ,
     arrow_typ,
     arrow3_typ,
     labelled_sum_typ,
@@ -3970,6 +4028,8 @@ let init = {
     (bool_typ_group, init_options([(bool_typ.id, [])])),
     (str_typ_group, init_options([(str_typ.id, [])])),
     (list_typ_group, init_options([(list_typ.id, [])])),
+    (forall_typ_group, init_options([(forall_typ.id, [])])),
+    (rec_typ_group, init_options([(rec_typ.id, [])])),
     (arrow_typ_group, init_options([(arrow_typ.id, [])])),
     (
       arrow3_typ_group,

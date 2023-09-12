@@ -125,7 +125,7 @@ and ctr_view = ((ctr, typ)) =>
   }
 and paren_view = typ =>
   if (needs_parens(typ)) {
-    [text("("), view_ty(typ), text(")")];
+    [text("("), view_ty(~strip_outer_parens=true, typ), text(")")];
   } else {
     [view_ty(typ)];
   };
