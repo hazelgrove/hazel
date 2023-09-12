@@ -392,6 +392,7 @@ and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
     )
   | _ =>
     print_endline("ERROR: attrs_and_divs");
+    print_endline(DHExp.show(body));
     ([], []);
   };
 

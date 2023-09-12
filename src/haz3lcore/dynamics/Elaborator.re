@@ -119,7 +119,7 @@ let rec dhexp_of_uexp =
         (~probe_ids, m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
   let dhexp_of_uexp = dhexp_of_uexp(~probe_ids);
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -254,19 +254,60 @@ let rec dhexp_of_uexp =
           {term: Constructor("Stage"), _},
           {term: Tuple([update, model]), _},
         ) =>
-        //TODO(andrew): casting
-        //(<init_model>, fun (action:Action) -> Inject(Int(<init_model>.uuid), <update>, action)
-        let* update = dhexp_of_uexp(m, update);
-        let+ model = dhexp_of_uexp(m, model);
         let id_str = Term.UExp.rep_id(uexp) |> Id.to_string;
-        let body =
-          DHExp.Ap(
-            Constructor("Inject"),
-            Tuple([StringLit(id_str), update, BoundVar("action")]),
+        let body: Term.UExp.t = {
+          term:
+            Ap(
+              {term: Constructor("Inject"), ids: [Id.mk()]},
+              {
+                term:
+                  Tuple([
+                    {term: String(id_str), ids: [Id.mk()]},
+                    update,
+                    {term: Var("action"), ids: [Id.mk()]},
+                  ]),
+                ids: [Id.mk()],
+              },
+            ),
+          ids: [Id.mk()],
+        };
+        let inject: Term.UExp.t = {
+          term: Fun({term: Var("action"), ids: [Id.mk()]}, body),
+          ids: [Id.mk()],
+        };
+        //TODO(andrew): include actual stage ids / ana type somewhere?
+        let ret: Term.UExp.t = {
+          term: Tuple([model, inject]),
+          ids: [Id.mk()],
+        };
+        let inject_typ: Typ.t =
+          Arrow(
+            Prod([
+              String,
+              Arrow(Prod([Var("Model"), Var("Action")]), Var("Model")),
+              Var("Action"),
+            ]),
+            Var("Event"),
           );
-        let inject =
-          DHExp.Fun(Var("action"), Unknown(Internal), body, None);
-        DHExp.Tuple([model, inject]);
+        let ctx =
+          Ctx.extend(
+            ctx,
+            ConstructorEntry({name: "Inject", id: Id.mk(), typ: inject_typ}),
+          );
+        //(<init_model>, fun (action:Action) -> Inject(Int(<init_model>.uuid), <update>, action)
+        /*let* update = dhexp_of_uexp(m, update);
+          let+ model = dhexp_of_uexp(m, model);
+          let body =
+            DHExp.Ap(
+              Constructor("Inject"),
+              Tuple([StringLit(id_str), update, BoundVar("action")]),
+            );
+          let inject =
+            DHExp.Fun(Var("action"), Unknown(Internal), body, None);
+          DHExp.Tuple([model, inject]);*/
+        let (_, m_new) =
+          Statics.uexp_to_info_map(~ctx, ~mode, ~ancestors, ret, m);
+        dhexp_of_uexp(m_new, ret);
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
