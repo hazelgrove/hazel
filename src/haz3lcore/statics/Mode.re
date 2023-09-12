@@ -154,3 +154,12 @@ let of_op = (ctx: Ctx.t, op: TermBase.UExp.t): (t, t) => {
   | None => (SynInfix, Syn)
   };
 };
+
+let of_let_def = (ctx: Ctx.t, p: TermBase.UPat.t, p_typ: Typ.t): t =>
+  switch (p) {
+  | {term: TypeAnn({term: Var(x), _}, _), _} when Form.is_op_in_let(x) =>
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, p_typ);
+    AnaInfix(Arrow(ty_in, ty_out));
+  | {term: Var(x), _} when Form.is_op_in_let(x) => SynInfix
+  | _ => Ana(p_typ)
+  };

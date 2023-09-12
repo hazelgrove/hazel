@@ -257,15 +257,8 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let e_mode =
-      switch (p) {
-      | {term: TypeAnn({term: Var(x), _}, _), _} when Form.is_op_in_let(x) =>
-        let (ty_in, ty_out) = Typ.matched_arrow(ctx, p_syn.ty);
-        Mode.AnaInfix(Arrow(ty_in, ty_out));
-      | {term: Var(x), _} when Form.is_op_in_let(x) => Mode.SynInfix
-      | _ => Mode.Ana(p_syn.ty)
-      };
-    let (def, m) = go'(~ctx=def_ctx, ~mode=e_mode, def, m);
+    let (def, m) =
+      go'(~ctx=def_ctx, ~mode=Mode.of_let_def(ctx, p, p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
     let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
