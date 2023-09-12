@@ -34,7 +34,7 @@ let needs_parens = (ty: Haz3lcore.Typ.t): bool =>
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
 
-let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
+let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   switch (ty) {
   | Unknown(prov) =>
     div(
@@ -53,12 +53,12 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Rec(name, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("rec " ++ name ++ ". "), view_ty(t)],
+      [text("rec " ++ name ++ ". "), ...paren_view(t)],
     )
   | Forall(name, t) =>
     div(
       ~attr=clss(["typ-view", "Forall"]),
-      [text("forall " ++ name ++ ". "), view_ty(t)],
+      [text("forall " ++ name ++ ". "), ...paren_view(t)],
     )
   | List(t) =>
     div(
@@ -76,8 +76,14 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Prod([t0, ...ts]) =>
     div(
       ~attr=clss(["typ-view", "atom", "Prod"]),
-      [
-        text("("),
+      (
+        if (!strip_outer_parens) {
+          [text("(")];
+        } else {
+          [];
+        }
+      )
+      @ [
         div(
           ~attr=clss(["typ-view", "Prod"]),
           paren_view(t0)
@@ -86,8 +92,14 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
             |> List.flatten
           ),
         ),
-        text(")"),
-      ],
+      ]
+      @ (
+        if (!strip_outer_parens) {
+          [text(")")];
+        } else {
+          [];
+        }
+      ),
     )
   | Sum(ts) =>
     div(
@@ -105,7 +117,11 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
 and ctr_view = ((ctr, typ)) =>
   switch (typ) {
   | None => [text(ctr)]
-  | Some(typ) => [text(ctr ++ "("), view_ty(typ), text(")")]
+  | Some(typ) => [
+      text(ctr ++ "("),
+      view_ty(~strip_outer_parens=true, typ),
+      text(")"),
+    ]
   }
 and paren_view = typ =>
   if (needs_parens(typ)) {
