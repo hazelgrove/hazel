@@ -237,7 +237,7 @@ let eval_result_footer_view =
     | Some({eval_result: Ap(Constructor("Div"), _) as node, _}) =>
       //TODO(andrew): more general constructor catch
       MVU.go2(~settings, ~inject, ~font_metrics, ~node)
-      @ [dhcode_view(~show_casts=false, node)]
+    // @ [dhcode_view(~show_casts=false, node)]
     | Some({
         eval_result:
           Ap(
