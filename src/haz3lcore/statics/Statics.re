@@ -215,7 +215,7 @@ and uexp_to_info_map =
     let ty_all =
       switch (op_var) {
       | None => None
-      | Some(var) => Some(Typ.matched_arrow(var.typ))
+      | Some(var) => Some(Typ.matched_arrow(ctx, var.typ))
       };
     switch (ty_all) {
     | Some((Unknown(_) as ty_var, _)) =>

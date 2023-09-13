@@ -77,6 +77,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | BinOp(_)
   | UserOp(_)
   | LetOp(_)
+  | Match(_) => TermBase.UExp.{ids: [Id.mk()], term: Seq(e1, e2)}
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')};
