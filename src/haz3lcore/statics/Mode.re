@@ -36,53 +36,42 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
   | SynFun => (Syn, Syn)
-  | Ana(ty) =>
-    ty
-    |> Typ.weak_head_normalize(ctx)
-    |> Typ.matched_arrow
-    |> TupleUtil.map2(ana)
+  | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
 let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   switch (mode) {
   | Syn
   | SynFun => List.init(length, _ => Syn)
-  | Ana(ty) =>
-    ty
-    |> Typ.weak_head_normalize(ctx)
-    |> Typ.matched_prod(length)
-    |> List.map(ana)
+  | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
   };
-
-let matched_list_normalize = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
-  ty |> Typ.weak_head_normalize(ctx) |> Typ.matched_list;
 
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun => Syn
-  | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
+  | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
 let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
   | SynFun => Ana(List(hd_ty))
-  | Ana(ty) => Ana(List(matched_list_normalize(ctx, ty)))
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
 let of_list = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun => Syn
-  | Ana(ty) => Ana(matched_list_normalize(ctx, ty))
+  | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
-let of_list_concat = (mode: t): t =>
+let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun => Ana(List(Unknown(SynSwitch)))
-  | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
 let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>

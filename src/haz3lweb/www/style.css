@@ -1226,6 +1226,15 @@ svg.tile-selected {
   padding-left: 1em;
   padding-right: 1em;
   white-space: nowrap;
+}
+
+.bottom-bar .id-and-class .syntax-class {
+  color: var(--top_bar_icon_fill);
+  color: #392f10; /*#fdf6e3;*/
+}
+
+.bottom-bar .id-and-class .id {
+  text-transform: uppercase;
   color: #a69461;
 }
 
@@ -1914,4 +1923,3 @@ svg.expandable path {
   top: -1em;
   left: -1em;
 }
-
