@@ -89,8 +89,7 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
 
     switch (ty_entry) {
     | None => ty_ana
-    | Some(ty_in) =>
-      Arrow(ty_in, ty_ana);
+    | Some(ty_in) => Arrow(ty_in, ty_ana)
     };
   | _ => None
   };

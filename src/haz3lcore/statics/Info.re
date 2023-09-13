@@ -273,7 +273,6 @@ let rec status_common =
     | Some(_) => NotInHole(Syn(syn))
     }
   | (IsConstructor({name, syn_ty}), _) =>
-
     /* If a ctr is being analyzed against (an arrow type returning)
        a sum type having that ctr as a variant, its self type is
        considered to be determined by the sum type; otherwise,

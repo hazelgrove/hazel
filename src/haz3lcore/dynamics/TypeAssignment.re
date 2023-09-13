@@ -38,7 +38,7 @@ let ground = (ty: Typ.t): bool => {
 let rec dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
   switch (dhpat, ty) {
   | (Var(name), _) =>
-    let entry = Ctx.VarEntry({name, id: 0, typ: ty});
+    let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
     Ctx.extend(ctx, entry);
   | (Tuple(l1), Prod(l2)) =>
     if (List.length(l1) == List.length(l2)) {
@@ -64,7 +64,7 @@ let rec dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
       ctx;
     }
   | (Ap(Constructor(_, typ), dhp), _) =>
-    let (ty1, ty2) = Typ.matched_arrow(typ);
+    let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
     if (Typ.eq(ty2, ty)) {
       ctx |> dhpat_extend_ctx(dhp, ty1);
     } else {
@@ -93,7 +93,7 @@ let rec typ_of_dhexp =
     let* ty1 = typ_of_dhexp(ctx, m, de);
     typ_of_dhexp(dhpat_extend_ctx(dhp, ty1, ctx), m, db);
   | FixF(name, ty1, d) =>
-    let entry = Ctx.VarEntry({name, id: (-1), typ: ty1});
+    let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty1});
     typ_of_dhexp(Ctx.extend(ctx, entry), m, d);
   | Ap(TestLit(_), dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
