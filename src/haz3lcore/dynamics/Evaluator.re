@@ -169,7 +169,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       }
     }
   | (
-      Ap(Constructor(ctr), dp_opt),
+      Ap(Constructor(ctr, _), dp_opt),
       Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
@@ -182,10 +182,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
-  | (Constructor(ctr), Constructor(ctr')) =>
+  | (Constructor(ctr, _), Constructor(ctr', _)) =>
     ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
   | (
-      Constructor(ctr),
+      Constructor(ctr, _),
       Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
@@ -267,7 +267,7 @@ and matches_cast_Sum =
     )
     : match_result =>
   switch (d) {
-  | Constructor(ctr') =>
+  | Constructor(ctr', _) =>
     switch (
       dp,
       castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
@@ -276,7 +276,7 @@ and matches_cast_Sum =
       ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
     | _ => DoesNotMatch
     }
-  | Ap(Constructor(ctr'), d') =>
+  | Ap(Constructor(ctr', _), d') =>
     switch (
       dp,
       castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,

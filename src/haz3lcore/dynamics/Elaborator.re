@@ -194,7 +194,12 @@ let rec dhexp_of_uexp =
         switch (err_status) {
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
-        | _ => Some(Constructor(name))
+        | _ =>
+          switch (Ctx.lookup_ctr(ctx, name)) {
+          | None => Some(Constructor(name, Unknown(Internal)))
+          | Some({typ, _}) =>
+            Some(Constructor(name, Typ.normalize(ctx, typ)))
+          }
         }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -313,7 +318,14 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       switch (err_status) {
       | InHole(Common(NoType(FreeConstructor(_)))) =>
         Some(BadConstructor(u, 0, name))
-      | _ => wrap(Constructor(name))
+      | _ =>
+        let dc =
+          switch (Ctx.lookup_ctr(ctx, name)) {
+          | None => DHPat.Constructor(name, Unknown(Internal))
+          | Some({typ, _}) =>
+            DHPat.Constructor(name, Typ.normalize(ctx, typ))
+          };
+        wrap(dc);
       }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
@@ -344,6 +356,7 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);
+    print_endline(DHExp.show(d));
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
