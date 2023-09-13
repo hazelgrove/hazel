@@ -75,18 +75,17 @@ let skel = ((a, (pre, suf)): generation): Skel.t => {
 let regrout = (ancs: t) =>
   List.fold_right(
     ((a, sibs): generation, regrouted) => {
-      open IdGen.Syntax;
-      let* regrouted = regrouted;
-      let* ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
+      let regrouted = regrouted;
+      let ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
       let (l', r') = TupleUtil.map2(Nib.shape, Mold.nibs(a.mold));
-      let* trim_l = Segment.Trim.regrout(Left, (l, l'), trim_l);
-      let+ trim_r = Segment.Trim.regrout(Right, (r', r), trim_r);
+      let trim_l = Segment.Trim.regrout(Left, (l, l'), trim_l);
+      let trim_r = Segment.Trim.regrout(Right, (r', r), trim_r);
       let pre = pre @ Segment.Trim.to_seg(trim_l);
       let suf = Segment.Trim.to_seg(trim_r) @ suf;
       [(a, (pre, suf)), ...regrouted];
     },
     ancs,
-    IdGen.return(empty),
+    empty,
   );
 
 let parent_matches = (t: Tile.t, ancs: t) =>
