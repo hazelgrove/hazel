@@ -398,11 +398,13 @@ and remold_exp = (shape, seg: t): t =>
     }
   };
 
-let skel = seg =>
-  seg
-  |> List.mapi((i, p) => (i, p))
-  |> List.filter(((_, p)) => !Piece.is_secondary(p))
-  |> Skel.mk;
+let skel =
+  Core.Memo.general(~cache_size_bound=10000, seg =>
+    seg
+    |> List.mapi((i, p) => (i, p))
+    |> List.filter(((_, p)) => !Piece.is_secondary(p))
+    |> Skel.mk
+  );
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
@@ -461,10 +463,8 @@ module Trim = {
     | _ => wss'
     };
 
-  let add_grout =
-      (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
-    open IdGen.Syntax;
-    let+ g = Grout.mk_fits_shape(shape);
+  let add_grout = (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): t => {
+    let g = Grout.mk_fits_shape(shape);
     let (wss, gs) = trim;
 
     /* If we're adding a grout, remove a secondary. Note that
@@ -489,7 +489,7 @@ module Trim = {
   };
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
+  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
 
@@ -528,12 +528,12 @@ module Trim = {
          undesirable behavior with these changes and am fine with going ahead
          with this for now. */
       let wss = [new_spaces @ List.concat(wss)];
-      IdGen.return(Aba.mk(wss, []));
+      Aba.mk(wss, []);
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
       | [] => add_grout(~d, l, merged)
-      | [_, ..._] => IdGen.return(merged)
+      | [_, ..._] => merged
       };
     };
 
@@ -544,42 +544,38 @@ module Trim = {
 };
 
 let rec regrout = ((l, r), seg) => {
-  open IdGen.Syntax;
-  let* (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let+ trim = Trim.regrout(Direction.Right, (l, r), trim);
+  let (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
+  let trim = Trim.regrout(Direction.Right, (l, r), trim);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
-    (d: Direction.t, affix: t, r: Nib.Shape.t)
-    : IdGen.t((Trim.t, Nib.Shape.t, t)) => {
-  open IdGen.Syntax;
-  let+ (trim, s, affix) =
+    (d: Direction.t, affix: t, r: Nib.Shape.t): (Trim.t, Nib.Shape.t, t) => {
+  let (trim, s, affix) =
     fold_right(
-      (p: Piece.t, id_gen) => {
-        let* (trim, r, tl) = id_gen;
+      (p: Piece.t, (trim, r, tl)) => {
         switch (p) {
-        | Secondary(w) => IdGen.return((Trim.cons_w(w, trim), r, tl))
-        | Grout(g) => IdGen.return((Trim.(merge(cons_g(g, trim))), r, tl))
+        | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
+        | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Tile(t) =>
-          let* children =
+          let children =
             List.fold_right(
               (hd, tl) => {
-                let* tl = tl;
-                let+ hd = regrout(Nib.Shape.(concave(), concave()), hd);
+                let tl = tl;
+                let hd = regrout(Nib.Shape.(concave(), concave()), hd);
                 [hd, ...tl];
               },
               t.children,
-              IdGen.return([]),
+              [],
             );
           let p = Piece.Tile({...t, children});
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let+ trim = Trim.regrout(d, (r', r), trim);
+          let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
-        };
+        }
       },
       (d == Left ? List.rev : Fun.id)(affix),
-      IdGen.return((Aba.mk([[]], []), r, empty)),
+      (Aba.mk([[]], []), r, empty),
     );
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
 };
