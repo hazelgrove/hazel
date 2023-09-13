@@ -97,7 +97,30 @@ module Ziggurat = {
 };
 
 module Stepwell = {
-  include Stepwell;
+  let mold = (well: Stepwell.t, t: Token.t) =>
+    Molds.of_token(t)
+    |> List.map(m => {
+      let candidate = Wald.singleton(Piece.mk(~token=t, m));
+      switch (Stepwell.unlink(well)) {
+      | Error((dn, up)) => failwith("todo")
+      | Ok(((dn, up), (l, r), well)) =>
+        switch (Melder.Slope.Dn.hsup(dn, candidate)) {
+        | Ok(zdn) =>
+        | Error(slot) =>
+
+        }
+      }
+    })
+
+  let mold = (well: Stepwell.t, ~slot=Slot.Empty, t: Token.t) =>
+    switch (Stepwell.unlink(well)) {
+    | Error((dn, up)) => failwith("todo")
+    | Ok(((dn, up), (l, r), well)) =>
+      switch (Slope.mold(dn, ~slot, t)) {
+      }
+    };
+
+
   let mold = (well: Stepwell.t, ~slot=None, t: Token.t): Mold.t => {
     let top =
       switch (unlink(well)) {

@@ -2,7 +2,7 @@ open Sexplib.Std;
 
 module Base = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('a) = list(Terrace.t('a));
+  type t('piece, 'slotted) = list(Terrace.t('piece, 'slotted));
   [@deriving (show({with_path: false}), sexp, yojson)]
   type m = t(Material.Molded.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -16,6 +16,10 @@ let singleton = t => [t];
 let height = List.length;
 
 let fold = List.fold_left;
+
+module Zipper = {
+  type t('p, 's) = (Base.t('p, 's), Terrace.t('p, 's), Base.t('p, 's));
+};
 
 // Dn and Up slopes named based on left-to-right order of terraces
 // as they appear in edit state, but terraces are always maintained
