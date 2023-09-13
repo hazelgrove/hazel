@@ -81,7 +81,8 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
     syn_ty:
       switch (Ctx.lookup_ctr(ctx, name)) {
       | None => None
-      | Some({typ, _}) => Some(typ)
+      | Some({typ, _}) =>
+        Some(typ)
       },
   });
 

@@ -175,7 +175,7 @@ let rec mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | BoundVar(x) => text(x)
-      | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
+      | Constructor(name, _) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
