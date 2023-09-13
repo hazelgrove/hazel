@@ -74,4 +74,4 @@ module Make_Monad_Z = (M: MONAD_ZIP) => {
 };
 
 module Make_Monad_B = (M: MONAD_BASIC) =>
-  Make_Monad_Z((Make_Zip((Make_Functor(M)))));
+  Make_Monad_Z(Make_Zip(Make_Functor(M)));
