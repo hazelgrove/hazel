@@ -492,3 +492,23 @@ let go2 = (~settings, ~inject, ~font_metrics, ~node) => {
     ]);
   [Node.div(~attr, [render_div(mvu, node)])];
 };
+
+//TODO(andrew): cleanup, document
+let get_stage_child = (ci: option(Info.t)): option((Id.t, Term.UExp.t)) =>
+  switch (ci) {
+  | Some(
+      InfoExp({
+        term: {
+          term:
+            Ap(
+              {term: Constructor("Stage"), _},
+              {term: Tuple([_, {ids: [id, ..._], _} as model_uexp]), _},
+            ),
+          _,
+        },
+        _,
+      }),
+    ) =>
+    Some((id, model_uexp))
+  | _ => None
+  };

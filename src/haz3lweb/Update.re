@@ -484,6 +484,7 @@ let rec apply =
       Benchmark.finish();
       Ok(model);
     | MUVSyntax(id, update, action) =>
+      //TODO(andrew): perf, cleanup
       let settings = model.settings;
       let ctx = Editors.get_ctx_init(~settings, model.editors);
       let map =
@@ -493,24 +494,9 @@ let rec apply =
         |> fst
         |> Interface.Statics.mk_map_ctx(settings.core, ctx);
       let ci = Id.Map.find_opt(id, map);
-      //get id of end child of stage
-      switch (ci) {
-      | Some(
-          InfoExp({
-            term: {
-              term:
-                Ap(
-                  _,
-                  {
-                    term: Tuple([_, {ids: [id, ..._], _} as model_uexp]),
-                    _,
-                  },
-                ),
-              _,
-            },
-            _,
-          }),
-        ) =>
+      switch (MVU.get_stage_child(ci)) {
+      | Some((id, model_uexp)) =>
+        /* NOTE: This assumes that the stage term is closed! */
         let init_model =
           Interface.elaborate(~settings=settings.core, map, model_uexp);
         let res =
@@ -518,7 +504,6 @@ let rec apply =
             ~settings=settings.core,
             Ap(update, Tuple([init_model, action])),
           );
-        print_endline("id:" ++ Id.to_string(id));
         let seg = DHExpToSeg.go(res);
         let action: Action.t = Remote(id, InsertSegment(seg));
         perform_action(model, action);

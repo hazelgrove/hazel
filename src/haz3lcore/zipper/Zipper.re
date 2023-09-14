@@ -497,7 +497,7 @@ let zip_to_path =
     (seg: Segment.t, path: Measured.piece_path, caret: Caret.t): t =>
   /*NOTE: Path must be reversed as it is gathered by consing */
   {
-    selection: Selection.mk([]),
+    selection: Selection.empty,
     backpack: [],
     relatives: zip_to_path_seg(seg, Ancestors.empty, List.rev(path)),
     caret,
