@@ -302,6 +302,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         syntax_tests,
       },
     ) => {
+      print_endline("Exercise.Transitioning: " ++ title);
       let prelude = zipper_of_code(prelude);
       let correct_impl = zipper_of_code(correct_impl);
       let your_tests = {
@@ -480,6 +481,20 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
+  // Some of the editor state will come from the student submission,
+  // and some from the exercise spec.
+  let pos_in_student_submission = pos => {
+    switch (pos) {
+    | Prelude => false
+    | CorrectImpl => false
+    | YourTestsValidation => true
+    | YourTestsTesting => false
+    | YourImpl => true
+    | HiddenBugs(_) => false
+    | HiddenTests => false
+    };
+  };
+
   let state_of_spec = (spec, ~instructor_mode: bool): state => {
     let eds = eds_of_spec(spec);
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
@@ -557,6 +572,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // # Stitching
 
+  module TermItem = {
+    type t = TermBase.UExp.t;
+  };
+
   module StaticsItem = {
     type t = {
       term: TermBase.UExp.t,
@@ -574,6 +593,42 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
+  let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
+    let instructor =
+      EditorUtil.stitch([
+        eds.prelude,
+        eds.correct_impl,
+        eds.hidden_tests.tests,
+      ]);
+    {
+      test_validation:
+        EditorUtil.stitch([
+          eds.prelude,
+          eds.correct_impl,
+          eds.your_tests.tests,
+        ]),
+      user_impl: EditorUtil.stitch([eds.prelude, eds.your_impl]),
+      user_tests:
+        EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests]),
+      prelude: instructor, // works as long as you don't shadow anything in the prelude
+      instructor,
+      hidden_bugs:
+        List.map(
+          ({impl, _}) => {
+            EditorUtil.stitch([eds.prelude, impl, eds.your_tests.tests])
+          },
+          eds.hidden_bugs,
+        ),
+      hidden_tests:
+        EditorUtil.stitch([
+          eds.prelude,
+          eds.your_impl,
+          eds.hidden_tests.tests,
+        ]),
+    };
+  };
+  let stitch_term = Core.Memo.general(stitch_term);
+
   type stitched_statics = stitched(StaticsItem.t);
 
   /* Multiple stitchings are needed for each exercise
@@ -581,85 +636,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
-  let stitch_static = ({eds, _}: state): stitched_statics => {
-    let test_validation_term =
-      Util.TimeUtil.measure_time("test_validation_term", true, () =>
-        EditorUtil.stitch([
-          eds.prelude,
-          eds.correct_impl,
-          eds.your_tests.tests,
-        ])
-      );
-    let test_validation_map =
-      Util.TimeUtil.measure_time("test_validation_map", true, () =>
-        Statics.mk_map(test_validation_term)
-      );
-    let test_validation =
-      StaticsItem.{term: test_validation_term, info_map: test_validation_map};
-
-    let user_impl_term =
-      Util.TimeUtil.measure_time("user_impl_term", true, () =>
-        EditorUtil.stitch([eds.prelude, eds.your_impl])
-      );
-    let user_impl_map =
-      Util.TimeUtil.measure_time("user_impl_map", true, () =>
-        Statics.mk_map(user_impl_term)
-      );
-    let user_impl =
-      StaticsItem.{term: user_impl_term, info_map: user_impl_map};
-
-    let user_tests_term =
-      Util.TimeUtil.measure_time("user_tests_term", true, () =>
-        EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests])
-      );
-    let user_tests_map =
-      Util.TimeUtil.measure_time("user_tests_map", true, () =>
-        Statics.mk_map(user_tests_term)
-      );
-    let user_tests =
-      StaticsItem.{term: user_tests_term, info_map: user_tests_map};
-
-    // let prelude_term = EditorUtil.stitch([eds.prelude]);
-    // let prelude_map = Statics.mk_map(prelude_term);
-    // let prelude = StaticsItem.{term: prelude_term, info_map: prelude_map};
-
-    let instructor_term =
-      EditorUtil.stitch([
-        eds.prelude,
-        eds.correct_impl,
-        eds.hidden_tests.tests,
-      ]);
-    let instructor_info_map = Statics.mk_map(instructor_term);
-    let instructor =
-      StaticsItem.{term: instructor_term, info_map: instructor_info_map};
-
-    let hidden_bugs =
-      List.map(
-        ({impl, _}) => {
-          let term =
-            EditorUtil.stitch([eds.prelude, impl, eds.your_tests.tests]);
-          let info_map = Statics.mk_map(term);
-          StaticsItem.{term, info_map};
-        },
-        eds.hidden_bugs,
-      );
-
-    let hidden_tests_term =
-      EditorUtil.stitch([eds.prelude, eds.your_impl, eds.hidden_tests.tests]);
-    let hidden_tests_map = Statics.mk_map(hidden_tests_term);
-    let hidden_tests =
-      StaticsItem.{term: hidden_tests_term, info_map: hidden_tests_map};
-
+  let stitch_static = (t: stitched(TermItem.t)): stitched_statics => {
+    let mk = (term): StaticsItem.t => {
+      term,
+      info_map: Statics.mk_map(term),
+    };
+    let instructor = mk(t.instructor);
     {
-      test_validation,
-      user_impl,
-      user_tests,
+      test_validation: mk(t.test_validation),
+      user_impl: mk(t.user_impl),
+      user_tests: mk(t.user_tests),
       prelude: instructor, // works as long as you don't shadow anything in the prelude
       instructor,
-      hidden_bugs,
-      hidden_tests,
+      hidden_bugs: List.map(mk, t.hidden_bugs),
+      hidden_tests: mk(t.hidden_tests),
     };
   };
+
+  let stitch_static = Core.Memo.general(stitch_static);
 
   let test_validation_key = "test_validation";
   let user_impl_key = "user_impl";
@@ -679,13 +673,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
       } =
-        Util.TimeUtil.measure_time("stitch_static2", true, () =>
-          stitch_static(state)
-        );
+        stitch_static(stitch_term(state));
       [
         (
           test_validation_key,
-          Interface.elaborate(test_validation.info_map, test_validation.term),
+          {
+            Interface.elaborate(
+              test_validation.info_map,
+              test_validation.term,
+            );
+          },
         ),
         (
           user_impl_key,
@@ -701,7 +698,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ),
         (
           hidden_tests_key,
-          Interface.elaborate(hidden_tests.info_map, hidden_tests.term),
+          {
+            Interface.elaborate(hidden_tests.info_map, hidden_tests.term);
+          },
         ),
       ]
       @ (
@@ -721,8 +720,47 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       info_map: Statics.Map.t,
       simple_result: ModelResult.simple,
     };
+    let empty: t = {
+      term: {
+        term: Tuple([]),
+        ids: [Id.mk()],
+      },
+      info_map: Id.Map.empty,
+      simple_result: None,
+    };
+    let statics_only = ({term, info_map}: StaticsItem.t): t => {
+      {term, info_map, simple_result: None};
+    };
   };
 
+  let empty_dynamics_with_statics = (state: state): stitched(DynamicsItem.t) => {
+    let t = stitch_static(stitch_term(state));
+    {
+      test_validation: DynamicsItem.statics_only(t.test_validation),
+      user_impl: DynamicsItem.statics_only(t.user_impl),
+      user_tests: DynamicsItem.statics_only(t.user_tests),
+      instructor: DynamicsItem.statics_only(t.instructor),
+      prelude: DynamicsItem.statics_only(t.prelude),
+      hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
+      hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
+    };
+  };
+
+  let empty_dynamics = (state: state): stitched(DynamicsItem.t) => {
+    {
+      test_validation: DynamicsItem.empty,
+      user_impl: DynamicsItem.empty,
+      user_tests: DynamicsItem.empty,
+      instructor: DynamicsItem.empty,
+      prelude: DynamicsItem.empty,
+      hidden_bugs:
+        List.init(List.length(state.eds.hidden_bugs), _ =>
+          DynamicsItem.empty
+        ),
+      hidden_tests: DynamicsItem.empty,
+    };
+  };
+  let empty_dynamics = Core.Memo.general(empty_dynamics);
   /* Given the evaluation results, collects the
      relevant information for producing dynamic
      feedback*/
@@ -738,27 +776,28 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_bugs,
       hidden_tests,
     } =
-      Util.TimeUtil.measure_time("stitch_static1", true, () =>
-        stitch_static(state)
-      );
+      stitch_static(stitch_term(state));
     let simple_result_of = key =>
       switch (results) {
       | None => None
       | Some(results) =>
         ModelResult.get_simple(ModelResults.lookup(results, key))
       };
+
     let test_validation =
       DynamicsItem.{
         term: test_validation.term,
         info_map: test_validation.info_map,
         simple_result: simple_result_of(test_validation_key),
       };
+
     let user_impl =
       DynamicsItem.{
         term: user_impl.term,
         info_map: user_impl.info_map,
         simple_result: simple_result_of(user_impl_key),
       };
+
     let user_tests =
       DynamicsItem.{
         term: user_tests.term,
@@ -793,7 +832,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         info_map: hidden_tests.info_map,
         simple_result: simple_result_of(hidden_tests_key),
       };
-
+    print_endline("Finished");
     {
       test_validation,
       user_impl,
@@ -804,6 +843,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     };
   };
+  let stitch_dynamic = Core.Memo.general(stitch_dynamic);
 
   let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
     let {pos, eds} = state;
