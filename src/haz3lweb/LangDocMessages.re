@@ -100,6 +100,7 @@ let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_typfun = Example.mk_tile(Form.get("typfun"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
+let mk_tyap_exp = Example.mk_tile(Form.get("ap_exp_typ"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
 
@@ -270,6 +271,8 @@ let function_tuple_2_group = "function_tuple_2_group";
 let function_tuple_3_group = "function_tuple_3_group";
 let function_ctr_group = "function_ctr_group";
 let function_ap_group = "function_ap_group";
+let typ_function_group = "typ_function_group";
+let typ_function_hole_group = "typ_function_hole_group";
 let basic_fun_ex = {
   sub_id: "basic_fun_ex",
   term: mk_example("fun x -> x"),
@@ -780,6 +783,83 @@ let function_ap_exp: form = {
     expandable_id: Some(Piece.id(ap)),
     explanation,
     examples: [ap_fun_ex],
+  };
+};
+
+let _tp = tpat("X");
+let _e = exp("e");
+
+let typ_fun_pat_coloring_ids =
+    (~tpat_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_tp), tpat_id),
+  (Piece.id(_e), body_id),
+];
+
+let typ_function_exp: form = {
+  let explanation = {
+    message: "Type function literal. When instantiated at a type that matches the [*argument pattern*](%s), evaluates to the [*body*](%s).",
+    feedback: Unselected,
+  };
+  let form = [mk_typfun([[space(), _tp, space()]]), space(), _e];
+  {
+    id: "typ_function_exp_id",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(tpat("EmptyHole"))),
+    explanation,
+    examples: [poly_id_ex],
+  };
+};
+
+let _tp = tpat("EmptyHole");
+let _e = exp("e");
+
+let typ_fun_hole_pat_coloring_ids =
+    (~tpat_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_tp), tpat_id),
+  (Piece.id(_e), body_id),
+];
+
+let typ_function_hole: form = {
+  let explanation = {
+    message: "Type function literal. When instantiated at a type that matches the [*argument pattern*](%s) after the [empty hole pattern](%s) is filled, evaluates to the [*body*](%s).",
+    feedback: Unselected,
+  };
+  let form = [mk_typfun([[space(), _tp, space()]]), space(), _e];
+  {
+    id: "typ_function_hole_id",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [poly_id_ex],
+  };
+};
+
+let typfunapp_exp_group = "typfunapp_exp_group";
+let typfunapp_exp_ex = {
+  sub_id: "typfunapp_exp_ex",
+  term: mk_example("(typfun X -> fun x : X \n -> x)@<Int>"),
+  message: "The polymorphic identity function instantiated at Int. Int is substituted in place of the type variable X in the body, so the body is effectively the identity function on integers.",
+  feedback: Unselected,
+};
+
+let _ty_fun = exp("ty_fun");
+let _ty_arg = typ("ty_arg");
+let typfunapp_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_ty_fun), x_id),
+  (Piece.id(_ty_arg), arg_id),
+];
+let typfunapp_exp: form = {
+  let explanation = {
+    message: "Type function application. Instantiate the [*polymorphic expression*](%s) at the [*argument type*](%s).",
+    feedback: Unselected,
+  };
+  {
+    id: "typfunapp_exp",
+    syntactic_form: [_ty_fun, mk_tyap_exp([[_ty_arg]])],
+    expandable_id: None,
+    explanation,
+    examples: [typfunapp_exp_ex],
   };
 };
 
@@ -3551,6 +3631,8 @@ let init = {
     function_tuple3_exp,
     function_ctr_exp,
     function_ap_exp,
+    typ_function_exp,
+    typ_function_hole,
     tuple_exp,
     tuple_exp_size2,
     tuple_exp_size3,
@@ -3577,6 +3659,7 @@ let init = {
     tyalias_base_exp,
     funapp_exp,
     conapp_exp,
+    typfunapp_exp,
     if_exp,
     seq_exp,
     test_exp,
@@ -3796,6 +3879,17 @@ let init = {
         ),
       ]),
     ),
+    (
+      typ_function_group,
+      init_options([(typ_function_exp.id, [tpat("X")])]),
+    ),
+    (
+      typ_function_hole_group,
+      init_options([
+        (typ_function_exp.id, [tpat("X")]),
+        (typ_function_hole.id, [tpat("EmptyHole")]),
+      ]),
+    ),
     (tuple_exp_group, init_options([(tuple_exp.id, [])])),
     (
       tuple_exp_2_group,
@@ -3944,6 +4038,7 @@ let init = {
     (tyalias_exp_group, init_options([(tyalias_base_exp.id, [])])),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
+    (typfunapp_exp_group, init_options([(typfunapp_exp.id, [])])),
     (if_exp_group, init_options([(if_exp.id, [])])),
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),

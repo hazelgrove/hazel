@@ -672,20 +672,78 @@ let get_doc =
           ),
           [],
         );
-      | TypFun(_, _) =>
-        // TODO (typfun)
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.triv_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.triv_exp_group,
-          doc.explanation.message,
-          [],
-        );
+      | TypFun(_, _ /* tpat, body */) =>
+        basic_info(LangDocMessages.typ_function_group)
+      /* TODO: Cannot quite get the below to work. The EmptyHole case throws an unhandled exception Not_found.
+         let basic = (doc: LangDocMessages.form, group_id, options) => {
+           let tpat_id = List.nth(tpat.ids, 0);
+           let body_id = List.nth(body.ids, 0);
+           get_message(
+             doc,
+             options,
+             group_id,
+             Printf.sprintf(
+               Scanf.format_from_string(doc.explanation.message, "%s%s"),
+               tpat_id |> Id.to_string,
+               body_id |> Id.to_string,
+             ),
+             LangDocMessages.typ_fun_pat_coloring_ids(~tpat_id, ~body_id),
+           );
+         };
+         switch (tpat.term) {
+         | EmptyHole =>
+           let (doc, options) =
+             LangDocMessages.get_form_and_options(
+               LangDocMessages.typ_function_hole_group,
+               docs,
+             );
+           if (LangDocMessages.typ_function_hole.id == doc.id) {
+             let tpat_id = List.nth(tpat.ids, 0);
+             let body_id = List.nth(body.ids, 0);
+             get_message(
+               doc,
+               options,
+               LangDocMessages.typ_function_hole_group,
+               Printf.sprintf(
+                 Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                 tpat_id |> Id.to_string,
+                 body_id |> Id.to_string,
+                 tpat_id |> Id.to_string,
+               ),
+               LangDocMessages.typ_fun_hole_pat_coloring_ids(
+                 ~tpat_id,
+                 ~body_id,
+               ),
+             );
+           } else {
+             basic(doc, LangDocMessages.typ_function_hole_group, options);
+           };
+         | Var(var) =>
+           let (doc, options) =
+             LangDocMessages.get_form_and_options(
+               LangDocMessages.typ_function_group,
+               docs,
+             );
+           if (LangDocMessages.typ_function_exp.id == doc.id) {
+             let tpat_id = List.nth(tpat.ids, 0);
+             let body_id = List.nth(body.ids, 0);
+             get_message(
+               doc,
+               options,
+               LangDocMessages.typ_function_group,
+               Printf.sprintf(
+                 Scanf.format_from_string(doc.explanation.message, "%s%s"),
+                 var,
+                 body_id |> Id.to_string,
+               ),
+               LangDocMessages.typ_fun_pat_coloring_ids(~tpat_id, ~body_id),
+             );
+           } else {
+             basic(doc, LangDocMessages.typ_function_group, options);
+           };
+         | _ => default
+         };
+         */
       | Fun(pat, body) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
@@ -1921,20 +1979,8 @@ let get_doc =
             LangDocMessages.funapp_exp_coloring_ids,
           );
         };
-      | TypAp(_, _) =>
-        // TODO (typfun)
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.triv_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.triv_exp_group,
-          doc.explanation.message,
-          [],
-        );
+      | TypAp(_, _) => basic_info(LangDocMessages.typfunapp_exp_group)
+      /* TODO: improve formating for TypAp? See TypFun. */
       | If(cond, then_, else_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
