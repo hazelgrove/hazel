@@ -302,7 +302,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         syntax_tests,
       },
     ) => {
-      print_endline("Exercise.Transitioning: " ++ title);
       let prelude = zipper_of_code(prelude);
       let correct_impl = zipper_of_code(correct_impl);
       let your_tests = {
@@ -478,20 +477,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => true
     | HiddenBugs(_) => instructor_mode
     | HiddenTests => instructor_mode
-    };
-  };
-
-  // Some of the editor state will come from the student submission,
-  // and some from the exercise spec.
-  let pos_in_student_submission = pos => {
-    switch (pos) {
-    | Prelude => false
-    | CorrectImpl => false
-    | YourTestsValidation => true
-    | YourTestsTesting => false
-    | YourImpl => true
-    | HiddenBugs(_) => false
-    | HiddenTests => false
     };
   };
 
@@ -832,7 +817,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         info_map: hidden_tests.info_map,
         simple_result: simple_result_of(hidden_tests_key),
       };
-    print_endline("Finished");
     {
       test_validation,
       user_impl,
