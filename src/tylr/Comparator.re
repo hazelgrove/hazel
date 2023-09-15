@@ -60,6 +60,8 @@ let enter =
   go(~l?, ~r?, s);
 };
 
+let bounded = (~side: Dir.t, ~sort: Sort.t, ~bound=?, m: Mold.t)
+
 let exit = (side: Dir.t, {sort, prec, zipper}: Mold.t) =>
   failwith("todo exit");
 

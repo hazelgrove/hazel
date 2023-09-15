@@ -97,6 +97,32 @@ module Ziggurat = {
 };
 
 module Stepwell = {
+  let mold = (t: Token.t, well: Stepwell.t): Stepwell.t => {
+    let molded =
+      Molds.of_token(t)
+      |> List.map(m => {
+        let candidate = Wald.singleton(Piece.mk(~token=t, m));
+        Melder.Stepwell.push(~onto=L, candidate, well);
+      })
+      |> List.stable_sort(((r_l, well_l), (r_r, well_r)) => {
+        let c = Result.compare(Slope.compare, r_l, r_r);
+        if (c == 0) {
+          let ((_, up_l), (_, up_r)) = (get_slopes(well_l), get_slopes(well_r));
+          Slope.compare(up_l, up_r);
+        } else {
+          c;
+        };
+      })
+      |> ListUtil.hd_opt;
+    switch (molded) {
+    | None | Some((Error(_), _)) =>
+
+    | Some((Ok(bounded), well)) =>
+      Stepwell.map_slopes(Slopes.cat((bounded, [])), well)
+    }
+  };
+
+
   let mold = (well: Stepwell.t, t: Token.t) =>
     Molds.of_token(t)
     |> List.map(m => {

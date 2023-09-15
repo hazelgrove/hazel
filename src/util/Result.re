@@ -10,6 +10,8 @@ let unwrap =
   | Error(a)
   | Ok(a) => a;
 
+let compare = (_, _, _) => failwith("todo result compare");
+
 [@warning "-27"]
 let pick = (~compare: ('ok, 'ok) => int, rs: list(t('ok, _))): t('ok, _) =>
   failwith("todo Molder.Result.pick");

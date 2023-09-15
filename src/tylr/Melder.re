@@ -7,6 +7,21 @@ module Mold = {
   // is convex across all alternatives
   let is_convex = (~side: Dir.t, m: Mold.t) =>
     GWalker.walk_lt(~side, m) == [];
+
+  let lt = (~l=?, ~slot=Slot.Empty, r: Mold.t) => {
+    let ts = l |> Option.map(GWalker.walk_lt) |> GWalker.enter(~from=L, Sort.root);
+    pick(~slot, ~face=r, ts);
+  };
+
+  // L2R: l slot r
+  let gt = (~slot=Empty, ~r=?, l: Mold.t) => {
+    let ts =
+      r |> Option.map(GWalker.walk_gt) |> GWalker.enter(~from=R, Sort.root);
+    pick(~face=l, ~slot, ts);
+  };
+
+  let eq = (l: Mold.t, r: Mold.t) =>
+    GWalker.walk_eq(R, l) |> pick(~face=r);
 };
 
 module Piece = {
@@ -28,6 +43,17 @@ module Piece = {
     |> put_token(l.token ++ r.token)
     |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
   };
+
+  // strict upper bounding
+  let bound = (~side: Dir.t, ~sort: Sort.t, ~bound=?, ~slot=Slot.Empty, p: Piece.t): option(Terrace.t) =>
+    switch (p.material) {
+    | Space
+    | Grout(_) => Some(Terrace.singleton(~slot, p))
+    | Tile(m) =>
+      m
+      |> GWalker.bound(~side, ~sort, ~bound?)
+      |> Option.map(Terrace.bake(~slot, ~face))
+    };
 
   let meld = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t): Ziggurat.t => {
     let eq_ = Ziggurat.mk(Wald.mk([l, r], [slot]));
@@ -80,6 +106,27 @@ module Piece = {
       }
     };
   };
+
+  let is_bounded = (~side: Dir.t, ~bound=?, ~slot=Slot.Empty, p: Piece.t): option(Terrace.t) =>
+    switch (bound) {
+    | Some(b) =>
+      let melded = side == L ? meld(b, ~slot, p) : meld(p, ~slot, b);
+      switch (melded) {
+      | {up: [], top, dn: [_, ..._]}
+          when Wald.face(top, ~side=Dir.toggle(side)) == b =>
+        Some(dn)
+      | _ => None
+      }
+    | None =>
+      switch (p.material) {
+      | Space
+      | Grout(_) => Some(Terrace.singleton(~slot, p))
+      | Tile(m) =>
+        m
+        |> GWalker.enter(~from=side, ~sort, ~bound?)
+        |> Option.map(Terrace.bake(~slot, ~face=p))
+      };
+    };
 };
 
 module Wald = {
@@ -131,57 +178,60 @@ module Wald = {
 // rework transformation to view
 // rework make term
 
-module Bound = {
-  type t =
-    | Root
-    | Terr(Terrace.t);
-};
-
-module Bounded = {
-  type t = (Slope.t, Bound.t);
-};
-
-// module Result = {
-//   include Result;
-//   type t = Result.t(Bounded.t, Slot.t);
-// };
-
 module Slope = {
   include Slope;
   module Up = {
     include Up;
-    let rec push = (w: Wald.t, ~slot=Slot.Empty, up: Up.t): Result.t((Bounded.t, Up.t), Slot.t) =>
+    let rec push =
+            (w: Wald.t, ~slot=Slot.Empty, up: Up.t)
+            : (Result.t(Up.t, Slot.t), Up.t) =>
       switch (up) {
-      | [] => Error(slot)
+      | [] => (Error(slot), up)
       | [hd, ...tl] =>
         // L2R: w slot hd.wald hd.slot tl
         switch (Wald.meld(w, ~slot, hd.wald)) {
-        | {up, top, dn: []} => Ok(((up, Terr({...hd, wald: top})), tl))
+        | {up, top, dn: []} => (Ok(up), [{...hd, wald: top}, ...tl])
         | {up, top, dn: [_, ..._]} =>
-          // todo: consider how bounded slopes can be unified with roll
-          let expected = Wald.expected_sorts(top, ~side=R);
-          let slot = Dn.roll(~expected, dn, ~slot=hd.slot);
-          push(top, ~slot, tl) |> Result.map(~f=Slope.cat(up));
+          let slot = Dn.roll(dn, ~slot=hd.slot);
+          let (r, bounded) = push(top, ~slot, tl);
+          (r, Slope.cat(up, bounded));
         }
       };
   };
   module Dn = {
     include Dn;
-    let rec hsup = (dn: t, ~slot=Slot.Empty, w: Wald.t): Result.t((Dn.t, Dn.t), Slot.t) =>
+    let rec hsup =
+            (dn: t, ~slot=Slot.Empty, w: Wald.t)
+            : (Dn.t, Result.t(Dn.t, Slot.t)) =>
       switch (dn) {
-      | [] => Error(slot)
+      | [] => (dn, Error(slot))
       | [hd, ...tl] =>
         // L2R: tl hd.slot hd.wald slot w
         switch (Wald.meld(hd.wald, ~slot, w)) {
-        | {up: [], top, dn} => Ok(([{...hd, wald: top}, ...tl], dn))
+        | {up: [], top, dn} => ([{...hd, wald: top}, ...tl], Ok(dn))
         | {up: [_, ..._], top, dn} =>
-          let expected = Wald.expected_sort(~side=L, top);
-          let slot = Up.roll(~slot=hd.slot, up, ~expected);
-          hsup(tl, ~slot, top)
-          |> Result.map(~f=((tl, bounded)) => (tl, Slope.cat(dn, bounded)));
+          // melding should have taken care of any complementing/grouting
+          let slot = Up.roll(~slot=hd.slot, up);
+          let (bounded, r) = hsup(tl, ~slot, top);
+          (Slope.cat(dn, bounded), r);
         }
       };
   };
+};
+
+module Slopes = {
+  include Slopes;
+  let push =
+      (~onto: Dir.t, w: Wald.t, ~slot=Slot.Empty, (dn, up): t)
+      : (Result.t(Slope.t, Slot.t), t) =>
+    switch (onto) {
+    | L =>
+      let (dn, r) = Slope.Dn.hsup(dn, ~slot, w);
+      (r, (dn, up));
+    | R =>
+      let (r, up) = Slope.Up.push(w, ~slot, up);
+      (r, (dn, up));
+    };
 };
 
 module Ziggurat = {
@@ -228,36 +278,30 @@ module Ziggurat = {
 module Stepwell = {
   include Stepwell;
 
-  // push wald against left slope of stepwell until either bound
-  // or stable bridge is encountered
-  let hsup =
-      (well: Stepwell.t, ~slot=Slot.Empty, w: Wald.t)
-      : (Stepwell.t, Result.t(Slope.Dn.t, Slot.t)) => {
-    let (dn, up) = Stepwell.get_slopes(well);
-    switch (Slope.Dn.hsup(dn, ~slot, w)) {
-    | Ok((dn, bounded)) => (put_slopes(dn, up), Ok(bounded))
-    | Error(slot) =>
+  let push =
+      (~onto: Dir.t, w: Wald.t, ~slot=Slot.Empty, well: t)
+      : (Result.t(Slope.t, Slot.t), t) =>
+    switch (Slopes.push(~onto, w, ~slot, get_slopes(well))) {
+    | (Ok(_) as ok, slopes) => (ok, put_slopes(slopes, well))
+    | (Error(slot) as err, slopes) =>
       switch (Stepwell.unlink(well)) {
-      | Error(_) => (put_slopes(([], up), well), Error(slot))
+      | Error(_) => (err, put_slopes(slopes, well))
       | Ok((_, b, tl)) =>
-        // break bridge and recurse
-        let tl =
-          tl
-          |> map_slopes(Slopes.cat(Bridge.to_slopes(b)))
-          |> map_slopes(Slopes.cat(([], up)));
-        switch (hsup(tl, ~slot, w)) {
-        // optimization: preserve bridge if it was untouched
-        | (tl, Ok(dn)) when face(~side=L, tl) == Bridge.face(~side=L, b) =>
-          (put_slopes(([], up), well), Ok(dn))
-        | (_, Ok(_)) as r => r
-        | (_, Error(_)) as r when Bridge.is_stable(b) => r
-        | (tl, Error(slot)) => hsup(tl, ~slot, w)
+        let (r, b') = Slopes.push(~onto, w, ~slot, Bridge.to_slopes(b));
+        let tl' = map_slopes(Slopes.(cat(cat(slopes, b'))), tl);
+        switch (r) {
+        | Ok(_) =>
+          // optimization: preserve bridge if it was untouched
+          let well' =
+            Slopes.face(~side=onto, b') == Bridge.face(~side=onto, b)
+              ? put_slopes(slopes, well) : tl';
+          (r, well');
+        | Error(slot) =>
+          // only recurse past unstable bridges
+          Bridge.is_stable(b) ? (r, tl') : push(~onto, w, ~slot, tl')
         };
       }
     };
-  };
-
-
 
   let push = (~onto: Dir.t, w: Wald.t, well: t): t =>
     switch (unlink(well)) {
