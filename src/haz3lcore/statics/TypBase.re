@@ -164,10 +164,10 @@ module rec Typ: {
     };
 
   let var_count = ref(0);
-  let fresh_var = () => {
+  let fresh_var = (var_name: string) => {
     let x = var_count^;
     var_count := x + 1;
-    "@" ++ string_of_int(x);
+    var_name ++ "_α" ++ string_of_int(x);
   };
 
   let rec subst = (s: t, x: TypVar.t, ty: t) => {
