@@ -185,10 +185,12 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
       | (fs, other) => is_inconsistent(~may, other @ fs)
       }
     /*
-     * Thoughts for porting the Pair judgment to list:
-     * Two list constraints are automatically inconsistent if they have different length.
-     * So we first find maximum and minimum list lengths, and determine if they are the same.
-     * If so, we rearrange them in item-first order, and check each of them.
+     * Explanation for the check of inconsistency for list:
+     * List can be thought as the type (Nil(Unit) + Cons(Item, List)), or alternatively (Unit + (Item × List)).
+     * Thus by analogy with InjL and InjR, an empty list is inconsistent with a non-empty one, which means that two
+     * lists of different lengths are automatically inconsistent.  If all lists are having the same length, then I
+     * will compare them from left to right (aka in the order of unfolding them) to see if any item in the same
+     * position are inconsistent.  This version may be inefficient, but I am running out of ideas to optimize it.
      */
     | List(_) =>
       switch (
