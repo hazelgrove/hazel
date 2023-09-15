@@ -8,17 +8,18 @@ module Mold = {
   let is_convex = (~side: Dir.t, m: Mold.t) =>
     GWalker.walk_lt(~side, m) == [];
 
-  let lt = (~l=?, ~slot=Slot.Empty, r: Mold.t) => {
-    let ts = l |> Option.map(GWalker.walk_lt) |> GWalker.enter(~from=L, Sort.root);
-    pick(~slot, ~face=r, ts);
-  };
+  let lt = (~l=?, ~slot=Slot.Empty, r: Mold.t) =>
+    l
+    |> Option.map(GWalker.walk_neq(R))
+    |> Option.value(~default=GWalker.enter(~from=L, Sort.root))
+    |> pick(~slot, ~face=r);
 
   // L2R: l slot r
-  let gt = (~slot=Empty, ~r=?, l: Mold.t) => {
-    let ts =
-      r |> Option.map(GWalker.walk_gt) |> GWalker.enter(~from=R, Sort.root);
-    pick(~face=l, ~slot, ts);
-  };
+  let gt = (~slot=Empty, ~r=?, l: Mold.t) =>
+    r
+    |> Option.map(GWalker.walk_neq(L))
+    |> Option.value(~default=GWalker.enter(~from=R, Sort.root))
+    |> pick(~face=l, ~slot);
 
   let eq = (l: Mold.t, r: Mold.t) =>
     GWalker.walk_eq(R, l) |> pick(~face=r);
@@ -107,25 +108,24 @@ module Piece = {
     };
   };
 
-  let is_bounded = (~side: Dir.t, ~bound=?, ~slot=Slot.Empty, p: Piece.t): option(Terrace.t) =>
-    switch (bound) {
-    | Some(b) =>
-      let melded = side == L ? meld(b, ~slot, p) : meld(p, ~slot, b);
-      switch (melded) {
-      | {up: [], top, dn: [_, ..._]}
-          when Wald.face(top, ~side=Dir.toggle(side)) == b =>
-        Some(dn)
+  let bound_l = (~l=?, ~slot=Slot.Empty, r: Piece.t): option(Slope.Dn.t) =>
+    switch (l) {
+    | Some(l) =>
+      switch (meld(l, ~slot, r)) {
+      | {up: [], top, dn}
+          when Wald.face(top, ~side=R) == l => Some(dn)
       | _ => None
       }
     | None =>
       switch (p.material) {
       | Space
-      | Grout(_) => Some(Terrace.singleton(~slot, p))
+      | Grout(_) => Some([Terrace.singleton(~slot, p)])
       | Tile(m) =>
         m
         |> GWalker.enter(~from=side, ~sort, ~bound?)
         |> Option.map(Terrace.bake(~slot, ~face=p))
-      };
+        |> Option.map(t => [t])
+      }
     };
 };
 
@@ -147,12 +147,38 @@ module Wald = {
         |> List.filter(z => Ziggurat.height(z) == 1)
       | _ => []
       };
-    let melded_hds =
-      Piece.meld(Wald.face(l, ~side=R), ~slot, Wald.face(~side=L, r))
+    let melded_hds = {
+      let (tl_l, hd_l) = Wald.split_lst(l);
+      let (hd_r, tl_r) = Wald.split_fst(r);
+      Piece.meld(hd_l, ~slot, hd_r)
       |> Ziggurat.extend(~side=L, tl_l)
       |> Ziggurat.extend(~side=R, tl_r);
+    };
     Scorer.pick([melded_hds] @ melded_tl_l @ melded_tl_r);
   };
+
+  let bound_l = (~l=?, ~slot=Slot.Empty, r: Wald.t): option(Slope.Dn.t) =>
+    switch (l) {
+    | Some(l) =>
+      switch (meld(l, ~slot, r)) {
+      | {up: [], top, dn}
+          when Wald.face(top, ~side=R) == Wald.face(b, ~side=R) => Some(dn)
+      | _ => None
+      }
+    | None =>
+      let (hd, tl) = Wald.split_fst(~side, w);
+      switch (hd.material) {
+      | Space
+      | Grout(_) => Some([Terrace.singleton(~slot, w)])
+      | Tile(m) =>
+        Mold.lt(~slot=Slot.sort(slot), m)
+        |> Option.map(Terrace.bake(~slot, ~face=hd))
+        |> Option.map(Terrace.R.extend(tl))
+        |> Option.map(t => [t])
+      }
+    };
+
+  let bound = (~side: Dir.t, ~bound=?, ~slot=Slot.Empty, w: Wald.t): option(Slope.t) => failwith("todo");
 };
 
 // [(] [1 *] [2]     _     [let x =]
@@ -283,10 +309,14 @@ module Stepwell = {
       : (Result.t(Slope.t, Slot.t), t) =>
     switch (Slopes.push(~onto, w, ~slot, get_slopes(well))) {
     | (Ok(_) as ok, slopes) => (ok, put_slopes(slopes, well))
-    | (Error(slot) as err, slopes) =>
+    | (Error(slot), slopes) =>
       switch (Stepwell.unlink(well)) {
-      | Error(_) => (err, put_slopes(slopes, well))
-      | Ok((_, b, tl)) =>
+      | Error(_) =>
+        let r =
+          Wald.bound(~side=onto, ~slot, w)
+          |> Result.of_option(~error=slot);
+        (r, put_slopes(slopes, well));
+      | Ok((_, (l, r), tl)) =>
         let (r, b') = Slopes.push(~onto, w, ~slot, Bridge.to_slopes(b));
         let tl' = map_slopes(Slopes.(cat(cat(slopes, b'))), tl);
         switch (r) {
