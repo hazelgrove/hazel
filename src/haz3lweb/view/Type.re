@@ -53,12 +53,12 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Rec(name, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("rec " ++ name ++ " -> "), ...ty_view(t)],
+      [text("rec " ++ name ++ " -> "), view_ty(t)],
     )
   | Forall(name, t) =>
     div(
       ~attr=clss(["typ-view", "Forall"]),
-      [text("forall " ++ name ++ " -> "), ...ty_view(t)],
+      [text("forall " ++ name ++ " -> "), view_ty(t)],
     )
   | List(t) =>
     div(
