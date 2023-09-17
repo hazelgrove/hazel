@@ -205,7 +205,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       DoesNotMatch;
     } else {
       List.fold_left2(
-        (result, dp, d) =>
+        (result, (_, dp), (_, d)) =>
           switch (result) {
           | DoesNotMatch => DoesNotMatch
           | IndetMatch => IndetMatch
@@ -334,7 +334,7 @@ and matches_cast_Sum =
   }
 and matches_cast_Tuple =
     (
-      dps: list(DHPat.t),
+      dps: list((option(DHPat.t), DHPat.t)),
       d: DHExp.t,
       elt_casts: list(list((Typ.t, Typ.t))),
     )
@@ -347,7 +347,7 @@ and matches_cast_Tuple =
     } else {
       assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
       List.fold_right(
-        (((dp, d), casts), result) => {
+        ((((_, dp), (_, d)), casts), result) => {
           switch (result) {
           | DoesNotMatch
           | IndetMatch => result
@@ -901,7 +901,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | TupLabel(_) => BoxedValue(d) |> return //TODO: Fix this?
 
     | Tuple(ds) =>
-      let+ lst = ds |> List.map(evaluate(env)) |> sequence;
+      //TODO: Fix this
+      let lstp = ds |> List.map(((p, _)) => p);
+      let+ lst = ds |> List.map(((_, d)) => evaluate(env, d)) |> sequence;
       let (ds', indet) =
         List.fold_right(
           (el, (lst, indet)) =>
@@ -913,7 +915,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           ([], false),
         );
 
-      let d = DHExp.Tuple(ds');
+      let d = DHExp.Tuple(List.combine(lstp, ds'));
       if (indet) {
         Indet(d);
       } else {
@@ -938,6 +940,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             );
           } else {
+            let ds = ds |> List.map(((_, e)) => e);
             return(BoxedValue(List.nth(ds, n)));
           }
         | Indet(Tuple(ds) as rv) =>
@@ -948,6 +951,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             );
           } else {
+            let ds = ds |> List.map(((_, e)) => e);
             return(Indet(List.nth(ds, n)));
           }
         | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)

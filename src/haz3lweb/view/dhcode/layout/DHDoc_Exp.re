@@ -276,7 +276,7 @@ let rec mk =
       | TupLabel(_, e) => fdoc(~enforce_inline, ~d=e)
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
-        DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
+        DHDoc_common.mk_Tuple(ds |> List.map(((_, d)) => mk_cast(go'(d))))
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>

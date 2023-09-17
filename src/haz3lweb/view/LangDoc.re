@@ -1016,6 +1016,8 @@ let get_doc =
             basic(doc, LangDocMessages.function_var_group, options);
           };
         | Tuple(elements) =>
+          // TODO: Fix this
+          let elements = elements |> List.map(((_, e)) => e);
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
@@ -1188,6 +1190,7 @@ let get_doc =
         };
       | TupLabel(_) => basic_info(LangDocMessages.empty_hole_exp_group)
       | Tuple(terms) =>
+        let terms = terms |> List.map(((_, e)) => e);
         let basic = (doc, group_id, options) =>
           get_message(
             doc,
@@ -1686,6 +1689,7 @@ let get_doc =
             basic(doc, LangDocMessages.let_var_exp_group, options);
           };
         | Tuple(elements) =>
+          let elements = elements |> List.map(((_, e)) => e);
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
@@ -2400,6 +2404,7 @@ let get_doc =
         [],
       );
     | Tuple(elements) =>
+      let elements = elements |> List.map(((_, e)) => e);
       let basic = (doc, group, options) =>
         get_message(
           doc,
@@ -2698,6 +2703,7 @@ let get_doc =
         [],
       );
     | Tuple(elements) =>
+      let elements = elements |> List.map(((_, e)) => e);
       let basic = (doc, group, options) =>
         get_message(
           doc,

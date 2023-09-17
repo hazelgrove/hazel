@@ -88,25 +88,50 @@ let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
 let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
 // TODO: Clean this up
-/*
- let convert_tuple_terms_exp_help =
-   fun
-   | (id, UExp.TupLabel(p, e)) => (Some(p), e)
-   //| e => (None, e)
-   | _ => raise(Not_found);
+// Tuple util functions
+let make_labeled_tuple_exp_helper = (exp: UExp.t): (option(UPat.t), UExp.t) =>
+  switch (exp.term) {
+  | TupLabel(p, e) => (Some(p), e)
+  | _ => (None, exp)
+  };
 
- let convert_tuple_terms_exp = ts =>
-   List.map(convert_tuple_terms_exp_help, ts);
+let make_labeled_tuple_exp = (es: list(UExp.t)) => {
+  es |> List.map(make_labeled_tuple_exp_helper);
+};
 
- let convert_tuple_terms_typ_help =
-   fun
-   | UTyp.TupLabel(p, t) => (Some(p), t)
-   //| e => (None, e)
-   | _ => raise(Not_found);
+let labeled_tuple_to_unlabeled_exp = (es: list((option(UPat.t), UExp.t))) => {
+  es |> List.map(((_, e)) => e);
+};
 
- let convert_tuple_terms_typ = ts =>
-   List.map(convert_tuple_terms_exp_help, ts);
- */
+let make_labeled_tuple_pat_helper = (pat: UPat.t): (option(UPat.t), UPat.t) =>
+  switch (pat.term) {
+  // TODO: Make thiss TupLabel
+  //| TupLabel(p, pt) => (Some(p), pt)
+  | _ => (None, pat)
+  };
+
+let make_labeled_tuple_pat = (ps: list(UPat.t)) => {
+  ps |> List.map(make_labeled_tuple_pat_helper);
+};
+
+let labeled_tuple_to_unlabeled_pat = (ps: list((option(UPat.t), UPat.t))) => {
+  ps |> List.map(((_, p)) => p);
+};
+
+let make_labeled_tuple_typ_helper = (typ: UTyp.t): (option(UPat.t), UTyp.t) =>
+  switch (typ.term) {
+  | TupLabel(p, t) => (Some(p), t)
+  | _ => (None, typ)
+  };
+
+let make_labeled_tuple_typ = (ts: list(UTyp.t)) => {
+  ts |> List.map(make_labeled_tuple_typ_helper);
+};
+
+let labeled_tuple_to_unlabeled_typ = (ts: list((option(UPat.t), UTyp.t))) => {
+  ts |> List.map(((_, t)) => t);
+};
+
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
@@ -224,7 +249,10 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, term: Tuple(es)} => (ListLit(es), ids)
+        | {ids, term: Tuple(es)} => (
+            ListLit(labeled_tuple_to_unlabeled_exp(es)),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -276,7 +304,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      ret(Tuple(make_labeled_tuple_exp([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -343,7 +372,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
+          | {term: Tuple(ps), _} =>
+            ListLit(labeled_tuple_to_unlabeled_pat(ps))
           | term => ListLit([term])
           }
         | _ => hole(tm)
@@ -381,7 +411,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      ret(Tuple(make_labeled_tuple_pat([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
@@ -454,7 +485,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      ret(Tuple(make_labeled_tuple_typ([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))

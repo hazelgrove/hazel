@@ -176,7 +176,8 @@ module UTyp = {
              | _ => (outer_ctx, inner_ctx)
              };
            };*/
-        Prod(List.map(to_typ(ctx), us))
+        let us = us |> List.map(((_, u)) => u);
+        Prod(List.map(to_typ(ctx), us));
       | Sum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
@@ -303,6 +304,7 @@ module UTyp = {
           ut =>
             switch (ut.term) {
             | Tuple(us) =>
+              let us = us |> List.map(((_, u)) => u);
               let (_, module_ctx) =
                 List.fold_left(upat_to_ctx, (ctx, []), us);
               Module(module_ctx);
@@ -558,7 +560,9 @@ module UPat = {
     || (
       switch (pat.term) {
       | Parens(pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Tuple(pats) =>
+        let pats = pats |> List.map(((_, u)) => u);
+        pats |> List.for_all(is_fun_var);
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -659,6 +663,7 @@ module UPat = {
       switch (pat.term) {
       | Parens(pat) => get_recursive_bindings(pat)
       | Tuple(pats) =>
+        let pats = pats |> List.map(((_, p)) => p);
         let fun_vars = pats |> List.map(get_fun_var);
         if (List.exists(Option.is_none, fun_vars)) {
           None;
@@ -853,7 +858,9 @@ module UExp = {
     || (
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
-      | Tuple(es) => es |> List.for_all(is_fun)
+      | Tuple(es) =>
+        let es = es |> List.map(((_, e)) => e);
+        es |> List.for_all(is_fun);
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)

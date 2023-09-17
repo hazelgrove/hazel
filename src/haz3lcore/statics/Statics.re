@@ -208,6 +208,7 @@ and uexp_to_info_map =
       );
     add(~self=Just(e.ty), ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | Tuple(es) =>
+    let es = es |> List.map(((_, e)) => e);
     let modes = Mode.of_prod(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
@@ -450,6 +451,7 @@ and upat_to_info_map =
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
     }
   | Tuple(ps) =>
+    let ps = ps |> List.map(((_, p)) => p);
     let modes = Mode.of_prod(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
@@ -550,6 +552,7 @@ and utyp_to_info_map =
       upat_to_info_map(~is_synswitch=true, ~ctx, ~ancestors, ~mode=Syn, p, m);
     add(m);
   | Tuple(ts) =>
+    let ts = ts |> List.map(((_, t)) => t);
     let m = map_m(go, ts, m) |> snd;
     add(m);
   | Ap(t1, t2) =>
@@ -661,6 +664,7 @@ and uexp_to_module =
         }
       | Parens(pat) => out_moded(out_mode, pat)
       | Tuple(pats) =>
+        let pats = pats |> List.map(((_, p)) => p);
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {
             switch (mode, out_moded(out_mode, p)) {
@@ -670,7 +674,7 @@ and uexp_to_module =
           },
           Ana(Prod([])),
           pats,
-        )
+        );
       | ListLit(pats) =>
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {

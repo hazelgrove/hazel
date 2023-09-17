@@ -59,7 +59,7 @@ module Pervasives = {
     /* mod implementation */
     let int_mod = (name, r1) =>
       switch (r1) {
-      | BoxedValue(Tuple([IntLit(n), IntLit(m)]) as d1) =>
+      | BoxedValue(Tuple([(_, IntLit(n)), (_, IntLit(m))]) as d1) =>
         switch (m) {
         | 0 =>
           Indet(InvalidOperation(ApBuiltin(name, [d1]), DivideByZero))

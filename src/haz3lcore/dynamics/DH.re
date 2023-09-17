@@ -75,7 +75,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | TupLabel(DHPat.t, t)
-    | Tuple(list(t))
+    | Tuple(list((option(DHPat.t), t)))
     | Prj(t, int)
     | Tag(string)
     | ConsistentCase(case)
@@ -90,7 +90,7 @@ module rec DHExp: {
 
   let constructor_string: t => string;
 
-  let mk_tuple: list(t) => t;
+  let mk_tuple: list((option(DHPat.t), t)) => t;
 
   let cast: (t, Typ.t, Typ.t) => t;
 
@@ -176,7 +176,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | TupLabel(DHPat.t, t)
-    | Tuple(list(t))
+    | Tuple(list((option(DHPat.t), t)))
     | Prj(t, int)
     | Tag(string)
     | ConsistentCase(case)
@@ -230,7 +230,7 @@ module rec DHExp: {
     | ModuleVal(_) => "ModuleVal"
     };
 
-  let mk_tuple: list(t) => t =
+  let mk_tuple: list((option(DHPat.t), t)) => t =
     fun
     | []
     | [_] => failwith("mk_tuple: expected at least 2 elements")
@@ -252,7 +252,7 @@ module rec DHExp: {
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
     | TupLabel(p, t) => TupLabel(p, strip_casts(t))
-    | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
+    | Tuple(ds) => Tuple(ds |> List.map(((p, e)) => (p, strip_casts(e))))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
@@ -328,7 +328,11 @@ module rec DHExp: {
     | (TupLabel(_, e1), TupLabel(_, e2)) => fast_equal(e1, e2) // TODO: Not right?
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
-      && List.for_all2(fast_equal, ds1, ds2)
+      && List.for_all2(
+           fast_equal,
+           ds1 |> List.map(((_, e)) => e),
+           ds2 |> List.map(((_, e)) => e),
+         )
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)

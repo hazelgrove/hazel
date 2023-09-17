@@ -121,10 +121,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ ds =
       ds
       |> List.fold_left(
-           (ds, d) => {
+           (ds, (p, d)) => {
              let* ds = ds;
              let+ d = pp_eval(d);
-             ds @ [d];
+             ds @ [(p, d)];
            },
            return([]),
          );
@@ -366,10 +366,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ ds =
       ds
       |> List.fold_left(
-           (ds, d) => {
+           (ds, (p, d)) => {
              let* ds = ds;
              let+ d = pp_uneval(env, d);
-             ds @ [d];
+             ds @ [(p, d)];
            },
            return([]),
          );
@@ -502,7 +502,7 @@ let rec track_children_of_hole =
 
   | Tuple(ds) =>
     List.fold_right(
-      (d, hii) => track_children_of_hole(hii, parent, d),
+      ((_, d), hii) => track_children_of_hole(hii, parent, d),
       ds,
       hii,
     )
