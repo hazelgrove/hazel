@@ -379,14 +379,14 @@ let poly_id_ex = {
   sub_id: "poly_id_ex",
   term:
     mk_example(
-      "let id : \n forall X . (X -> X) = \n typfun X -> \n fun x : X -> x \n in id",
+      "let id : \n forall X -> (X -> X) = \n typfun X -> \n fun x : X -> x \n in id",
     ),
   message: "The polymorphic identity function. It may be instantiated at any type X, after which the function acts as type (X -> X).",
   feedback: Unselected,
 };
 let peano_ex = {
   sub_id: "peano_ex",
-  term: mk_example("type Peano = \n rec P . Z + S(P) \n in S(S(S(Z)))"),
+  term: mk_example("type Peano = \n rec P -> Z + S(P) \n in S(S(S(Z)))"),
   message: "The type of the Peano numbers and the representation of the number 3.",
   feedback: Unselected,
 };

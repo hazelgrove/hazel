@@ -15013,21 +15013,21 @@ let startup : PersistentData.t =
                  # Such functions are applied like so: #\n\
                  let ex1 = id@<Int>(1) in # 1 #\n\n\
                  # We can annotate the type of a type function with a forall. #\n\
-                 let const : forall A . forall B . A -> B -> A = \n\
+                 let const : forall A -> forall B -> A -> B -> A = \n\
                  typfun A -> typfun B -> fun x -> fun y -> x in\n\
                  let ex2 = const@<Int>@<String>(2)(\"Hello World\") in # 2 #\n\n\
                  # We can go beyond rank 1 polymorphism: #\n\
-                 let apply_both : forall A . forall B . (forall D . D -> D) -> \
-                 (A , B) -> (A , B) =\n\
+                 let apply_both : forall A -> forall B -> (forall D -> D -> D) \
+                 -> (A , B) -> (A , B) =\n\
                  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), \
                  f@<B>(y)) in  \n\
                  let ex3 = apply_both@<Int>@<String>(id)(3, \"Hello World\") \
                  in # (3, \"Hello World\") # \n\n\
                  # Finally, here is a more in-depth, yet applicable example: \
                  polymorphic map #\n\
-                 let emptylist : forall A . [A] = typfun A -> [] in # \
+                 let emptylist : forall A -> [A] = typfun A -> [] in # \
                  polymorphic constant #\n\
-                 let map : forall A . forall B . (A -> B) -> ([A] -> [B]) = \n\
+                 let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) = \n\
                  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> \n\
                  case l\n\
                  | h :: t => f(h) :: map@<A>@<B>(f)(t)\n\
@@ -15038,7 +15038,7 @@ let startup : PersistentData.t =
                  # Recursive types #\n\n\
                  # We can express types that are the least fixed point of #\n\
                  # some type function with the rec keyword. #\n\
-                 type MyList = rec A. (Nil + Cons(Int, A)) in\n\n\
+                 type MyList = rec A -> (Nil + Cons(Int, A)) in\n\n\
                  # Hazel does not (yet) support higher-kinded or existential \
                  types, #\n\
                  # So we cannot implement our own polymorphic lists. #\n\n\

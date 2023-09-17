@@ -349,11 +349,11 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | _ => ret(hole(tm))
     }
   /* forall and rec have to be before sum so that they bind tighter.
-   * Thus `rec A . Left(A) + Right(B)` get parsed as `rec A . (Left(A) + Right(B))`
+   * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["forall", "."], [TPat(tpat)]))], []), Typ(t)) =>
+  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Forall(tpat, t))
-  | Pre(([(_id, (["rec", "."], [TPat(tpat)]))], []), Typ(t)) =>
+  | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
     /* Case for leading prefix + preceeding a sum */
