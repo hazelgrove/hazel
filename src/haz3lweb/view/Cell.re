@@ -282,6 +282,8 @@ let editor_view =
       ~unselected,
       ~measured,
       ~settings,
+      ~inject,
+      ~folded=editor.state.meta.folded,
     );
   let deco_view =
     deco(

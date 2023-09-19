@@ -68,7 +68,9 @@ module Text = (M: {
                  let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
-  let rec of_segment = (no_sorts, sort, seg: Segment.t): list(Node.t) => {
+  let rec of_segment =
+          (no_sorts, sort, seg: Segment.t, ~inject, ~font_metrics, ~folded)
+          : list(Node.t) => {
     /* note: no_sorts flag is used for backback view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -82,29 +84,37 @@ module Text = (M: {
       };
     seg
     |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
+    |> List.concat_map(((i, p)) =>
+         of_piece(sort_of_p_idx(i), p, ~inject, ~font_metrics, ~folded)
+       );
   }
-  and of_piece' = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece' =
+      (expected_sort: Sort.t, p: Piece.t, ~inject, ~font_metrics, ~folded)
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t)
+    | Tile(t) => of_tile(expected_sort, t, ~inject, ~font_metrics, ~folded)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (expected_sort: Sort.t, p: Piece.t, ~inject, ~font_metrics, ~folded)
+      : list(Node.t) => {
     /* Last two elements of arg track the functorial args which
        can effect the code layout; without these the first,
        indentation can get out of sync */
     let arg = (expected_sort, p, m(p).last.col, M.settings);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
-      let res = of_piece'(expected_sort, p);
+      let res = of_piece'(expected_sort, p, ~inject, ~font_metrics, ~folded);
       Hashtbl.add(piece_hash, arg, res);
       res;
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (expected_sort: Sort.t, t: Tile.t, ~inject, ~font_metrics, ~folded)
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -115,9 +125,14 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(false, sort, seg)
+         of_segment(false, sort, seg, ~inject, ~font_metrics, ~folded)
        )
-    |> List.concat;
+    |> List.concat
+    |> {
+      x =>
+        Module.foldable(t.label)
+          ? FoldButton.view(font_metrics, inject, folded, t.id) @ x : x;
+    };
   };
 };
 
@@ -139,7 +154,9 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
+let simple_view =
+    (~unselected, ~map, ~settings: ModelSettings.t, ~inject, ~font_metrics)
+    : Node.t => {
   module Text =
     Text({
       let map = map;
@@ -147,7 +164,19 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(false, Sort.Any, unselected))],
+    [
+      span_c(
+        "code-text",
+        Text.of_segment(
+          false,
+          Sort.Any,
+          unselected,
+          ~inject,
+          ~font_metrics,
+          ~folded=[],
+        ),
+      ),
+    ],
   );
 };
 
@@ -159,6 +188,8 @@ let view =
       ~unselected,
       ~measured,
       ~settings: ModelSettings.t,
+      ~inject,
+      ~folded,
     )
     : Node.t => {
   module Text =
@@ -168,7 +199,14 @@ let view =
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(false, sort, unselected)
+      Text.of_segment(
+        false,
+        sort,
+        unselected,
+        ~font_metrics,
+        ~inject,
+        ~folded,
+      )
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

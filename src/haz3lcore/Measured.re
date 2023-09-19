@@ -370,10 +370,20 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
             };
+            let add_shard' = (origin, shard, map) => {
+              let (last, map) = add_shard(origin, shard, map);
+              (
+                Point.{
+                  ...last,
+                  col: last.col + (Module.foldable(t.label) ? 2 : 0),
+                },
+                map,
+              );
+            };
             let (last, map) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
-                   shard => add_shard(origin, shard, map),
+                   shard => add_shard'(origin, shard, map),
                    ((origin, map), child, shard) => {
                      let (child_last, child_map) =
                        go_nested(

@@ -50,3 +50,7 @@ let rec get_module =
   | _ => None
   };
 };
+
+let foldable = (label: Label.t) => {
+  label == ["module", "=", "in"];
+};
