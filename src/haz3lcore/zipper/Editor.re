@@ -7,6 +7,7 @@ module Meta = {
     measured: Measured.t,
     term_ranges: TermRanges.t,
     col_target: int,
+    folded: list(Id.t),
   };
 
   let init = (z: Zipper.t) => {
@@ -16,6 +17,7 @@ module Meta = {
       measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
+      folded: [],
     };
   };
 
@@ -42,7 +44,7 @@ module Meta = {
 
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target, _} = meta;
+    let {touched, measured, col_target, folded, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
     let measured = Measured.of_segment(~touched, ~old=measured, unselected);
@@ -53,7 +55,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
-    {touched, measured, term_ranges, col_target};
+    {touched, measured, term_ranges, col_target, folded};
   };
 };
 

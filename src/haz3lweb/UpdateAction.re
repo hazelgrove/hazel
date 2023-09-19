@@ -47,6 +47,7 @@ type t =
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
+  | FoldStateChange(Id.t)
   | DebugAction(DebugAction.t)
   | Benchmark(benchmark_action);
 
