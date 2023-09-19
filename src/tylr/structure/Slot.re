@@ -1,3 +1,5 @@
+open Util;
+
 module Base = Meld.Slot;
 include Base;
 
@@ -8,11 +10,11 @@ let to_opt =
 
 module Molded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Meld.Molded.t);
+  type t = Base.t(option(Sort.t));
 };
 module Baked = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Meld.Baked.t);
+  type t = Base.t(EPath.Marked.t(Meld.Baked.t));
   let has_no_tiles =
     fun
     | Empty => Some("")
@@ -42,3 +44,5 @@ module Profile = {
       mk(~has_tokens=l.has_tokens || r.has_tokens, Grout())
     };
 };
+
+module Path

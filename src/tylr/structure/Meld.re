@@ -21,23 +21,12 @@ module Base = {
 include Base;
 
 module Molded = {
-  type t = Base.t(Material.t(Sort.t), Mold.t);
+  type t = Base.t(option(Sort.t), Mold.t);
 };
 
 module Baked = {
-  type t = Base.t(t, Piece.t);
+  type t = Base.t(EPath.Marked.t(t), Piece.t);
 };
-
-// for constructor inclusion in Wald and Slot modules
-module Base = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('a) =
-    | M(slot('a), wald('a), slot('a))
-  and wald('a) =
-    | W(Chain.t('a, slot('a)))
-  and slot('a) = option(t('a));
-};
-include Base;
 
 module Profile = {
   type t = {
@@ -50,7 +39,7 @@ module Profile = {
 // parent tips (which may be min prec in bidelim containers)
 exception Invalid_prec;
 
-let mk = (~l=None, ~r=None, w) => M(l, w, r);
+let mk = (~l=Slot.Empty, ~r=Slot.Empty, w) => M(l, w, r);
 
 // let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
 //   of_chain(Chain.mk([l, r], [p])) |> aggregate;

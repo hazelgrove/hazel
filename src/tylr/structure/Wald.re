@@ -1,6 +1,16 @@
 open Util;
 // include Chain;
-include Meld.Base;
+// include Meld.Base;
+module Base = Meld.Wald;
+include Base;
+
+module Molded = {
+  type t = Base.t(Slot.Molded.t, Mold.t);
+};
+
+module Baked = {
+  type t = Base.t(Slot.)
+}
 
 // "walled" meld, wario to meld's mario
 [@deriving (show({with_path: false}), sexp, yojson)]
