@@ -112,10 +112,17 @@ let rec typ_of_dhexp =
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
+    print_endline("AP");
+    print_endline(Typ.show(ty1));
+    print_endline(Typ.show(ty2));
     switch (arrow_aux(ty1)) {
     | Arrow(tyl, tyr) =>
       if (Typ.eq(tyl, ty2)) {
-        Some(tyr);
+        if (Typ.eq(tyl, Unknown(Internal))) {
+          Some(Typ.Unknown(Internal));
+        } else {
+          Some(tyr);
+        };
       } else {
         None;
       }
@@ -251,12 +258,9 @@ let rec typ_of_dhexp =
   | Cons(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    print_endline(Typ.show(ty1));
-    print_endline(Typ.show(ty2));
     switch (ty2) {
     | List(Unknown(Internal)) => Some(Typ.List(ty1))
     | List(ty3) =>
-      //Add another condition for List(sum)
       if (Typ.eq(ty3, ty1)) {
         Some(ty2);
       } else {
