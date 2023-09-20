@@ -195,11 +195,16 @@ let rec dhexp_of_uexp =
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
         | _ =>
-          switch (Ctx.lookup_ctr(ctx, name)) {
-          | None => Some(Constructor(name, Unknown(Internal)))
-          | Some({typ, _}) =>
-            Some(Constructor(name, Typ.normalize(ctx, typ)))
-          }
+          let ty =
+            switch (Ctx.lookup_ctr(ctx, name)) {
+            | None => Typ.Unknown(Internal)
+            | Some({typ, _}) => Typ.normalize(ctx, typ)
+            };
+          switch (mode) {
+          | Ana(ana_ty) =>
+            Some(Constructor(name, Typ.normalize(ctx, ana_ty)))
+          | _ => Some(Constructor(name, ty))
+          };
         }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
