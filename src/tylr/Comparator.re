@@ -1,3 +1,228 @@
+module Stepped = {
+  include Material.Map;
+  // here i mean molded material
+  type t = Material.Map.t(GTerrace.Set.t);
+
+  let union = List.fold_left(Material.Map.union(GTerrace.Set.union), Mold.Map.empty);
+
+  let add = (t: GTerrace.t) =>
+    update(
+      GTerrace.face(t),
+      fun
+      | None => Set.singleton(t)
+      | Some(set) => Set.add(t, set)
+    );
+
+  let singleton = (t: GTerrace.t) =>
+    singleton(GTerrace.face(t), Set.singleton(t));
+
+  // let bind = (stepped: t, f: GTerrace.t => t) =>
+  //   bindings(stepped)
+  //   |> List.map(((m_hd, ts_hd)) =>
+  //     GTerrace.Set.to_list(ts_hd)
+  //     |> List
+
+  //     bindings(tl(m_hd))
+  //     |> List.map(((m_tl, ts_tl)) =>
+  //       singleton(
+  //         m_tl,
+  //         GTerrace.Set.prod_cat(ts_hd, ts_tl)
+  //       )
+  //     )
+  //     |> List.cons(singleton(m_hd, ts_hd))
+  //     |> union_all
+  //   )
+  //   |> union_all;
+};
+
+module Walked = {
+  include Material.Map;
+  module Eq = {
+    type t = Material.Map.t(GTerrace.Set.t);
+  };
+  module Neq = {
+    type t = Material.Map.t(GSlope.Set.t);
+  };
+};
+
+let rec find_tok = (~slot=Slot.Empty, d: Dir.t, a: GZipper.t(Atom.t)) =>
+  switch (Mold.of_atom(a)) {
+  | Ok(m) => Stepped.singleton(GTerrace.singleton(~slot, m))
+  | Error(s) =>
+    Regex.step(d, a)
+    |> List.map(find_tok(~slot=Full(Tile(s))))
+    |> Stepped.union
+  };
+
+// deep precedence-bounded entry into given sort and its unidelimited
+// dependencies, stepping to nearest token
+let enter =
+    (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): Stepped.t => {
+  let seen = Hashtbl.create(100);
+  let rec go = (~l=?, ~r=?, s: Sort.t) => {
+    switch (Hashtbl.find_opt(seen, (l, r, s))) {
+    | Some(_) => Stepped.empty
+    | None =>
+      Hashtbl.add(seen, (l, r, s), ());
+      GZipper.enter(~from, ~l?, ~r?, s)
+      |> List.map(z =>
+           switch (Mold.of_atom(z)) {
+           | Ok(m) => Stepped.singleton(GTerrace.singleton(m))
+           | Error(s') =>
+             let entered_here = find_tok(Dir.toggle(from), z);
+             let entered_deeper = {
+               let (l, r) =
+                switch (from) {
+                | L when Sort.eq(s', s) => (l, Some(z.prec))
+                | R when Sort.eq(s', s) => (Some(z.prec), r)
+                | _ => (None, None)
+                };
+               go(~l?, ~r?, s');
+             };
+             Stepped.union([entered_here, entered_deeper]);
+           }
+         )
+      |> Stepped.union;
+    };
+  };
+  go(~l?, ~r?, s);
+};
+
+let step_eq = (d: Dir.t, m: Material.t): Stepped.t =>
+  switch (m) {
+  | Space => Stepped.empty
+  | Grout(tips) =>
+    switch (Dir.choose(d, tips)) {
+    | Convex => Stepped.empty
+    | Concave =>
+      let infix = Material.Grout((Concave, Concave));
+      let affix = Material.Grout(Dir.choose(d, ((Convex, Concave), (Concave, Convex))));
+      let slot = GSlot.Full(Grout());
+      Stepped.singleton(GTerrace.mk(~slot, infix))
+      |> Stepped.add(GTerrace.mk(~slot, affix));
+    }
+  | Tile(m) =>
+    Mold.to_atom(m).zipper
+    |> Regex.step(d)
+    |> List.map(find_tok(d))
+    |> Stepped.union;
+  };
+
+let walk_eq = (d: Dir.t, m: Material.t): Walked.t => {
+  let seen = Hashtbl.create(100);
+  let rec go = m =>
+    switch (Hashtbl.find_opt(seen, m)) {
+    | Some() => Walked.empty
+    | None =>
+      Hashtbl.add(seen, m, ());
+      // todo: monad
+      step_eq(d, m)
+      |> Stepped.bindings
+      |> List.map(((m_hd, ts_hd)) =>
+        walk_eq(d, m_hd)
+        |> Walked.bindings
+        |> List.map(((m_tl, ts_tl)) => {
+          let ts = GTerrace.Set.prod_cat(ts_hd, ts_tl);
+          (m_tl, ts);
+        })
+        |> List.cons(singleton(m_hd, ts_hd))
+        |> Walked.union_all
+      )
+      |> Walked.union_all;
+    };
+  go(m);
+};
+
+let step_neq = (d: Dir.t, bound: Bound.t(Material.t)): Stepped.t => {
+  let b = Dir.toggle(d);
+  switch (bound) {
+  | Root => enter(~from=b, Sort.root)
+  | Piece(Space)
+  | Piece(Grout((_, Convex))) => Stepped.empty
+  | Piece(Grout((_, Concave))) =>
+    // todo: come back and add more fine-grained filtering
+    // on entry walks for dynamic matching forms
+    Sort.all
+    |> List.map(enter(~from=b))
+    |> Stepped.union
+  | Piece(Tile(m)) =>
+    Mold.to_atom(m).zipper
+    |> Regex.step(d)
+    |> List.map(
+         fun
+         | (Atom.Tok(_), _) => Stepped.empty
+         | (Kid(s), ctx) => {
+              let (l, r) =
+                switch (from) {
+                | L when Sort.eq(s, m.sort) => (Some(m.prec), None)
+                | R when Sort.eq(s, m.sort) => (None, Some(m.prec))
+                | _ => (None, None)
+                };
+             enter(~from=b, ~l?, ~r?, s);
+           },
+       )
+    |> Stepped.union
+  };
+};
+
+// todo: monad
+let walk_neq = (d: Dir.t, bound: Bound.t(Material.t)): Walked.t =>
+  step_neq(d, bound)
+  |> Stepped.bindings
+  |> List.map(((m_hd, ts_hd)) =>
+    walk_eq(d, m_hd)
+    |> Walked.bindings
+    |> List.map(((m_tl, ts_tl)) => {
+      let ts = GTerrace.Set.prod_cat(ts_hd, ts_tl);
+      singleton(m_tl, ts);
+    })
+    |> List.cons(singleton(m_hd, ts_hd))
+    |> Walked.union_all
+  )
+  |> Walked.union_all;
+
+module Descended = {
+  include Material.Map;
+  type t = Material.Map.t(GSlope.Set.t);
+};
+
+// todo: monad
+let rec descend = (d: Dir.t, bound: Bound.t(Material.t)): Descended.t => {
+  let seen = Hashtbl.create(100);
+  let rec go = bound =>
+    switch (Hashtbl.find_opt(seen, bound)) {
+    | Some() => Descend.empty
+    | None =>
+      walk_neq(d, bound)
+      |> Walked.bindings
+      |> List.map(((m_hd, ts_hd)) =>
+        go(Piece(m_hd))
+        |> Descended.bindings
+        |> List.map(((m_tl, ss_tl)) => {
+          let ss = GSlope.Set.prod_cons(ts_hd, ss_tl);
+          singleton(m_tl, ss)
+        })
+      )
+      |> List.cons(singleton(m_hd, GTerrace.Set.map(t => [t], ts_hd)))
+      |> Descended.union_all
+    };
+  go(bound);
+};
+
+
+let bound = (~without=Obligation.Incomparability, d: Dir.t, bound: Bound.t(Material.t)) => {
+  let stepped = step_neq(d, bound);
+  switch (without) {
+  | Incomparability =>
+
+  | Inconsistent_sort => failwith("todo")
+  | Unfinished_tile => failwith("todo")
+  | Unfilled_slot => failwith("todo")
+  }
+};
+
+
+
 let rec walk =
         (d: Dir.t, z: GZipper.t(Atom.t))
         : list(Terrace.t(Mold.t, Material.t(Sort.t))) =>
@@ -18,47 +243,6 @@ let rec walk =
     | Error(_) => Fun.id
     }
   );
-
-// deep precedence-bounded entry into given sort and its unidelimited
-// dependencies, stepping to nearest token
-let enter =
-    (~from: Dir.t, ~l=?, ~r=?, s: Sort.t)
-    : list(Terrace.t(Mold.t, Material.t(Sort.t))) => {
-  let seen = Hashtbl.create(100);
-  let rec go = (~l=?, ~r=?, s: Sort.t) => {
-    switch (Hashtbl.find_opt(seen, (l, r, s))) {
-    | Some(_) => []
-    | None =>
-      Hashtbl.add(seen, (l, r, s), ());
-      GZipper.enter(~from, ~l?, ~r?, s)
-      |> List.concat_map(z =>
-           switch (Mold.of_atom(z)) {
-           | Ok(m) => [Terrace.singleton(m)]
-           | Error(s') =>
-             let entered_here = walk(Dir.toggle(from), z);
-             let entered_deeper = {
-               let (l, r) =
-                 if (Sort.eq(s', s)) {
-                   switch (from) {
-                   | L => (l, z.prec)
-                   | R => (z.prec, r)
-                   };
-                 } else {
-                   (
-                     // unbounded across sort transitions
-                     None,
-                     None,
-                   );
-                 };
-               go(~l?, ~r?, s');
-             };
-             entered_here @ entered_deeper;
-           }
-         );
-    };
-  };
-  go(~l?, ~r?, s);
-};
 
 let bounded = (~side: Dir.t, ~sort: Sort.t, ~bound=?, m: Mold.t)
 

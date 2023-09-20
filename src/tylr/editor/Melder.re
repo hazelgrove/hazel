@@ -74,6 +74,46 @@ module Piece = {
     |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
   };
 
+  let lt = (~req=Req.Comparable, l: Bound.t, ~slot=Slot.Empty, r: Piece.t): option(ETerrace.R.t) => {
+    let ok = Some(ETerrace.singleton(~slot, r));
+    switch (l) {
+    | Root => root_lt(~req, ~slot, r)
+    | Piece(l) =>
+      switch (l.material, r.material) {
+      | (Space, _) => None
+      | (_, Space) => ok
+
+      | (Grout((_, Concave)), Grout((Convex, _))) => ok
+      | (Grout(_), Grout(_)) => None
+
+      | (Grout((_, Convex)), Tile(_)) => None
+      | (Grout((_, Concave)), Tile(m)) =>
+        // exit terraces collectively characterize mold tips
+        GWalker.exit(~side=L, m)
+        // limit to terraces without matches
+        |> List.filter(GWalker.satisfies(Req.max(req, Tiles_finished)))
+        |> GWalker.pick(~slot=ESlot.sort(slot))
+        |> Option.map(ETerrace.bake(~slot, ~face=r));
+
+      // slightly weird cases in that I'm exiting from the bound
+      | (Tile(Convex), _) => None
+      | (Tile(Concave()))
+      | (Tile(m), Grout((Concave, _))) =>
+        // verify that m always matches on its right
+        GWalker.exit(m, ~side=R)
+        |> List.for_all(t => !GTerrace.satisfies(Tiles_finished, t))
+        |> OptUtil.of_bool
+        |> OptUtil.and_then(_ => ok)
+      | (Tile(m), Grout((Convex, _))) =>
+        // check that m takes a kid
+        GWalker.exit(m, ~side=R)
+        |> List.find_opt(t => !GTerrace.satisfies(Slots_filled, t))
+        |> OptUtil.and_then(_ => ok)
+      }
+
+    }
+  };
+
   // strict upper bounding
   let bound = (~side: Dir.t, ~sort: Sort.t, ~bound=?, ~slot=Slot.Empty, p: Piece.t): option(Terrace.t) =>
     switch (p.material) {
