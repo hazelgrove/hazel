@@ -11,13 +11,20 @@ let rule_prj = (dr: DHExp.rule): (DHPat.t, DHExp.t) => {
   };
 };
 
+let arrow_aux = (ty: Typ.t): Typ.t => {
+  switch (ty) {
+  | Unknown(Internal) => Arrow(Unknown(Internal), Unknown(Internal))
+  | _ => ty
+  };
+};
+
 let delta_ty = (id: MetaVar.t, m: Statics.Map.t): option(Typ.t) => {
   switch (Id.Map.find_opt(id, m)) {
-  | Some(InfoExp({mode, _})) =>
+  | Some(InfoExp({mode, ctx, _})) =>
     switch (mode) {
     | Syn
     | SynFun => Some(Unknown(Internal))
-    | Ana(ana_ty) => Some(ana_ty)
+    | Ana(ana_ty) => Some(Typ.normalize(ctx, ana_ty))
     }
   | _ => None
   };
@@ -105,7 +112,7 @@ let rec typ_of_dhexp =
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    switch (ty1) {
+    switch (arrow_aux(ty1)) {
     | Arrow(tyl, tyr) =>
       if (Typ.eq(tyl, ty2)) {
         Some(tyr);
@@ -180,13 +187,8 @@ let rec typ_of_dhexp =
     | _ => None
     }
   | Sequence(d1, d2) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.eq(ty1, Prod([]))) {
-      Some(ty2);
-    } else {
-      None;
-    };
+    let* _ = typ_of_dhexp(ctx, m, d1);
+    typ_of_dhexp(ctx, m, d2);
   | BinBoolOp(_, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -224,7 +226,7 @@ let rec typ_of_dhexp =
       | Plus
       | Times
       | Power
-      | Divide => Some(Typ.Int)
+      | Divide => Some(Typ.Float)
       | LessThan
       | LessThanOrEqual
       | GreaterThan
@@ -249,11 +251,14 @@ let rec typ_of_dhexp =
   | Cons(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
+    print_endline(Typ.show(ty1));
+    print_endline(Typ.show(ty2));
     switch (ty2) {
     | List(Unknown(Internal)) => Some(Typ.List(ty1))
     | List(ty3) =>
+      //Add another condition for List(sum)
       if (Typ.eq(ty3, ty1)) {
-        Some(Typ.List(ty1));
+        Some(ty2);
       } else {
         None;
       }
@@ -267,5 +272,26 @@ let rec typ_of_dhexp =
   | Closure(_, d1) => typ_of_dhexp(ctx, m, d1)
   | Prj(_) => None
   | _ => None
+  };
+};
+
+let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): unit => {
+  let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
+
+  let dh_typ =
+    switch (dhexp_typ) {
+    | None => Typ.Unknown(Internal)
+    | Some(ty) => ty
+    };
+
+  print_endline(Typ.show(dh_typ));
+  print_endline(Typ.show(uexp_typ));
+
+  if (dhexp_typ == None) {
+    print_endline("DHEXP type got none");
+  } else if (dh_typ == uexp_typ) {
+    print_endline("Types equal");
+  } else {
+    print_endline("Types not equal");
   };
 };
