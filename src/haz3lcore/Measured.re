@@ -371,14 +371,12 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               (last, map);
             };
             let add_shard' = (origin, shard, map) => {
-              let (last, map) = add_shard(origin, shard, map);
-              (
+              let origin =
                 Point.{
-                  ...last,
-                  col: last.col + (Module.foldable(t.label) ? 2 : 0),
-                },
-                map,
-              );
+                  ...origin,
+                  col: origin.col + (Module.foldable(t.label) ? 2 : 0),
+                };
+              add_shard(origin, shard, map);
             };
             let (last, map) =
               Aba.mk(t.shards, t.children)
