@@ -1,28 +1,5 @@
 open Util;
 
-module Req = {
-  type t =             // corresponding obligations when unmet:
-    | Comparable       // infix grout
-    | Sorts_consistent // prefix/postfix grout
-    | Tiles_finished   // unfinished tiles
-    | Slots_filled;    // convex grout
-
-  // each requisite has lower-rank requisites as its "prereqs".
-  // ordered such that, the higher the rank, the closer the
-  // corresponding obligations appear to the leaves of the program
-  // (relative to the melded pieces)
-  let rank =
-    fun
-    | Comparable => 0
-    | Sorts_consistent => 1
-    | Tiles_finished => 2
-    | Slots_filled => 3;
-
-  let compare = (l, r) => Int.compare(rank(l), rank(r));
-
-  let max = (l, r) => compare(l, r) <= 0 ? r : l;
-};
-
 module Mold = {
   include Mold;
   // exists a match across alternatives
@@ -46,12 +23,25 @@ module Mold = {
     |> List.find_opt(GWalker.satisfies(~req, ~face=r));
 };
 
-module Obligation = {
-  type t =
-    | Slot_unfilled
-    | Tile_unfinished
-    | Sort_inconsistent
-    | Incomparable;
+module Piece = {
+  let lt = (~without=Obligation.Incomparability, l: Bound.t(Piece.t), ~slot=Slot.Empty, r: Piece.t) =>
+    GWalker.descend(R, bound)
+    |> GWalker.Descended.find(r.material)
+    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
+    |> Option.map(ETerrace.R.bake(~slot, ~face=r));
+
+  let gt = (~without=Obligation.Incomparability, l: Piece.t, ~slot=Slot.Empty, r: Bound.t(Piece.t)) =>
+    GWalker.descend(L, bound)
+    |> GWalker.Descended.find(l.material)
+    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
+    |> Option.map(ETerrace.L.bake(~slot, ~face=r));
+
+  let eq = (~without=Obligation.Incomparability, l: Piece.t, ~slot=Slot.Empty, r: Piece.t) =>
+    GWalker.walk_eq(R, l)
+    |> GWalker.Walked.find(r.material)
+    |> GSlope.Set.pick(~without, ~slot=ESLot.sort(slot))
+    |> Option.map(ETerrace.R.bake(~slot, ~face=r))
+    |> Option.map(t => Wald.link(l, ~slot=t.slot, t.wald));
 };
 
 module Piece = {
@@ -361,6 +351,15 @@ module Wald = {
 // rest of system:
 // rework transformation to view
 // rework make term
+
+module Slope = {
+  include Slope;
+  module Dn = {
+    include Dn;
+
+    let push = (~without=Obligation.Incomparability, dn: t, ~slot=Slot.Empty, w: EWald.t) =>
+  };
+};
 
 module Slope = {
   include Slope;
