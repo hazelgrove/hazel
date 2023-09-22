@@ -719,7 +719,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     type t = {
       term: TermBase.UExp.t,
       info_map: Statics.Map.t,
-      simple_result: ModelResult.simple,
+      simple_result: TestResults.simple,
     };
   };
 

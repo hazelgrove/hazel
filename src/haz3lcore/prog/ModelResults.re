@@ -21,15 +21,7 @@ type t = M.t(ModelResult.t);
 
 let init = (~step=false, ds: list((Key.t, DHExp.t))): t => {
   ds
-  |> List.map(((key, d)) => {
-       let result =
-         if (step) {
-           Interface.init(d);
-         } else {
-           Interface.evaluate(d);
-         };
-       (key, ModelResult.init(result));
-     })
+  |> List.map(((key, d)) => {(key, ModelResult.init(d, step))})
   |> List.to_seq
   |> of_seq;
 };
