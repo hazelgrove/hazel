@@ -123,7 +123,7 @@ let view =
         ~code_id="prelude",
         ~info_map=prelude.info_map,
         ~test_results=TestResults.unwrap_test_results(prelude.simple_result),
-        ~footer=None,
+        ~footer=[],
         eds.prelude,
       ),
     );
@@ -139,7 +139,7 @@ let view =
           ~info_map=instructor.info_map,
           ~test_results=
             TestResults.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
+          ~footer=[],
           eds.correct_impl,
         ),
     );
@@ -202,14 +202,13 @@ let view =
         ~info_map=test_validation.info_map,
         ~test_results=
           TestResults.unwrap_test_results(test_validation.simple_result),
-        ~footer=
-          Some(
-            Grading.TestValidationReport.view(
-              ~inject,
-              grading_report.test_validation_report,
-              grading_report.point_distribution.test_validation,
-            ),
+        ~footer=[
+          Grading.TestValidationReport.view(
+            ~inject,
+            grading_report.test_validation_report,
+            grading_report.point_distribution.test_validation,
           ),
+        ],
         eds.your_tests.tests,
       ),
     );
@@ -235,7 +234,7 @@ let view =
               ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
               ~info_map,
               ~test_results=TestResults.unwrap_test_results(simple_result),
-              ~footer=None,
+              ~footer=[],
               impl,
             ),
         )
@@ -262,15 +261,14 @@ let view =
         ~info_map=user_impl.info_map,
         ~test_results=
           TestResults.unwrap_test_results(user_impl.simple_result),
-        ~footer=
-          Some(
-            Cell.eval_result_footer_view(
-              ~inject,
-              ~font_metrics,
-              ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
-              user_impl.simple_result,
-            ),
+        ~footer=[
+          Cell.eval_result_footer_view(
+            ~inject,
+            ~font_metrics,
+            ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
+            user_impl.simple_result,
           ),
+        ],
         eds.your_impl,
       ),
     );
@@ -295,13 +293,12 @@ let view =
         ~code_id="your-tests-testing-view",
         ~info_map=user_tests.info_map,
         ~test_results=testing_results,
-        ~footer=
-          Some(
-            Cell.test_report_footer_view(
-              ~inject,
-              ~test_results=testing_results,
-            ),
+        ~footer=[
+          Cell.test_report_footer_view(
+            ~inject,
+            ~test_results=testing_results,
           ),
+        ],
         eds.your_tests.tests,
       ),
     );
@@ -317,7 +314,7 @@ let view =
           ~info_map=instructor.info_map,
           ~test_results=
             TestResults.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
+          ~footer=[],
           eds.hidden_tests.tests,
         ),
     );

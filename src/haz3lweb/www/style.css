@@ -1493,7 +1493,6 @@ svg.expandable path {
   min-height: 1.6em;
   overflow-y: auto;*/
   border-top: 1px dotted #d2c7ad;
-  border-radius: 0 0 0.4em 0.4em;
   /* padding-left: 1em; */
   padding: 0.5em;
   padding-left: 1.2em;
@@ -1561,56 +1560,11 @@ svg.expandable path {
   transform: scale(100%);
   cursor: not-allowed;
 }
-/*
-#top-bar #editor-mode {
-  color: #fdf6e3;
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  cursor: pointer;
-  background-color: #c7b480;
-  border-radius: 0.4em 1em 1em 0.4em;
-  transition: width 0.1s ease-in;
-  font-size: 0.7em;
-  white-space: nowrap;
+
+.stepper-justification {
+  width: 100px;
 }
 
-#top-bar #editor-mode .icon {
-  width: 15px;
-  height: 15px;
-  display: flex;
-  align-items: center;
-}
-
-#top-bar #editor-mode .icon:hover {
-  filter: brightness(0.45) sepia(1) hue-rotate(15deg) saturate(50);
-}
-
-#top-bar #editor-mode .icon svg {
-  fill: var(--light-page-color);
-}
-
-#top-bar #editor-mode .toggle-switch {
-  background-color: #99854a;
-}
-
-#top-bar #editor-mode .mode-name{
-  border-radius: 0.4em 1em 1em 0.4em;
-  padding: 0 0.5em 0 0.5em;
-  background-color: #a69460;
-  border-bottom: 0.7px solid #ebe0c2;
-  color: #fdf6e3;
-}
-
-#top-bar #editor-mode .mode-name select:hover,
-#top-bar #editor-mode select:hover {
-  color: #fad56f;
-}
-
-#top-bar #editor-mode .icon svg {
-  height: 15px;
-}
-*/
 /* DYNAMICS - DHEXP */
 
 .DHCode {
