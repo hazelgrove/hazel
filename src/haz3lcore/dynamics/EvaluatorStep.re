@@ -1511,4 +1511,44 @@ module Stepper = {
     previous: [],
     next: decompose(d),
   };
+
+  let get_justification: DHExp.t => string =
+    fun
+    | EmptyHole(_)
+    | NonEmptyHole(_)
+    | ExpandingKeyword(_)
+    | InvalidText(_)
+    | InconsistentBranches(_)
+    | Closure(_)
+    | Filter(_)
+    | FixF(_)
+    | Fun(_)
+    | TestLit(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
+    | ListLit(_)
+    | Cons(_)
+    | ListConcat(_)
+    | Tuple(_)
+    | Prj(_)
+    | Constructor(_)
+    | ConsistentCase(_)
+    | Cast(_)
+    | FailedCast(_)
+    | InvalidOperation(_)
+    | FreeVar(_) => "unidentified step"
+    | BoundVar(_) => "by variable lookup"
+    | Sequence(_) => "by sequence"
+    | Let(_) => "by substitution"
+    | Ap(_) => "by application [TODO]"
+    | ApBuiltin(_) => "by builtin application [TODO]"
+    | BinBoolOp(_) => "by boolean logic"
+    | BinIntOp(_) => "by arithmetic"
+    | BinFloatOp(_) => "by arithmetic"
+    | BinStringOp(_) => "by string operation";
+
+  let get_history = stepper =>
+    List.map(s => (s.d, get_justification(s.step.exp)), stepper.previous);
 };
