@@ -51,6 +51,6 @@ let rec get_module =
   };
 };
 
-let foldable = (label: Label.t) => {
-  label == ["module", "=", "in"];
-};
+let foldable = (tile: Tile.t) =>
+  tile.label == ["module", "=", "in"]
+  && List.length(tile.shards) == List.length(tile.label);

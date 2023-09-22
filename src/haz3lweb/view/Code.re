@@ -130,7 +130,7 @@ module Text = (M: {
     |> List.concat
     |> {
       x =>
-        Module.foldable(t.label)
+        Module.foldable(t)
           ? FoldButton.view(font_metrics, inject, folded, t.id) @ x : x;
     };
   };

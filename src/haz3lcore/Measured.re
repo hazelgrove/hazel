@@ -374,7 +374,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               let origin =
                 Point.{
                   ...origin,
-                  col: origin.col + (Module.foldable(t.label) ? 2 : 0),
+                  col: origin.col + (Module.foldable(t) ? 2 : 0),
                 };
               add_shard(origin, shard, map);
             };
