@@ -82,7 +82,7 @@ let code_cell_view =
       ~code_id: string,
       ~caption: option(Node.t)=?,
       code: Node.t,
-      footer: option(Node.t),
+      footer: list(Node.t),
     )
     : Node.t => {
   // TODO: why is this in here? doesn't it cover the whole screen?
@@ -90,11 +90,6 @@ let code_cell_view =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   let code = mousedown_overlay @ [code];
-  let footer =
-    switch (footer) {
-    | None => []
-    | Some(node) => [node]
-    };
   Node.div(
     ~attr=Attr.class_("cell-container"),
     [
@@ -233,18 +228,49 @@ let stepper_footer_view =
         ),
       ],
     );
+  let dh_code_previous = expr =>
+    div(
+      ~attr=Attr.classes(["result"]),
+      [
+        DHCode.view(
+          ~inject,
+          ~settings={...settings, postprocess: false},
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          expr,
+        ),
+      ],
+    );
   let show_history =
     Widgets.toggle(~tooltip="Show History", "h", settings.show_record, _ =>
       inject(Set(Dynamics(Toggle_show_record)))
     );
   let current =
-    Node.(
-      div(
-        ~attr=Attr.classes(["cell-result"]),
-        [button_back, dh_code_current, show_history],
-      )
+    div(
+      ~attr=Attr.classes(["cell-result"]),
+      [button_back, dh_code_current, show_history],
     );
-  current;
+  let previous_step = ((expr, just)) => {
+    div(
+      ~attr=Attr.classes(["cell-result"]),
+      [
+        dh_code_previous(expr),
+        div(
+          ~attr=Attr.classes(["stepper-justification"]),
+          [Node.text(just)],
+        ),
+      ],
+    );
+  };
+  let previous =
+    if (settings.show_record) {
+      EvaluatorStep.Stepper.get_history(stepper);
+    } else {
+      [];
+    };
+  let nodes_previous = List.map(previous_step, previous);
+  List.fold_left((x, y) => List.cons(y, x), [current], nodes_previous);
 };
 
 let eval_result_footer_view =
@@ -465,7 +491,7 @@ let editor_view =
       ~code_id: string,
       ~info_map: Statics.Map.t,
       ~test_results: option(Interface.test_results),
-      ~footer: option(Node.t),
+      ~footer: list(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
       editor: Editor.t,
     ) => {
@@ -547,7 +573,9 @@ let editor_with_result_view =
   let elab = get_elab(editor);
   let eval_result_footer =
     switch (Option.bind(result, (x: ModelResult.t) => x.stepper)) {
-    | None => eval_result_footer_view(~inject, ~font_metrics, ~elab, simple)
+    | None => [
+        eval_result_footer_view(~inject, ~font_metrics, ~elab, simple),
+      ]
     | Some(s) =>
       stepper_footer_view(
         ~inject,
@@ -569,7 +597,7 @@ let editor_with_result_view =
     ~code_id,
     ~info_map,
     ~test_results,
-    ~footer=Some(eval_result_footer),
+    ~footer=eval_result_footer,
     ~color_highlighting,
     editor,
   );
