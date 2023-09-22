@@ -122,7 +122,7 @@ let view =
           ),
         ~code_id="prelude",
         ~info_map=prelude.info_map,
-        ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
+        ~test_results=TestResults.unwrap_test_results(prelude.simple_result),
         ~footer=None,
         eds.prelude,
       ),
@@ -138,7 +138,7 @@ let view =
           ~code_id="correct-impl",
           ~info_map=instructor.info_map,
           ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
+            TestResults.unwrap_test_results(instructor.simple_result),
           ~footer=None,
           eds.correct_impl,
         ),
@@ -201,7 +201,7 @@ let view =
         ~code_id="your-tests",
         ~info_map=test_validation.info_map,
         ~test_results=
-          ModelResult.unwrap_test_results(test_validation.simple_result),
+          TestResults.unwrap_test_results(test_validation.simple_result),
         ~footer=
           Some(
             Grading.TestValidationReport.view(
@@ -234,7 +234,7 @@ let view =
                 ),
               ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
               ~info_map,
-              ~test_results=ModelResult.unwrap_test_results(simple_result),
+              ~test_results=TestResults.unwrap_test_results(simple_result),
               ~footer=None,
               impl,
             ),
@@ -261,13 +261,12 @@ let view =
         ~code_id="your-impl",
         ~info_map=user_impl.info_map,
         ~test_results=
-          ModelResult.unwrap_test_results(user_impl.simple_result),
+          TestResults.unwrap_test_results(user_impl.simple_result),
         ~footer=
           Some(
             Cell.eval_result_footer_view(
               ~inject,
               ~font_metrics,
-              ~settings,
               ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
               user_impl.simple_result,
             ),
@@ -277,7 +276,7 @@ let view =
     );
 
   let testing_results =
-    ModelResult.unwrap_test_results(user_tests.simple_result);
+    TestResults.unwrap_test_results(user_tests.simple_result);
 
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
@@ -317,7 +316,7 @@ let view =
           ~code_id="hidden-tests",
           ~info_map=instructor.info_map,
           ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
+            TestResults.unwrap_test_results(instructor.simple_result),
           ~footer=None,
           eds.hidden_tests.tests,
         ),

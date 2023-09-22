@@ -90,7 +90,7 @@ let test_summary_str = (test_results: test_results): string =>
   );
 
 type simple_data = {
-  eval_results: list(DHExp.t),
+  eval_result: DHExp.t,
   test_results,
 };
 

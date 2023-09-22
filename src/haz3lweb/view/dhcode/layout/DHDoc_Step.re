@@ -100,7 +100,7 @@ let rec mk =
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_hole_instance: option(HoleInstance.t),
-          ~decompose: bool,
+          ~next_steps: list(EvaluatorStep.EvalObj.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -151,7 +151,7 @@ let rec mk =
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
             drs
             |> List.map(
-                 mk_rule(~settings, ~selected_hole_instance, ~decompose),
+                 mk_rule(~settings, ~selected_hole_instance, ~next_steps),
                ),
             [DHDoc_common.Delim.close_Case],
           ]),
@@ -182,7 +182,7 @@ let rec mk =
       | _ => None
       };
     let unwrap =
-      if (decompose) {
+      if (next_steps != []) {
         (l, sel) =>
           List.fold_right(
             ((step, full), lst) =>
@@ -470,27 +470,20 @@ let rec mk =
       };
     (parenthesize(doc), cast);
   };
-  let objs =
-    if (decompose) {
-      switch (Interface.decompose(d)) {
-      | objs => objs
-      | exception exn =>
-        print_endline(
-          "Error when decomposing expression: "
-          ++ Sexplib.Sexp.to_string_hum(Sexplib.Std.sexp_of_exn(exn)),
-        );
-        [];
-      };
-    } else {
-      [];
-    };
-  mk_cast(go(~parenthesize, ~enforce_inline, d, List.combine(objs, objs)));
+  mk_cast(
+    go(
+      ~parenthesize,
+      ~enforce_inline,
+      d,
+      List.combine(next_steps, next_steps),
+    ),
+  );
 }
 and mk_rule =
     (
       ~settings,
       ~selected_hole_instance,
-      ~decompose,
+      ~next_steps,
       Rule(dp, dclause): DHExp.rule,
     )
     : DHDoc.t => {
@@ -500,11 +493,11 @@ and mk_rule =
   let clause_doc =
     settings.show_case_clauses
       ? choices([
-          hcats([space(), mk'(~enforce_inline=true, ~decompose, dclause)]),
+          hcats([space(), mk'(~enforce_inline=true, ~next_steps, dclause)]),
           hcats([
             linebreak(),
             indent_and_align(
-              mk'(~enforce_inline=false, ~decompose, dclause),
+              mk'(~enforce_inline=false, ~next_steps, dclause),
             ),
           ]),
         ])

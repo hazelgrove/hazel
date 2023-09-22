@@ -27,10 +27,7 @@ let view =
   let info_map = Statics.mk_map(term);
   let result =
     settings.dynamics.evaluate
-      ? ModelResult.get_simple(
-          ModelResults.lookup(results, ScratchSlide.scratch_key),
-        )
-      : None;
+      ? ModelResults.lookup(results, ScratchSlide.scratch_key) : None;
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(

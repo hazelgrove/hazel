@@ -71,36 +71,10 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
   switch (result) {
   | (es, BoxedValue(_) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
+    (r, es)
   | (es, Indet(_) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
-  };
-};
-
-let step = Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.step);
-
-let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
-  let (es, d) = step(obj);
-  switch (d) {
-  | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
-  | Indet(d) => (Indet(d), es, HoleInstanceInfo.empty)
-  | exception (EvaluatorError.Exception(_reason)) =>
-    //HACK(andrew): supress exceptions for release
-    //raise(EvalError(reason))
-    print_endline("Interface.step EXCEPTION");
-    (
-      Indet(InvalidText(Id.invalid, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
-  | exception _ =>
-    print_endline("Other evaluation exception raised (stack overflow?)");
-    (
-      Indet(InvalidText(Id.invalid, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
+    (r, es)
   };
 };
 
@@ -109,14 +83,14 @@ let init = (d: DHExp.t): ProgramResult.t => {
     Builtins.env_init
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  (Indet(Closure(env, d)), es, HoleInstanceInfo.empty);
+  (Indet(Closure(env, d)), es);
 };
 
 let decompose =
   Core.Memo.general(~cache_size_bound=1000, EvaluatorStep.decompose);
 
 let decompose = (d: DHExp.t): list(EvaluatorStep.EvalObj.t) => {
-  let (_, objs) = decompose(d);
+  let objs = decompose(d);
   objs;
 };
 
@@ -129,14 +103,14 @@ let get_result = (map, term): ProgramResult.t =>
 
 let evaluation_result = (map, term): option(DHExp.t) =>
   switch (get_result(map, term)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
+  | (result, _) => Some(EvaluatorResult.unbox(result))
   };
 
 include TestResults;
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
   switch (get_result(map, term)) {
-  | (_, state, _) =>
+  | (_, state) =>
     Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
   };
 };
