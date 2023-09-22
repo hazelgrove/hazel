@@ -1,7 +1,8 @@
 open Sexplib.Std;
+open EvaluatorStep;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type previous = list(ProgramResult.t);
+type previous = ProgramResult.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current =
@@ -12,99 +13,73 @@ type current =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  previous,
+  d: DHExp.t,
   current,
+  previous,
+  stepper: option(Stepper.t),
 };
 
-let init = previous => {previous: [previous], current: ResultPending};
-
-let get_previous = ({previous, _}) => List.hd(previous);
-let put_previous = (previous: ProgramResult.t, cr: t) => {
-  ...cr,
-  previous: [previous, ...cr.previous],
+let init = (d, is_stepped) => {
+  d,
+  current: ResultPending,
+  previous: Interface.evaluate(d),
+  stepper: is_stepped ? Some(Stepper.mk(d)) : None,
 };
-let get_previous_dhexp = cr => cr |> get_previous |> ProgramResult.get_dhexp;
 
-let get_current = ({current, _}) => current;
-let get_current_ok = res =>
-  res
-  |> get_current
-  |> (
-    fun
-    | ResultOk(r) => Some(r)
-    | ResultFail(_)
-    | ResultTimeout
-    | ResultPending => None
-  );
-
-let get_record = res =>
-  switch (get_current_ok(res)) {
-  | Some(r) => [r] @ res.previous
-  | None => res.previous
+let step_forward = (x: EvalObj.t, mr: t) =>
+  switch (mr.stepper) {
+  | Some(s) => {...mr, stepper: Some(Stepper.step_forward(x, s))}
+  | None => mr
   };
 
-let update_current = (current, res) => {
-  let res =
-    switch (res.current) {
-    | ResultOk(r) => put_previous(r, res)
+let step_backward = (mr: t) =>
+  switch (mr.stepper) {
+  | Some(s) => {...mr, stepper: Some(Stepper.step_backward(s))}
+  | None => mr
+  };
+
+let get_last_result = mr =>
+  switch (mr.current) {
+  | ResultOk(r) => r
+  | ResultFail(_)
+  | ResultTimeout
+  | ResultPending => mr.previous
+  };
+
+let update_d = (d: DHExp.t, mr: t): t => {
+  d,
+  current: ResultPending,
+  previous: get_last_result(mr),
+  stepper: Option.map(Stepper.update_expr(d), mr.stepper),
+};
+
+let update_result = (r: current, mr: t): t => {
+  d: mr.d,
+  current: r,
+  previous: get_last_result(mr),
+  stepper: mr.stepper,
+};
+
+let stepper_off = (mr): t => {...mr, stepper: None};
+
+let stepper_on = (mr): t => {...mr, stepper: Some(Stepper.mk(mr.d))};
+
+let get_simple = (mr: t): TestResults.simple_data => {
+  let p_result =
+    switch (mr.current) {
+    | ResultOk(r) => r
     | ResultFail(_)
     | ResultTimeout
-    | ResultPending => res
+    | ResultPending => mr.previous
     };
-
-  let res = {...res, current};
-  res;
-};
-
-let step_backward = res => {
-  switch (res.previous) {
-  | [] => failwith("empty ModelResult.t.previous")
-  | [_] => {...res, current: ResultPending}
-  | [hd, ...tl] => {previous: tl, current: ResultOk(hd)}
+  {
+    eval_result: ProgramResult.get_dhexp(p_result),
+    test_results:
+      p_result
+      |> ProgramResult.get_state
+      |> EvaluatorState.get_tests
+      |> Interface.mk_results,
   };
 };
 
-type optional_simple_data = {
-  opt_eval_results: list(DHExp.t),
-  opt_test_results: option(Interface.test_results),
-};
-
-// simple definitions are moved to TestResults
-
-type simple_data =
-  TestResults.simple_data = {
-    eval_results: list(DHExp.t),
-    test_results: TestResults.test_results,
-  };
-type simple = TestResults.simple;
-
-let get_simple = (res: option(t)): simple =>
-  res
-  |> Option.map(res => res |> get_record)
-  |> Option.map((r: list(ProgramResult.t)) => {
-       let eval_results = r |> List.map(ProgramResult.get_dhexp);
-       let test_results =
-         List.hd(r)
-         |> ProgramResult.get_state
-         |> EvaluatorState.get_tests
-         |> Interface.mk_results;
-       {eval_results, test_results};
-     });
-
-let unwrap_test_results = TestResults.unwrap_test_results;
-
-let unwrap_eval_result = (simple: simple): list(DHExp.t) => {
-  switch (simple) {
-  | Some(simple_data) => simple_data.eval_results
-  | None => []
-  };
-};
-
-let unwrap_simple = (simple: simple): optional_simple_data =>
-  switch (simple) {
-  | None => {opt_eval_results: [], opt_test_results: None}
-  | Some({eval_results, test_results}) => {
-      opt_eval_results: eval_results,
-      opt_test_results: Some(test_results),
-    }
-  };
+let get_simple: option(t) => TestResults.simple = Option.map(get_simple);

@@ -123,12 +123,12 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
+      ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
       d: DHExp.t,
     )
     : Node.t => {
   let maker =
-    settings.postprocess
-      ? DHDoc_Exp.mk : DHDoc_Step.mk(~decompose=settings.stepping);
+    settings.postprocess ? DHDoc_Exp.mk : DHDoc_Step.mk(~next_steps);
   let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
   |> c

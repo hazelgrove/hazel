@@ -1446,11 +1446,69 @@ let step = (obj: EvalObj.t) => {
   step(obj, EvaluatorState.init);
 };
 
+let step = Core.Memo.general(~cache_size_bound=1000, step);
+
+let step = (obj: EvalObj.t): ProgramResult.t => {
+  let (es, d) = step(obj);
+  switch (d) {
+  | BoxedValue(d) => (BoxedValue(d), es)
+  | Indet(d) => (Indet(d), es)
+  | exception (EvaluatorError.Exception(_reason)) =>
+    //HACK(andrew): supress exceptions for release
+    //raise(EvalError(reason))
+    print_endline("Interface.step EXCEPTION");
+    (Indet(InvalidText(Id.invalid, 0, "EXCEPTION")), EvaluatorState.init);
+  | exception _ =>
+    print_endline("Other evaluation exception raised (stack overflow?)");
+    (Indet(InvalidText(Id.invalid, 0, "EXCEPTION")), EvaluatorState.init);
+  };
+};
+
 let decompose = (d: DHExp.t) => {
   let (env, es) =
     Environment.empty
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  let (es, rs) = Decompose.decompose(env, [], Step, d, es);
-  (es, Decompose.Result.unbox(rs));
+  let (_, rs) = Decompose.decompose(env, [], Step, d, es);
+  Decompose.Result.unbox(rs);
+};
+
+module Stepper = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type step = {
+    d: DHExp.t,
+    step: EvalObj.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    current: DHExp.t,
+    previous: list(step),
+    next: list(EvalObj.t),
+  };
+
+  let mk = d => {
+    {current: d, previous: [], next: decompose(d)};
+  };
+
+  let step_forward = (e: EvalObj.t, s: t) => {
+    let current = ProgramResult.get_dhexp(step(e));
+    {
+      current,
+      previous: [{d: s.current, step: e}, ...s.previous],
+      next: decompose(current),
+    };
+  };
+
+  let step_backward = (s: t) =>
+    switch (s.previous) {
+    | [] => failwith("cannot step backwards")
+    | [x, ...xs] => {current: x.d, previous: xs, next: decompose(x.d)}
+    };
+
+  let update_expr = (d: DHExp.t, _: t) => {
+    current: d,
+    previous: [],
+    next: decompose(d),
+  };
 };

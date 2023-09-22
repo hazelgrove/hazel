@@ -381,22 +381,14 @@ let apply =
       let r =
         model.results
         |> ModelResults.find(key)
-        |> ModelResult.update_current(res);
+        |> ModelResult.update_result(res);
       let results = model.results |> ModelResults.add(key, r);
       Ok({...model, results});
     | StepForward(obj) =>
-      let pr =
-        switch (Interface.step(obj)) {
-        | pr => ModelResult.ResultOk(pr)
-        | exception (Interface.EvalError(error)) =>
-          ModelResult.ResultFail(Program_EvalError(error))
-        | exception Interface.DoesNotElaborate =>
-          ModelResult.ResultFail(Program_DoesNotElaborate)
-        };
       let r =
         model.results
         |> ModelResults.find(ScratchSlide.scratch_key)
-        |> ModelResult.update_current(pr);
+        |> ModelResult.step_forward(obj);
       Ok({
         ...model,
         results:
