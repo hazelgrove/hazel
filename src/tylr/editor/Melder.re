@@ -24,6 +24,8 @@ module Mold = {
 };
 
 module Piece = {
+  include Piece;
+
   let lt = (~without=Obligation.Incomparability, l: Bound.t(Piece.t), ~slot=Slot.Empty, r: Piece.t) =>
     GWalker.descend(R, bound)
     |> GWalker.Descended.find(r.material)
@@ -37,11 +39,81 @@ module Piece = {
     |> Option.map(ETerrace.L.bake(~slot, ~face=r));
 
   let eq = (~without=Obligation.Incomparability, l: Piece.t, ~slot=Slot.Empty, r: Piece.t) =>
-    GWalker.walk_eq(R, l)
-    |> GWalker.Walked.find(r.material)
-    |> GSlope.Set.pick(~without, ~slot=ESLot.sort(slot))
-    |> Option.map(ETerrace.R.bake(~slot, ~face=r))
-    |> Option.map(t => Wald.link(l, ~slot=t.slot, t.wald));
+    switch (zip(l, r)) {
+    | Some(p) =>
+      assert(Slot.is_empty(slot));
+      EWald.singleton(p);
+    | None =>
+      GWalker.walk_eq(R, l)
+      |> GWalker.Walked.find(r.material)
+      |> GSlope.Set.pick(~without, ~slot=ESLot.sort(slot))
+      |> Option.map(ETerrace.R.bake(~slot, ~face=r))
+      |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald));
+    };
+};
+
+module Wald = {
+  let rec eq = (
+    ~without=Obligation.Incomparability,
+    l: EWald.t, ~slot=Slot.Empty, r: EWald.t,
+  ) => {
+    open OptUtil.Syntax;
+    let/ () =
+      switch (Wald.unknil(l)) {
+      | Ok((tl, s, p)) when Piece.is_unfinished(p) =>
+        // todo: slot merging may require unrolling and pushing,
+        // which would mean mutual recursion with slope pushing
+        eq(~without=Missing_tile, tl, ~slot=ESlot.merge(s, slot), r)
+      | _ => None
+      };
+    let/ () =
+      switch (Wald.unlink(r)) {
+      | Ok((p, s, tl)) when Piece.is_unfinished(p) =>
+        eq(~without=Missing_Tile, tl, ~slot=ESlot.merge(slot, s), r)
+      | _ => None
+      };
+    let (tl_l, hd_l) = EWald.split_face(l, ~side=R);
+    let (hd_r, tl_r) = EWald.split_face(~side=L, r);
+    Piece.meld(~without, hd_l, ~slot, hd_r)
+    |> Wald.extend(~side=L, tl_l)
+    |> Wald.extend(~side=R, tl_r);
+  };
+
+  let lt = (~without=Obligation.Incomparability,
+    l: EWald.t, ~slot=Slot.Empty, r: EWald.t,
+  ) => {
+    let l_hd = EWald.face(l, ~side=R);
+    let (r_hd, r_tl) = EWald.split_face(~side=L, r);
+    switch (Piece.lt(~without, Piece(l_hd), ~slot, r)) {
+    | None | Some([]) => None
+    | Some([hd, ...tl]) =>
+      Some([ETerrace.R.extend(hd, r_tl), ...tl])
+    };
+  };
+
+  let gt = (~without=Obligation.Incomparability,
+    l: EWald.t, ~slot=Slot.Empty, r: EWald.t,
+  ) => {
+    let (l_tl, l_hd) = EWald.split_face(l, ~side=R);
+    let r_hd = EWald.face(~side=L, r);
+    switch (Piece.gt(~without, l_hd, ~slot, Piece(r_hd))) {
+    | None | Some([]) => None
+    | Some([hd, ...tl]) =>
+      Some([ETerrace.L.extend(l_tl, hd), ...tl])
+    };
+  };
+};
+
+module Slope = {
+  module Dn = {
+    let push =
+        (~top=Bound.Root, dn: ESlope.Dn.t, ~slot=Slot.Empty, w: EWald.t)
+        : (ESlope.Dn.t) =>
+      switch (dn) {
+      | [] =>
+      }
+
+  };
 };
 
 module Piece = {

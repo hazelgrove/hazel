@@ -18,6 +18,115 @@
 // or
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
+// let mold = (well: Stepwell.t, t: Token.t) =>
+//   Molds.of_token(t)
+//   |> List.map(m => {
+//     let w = EWald.singleton(Piece.mk(~token=t, Tile(Molded(m))));
+//     Melder.Stepwell.hsup(well, w);
+//   })
+//   |> List.stable_sort(
+//     ((well_l, melded_l) (well_r, melded_r)) =>
+//   )
+
+// module Wald = {
+//   let mold =
+//       (w: EWald.t, ~slot=Slot.Empty, t: Token.t)
+//       : Result.t(ESlope.Dn.t)
+// };
+
+module Molded = {
+  type t('a) = Result.t(('a, ESlope.Dn.t), ESlot.t);
+};
+
+let candidates = (t: Token.t) =>
+  Molds.of_token(t)
+  |> List.map(t => Wald.singleton(Piece.mk(~token=t, m)));
+
+module Bound = {
+  let mold =
+      (b: Bound.t, ~slot=ESlot.Empty, t: Token.t)
+      : Result.t(unit) =>
+    candidates(t)
+    |> List.filter_map(Melder.lt(b, ~slot))
+    |> List.stable_sort(Obligation.Score.compare)
+    |> ListUtil.hd_opt
+    |> Option.map(s => ((), s))
+    |> Result.of_option(~error=slot);
+};
+
+module Wald = {
+  let mold =
+      (w: Wald.t, ~slot=ESlot.Empty, t: Token.t)
+      : option
+};
+
+module Slope = {
+  module Dn = {
+    let rec hsup =
+        (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
+      switch (dn) {
+      | [] => Error(slot)
+      | [hd, ...tl] =>
+        switch (Melder.leq(~without?, hd.wald, ~slot, w)) {
+        | Some((wald, dn)) => Ok(([{...hd, wald}, ...tl], dn))
+        | None =>
+          let slot = ESlot.Full(M(hd.slot, hd.wald, slot));
+          hsup(~repair?, tl, ~slot, w);
+        };
+      };
+
+    let hsup = (dn: ESlope.Dn.t, w: EWald.t) =>
+      ESlope.Dn.split_obligations(dn)
+      |> List.fold_left(
+        // not 100% sure that without bound can just be each split
+        // obligation and not an accumulated minimum
+        (r, (dn, o)) => Result.pick(hsup(~without=o, dn, w), r),
+        hsup(dn, w),
+      );
+
+    let rec mold =
+        (~top=Bound.Root, dn: ESlope.Dn.t, ~slot=ESlot.Empty, t: Token.t)
+        : Result.t(ESlope.Dn.t) =>
+      switch (dn) {
+      | [] => Bound.mold(top, ~slot, t)
+      | [hd, ...tl] =>
+        candidates(t)
+        |> List.filter_map(Melder.Wald.cmp(hd.wald, ~slot))
+        |> List.map((z: EZiggurat.t) =>
+          switch (z.up) {
+          | [] =>
+            Ok(([{...hd, wald: z.top}, ...tl], z.dn))
+          | [_, ..._] =>
+            let slot = ESlope.Up.roll(~slot=hd.slot, up);
+
+
+          }
+        )
+
+
+        let hd_molded =
+          candidates(t)
+          |> List.filter_map(Melder.leq(hd.wald, ~slot))
+          |> List.stable_sort(((top_l, dn_l), (top_r, dn_r)) => {
+            let c = List.compare_lengths(dn_l, dn_r);
+            failwith("todo: need to check slope heights, obligations, and top obligations");
+          })
+          |> ListUtil.hd_opt
+          |> Option.map(((top, dn)) =>
+            ([{...hd, wald: top}, ...tl], dn)
+          )
+          |> Result.of_option(~error=slot);
+        // slot guaranteed to be precedence-valid kid of
+        let tl_molded =
+          mold(~top, tl, ~slot=Full(M(hd.slot, hd.wald, slot)), t);
+
+      }
+
+  }
+}
+
+
+
 module Result = {
   include Result;
   type t('err) = Result.t(Ziggurat.m, 'err);
@@ -101,7 +210,7 @@ module Stepwell = {
     let molded =
       Molds.of_token(t)
       |> List.map(m => {
-        let candidate = Wald.singleton(Piece.mk(~token=t, m));
+        let candidate = Wald.singleton(Pi2ece.mk(~token=t, m));
         Melder.Stepwell.push(~onto=L, candidate, well);
       })
       |> List.stable_sort(((r_l, well_l), (r_r, well_r)) => {

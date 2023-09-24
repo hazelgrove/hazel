@@ -13,6 +13,8 @@ module Dn = {
       let m = EMeld.mk(~l=hd.slot, hd.wald, ~r=slot);
       roll(tl, ~slot=Full(m));
     };
+
+  let prune = (dn: t): list((t, Obligation.t)) => failwith("todo");
 };
 
 module Up = {
