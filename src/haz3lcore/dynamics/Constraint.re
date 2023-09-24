@@ -15,9 +15,8 @@ type t =
   | Or(t, t)
   | InjL(t)
   | InjR(t)
-  | List(list(t));
+  | Pair(t, t);
 
-// How to replace this function?
 let rec constrains = (c: t, ty: Typ.t): bool =>
   switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
   | (Truth, _)
@@ -45,15 +44,7 @@ let rec constrains = (c: t, ty: Typ.t): bool =>
     | map' => constrains(c2, Sum(map'))
     }
   | (InjR(_), _) => false
-  | (List(c), ty) =>
-    List.fold_left((last, x) => last && constrains(x, ty), true, c)
-  };
-
-let rec or_constraints = (lst: list(t)): t =>
-  switch (lst) {
-  | [] => failwith("should have at least one constraint")
-  | [xi] => xi
-  | [xi, ...xis] => Or(xi, or_constraints(xis))
+  | (Pair(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
   };
 
 let rec dual = (c: t): t =>
@@ -71,19 +62,11 @@ let rec dual = (c: t): t =>
   | Or(c1, c2) => And(dual(c1), dual(c2))
   | InjL(c1) => Or(InjL(dual(c1)), InjR(Truth))
   | InjR(c2) => Or(InjR(dual(c2)), InjL(Truth))
-  // Thought: generate all combinations of ways to dual the list (2^n - 1), and connect them with or
-  | List(l) =>
-    let permutation = List.map(l' => List(l'), List.tl(permutate(l)));
-    // ``Or'' is associative, so I try to use this way to simplify it
-    or_constraints(permutation);
-  }
-and permutate = (l: list(t)): list(list(t)) =>
-  switch (l) {
-  | [] => [[]]
-  | [hd, ...tl] =>
-    let result_tl = permutate(tl);
-    List.map(l' => [hd, ...l'], result_tl)
-    @ List.map(l' => [dual(hd), ...l'], result_tl);
+  | Pair(c1, c2) =>
+    Or(
+      Pair(c1, dual(c2)),
+      Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
+    )
   };
 
 /** substitute Truth for Hole */
@@ -102,7 +85,7 @@ let rec truify = (c: t): t =>
   | Or(c1, c2) => Or(truify(c1), truify(c2))
   | InjL(c) => InjL(truify(c))
   | InjR(c) => InjR(truify(c))
-  | List(l) => List(List.map(c => truify(c), l))
+  | Pair(c1, c2) => Pair(truify(c1), truify(c2))
   };
 
 /** substitute Falsity for Hole */
@@ -121,7 +104,7 @@ let rec falsify = (c: t): t =>
   | Or(c1, c2) => Or(falsify(c1), falsify(c2))
   | InjL(c) => InjL(falsify(c))
   | InjR(c) => InjR(falsify(c))
-  | List(l) => List(List.map(c => falsify(c), l))
+  | Pair(c1, c2) => Pair(falsify(c1), falsify(c2))
   };
 
 let unwrapL =
@@ -134,7 +117,14 @@ let unwrapR =
   | InjR(c) => c
   | _ => failwith("input can only be InjR(_)");
 
-let unwrap_list =
+let unwrap_pair =
   fun
-  | List(l) => l
-  | _ => failwith("input can only be List([_, ..._])");
+  | Pair(c1, c2) => (c1, c2)
+  | _ => failwith("input can only be pair(_, _)");
+
+let rec or_constraints = (lst: list(t)): t =>
+  switch (lst) {
+  | [] => failwith("should have at least one constraint")
+  | [xi] => xi
+  | [xi, ...xis] => Or(xi, or_constraints(xis))
+  };

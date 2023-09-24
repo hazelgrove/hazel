@@ -184,56 +184,27 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
       | (fs, []) => is_inconsistent_string(fs)
       | (fs, other) => is_inconsistent(~may, other @ fs)
       }
-    /*
-     * Explanation for the check of inconsistency for list:
-     * List can be thought as the type (Nil(Unit) + Cons(Item, List)), or alternatively (Unit + (Item × List)).
-     * Thus by analogy with InjL and InjR, an empty list is inconsistent with a non-empty one, which means that two
-     * lists of different lengths are automatically inconsistent.  If all lists are having the same length, then I
-     * will compare them from left to right (aka in the order of unfolding them) to see if any item in the same
-     * position are inconsistent.  This version may be inefficient, but I am running out of ideas to optimize it.
-     */
-    | List(_) =>
+    | Pair(_, _) =>
       switch (
         List.partition(
           fun
-          | Constraint.List(_) => true
+          | Constraint.Pair(_) => true
           | _ => false,
           xis,
         )
       ) {
-      | (lists, []) =>
-        let lengths =
-          List.map(x => List.length(Constraint.unwrap_list(x)), lists);
-        // check if all lengths are equal
-        // This could be done with exceptions, but I found nothing related on ReasonML website.
-        let all_lengths_are_equal =
-          List.for_all(x => x == List.hd(lengths), List.tl(lengths));
-        if (all_lengths_are_equal) {
-          let order_by_index =
-            List.fold_left(
-              // ordered_by_index: list(list(t)); item: packed version of list(t)
-              (ordered_by_index, lst) =>
-                List.map2(
-                  // We need a function that maps `(list(t), t)` to list(list(t)
-                  (old_list, item) => [item, ...old_list],
-                  ordered_by_index,
-                  Constraint.unwrap_list(lst),
-                ),
-              // Initial version of empty list, in list(list(t))
-              List.map(x => [x], Constraint.unwrap_list(List.hd(lists))),
-              // Rest of items
-              List.tl(lists),
-            );
-          // Check if there are inconsistency in each element
+      | (pairs, []) =>
+        let (xisL, xisR) =
           List.fold_left(
-            (previous, item) => previous || is_inconsistent(~may, item),
-            may,
-            order_by_index,
+            ((xisL, xisR), pair) => {
+              let (xiL, xiR) = Constraint.unwrap_pair(pair);
+              ([xiL, ...xisL], [xiR, ...xisR]);
+            },
+            ([], []),
+            pairs,
           );
-        } else {
-          true; // Automatically inconsistent
-        };
-      | (lists, other) => is_inconsistent(~may, other @ lists)
+        is_inconsistent(~may, xisL) || is_inconsistent(~may, xisR);
+      | (pairs, other) => is_inconsistent(~may, other @ pairs)
       }
     }
   };
