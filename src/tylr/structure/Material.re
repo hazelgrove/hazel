@@ -48,8 +48,8 @@ module Molded = {
 
 module Labeled = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = m(unit, Label.t);
-  let of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.label);
+  type t = Base.t(Tip.s, Tile.t(Tip.s, Label.t));
+  // let of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.label);
 };
 
 module Sorted = {

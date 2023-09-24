@@ -39,13 +39,10 @@ module Molded = {
 };
 
 let candidates = (t: Token.t) =>
-  Molds.of_token(t)
-  |> List.map(t => Wald.singleton(Piece.mk(~token=t, m)));
+  Molds.of_token(t) |> List.map(t => Wald.singleton(Piece.mk(~token=t, m)));
 
 module Bound = {
-  let mold =
-      (b: Bound.t, ~slot=ESlot.Empty, t: Token.t)
-      : Result.t(unit) =>
+  let mold = (b: Bound.t, ~slot=ESlot.Empty, t: Token.t): Result.t(unit) =>
     candidates(t)
     |> List.filter_map(Melder.lt(b, ~slot))
     |> List.stable_sort(Obligation.Score.compare)
@@ -54,16 +51,16 @@ module Bound = {
     |> Result.of_option(~error=slot);
 };
 
-module Wald = {
-  let mold =
-      (w: Wald.t, ~slot=ESlot.Empty, t: Token.t)
-      : option
-};
+// module Wald = {
+//   let mold =
+//       (w: Wald.t, ~slot=ESlot.Empty, t: Token.t)
+//       : option
+// };
 
 module Slope = {
   module Dn = {
     let rec hsup =
-        (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
+            (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
       switch (dn) {
       | [] => Error(slot)
       | [hd, ...tl] =>
@@ -72,60 +69,73 @@ module Slope = {
         | None =>
           let slot = ESlot.Full(M(hd.slot, hd.wald, slot));
           hsup(~repair?, tl, ~slot, w);
-        };
+        }
       };
 
     let hsup = (dn: ESlope.Dn.t, w: EWald.t) =>
       ESlope.Dn.split_obligations(dn)
       |> List.fold_left(
-        // not 100% sure that without bound can just be each split
-        // obligation and not an accumulated minimum
-        (r, (dn, o)) => Result.pick(hsup(~without=o, dn, w), r),
-        hsup(dn, w),
-      );
+           // not 100% sure that without bound can just be each split
+           // obligation and not an accumulated minimum
+           (r, (dn, o)) => Result.pick([hsup(~without=o, dn, w), r]),
+           hsup(dn, w),
+         );
+  };
+};
 
-    let rec mold =
-        (~top=Bound.Root, dn: ESlope.Dn.t, ~slot=ESlot.Empty, t: Token.t)
-        : Result.t(ESlope.Dn.t) =>
-      switch (dn) {
-      | [] => Bound.mold(top, ~slot, t)
-      | [hd, ...tl] =>
-        candidates(t)
-        |> List.filter_map(Melder.Wald.cmp(hd.wald, ~slot))
-        |> List.map((z: EZiggurat.t) =>
-          switch (z.up) {
-          | [] =>
-            Ok(([{...hd, wald: z.top}, ...tl], z.dn))
-          | [_, ..._] =>
-            let slot = ESlope.Up.roll(~slot=hd.slot, up);
-
-
-          }
-        )
-
-
-        let hd_molded =
-          candidates(t)
-          |> List.filter_map(Melder.leq(hd.wald, ~slot))
-          |> List.stable_sort(((top_l, dn_l), (top_r, dn_r)) => {
-            let c = List.compare_lengths(dn_l, dn_r);
-            failwith("todo: need to check slope heights, obligations, and top obligations");
-          })
-          |> ListUtil.hd_opt
-          |> Option.map(((top, dn)) =>
-            ([{...hd, wald: top}, ...tl], dn)
-          )
-          |> Result.of_option(~error=slot);
-        // slot guaranteed to be precedence-valid kid of
-        let tl_molded =
-          mold(~top, tl, ~slot=Full(M(hd.slot, hd.wald, slot)), t);
-
+module Stepwell = {
+  let candidates = ((m, token): Labeled.t) =>
+    (
+      switch (m) {
+      | Space => [Material.Space]
+      | Grout(tips) => [Grout(tips)]
+      | Tile(lbl) => Molds.with_label(lbl) |> List.map(m => Tile(m))
       }
+    )
+    |> List.map(Piece.mk(~token))
+    |> List.map(Wald.singleton);
 
-  }
-}
+  let mold = (well: EStepwell.t, ~slot=ESlot.Empty, l: Labeled.t) => {
+    open Result.Syntax;
+    let (dn, up) = EStepwell.get_slopes(well);
+    let/ slot =
+      candidates(l) |> List.map(Slope.Dn.hsup(dn, ~slot)) |> Result.pick;
+    switch (EStepwell.unlink(well)) {
+    | Some((_, (l, r), well)) =>
+      let well = EStepwell.map_slopes(Slopes.cat(([l], [r])), well);
+      mold(well, ~slot, t)
+      |> Result.map(((well, dn)) => {
+           let well =
+             well
+             |> EStepwell.bridge_faces
+             |> EStepwell.map_slopes(Slopes.cat(([], up)));
+           (well, dn);
+         });
+    | None =>
+      root_mold(~slot, t)
+      |> Result.map((((), molded)) =>
+           (EStepwell.singleton(([], up)), molded)
+         )
+    };
+  };
 
+  let remold = (well: EStepwell.t) => {
+    let (dn, up) = EStepwell.get_slopes(well);
+    switch (ESlope.Up.split_face(up)) {
+    | None => well
+    | Some((p, up)) => failwith("todo")
+    // switch (mold(EStepwell.put_slopes(dn, up), p.token))
+    };
+  };
+};
 
+let mold = (well: EStepwell.t, t: Token.t): (EStepwell.t, ESlope.Dn.t) =>
+  switch (Stepwell.mold(well, t)) {
+  | Ok(ok) => ok
+  | Error(_) =>
+    let w = Wald.singleton(Piece.mk_unmolded(t));
+    Option.get(Melder.Stepwell.hsup(well, w));
+  };
 
 module Result = {
   include Result;
@@ -210,51 +220,52 @@ module Stepwell = {
     let molded =
       Molds.of_token(t)
       |> List.map(m => {
-        let candidate = Wald.singleton(Pi2ece.mk(~token=t, m));
-        Melder.Stepwell.push(~onto=L, candidate, well);
-      })
+           let candidate = Wald.singleton(Pi2ece.mk(~token=t, m));
+           Melder.Stepwell.push(~onto=L, candidate, well);
+         })
       |> List.stable_sort(((r_l, well_l), (r_r, well_r)) => {
-        let c = Result.compare(Slope.compare, r_l, r_r);
-        if (c == 0) {
-          let ((_, up_l), (_, up_r)) = (get_slopes(well_l), get_slopes(well_r));
-          Slope.compare(up_l, up_r);
-        } else {
-          c;
-        };
-      })
+           let c = Result.compare(Slope.compare, r_l, r_r);
+           if (c == 0) {
+             let ((_, up_l), (_, up_r)) = (
+               get_slopes(well_l),
+               get_slopes(well_r),
+             );
+             Slope.compare(up_l, up_r);
+           } else {
+             c;
+           };
+         })
       |> ListUtil.hd_opt;
     switch (molded) {
-    | None | Some((Error(_), _)) =>
-
+    | None
+    | Some((Error(_), _)) => failwith("todo")
     | Some((Ok(bounded), well)) =>
       Stepwell.map_slopes(Slopes.cat((bounded, [])), well)
-    }
+    };
   };
-
 
   let mold = (well: Stepwell.t, t: Token.t) =>
     Molds.of_token(t)
     |> List.map(m => {
-      let candidate = Wald.singleton(Piece.mk(~token=t, m));
-      switch (Stepwell.unlink(well)) {
-      | Error((dn, up)) => failwith("todo")
-      | Ok(((dn, up), (l, r), well)) =>
-        switch (Melder.Slope.Dn.hsup(dn, candidate)) {
-        | Ok(zdn) =>
-        | Error(slot) =>
-
-        }
-      }
-    })
+         let candidate = Wald.singleton(Piece.mk(~token=t, m));
+         switch (Stepwell.unlink(well)) {
+         | Error((dn, up)) => failwith("todo")
+         | Ok(((dn, up), (l, r), well)) =>
+           switch (Melder.Slope.Dn.hsup(dn, candidate)) {
+           | Ok(zdn) => failwith("todo")
+           | Error(slot) => failwith("todo")
+           }
+         };
+       });
 
   let mold = (well: Stepwell.t, ~slot=Slot.Empty, t: Token.t) =>
     switch (Stepwell.unlink(well)) {
     | Error((dn, up)) => failwith("todo")
     | Ok(((dn, up), (l, r), well)) =>
-      switch (Slope.mold(dn, ~slot, t)) {
-      }
+      // switch (Slope.mold(dn, ~slot, t)) {
+      // }
+      failwith("todo")
     };
-
 
   let mold = (well: Stepwell.t, ~slot=None, t: Token.t): Mold.t => {
     let top =

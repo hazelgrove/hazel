@@ -36,7 +36,7 @@ let next = buf =>
   | _ => None
   };
 
-let lex = (s: string): list(Material.Labeled.t) => {
+let lex = (s: string): list((Material.Labeled.t, Token.t)) => {
   let buf = Sedlexing.Latin1.from_string(s);
   let rev = ref([]);
   let rec go = () =>

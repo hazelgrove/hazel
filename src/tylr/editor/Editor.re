@@ -116,42 +116,27 @@ let rec remold = (ctx: Stepwell.t): Stepwell.t =>
     |> remold
   };
 
-let insert = (s: string, z: EZipper.t): EZipper.t => {
-  let tok =
-    fun
-    | None => Token.empty
-    | Some(p) => p.token;
+let insert_labeled = (ctx: EStepwell.t, l: Labeled.t) => {
+  let (ctx, dn) = Molder.Stepwell.mold(ctx, l);
+  EStepwell.map_slopes(Slopes.cat((dn, [])));
+};
 
+let remold = (ctx: EStepwell.t) => {
+  EStepwell.mark(ctx)
+  |> Molder.Stepwell.remold
+  |> EZipper.zip
+  |> EZipper.unzip;
+};
+
+let insert = (s: string, z: EZipper.t) => {
   // delete (by ignoring) sel and rebridge if needed
   let ctx = Ziggurat.is_empty(z.sel) ? z.ctx : Stepwell.rebridge(z.ctx);
-
-  // lex input + lexable neighbors
-  let (l, ctx) = Stepwell.pull_lexable(~from=L, ctx);
-  let (r, ctx) = Stepwell.pull_lexable(~from=R, ctx);
-  let ls = Lexer.lex(tok(l) ++ s ++ tok(r));
-
-  // fast path + id continuity for extending token to left
-  let (ls, ctx) =
-    switch (l, ls) {
-    | (Some(p), [T((lbl, token)), ...tl]) when Piece.label(p) == Some(lbl) => (
-        tl,
-        Stepwell.push_piece(~onto=L, {...p, token}, ctx),
-      )
-    | _ => (ls, ctx)
-    };
-
-  ls
-  // insert remaining lexemes
-  |> List.fold_left((ctx, lx) => insert_lexeme(lx, ctx), ctx)
-  // save cursor position
-  |> mark
+  let (l, ctx) = EStepwell.pull_lexable(~from=L, ctx);
+  let (r, ctx) = EStepwell.pull_lexable(~from=R, ctx);
+  Lexer.lex(l ++ s ++ r)
+  |> List.fold_left(insert_labeled, ctx)
   |> remold
-  |> EZipper.mk
-  // restore post-insertion cursor position
-  |> EZipper.zip
-  |> EZipper.unzip
-  // restore original cursor position wrt r
-  |> move_n(- Token.length(tok(r)))
+  |> move_n(- Token.length(r))
   |> OptUtil.get_or_fail("bug: lost cursor position");
 };
 
