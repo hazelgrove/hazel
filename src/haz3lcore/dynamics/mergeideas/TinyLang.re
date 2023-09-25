@@ -101,3 +101,8 @@ module Evaluator: EV_MODE = {
 
   let no_req = apply_rule;
 };
+
+module Eval = Transition(Evaluator);
+let rec evaluate = d => {
+  Eval.transition(evaluate, d);
+};
