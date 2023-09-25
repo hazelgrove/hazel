@@ -120,6 +120,11 @@ let rec evaluate = d => {
   Eval.transition(evaluate, d);
 };
 
+/*
+ This module takes an expression, and creates a list of expressions that
+ it could step to - since execution order doesn't matter.
+ */
+
 module Deconstructor: EV_MODE = {
   type result('a) =
     | BoxedValue('a)
@@ -181,16 +186,20 @@ module Deconstructor: EV_MODE = {
 
   let combine = ((u1, b1), (u2, b2)) => (
     switch (u1, u2) {
+    // If everything is a value, the result is a value
     | (BoxedValue(x), BoxedValue(y)) => BoxedValue((x, y))
+    // If anything is indeterminable, the result is indeterminable
     | (Indet(x), BoxedValue(y))
     | (BoxedValue(x), Indet(y))
     | (Indet(x), Indet(y)) => Indet((x, y))
+    // If anything can be stepped create a list of steps
     | (BoxedValue(x), PossibleSteps(y, z))
     | (Indet(x), PossibleSteps(y, z)) =>
       PossibleSteps((x, y), map(u => (x, u), z))
     | (PossibleSteps(x, y), BoxedValue(z))
     | (PossibleSteps(x, y), Indet(z)) =>
       PossibleSteps((x, z), map(u => (u, z), y))
+    // Combine two list of steps by stepping one or the other
     | (PossibleSteps(x1, y1), PossibleSteps(x2, y2)) =>
       PossibleSteps(
         (x1, x2),
