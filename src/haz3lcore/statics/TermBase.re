@@ -117,6 +117,7 @@ and UExp: {
     | Fun
     | Tuple
     | Var
+    | MetaVar
     | Let
     | Ap
     | If
@@ -145,6 +146,7 @@ and UExp: {
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
+    | MetaVar(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
@@ -247,6 +249,7 @@ and UExp: {
     | Fun
     | Tuple
     | Var
+    | MetaVar
     | Let
     | Ap
     | If
@@ -275,6 +278,7 @@ and UExp: {
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
+    | MetaVar(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)

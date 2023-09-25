@@ -195,6 +195,13 @@ let rec dhexp_of_uexp =
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
+      | MetaVar(name) =>
+        print_endline("Elaborator: MetaVar: name = " ++ name);
+        switch (name) {
+        | "$e" => Some(Ap(Constructor("~MExp"), Tuple([])))
+        | "$v" => Some(Ap(Constructor("~MVal"), Tuple([])))
+        | _ => None
+        };
       | Constructor(name) =>
         switch (err_status) {
         | InHole(Common(NoType(FreeConstructor(_)))) =>
