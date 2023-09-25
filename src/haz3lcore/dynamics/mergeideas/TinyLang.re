@@ -16,6 +16,12 @@ type rule =
 module type EV_MODE = {
   type result('a);
 
+  /*
+   There are three types of requirement:
+   a - must be fully evaluated before the syntactic form it's a part of
+   b - ideally fully evaluated before the syntactic form it's a part of
+   c - could be evaluated before the syntactic form it's a part of
+   */
   let req_a:
     (tinylang => result(tinylang), tinylang) => (result(tinylang), bool);
   let req_b:
