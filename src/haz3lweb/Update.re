@@ -89,7 +89,6 @@ let reevaluate_post_update =
       Jump(_),
     )
   | MoveToNextHole(_) //
-  | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
   | Save
@@ -161,7 +160,11 @@ let evaluate_and_schedule =
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (model.editors |> Editors.get_editor |> Haz3lcore.Perform.go(a)) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+  | Ok(ed) =>
+    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
+    /* Note: Not saving here as saving is costly to do each keystroke,
+       we wait a second after the last edit action (see Main.re) */
+    Ok(model);
   };
 
 let switch_scratch_slide =
@@ -188,7 +191,8 @@ let switch_exercise_editor =
   | Scratch(_) => None
   | Exercise(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    //Note: now saving after each edit (delayed by 1 second) so no need to save here
+    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
     Some(Exercise(m, specs, exercise));
   };
 
@@ -224,7 +228,6 @@ let apply =
     switch (update) {
     | Set(s_action) =>
       Model.save_and_return(update_settings(s_action, model))
-    | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
     | Save => Model.save_and_return(model)
@@ -268,7 +271,7 @@ let apply =
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Model.save_and_return({...model, editors})
+      | Some(editors) => Ok({...model, editors})
       };
     | SetMode(mode) =>
       let model = update_settings(Mode(mode), model);

@@ -114,7 +114,12 @@ module WorkerPool: M with type response = (key, option(eval_result)) = {
 
   type t = Pool.t;
 
-  let max = 10;
+  /* NOTE(andrew): I set this from 10 to 0 since these guys
+   * aren't doing anything atm. Plus the indexedDB library
+   * shits up the console trying to access window on threads
+   * which don't have one. */
+  let max = 0;
+
   let timeout = 2000; /* ms */
 
   let init = () => {
