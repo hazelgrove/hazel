@@ -125,6 +125,7 @@ and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
       ~mode=Mode.Syn,
+      ~is_in_filter=false,
       ~ancestors,
       {ids, term} as uexp: UExp.t,
       m: Map.t,
@@ -143,6 +144,17 @@ and uexp_to_info_map =
   };
   let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
+  let uexp_to_info_map =
+      (
+        ~ctx,
+        ~mode=Mode.Syn,
+        ~is_in_filter=is_in_filter,
+        ~ancestors=ancestors,
+        uexp: UExp.t,
+        m: Map.t,
+      ) => {
+    uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+  };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
   let map_m_go = m =>
@@ -198,6 +210,16 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
       m,
     )
+  | MetaVar(name) =>
+    if (is_in_filter) {
+      atomic(Just(Unknown(Internal)));
+    } else {
+      add'(
+        ~self=Self.of_exp_var(ctx, name),
+        ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
+        m,
+      );
+    }
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
@@ -222,7 +244,7 @@ and uexp_to_info_map =
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
   | Filter(_, cond, body) =>
-    let (cond, m) = go(~mode, cond, m);
+    let (cond, m) = go(~mode, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
     add(
       ~self=Just(body.ty),

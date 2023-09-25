@@ -1278,6 +1278,19 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | MetaVar(_var) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.var_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.var_exp_group,
+          doc.explanation.message,
+          [],
+        );
       | Let(pat, def, body) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);

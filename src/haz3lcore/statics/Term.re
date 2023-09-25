@@ -433,6 +433,7 @@ module UExp = {
     | Fun
     | Tuple
     | Var
+    | MetaVar
     | Let
     | TyAlias
     | Ap
@@ -473,6 +474,7 @@ module UExp = {
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
+    | MetaVar(_) => MetaVar
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
@@ -560,6 +562,7 @@ module UExp = {
     | Fun => "Function literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
+    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
@@ -589,6 +592,7 @@ module UExp = {
     | ListLit(_)
     | Tuple(_)
     | Var(_)
+    | MetaVar(_)
     | Let(_)
     | TyAlias(_)
     | Ap(_)
@@ -622,6 +626,7 @@ module UExp = {
       | ListLit(_)
       | Fun(_)
       | Var(_)
+      | MetaVar(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
