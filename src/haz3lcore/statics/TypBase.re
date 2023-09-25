@@ -498,7 +498,7 @@ module rec Typ: {
       switch (ty) {
       | Sum(sm) => Some(sm)
       | _ => None
-      }
+      };
     | Ap(Var(name), ty_arg) =>
       switch (Ctx.lookup_higher_kind(ctx, name)) {
       | Some((arg, ty)) => get_sum_constructors(ctx, subst(ty_arg, arg, ty))
