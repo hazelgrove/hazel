@@ -128,16 +128,56 @@ let remold = (ctx: EStepwell.t) => {
   |> EZipper.unzip;
 };
 
+let insert_piece = (well: EStepwell.t, ~slot=ESlot.Empty, p: Piece.t) =>
+  switch (Molder.Stepwell.mold(well, ~slot, p)) {
+  | Ok((well, lt)) => EStepwell.cat_slopes((lt, []), well)
+  | Error(_) =>
+    let w = Wald.singleton(Piece.unmold(p));
+    well
+    |> EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []))
+    |> Melder.Stepwell.meld_or_fail(~onto=L, w);
+  };
+
+let rec remold = (~slot=ESlot.Empty, well: EStepwell.t): EStepwell.t =>
+  switch (EStepwell.pop_terrace(~from=R, well)) {
+  | None => EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []), well)
+  | Some((t, well)) =>
+    let (face, rest) = EWald.split_face(~side=L, hd.wald);
+    let well = insert(well, ~slot, face);
+    switch (EStepwell.face(~side=L, well)) {
+    | Some(p) when p.material == face.material =>
+      // fast path for when face piece retains mold
+      well |> EStepwell.extend_face(~side=L, rest) |> remold(~slot=t.slot)
+    | _ =>
+      // otherwise add rest of wald to suffix queue
+      let up =
+        switch (rest) {
+        | ([], _) => []
+        | ([slot, ...slots], ps) =>
+          let t = {...t, wald: Wald.mk(ps, slots)};
+          ESlope.Up.(cat(unroll(slot), [t]));
+        };
+      well |> EStepwell.cat_slopes(([], up)) |> remold;
+    };
+  };
+
+let restore_cursor = (~offset=0, ctx) =>
+  ctx
+  |> EZipper.zip
+  |> EZipper.unzip
+  |> move_n(offset)
+  |> OptUtil.get_or_fail("bug: lost cursor position");
+
 let insert = (s: string, z: EZipper.t) => {
   // delete (by ignoring) sel and rebridge if needed
+  // todo: replace selection contents with obligations
   let ctx = Ziggurat.is_empty(z.sel) ? z.ctx : Stepwell.rebridge(z.ctx);
   let (l, ctx) = EStepwell.pull_lexable(~from=L, ctx);
   let (r, ctx) = EStepwell.pull_lexable(~from=R, ctx);
   Lexer.lex(l ++ s ++ r)
-  |> List.fold_left(insert_labeled, ctx)
+  |> List.fold_left(insert_piece, ctx)
   |> remold
-  |> move_n(- Token.length(r))
-  |> OptUtil.get_or_fail("bug: lost cursor position");
+  |> restore_cursor(~offset=- Token.length(r));
 };
 
 let delete = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {

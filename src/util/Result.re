@@ -1,5 +1,10 @@
 include Base.Result;
 
+let ok_or_fail = s =>
+  fun
+  | Error(_) => failwith(s)
+  | Ok(ok) => ok;
+
 let to_option =
   fun
   | Error(_) => None

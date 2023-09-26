@@ -57,10 +57,123 @@ module Bound = {
 //       : option
 // };
 
+let candidates = (t: Token.t): list(Material.Molded.t) =>
+  failwith("todo");
+
+let pick = _ => failwith("todo pick slopes based on obligation scores");
+
+module Piece = {
+  let lt = (~without=?, l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
+    candidates(r.token)
+    |> List.filter_map(material =>
+      Melder.Piece.lt(~without?, l, ~slot, {...r, material})
+    )
+    |> pick;
+};
+
+module Wald = {
+  let lt = (~without=?, l: Bound.t(EWald.t), ~slot=ESlot.Empty, r: Piece.t): option(ETerrace.R.t) => {
+    let l = Bound.map(EWald.bound(~side=R), l);
+    // let (hd_r, tl_r) = EWald.split_face(~side=L, r);
+    Piece.lt(~without?, l, ~slot, hd_r)
+    // |> Option.map(ESlope.Dn.extend_face(tl_r))
+  };
+
+  let eq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: Piece.t): option(EWald.t) => {
+    open OptUtil.Syntax;
+    let/ () =
+      // remove unfinished tile and attempt molding against remaining
+      switch (EWald.unknil(l)) {
+      | Ok((tl, s, p)) when Piece.is_unfinished(p) =>
+        let slot =
+          failwith("todo: unroll s and slot and remold (mold not meld to remove grout where possible)");
+        let without = failwith("todo fold in no unfinished tiles");
+        eq(~without, tl, ~slot, r);
+      | Error(p)
+          when Piece.is_unfinished(p)
+            && p.material == EWald.face(~side=L, r).material
+            && ESlot.has_no_tiles(slot) =>
+        Some(Wald.singleton(r))
+      | _ => None
+      };
+
+    let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
+    // let (hd_r, tl_r) = EWald.split_face(~side=L, r);
+    Piece.eq(~without?, hd_l, ~slot, r)
+    |> Option.map(EWald.extend(~side=L, tl_l));
+  };
+};
+
+module Slope = {
+  let rec mold =
+      (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, p: Piece.t)
+      : Result.t((ESlope.Dn.t, ESlope.Dn.t), ESlot.t) =>
+    switch (dn) {
+    | [] => Error(slot)
+    | [hd, ...tl] =>
+      open Result.Syntax;
+      let (rest, face) = ESlope.Dn.unroll_terrace(hd);
+      let/ _ =
+        switch (face.material) {
+        | Grout(tips) =>
+          let without = failwith("todo fold in grout tips");
+          mold(~without, ESlope.Dn.cat(tl, rest), ~slot, p);
+        | _ => None
+        };
+      switch (Wald.leq(~without?, hd.wald, ~slot, p)) {
+      | Some((eq, lt)) => Ok(([{...hd, wald: eq}, ...tl], lt))
+      | None =>
+        let slot = ESlot.Full(M(hd.slot, hd.wald, slot));
+        mold(~without?, tl, ~slot, p);
+      };
+    };
+};
+
+module Stepwell = {
+  let rec mold =
+      (well: EStepwell.t, ~slot=ESlot.Empty, p: Piece.t)
+      : Result.t((EStepwell.t, ESlope.Dn.t), ESlot.t) => {
+    open Result.Syntax;
+    let (dn, up) = EStepwell.get_slopes(well);
+    let/ slot =
+      Slope.Dn.mold(dn, ~slot, p)
+      |> Result.map(((dn, lt)) => (EStepwell.put_slopes((dn, up), well), lt));
+    switch (EStepwell.unlink(well)) {
+    | None =>
+      let+ lt = Result.of_option(~error=slot, Piece.lt(Root, ~slot, p));
+      (EStepwell.singleton(([], up)), lt)
+    | Some((_, (l, r), well)) =>
+      let well = EStepwell.map_slopes(Slopes.cat(([l], [r])), well);
+      let+ (well, dn) = mold(well, ~slot, t);
+      let well =
+        EStepwell.rebridge(well)
+        |> EStepwell.map_slopes(Slopes.cat(([], up)));
+      (well, dn);
+    };
+  };
+};
+
+module Slope = {
+  let rec mold =
+      (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, p: Piece.t)
+      : Result.t((ESlope.Dn.t, ESlope.Dn.t), ESlot.t) =>
+    switch (dn) {
+    | [] => Error(slot)
+    | [hd, ...tl] =>
+      switch (leq(~without?, hd.wald, ~slot, p)) {
+      | Some((wald, dn)) => Ok(([{...hd, wald}, ...tl], dn))
+      | None =>
+        let slot = ESlot.Full(M(hd.slot, hd.wald, slot));
+        hsup(~without?, tl, ~slot, p);
+      }
+    };
+}
+
 module Slope = {
   module Dn = {
+    // melding assuming fixed context
     let rec hsup =
-            (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
+            (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t): Result.t((ESlope.Dn.t, ESlope.Dn.t), ESlot.t) =>
       switch (dn) {
       | [] => Error(slot)
       | [hd, ...tl] =>
@@ -72,6 +185,7 @@ module Slope = {
         }
       };
 
+    // melding across grout-pruned contexts
     let hsup = (dn: ESlope.Dn.t, w: EWald.t) =>
       ESlope.Dn.split_obligations(dn)
       |> List.fold_left(
@@ -84,18 +198,27 @@ module Slope = {
 };
 
 module Stepwell = {
+  let hsup = (well: EStepwell.t, w: EWald.t) => {
+    let (dn, up) = EStepwell.get_slopes(well);
+    Slope.Dn.hsup(dn, w)
+    |> Result.map(((dn, lt)) => (EStepwell.put_slopes((dn, up), well), lt))
+  };
+
   let candidates = ((m, token): Labeled.t) =>
     (
       switch (m) {
       | Space => [Material.Space]
       | Grout(tips) => [Grout(tips)]
-      | Tile(lbl) => Molds.with_label(lbl) |> List.map(m => Tile(m))
+      | Tile(None) => []
+      | Tile(Some(lbl)) => Molds.with_label(lbl) |> List.map(m => Tile(Molded(m)))
       }
     )
     |> List.map(Piece.mk(~token))
     |> List.map(Wald.singleton);
 
-  let mold = (well: EStepwell.t, ~slot=ESlot.Empty, l: Labeled.t) => {
+  // caller should ignore error slot
+  let rec mold = (well: EStepwell.t, ~slot=ESlot.Empty, l: Labeled.t)
+                 : Result.t((EStepwell.t, ESlope.Dn.t), ESlot.t) => {
     open Result.Syntax;
     let (dn, up) = EStepwell.get_slopes(well);
     let/ slot =
@@ -119,8 +242,76 @@ module Stepwell = {
     };
   };
 
+  let insert = (well: EStepwell.t, l: Labeled.t): EStepwell.t =>
+    switch (mold(well, l)) {
+    | Ok((ctx, dn)) => EStepwell.map_slopes(Slopes.cat((dn, [])), ctx)
+    | Error(_) =>
+      let (_, t) = l;
+      let w = Wald.singleton(Piece.mk_default(t));
+      hsup(well, w) |> Result.ok_or_fail("bug: failed to meld unmolded piece");
+    };
+
+  let remold = (~slot=ESlot.Empty, well: EStepwell.t): EStepwell.t =>
+    switch (EStepwell.get_slopes(well)) {
+    | (_, []) => failwith("todo: check prefix face gt with bridge right")
+    | (dn, [hd, ...tl]) =>
+      // let l = Piece.to_labeled(ETerrace.face(hd));
+      // let inserted = well |> EStepwell.put_slopes((dn, tl)) |> insert;
+      // switch (EStepwell.face(~side=L, inserted)) {
+      // |
+      // }
+      switch (ETerrace.face(hd).material) {
+      | Space =>
+        assert(ESlot.is_empty(slot));
+        let (face, _empty) = ESlope.Up.split_face(hd);
+        let dn = [ETerrace.singleton(face), ...dn];
+        remold(EStepwell.put_slopes((dn, up), well));
+      | Grout(_) =>
+        switch (Slope.Dn.hsup(dn, ~slot, hd.wald)) {
+        | Ok((dn, lt)) =>
+          let dn = ESlope.cat(lt, dn);
+          remold(EStepwell.put_slopes((dn, up), well));
+        | Error(_) =>
+          let (_, rest) = ESlope.Up.split_face(hd);
+          let up = ESlope.cat(rest, tl);
+          remold(EStepwell.put_slopes((dn, up), well));
+        }
+      | Tile(Unmolded(_)) =>
+        let (face, rest) = ESlope.Up.split_face(hd);
+        let well = EStepwell.put_slopes((dn, ESlope.cat(rest, tl)), well);
+        switch (mold(well, ~slot, face)) {
+        | Error(_) =>
+
+        }
+
+      | Tile(Molded(m)) =>
+        switch ()
+      }
+
+    }
+
   let remold = (well: EStepwell.t) => {
-    let (dn, up) = EStepwell.get_slopes(well);
+    switch (EStepwell.get_slopes(well)) {
+    | (_, []) => well
+    | (dn, [hd, ...up]) =>
+      let (face, rest) = ESlope.Up.split_face(hd);
+      switch (face.material) {
+      | Space =>
+        assert(List.is_empty(rest));
+        let dn = [ETerrace.singleton(face), ...dn];
+        EStepwell.put_slopes((dn, up), well)
+        |> remold
+      | Grout(_) =>
+        switch (Slope.Dn.hsup(dn, hd.wald)) {
+        | Ok((dn, ))
+        }
+
+      }
+
+    }
+
+
+
     switch (ESlope.Up.split_face(up)) {
     | None => well
     | Some((p, up)) => failwith("todo")
