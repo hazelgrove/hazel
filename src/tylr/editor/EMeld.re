@@ -5,9 +5,9 @@ include Meld;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = EPath.Marked.t(Meld.t(t, Piece.t));
 
-let mk = (~path=?, m) => (path, m);
+let mk = EPath.Marked.mk;
 
-let lift_path = (n: int, slot: Slot.t(EMeld.t)) =>
+let lift_path = (n: int, slot: Slot.t(t)) =>
   switch (slot) {
   | Empty => (None, slot)
   | Full((path, m)) => (Option.map(Path.cons(n), path), Full((None, m)))

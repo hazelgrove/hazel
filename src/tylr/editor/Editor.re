@@ -24,6 +24,8 @@ let rec move_n = (n: int, z: EZipper.t): option(EZipper.t) =>
   | _ when n > 0 => Option.bind(move(R, z), move_n(n - 1))
   | _zero => Some(z)
   };
+let move_or_fail = (n, z) =>
+  move_n(n, z) |> OptUtil.get_or_fail("bug: lost expected cursor position");
 
 let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   open OptUtil.Syntax;
@@ -83,30 +85,42 @@ let save_cursor = (ctx: EStepwell.t) => {
   Melder.Stepwell.meld_or_fail(~onto=L, w, ctx);
 };
 
-let load_cursor = (~offset=0, ctx) =>
+let load_cursor = (ctx) =>
   ctx
   |> EZipper.zip
-  |> EZipper.unzip
-  |> move_n(offset)
-  |> OptUtil.get_or_fail("bug: lost cursor position");
+  |> EZipper.unzip;
+
+let clear_focus = (d: Dir.t, z: EZipper.t): EStepwell.t => {
+  // let ctx = Melder.Stepwell.rebridge(z.ctx);
+  let ws = EZipper.Focus.clear(z.foc);
+  let onto = Dir.toggle(d);
+  let meld = Melder.Stepwell.meld_or_fail(~onto);
+  switch (onto) {
+  | L => List.fold_left(Fun.flip(meld), ctx, ws)
+  | R => List.fold_right(meld, ws, ctx)
+  };
+};
+
+let propagate_change = (ctx: EStepwell.t) =>
+  ctx
+  |> save_cursor
+  |> remold_ctx
+  |> load_cursor
+  |> EZipper.mk;
 
 let insert = (s: string, z: EZipper.t) => {
-  // delete (by ignoring) sel and rebridge if needed
-  // todo: replace selection contents with obligations
-  let ctx = Ziggurat.is_empty(z.sel) ? z.ctx : Stepwell.rebridge(z.ctx);
+  let ctx = clear_focus(L, z);
   let (l, ctx) = EStepwell.pull_lexable(~from=L, ctx);
   let (r, ctx) = EStepwell.pull_lexable(~from=R, ctx);
   Lexer.lex(l ++ s ++ r)
   |> List.fold_left(insert_piece, ctx)
-  |> save_cursor
-  |> remold_ctx
-  |> load_cursor(~offset=- Token.length(r))
-  |> EZipper.mk;
+  |> propagate_change
+  |> move_or_fail(- Token.length(r));
 };
 
 let delete = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   open OptUtil.Syntax;
-  let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
+  let+ z = EZipper.Focus.is_empty(z.foc) ? select(d, z) : return(z);
   insert("", z);
 };
 

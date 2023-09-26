@@ -16,4 +16,6 @@ exception Invalid;
 module Marked = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('a) = (option(Base.t), 'a);
+
+  let mk = (~path=?, a) => (path, a);
 };

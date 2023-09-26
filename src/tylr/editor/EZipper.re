@@ -5,7 +5,7 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Pointing
-    | Selecting(Dir.t, Ziggurat.p);
+    | Selecting(Dir.t, EZiggurat.t);
 };
 
 // todo: document potential same-id token on either side of caret
@@ -13,7 +13,7 @@ module Focus = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   foc: Focus.t,
-  ctx: Stepwell.t,
+  ctx: EStepwell.t,
 };
 
 let mk = (~foc=Focus.Pointing, ctx) => {foc, ctx};

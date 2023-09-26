@@ -108,6 +108,7 @@ module Stepwell = {
       let+ lt = Result.of_option(~error=slot, Piece.lt(Root, ~slot, p));
       (EStepwell.singleton(([], up)), lt)
     | Some((_, (l, r), well)) =>
+      let _ = failwith("todo: check for stable bridge / p unfinished");
       let well = EStepwell.map_slopes(Slopes.cat(([l], [r])), well);
       let+ (well, dn) = mold(well, ~slot, t);
       let well =
