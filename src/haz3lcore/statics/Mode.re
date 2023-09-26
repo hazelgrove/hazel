@@ -48,10 +48,11 @@ let of_forall = (ctx: Ctx.t, name_opt: option(TypVar.t), mode: t): t =>
   | SynFun
   | SynTypFun => Syn
   | Ana(ty) =>
-    let (name_expected, item) = Typ.matched_forall(ctx, ty);
-    switch (name_opt) {
-    | Some(name) => Ana(Typ.subst(Var(name), name_expected, item))
-    | None => Ana(item)
+    let (name_expected_opt, item) = Typ.matched_forall(ctx, ty);
+    switch (name_opt, name_expected_opt) {
+    | (Some(name), Some(name_expected)) =>
+      Ana(Typ.subst(Var(name), name_expected, item))
+    | _ => Ana(item)
     };
   };
 
