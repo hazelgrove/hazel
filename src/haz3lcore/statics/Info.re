@@ -276,7 +276,7 @@ let rec status_common =
     }
   | (Just(ty), SynTypFun) =>
     /* Use ty first to preserve name if it exists. */
-    switch (Typ.join_fix(ctx, ty, Forall("_", Unknown(Internal)))) {
+    switch (Typ.join_fix(ctx, ty, Forall("?", Unknown(Internal)))) {
     | Some(_) => NotInHole(Syn(ty))
     | None => InHole(Inconsistent(WithArrow(ty)))
     }
@@ -366,7 +366,7 @@ let status_typ =
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
-        switch (Ctx.is_tvar(ctx, name)) {
+        switch (Ctx.is_abstract(ctx, name)) {
         | false => InHole(FreeTypeVariable(name))
         | true => NotInHole(Type(Var(name)))
         }

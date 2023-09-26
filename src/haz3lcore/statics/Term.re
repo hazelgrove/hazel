@@ -207,8 +207,7 @@ module UTyp = {
             {name, id: UTPat.rep_id(utpat), kind: Abstract},
           );
         Forall(name, to_typ(ctx, tbody));
-      | Forall(_, tbody) => to_typ(ctx, tbody)
-      // Forall is same as Rec
+      // Rec is same as Forall
       | Rec({term: Var(name), _} as utpat, tbody) =>
         let ctx =
           Ctx.extend_tvar(
@@ -216,7 +215,8 @@ module UTyp = {
             {name, id: UTPat.rep_id(utpat), kind: Abstract},
           );
         Rec(name, to_typ(ctx, tbody));
-      | Rec(_, tbody) => to_typ(ctx, tbody)
+      | Forall(_, tbody) => Forall("?", to_typ(ctx, tbody))
+      | Rec(_, tbody) => Rec("?", to_typ(ctx, tbody))
       /* The below cases should occur only inside sums */
       | Constructor(_)
       | Ap(_) => Unknown(Internal)
@@ -620,7 +620,7 @@ module UExp = {
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
-    | TypAp => "Type Application"
+    | TypAp => "Type application"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -631,9 +631,8 @@ module UExp = {
     | UnOp(op) => show_unop(op)
     | Match => "Case expression";
 
-  // TODO (poly): May need to create a separate is_typfun function,
-  // so that is_fun pairs with is_fun_var over Arrow
-  // and is_typfun pairs with is_typfun_var over Forall
+  // Typfun should be treated as a function here as this is only used to
+  // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)

@@ -239,9 +239,13 @@ and uexp_to_info_map =
   | TypAp(fn, utyp) =>
     let typfn_mode = Mode.typap_mode;
     let (fn, m_fn) = go(~mode=typfn_mode, fn, m);
-    let (name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+    let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
     let ty = Term.UTyp.to_typ(ctx, utyp);
-    add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m_fn);
+    switch (option_name) {
+    | Some(name) =>
+      add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m_fn)
+    | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m_fn) /* invalid name matches with no free type variables. */
+    };
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);

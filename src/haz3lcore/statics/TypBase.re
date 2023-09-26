@@ -53,7 +53,7 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
-  let matched_forall: (Ctx.t, t) => (string, t);
+  let matched_forall: (Ctx.t, t) => (option(string), t);
   let matched_prod: (Ctx.t, int, t) => list(t);
   let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
@@ -160,7 +160,6 @@ module rec Typ: {
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
     | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
-    /* TODO: check that these are correct. */
     };
 
   let var_count = ref(0);
@@ -201,8 +200,8 @@ module rec Typ: {
     | _ => ty
     };
 
-  /* Type Equality: At the moment, this coincides with alpha equivalence,
-     but this will change when polymorphic types are implemented */
+  /* Type Equality: This coincides with alpha equivalence for normalized types.
+     Other types may be equivalent but this will not detect so if they are not normalized. */
   let rec eq_internal = (n: int, t1: t, t2: t) => {
     switch (t1, t2) {
     | (Rec(x1, t1), Rec(x2, t2))
@@ -232,6 +231,7 @@ module rec Typ: {
     | (List(t1), List(t2)) => eq_internal(n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
+      /* Does not normalize the types. */
       ConstructorMap.equal(Option.equal(eq_internal(n)), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
@@ -284,6 +284,10 @@ module rec Typ: {
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Forall(x1, ty_body);
+    /* Note for above: there is no danger of free variable capture as
+       subst itself performs capture avoiding substitution. However this
+       may generate internal type variable names that in corner cases can
+       be exposed to the user. */
     | (Rec(_), _) => None
     | (Forall(_), _) => None
     | (Int, Int) => Some(Int)
@@ -399,9 +403,9 @@ module rec Typ: {
 
   let matched_forall = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
-    | Forall(t, ty) => (t, ty)
-    | Unknown(SynSwitch) => ("matched_forall", Unknown(SynSwitch))
-    | _ => ("matched_forall", Unknown(Internal)) /* TODO: Might need to be fresh? */
+    | Forall(t, ty) => (Some(t), ty)
+    | Unknown(SynSwitch) => (None, Unknown(SynSwitch))
+    | _ => (None, Unknown(Internal))
     };
 
   let matched_prod = (ctx, length, ty) =>
@@ -482,7 +486,7 @@ and Ctx: {
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
-  let is_tvar: (t, TypVar.t) => bool;
+  let is_abstract: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
@@ -566,7 +570,7 @@ and Ctx: {
     | None => false
     };
 
-  let is_tvar = (ctx: t, name: TypVar.t): bool =>
+  let is_abstract = (ctx: t, name: TypVar.t): bool =>
     switch (lookup_tvar(ctx, name)) {
     | Some({kind: Abstract, _}) => true
     | _ => false
@@ -636,7 +640,7 @@ and Ctx: {
     |> (((ctx, _, _)) => List.rev(ctx));
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
-    Form.is_base_typ(name) || is_alias(ctx, name) || is_tvar(ctx, name);
+    Form.is_base_typ(name) || is_alias(ctx, name) || is_abstract(ctx, name);
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
