@@ -330,7 +330,7 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
         Some(inconsistent_err)
       | _ => failwith("InexhaustiveMatch(non-inconsistent-types-error)")
       };
-    InexhaustiveMatch(inconsistent_err);
+    InHole(InexhaustiveMatch(inconsistent_err));
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
