@@ -322,6 +322,15 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
 let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
+  | (InexhaustiveMatch(self_pat), _) =>
+    let inconsistent_err =
+      switch (status_common(ctx, mode, self_pat)) {
+      | NotInHole(_) => None
+      | InHole(Inconsistent(Internal(_)) as inconsistent_err) =>
+        Some(inconsistent_err)
+      | _ => failwith("InexhaustiveMatch(non-inconsistent-types-error)")
+      };
+    InexhaustiveMatch(inconsistent_err);
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)

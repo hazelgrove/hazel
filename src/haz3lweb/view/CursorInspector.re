@@ -161,15 +161,19 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
-  | InHole(InexhaustiveMatch(type_err)) =>
+  | InHole(InexhaustiveMatch(inconsistent_err)) =>
     let inexhaustive_err_text = "Case expression is necessarily inexhaustive";
-    switch (type_err) {
+    switch (inconsistent_err) {
     | None => div_err([text(inexhaustive_err_text)])
-    | Some(type_err) =>
+    | Some(Inconsistent(Internal(_)) as inconsistent_err) =>
       div_err([
         text(inexhaustive_err_text ++ "; "),
-        ...common_err_view(Exp(Match), type_err),
+        ...common_err_view(Exp(Match), inconsistent_err),
       ])
+    | _ =>
+      failwith(
+        "Case expression is necessarily inexhaustive; non-inconsistent-types-error",
+      )
     };
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
