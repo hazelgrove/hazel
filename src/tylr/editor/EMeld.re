@@ -5,7 +5,7 @@ include Meld;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = EPath.Marked.t(Meld.t(t, Piece.t));
 
-let mk = EPath.Marked.mk;
+// let mk = EPath.Marked.mk;
 
 let lift_path = (n: int, slot: Slot.t(t)) =>
   switch (slot) {

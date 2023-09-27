@@ -1,404 +1,129 @@
-open Util;
-
-module Mold = {
-  include Mold;
-  // exists a match across alternatives
-  let matches = (~side: Dir.t, m: Mold.t) => GWalker.walk_eq(~side, m) != [];
-  // is convex across all alternatives
-  let is_convex = (~side: Dir.t, m: Mold.t) =>
-    GWalker.walk_lt(~side, m) == [];
-
-  let lt = (~req=Req.Comparable, l: Bound.t, ~slot=Slot.Empty, r: Mold.t) =>
-    GWalker.exit(~side=L, r)
-    // looks up sort dependencies based on req.
-    // filters walks to those that satisfy the bound (no dangling kid or precedence valid)
-    |> List.find_opt(GWalker.satisfies(~req, ~bound=l, ~slot));
-
-  let gt = (~req=Req.Comparable, l: Mold.t, ~slot=Slot.Empty, r: Bound.t) =>
-    GWalker.exit(l, ~side=R)
-    |> List.find_opt(GWalker.satisfies(~req, ~bound=r, ~slot));
-
-  let eq = (l: Mold.t, r: Mold.t) =>
-    GWalker.walk(l, ~toward=R)
-    |> List.find_opt(GWalker.satisfies(~req, ~face=r));
-};
+// module Result = {
+//   include Util.Result;
+//   type t('ctx) = Util.Result.t(('ctx, ESlope.Dn.t), ESlot.t);
+// };
 
 module Piece = {
   include Piece;
 
-  let lt = (~without=Obligation.Incomparability, l: Bound.t(Piece.t), ~slot=Slot.Empty, r: Piece.t) =>
-    GWalker.descend(R, bound)
-    |> GWalker.Descended.find(r.material)
-    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
-    |> Option.map(ETerrace.R.bake(~slot, ~face=r));
+  let zip = (l: Piece.t, r: Piece.t) =>
+    Id.eq(l.id, r.id)
+    ? Some({...l, token: l.token ++ r.token})
+    : None;
 
-  let gt = (~without=Obligation.Incomparability, l: Piece.t, ~slot=Slot.Empty, r: Bound.t(Piece.t)) =>
-    GWalker.descend(L, bound)
-    |> GWalker.Descended.find(l.material)
-    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
-    |> Option.map(ETerrace.L.bake(~slot, ~face=r));
-
-  let eq = (~without=Obligation.Incomparability, l: Piece.t, ~slot=Slot.Empty, r: Piece.t) =>
+  let eq = (~without=?, l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) =>
     switch (zip(l, r)) {
     | Some(p) =>
       assert(Slot.is_empty(slot));
       EWald.singleton(p);
     | None =>
-      GWalker.walk_eq(R, l)
+      GWalker.walk(R, l)
       |> GWalker.Walked.find(r.material)
-      |> GSlope.Set.pick(~without, ~slot=ESLot.sort(slot))
+      |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
       |> Option.map(ETerrace.R.bake(~slot, ~face=r))
       |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald));
     };
+
+  let lt = (~without=?, l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
+    l
+    |> Bound.map(p => p.material)
+    |> GWalker.descend(R)
+    |> GWalker.Descended.find(r.material)
+    |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
+    |> Option.map(ETerrace.R.bake(~slot, ~face=r));
+
+  let gt = (~without=?, l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
+    r
+    |> Bound.map(p => p.material)
+    |> GWalker.descend(L)
+    |> GWalker.Descended.find(l.material)
+    |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
+    |> Option.map(ETerrace.L.bake(~slot, ~face=l));
 };
 
 module Wald = {
-  let rec eq = (
-    ~without=Obligation.Incomparability,
-    l: EWald.t, ~slot=Slot.Empty, r: EWald.t,
-  ) => {
-    open OptUtil.Syntax;
-    let/ () =
-      switch (Wald.unknil(l)) {
-      | Ok((tl, s, p)) when Piece.is_unfinished(p) =>
-        // todo: slot merging may require unrolling and pushing,
-        // which would mean mutual recursion with slope pushing
-        eq(~without=Missing_tile, tl, ~slot=ESlot.merge(s, slot), r)
-      | _ => None
-      };
-    let/ () =
-      switch (Wald.unlink(r)) {
-      | Ok((p, s, tl)) when Piece.is_unfinished(p) =>
-        eq(~without=Missing_Tile, tl, ~slot=ESlot.merge(slot, s), r)
-      | _ => None
-      };
-    let (tl_l, hd_l) = EWald.split_face(l, ~side=R);
+  let eq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) => {
+    let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
     let (hd_r, tl_r) = EWald.split_face(~side=L, r);
-    Piece.meld(~without, hd_l, ~slot, hd_r)
-    |> Wald.extend(~side=L, tl_l)
-    |> Wald.extend(~side=R, tl_r);
+    Piece.eq(~without?, hd_l, ~slot, hd_r)
+    |> Option.map(EWald.extend_face(~side=L, tl_l))
+    |> Option.map(EWald.extend_face(~side=R, tl_r));
   };
 
-  let lt = (~without=Obligation.Incomparability,
-    l: EWald.t, ~slot=Slot.Empty, r: EWald.t,
-  ) => {
-    let l_hd = EWald.face(l, ~side=R);
-    let (r_hd, r_tl) = EWald.split_face(~side=L, r);
-    switch (Piece.lt(~without, Piece(l_hd), ~slot, r)) {
-    | None | Some([]) => None
-    | Some([hd, ...tl]) =>
-      Some([ETerrace.R.extend(hd, r_tl), ...tl])
-    };
+  let lt = (~without=?, l: Bound.t(EWald.t), ~slot=ESlot.Empty, r: EWald.t) => {
+    let l = Bound.map(Wald.face(~side=R), l);
+    let (hd_r, tl_r) = EWald.split_face(~side=L, r);
+    Piece.lt(~without?, l, ~slot, hd_r)
+    |> Option.map(ETerrace.R.extend_face(tl_r));
   };
+  let leq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
+    switch (eq(~without?, l, ~slot, r)) {
+    | Some(eq) => Some((eq, ESlope.Dn.empty))
+    | None =>
+      lt(~without?, Piece(l), ~slot, r)
+      |> Option.map(lt => (l, lt))
+    };
 
-  let gt = (~without=Obligation.Incomparability,
-    l: EWald.t, ~slot=Slot.Empty, r: EWald.t,
-  ) => {
-    let (l_tl, l_hd) = EWald.split_face(l, ~side=R);
-    let r_hd = EWald.face(~side=L, r);
-    switch (Piece.gt(~without, l_hd, ~slot, Piece(r_hd))) {
-    | None | Some([]) => None
-    | Some([hd, ...tl]) =>
-      Some([ETerrace.L.extend(l_tl, hd), ...tl])
-    };
+  let gt = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: Bound.t(EWald.t)) => {
+    let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
+    let r = Bound.map(Wald.face(~side=L), r);
+    Piece.gt(~without?, hd_l, ~slot, r)
+    |> Option.map(ETerrace.L.extend_face(tl_l));
   };
+  let geq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
+    switch (eq(~without?, l, ~slot, r)) {
+    | Some(eq) => Some((ESlope.Up.empty, eq))
+    | None =>
+      gt(~without?, l, ~slot, Piece(r))
+      |> Option.map(gt => (gt, r))
+    };
 };
 
 module Slope = {
   module Dn = {
-    let push =
-        (~top=Bound.Root, dn: ESlope.Dn.t, ~slot=Slot.Empty, w: EWald.t)
-        : (ESlope.Dn.t) =>
+    let rec meld = (~bound=Bound.Root, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
       switch (dn) {
-      | [] =>
-      }
-
-  };
-};
-
-module Piece = {
-  include Piece;
-
-  let zip = (l: Piece.t, r: Piece.t): option(Piece.t) => {
-    open OptUtil.Syntax;
-    let* () = OptUtil.of_bool(Id.eq(l.id, r.id));
-    let+ l =
-      switch (Piece.label(l), Piece.label(r)) {
-      | (Grout (), Tile(_))
-      | (Tile(_), Grout ()) => None
-      | (Grout (), Grout ()) => Some(l)
-      | (Tile(lbl_l), Tile(lbl_r)) =>
-        let+ lbl = Label.zip(lbl_l, lbl_r);
-        put_label(lbl, l);
-      };
-    l
-    |> put_token(l.token ++ r.token)
-    |> put_paths(l.paths @ List.map(Path.shift(token_length(l)), r.paths));
-  };
-
-  let lt = (~req=Req.Comparable, l: Bound.t, ~slot=Slot.Empty, r: Piece.t): option(ETerrace.R.t) => {
-    let ok = Some(ETerrace.singleton(~slot, r));
-    switch (l) {
-    | Root => root_lt(~req, ~slot, r)
-    | Piece(l) =>
-      switch (l.material, r.material) {
-      | (Space, _) => None
-      | (_, Space) => ok
-
-      | (Grout((_, Concave)), Grout((Convex, _))) => ok
-      | (Grout(_), Grout(_)) => None
-
-      | (Grout((_, Convex)), Tile(_)) => None
-      | (Grout((_, Concave)), Tile(m)) =>
-        // exit terraces collectively characterize mold tips
-        GWalker.exit(~side=L, m)
-        // limit to terraces without matches
-        |> List.filter(GWalker.satisfies(Req.max(req, Tiles_finished)))
-        |> GWalker.pick(~slot=ESlot.sort(slot))
-        |> Option.map(ETerrace.bake(~slot, ~face=r));
-
-      // slightly weird cases in that I'm exiting from the bound
-      | (Tile(Convex), _) => None
-      | (Tile(Concave()))
-      | (Tile(m), Grout((Concave, _))) =>
-        // verify that m always matches on its right
-        GWalker.exit(m, ~side=R)
-        |> List.for_all(t => !GTerrace.satisfies(Tiles_finished, t))
-        |> OptUtil.of_bool
-        |> OptUtil.and_then(_ => ok)
-      | (Tile(m), Grout((Convex, _))) =>
-        // check that m takes a kid
-        GWalker.exit(m, ~side=R)
-        |> List.find_opt(t => !GTerrace.satisfies(Slots_filled, t))
-        |> OptUtil.and_then(_ => ok)
-      }
-
-    }
-  };
-
-  // strict upper bounding
-  let bound = (~side: Dir.t, ~sort: Sort.t, ~bound=?, ~slot=Slot.Empty, p: Piece.t): option(Terrace.t) =>
-    switch (p.material) {
-    | Space
-    | Grout(_) => Some(Terrace.singleton(~slot, p))
-    | Tile(m) =>
-      m
-      |> GWalker.bound(~side, ~sort, ~bound?)
-      |> Option.map(Terrace.bake(~slot, ~face))
-    };
-
-  // todo: probably need transitivity flags
-  let root_lt = (~slot=Slot.Empty, r: Piece.t): option(ETerrace.t) => failwith("todo");
-
-  let root_bound = (~req=Req.Comparable, ~side: Dir.t, ~slot=Slot.Empty, p: Piece.t) => {
-    let ok = Some(Terrace.singleton(~slot, p));
-    switch (p.material) {
-    | Space =>
-      assert(Slot.is_empty(slot));
-      ok;
-    | Grout(tips) =>
-      switch (req, Dir.choose(side, tips)) {
-      | (Comparable, Concave) => None
-      | _ => ok
-      }
-    | Tile(m) =>
-      let bake = ETerrace.(side == L ? R.bake : L.bake);
-      GWalker.enter(~side, Sort.root)
-      // pick: (~trans=?, ~slot: Slot.t(Material.t(Sort.t)), ~face: Mold.t) => option(GTerrace.t)
-      // todo: determine whether slot is hard or soft constraint
-      |> GTerrace.pick(~req, ~slot, ~face=m)
-      |> Option.map(bake(~slot, ~face=p));
-    };
-  };
-  let root_lt = root_bound(~side=L);
-  let gt_root = root_bound(~side=R);
-
-  let lt = (~req=Req.Comparable, l: Bound.t, ~slot=Slot.Empty, r: Piece.t): option(ETerrace.R.t) =>
-    switch (l) {
-    | Root => root_lt(~req?, ~slot, r)
-    | Piece(l) =>
-      let ok = Some(ETerrace.singleton(~slot, r));
-      switch (l.material, r.material) {
-      | (_, Space) => ok
-      | (Space, _) => None
-
-      | (Grout((_, Concave)), Grout((Convex, _))) => ok
-      | (Grout(_), Grout(_)) => None
-
-      | (Grout((_, Convex)), Tile(_)) => None
-      | (Grout((_, Concave)), Tile(m)) =>
-        GWalker.exit(~side=L, m)
-        |> List.find_opt(
-          GTerrace.satisfies(~req=Req.max(req, Tiles_finished), ~slot, ~face=m)
-        )
-        |> Option.map(ETerrace.R.bake(~slot, ~face=p));
-
-      | (Tile(m), Grout((Concave, _))) =>
-        // check that m has a match on its right side
-        GWalker.exit(m, ~side=R)
-        |> List.find_opt(t => !GTerrace.satisfies(~req=Tiles_finished, t))
-        |> OptUtil.and_then(_ => ok)
-      | (Tile(m), Grout((Convex, _))) =>
-        GWalker.exit(m, ~side=R)
-        |> List.find_opt(t => !GTerrace.satisfies(~req=Slots_filled, t))
-        |> OptUtil.and_then(_ => ok)
-
-      | (Tile(m_l), Tile(m_r)) =>
-        Mold.lt(~req, m_l, ~slot=ESlot.sort(slot), m_r)
-        |> Option.map(ETerrace.bake(~slot, ~face=r))
-      }
-    };
-
-  let lt = (l: Bound.t, ~slot=Slot.Empty, r: Piece.t): option(ETerrace.R.t) => {
-    open OptUtil.Syntax;
-    let* () = OptUtil.of_bool(lt_slot(l, slot));
-    switch (l) {
-    | Root => root_lt(~slot, r)
-    | Piece(l) =>
-      let ok = Some(ETerrace.singleton(~slot, r));
-      switch (l.material, r.material) {
-      | (_, Space)
-      | (Grout((_, Concave)), Grout((Convex, _))) => ok
-      | (Grout((_, Concave)), Tile(m)) when !Mold.exists_match(~side=L, m) => ok
-      | (Tile(m), Grout((Concave, _))) when Mold.exists_match(m, ~side=R) => ok
-      | (Tile(m), Grout((Convex, _))) when !Mold.forall_convex(m, ~side=R) => ok
-      | (Tile(m_l), Tile(m_r)) =>
-        Mold.lt(m_l, ~slot=Slot.map(EMeld.sort, slot), m_r)
-        |> Option.map(Terrace.bake(~slot, ~face=r))
-      | _ => None
-      }
-    };
-  }
-  and lt_slot = (l: Bound.t, slot: ESlot.t) =>
-    switch (slot) {
-    | Empty => true
-    | Full(M(_, w, _)) =>
-      Option.is_some(lt(l, Wald.face(~side=L, w)))
-    };
-
-  let meld = (l: Piece.t, ~slot=Slot.Empty, r: Piece.t): Ziggurat.t => {
-    let eq_ = Ziggurat.mk(Wald.mk([l, r], [slot]));
-    let lt_ = Ziggurat.singleton(l, ~dn=[Terrace.singleton(~slot, r)]);
-    let gt_ = Ziggurat.singleton(~up=[Terrace.singleton(l, ~slot)], r);
-
-    switch (l.material, r.material) {
-    // zips
-    | _ when Id.eq(l.id, r.id) =>
-      assert(Slot.is_empty(slot));
-      failwith("todo zips case");
-
-    // whitespace
-    | (Space, Space) =>
-      assert(Slot.is_empty(slot));
-      Ziggurat.singleton({...l, token: l.token ++ r.token});
-    | (Space, _) => gt_
-    | (_, Space) => lt_
-
-    // grout-grout
-    | (Grout((_, Convex)), Grout((Convex, _))) =>
-      assert(Slot.is_empty(slot));
-      let (up, dn) = Terrace.([singleton(l)], [singleton(r)]);
-      Ziggurat.singleton(~up, Piece.mk_grout(Concave, Concave), ~dn);
-    | (Grout((_, Convex)), Grout((Concave, _))) => gt_
-    | (Grout((_, Concave)), Grout((Convex, _))) => lt_
-    | (Grout((_, Concave)), Grout((Concave, _))) => eq_
-
-    // compare tile molds
-    | (Tile(m_l), Tile(m_r)) =>
-      switch (Mold.compare(m_l, ~slot=Slot.map(Meld.Baked.sort, slot), m_r)) {
-      | Some(zigg) => Ziggurat.bake(~l, ~slot, ~r, zigg)
-      | None =>
-        if (is_convex(m_l, ~side=R) && !is_convex(~side=L, m_r)) {
-          assert(Slot.is_empty(slot));
-          let g = Terrace.singleton(Piece.mk_grout(Concave, Convex));
-          let t_l = GWalker.exit(m_l, ~side=R) |> Terrace.bake(~face=l);
-          Ziggurat.mk(~up=[t_l, g], Wald.singleton(r));
-        } else if (!is_convex(m_l, ~side=R) && is_convex(~side=L, m_r)) {
-          assert(Slot.is_empty(slot));
-          let g = Terrace.singleton(Piece.mk_grout(Convex, Concave));
-          let t_r = GWalker.exit(~side=L, m_r) |> Terrace.bake(~face=r);
-          Ziggurat.mk(Wald.singleton(l), ~dn=[t_r, g]);
-        } else {
-          let g = Wald.singleton(Piece.mk_grout(Concave, Concave));
-          let t_l = GWalker.exit(m_l, ~side=R) |> Terrace.bake(~face=l);
-          let t_r = GWalker.exit(~side=L, m_r) |> Terrace.bake(~face=r);
-          Ziggurat.mk(~up=[t_l], g, ~dn=[t_r]);
+      | [] => Wald.lt(bound, ~slot, w) |> Option.map(t => [t])
+      | [hd, ...tl] =>
+        switch (Wald.leq(hd.wald, ~slot, w)) {
+        | Some((eq, lt)) => Some(ESlope.cat(lt, [{...hd, wald: eq}, ...tl]))
+        | None =>
+          let slot = ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot));
+          meld(~bound, tl, ~slot, w);
         }
-      }
-    };
-  };
-
-  let bound_l = (~l=?, ~slot=Slot.Empty, r: Piece.t): option(Slope.Dn.t) =>
-    switch (l) {
-    | Some(l) =>
-      switch (meld(l, ~slot, r)) {
-      | {up: [], top, dn}
-          when Wald.face(top, ~side=R) == l => Some(dn)
-      | _ => None
-      }
-    | None =>
-      switch (p.material) {
-      | Space
-      | Grout(_) => Some([Terrace.singleton(~slot, p)])
-      | Tile(m) =>
-        m
-        |> GWalker.enter(~from=side, ~sort, ~bound?)
-        |> Option.map(Terrace.bake(~slot, ~face=p))
-        |> Option.map(t => [t])
-      }
-    };
-};
-
-module Wald = {
-  include Wald;
-
-  let rec meld = (l: Wald.t, ~slot=Slot.Empty, r: Wald.t): Ziggurat.t => {
-    let melded_tl_l =
-      switch (Wald.unknil(l)) {
-      | Ok((tl, s, p)) when Piece.is_unfinished(p) =>
-        [meld(tl, ~slot=Slot.merge(s, slot), r)]
-        |> List.filter(z => Ziggurat.height(z) == 1)
-      | _ => []
       };
-    let melded_tl_r =
-      switch (Wald.unlink(r)) {
-      | Ok((p, s, tl)) when Piece.is_unfinished(p) =>
-        [meld(l, ~slot=Slot.merge(slot, s), r)]
-        |> List.filter(z => Ziggurat.height(z) == 1)
-      | _ => []
-      };
-    let melded_hds = {
-      let (tl_l, hd_l) = Wald.split_lst(l);
-      let (hd_r, tl_r) = Wald.split_fst(r);
-      Piece.meld(hd_l, ~slot, hd_r)
-      |> Ziggurat.extend(~side=L, tl_l)
-      |> Ziggurat.extend(~side=R, tl_r);
-    };
-    Scorer.pick([melded_hds] @ melded_tl_l @ melded_tl_r);
   };
+  module Up = {
+    let rec meld = (~bound=Bound.Root, w: EWald.t, ~slot=ESlot.Empty, up: ESlope.Up.t) =>
+      switch (up) {
+      | [] => Wald.gt(w, ~slot, bound) |> Option.map(t => [t])
+      | [hd, ...tl] =>
+        switch (Wald.geq(w, ~slot, hd.wald)) {
+        | Some((gt, eq)) => Some(ESlope.cat(gt, [{...hd, wald: eq}, ...tl]))
+        | None =>
+          let slot = ESlot.Full(EMeld.mk(~l=slot, hd.wald, ~r=hd.slot));
+          meld(w, ~slot, tl, ~bound);
+        }
+      };
+  };
+}
 
-  let bound_l = (~l=?, ~slot=Slot.Empty, r: Wald.t): option(Slope.Dn.t) =>
-    switch (l) {
-    | Some(l) =>
-      switch (meld(l, ~slot, r)) {
-      | {up: [], top, dn}
-          when Wald.face(top, ~side=R) == Wald.face(b, ~side=R) => Some(dn)
-      | _ => None
-      }
-    | None =>
-      let (hd, tl) = Wald.split_fst(~side, w);
-      switch (hd.material) {
-      | Space
-      | Grout(_) => Some([Terrace.singleton(~slot, w)])
-      | Tile(m) =>
-        Mold.lt(~slot=Slot.sort(slot), m)
-        |> Option.map(Terrace.bake(~slot, ~face=hd))
-        |> Option.map(Terrace.R.extend(tl))
-        |> Option.map(t => [t])
-      }
-    };
-
-  let bound = (~side: Dir.t, ~bound=?, ~slot=Slot.Empty, w: Wald.t): option(Slope.t) => failwith("todo");
+module Stepwell = {
+  let meld = (~onto: Dir.t, w: EWald.t, well: EStepwell.t)
+             : option(EStepwell.t) => {
+    open OptUtil.Syntax;
+    let (l, (dn, up), r) = EStepwell.get_bounded_slopes(well);
+    let+ slopes =
+      switch (onto) {
+      | L =>
+        let+ dn = Slope.Dn.meld(~bound=l, dn, w);
+        (dn, up);
+      | R =>
+        let+ up = Slope.Up.meld(w, up, ~bound=r);
+        (dn, up);
+      };
+    EStepwell.put_slopes(slopes, well);
+  };
 };
 
 // [(] [1 *] [2]     _     [let x =]
@@ -423,106 +148,6 @@ module Wald = {
 // rest of system:
 // rework transformation to view
 // rework make term
-
-module Slope = {
-  include Slope;
-  module Dn = {
-    include Dn;
-
-    let push = (~without=Obligation.Incomparability, dn: t, ~slot=Slot.Empty, w: EWald.t) =>
-  };
-};
-
-module Slope = {
-  include Slope;
-  module Up = {
-    include Up;
-    let rec push =
-            (w: Wald.t, ~slot=Slot.Empty, up: Up.t)
-            : (Result.t(Up.t, Slot.t), Up.t) =>
-      switch (up) {
-      | [] => (Error(slot), up)
-      | [hd, ...tl] =>
-        // L2R: w slot hd.wald hd.slot tl
-        switch (Wald.meld(w, ~slot, hd.wald)) {
-        | {up, top, dn: []} => (Ok(up), [{...hd, wald: top}, ...tl])
-        | {up, top, dn: [_, ..._]} =>
-          let slot = Dn.roll(dn, ~slot=hd.slot);
-          let (r, bounded) = push(top, ~slot, tl);
-          (r, Slope.cat(up, bounded));
-        }
-      };
-  };
-  module Dn = {
-    include Dn;
-
-    let rec hsup =
-            (~repair=true, ~top=Face.Root, dn: t, ~slot=Slot.Empty, w: Wald.t)
-            : (Dn.t, Result.t(Dn.t, Slot.t)) =>
-      switch (dn) {
-      | [] =>
-        // error-correcting?
-        // yeah i guess that's fine so long as bound is preserved
-        switch (Wald.bound_l(~l=top, ~slot, w)) {
-        | None =>
-        }
-
-
-      };
-
-    let rec hsup =
-            (~top=Face.Root, dn: t, ~slot=Slot.Empty, w: Wald.t)
-            : (Dn.t, Result.t(Dn.t, Slot.t)) =>
-      switch (dn) {
-      | [] =>
-        // todo: return ok if top bounds w
-        (dn, Error(slot))
-      | [hd, ...tl] =>
-        // L2R: tl hd.slot hd.wald slot w
-        let default = () => {
-          switch (Wald.meld(hd.wald, ~slot, w)) {
-          | {up: [], top, dn} => ([{...hd, wald: top}, ...tl], Ok(dn))
-          | {up: [_, ..._], top, dn} =>
-            // melding should have taken care of any complementing/grouting
-            let slot = Up.roll(~slot=hd.slot, up);
-            let (bounded, r) = hsup(tl, ~slot, top);
-            (Slope.cat(dn, bounded), r);
-          };
-        };
-        switch (
-          Slot.has_no_tiles(hd.slot),
-          Wald.has_no_tiles(hd.wald),
-          Slot.has_no_tiles(slot),
-        ) {
-        | (_, None, _) =>
-        | (Some(s_hd_slot), Some(s_hd_wald), Some(s_slot)) =>
-          let s = Piece.mk_space(s_hd_slot ++ s_hd_wald ++ s_slot);
-          switch (
-            hsup(~top=Slope.face(~top, tl), [], ~slot=Slot.singleton(s), w),
-          ) {
-          | (_empty, Error(_)) => default()
-          | (_empty, Ok(_) as ok) => (tl, ok)
-          }
-        | ()
-        };
-      };
-  };
-};
-
-module Slopes = {
-  include Slopes;
-  let push =
-      (~onto: Dir.t, w: Wald.t, ~slot=Slot.Empty, (dn, up): t)
-      : (Result.t(Slope.t, Slot.t), t) =>
-    switch (onto) {
-    | L =>
-      let (dn, r) = Slope.Dn.hsup(dn, ~slot, w);
-      (r, (dn, up));
-    | R =>
-      let (r, up) = Slope.Up.push(w, ~slot, up);
-      (r, (dn, up));
-    };
-};
 
 module Ziggurat = {
   include Ziggurat;

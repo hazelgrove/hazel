@@ -165,7 +165,7 @@ let walk_eq = ((d: Dir.t, m: Material.Molded.t)): Walked.t => {
     };
   go(m);
 };
-let walk_eq = Core.Memo.general(walk_eq) |> FunUtil.curry2;
+let walk = Core.Memo.general(walk_eq) |> FunUtil.curry2;
 
 let step_neq = (d: Dir.t, bound: Bound.t(Material.Molded.t)): Walked.t => {
   let b = Dir.toggle(d);
