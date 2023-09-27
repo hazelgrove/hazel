@@ -325,10 +325,11 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (InexhaustiveMatch(self_pat), _) =>
     let inconsistent_err =
       switch (status_common(ctx, mode, self_pat)) {
-      | NotInHole(_) => None
       | InHole(Inconsistent(Internal(_)) as inconsistent_err) =>
         Some(inconsistent_err)
-      | _ => failwith("InexhaustiveMatch(non-inconsistent-types-error)")
+      | NotInHole(_)
+      | InHole(Inconsistent(Expectation(_) | WithArrow(_))) => None /* Type checking should fail */
+      | InHole(NoType(_)) => failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(inconsistent_err));
   | (Common(self_pat), _) =>
