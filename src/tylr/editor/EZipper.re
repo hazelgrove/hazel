@@ -6,6 +6,16 @@ module Focus = {
   type t =
     | Pointing
     | Selecting(Dir.t, EZiggurat.t);
+
+  let is_empty =
+    fun
+    | Pointing => true
+    | Selecting(_) => false;
+
+  let clear =
+    fun
+    | Pointing => []
+    | Selecting(_, zigg) => EZiggurat.clear(zigg);
 };
 
 // todo: document potential same-id token on either side of caret

@@ -1,45 +1,34 @@
 open Sexplib.Std;
 open Util;
 
-module Path = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = int;
-  let shift = (n, p) => p + n;
-};
-
-// todo: rename to something like Material
-// module Shape = {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t =
-//     | T(Tile.t)
-//     | G(Grout.t);
-
-//   let t = t => T(t);
-//   let g = g => G(g);
-// };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
-  mold: Material.Molded.t,
+  material: Material.Molded.t,
   token: Token.t,
 };
 
 // well-labeled invariant: for piece p
-// !Label.is_empty(p.mold.label) ==> is_prefix(p.token, p.mold.label)
-exception Ill_labeled;
+// !Label.is_empty(p.material.label) ==> is_prefix(p.token, p.material.label)
+// exception Ill_labeled;
 
-let mk = (~id=?, mold, token) => {
+let clear = (p: t) =>
+  switch (p.material) {
+  | Space | Grout(_) => []
+  | Tile(_) => [{...p, token: Token.empty}]
+  };
+
+let mk = (~id=?, ~token="", material) => {
   let id =
     switch (id) {
     | None => Id.Gen.next()
     | Some(id) => id
     };
-  {id, mold, token};
+  {id, material, token};
 };
 let id_ = p => p.id;
-let label = p => Material.Labeled.of_molded(p.mold);
-let sort = p => Material.Sorted.of_molded(p.mold);
+let label = p => Material.Labeled.of_molded(p.material);
+let sort = p => Material.Sorted.of_molded(p.material);
 // let prec = p => Material.map(Mold.prec_, p.material);
 
 let put_label = (_, _) => failwith("todo Piece.put_label");
@@ -76,7 +65,7 @@ let is_empty = _ => failwith("todo Piece.is_empty");
 // let of_tile = (~id=?, ~paths=[], t) => mk(~id?, ~paths, T(t));
 
 let is_finished = p =>
-  switch (p.mold) {
+  switch (p.material) {
   | Grout(_) => false
   | Tile(_) => label_length(p) == Some(token_length(p))
   };
