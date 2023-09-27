@@ -64,6 +64,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
+  | InexhaustiveMatch(option(error_common)) /* Inexhaustive match (optional inconsistent types error) */
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

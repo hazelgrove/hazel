@@ -283,7 +283,7 @@ and uexp_to_info_map =
         es,
         p_ctxs,
       );
-    let rec ruls_to_info_map = (xi_pre: Constraint.t, m) => (xi_pre, m);
+    // let rec ruls_to_info_map = (xi_pre: Constraint.t, m) => (xi_pre, m);
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
