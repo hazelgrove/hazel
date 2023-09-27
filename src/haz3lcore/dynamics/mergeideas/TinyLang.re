@@ -2,7 +2,20 @@ type tinylang =
   | Hole
   | Const(int)
   | Add(tinylang, tinylang)
-  | Seq(tinylang, tinylang);
+  | Seq(tinylang, tinylang)
+  | Var(string)
+  | Fun(string, tinylang)
+  | Closure(env, tinylang)
+  | Ap(tinylang, tinylang)
+and env = list((string, tinylang));
+
+let add_env = (e, k, v) => [(k, v), ...e];
+let rec get_env = (e, k) =>
+  switch (e) {
+  | [(k', v'), ..._] when k == k' => v'
+  | [_, ...e'] => get_env(e', k)
+  | [] => failwith("Not in environment")
+  };
 
 type kind =
   | Value
@@ -39,13 +52,13 @@ module Transition = (EV: EV_MODE) => {
   let (let.) = EV.bind;
   let (and.) = EV.combine;
 
-  let transition = continue =>
+  let transition = (continue, env: list((string, tinylang))) =>
     fun
     | Hole => EV.no_req(Indet(() => Hole))
     | Const(x) => EV.no_req(Constructor(() => Const(x)))
     | Add(x, y) => {
-        let. x' = EV.req_a(continue, x)
-        and. y' = EV.req_a(continue, y);
+        let. x' = EV.req_a(continue(env), x)
+        and. y' = EV.req_a(continue(env), y);
         Step(
           () => Add(x', y'),
           () =>
@@ -57,17 +70,55 @@ module Transition = (EV: EV_MODE) => {
         );
       }
     | Seq(x, y) => {
-        let. x' = EV.req_b(continue, x)
-        and. y' = EV.req_c(continue, y);
+        let. x' = EV.req_b(continue(env), x)
+        and. y' = EV.req_c(continue(env), y);
         Step(() => Seq(x', y'), () => y', Expr);
+      }
+    | Var(x) =>
+      EV.no_req(
+        Step(
+          () => Var(x),
+          () => get_env(env, x),
+          Value // Should be Value on Evaluator :/
+        ),
+      )
+    | Fun(s, Closure(env', x)) =>
+      EV.no_req(Constructor(() => Fun(s, Closure(env', x))))
+    | Fun(s, x) => EV.no_req(Constructor(() => Fun(s, Closure(env, x))))
+    | Closure(env', x) => {
+        let. x' = EV.req_a(continue(env), x);
+        Step(() => Closure(env', x), () => x', Value);
+      }
+    | Ap(x, y) => {
+        let. x' = EV.req_a(continue(env), x)
+        and. y' = EV.req_a(continue(env), y); // I would love for this to be req_b...
+        Step(
+          () => Ap(x', y'),
+          () =>
+            switch (x') {
+            | Ap(Fun(s, Closure(env', d1)), d2) =>
+              Closure(add_env(env', s, d2), d1)
+            | _ => failwith("Invalid application")
+            },
+          Expr,
+        );
       };
 };
 
-module Evaluator: EV_MODE = {
+module Evaluator: {
+  include EV_MODE;
+  let unfinished: result('a) => option('a);
+} = {
   type result('a) =
     | BoxedValue('a)
     | Indet('a)
     | Uneval('a);
+
+  let unfinished =
+    fun
+    | BoxedValue(_)
+    | Indet(_) => None
+    | Uneval(x) => Some(x);
 
   let req_a = (f, x) =>
     switch (f(x)) {
@@ -122,8 +173,13 @@ module Evaluator: EV_MODE = {
 };
 
 module Eval = Transition(Evaluator);
-let rec evaluate = d => {
-  Eval.transition(evaluate, d);
+
+let rec evaluate = (env, d) => {
+  let u = Eval.transition(evaluate, env, d);
+  switch (Evaluator.unfinished(u)) {
+  | None => u
+  | Some(x) => evaluate(env, x)
+  };
 };
 
 /*
