@@ -7,25 +7,41 @@ module Action = {
     | Insert(string);
 };
 
-let move = (d: Dir.t, z: EZipper.t): option(EZipper.t) =>
-  if (!Ziggurat.is_empty(z.sel)) {
-    Some(EZipper.unselect(d, z));
-  } else {
+let move = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
+  let b = Dir.toggle(d);
+  switch (z.foc) {
+  | Pointing =>
     open OptUtil.Syntax;
-    let+ (c, ctx) = Stepwell.pull_lexeme(~char=true, ~from=d, z.ctx);
-    ctx
-    |> Stepwell.push_lexeme(~onto=Dir.toggle(b), c)
-    |> Stepwell.assemble
-    |> mk;
-  };
-let rec move_n = (n: int, z: EZipper.t): option(EZipper.t) =>
+    let+ (p, ctx) = EStepwell.pull(~from=d, z.ctx);
+    let n = Dir.choose(d, Piece.length(p) - 1, 1);
+    switch (Piece.unzip(n, p)) {
+    | Some((l, r)) =>
+      ctx
+      |> Melder.Stepwell.push_piece(~onto=d, Dir.choose(d, l, r))
+      |> Melder.Stepwell.push_piece(~onto=b, Dir.choose(b, l, r))
+      |> EZipper.mk
+    | None =>
+      ctx
+      |> Melder.Stepwell.push_piece(~onto=b, p)
+      |> EZipper.mk
+    };
+  | Selecting(_, sel) =>
+    z.ctx
+    |> Melder.Stepwell.push_zigg(~onto=b, sel)
+    |> Melder.Stepwell.rebridge
+    |> EZipper.mk
+    |> Option.some
+  }
+};
+
+let rec move_n = (n: int, z: EZipper.t): EZipper.t => {
+  let move = (d, z) => move(d, z) |> OptUtil.get_or_raise(Invalid_argument("Editor.move_n"));
   switch (n) {
-  | _ when n < 0 => Option.bind(move(L, z), move_n(n + 1))
-  | _ when n > 0 => Option.bind(move(R, z), move_n(n - 1))
-  | _zero => Some(z)
+  | _ when n < 0 => z |> move(L) |> move_n(n + 1)
+  | _ when n > 0 => z |> move(R) |> move_n(n - 1)
+  | _zero => z
   };
-let move_or_fail = (n, z) =>
-  move_n(n, z) |> OptUtil.get_or_fail("bug: lost expected cursor position");
+};
 
 let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   open OptUtil.Syntax;
@@ -85,17 +101,18 @@ let save_cursor = (ctx: EStepwell.t) => {
   Melder.Stepwell.meld_or_fail(~onto=L, w, ctx);
 };
 
-let load_cursor = (ctx) =>
+let load_cursor = ctx =>
   ctx
   |> EZipper.zip
   |> EZipper.unzip;
 
+// d is side of cleared focus contents the cursor should end up
 let clear_focus = (d: Dir.t, z: EZipper.t): EStepwell.t => {
   // let ctx = Melder.Stepwell.rebridge(z.ctx);
+  let b = Dir.toggle(d);
   let ws = EZipper.Focus.clear(z.foc);
-  let onto = Dir.toggle(d);
-  let meld = Melder.Stepwell.meld_or_fail(~onto);
-  switch (onto) {
+  let meld = Melder.Stepwell.meld_or_fail(~onto=b);
+  switch (b) {
   | L => List.fold_left(Fun.flip(meld), ctx, ws)
   | R => List.fold_right(meld, ws, ctx)
   };
@@ -110,12 +127,12 @@ let propagate_change = (ctx: EStepwell.t) =>
 
 let insert = (s: string, z: EZipper.t) => {
   let ctx = clear_focus(L, z);
-  let (l, ctx) = EStepwell.pull_lexable(~from=L, ctx);
-  let (r, ctx) = EStepwell.pull_lexable(~from=R, ctx);
+  let (l, ctx) = EStepwell.pull_token(~from=L, ctx);
+  let (r, ctx) = EStepwell.pull_token(~from=R, ctx);
   Lexer.lex(l ++ s ++ r)
   |> List.fold_left(insert_piece, ctx)
   |> propagate_change
-  |> move_or_fail(- Token.length(r));
+  |> move_n(- Token.length(r));
 };
 
 let delete = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
