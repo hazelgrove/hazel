@@ -1,8 +1,3 @@
-// module Result = {
-//   include Util.Result;
-//   type t('ctx) = Util.Result.t(('ctx, ESlope.Dn.t), ESlot.t);
-// };
-
 module Piece = {
   include Piece;
 

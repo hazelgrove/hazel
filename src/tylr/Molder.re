@@ -88,7 +88,7 @@ module Slope = {
       switch (Wald.leq(~without?, hd.wald, ~slot, p)) {
       | Some((eq, lt)) => Ok(([{...hd, wald: eq}, ...tl], lt))
       | None =>
-        let slot = ESlot.Full(M(hd.slot, hd.wald, slot));
+        let slot = ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot));
         mold(~without?, tl, ~slot, p);
       };
     };
