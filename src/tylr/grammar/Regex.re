@@ -17,6 +17,13 @@ let alt = rs => Alt(rs);
 let eps = Seq([]);
 let opt = r => Alt([eps, r]);
 
+let rec atoms =
+  fun
+  | Atom(a) => [a]
+  | Star(r) => atoms(r)
+  | Seq(rs)
+  | Alt(rs) => List.concat_map(atoms, rs);
+
 let rec map = f =>
   fun
   | Atom(a) => Atom(f(a))

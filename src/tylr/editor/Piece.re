@@ -1,12 +1,58 @@
 open Sexplib.Std;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  id: Id.t,
-  material: Material.Molded.t,
-  token: Token.t,
+module Base = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('m) = {
+    id: Id.t,
+    material: 'm,
+    token: Token.t,
+  };
 };
+
+module Labeled = {
+  include Base;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Base.t(Material.t(Tip.s, list(Label.t)));
+  let mk = (~id=?, material, token) => {
+    let id = Id.Gen.value(id);
+    {id, material, token};
+  };
+};
+
+module Molded = {
+  module Grout = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Tip.s;
+  };
+  module Tile = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | Unmolded(Tip.s)
+      | Molded(Mold.t);
+  };
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Base.t(Material.t(Grout.t, Tile.t));
+};
+include Molded;
+
+// let to_labeled =
+//   fun
+//   | Space => Space
+//   | Grout(tips) => Grout(tips)
+//   | Tile(_) => Tile([])
+//   |
+
+let to_labeled = (p: t): Labeled.t => {
+  let mk = m => Labeled.mk(~id=p.id, m, p.token);
+  switch (p.material) {
+  | Space => mk(Space)
+  | Grout(tips) => mk(Grout(tips))
+  | Tile(_) => mk(Tile(Labels.with_prefix(p.token)))
+  };
+};
+
+// let relabel = (p: t): (Material.Labeled)
 
 // well-labeled invariant: for piece p
 // !Label.is_empty(p.material.label) ==> is_prefix(p.token, p.material.label)
@@ -14,7 +60,8 @@ type t = {
 
 let clear = (p: t) =>
   switch (p.material) {
-  | Space | Grout(_) => []
+  | Space
+  | Grout(_) => []
   | Tile(_) => [{...p, token: Token.empty}]
   };
 
@@ -33,9 +80,6 @@ let sort = p => Material.Sorted.of_molded(p.material);
 
 let put_label = (_, _) => failwith("todo Piece.put_label");
 let put_token = (token, p) => {...p, token};
-
-let is_const = p =>
-  Option.bind(Material.to_option(label(p)), Label.is_const);
 
 // None if non constant label
 let label_length = p =>

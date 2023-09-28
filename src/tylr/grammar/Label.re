@@ -10,11 +10,12 @@ type t =
   | Int_lit
   | Float_lit;
 
-module Map =
-  Map.Make({
-    type nonrec t = t;
-    let compare = compare;
-  });
+module Ord = {
+  type nonrec t = t;
+  let compare = compare;
+};
+module Map = Map.Make(Ord);
+module Set = Set.Make(Ord);
 
 let is_empty =
   fun
@@ -23,8 +24,8 @@ let is_empty =
 
 let is_const =
   fun
-  | Const(t) => Some(t)
-  | _ => None;
+  | Const(_) => true
+  | _ => false;
 
 let length = _ => failwith("todo Label.length");
 

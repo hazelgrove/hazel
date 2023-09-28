@@ -7,10 +7,7 @@ let clear =
   fun
   | Empty => []
   | Full((_, M(l, w, r))) => clear(l) @ clear_wald(w) @ clear(r)
-and clear_wald =
-  w
-  |> Chain.to_list(Piece.clear, clear)
-  |> List.concat;
+and clear_wald = w |> Chain.to_list(Piece.clear, clear) |> List.concat;
 
 let has_no_tiles =
   fun

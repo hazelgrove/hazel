@@ -2,9 +2,7 @@ module Piece = {
   include Piece;
 
   let zip = (l: Piece.t, r: Piece.t) =>
-    Id.eq(l.id, r.id)
-    ? Some({...l, token: l.token ++ r.token})
-    : None;
+    Id.eq(l.id, r.id) ? Some({...l, token: l.token ++ r.token}) : None;
 
   let eq = (~without=?, l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) =>
     switch (zip(l, r)) {
@@ -16,7 +14,7 @@ module Piece = {
       |> GWalker.Walked.find(r.material)
       |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
       |> Option.map(ETerrace.R.bake(~slot, ~face=r))
-      |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald));
+      |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald))
     };
 
   let lt = (~without=?, l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
@@ -54,9 +52,7 @@ module Wald = {
   let leq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
     switch (eq(~without?, l, ~slot, r)) {
     | Some(eq) => Some((eq, ESlope.Dn.empty))
-    | None =>
-      lt(~without?, Piece(l), ~slot, r)
-      |> Option.map(lt => (l, lt))
+    | None => lt(~without?, Piece(l), ~slot, r) |> Option.map(lt => (l, lt))
     };
 
   let gt = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: Bound.t(EWald.t)) => {
@@ -68,20 +64,25 @@ module Wald = {
   let geq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
     switch (eq(~without?, l, ~slot, r)) {
     | Some(eq) => Some((ESlope.Up.empty, eq))
-    | None =>
-      gt(~without?, l, ~slot, Piece(r))
-      |> Option.map(gt => (gt, r))
+    | None => gt(~without?, l, ~slot, Piece(r)) |> Option.map(gt => (gt, r))
     };
 };
 
 module Slope = {
   module Dn = {
-    let rec meld = (~bound=Bound.Root, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
+    let rec meld =
+            (
+              ~bound=Bound.Root,
+              dn: ESlope.Dn.t,
+              ~slot=ESlot.Empty,
+              w: EWald.t,
+            ) =>
       switch (dn) {
       | [] => Wald.lt(bound, ~slot, w) |> Option.map(t => [t])
       | [hd, ...tl] =>
         switch (Wald.leq(hd.wald, ~slot, w)) {
-        | Some((eq, lt)) => Some(ESlope.cat(lt, [{...hd, wald: eq}, ...tl]))
+        | Some((eq, lt)) =>
+          Some(ESlope.cat(lt, [{...hd, wald: eq}, ...tl]))
         | None =>
           let slot = ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot));
           meld(~bound, tl, ~slot, w);
@@ -89,23 +90,30 @@ module Slope = {
       };
   };
   module Up = {
-    let rec meld = (~bound=Bound.Root, w: EWald.t, ~slot=ESlot.Empty, up: ESlope.Up.t) =>
+    let rec meld =
+            (
+              ~bound=Bound.Root,
+              w: EWald.t,
+              ~slot=ESlot.Empty,
+              up: ESlope.Up.t,
+            ) =>
       switch (up) {
       | [] => Wald.gt(w, ~slot, bound) |> Option.map(t => [t])
       | [hd, ...tl] =>
         switch (Wald.geq(w, ~slot, hd.wald)) {
-        | Some((gt, eq)) => Some(ESlope.cat(gt, [{...hd, wald: eq}, ...tl]))
+        | Some((gt, eq)) =>
+          Some(ESlope.cat(gt, [{...hd, wald: eq}, ...tl]))
         | None =>
           let slot = ESlot.Full(EMeld.mk(~l=slot, hd.wald, ~r=hd.slot));
           meld(w, ~slot, tl, ~bound);
         }
       };
   };
-}
+};
 
 module Stepwell = {
-  let meld = (~onto: Dir.t, w: EWald.t, well: EStepwell.t)
-             : option(EStepwell.t) => {
+  let meld =
+      (~onto: Dir.t, w: EWald.t, well: EStepwell.t): option(EStepwell.t) => {
     open OptUtil.Syntax;
     let (l, (dn, up), r) = EStepwell.get_bounded_slopes(well);
     let+ slopes =
@@ -197,8 +205,7 @@ module Stepwell = {
       switch (Stepwell.unlink(well)) {
       | Error(_) =>
         let r =
-          Wald.bound(~side=onto, ~slot, w)
-          |> Result.of_option(~error=slot);
+          Wald.bound(~side=onto, ~slot, w) |> Result.of_option(~error=slot);
         (r, put_slopes(slopes, well));
       | Ok((_, (l, r), tl)) =>
         let (r, b') = Slopes.push(~onto, w, ~slot, Bridge.to_slopes(b));

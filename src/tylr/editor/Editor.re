@@ -20,10 +20,7 @@ let move = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
       |> Melder.Stepwell.push_piece(~onto=d, Dir.choose(d, l, r))
       |> Melder.Stepwell.push_piece(~onto=b, Dir.choose(b, l, r))
       |> EZipper.mk
-    | None =>
-      ctx
-      |> Melder.Stepwell.push_piece(~onto=b, p)
-      |> EZipper.mk
+    | None => ctx |> Melder.Stepwell.push_piece(~onto=b, p) |> EZipper.mk
     };
   | Selecting(_, sel) =>
     z.ctx
@@ -31,11 +28,12 @@ let move = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
     |> Melder.Stepwell.rebridge
     |> EZipper.mk
     |> Option.some
-  }
+  };
 };
 
 let rec move_n = (n: int, z: EZipper.t): EZipper.t => {
-  let move = (d, z) => move(d, z) |> OptUtil.get_or_raise(Invalid_argument("Editor.move_n"));
+  let move = (d, z) =>
+    move(d, z) |> OptUtil.get_or_raise(Invalid_argument("Editor.move_n"));
   switch (n) {
   | _ when n < 0 => z |> move(L) |> move_n(n + 1)
   | _ when n > 0 => z |> move(R) |> move_n(n - 1)
@@ -60,29 +58,27 @@ let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   };
 };
 
-let insert_piece = (well: EStepwell.t, ~slot=ESlot.Empty, p: Piece.t) =>
-  switch (Molder.Stepwell.mold(well, ~slot, p)) {
-  | Ok((well, lt)) => EStepwell.cat_slopes((lt, []), well)
-  | Error(_) when Piece.is_unfinished(p) =>
-    // redundant obligation, remove
-    EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []), well);
-  | Error(_) =>
-    let w = Wald.singleton(Piece.unmold(p));
-    well
-    |> EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []))
-    |> Melder.Stepwell.meld_or_fail(~onto=L, w);
-  };
+let insert_piece = (ctx: EStepwell.t, ~slot=ESlot.Empty, p: Piece.Labeled.t) => {
+  let (ctx, lt) =
+    Molder.Stepwell.mold(ctx, ~slot, p)
+    |> OptUtil.get_or_fail("bug: failed to mold");
+  EStepwell.cat_slopes((lt, []), ctx);
+};
+let reinsert_piece = (ctx, ~slot=ESlot.Empty, p: Piece.t) =>
+  insert_piece(ctx, ~slot, Piece.to_labeled(p));
 
-let rec remold_ctx = (~slot=ESlot.Empty, well: EStepwell.t): EStepwell.t =>
-  switch (EStepwell.pop_terrace(~from=R, well)) {
-  | None => EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []), well)
-  | Some((t, well)) =>
-    let (face, rest) = EWald.split_face(~side=L, hd.wald);
-    let inserted = insert_piece(well, ~slot, face);
+let rec remold_ctx = (~slot=ESlot.Empty, ctx: EStepwell.t): EStepwell.t =>
+  switch (EStepwell.pop_terrace(~from=R, ctx)) {
+  | None => EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []), ctx)
+  | Some((t, ctx)) =>
+    let (face, rest) = EWald.split_face(~side=L, t.wald);
+    let inserted = reinsert_piece(ctx, ~slot, face);
     switch (EStepwell.face(~side=L, inserted)) {
     | Some(p) when p.material == face.material =>
       // fast path for when face piece retains mold
-      inserted |> EStepwell.extend_face(~side=L, rest) |> remold_ctx(~slot=t.slot)
+      inserted
+      |> EStepwell.extend_face(~side=L, rest)
+      |> remold_ctx(~slot=t.slot)
     | _ =>
       // otherwise add rest of wald to suffix queue
       let up =
@@ -92,7 +88,7 @@ let rec remold_ctx = (~slot=ESlot.Empty, well: EStepwell.t): EStepwell.t =>
           let t = {...t, wald: Wald.mk(ps, slots)};
           ESlope.Up.(cat(unroll(slot), [t]));
         };
-      well |> EStepwell.cat_slopes(([], up)) |> remold_ctx;
+      ctx |> EStepwell.cat_slopes(([], up)) |> remold_ctx;
     };
   };
 
@@ -101,10 +97,7 @@ let save_cursor = (ctx: EStepwell.t) => {
   Melder.Stepwell.meld_or_fail(~onto=L, w, ctx);
 };
 
-let load_cursor = ctx =>
-  ctx
-  |> EZipper.zip
-  |> EZipper.unzip;
+let load_cursor = ctx => ctx |> EZipper.zip |> EZipper.unzip;
 
 // d is side of cleared focus contents the cursor should end up
 let clear_focus = (d: Dir.t, z: EZipper.t): EStepwell.t => {
@@ -119,11 +112,7 @@ let clear_focus = (d: Dir.t, z: EZipper.t): EStepwell.t => {
 };
 
 let propagate_change = (ctx: EStepwell.t) =>
-  ctx
-  |> save_cursor
-  |> remold_ctx
-  |> load_cursor
-  |> EZipper.mk;
+  ctx |> save_cursor |> remold_ctx |> load_cursor |> EZipper.mk;
 
 let insert = (s: string, z: EZipper.t) => {
   let ctx = clear_focus(L, z);

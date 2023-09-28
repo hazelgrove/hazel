@@ -13,3 +13,9 @@ let is_kid =
   fun
   | Tok(_) => None
   | Kid(s) => Some(s);
+
+module Set =
+  Set.Make({
+    type nonrec t = t;
+    let compare = compare;
+  });

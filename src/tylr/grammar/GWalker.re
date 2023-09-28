@@ -62,7 +62,8 @@ module Descended = {
     |> union;
 };
 
-let rec find_tok = (~slot=Slot.Empty, d: Dir.t, a: GZipper.t(Atom.t)) =>
+let rec find_tok =
+        (~slot=Slot.Empty, d: Dir.t, a: GZipper.t(Atom.t)): Walked.t =>
   switch (Mold.of_atom(a)) {
   | Ok(m) => Walked.single(GTerrace.singleton(~slot, m))
   | Error(s) =>
@@ -71,8 +72,33 @@ let rec find_tok = (~slot=Slot.Empty, d: Dir.t, a: GZipper.t(Atom.t)) =>
     |> Walked.union
   };
 
+// shallow precedence-bounded entry into given sort, stepping to
+// all possible atoms at the entered edge across disjunctions
+let enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(GZipper.t(Atom.t)) =>
+  Grammar.v
+  |> Sort.Map.find(s)
+  |> Prec.Table.map((p, a, rgx) => {
+       let has_kid = List.exists(((atom, _)) => Atom.is_kid(atom));
+       let l_bounded =
+         switch (l) {
+         | Some((s_l, p_l)) when Sort.eq(s_l, s) => Prec.lt(~a, p_l, p)
+         | _ => true
+         };
+       let r_bounded =
+         switch (r) {
+         | Some((s_r, p_r)) when Sort.eq(s, s_r) => Prec.gt(~a, p, p_r)
+         | _ => true
+         };
+
+       let (ls, rs) =
+         Regex.Zipper.(enter(~from=L, rgx), enter(~from=R, rgx));
+       has_kid(ls) && !l_bounded || has_kid(rs) && !r_bounded
+         ? [] : Dir.choose(from, (ls, rs));
+     })
+  |> List.concat;
+
 // deep precedence-bounded entry into given sort and its unidelimited
-// dependencies, stepping to nearest token
+// dependencies, stepping to nearest token (cf G)
 let enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): Walked.t => {
   let seen = Hashtbl.create(100);
   let rec go = (~l=?, ~r=?, s: Sort.t) => {
@@ -226,9 +252,3 @@ let rec descend = (d: Dir.t, bound: Bound.t(Material.Molded.t)): Descended.t => 
     };
   go(bound);
 };
-
-// exists a match across alternatives
-let matches = (~side: Dir.t, m: Mold.t) => walk_eq(~side, m) != [];
-
-// is convex across all alternatives
-let is_convex = (~side: Dir.t, m: Mold.t) => walk_lt(~side, m) == [];

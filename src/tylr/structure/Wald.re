@@ -4,21 +4,21 @@ open Util;
 module Base = Meld.Wald;
 include Base;
 
-module Molded = {
-  type t = Base.t(Slot.Molded.t, Mold.t);
-};
+// module Molded = {
+//   type t = Base.t(Slot.Molded.t, Mold.t);
+// };
 
-module Baked = {
-  type t = Base.t(Slot.)
-}
+// module Baked = {
+//   type t = Base.t(Slot.)
+// }
 
-// "walled" meld, wario to meld's mario
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = Meld.wald('a);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type m = t(Material.Molded.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type p = t(Piece.t);
+// // "walled" meld, wario to meld's mario
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type t('a) = Meld.wald('a);
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type m = t(Material.Molded.t);
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type p = t(Piece.t);
 
 let mk = (ps: list(_), slots: list(Slot.t(_))) => W(Chain.mk(ps, slots));
 let singleton = p => mk([p], []);

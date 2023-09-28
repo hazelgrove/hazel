@@ -15,10 +15,6 @@ module Base = {
 };
 include Base;
 
-module Molded = {
-  type t = Base.t(Tip.s, Tile.t(Tip.s, Mold.t));
-};
-
 module Sorted = {
   type t = Base.t(unit, Tile.t(unit, Sort.t));
 };
@@ -48,7 +44,7 @@ module Molded = {
 
 module Labeled = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Tip.s, Tile.t(Tip.s, Label.t));
+  type t = Base.t(unit, Tile.t(unit, Label.t));
   // let of_molded = m => m |> map_g(_ => ()) |> map_t(Mold.label);
 };
 

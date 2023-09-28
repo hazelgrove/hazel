@@ -44,5 +44,3 @@ module Profile = {
       mk(~has_tokens=l.has_tokens || r.has_tokens, Grout())
     };
 };
-
-module Path
