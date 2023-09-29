@@ -16,7 +16,7 @@ module Base = {
 include Base;
 
 module Sorted = {
-  type t = Base.t(unit, Tile.t(unit, Sort.t));
+  type t = Base.t(unit, Sort.t);
 };
 
 let map_g = f =>

@@ -12,8 +12,7 @@ module Piece = {
     | None =>
       GWalker.walk(R, l)
       |> GWalker.Walked.find(r.material)
-      |> GTerrace.Set.choose_opt
-      |> Option.map(ETerrace.R.bake(~slot, ~face=r))
+      |> ETerrace.R.pick_and_bake(~slot, ~face=r)
       |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald))
     };
 
@@ -22,16 +21,14 @@ module Piece = {
     |> Bound.map(p => p.material)
     |> GWalker.descend(R)
     |> GWalker.Descended.find(r.material)
-    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
-    |> Option.map(ETerrace.R.bake(~slot, ~face=r));
+    |> ESlope.Dn.pick_and_bake(~slot, ~face=r);
 
   let gt = (~without=[], l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
     r
     |> Bound.map(p => p.material)
     |> GWalker.descend(L)
     |> GWalker.Descended.find(l.material)
-    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
-    |> Option.map(ETerrace.L.bake(~slot, ~face=l));
+    |> ESlope.Up.pick_and_bake(~face=l, ~slot);
 };
 
 module Wald = {
@@ -71,21 +68,16 @@ module Wald = {
 module Slope = {
   module Dn = {
     let rec meld =
-            (
-              ~bound=Bound.Root,
-              dn: ESlope.Dn.t,
-              ~slot=ESlot.Empty,
-              w: EWald.t,
-            ) =>
+            (~top=Bound.Root, dn: ESlope.Dn.t, ~slot=ESlot.Empty, w: EWald.t) =>
       switch (dn) {
-      | [] => Wald.lt(bound, ~slot, w) |> Option.map(t => [t])
+      | [] => Wald.lt(top, ~slot, w) |> Option.map(t => [t])
       | [hd, ...tl] =>
         switch (Wald.leq(hd.wald, ~slot, w)) {
         | Some((eq, lt)) =>
           Some(ESlope.cat(lt, [{...hd, wald: eq}, ...tl]))
         | None =>
           let slot = ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot));
-          meld(~bound, tl, ~slot, w);
+          meld(~top, tl, ~slot, w);
         }
       };
   };

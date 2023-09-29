@@ -1,8 +1,6 @@
-open Material;
-
 include Slope;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t = Slope.t(Molded.t, Sorted.t);
+type t = Slope.t(GMaterial.t, GMaterial.Sorted.t);
 
 let consistent = (tips: Tip.s, a: Either.t(Molded.t, GSlot.t)) =>
   switch (a) {

@@ -100,6 +100,26 @@ module Wald = {
 };
 
 module Slope = {
+  let rec mold = (
+    ~bound=Bound.Root,
+    dn: ESlope.Dn.t,
+    ~slot=ESlot.Empty,
+    p: Piece.Labeled.t,
+  )
+  : Result.t((ESlope.Dn.t, ESlope.Dn.t), ESlot.t) =>
+    switch (dn) {
+    | [] => failwith("todo")
+    | [hd, ...tl] =>
+      switch (EWald.face(~side=L, hd.wald), EWald.face(hd.wald, ~side=R)) {
+      | ({material: Grout((l, _)), _}, {material: Grout((_, r)), _}) =>
+        switch (l, r) {
+        | (Convex, Convex) =>
+        }
+      }
+    }
+}
+
+module Slope = {
   let rec mold =
           (
             ~without=[],
