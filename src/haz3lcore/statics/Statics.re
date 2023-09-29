@@ -287,8 +287,8 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
-    add(
-      ~self=Self.match(ctx, e_tys, branch_ids),
+    add'(
+      ~self=InexhaustiveMatch(Common(Self.match(ctx, e_tys, branch_ids))),
       ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
       m,
     );
