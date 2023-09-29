@@ -86,7 +86,7 @@ module Transition = (EV: EV_MODE) => {
       EV.no_req(Constructor(() => Fun(s, Closure(env', x))))
     | Fun(s, x) => EV.no_req(Constructor(() => Fun(s, Closure(env, x))))
     | Closure(env', x) => {
-        let. x' = EV.req_a(continue(env), x);
+        let. x' = EV.req_a(continue(env'), x);
         Step(() => Closure(env', x), () => x', Value);
       }
     | Ap(x, y) => {
