@@ -201,6 +201,7 @@ type pat = {
   cls: Term.Cls.t,
   status: status_pat,
   ty: Typ.t,
+  constraint_: Constraint.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -461,7 +462,17 @@ let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  {cls, self, mode, ty, status, ctx, ancestors, term: upat};
+  {
+    cls,
+    self,
+    mode,
+    ty,
+    status,
+    ctx,
+    ancestors,
+    term: upat,
+    constraint_: Falsity,
+  };
 };
 
 /* Add derivable attributes for types */
