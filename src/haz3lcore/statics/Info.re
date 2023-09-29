@@ -64,7 +64,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_common)) /* Inexhaustive match (optional inconsistent types error) */
+  | InexhaustiveMatch(option(error_exp))
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -323,17 +323,17 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
   | (InexhaustiveMatch(self), _) =>
-    let inconsistent_err =
+    let additional_err =
       switch (status_exp(ctx, mode, self)) {
-      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
+      | InHole(Common(Inconsistent(Internal(_))) as inconsistent_err) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail */
+      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
       | InHole(FreeVariable(_) | InexhaustiveMatch(_)) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
-    InHole(InexhaustiveMatch(inconsistent_err));
+    InHole(InexhaustiveMatch(additional_err));
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
