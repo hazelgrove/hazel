@@ -60,8 +60,11 @@ let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
 
 let insert_piece = (ctx: EStepwell.t, ~slot=ESlot.Empty, p: Piece.Labeled.t) => {
   let (ctx, lt) =
-    Molder.Stepwell.mold(ctx, ~slot, p)
-    |> OptUtil.get_or_fail("bug: failed to mold");
+    switch (Molder.Stepwell.mold(ctx, ~slot, p)) {
+    | Ok(ok) => ok
+    | Error(_) when Piece.is_empty(p) => (ctx, [])
+    | Error(_) => failwith("bug: failed to mold")
+    };
   EStepwell.cat_slopes((lt, []), ctx);
 };
 let reinsert_piece = (ctx, ~slot=ESlot.Empty, p: Piece.t) =>

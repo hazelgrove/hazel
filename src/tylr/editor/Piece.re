@@ -8,6 +8,7 @@ module Base = {
     material: 'm,
     token: Token.t,
   };
+  let is_empty = p => String.eq(p.token, "");
 };
 
 module Labeled = {
@@ -21,6 +22,7 @@ module Labeled = {
 };
 
 module Molded = {
+  include Base;
   module Grout = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Tip.s;
@@ -36,18 +38,12 @@ module Molded = {
 };
 include Molded;
 
-// let to_labeled =
-//   fun
-//   | Space => Space
-//   | Grout(tips) => Grout(tips)
-//   | Tile(_) => Tile([])
-//   |
-
 let to_labeled = (p: t): Labeled.t => {
   let mk = m => Labeled.mk(~id=p.id, m, p.token);
   switch (p.material) {
   | Space => mk(Space)
   | Grout(tips) => mk(Grout(tips))
+  | Tile(Molded(m)) when is_empty(p) => mk(Tile([Mold.label(m)]))
   | Tile(_) => mk(Tile(Labels.with_prefix(p.token)))
   };
 };
