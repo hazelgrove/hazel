@@ -319,17 +319,18 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
+let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
-  | (InexhaustiveMatch(self_pat), _) =>
+  | (InexhaustiveMatch(self), _) =>
     let inconsistent_err =
-      switch (status_common(ctx, mode, self_pat)) {
-      | InHole(Inconsistent(Internal(_)) as inconsistent_err) =>
+      switch (status_exp(ctx, mode, self)) {
+      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(Inconsistent(Expectation(_) | WithArrow(_))) => None /* Type checking should fail */
-      | InHole(NoType(_)) =>
+      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail */
+      | InHole(Common(NoType(_)))
+      | InHole(FreeVariable(_) | InexhaustiveMatch(_)) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(inconsistent_err));
