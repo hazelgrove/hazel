@@ -4,7 +4,7 @@ module Piece = {
   let zip = (l: Piece.t, r: Piece.t) =>
     Id.eq(l.id, r.id) ? Some({...l, token: l.token ++ r.token}) : None;
 
-  let eq = (~without=?, l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) =>
+  let eq = (l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) =>
     switch (zip(l, r)) {
     | Some(p) =>
       assert(Slot.is_empty(slot));
@@ -12,59 +12,59 @@ module Piece = {
     | None =>
       GWalker.walk(R, l)
       |> GWalker.Walked.find(r.material)
-      |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
+      |> GTerrace.Set.choose_opt
       |> Option.map(ETerrace.R.bake(~slot, ~face=r))
       |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald))
     };
 
-  let lt = (~without=?, l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
+  let lt = (~without=[], l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
     l
     |> Bound.map(p => p.material)
     |> GWalker.descend(R)
     |> GWalker.Descended.find(r.material)
-    |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
+    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
     |> Option.map(ETerrace.R.bake(~slot, ~face=r));
 
-  let gt = (~without=?, l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
+  let gt = (~without=[], l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
     r
     |> Bound.map(p => p.material)
     |> GWalker.descend(L)
     |> GWalker.Descended.find(l.material)
-    |> GSlope.Set.pick(~without?, ~slot=ESlot.sort(slot))
+    |> GSlope.Set.pick(~without, ~slot=ESlot.sort(slot))
     |> Option.map(ETerrace.L.bake(~slot, ~face=l));
 };
 
 module Wald = {
-  let eq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) => {
+  let eq = (~without=[], l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) => {
     let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
     let (hd_r, tl_r) = EWald.split_face(~side=L, r);
-    Piece.eq(~without?, hd_l, ~slot, hd_r)
+    Piece.eq(~without, hd_l, ~slot, hd_r)
     |> Option.map(EWald.extend_face(~side=L, tl_l))
     |> Option.map(EWald.extend_face(~side=R, tl_r));
   };
 
-  let lt = (~without=?, l: Bound.t(EWald.t), ~slot=ESlot.Empty, r: EWald.t) => {
+  let lt = (~without=[], l: Bound.t(EWald.t), ~slot=ESlot.Empty, r: EWald.t) => {
     let l = Bound.map(Wald.face(~side=R), l);
     let (hd_r, tl_r) = EWald.split_face(~side=L, r);
-    Piece.lt(~without?, l, ~slot, hd_r)
+    Piece.lt(~without, l, ~slot, hd_r)
     |> Option.map(ETerrace.R.extend_face(tl_r));
   };
-  let leq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
-    switch (eq(~without?, l, ~slot, r)) {
+  let leq = (~without=[], l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
+    switch (eq(l, ~slot, r)) {
     | Some(eq) => Some((eq, ESlope.Dn.empty))
-    | None => lt(~without?, Piece(l), ~slot, r) |> Option.map(lt => (l, lt))
+    | None => lt(~without, Piece(l), ~slot, r) |> Option.map(lt => (l, lt))
     };
 
-  let gt = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: Bound.t(EWald.t)) => {
+  let gt = (~without=[], l: EWald.t, ~slot=ESlot.Empty, r: Bound.t(EWald.t)) => {
     let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
     let r = Bound.map(Wald.face(~side=L), r);
-    Piece.gt(~without?, hd_l, ~slot, r)
+    Piece.gt(~without, hd_l, ~slot, r)
     |> Option.map(ETerrace.L.extend_face(tl_l));
   };
-  let geq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
-    switch (eq(~without?, l, ~slot, r)) {
+  let geq = (~without=[], l: EWald.t, ~slot=ESlot.Empty, r: EWald.t) =>
+    switch (eq(l, ~slot, r)) {
     | Some(eq) => Some((ESlope.Up.empty, eq))
-    | None => gt(~without?, l, ~slot, Piece(r)) |> Option.map(gt => (gt, r))
+    | None => gt(~without, l, ~slot, Piece(r)) |> Option.map(gt => (gt, r))
     };
 };
 

@@ -3,6 +3,12 @@ module Walked = {
   // here i mean molded material
   type t = Material.Map.t(GTerrace.Set.t);
 
+  let find = (m, map) =>
+    switch (find_opt(m, map)) {
+    | Some(set) => set
+    | None => GTerrace.Set.empty
+    };
+
   let union =
     List.fold_left(Material.Map.union(GTerrace.Set.union), Mold.Map.empty);
 

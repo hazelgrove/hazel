@@ -41,20 +41,20 @@ let pick = _ => failwith("todo pick slopes based on obligation scores");
 module Piece = {
   let lt =
       (
-        ~without=?,
+        ~without=[],
         l: Bound.t(Piece.t),
         ~slot=ESlot.Empty,
         r: Piece.Labeled.t,
       ) =>
     candidates(r)
-    |> List.filter_map(Melder.Piece.lt(~without?, l, ~slot))
+    |> List.filter_map(Melder.Piece.lt(~without, l, ~slot))
     |> pick;
 };
 
 module Wald = {
   let lt =
       (
-        ~without=?,
+        ~without=[],
         l: Bound.t(EWald.t),
         ~slot=ESlot.Empty,
         r: Piece.Labeled.t,
@@ -62,13 +62,12 @@ module Wald = {
       : option(ETerrace.R.t) => {
     let l = Bound.map(EWald.face(~side=R), l);
     // let (hd_r, tl_r) = EWald.split_face(~side=L, r);
-    Piece.lt(~without?, l, ~slot, r);
+    Piece.lt(~without, l, ~slot, r);
     // |> Option.map(ESlope.Dn.extend_face(tl_r))
   };
 
   let eq =
-      (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: Piece.Labeled.t)
-      : option(EWald.t) => {
+      (l: EWald.t, ~slot=ESlot.Empty, r: Piece.Labeled.t): option(EWald.t) => {
     open OptUtil.Syntax;
     let/ () =
       // remove unfinished tile and attempt molding against remaining
@@ -78,8 +77,8 @@ module Wald = {
           failwith(
             "todo: unroll s and slot and remold (mold not meld to remove grout where possible)",
           );
-        let without = failwith("todo fold in no unfinished tiles");
-        eq(~without, tl, ~slot, r);
+        // let without = failwith("todo fold in no unfinished tiles");
+        eq(tl, ~slot, r);
       | Error(p)
           when
             Piece.is_unfinished(p)
@@ -91,19 +90,23 @@ module Wald = {
 
     let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
     // let (hd_r, tl_r) = EWald.split_face(~side=L, r);
-    Piece.eq(~without?, hd_l, ~slot, r)
-    |> Option.map(EWald.extend(~side=L, tl_l));
+    Piece.eq(hd_l, ~slot, r) |> Option.map(EWald.extend(~side=L, tl_l));
   };
-  let leq = (~without=?, l: EWald.t, ~slot=ESlot.Empty, r: Piece.Labeled.t) =>
-    switch (eq(~without?, l, ~slot, r)) {
+  let leq = (~without=[], l: EWald.t, ~slot=ESlot.Empty, r: Piece.Labeled.t) =>
+    switch (eq(l, ~slot, r)) {
     | Some(eq) => Some((eq, ESlope.Dn.empty))
-    | None => lt(~without?, Piece(l), ~slot, r) |> Option.map(lt => (l, lt))
+    | None => lt(~without, Piece(l), ~slot, r) |> Option.map(lt => (l, lt))
     };
 };
 
 module Slope = {
   let rec mold =
-          (~without=?, dn: ESlope.Dn.t, ~slot=ESlot.Empty, p: Piece.Labeled.t)
+          (
+            ~without=[],
+            dn: ESlope.Dn.t,
+            ~slot=ESlot.Empty,
+            p: Piece.Labeled.t,
+          )
           : Result.t((ESlope.Dn.t, ESlope.Dn.t), ESlot.t) =>
     switch (dn) {
     | [] => Error(slot)
@@ -117,12 +120,19 @@ module Slope = {
           mold(~without, ESlope.Dn.cat(tl, rest), ~slot, p);
         | _ => None
         };
-      switch (Wald.leq(~without?, hd.wald, ~slot, p)) {
+      switch (Wald.leq(~without, hd.wald, ~slot, p)) {
       | Some((eq, lt)) => Ok(([{...hd, wald: eq}, ...tl], lt))
       | None =>
         let slot = ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot));
-        mold(~without?, tl, ~slot, p);
+        mold(~without, tl, ~slot, p);
       };
+    };
+
+  let rec mold_regrout = (~removed=[], dn: ESlope.Dn.t, p: Piece.Labeled.t) =>
+    switch (dn) {
+    | []
+    | [{material: Tile(_), _}, ..._] => mold(~without=removed, dn, p)
+    | [{material: Space | Grout(_)}] => failwith("todo")
     };
 };
 

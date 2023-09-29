@@ -9,14 +9,7 @@ let mk = (~sort, ~prec, zipper) => {sort, prec, zipper};
 
 let focus = z => fst(z.zipper);
 
-let map = failwith("todo");
-let map_opt = failwith("todo");
+let map = (f, {sort, prec, zipper: (a, ctx)}) =>
+  mk(~sort, ~prec, (f(a), ctx));
 
-// module Bound = {
-//   type t = option((Sort.t, Prec.t));
-
-//   let lt = (b: t, (p, a)) =>
-//     switch (b) {
-//     |
-//     }
-// }
+let put = foc => map(_ => foc);

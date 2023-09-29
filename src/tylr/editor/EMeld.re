@@ -13,7 +13,7 @@ let lift_path = (n: int, slot: Slot.t(t)) =>
   | Full((path, m)) => (Option.map(Path.cons(n), path), Full((None, m)))
   };
 
-let mk = (~l=Slot.Empty, ~r=Slot.Empty, (ps, slots): EWald.t) => {
+let mk = (~l=Slot.Empty, ~r=Slot.Empty, W(ps, slots): Wald.t(Piece.t, t)) => {
   let (path_l, l) = lift_path(0, l);
   let (path_r, r) = lift_path(1 + List.length(slots), r);
   let (paths, slots) =
