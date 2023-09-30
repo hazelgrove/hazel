@@ -36,6 +36,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | NotExhaustive(case)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -90,6 +91,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | NotExhaustive(case)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -130,6 +132,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
+    | NotExhaustive(_) => "NotExhaustive"
     };
 
   let mk_tuple: list(t) => t =
@@ -172,6 +175,10 @@ module rec DHExp: {
       BinStringOp(a, strip_casts(b), strip_casts(c))
     | ConsistentCase(Case(a, rs, b)) =>
       ConsistentCase(
+        Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
+      )
+    | NotExhaustive(Case(a, rs, b)) =>
+      NotExhaustive(
         Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
       )
     | InconsistentBranches(u, i, Case(scrut, rules, n)) =>
@@ -242,7 +249,8 @@ module rec DHExp: {
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
     | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
       fast_equal(d1, d2) && reason1 == reason2
-    | (ConsistentCase(case1), ConsistentCase(case2)) =>
+    | (ConsistentCase(case1), ConsistentCase(case2))
+    | (NotExhaustive(case1), NotExhaustive(case2)) =>
       fast_equal_case(case1, case2)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
@@ -264,7 +272,8 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
-    | (ConsistentCase(_), _) => false
+    | (ConsistentCase(_), _)
+    | (NotExhaustive(_), _) => false
 
     /* Hole forms: when checking environments, only check that
        environment ID's are equal, don't check structural equality.

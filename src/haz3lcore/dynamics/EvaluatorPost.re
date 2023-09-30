@@ -150,6 +150,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | BoundVar(_)
   | Let(_)
   | ConsistentCase(_)
+  | NotExhaustive(_)
   | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
@@ -377,6 +378,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* rules' = pp_uneval_rules(env, rules);
     ConsistentCase(Case(scrut', rules', i)) |> return;
 
+  | NotExhaustive(Case(scrut, rules, i)) =>
+    let* scrut' = pp_uneval(env, scrut);
+    let* rules' = pp_uneval_rules(env, rules);
+    NotExhaustive(Case(scrut', rules', i)) |> return;
+
   /* Closures shouldn't exist inside other closures */
   | Closure(_) => raise(Exception(ClosureInsideClosure))
 
@@ -481,7 +487,8 @@ let rec track_children_of_hole =
       hii,
     )
 
-  | ConsistentCase(Case(scrut, rules, _)) =>
+  | ConsistentCase(Case(scrut, rules, _))
+  | NotExhaustive(Case(scrut, rules, _)) =>
     let hii =
       Util.TimeUtil.measure_time("track_children_of_hole(scrut)", true, () =>
         track_children_of_hole(hii, parent, scrut)

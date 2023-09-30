@@ -69,6 +69,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
+    | NotExhaustive(_)
     | InconsistentBranches(_)
     | Sequence(_)
     | Let(_)
