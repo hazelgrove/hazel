@@ -49,7 +49,7 @@ type t =
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
   | Benchmark(benchmark_action)
-  | Query(Query.t);
+  | PerformQuery(Query.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

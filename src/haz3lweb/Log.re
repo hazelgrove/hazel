@@ -32,7 +32,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Paste(_)
   | Undo
   | Redo
-  | Query(_)
+  | PerformQuery(_)
   | MoveToNextHole(_) => true;
 
 module DB = {
