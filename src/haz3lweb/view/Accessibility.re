@@ -7,7 +7,8 @@ let prov_string: Haz3lcore.Typ.type_provenance => string =
   fun
   | Internal => ""
   | TypeHole => "𝜏"
-  | SynSwitch => "⇒";
+  | SynSwitch => "⇒"
+  | Free(str) => str;
 
 let rec type_string = (ty: Haz3lcore.Typ.t): string =>
   //TODO: parens on ops when ambiguous
@@ -30,12 +31,13 @@ let rec type_string = (ty: Haz3lcore.Typ.t): string =>
          @ (List.map(t => [",", type_string(t)], ts) |> List.flatten),
        )
     ++ ")"
-  | Sum(t1, t2) => type_string(t1) ++ "+" ++ type_string(t2)
+  | Sum(_) => "sum" //TODO
   };
 
 let kind_string = (ty: Haz3lcore.Kind.t): string =>
   switch (ty) {
-  | Type => "Singleton"
+  | Singleton(_) => "Singleton"
+  | Abstract => "Abstract"
   };
 
 let extra_info_string = (id: int, ci: Haz3lcore.Statics.t): string => {
