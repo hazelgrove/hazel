@@ -76,19 +76,19 @@ module Slope = {
         | Some((eq, lt)) =>
           Some(ESlope.cat(lt, [{...hd, wald: eq}, ...tl]))
         | None =>
-          let slot = ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot));
+          let slot =
+            switch (Wald.gt(hd.wald, ~slot, Piece(w))) {
+            | Some(gt) => ESlope.Up.roll(~slot=hd.slot, gt)
+            | None => ESlot.Full(EMeld.mk(~l=hd.slot, hd.wald, ~r=slot))
+            };
           meld(~top, tl, ~slot, w);
         }
       };
   };
   module Up = {
+    // L2R: w slot up top
     let rec meld =
-            (
-              ~bound=Bound.Root,
-              w: EWald.t,
-              ~slot=ESlot.Empty,
-              up: ESlope.Up.t,
-            ) =>
+            (~top=Bound.Root, w: EWald.t, ~slot=ESlot.Empty, up: ESlope.Up.t) =>
       switch (up) {
       | [] => Wald.gt(w, ~slot, bound) |> Option.map(t => [t])
       | [hd, ...tl] =>
@@ -96,7 +96,11 @@ module Slope = {
         | Some((gt, eq)) =>
           Some(ESlope.cat(gt, [{...hd, wald: eq}, ...tl]))
         | None =>
-          let slot = ESlot.Full(EMeld.mk(~l=slot, hd.wald, ~r=hd.slot));
+          let slot =
+            switch (Wald.lt(Piece(w), ~slot, hd.wald)) {
+            | Some(lt) => ESlope.Dn.roll(lt, ~slot=hd.slot)
+            | None => ESlot.Full(EMeld.mk(~l=slot, hd.wald, ~r=hd.slot))
+            };
           meld(w, ~slot, tl, ~bound);
         }
       };

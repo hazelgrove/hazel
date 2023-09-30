@@ -2,21 +2,33 @@ include Slope;
 
 type t = Slope.t(Piece.t, EMeld.t);
 
+let baked_empty = Invalid_argument("cannot bake empty slope");
+
 module Dn = {
   include Dn;
 
+  // L2R: dn slot
+  let rec roll = (~slot=ESlot.Empty, dn: t) =>
+    switch (dn) {
+    | [] => slot
+    | [hd, ...tl] =>
+      let m = EMeld.mk(~l=hd.slot, hd.wald, ~r=slot);
+      roll(tl, ~slot=Full(m));
+    };
+
   let bake = (~face=?) =>
     fun
-    | [] => raise(Invalid_argument("ESlope.Dn.bake"))
+    | [] => raise(baked_empty)
     | [hd, ...tl] => [
         ETerrace.bake(~face?, hd),
         ...List.map(ETerrace.bake, tl),
       ];
 
+  // checks for strict
   let bake_with = (~slot=ESlot.Empty, ~face=?, dn: GSlope.Dn.t) => {
     let rec go = (~slot, dn) =>
       switch (GSlope.Dn.pull_top(dn)) {
-      | None => raise(Invalid_argument("ESlope.Dn.bake_with"))
+      | None => raise(baked_empty)
       | Some((t, [])) =>
         ETerrace.bake_with(~slot, ~face?, t) |> Option.map(t => [t])
       | Some((top, [_, ..._] as dn)) =>
@@ -31,7 +43,7 @@ module Dn = {
   };
 
   let pick_and_bake = (~slot: ESlot.t, ~face: Piece.t, ss: GSlope.Set.t) =>
-    ESlot.peeled(slot)
+    ESlot.degrout(slot)
     |> List.fold_left(
          (baked, sort) =>
            switch (baked) {
@@ -43,23 +55,12 @@ module Dn = {
            },
          None,
        );
-
-  // L2R: dn slot
-  let rec roll = (~slot=Slot.Empty, dn: t) =>
-    switch (dn) {
-    | [] => slot
-    | [hd, ...tl] =>
-      let m = EMeld.mk(~l=hd.slot, hd.wald, ~r=slot);
-      roll(tl, ~slot=Full(m));
-    };
-
-  let prune = (dn: t): list((t, Obligation.t)) => failwith("todo");
 };
 
 module Up = {
   include Slope.Up;
 
-  let rec roll = (~slot=Slot.Empty, up: t) =>
+  let rec roll = (~slot=ESlot.Empty, up: t) =>
     switch (up) {
     | [] => slot
     | [hd, ...tl] =>
