@@ -129,6 +129,19 @@ let copy = (str: string) => {
   );
 };
 
+let scroll_cursor_into_view_if_needed = () => {
+  let caret_elem = get_elem_by_id("caret");
+  let main = get_elem_by_id("main");
+  let main_rect = main##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+
+  if (caret_rect##.top < main_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > main_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
+};
+
 module Fragment = {
   let set_current = frag => {
     let frag =

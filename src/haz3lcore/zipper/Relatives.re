@@ -54,6 +54,16 @@ let parent =
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
 
+let delete_parent = ({siblings, ancestors}: t): t => {
+  switch (ancestors) {
+  | [] => {siblings, ancestors}
+  | [(_, p_sibs), ...ancestors] => {
+      siblings: Siblings.concat([siblings, p_sibs]),
+      ancestors,
+    }
+  };
+};
+
 let disassemble = ({siblings, ancestors}: t): Siblings.t =>
   Siblings.concat([siblings, Ancestors.disassemble(ancestors)]);
 
@@ -63,49 +73,43 @@ let remold = ({siblings, ancestors}: t): t => {
   {ancestors, siblings};
 };
 
-let regrout = (d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
-  open IdGen.Syntax; /* Direction is side of grout caret will end up on */
+let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
+  /* Direction is side of grout caret will end up on */
 
-  let* ancestors = Ancestors.regrout(ancestors);
-  let+ siblings = {
-    let* ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
+  let ancestors = Ancestors.regrout(ancestors);
+  let siblings = {
+    let ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
       Siblings.regrout(siblings);
-    let+ (trim_l, trim_r) = {
+    let (trim_l, trim_r) = {
       open Segment.Trim;
       let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
       let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
       switch (ListUtil.split_last_opt(gs_l), gs_r) {
       | (Some((_, g_l)), [g_r, ..._]) =>
-        IdGen.return(
-          Grout.fits(g_l, g_r)
-            // note: assumes single grout invariant in un-caret-interrupted trim
-            ? (ws(trim_l), ws(trim_r))  //(ws(trim_l), seg_r)
-            : (
-              switch (d) {
-              | Left => (ws(trim_l), seg_r)
-              | Right => (seg_l, ws(trim_r))
-              }
-            ),
-        )
+        Grout.fits(g_l, g_r)
+          // note: assumes single grout invariant in un-caret-interrupted trim
+          ? (ws(trim_l), ws(trim_r))  //(ws(trim_l), seg_r)
+          : (
+            switch (d) {
+            | Left => (ws(trim_l), seg_r)
+            | Right => (seg_l, ws(trim_r))
+            }
+          )
       | (Some((_, g)), []) =>
-        IdGen.return(
-          Grout.fits_shape(g, s_r) ? (seg_l, seg_r) : (ws(trim_l), seg_r),
-        )
+        Grout.fits_shape(g, s_r) ? (seg_l, seg_r) : (ws(trim_l), seg_r)
       | (None, [g, ..._]) =>
-        IdGen.return(
-          Grout.fits_shape(g, s_l) ? (seg_l, seg_r) : (seg_l, ws(trim_r)),
-        )
+        Grout.fits_shape(g, s_l) ? (seg_l, seg_r) : (seg_l, ws(trim_r))
       | (None, []) =>
         Nib.Shape.fits(s_l, s_r)
-          ? IdGen.return((seg_l, seg_r))
+          ? (seg_l, seg_r)
           // can modulate with directional arg
           : (
             switch (d) {
             | Left =>
-              let+ trim = add_grout(s_r, trim_r);
+              let trim = add_grout(~d=Right, s_r, trim_r);
               (seg_l, to_seg(trim));
             | Right =>
-              let+ trim = add_grout(s_l, trim_l);
+              let trim = add_grout(~d=Left, s_l, trim_l);
               (to_seg(trim), seg_r);
             }
           )

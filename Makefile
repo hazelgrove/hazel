@@ -9,16 +9,11 @@ deps:
 change-deps:
 	opam switch export opam.export
 
-update-ocaml:
-	opam update
-	opam switch create 4.14 ocaml-base-compiler.4.14.0
-	opam switch import opam.export --update-invariant
-
 setup-instructor:
-	cp src/haz3lweb/SchoolSettings_instructor.re src/haz3lweb/SchoolSettings.re
+	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/SchoolSettings_student.re src/haz3lweb/SchoolSettings.re
+	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
 
 dev-helper: 
 	dune build @src/fmt --auto-promote src --profile dev
@@ -40,7 +35,7 @@ release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release
 
 release-student: setup-student
-	dune build @src/fmt --auto-promote src --profile release
+	dune build @src/fmt --auto-promote src --profile dev
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"
@@ -52,7 +47,7 @@ serve2:
 	cd $(HTML_DIR); python3 -m http.server 8001
 
 repl:
-	dune utop src/hazelcore
+	dune utop src/haz3lcore
 
 test:
 	dune build @src/fmt --auto-promote || true

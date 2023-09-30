@@ -11,28 +11,33 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(Editors.mode);
+  | Mode(ModelSettings.mode);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type benchmark_action =
+  | Start
+  | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Set(settings_action)
-  | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
-  | ResetSlide
+  | ExportPersistentData
+  | ResetCurrentEditor
   | Save
-  | ToggleMode
-  | SwitchSlide(int)
-  | SwitchEditor(int)
+  | SetMode(ModelSettings.mode)
+  | SwitchScratchSlide(int)
+  | SwitchExampleSlide(string)
+  | SwitchEditor(Exercise.pos)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
-  | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Cut
   | Copy
   | Paste(string)
@@ -43,7 +48,8 @@ type t =
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | Play(AccessibilityInfo.t);
+  | Play(AccessibilityInfo.t)
+  | Benchmark(benchmark_action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,7 +60,6 @@ module Failure = {
     | CantReset
     | FailedToLoad
     | FailedToSwitch
-    | UnrecognizedInput(FailedInput.reason)
     | FailedToPerform(Action.Failure.t)
     | Exception(string);
 };
@@ -63,3 +68,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Cut
+  | Undo
+  | Redo
+  | PerformAction(Insert(_) | Destruct(_) | Pick_up | Put_down) => true
+  | _ => false;

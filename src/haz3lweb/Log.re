@@ -1,16 +1,9 @@
-/*
-   Logging system for actions. Persists log in local storage.
-
-   Careful: local storage has a maximum size of around 5MB in most browsers. Once
-   this limit is exceeded, remaining entries are printed to console rather than
-   persisted.
- */
+/* Logging system for actions. Persists log via IndexedDB */
 
 open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
   | Save
@@ -20,109 +13,105 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateResult(_)
-  | DebugAction(_) => false
-  | ResetCurrentEditor
-  | Set(_)
+  | DebugAction(_)
+  | ExportPersistentData
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | ResetSlide
-  | ToggleMode
-  | SwitchSlide(_)
+  | Benchmark(_) => false
+  | Set(_)
+  | SetMode(_)
+  | UpdateLangDocMessages(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
   | SwitchEditor(_)
+  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | PerformAction(_)
-  | FailedInput(_)
   | Cut
   | Copy
   | Paste(_)
   | Undo
   | Redo
   | MoveToNextHole(_)
-  | UpdateLangDocMessages(_)
   | Play(_) => true;
 
-let storage_key = "LOG_" ++ SchoolSettings.log_key;
-let max_log_string_length = 4_750_000; // based on 5MB limit on localstore in browser
+module DB = {
+  open Ezjs_idb;
+
+  module Store = Ezjs_idb.Store(StringTr, StringTr);
+
+  type db = Ezjs_min.t(Types.iDBDatabase);
+
+  let db_name = "hazel_db";
+  let table_name = "log";
+
+  let kv_store = (db: db): Store.store =>
+    Store.store(~mode=READWRITE, db, table_name);
+
+  let with_db = (f): unit => {
+    let error = _: unit => print_endline("ERROR: Log.IDBKV.open");
+    let upgrade = (db: db, e: db_upgrade): unit =>
+      e.new_version >= 1 && e.old_version == 0
+        ? ignore(Store.create(db, table_name)) : ();
+    openDB(~upgrade, ~error, ~version=1, db_name, db => f(db));
+  };
+
+  let add = (key: string, value: string): unit =>
+    with_db(db =>
+      Store.add(~key, ~callback=_key => (), kv_store(db), value)
+    );
+
+  let get = (key: string, f: option(string) => unit): unit => {
+    let error = _ => Printf.printf("ERROR: Log.IDBKV.get");
+    with_db(db => Store.get(~error, kv_store(db), f, K(key)));
+  };
+
+  let get_all = (f: list(string) => unit): unit => {
+    let error = _ => Printf.printf("ERROR: Log.IDBKV.get_all");
+    with_db(db => Store.get_all(~error, kv_store(db), f));
+  };
+
+  let clear_and = (callback): unit => {
+    let error = _ => Printf.printf("ERROR: Log.IDBKV.clear");
+    with_db(db => Store.clear(~error, ~callback, kv_store(db)));
+  };
+};
 
 module Entry = {
   [@deriving (show({with_path: false}), yojson, sexp)]
   type t = (Model.timestamp, UpdateAction.t);
 
+  [@deriving (show({with_path: false}), yojson, sexp)]
+  type s = list(t);
+
   let mk = (update): t => {
     (JsUtil.timestamp(), update);
   };
 
-  let to_string = ((timestamp, update): t) => {
-    /*let status =
-      switch (entry.error) {
-      | None => "SUCCESS"
-      | Some(failure) => "FAILURE(" ++ UpdateAction.Failure.show(failure) ++ ")"
-      };*/
-    Printf.sprintf(
-      "%.0f: %s",
-      timestamp,
-      UpdateAction.show(update),
-      //status,
+  let save = ((ts, action): t) =>
+    DB.add(
+      Printf.sprintf("%.0f", ts),
+      (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string,
     );
-  };
-
-  let serialize = (entry: t): string => {
-    entry |> sexp_of_t |> Sexplib.Sexp.to_string;
-  };
-
-  let deserialize = (s: string): t => {
-    s |> Sexplib.Sexp.of_string |> t_of_sexp;
-  };
 };
 
-let init_log = () => {
-  JsUtil.set_localstore(storage_key, "");
-};
+let import = (data: string): unit =>
+  /* Should be fine to fire saves concurrently? */
+  DB.clear_and(() =>
+    try(
+      data
+      |> Sexplib.Sexp.of_string
+      |> Entry.s_of_sexp
+      |> List.iter(Entry.save)
+    ) {
+    | _ => Printf.printf("Log.Entry.import: Deserialization error")
+    }
+  );
 
-let rec get_log_string = () => {
-  switch (JsUtil.get_localstore(storage_key)) {
-  | Some(log) => log
-  | None =>
-    init_log();
-    get_log_string();
-  };
-};
-
-let append_entry = (entry: Entry.t) => {
-  let log_string = get_log_string();
-  let entry_string = Entry.serialize(entry);
-  let new_log_string = log_string ++ entry_string;
-  if (String.length(new_log_string) >= max_log_string_length) {
-    print_endline("Log limit exceeded. Printing new entries to console.");
-    print_endline("Log entry: " ++ entry_string);
-  } else {
-    JsUtil.set_localstore(storage_key, new_log_string);
-  };
-};
-
-[@deriving sexp]
-type entries = list(Entry.t);
-
-let logstring_to_entries = (s: string) => {
-  // make the adjacent entries into a single list and deserialize as an sexp
-  "(" ++ s ++ ")" |> Sexplib.Sexp.of_string |> entries_of_sexp;
-};
-
-let entries_to_logstring = (entries: entries): string => {
-  let s = entries |> sexp_of_entries |> Sexplib.Sexp.to_string;
-  // chop off leading and trailing parens
-  String.sub(s, 1, String.length(s) - 2);
-};
-
-let export = () => {
-  get_log_string();
-};
-
-let import = data => {
-  JsUtil.set_localstore(storage_key, data);
-};
-
-let update = (action: UpdateAction.t) =>
+let update = (action: UpdateAction.t): unit =>
   if (is_action_logged(action)) {
-    let new_entry = Entry.mk(action);
-    append_entry(new_entry);
+    Entry.save(Entry.mk(action));
   };
+
+let get_and = (f: string => unit): unit =>
+  DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));

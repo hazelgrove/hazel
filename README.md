@@ -1,15 +1,15 @@
 # Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg)
 
-[![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
-
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
 website](https://hazel.org/).
 
-You can try Hazel online with either the
-[trunk](https://hazel.org/build/trunk/index.html) or
-[dev](https://hazel.org/build/dev/index.html) version. Note that the trunk
-branch is updated infrequently and is currently almost two years behind!
+You can try Hazel online: the 
+[dev](https://hazel.org/build/dev) branch is the main branch at the
+moment. Every other branch that has been pushed to GitHub and successfully builds
+can also be accessed at:
+
+  `https://hazel.org/build/<branch_name>`
 
 <!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
 
@@ -17,7 +17,7 @@ branch is updated infrequently and is currently almost two years behind!
 
 ### Short version
 
-If you already have `ocaml` version 4.14.0 and least version 2.0 of `opam`
+If you already have `ocaml` version 5.0.0 and least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -26,13 +26,13 @@ installed, you can build Hazel by running the following commands.
 - `make dev`
 
 To view Hazel, you have to serve it, on localhost for development (you can't
-run it from a `file:///` URL due to browser restrictions on web workers.) 
+run it from a `file:///` URL due to browser restrictions on e.g. web workers.) 
 
 If you have `python3` on your path, you can use the Python server via 
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
 
-Otherwise, run `make echo-html-dir` for the directory that needs to be served
-using the server of your choice.
+Otherwise, run `make echo-html-dir` which will echo the directory that needs 
+to be served using some other server of your choice.
 
 ### Long Version
 
@@ -44,16 +44,20 @@ instructions contained in [INSTALL.md](INSTALL.md).
 
 ### From OCaml to ReasonML
 
+Hazel is written in ReasonML, which is a syntactic sugar atop OCaml. 
 This link lets you type OCaml and see what the corresponding ReasonML syntax is:
 <https://reasonml.github.io/en/try>.
 
 This is useful if you are trying to figure out the ReasonML syntax for something
 that you know the OCaml syntax for.
 
+You can also convert between OCaml and ReasonML syntax at the terminal using
+`refmt` at the terminal. See `refmt --help` for the details.
+
 ### Suggested Extensions for VS Code
 
-Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
-are a few extensions that might be helpful.
+Most of our team uses Visual Studio Code (VS Code) to write code. 
+If you use VS Code, here are a few extensions that might be helpful.
 
 - This extension provides full support for editing ReasonML source code and
   relevant tools:
@@ -84,7 +88,7 @@ If you enjoy your Vim binding and Vim setup, the following may help you set up y
 If you use vim, I recommend you to switch to NeoVim since it has a better support for multi-thread,
 and thus less likely to block you when you are programming.
 
-To set up the LSP(Language Server Protocal), you need to set up your Language Client for Neovim and Language Server for ocaml.
+To set up the LSP (Language Server Protocol), you need to set up your Language Client for Neovim and Language Server for ocaml.
 - [ocaml-language-server](https://www.npmjs.com/package/ocaml-language-server)
 - [LanguageClient-neovim](https://github.com/autozimu/LanguageClient-neovim)
 
@@ -107,8 +111,7 @@ nnoremap <silent> <F2> :call LanguageClient#textDocument_rename()<CR>
 
 ### Build System Details
 
-Hazel is implemented in Reason (a dialect of OCaml) and is compiled to
-Javascript for the web browser via the `js_of_ocaml` compiler.
+Hazel is compiled to Javascript for the web browser via the `js_of_ocaml` compiler.
 
 Though `make` targets are provided as a convenience, they mostly translate to
 `dune` commands.
@@ -130,28 +133,62 @@ The `make dev` and `make release` commands do three things:
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
 
 For a smoother dev experience, use `make watch` to automatically watch 
-for file changes. This will require installing `fswatch` (see INSTALL.md).
+for file changes. This may require installing `fswatch` (see INSTALL.md).
 You can also run `make watch-release` to continuously build the release
 build (takes longer per build).
-   
+
+#### Clean Build
+
+To obtain an clean build, you may need to:
+
+- Clone the repository (if you have not), and
+  enter the project root of your cloned Hazel project.
+
+  ```sh
+  git clone git@github.com:hazelgrove/hazel.git
+  cd hazel
+  ```
+
+- Setup a local OCaml environment specific to the project, and compile.
+  If you have setup a local OCaml environment (there is a directory
+  called `_opam`), you may want to first remove it.
+
+  ```sh
+  # opam switch remove ./
+  opam switch create ./ 5.0.0
+  eval $(opam env)
+  make deps
+  make
+  ```
+
+This sets up a standalone OCaml environment in the cloned project,
+independent of the one you sent in your home directory. This allow you to
+alternate dependencies, or test dependencies changes, without affect
+existing OCaml projects.
+
+NOTE: You may see the following warning when building:
+
+```
+Warning 58 [no-cmx-file]: no cmx file was found in path for module Ezjs_idb, and its interface was not compiled with -opaque
+```
+
+This is due to an upstream library issue and does not cause problems with Hazel: 
+
+  https://github.com/OCamlPro/ezjs_idb/issues/1
+
 ### Debugging
 
 #### Printing
 You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
+Most datatypes in the codebase have something like `[@deriving (show({with_path: false}), sexp, yojson)]` on them. This generates
+helper functions for printing and serializing this data. For a type named `t`, the `show` function will be named `show`. Otherwise,
+for a type named something else like `q`, it will be `show_q`.
 
 #### Source Maps
 `js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
 
 #### Debug Mode
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
-
-### Testing
-
-You can run all of the unit tests located in `src/hazelcore/test` by running `make test`.
-
-Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
-
-If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.
 
 ### Continuous Integration
 
