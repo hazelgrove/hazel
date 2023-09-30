@@ -48,7 +48,8 @@ type t =
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
-  | Benchmark(benchmark_action);
+  | Benchmark(benchmark_action)
+  | Query(Query.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

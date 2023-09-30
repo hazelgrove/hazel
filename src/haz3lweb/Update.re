@@ -101,6 +101,7 @@ let reevaluate_post_update =
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
+  | Query(_)
   | ExportPersistentData => false
   | Benchmark(_)
   // may not be necessary on all of these
@@ -383,6 +384,7 @@ let apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
+    | Query(_) => Ok(model) //TODO
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
