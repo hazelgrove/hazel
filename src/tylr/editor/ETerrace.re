@@ -22,17 +22,22 @@ module R = {
     };
 
   // assuming ts was already filtered to those matching face.material
-  let pick_and_bake = (~slot: ESlot.t, ~face: Piece.t, ts: GTerrace.Set.t) =>
-    ESlot.peeled(slot)
-    |> List.fold_left(
-         (baked, slot) =>
-           switch (baked) {
-           | Some(_) => baked
-           | None =>
-             GTerrace.Set.elements(ts)
-             |> List.filter_map(bake_with(~slot, ~face))
-             |> ListUtil.hd_opt
-           },
-         None,
-       );
+  let pick_and_bake = (~slot: ESlot.t, ~face: Piece.t, ts: GTerrace.Set.t) => {
+    open OptUtil.Syntax;
+    let degrouted = ESlot.degrout(slot);
+    let/ () =
+      degrouted
+      |> List.fold_left(
+          (baked, slot) =>
+            switch (baked) {
+            | Some(_) => baked
+            | None =>
+              GTerrace.Set.elements(ts)
+              |> List.filter_map(bake_with(~slot, ~face))
+              |> ListUtil.hd_opt
+            },
+          None,
+        );
+  };
+
 };
