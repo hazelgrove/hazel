@@ -283,7 +283,26 @@ and uexp_to_info_map =
         es,
         p_ctxs,
       );
-    // let rec ruls_to_info_map = (xi_pre: Constraint.t, m) => (xi_pre, m);
+
+    let type_of_exp = (rule: UExp.t): Typ.t => {
+      let (inf, _) =
+        uexp_to_info_map(
+          ~ctx=Builtins.ctx_init,
+          ~ancestors=[],
+          rule,
+          Id.Map.empty,
+        );
+      inf.ty;
+    };
+
+    let rec ruls_to_info_map = (rules: list(UExp.t)): list(Typ.t) => {
+      List.fold_left(
+        (acc, rule) => {List.append(acc, [type_of_exp(rule)])},
+        [],
+        rules,
+      );
+    };
+
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
