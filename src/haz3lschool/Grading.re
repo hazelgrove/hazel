@@ -171,10 +171,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
 
     let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
-      let user_impl_term =
-        Util.TimeUtil.measure_time("user_impl_term_syntax", true, () =>
-          EditorUtil.stitch([your_impl])
-        );
+      let user_impl_term = EditorUtil.stitch([your_impl]);
 
       let predicates = List.map(((_, p)) => p, tests);
       let hints = List.map(((h, _)) => h, tests);
