@@ -1,3 +1,21 @@
+module Material = {
+  include Material;
+
+  let leq = ((l: Bound.t(Material.t), r: Material.t)) =>
+    GWalker.walk(R, l)
+    |> GWalker.Walked.find(r.material)
+    |> List.filter(GWalker.Walk.leq);
+  let leq = FunUtil.curry2(Core.Memo.general(leq));
+
+  let geq = ((l: Material.t, r: Bound.t(Material.t))) =>
+    GWalker.walk(L, r)
+    |> GWalker.Walked.find(l.material)
+    |> List.filter(GWalker.Walk.geq);
+  let geq = FunUtil.curry2(Core.Memo.general(leq));
+};
+
+// WIP CHECKPOINT
+
 module Piece = {
   include Piece;
 
@@ -19,8 +37,8 @@ module Piece = {
   let lt = (~without=[], l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
     l
     |> Bound.map(p => p.material)
-    |> GWalker.descend(R)
-    |> GWalker.Descended.find(r.material)
+    |> GWalker.walk(R)
+    |> GWalker.Walked.find(r.material)
     |> ESlope.Dn.pick_and_bake(~slot, ~face=r);
 
   let gt = (~without=[], l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>

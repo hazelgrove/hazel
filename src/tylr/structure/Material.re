@@ -1,23 +1,29 @@
 open Sexplib.Std;
 
-module Tile = {
-  type t('u, 'm) =
-    | Unmolded('u)
-    | Molded('m);
-};
-
 module Base = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('g, 't) =
     | Space
     | Grout('g)
     | Tile('t);
 };
-include Base;
 
-module Sorted = {
-  type t = Base.t(unit, Sort.t);
+module Tile = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t('u, 'm) =
+    | Unmolded('u)
+    | Molded('m);
 };
+
+// module Sorted = {
+//   type t = Base.t(unit, Sort.t);
+// };
+
+module Molded = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t = Base.t(Tip.s, Tile.t(Tip.s, Mold.t));
+};
+include Molded;
 
 let map_g = f =>
   fun

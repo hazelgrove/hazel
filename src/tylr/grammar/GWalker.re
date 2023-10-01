@@ -1,37 +1,101 @@
+module Walk = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t = {
+    eq: option(GTerrace.t),
+    // top-down
+    neq: GSlope.t,
+  };
+
+  let eq = t => {eq: Some(t), neq: []};
+
+  let eq_xor_neq = w =>
+    switch (w.neq) {
+    | [] => Option.is_some(w.eq)
+    | [_, ..._] => Option.is_none(w.eq)
+    };
+
+  let eq_steps = w => w.eq |> Option.map(GTerrace.root) |> Option.value(~default=[]);
+  let neq_steps = w => List.map(GTerrace.root, w.neq);
+
+  let no_spurious_tiles = w =>
+    neq_steps(w)
+    |> ListUtil.split_last_opt
+    |> Option.map(((leading, _)) =>
+      List.concat(leading)
+      |> List.for_all(m => Option.is_none(Material.is_tile(m)))
+    );
+
+  let short_neq = w =>
+    w.neq
+    |> List.for_all(t => Terrace.length(t) == 1);
+
+  let leq = w => {
+    let seen_tile =
+      eq_steps(w)
+      |> List.filter_map(Material.is_tile)
+      |> List.is_empty
+      |> Bool.not;
+    seen_tile
+    ? List.is_empty(w.neq)
+    : no_spurious_tiles(w) && short_neq(w);
+  };
+
+  let geq = w => {
+    let seen_tile =
+      eq_steps(w)
+      |> List.filter_map(Material.is_tile)
+      |> List.is_empty
+      |> Bool.not;
+    seen_tile
+    ? List.is_empty(w.neq)
+    : no_spurious_tiles(w);
+  };
+
+  let face = walk => {
+    open OptUtil.Syntax;
+    let/ () = GSlope.face(walk.neq);
+    Option.map(GTerrace.face, walk.eq);
+  };
+};
+
 module Walked = {
   include Material.Map;
-  // here i mean molded material
-  type t = Material.Map.t(GTerrace.Set.t);
+  type t = Material.Map(list(Walk.t));
+
+  let add = (walk) =>
+    update(
+      Walk.face(walk),
+      fun
+      | None => [walk]
+      | Some(walks) => ListUtil.dedup([walk, ...walks]),
+    );
+
+  let single = (walk: Walk.t) =>
+    switch (Walk.face(walk)) {
+    | None => empty
+    | Some(m) => singleton(m, [walk])
+    };
+  let many = List.fold_left(Fun.flip(add), empty);
 
   let find = (m, map) =>
     switch (find_opt(m, map)) {
-    | Some(set) => set
-    | None => GTerrace.Set.empty
+    | None => []
+    | Some(ws) => ws
     };
 
-  let union =
-    List.fold_left(Material.Map.union(GTerrace.Set.union), Mold.Map.empty);
+  let union = union((_, l, r) => ListUtil.dedup(l @ r));
+  let union_all = List.fold_left(union, empty);
 
-  let add = (t: GTerrace.t) =>
-    update(
-      GTerrace.face(t),
-      fun
-      | None => Set.singleton(t)
-      | Some(set) => Set.add(t, set),
-    );
+  let filter = (p: Walk.t => bool) => map(List.filter(p));
 
-  let single = (t: GTerrace.t) =>
-    singleton(GTerrace.face(t), Set.singleton(t));
-
-  let bind = (stepped: t, f: GTerrace.t => t) =>
-    ListUtil.Syntax.(
-      {
-        let* (_, ts) = bindings(stepped);
-        let* t = GTerrace.Set.to_list(ts);
-        f(t);
-      }
-    )
-    |> union;
+  let bind = (stepped: t, f: Walk.t => t) =>
+    {
+      open ListUtil.Syntax;
+      let* (_, ws) = bindings(stepped);
+      let* w = ws;
+      f(w);
+    }
+    |> union_all;
 
   module Syntax = {
     let return = single;
@@ -39,67 +103,84 @@ module Walked = {
   };
 };
 
-module Descended = {
-  include Material.Map;
-  type t = Material.Map.t(GSlope.Set.t);
-
-  let of_walked = Material.Map.map(GTerrace.Set.map(GSlope.single));
-
-  let find = (m, map) =>
-    switch (find_opt(m, map)) {
-    | None => GSlope.Set.Empty
-    | Some(set) => set
-    };
-
-  // empty if s empty
-  let single = (s: GSlope.t) =>
-    switch (GSlope.face(s)) {
-    | None => empty
-    | Some(m) => singleton(m, GSlope.Set.singleton(s))
-    };
-
-  let bind = (desc: t, f: GSlope.t => t) =>
-    {
-      open ListUtil.Syntax;
-      let* (_, ss) = bindings(desc);
-      let* s = GSlope.Set.to_list(ss);
-      f(s);
-    }
-    |> union;
-};
-
-let rec find_tok =
-        (~slot=Slot.Empty, d: Dir.t, a: GZipper.t(Atom.t)): Walked.t =>
+let rec step_to_mold =
+        (~slot=GSlot.Empty, d: Dir.t, a: GZipper.t(Atom.t)): Walked.t =>
   switch (Mold.of_atom(a)) {
-  | Ok(m) => Walked.single(GTerrace.singleton(~slot, m))
+  | Ok(m) =>
+    Walked.single(Walk.eq(GTerrace.singleton(~slot, Tile(Molded(m)))))
   | Error(s) =>
+    Regex.step(d, a.zipper)
+    |> List.map(zipper =>
+      find_tok(~slot=Full(Some(s)), {...a, zipper})
+    )
+    |> Walked.union_all
+  };
+
+let step_eq = (d: Dir.t, b: Bound.t(Material.t)): Walked.t =>
+  switch (b) {
+  | Root
+  | Node(Space) => Walked.empty
+  | Node(Grout(tips)) =>
+    switch (Dir.choose(d, tips)) {
+    | Convex => Walked.empty
+    | Concave =>
+      let slot = GSlot.Full(None);
+      let infix = Material.Grout((Concave, Concave));
+      let affix =
+        Material.Grout(
+          Dir.choose(d, ((Convex, Concave), (Concave, Convex))),
+        );
+      Walked.many([
+        Walk.eq(GTerrace.singleton(~slot, infix)),
+        Walk.eq(GTerrace.singleton(~slot, affix)),
+      ]);
+    }
+  | Node(Tile(Unmolded(tips))) =>
+    switch (Dir.choose(d, tips)) {
+    | Convex => Walked.empty
+    | Concave =>
+      let slot = GSlot.Full(None);
+      let infix = Material.Tile(Unmolded((Concave, Concave)));
+      let affix =
+        Material.Tile(
+          Unmolded(Dir.choose(d, ((Convex, Concave), (Concave, Convex))))
+        );
+      Walked.many([
+        Walk.eq(GTerrace.singleton(~slot, infix)),
+        Walk.eq(GTerrace.singleton(~slot, affix)),
+      ])
+    }
+  | Node(Tile(Molded(m))) =>
+    let a = Mold.to_atom(m);
     Regex.step(d, a)
-    |> List.map(find_tok(~slot=Full(Tile(s))))
-    |> Walked.union
+    |> List.map(zipper => step_to_mold(d, {...a, zipper}))
+    |> Walked.union_all;
   };
 
 // shallow precedence-bounded entry into given sort, stepping to
-// all possible atoms at the entered edge across disjunctions
-let enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(GZipper.t(Atom.t)) =>
+// all possible atoms at the entered edge across alternatives
+let step_enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(GZipper.t(Atom.t)) =>
   Grammar.v
   |> Sort.Map.find(s)
   |> Prec.Table.map((p, a, rgx) => {
        let has_kid = List.exists(((atom, _)) => Atom.is_kid(atom));
        let l_bounded =
          switch (l) {
-         | Some((s_l, p_l)) when Sort.eq(s_l, s) => Prec.lt(~a, p_l, p)
+         | Some(p_l) => Prec.lt(~a, p_l, p)
          | _ => true
          };
        let r_bounded =
          switch (r) {
-         | Some((s_r, p_r)) when Sort.eq(s, s_r) => Prec.gt(~a, p, p_r)
+         | Some(p_r) => Prec.gt(~a, p, p_r)
          | _ => true
          };
 
        let (ls, rs) =
          Regex.Zipper.(enter(~from=L, rgx), enter(~from=R, rgx));
        has_kid(ls) && !l_bounded || has_kid(rs) && !r_bounded
-         ? [] : Dir.choose(from, (ls, rs));
+         ? []
+         : Dir.choose(from, (ls, rs))
+           |> List.map(GZipper.mk(~sort=s, ~prec=p))
      })
   |> List.concat;
 
@@ -114,12 +195,12 @@ let enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): Walked.t => {
       Hashtbl.add(seen, (l, r, s), ());
       let _ = failwith("todo: add entry to space/grout/unmolded");
       // todo: add entry to grout/unmolded tiles
-      GZipper.enter(~from, ~l?, ~r?, s)
+      step_enter(~from, ~l?, ~r?, s)
       |> List.map(z =>
            switch (Mold.of_atom(z)) {
            | Ok(m) => Walked.single(GTerrace.singleton(m))
            | Error(s') =>
-             let entered_here = find_tok(Dir.toggle(from), z);
+             let entered_here = step_to_mold(Dir.toggle(from), z);
              let entered_deeper = {
                let (l, r) =
                  switch (from) {
@@ -137,6 +218,148 @@ let enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): Walked.t => {
   };
   go(~l?, ~r?, s);
 };
+
+let step_neq = (d: Dir.t, bound: Bound.t(Material.t)): Walked.t => {
+  let b = Dir.toggle(d);
+  switch (bound) {
+  | Root => enter(~from=b, Sort.root)
+  | Node(Space) => Walked.empty
+  | Node(Grout(tips)) =>
+    switch (Dir.choose(d, tips)) {
+    | Convex => Walked.empty
+    | Concave =>
+      // todo: come back and add more fine-grained filtering
+      // on entry walks for dynamic matching forms
+      Sort.all |> List.map(enter(~from=b)) |> Walked.union_all
+    }
+  | Node(Tile(Unmolded(tips))) =>
+    switch (Dir.choose(d, tips)) {
+    | Convex => Walked.empty
+    | Concave =>
+      Sort.all |> List.map(enter(~from=b, ~bound=Prec.top)) |> Walked.union_all
+    }
+  | Node(Tile(Molded(m))) =>
+    Mold.to_atom(m).zipper
+    |> Regex.step(d)
+    |> List.map(
+         fun
+         | (Atom.Tok(_), _) => Walked.empty
+         | (Kid(s), ctx) => {
+             let (l, r) =
+               switch (from) {
+               | L when Sort.eq(s, m.sort) => (Some(m.prec), None)
+               | R when Sort.eq(s, m.sort) => (None, Some(m.prec))
+               | _ => (None, None)
+               };
+             enter(~from=b, ~l?, ~r?, s);
+           },
+       )
+    |> Walked.union
+  }
+};
+
+let step = (d: Dir.t, bound: Bound.t(Material.t)) =>
+  Walked.union(step_eq(d, bound), step_neq(d, bound));
+
+let walk = (d: Dir.t, bound: Bound.t(Material.t)) => {
+  let seen = Hashtbl.create(100);
+  let rec go = bound =>
+    switch (Hashtbl.find_opt(seen, bound)) {
+    | Some () => Walked.empty
+    | None =>
+      open Walked.Syntax;
+      let* stepped = step(d, bound);
+      Walked.add(stepped, {
+        let* walked =
+          Walk.face(stepped)
+          |> Option.map(m => go(Node(m)))
+          |> Option.value(~default=Walked.empty);
+        return(Walk.cat(stepped, walked));
+      });
+    }
+};
+
+// OLD BELOW
+
+module Walked = {
+  include GMaterial.Map;
+  // here i mean molded material
+  type t = GMaterial.Map.t(GTerrace.Set.t);
+
+  let find = (m, map) =>
+    switch (find_opt(m, map)) {
+    | Some(set) => set
+    | None => GTerrace.Set.empty
+    };
+
+  let union =
+    List.fold_left(union(GTerrace.Set.union), empty);
+
+  let add = (t: GTerrace.t) =>
+    update(
+      GTerrace.face(t),
+      fun
+      | None => GTerrace.Set.singleton(t)
+      | Some(set) => GTerrace.Set.add(t, set),
+    );
+
+  let single = (t: GTerrace.t) =>
+    singleton(GTerrace.face(t), GTerrace.Set.singleton(t));
+
+  let bind = (stepped: t, f: GTerrace.t => t) =>
+    ListUtil.Syntax.(
+      {
+        let* (_, ts) = bindings(stepped);
+        let* t = GTerrace.Set.elements(ts);
+        f(t);
+      }
+    )
+    |> union;
+
+  module Syntax = {
+    let return = single;
+    let ( let* ) = bind;
+  };
+};
+
+module Descended = {
+  include GMaterial.Map;
+  type t = GMaterial.Map.t(GSlope.Set.t);
+
+  let of_walked = GMaterial.Map.map(ts => GTerrace.Set.map(t => [t], ts));
+
+  let find = (m, map) =>
+    switch (find_opt(m, map)) {
+    | None => GSlope.Set.empty
+    | Some(set) => set
+    };
+
+  // empty if s empty
+  let single = (s: GSlope.t) =>
+    switch (GSlope.face(s)) {
+    | None => empty
+    | Some(m) => singleton(m, GSlope.Set.singleton(s))
+    };
+
+  let bind = (desc: t, f: GSlope.t => t) =>
+    {
+      open ListUtil.Syntax;
+      let* (_, ss) = bindings(desc);
+      let* s = GSlope.Set.elements(ss);
+      f(s);
+    }
+    |> union;
+};
+
+let rec find_tok =
+        (~slot=Slot.Empty, d: Dir.t, a: GZipper.t(Atom.t)): Walked.t =>
+  switch (Mold.of_atom(a)) {
+  | Ok(m) => Walked.single(GTerrace.singleton(~slot, m))
+  | Error(s) =>
+    Regex.step(d, a)
+    |> List.map(find_tok(~slot=Full(Tile(s))))
+    |> Walked.union
+  };
 
 let step_eq = (d: Dir.t, m: Material.Molded.t): Walked.t =>
   switch (m) {
@@ -163,7 +386,7 @@ let step_eq = (d: Dir.t, m: Material.Molded.t): Walked.t =>
         Material.Tile(
           Unmolded(Dir.choose(d, ((Convex, Concave), (Concave, Convex)))),
         );
-      let slot = GSlot.Full(Grout());
+      let slot = GSlot.Full(None);
       Walked.single(GTerrace.singleton(~slot, infix))
       |> Walked.add(GTerrace.singleton(~slot, affix));
     }
