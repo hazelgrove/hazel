@@ -215,8 +215,13 @@ module UTyp = {
             {name, id: UTPat.rep_id(utpat), kind: Abstract},
           );
         Rec(name, to_typ(ctx, tbody));
-      | Forall(_, tbody) => Forall("?", to_typ(ctx, tbody))
-      | Rec(_, tbody) => Rec("?", to_typ(ctx, tbody))
+      | Forall({term: Invalid(_), _}, tbody)
+      | Forall({term: EmptyHole, _}, tbody)
+      | Forall({term: MultiHole(_), _}, tbody) =>
+        Forall("?", to_typ(ctx, tbody))
+      | Rec({term: Invalid(_), _}, tbody)
+      | Rec({term: EmptyHole, _}, tbody)
+      | Rec({term: MultiHole(_), _}, tbody) => Rec("?", to_typ(ctx, tbody))
       /* The below cases should occur only inside sums */
       | Constructor(_)
       | Ap(_) => Unknown(Internal)
