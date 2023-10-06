@@ -82,7 +82,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
     | Closure(_)
-    | Filter(_)
+    | Instrument(_)
     | FailedCast(_)
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
@@ -186,10 +186,15 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);
-      | Filter(act, cond, body) =>
-        let* dcond = dhexp_of_uexp(m, cond);
+      | Filter(act, /* cond */ _, body) =>
+        let ins: Instrument.t =
+          switch (act) {
+          | Eval => Eval
+          | Step => Step
+          };
+        // let* dcond = dhexp_of_uexp(m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
-        DHExp.Filter([DHExp.Filter.mk(dcond, act)], dbody);
+        DHExp.Instrument(ins, dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))

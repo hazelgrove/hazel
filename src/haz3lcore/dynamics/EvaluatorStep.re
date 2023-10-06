@@ -4,17 +4,12 @@ module Monad = EvaluatorMonad;
 open Monad;
 open Monad.Syntax;
 
-module Filter = DHExp.Filter;
-
-module FilterAction = DHExp.FilterAction;
-
-module FilterEnvironment = DHExp.FilterEnvironment;
-
 module EvalCtx = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Mark
     | Closure
+    | Instrument
     | Filter
     | Sequence
     | Let
@@ -46,7 +41,7 @@ module EvalCtx = {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
-    | Filter(DHExp.FilterEnvironment.t, t)
+    | Instrument(Instrument.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
@@ -93,7 +88,7 @@ module EvalObj = {
   type t = {
     env: ClosureEnvironment.t,
     ctx: EvalCtx.t,
-    act: FilterAction.t,
+    act: Instrument.t,
     exp: DHExp.t,
   };
 
@@ -114,7 +109,7 @@ module EvalObj = {
       raise(EvaluatorError.Exception(StepDoesNotMatch));
     | (NonEmptyHole, NonEmptyHole(_, _, _, c))
     | (Closure, Closure(_, c))
-    | (Filter, Filter(_, c))
+    | (Instrument, Instrument(_, c))
     | (Sequence, Sequence(c, _))
     | (Let, Let(_, c, _))
     | (Ap1, Ap1(c, _))
@@ -167,7 +162,7 @@ module EvalObj = {
     | (Closure, _) => Some(obj)
     | (tag, Closure(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Filter, _) => Some(obj)
-    | (tag, Filter(_, c)) => unwrap({...obj, ctx: c}, tag)
+    | (tag, Instrument(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Cast, _) => Some(obj)
     | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
     | (tag, ctx) =>
@@ -300,7 +295,7 @@ module Capture = {
       let env' = env' |> ClosureEnvironment.map_of |> Environment.strip;
       let env'' = Environment.union(env', env);
       analyze(env'', d1);
-    | Filter(_, d1) => analyze(env, d1)
+    | Instrument(_, d1) => analyze(env, d1)
     | InconsistentBranches(_, _, Case(d1, rules, _)) =>
       rules
       |> List.fold_left(
@@ -342,9 +337,38 @@ module Transition = {
       | Step(DHExp.t);
   };
 
-  let rec transition = (env: ClosureEnvironment.t, d: DHExp.t): m(Result.t) => {
+  let rec transition =
+          (env: ClosureEnvironment.t, inst: Instrument.t, d: DHExp.t)
+          : m(Result.t) => {
     open Evaluator;
     open Result;
+    let (compute, continue) = {
+      let oinst = inst;
+      let od = d;
+      let continue = (~env=?, ~inst=?, d: DHExp.t) => {
+        let d =
+          switch (env) {
+          | None => d
+          | Some(env) => Closure(env, d)
+          };
+        let d =
+          switch (inst) {
+          | None => d
+          | Some(inst) => Instrument(inst, d)
+          };
+        switch (oinst) {
+        | Eval => transition(env, inst, d)
+        | Pause => Step(od) |> return
+        };
+      };
+      let compute = (~env=?, ~inst=?, d: DHExp.t) => {
+        switch (oinst) {
+        | Eval => BoxedValue(d) |> return
+        | Pause => Step(od) |> return
+        };
+      };
+      (compute, continue);
+    };
     /* TODO: Investigate */
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
@@ -359,12 +383,11 @@ module Transition = {
            });
       /* We need to call [evaluate] on [d] again since [env] does not store
        * final expressions. */
-      Step(d) |> return;
+      d |> continue;
 
     | Sequence(d1, d2) =>
-      let* r1 = transition(env, d1);
+      let* r1 = transition(env, d1); // Step is automatically handled here
       switch (r1) {
-      | Step(d1') => Step(Sequence(d1', d2)) |> return
       | BoxedValue(_d1)
       /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
        * if evaluated d1 is indet. */
@@ -374,11 +397,11 @@ module Transition = {
         /* | BoxedValue(d2) */
         /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
         /* }; */
-        Step(d2) |> return
+        d2 |> continue
       };
 
     | Let(dp, d1, d2) =>
-      let* r1 = transition(env, d1);
+      let* r1 = transition(env, inst, d1);
       switch (r1) {
       | Step(d1') => Step(Let(dp, d1', d2)) |> return
       | BoxedValue(d1')
@@ -389,7 +412,7 @@ module Transition = {
         | Matches(env') =>
           let* env =
             env |> Capture.capture(d2) |> Evaluator.evaluate_extend_env(env');
-          Step(Closure(env, d2)) |> return;
+          d2 |> continue(~env);
         }
       };
 
@@ -405,7 +428,6 @@ module Transition = {
     | Ap(d1, d2) =>
       let* r1 = transition(env, d1);
       switch (r1) {
-      | Step(d1') => Step(Ap(d1', d2)) |> return
       | BoxedValue(TestLit(id)) =>
         let* r2 = Evaluator.evaluate_test(env, id, d2);
         switch (r2) {
@@ -480,32 +502,21 @@ module Transition = {
     | BinBoolOp(op, d1, d2) =>
       let* r1 = transition(env, d1);
       switch (r1) {
-      | Step(d1') => Step(BinBoolOp(op, d1', d2)) |> return
-      | BoxedValue(BoolLit(b1) as d1') =>
+      | BoolLit(b1) as d1' =>
         switch (Evaluator.eval_bin_bool_op_short_circuit(op, b1)) {
         | Some(b3) => Step(b3) |> return
         | None =>
           let* r2 = transition(env, d2);
           switch (r2) {
-          | Step(d2') => Step(BinBoolOp(op, d1, d2')) |> return
-          | BoxedValue(BoolLit(b2)) =>
-            Step(Evaluator.eval_bin_bool_op(op, b1, b2)) |> return
-          | BoxedValue(d2') =>
+          | BoolLit(b2) => Evaluator.eval_bin_bool_op(op, b1, b2) |> compute
+          | d2' =>
             print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
-          | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
           };
         }
-      | BoxedValue(d1') =>
+      | d1' =>
         print_endline("InvalidBoxedBoolLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
-      | Indet(d1') =>
-        let* r2 = transition(env, d2);
-        switch (r2) {
-        | Step(d2') => Step(BinBoolOp(op, d1, d2')) |> return
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
-        };
       };
 
     | BinIntOp(op, d1, d2) =>

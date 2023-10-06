@@ -61,7 +61,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidOperation(_)
   | Fun(_)
   | Closure(_)
-  | Filter(_) => DHDoc_common.precedence_const
+  | Instrument(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -208,7 +208,7 @@ let rec mk =
          cannot be met. */
       | Closure(_, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
 
-      | Filter(_, d') => go'(d', unwrap(objs, Filter)) |> mk_cast
+      | Instrument(_, d') => go'(d', unwrap(objs, Filter)) |> mk_cast
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */

@@ -61,7 +61,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidOperation(_)
   | Fun(_)
   | Closure(_)
-  | Filter(_) => DHDoc_common.precedence_const
+  | Instrument(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -176,7 +176,7 @@ let rec mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
 
-      | Filter(_, d') => fdoc(~enforce_inline, ~d=d')
+      | Instrument(_, d') => fdoc(~enforce_inline, ~d=d')
 
       | BoundVar(x) => text(x)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)

@@ -114,7 +114,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
 
   /* Closure should match like underlying expression. */
   | (_, Closure(_, d'))
-  | (_, Filter(_, d')) => matches(dp, d')
+  | (_, Instrument(_, d')) => matches(dp, d')
 
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -323,7 +323,7 @@ and matches_cast_Sum =
   | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)
-  | Filter(_)
+  | Instrument(_)
   | TestLit(_)
   | Cons(_)
   | ListConcat(_) => DoesNotMatch
@@ -393,7 +393,7 @@ and matches_cast_Tuple =
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
-  | Filter(_, _) => IndetMatch
+  | Instrument(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -530,7 +530,7 @@ and matches_cast_Cons =
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
-  | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
+  | Instrument(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -985,7 +985,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | d => evaluate(env, d)
       }
 
-    | Filter(_, d') => evaluate(env, d')
+    | Instrument(_, d') => evaluate(env, d')
 
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>

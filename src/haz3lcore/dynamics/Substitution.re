@@ -14,10 +14,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
-  | Filter(fenv, dbody) =>
-    let dbody = subst_var(d1, x, dbody);
-    let fenv' = subst_var_fenv(d1, x, fenv);
-    Filter(fenv', dbody);
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -48,6 +44,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let env' = subst_var_env(d1, x, env);
     let d3' = subst_var(d1, x, d3);
     Closure(env', d3');
+  | Instrument(ins, d3) => Instrument(ins, subst_var(d1, x, d3))
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -155,12 +152,6 @@ and subst_var_env =
        );
 
   ClosureEnvironment.wrap(id, map);
-}
-
-and subst_var_fenv =
-    (d1: DHExp.t, x: Var.t, fenv: DHExp.FilterEnvironment.t)
-    : DHExp.FilterEnvironment.t => {
-  fenv |> List.map(f => DHExp.Filter.{...f, pat: subst_var(d1, x, f.pat)});
 };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
