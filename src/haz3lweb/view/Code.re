@@ -155,11 +155,13 @@ let rec holes =
   |> List.concat_map(
        fun
        | Piece.Secondary(_) => []
-       | Tile(t) =>
-         if (List.mem(t.id, folded)) {
-           [];
-         } else {
-           List.concat_map(holes(~map, ~font_metrics, ~folded), t.children);
+       | Tile(t) => {
+           let children =
+             switch (t.children) {
+             | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
+             | _ => t.children
+             };
+           List.concat_map(holes(~map, ~font_metrics, ~folded), children);
          }
        | Grout(g) => [
            EmptyHoleDec.view(
