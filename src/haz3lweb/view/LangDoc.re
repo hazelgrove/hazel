@@ -269,7 +269,7 @@ let deco =
                   ]),
                 List.mapi(
                   (index, (id, segment)) => {
-                    let map = Measured.of_segment(segment, ~folded=[]);
+                    let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(
                         ~unselected=segment,
@@ -381,7 +381,7 @@ let syntactic_form_view =
       ~group_id,
       ~form_id,
     ) => {
-  let map = Measured.of_segment(unselected, ~folded=[]);
+  let map = Measured.of_segment(unselected);
   let code_view =
     Code.simple_view(~unselected, ~map, ~settings, ~inject, ~font_metrics);
   let deco_view =
@@ -418,7 +418,7 @@ let example_view =
       ? [text("No examples available")]
       : List.map(
           ({term, message, _} as example: LangDocMessages.example) => {
-            let map_code = Measured.of_segment(term, ~folded=[]);
+            let map_code = Measured.of_segment(term);
             let code_view =
               Code.simple_view(
                 ~unselected=term,

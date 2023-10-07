@@ -268,7 +268,7 @@ let is_indented_map = (seg: Segment.t) => {
 };
 
 let of_segment =
-    (~old: t=empty, ~touched=Touched.empty, seg: Segment.t, ~folded): t => {
+    (~old: t=empty, ~touched=Touched.empty, ~folded=[], seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -422,25 +422,25 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t, ~folded): option(Point.t) =>
+let segment_origin = (~folded=[], seg: Segment.t): option(Point.t) =>
   Option.map(
     first => find_p(first, of_segment(seg, ~folded)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t, ~folded): option(Point.t) =>
+let segment_last = (~folded=[], seg: Segment.t): option(Point.t) =>
   Option.map(
     last => find_p(last, of_segment(seg, ~folded)).last,
     ListUtil.last_opt(seg),
   );
 
-let segment_height = (seg: Segment.t, ~folded) =>
+let segment_height = (~folded=[], seg: Segment.t) =>
   switch (segment_last(seg, ~folded), segment_origin(seg, ~folded)) {
   | (Some(last), Some(first)) => 1 + last.row - first.row
   | _ => 0
   };
 
-let segment_width = (seg: Segment.t, ~folded): int =>
+let segment_width = (~folded=[], seg: Segment.t): int =>
   IntMap.fold(
     (_, {max_col, _}: Rows.shape, acc) => max(max_col, acc),
     of_segment(seg, ~folded).rows,

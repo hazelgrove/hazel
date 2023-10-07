@@ -14,7 +14,7 @@ module Meta = {
     let unselected = Zipper.unselect_and_zip(z);
     {
       touched: Touched.empty,
-      measured: Measured.of_segment(unselected, ~folded=[]),
+      measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
       folded: [],
