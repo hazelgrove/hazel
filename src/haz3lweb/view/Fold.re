@@ -39,3 +39,8 @@ let button_view =
     ),
   ];
 };
+
+let view = {
+  let cls = "default";
+  [Node.span(~attr=Attr.classes(["token", cls]), [Node.text("<...>")])];
+};

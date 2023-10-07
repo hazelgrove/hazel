@@ -135,6 +135,7 @@ module Text = (M: {
               a,
               b,
               c,
+              Fold.view,
               ...xs,
             ]
           | _ => x
