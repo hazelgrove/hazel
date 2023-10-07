@@ -70,6 +70,7 @@ let view =
           zipper,
           info_map,
         ),
+        Acceessibility.view(~inject),
       ]
       : [];
   let sidebar =

@@ -384,7 +384,13 @@ let apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
-    | PerformQuery(_) => Ok(model) //TODO
+    | PerformQuery(query) =>
+      //TODO
+      print_endline(Query.to_string(query));
+      print_endline(
+        Query.query_reply(query, Editors.get_editor(model.editors)),
+      );
+      Ok(model);
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

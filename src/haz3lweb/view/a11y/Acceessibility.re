@@ -6,13 +6,12 @@ open Util.Web;
 
 let button_view = (~inject, query, name): Node.t => {
   Node.button(
-    ~key=name,
     ~attr=
       Attr.many([
         Attr.classes(["button"]),
-        Attr.on_mousedown(inject(Update.PerformQuery(query))),
+        Attr.on_mousedown(_ => inject(Update.PerformQuery(query))),
       ]),
-    [],
+    [Node.text(name)],
   );
 };
 
@@ -24,3 +23,5 @@ let buttons_view = (~inject): Node.t =>
       button_view(~inject, Query.Expression, "expression"),
     ],
   );
+
+let view = (~inject): Node.t => buttons_view(~inject);
