@@ -19,7 +19,8 @@ let fold_button_style = (font_metrics: FontMetrics.t) =>
     ),
   );
 
-let view = (font_metrics: FontMetrics.t, inject, folded: list(Id.t), tile_id) => {
+let button_view =
+    (font_metrics: FontMetrics.t, inject, folded: list(Id.t), tile_id) => {
   [
     Node.input(
       ~attr=
