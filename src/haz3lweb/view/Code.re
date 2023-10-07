@@ -149,12 +149,18 @@ module Text = (M: {
 };
 
 let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
+        (~font_metrics, ~map: Measured.t, seg: Segment.t, ~folded)
+        : list(Node.t) =>
   seg
   |> List.concat_map(
        fun
        | Piece.Secondary(_) => []
-       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
+       | Tile(t) =>
+         if (List.mem(t.id, folded)) {
+           [];
+         } else {
+           List.concat_map(holes(~map, ~font_metrics, ~folded), t.children);
+         }
        | Grout(g) => [
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
@@ -222,7 +228,7 @@ let view =
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~map=measured, ~font_metrics, segment)
+      holes(~map=measured, ~font_metrics, segment, ~folded)
     );
   div(
     ~attr=Attr.class_("code"),
