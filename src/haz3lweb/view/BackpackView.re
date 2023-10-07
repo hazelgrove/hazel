@@ -13,7 +13,7 @@ let backpack_sel_view =
     ) => {
   module Text =
     Code.Text({
-      let map = Measured.of_segment(content);
+      let map = Measured.of_segment(content, ~folded=[]);
       let settings = Init.startup.settings;
     });
   // TODO(andrew): Maybe use init sort at caret to prime this
@@ -56,7 +56,7 @@ let view =
   let height_head =
     switch (backpack) {
     | [] => 0
-    | [hd, ..._] => Measured.segment_height(hd.content)
+    | [hd, ..._] => Measured.segment_height(hd.content, ~folded=[])
     };
   let can_put_down =
     switch (Zipper.pop_backpack(z)) {
@@ -100,7 +100,7 @@ let view =
   let (_, _, _, selections) =
     List.fold_left(
       ((idx, y_offset, opacity, vs), s: Selection.t) => {
-        let base_height = Measured.segment_height(s.content);
+        let base_height = Measured.segment_height(s.content, ~folded=[]);
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
@@ -133,7 +133,7 @@ let view =
   let length =
     switch (backpack) {
     | [] => 0
-    | [hd, ..._] => Measured.segment_width(hd.content)
+    | [hd, ..._] => Measured.segment_width(hd.content, ~folded=[])
     };
 
   let joiner_style =

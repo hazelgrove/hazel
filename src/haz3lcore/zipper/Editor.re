@@ -14,7 +14,7 @@ module Meta = {
     let unselected = Zipper.unselect_and_zip(z);
     {
       touched: Touched.empty,
-      measured: Measured.of_segment(unselected),
+      measured: Measured.of_segment(unselected, ~folded=[]),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
       folded: [],
@@ -47,7 +47,8 @@ module Meta = {
     let {touched, measured, col_target, folded, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
+    let measured =
+      Measured.of_segment(~touched, ~old=measured, unselected, ~folded);
     let term_ranges = TermRanges.mk(unselected);
     let col_target =
       switch (a) {
