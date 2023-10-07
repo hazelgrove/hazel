@@ -127,12 +127,23 @@ module Text = (M: {
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
          of_segment(false, sort, seg, ~inject, ~font_metrics, ~folded)
        )
-    |> List.concat
     |> {
-      x =>
+      x => {
+        let x =
+          switch (x) {
+          | [a, b, c, _, ...xs] when List.mem(t.id, folded) => [
+              a,
+              b,
+              c,
+              ...xs,
+            ]
+          | _ => x
+          };
         Module.foldable(t)
-          ? FoldButton.view(font_metrics, inject, folded, t.id) @ x : x;
-    };
+          ? [FoldButton.view(font_metrics, inject, folded, t.id)] @ x : x;
+      };
+    }
+    |> List.concat;
   };
 };
 
