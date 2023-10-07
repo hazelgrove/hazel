@@ -29,7 +29,7 @@ let button_view =
             Attr.create("type", "checkbox"),
             fold_button_style(font_metrics),
             Attr.on_input((_evt, _str) => {
-              inject(UpdateAction.FoldStateChange(tile_id))
+              inject(UpdateAction.PerformAction(Click(tile_id)))
             }),
             stop_mousedown_propagation,
           ]

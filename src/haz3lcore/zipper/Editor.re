@@ -55,6 +55,13 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
+    let folded =
+      switch (a) {
+      | Click(id) =>
+        List.mem(id, folded)
+          ? List.filter(x => x !== id, folded) : [id, ...folded]
+      | _ => folded
+      };
     {touched, measured, term_ranges, col_target, folded};
   };
 };

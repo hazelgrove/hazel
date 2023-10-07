@@ -86,7 +86,8 @@ let reevaluate_post_update =
   | PerformAction(
       Move(_) | MoveToNextHole(_) | Select(_) | Unselect | RotateBackpack |
       MoveToBackpackTarget(_) |
-      Jump(_),
+      Jump(_) |
+      Click(_),
     )
   | MoveToNextHole(_) //
   | Mousedown
@@ -99,7 +100,6 @@ let reevaluate_post_update =
   | UpdateResult(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | FoldStateChange(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | ExportPersistentData => false
@@ -373,26 +373,6 @@ let apply =
         |> ModelResult.update_current(res);
       let results = model.results |> ModelResults.add(key, r);
       Ok({...model, results});
-    | FoldStateChange(id) =>
-      let ed = Editors.get_editor(model.editors);
-      let folded = ed.state.meta.folded;
-      let folded =
-        List.mem(id, folded)
-          ? List.filter(x => x !== id, folded) : [id, ...folded];
-      let ed = {
-        ...ed,
-        state: {
-          ...ed.state,
-          meta: {
-            ...ed.state.meta,
-            folded,
-          },
-        },
-      };
-      let ed = Haz3lcore.Editor.new_state(Pick_up, ed.state.zipper, ed);
-      //TODO: add correct action to history (Pick_up is wrong)
-      let editors = Editors.put_editor(ed, model.editors);
-      Ok({...model, editors});
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);

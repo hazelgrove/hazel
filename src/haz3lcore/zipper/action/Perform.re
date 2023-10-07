@@ -5,6 +5,7 @@ let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
   | MoveToNextHole(_)
+  | Click(_)
   | Unselect
   | Jump(_)
   | Select(_) => false
@@ -29,6 +30,7 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
   switch (a) {
+  | Click(_) => Ok(z)
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
