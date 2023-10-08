@@ -3,27 +3,28 @@ open Virtual_dom.Vdom;
 open Node;
 
 type t = {
-  exercise: SchoolExercise.state,
+  exercise: Exercise.state,
   results: option(ModelResults.t),
   settings: ModelSettings.t,
   langDocMessages: LangDocMessages.t,
-  stitched_dynamics: SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
+  stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
 };
 
 let mk =
     (
-      ~exercise: SchoolExercise.state,
+      ~exercise: Exercise.state,
       ~results: option(ModelResults.t),
       ~settings,
       ~langDocMessages,
     )
     : t => {
-  let SchoolExercise.{eds, _} = exercise;
+  let Exercise.{eds, _} = exercise;
   let stitched_dynamics =
     Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      SchoolExercise.stitch_dynamic(exercise, results)
+      Exercise.stitch_dynamic(exercise, results)
     );
+
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   {
@@ -68,8 +69,8 @@ let view =
     grading_report,
     langDocMessages,
   } = self;
-  let SchoolExercise.{pos, eds} = exercise;
-  let SchoolExercise.{
+  let Exercise.{pos, eds} = exercise;
+  let Exercise.{
         test_validation,
         user_impl,
         user_tests,
@@ -78,13 +79,13 @@ let view =
         hidden_bugs,
         hidden_tests: _,
       } = stitched_dynamics;
-  let (focal_zipper, focal_info_map) =
-    SchoolExercise.focus(exercise, stitched_dynamics);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
       global_inference_info.ctx,
     );
+  let (focal_zipper, focal_info_map) =
+    Exercise.focus(exercise, stitched_dynamics);
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
@@ -185,7 +186,7 @@ let view =
             switch (specific_ctx) {
             | None => Node.div([text("No context available")]) // TODO show exercise configuration error
             | Some(specific_ctx) =>
-              CtxInspector.exp_ctx_view(~inject, specific_ctx)
+              CtxInspector.ctx_view(~inject, specific_ctx)
             };
           };
         };
@@ -232,8 +233,8 @@ let view =
       (
         i,
         (
-          SchoolExercise.{impl, _},
-          SchoolExercise.DynamicsItem.{info_map, simple_result, _},
+          Exercise.{impl, _},
+          Exercise.DynamicsItem.{info_map, simple_result, _},
         ),
       ) => {
         InstructorOnly(
@@ -290,6 +291,9 @@ let view =
   let testing_results =
     ModelResult.unwrap_test_results(user_tests.simple_result);
 
+  let syntax_grading_view =
+    Always(Grading.SyntaxReport.view(grading_report.syntax_report));
+
   let impl_validation_view =
     Always(
       editor_view(
@@ -336,11 +340,12 @@ let view =
       Grading.ImplGradingReport.view(
         ~inject,
         ~report=grading_report.impl_grading_report,
+        ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );
 
-  let ci_view =
+  let bottom_bar =
     settings.statics
       ? [
         CursorInspector.view(
@@ -354,7 +359,17 @@ let view =
         ),
       ]
       : [];
-
+  let sidebar =
+    langDocMessages.show && settings.statics
+      ? LangDoc.view(
+          ~inject,
+          ~font_metrics,
+          ~settings,
+          ~doc=langDocMessages,
+          Indicated.index(focal_zipper),
+          focal_info_map,
+        )
+      : div([]);
   [
     div(
       ~attr=Attr.id("main"),
@@ -374,41 +389,28 @@ let view =
               @ [
                 mutation_testing_view,
                 your_impl_view,
+                syntax_grading_view,
                 impl_validation_view,
                 hidden_tests_view,
                 impl_grading_view,
               ],
-            )
-          @ (
-            langDocMessages.show && settings.statics
-              ? [
-                LangDoc.view(
-                  ~inject,
-                  ~font_metrics,
-                  ~settings,
-                  ~doc=langDocMessages,
-                  Indicated.index(focal_zipper),
-                  focal_info_map,
-                  global_inference_info,
-                ),
-              ]
-              : []
-          ),
+            ),
         ),
       ],
     ),
-    div(~attr=Attr.class_("bottom-bar"), ci_view),
-  ]; // TODO lang doc visibility tied to ci visibility (is this desired?)
+    sidebar,
+  ]
+  @ bottom_bar;
 };
 
 let toolbar_buttons =
     (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
-  let (_idx, _specs, exercise): Editors.school =
+  let (_idx, _specs, exercise): Editors.exercises =
     switch (editors) {
-    | School(idx, specs, exercise) => (idx, specs, exercise)
+    | Exercise(idx, specs, exercise) => (idx, specs, exercise)
     | _ => assert(false)
     };
-  let SchoolExercise.{pos: _, eds} = exercise;
+  let Exercise.{pos: _, eds} = exercise;
 
   let reset_button =
     Widgets.button(
@@ -419,7 +421,7 @@ let toolbar_buttons =
             "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
           );
         if (confirmed) {
-          inject(Update.ResetSlide);
+          inject(Update.ResetCurrentEditor);
         } else {
           Virtual_dom.Vdom.Effect.Ignore;
         };
@@ -437,8 +439,7 @@ let toolbar_buttons =
               let module_name = eds.module_name;
               let filename = eds.module_name ++ ".ml";
               let content_type = "text/plain";
-              let contents =
-                SchoolExercise.export_module(module_name, exercise);
+              let contents = Exercise.export_module(module_name, exercise);
               JsUtil.download_string_file(
                 ~filename,
                 ~content_type,
@@ -462,10 +463,7 @@ let toolbar_buttons =
               let filename = eds.module_name ++ ".ml";
               let content_type = "text/plain";
               let contents =
-                SchoolExercise.export_transitionary_module(
-                  module_name,
-                  exercise,
-                );
+                Exercise.export_transitionary_module(module_name, exercise);
               JsUtil.download_string_file(
                 ~filename,
                 ~content_type,
@@ -489,7 +487,7 @@ let toolbar_buttons =
               let filename = eds.module_name ++ "_grading.ml";
               let content_type = "text/plain";
               let contents =
-                SchoolExercise.export_grading_module(module_name, exercise);
+                Exercise.export_grading_module(module_name, exercise);
               JsUtil.download_string_file(
                 ~filename,
                 ~content_type,

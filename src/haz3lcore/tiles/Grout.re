@@ -20,9 +20,8 @@ let shapes = g =>
   };
 
 // assumes same shape on both sides
-let mk_fits_shape = (s: Nib.Shape.t): IdGen.t(t) => {
-  open IdGen.Syntax;
-  let+ id = IdGen.fresh;
+let mk_fits_shape = (s: Nib.Shape.t): t => {
+  let id = Id.mk();
   let shape =
     switch (s) {
     | Convex => Concave
@@ -30,7 +29,7 @@ let mk_fits_shape = (s: Nib.Shape.t): IdGen.t(t) => {
     };
   {id, shape};
 };
-//let mk_fits = ((l, r): Nibs.shapes): option(IdGen.t(t)) =>
+//let mk_fits = ((l, r): Nibs.shapes): option(t) =>
 //  Nib.Shape.fits(l, r) ? None : Some(mk_fits_shape(l));
 
 let fits_shape = (g: t, s: Nib.Shape.t) =>
