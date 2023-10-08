@@ -23,28 +23,14 @@ let view =
     ) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
-<<<<<<< HEAD
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
+
+  let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let (info_map, ctx) = Statics.mk_map_and_inference_solutions(term);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
       ctx,
     );
-
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
-      Some(
-        LangDoc.get_color_map(
-          ~global_inference_info,
-          ~doc=langDocMessages,
-          Indicated.index(zipper),
-          info_map,
-        ),
-      );
-=======
-  let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
   let result =
     ModelResult.get_simple(
@@ -53,7 +39,6 @@ let view =
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
->>>>>>> llmass
     } else {
       None;
     };
@@ -76,27 +61,6 @@ let view =
       ~langDocMessages,
       editor,
     );
-<<<<<<< HEAD
-  let ci_view =
-    settings.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~font_metrics,
-          ~show_lang_doc=langDocMessages.show,
-          zipper,
-          info_map,
-          global_inference_info,
-        ),
-      ]
-      : [];
-  let bottom_bar = div(~attr=Attr.class_("bottom-bar"), ci_view);
-  let right_panel =
-    langDocMessages.show && settings.statics
-      ? [
-        LangDoc.view(
-=======
   let bottom_bar =
     CursorInspector.view(
       ~inject,
@@ -104,27 +68,20 @@ let view =
       ~show_lang_doc=langDocMessages.show,
       zipper,
       info_map,
+      global_inference_info
     );
   let sidebar =
     langDocMessages.show && settings.core.statics
       ? LangDoc.view(
->>>>>>> llmass
           ~inject,
           ~font_metrics,
           ~settings,
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
-<<<<<<< HEAD
-          global_inference_info,
-        ),
-      ]
-      : [];
-
-=======
+          global_inference_info
         )
       : div_empty;
->>>>>>> llmass
   [
     div(
       ~attr=Attr.id("main"),

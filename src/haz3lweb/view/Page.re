@@ -141,67 +141,15 @@ let exercises_view =
         _,
       } as model: Model.t,
     ) => {
-<<<<<<< HEAD
-  switch (editors) {
-  | DebugLoad => [DebugMode.view(~inject)]
-  | Scratch(idx, slides) =>
-    let toolbar_buttons =
-      ScratchMode.toolbar_buttons(~inject, List.nth(slides, idx));
-    let top_bar_view = top_bar_view(~inject, ~toolbar_buttons, model);
-    let result_key = ScratchSlide.scratch_key;
-    let editor = Editors.get_editor(editors);
-    let result =
-      settings.dynamics
-        ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
-        : None;
-
-    [top_bar_view]
-    @ ScratchMode.view(
-        ~inject,
-        ~font_metrics,
-        ~mousedown,
-        ~show_backpack_targets,
-        ~settings,
-        ~langDocMessages,
-        ~editor,
-        ~result,
-      );
-  | School(_, _, exercise) =>
-    let toolbar_buttons =
-      SchoolMode.toolbar_buttons(~inject, ~settings, editors);
-    let results = settings.dynamics ? Some(results) : None;
-    let school_mode =
-      SchoolMode.mk(~settings, ~exercise, ~results, ~langDocMessages);
-    let grading_report = school_mode.grading_report;
-    let overall_score =
-      Grading.GradingReport.view_overall_score(grading_report);
-    let top_bar_view =
-      top_bar_view(
-        ~inject,
-        model,
-        ~toolbar_buttons,
-        ~top_right=overall_score,
-      );
-    let zipper = Editors.get_editor(editors).state.zipper;
-    let unselected = Zipper.unselect_and_zip(zipper);
-    let (term, _) = MakeTerm.go(unselected);
-    let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
-    let global_inference_info =
-      InferenceResult.mk_global_inference_info(
-        langDocMessages.annotations,
-        ctx,
-      );
-    [top_bar_view]
-    @ SchoolMode.view(
-        ~inject,
-        ~font_metrics,
-        ~mousedown,
-        ~show_backpack_targets,
-        school_mode,
-        ~global_inference_info,
-      );
-  };
-=======
+  let zipper = Editors.get_editor(editors).state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      langDocMessages.annotations,
+      ctx,
+    );
   let exercise_mode =
     ExerciseMode.mk(
       ~settings,
@@ -221,8 +169,8 @@ let exercises_view =
       ~mousedown,
       ~show_backpack_targets,
       exercise_mode,
+      ~global_inference_info,
     );
->>>>>>> llmass
 };
 
 let slide_view = (~inject, ~model, ~ctx_init, slide_state) => {

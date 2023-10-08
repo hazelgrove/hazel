@@ -10,13 +10,9 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-<<<<<<< HEAD
            let info_map: Statics.map;
 
            let global_inference_info: InferenceResult.global_inference_info;
-=======
-           let info_map: Statics.Map.t;
->>>>>>> llmass
            let tiles: TileMap.t;
          },
        ) => {

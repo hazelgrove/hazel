@@ -80,30 +80,23 @@ let view =
         hidden_tests: _,
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
-<<<<<<< HEAD:src/haz3lweb/view/SchoolMode.re
     SchoolExercise.focus(exercise, stitched_dynamics);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
       global_inference_info.ctx,
     );
-=======
     Exercise.focus(exercise, stitched_dynamics);
->>>>>>> llmass:src/haz3lweb/view/ExerciseMode.re
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(
-<<<<<<< HEAD:src/haz3lweb/view/SchoolMode.re
         LangDoc.get_color_map(
           ~global_inference_info,
-          ~doc=langDocMessages,
-          Indicated.index(focal_zipper),
-          map,
-        ),
-=======
-        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
->>>>>>> llmass:src/haz3lweb/view/ExerciseMode.re
+          ~settings, 
+          ~doc=langDocMessages, 
+          focal_zipper
+        )
       );
     } else {
       None;
@@ -402,26 +395,8 @@ let view =
                 hidden_tests_view,
                 impl_grading_view,
               ],
-<<<<<<< HEAD:src/haz3lweb/view/SchoolMode.re
-            )
-          @ (
-            langDocMessages.show && settings.statics
-              ? [
-                LangDoc.view(
-                  ~inject,
-                  ~font_metrics,
-                  ~settings,
-                  ~doc=langDocMessages,
-                  Indicated.index(focal_zipper),
-                  focal_info_map,
-                  global_inference_info,
-                ),
-              ]
-              : []
-          ),
-=======
+              //TODO: raef and anand assuming we accept the llmass change here?
             ),
->>>>>>> llmass:src/haz3lweb/view/ExerciseMode.re
         ),
       ],
     ),

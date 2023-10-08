@@ -529,14 +529,9 @@ type message_mode =
 
 let get_doc =
     (
-<<<<<<< HEAD
       ~global_inference_info: InferenceResult.global_inference_info,
       ~docs: LangDocMessages.t,
       info: option(Statics.t),
-=======
-      ~docs: LangDocMessages.t,
-      info: option(Statics.Info.t),
->>>>>>> llmass
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
@@ -2880,11 +2875,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-<<<<<<< HEAD
-    (
-      ~global_inference_info: InferenceResult.global_inference_info,
-=======
-    (~settings: Settings.t, ~doc: LangDocMessages.t, zipper: Zipper.t) => {
+    (~settings: Settings.t, ~doc: LangDocMessages.t, ~global_inference_info: InferenceResult.global_inference_info, zipper: Zipper.t) => {
   let info: option(Statics.Info.t) =
     switch (Indicated.index(zipper)) {
     | Some(index) =>
@@ -2904,8 +2895,8 @@ let view =
       ~inject,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
->>>>>>> llmass
       ~doc: LangDocMessages.t,
+      ~global_inference_info: InferenceResult.global_inference_info,
       index': option(Id.t),
       info_map: Statics.Map.t,
     ) => {
