@@ -55,7 +55,6 @@ let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
   );
 };
 
-<<<<<<< HEAD
 module State = {
   type t = {
     considering_suggestion: ref(bool),
@@ -141,89 +140,6 @@ let view_of_global_inference_info =
   };
 };
 
-let view_of_info =
-    (
-      ~inject,
-      ~font_metrics,
-      ~show_lang_doc: bool,
-      ~global_inference_info,
-      id: int,
-      ci: Haz3lcore.Statics.t,
-    )
-    : Node.t => {
-  let is_err = Haz3lcore.Statics.is_error(ci);
-  switch (ci) {
-  | Invalid(msg) =>
-    div(
-      ~attr=clss([infoc, "unknown"]),
-      [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
-    )
-  | InfoExp({mode, self, _}) =>
-    let error_status = Haz3lcore.Statics.error_status(mode, self);
-    div(
-      ~attr=clss([infoc, "exp"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "exp"),
-        status_view(error_status),
-      ],
-    );
-  | InfoPat({mode, self, _}) =>
-    let error_status = Haz3lcore.Statics.error_status(mode, self);
-    div(
-      ~attr=clss([infoc, "pat"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "pat"),
-        status_view(error_status),
-      ],
-    );
-  | InfoTyp({self: Free(free_error), _}) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-        error_view(Free(free_error)),
-      ],
-    )
-  | InfoTyp({self: Just(ty), _}) =>
-    switch (
-      Haz3lcore.InferenceResult.get_suggestion_text_for_id(
-        id,
-        global_inference_info,
-      )
-    ) {
-    | NoSuggestion(SuggestionsDisabled)
-    | NoSuggestion(NonTypeHoleId)
-    | NoSuggestion(OnlyHoleSolutions) =>
-      div(
-        ~attr=clss([infoc, "typ"]),
-        [
-          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-          text("is"),
-          Type.view(ty),
-        ],
-      )
-    | _ =>
-      div(
-        ~attr=clss([infoc, "typ"]),
-        [
-          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-          view_of_global_inference_info(
-            ~inject,
-            ~font_metrics,
-            ~global_inference_info,
-            id,
-          ),
-        ],
-      )
-    }
-  | InfoTyp({self: _, _}) =>
-    failwith("CursorInspector: Impossible type error")
-  | InfoRul(_) =>
-    div(
-      ~attr=clss([infoc, "rul"]),
-      [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
-    )
-=======
 let elements_noun: Term.Cls.t => string =
   fun
   | Exp(Match | If) => "Branches"
@@ -299,8 +215,42 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
 
 let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
-  | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
-  | Type(ty) => [Type.view(ty)]
+    | Type(ty) =>
+    switch (
+      Haz3lcore.InferenceResult.get_suggestion_text_for_id(
+        id,
+        global_inference_info,
+      )
+    ) {
+    | NoSuggestion(SuggestionsDisabled)
+    | NoSuggestion(NonTypeHoleId)
+    | NoSuggestion(OnlyHoleSolutions) =>
+      div(
+        ~attr=clss([infoc, "typ"]),
+        [
+          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
+          text("is"),
+          Type.view(ty),
+        ],
+      )
+    | _ =>
+      div(
+        ~attr=clss([infoc, "typ"]),
+        [
+          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
+          view_of_global_inference_info(
+            ~inject,
+            ~font_metrics,
+            ~global_inference_info,
+            id,
+          ),
+        ],
+      )
+    }
+    //TODO(andrew): restore this message?
+  //| Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
+  //| Type(ty) => [Type.view(ty)]
+  //TODO(andrew): how do these interact with THI?
   | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
       text("is an alias for"),
@@ -361,7 +311,7 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   };
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+    (~inject,~font_metrics, ~global_inference_info,~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
@@ -372,124 +322,26 @@ let view_of_info =
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
->>>>>>> dev
   };
 };
 
-let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
+let inspector_view = (~inject, ~font_metrics,
+            ~global_inference_info,~settings, ~show_lang_doc, ci): Node.t =>
   div(
-<<<<<<< HEAD
-    ~attr=Attr.many([clss(["extra"] @ (visible ? ["visible"] : []))]),
-    [id_view(id), cls_view(ci)],
-  );
-
-let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
-  print_endline(Haz3lcore.Statics.show(ci));
-  switch (ci) {
-  | InfoPat({mode, self, _})
-  | InfoExp({mode, self, _}) =>
-    Haz3lcore.Statics.error_status(mode, self)
-    |> Haz3lcore.Statics.show_error_status
-    |> print_endline
-  | _ => ()
-  };
-  inject(Set(ContextInspector));
-};
-
-let inspector_view =
-    (
-      ~inject,
-      ~font_metrics,
-      ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
-      ~settings: ModelSettings.t,
-      ~show_lang_doc: bool,
-      id: int,
-      ci: Haz3lcore.Statics.t,
-    )
-    : Node.t =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(
-          ["cursor-inspector"]
-          @ [Haz3lcore.Statics.is_error(ci) ? errorc : happyc],
-        ),
-        Attr.on_click(toggle_context_and_print_ci(~inject, ci)),
-      ]),
-    [
-      extra_view(settings.context_inspector, id, ci),
-      view_of_info(
-        ~inject,
-        ~font_metrics,
-        ~show_lang_doc,
-        ~global_inference_info,
-        id,
-        ci,
-      ),
-      CtxInspector.inspector_view(~inject, ~settings, id, ci),
-    ],
-=======
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
->>>>>>> dev
+    [view_of_info(~inject, ~font_metrics,
+        ~global_inference_info, ~settings, ~show_lang_doc, ci)],
   );
 
 let view =
     (
       ~inject,
-<<<<<<< HEAD
-      ~settings,
-      ~font_metrics,
-      ~show_lang_doc: bool,
-      zipper: Haz3lcore.Zipper.t,
-      info_map: Haz3lcore.Statics.map,
-      global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
-    ) => {
-  let backpack = zipper.backpack;
-  let curr_view =
-    if (State.get_considering_suggestion()) {
-      State.get_last_inspector();
-    } else if (List.length(backpack) > 0) {
-      div([]);
-    } else {
-      let index = Haz3lcore.Indicated.index(zipper);
-
-      switch (index) {
-      | Some(index) =>
-        switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
-        | Some(ci) =>
-          inspector_view(
-            ~inject,
-            ~font_metrics,
-            ~global_inference_info,
-            ~settings,
-            ~show_lang_doc,
-            index,
-            ci,
-          )
-        | None =>
-          div(
-            ~attr=clss(["cursor-inspector"]),
-            [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
-          )
-        }
-      | None =>
-        div(
-          ~attr=clss(["cursor-inspector"]),
-          [
-            div(~attr=clss(["icon"]), [Icons.magnify]),
-            text("No Indicated Index"),
-          ],
-        )
-      };
-    };
-  State.set_last_inspector(curr_view);
-  curr_view;
-=======
       ~settings: ModelSettings.t,
+       ~font_metrics,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,
+      global_inference_info: Haz3lcore.InferenceResult.global_inference_info,,
     ) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
@@ -507,7 +359,8 @@ let view =
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
       bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
+        inspector_view(~inject,~font_metrics,
+            ~global_inference_info, ~settings, ~show_lang_doc, ci),
         div(
           ~attr=clss(["id"]),
           [text(String.sub(Id.to_string(id), 0, 4))],
@@ -515,5 +368,4 @@ let view =
       ])
     }
   };
->>>>>>> dev
 };
