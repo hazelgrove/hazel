@@ -24,7 +24,9 @@ let const_unknown: 'a => Typ.t = _ => Unknown(NoProvenance);
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(NoProvenance), Unknown(NoProvenance)));
 let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(NoProvenance))));
+  NotGroundOrHole(
+    Prod(ListUtil.replicate(length, Typ.Unknown(NoProvenance))),
+  );
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
   let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
   NotGroundOrHole(Sum(sm'));
@@ -375,11 +377,11 @@ and matches_cast_Tuple =
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(d', Unknown(_), Prod(tys')) =>
-<<<<<<< HEAD
-    let tys = List.init(List.length(tys'), _ => Typ.Unknown(NoProvenance));
-=======
     let tys = List.init(List.length(tys'), const_unknown);
+    matches_cast_Tuple(
+      dps,
       d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch

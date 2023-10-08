@@ -187,7 +187,8 @@ type exp = {
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Term.Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
-  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  constraints: Typ.constraints,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -200,6 +201,7 @@ type pat = {
   cls: Term.Cls.t,
   status: status_pat,
   ty: Typ.t,
+  constraints: Typ.constraints,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -267,7 +269,11 @@ let rec status_common =
     }
   | (Just(syn), SynFun) =>
     switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
+      Typ.join_fix(
+        ctx,
+        Arrow(Unknown(NoProvenance), Unknown(NoProvenance)),
+        syn,
+      )
     ) {
     | None => InHole(Inconsistent(WithArrow(syn)))
     | Some(_) => NotInHole(Syn(syn))
@@ -283,9 +289,9 @@ let rec status_common =
     | _ => InHole(NoType(FreeConstructor(name)))
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(NoProvenance)))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = wrap(Unknown(Internal));
+    let syn: Typ.t = wrap(Unknown(NoProvenance));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -422,33 +428,46 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
+let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat, termId: Id.t): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(AstNode(termId))
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 
-let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
+let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp, termId: Id.t): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(AstNode(termId))
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx, ~constraints)
+    : exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
-  let ty = fixed_typ_exp(ctx, mode, self);
-  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
+  let ty = fixed_typ_exp(ctx, mode, self, UExp.rep_id(uexp));
+  {
+    cls,
+    self,
+    ty,
+    mode,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    constraints,
+    term: uexp,
+  };
 };
 
 /* Add derivable attributes for pattern terms */
-let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
+let derived_pat =
+    (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self, ~constraints): pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
-  let ty = fixed_typ_pat(ctx, mode, self);
-  {cls, self, mode, ty, status, ctx, ancestors, term: upat};
+  let ty = fixed_typ_pat(ctx, mode, self, UPat.rep_id(upat));
+  {cls, self, mode, ty, status, ctx, ancestors, constraints, term: upat};
 };
 
 /* Add derivable attributes for types */

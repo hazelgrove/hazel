@@ -74,12 +74,13 @@ module rec Typ: {
     ty: t,
   };
 
+  // TODO: anand and raef; change t, Id.t sigs to source (see above)
   let of_source: list(source) => list(t);
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
-  let matched_arrow: (Ctx.t, t) => (t, t);
-  let matched_prod: (Ctx.t, int, t) => list(t);
-  let matched_list: (Ctx.t, t) => t;
+  let matched_arrow: (Ctx.t, Id.t, t) => ((t, t), constraints);
+  let matched_prod: (Ctx.t, int, Id.t, t) => (list(t), constraints);
+  let matched_list: (Ctx.t, Id.t, t) => (t, constraints);
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
@@ -94,13 +95,24 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
+  let typ_to_string: t => string;
+  let typ_to_string_with_parens: (bool, t) => string;
+  let contains_hole: t => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
-    | SynSwitch
-    | TypeHole
+    | NoProvenance
+    | SynSwitch(Id.t)
+    | AstNode(Id.t)
     | Free(TypVar.t)
-    | Internal;
+    | Matched(matched_provenance, type_provenance)
+  and matched_provenance =
+    | Matched_Arrow_Left
+    | Matched_Arrow_Right
+    // TODO: anand and raef make this be of index and not LR
+    | Matched_Prod_Left
+    | Matched_Prod_Right
+    | Matched_List;
 
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -126,6 +138,10 @@ module rec Typ: {
     id: Id.t,
     ty: t,
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type equivalence = (t, t)
+  and constraints = list(equivalence);
 
   /* Strip location information from a list of sources */
   let of_source = List.map((source: source) => source.ty);
@@ -174,6 +190,9 @@ module rec Typ: {
     | (Matched(_) as inf, NoProvenance | Matched(_))
     | (NoProvenance, Matched(_) as inf) => inf
     | (NoProvenance, NoProvenance) => NoProvenance
+    | _ =>
+      print_endline("TODO anand: get rid of fallthrough");
+      NoProvenance;
     };
 
   let precedence = (ty: t): int =>
@@ -273,11 +292,8 @@ module rec Typ: {
            ts,
          )
       ++ ")"
-    | Sum(t1, t2) =>
-      typ_to_string_with_parens(true, t1)
-      ++ " + "
-      ++ typ_to_string(t2)
-      |> parenthesize_if_left_child
+    | Sum(_)
+    | _ => "DISPLAYING SUM and REC NOT IMPLEMEMNTED TODO anand. Ask Andrew where the code that already does this..."
     };
   };
 
@@ -311,7 +327,7 @@ module rec Typ: {
           (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
-    | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
+    | (_, Unknown(AstNode(_) | Free(_)) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
          casts. Examples/Dynamics has regression tests */
@@ -319,7 +335,7 @@ module rec Typ: {
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
     | (Unknown(_), ty)
-    | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
+    | (ty, Unknown(NoProvenance | SynSwitch(_))) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));
@@ -416,8 +432,9 @@ module rec Typ: {
   let rec contains_hole = (ty: t): bool =>
     switch (ty) {
     | Unknown(_) => true
-    | Arrow(ty1, ty2)
-    | Sum(ty1, ty2) => contains_hole(ty1) || contains_hole(ty2)
+    | Arrow(ty1, ty2) => contains_hole(ty1) || contains_hole(ty2)
+    | Sum(tys) =>
+      tys |> List.filter_map(((_, b)) => b) |> List.exists(contains_hole)
     | Prod(tys) => List.exists(contains_hole, tys)
     | _ => false
     };
@@ -460,7 +477,7 @@ module rec Typ: {
   };
 
   let matched_arrow =
-      (ctx: Ctx.t, ty: t, termId: Id.t): ((t, t), constraints) => {
+      (ctx: Ctx.t, termId: Id.t, ty: t): ((t, t), Typ.constraints) => {
     let matched_arrow_of_prov = prov => {
       let (arrow_lhs, arrow_rhs) = (
         Unknown(Matched(Matched_Arrow_Left, prov)),
@@ -473,38 +490,38 @@ module rec Typ: {
     };
     switch (weak_head_normalize(ctx, ty)) {
     | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
-    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
+    | Unknown(SynSwitch(_) as p) => matched_arrow_of_prov(p)
     | Unknown(prov) => matched_arrow_of_prov(prov)
     | _ => matched_arrow_of_prov(AstNode(termId))
     };
   };
 
-  let matched_prod = (ctx: Ctx.t, length, ty: t) => {
-    let matched_prod_of_prov = prov => {
-      let (prod_lhs, prod_rhs) = (
-        Unknown(Matched(Matched_Prod_Left, prov)),
-        Unknown(Matched(Matched_Prod_Right, prov)),
-      );
-      (
-        (prod_lhs, prod_rhs),
-        [(Unknown(prov), Prod(prod_lhs, prod_rhs))],
-      );
-    };
+  let matched_prod = (ctx: Ctx.t, length, _termId: Id.t, ty: t) => {
+    // let matched_prod_of_prov = prov => {
+    //   let (prod_lhs, prod_rhs) = (
+    //     Unknown(Matched(Matched_Prod_Left, prov)),
+    //     Unknown(Matched(Matched_Prod_Right, prov)),
+    //   );
+    //   (
+    //     (prod_lhs, prod_rhs),
+    //     [(Unknown(prov), Prod([prod_lhs, prod_rhs]))] // TODO anand: this is not right.
+    //   );
+    // };
     switch (weak_head_normalize(ctx, ty)) {
-    | Prod(tys) when List.length(tys) == length => tys
-    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-    | _ => List.init(length, _ => Unknown(Internal))
+    | Prod(tys) when List.length(tys) == length => (tys, [])
+    | Unknown(SynSwitch(_) as p) => (List.init(length, _ => Unknown(p)), [])
+    | _ => (List.init(length, _ => Unknown(NoProvenance)), [])
     };
   };
 
-  let matched_list = (ctx: Ctx.t, ty: t, termId: Id.ty) => {
+  let matched_list = (_ctx: Ctx.t, termId: Id.t, ty: t) => {
     let matched_list_of_prov = prov => {
       let list_elts_typ = Unknown(Matched(Matched_List, prov));
       (list_elts_typ, [(Unknown(prov), List(list_elts_typ))]);
     };
     switch (ty) {
     | List(ty) => (ty, [])
-    | Unknown(SynSwitch) => Unknown(SynSwitch)
+    | Unknown(SynSwitch(_) as p) => (Unknown(p), []) // TODO anand: return constraints here
     | Unknown(prov) => matched_list_of_prov(prov)
     | _ => matched_list_of_prov(AstNode(termId))
     };

@@ -112,8 +112,8 @@ module UTyp = {
     (ctx, utyp) =>
       switch (utyp.term) {
       | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(TypeHole)
+      | MultiHole(_)
+      | EmptyHole => Unknown(AstNode(rep_id(utyp)))
       | Bool => Bool
       | Int => Int
       | Float => Float
@@ -130,7 +130,7 @@ module UTyp = {
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
       | Constructor(_)
-      | Ap(_) => Unknown(Internal)
+      | Ap(_) => Unknown(AstNode(rep_id(utyp)))
       }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
@@ -633,24 +633,6 @@ module UExp = {
       }
     );
 
-  /* Converts a syntactic type into a semantic type */
-  let rec utyp_to_ty: UTyp.t => Typ.t =
-    // TODO anand: figure out where this lives now. Make sure "Unknown(AstNode(UTyp.rep_id(utyp)))" still happens
-    utyp =>
-      switch (utyp.term) {
-      | Invalid(_)
-      | MultiHole(_)
-      | EmptyHole => Unknown(AstNode(UTyp.rep_id(utyp)))
-      | Bool => Bool
-      | Int => Int
-      | Float => Float
-      | String => String
-      | Var(name) => Var(name)
-      | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-      | Tuple(us) => Prod(List.map(utyp_to_ty, us))
-      | List(u) => List(utyp_to_ty(u))
-      | Parens(u) => utyp_to_ty(u)
-      };
   let ctr_name = (e: t): option(Constructor.t) =>
     switch (e.term) {
     | Constructor(name) => Some(name)

@@ -2861,8 +2861,6 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-<<<<<<< HEAD
-=======
     (~doc: LangDocMessages.t, index': option(Id.t), info_map: Statics.Map.t) => {
   let info: option(Statics.Info.t) =
     switch (index') {
@@ -2878,7 +2876,6 @@ let get_color_map =
 };
 
 let view =
->>>>>>> dev
     (
       ~global_inference_info: InferenceResult.global_inference_info,
       ~doc: LangDocMessages.t,

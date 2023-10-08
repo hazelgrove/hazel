@@ -90,15 +90,9 @@ let view =
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
-<<<<<<< HEAD
           global_inference_info,
-        ),
-      ]
-      : [];
-=======
         )
-      : div([]);
->>>>>>> dev
+      : [];
 
   [
     div(

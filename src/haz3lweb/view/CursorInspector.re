@@ -215,7 +215,7 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
 
 let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
-    | Type(ty) =>
+  | Type(ty) =>
     switch (
       Haz3lcore.InferenceResult.get_suggestion_text_for_id(
         id,
@@ -247,7 +247,7 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
         ],
       )
     }
-    //TODO(andrew): restore this message?
+  //TODO(andrew): restore this message?
   //| Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   //| Type(ty) => [Type.view(ty)]
   //TODO(andrew): how do these interact with THI?
@@ -311,7 +311,15 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   };
 
 let view_of_info =
-    (~inject,~font_metrics, ~global_inference_info,~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~settings,
+      ~show_lang_doc: bool,
+      ci: Statics.Info.t,
+    )
+    : Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
@@ -325,23 +333,39 @@ let view_of_info =
   };
 };
 
-let inspector_view = (~inject, ~font_metrics,
-            ~global_inference_info,~settings, ~show_lang_doc, ci): Node.t =>
+let inspector_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~settings,
+      ~show_lang_doc,
+      ci,
+    )
+    : Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~font_metrics,
-        ~global_inference_info, ~settings, ~show_lang_doc, ci)],
+    [
+      view_of_info(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~settings,
+        ~show_lang_doc,
+        ci,
+      ),
+    ],
   );
 
 let view =
     (
       ~inject,
       ~settings: ModelSettings.t,
-       ~font_metrics,
+      ~font_metrics,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,
-      global_inference_info: Haz3lcore.InferenceResult.global_inference_info,,
+      global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
     ) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
@@ -359,8 +383,14 @@ let view =
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
       bar_view([
-        inspector_view(~inject,~font_metrics,
-            ~global_inference_info, ~settings, ~show_lang_doc, ci),
+        inspector_view(
+          ~inject,
+          ~font_metrics,
+          ~global_inference_info,
+          ~settings,
+          ~show_lang_doc,
+          ci,
+        ),
         div(
           ~attr=clss(["id"]),
           [text(String.sub(Id.to_string(id), 0, 4))],

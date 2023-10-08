@@ -6,7 +6,7 @@ type ptyp =
   | Var(string)
   | List(pts)
   | Arrow(pts, pts)
-  | Sum(pts, pts) // unused
+  | Sum(list(pts)) // TODO anand and raef: fill this in
   | Prod(list(pts))
 and pts = UnionFind.elem(list(ptyp));
 
@@ -51,7 +51,8 @@ and ptyp_of_typ = (ctx: Ctx.t, t: Typ.t): ptyp => {
   | Var(s) => Var(s)
   | List(t) => List(pts_of_typ(ctx, t))
   | Arrow(t1, t2) => Arrow(pts_of_typ(ctx, t1), pts_of_typ(ctx, t2))
-  | Sum(t1, t2) => Sum(pts_of_typ(ctx, t1), pts_of_typ(ctx, t2))
+  | Sum(_) => Sum([]) // TODO anand and raef: unimplemented
+  | Rec(_) => Sum([]) // TODO anand and raef: unimplemented
   | Prod(ts) => Prod(List.map(pts_of_typ(ctx), ts))
   | Typ.Unknown(_p) => failwith("unreachable")
   };
@@ -104,10 +105,11 @@ and combine_if_similar =
     let pts1 = merge(ctx, pts1, pts3);
     let pts2 = merge(ctx, pts2, pts4);
     Some(Arrow(pts1, pts2));
-  | (Sum(pts1, pts2), Sum(pts3, pts4)) =>
-    let pts1 = merge(ctx, pts1, pts3);
-    let pts2 = merge(ctx, pts2, pts4);
-    Some(Sum(pts1, pts2));
+  | (Sum(_), Sum(_)) =>
+    // let pts1 = merge(ctx, pts1, pts3);
+    // let pts2 = merge(ctx, pts2, pts4);
+    // Some(Sum(pts1, pts2))
+    None // TODO anand and raef: unimplemented
   | (Prod(tys1), Prod(tys2)) =>
     let tys = List.map2(merge(ctx), tys1, tys2);
     Some(Prod(tys));
@@ -168,16 +170,17 @@ and get_status_ptyp = (ctx: Ctx.t, ptyp: ptyp): status => {
     | (Unsolved(_), Unsolved(_)) =>
       Unsolved([Arrow(Unknown(NoProvenance), Unknown(NoProvenance))])
     }
-  | Sum(pts1, pts2) =>
-    switch (get_status_pts(ctx, pts1), get_status_pts(ctx, pts2)) {
-    | (Solved(ty1), Solved(ty2)) => Solved(Sum(ty1, ty2))
-    | (Solved(ty1), Unsolved(_)) =>
-      Unsolved([Sum(ty1, Unknown(NoProvenance))])
-    | (Unsolved(_), Solved(ty2)) =>
-      Unsolved([Sum(Unknown(NoProvenance), ty2)])
-    | (Unsolved(_), Unsolved(_)) =>
-      Unsolved([Sum(Unknown(NoProvenance), Unknown(NoProvenance))])
-    }
+  | Sum(_) =>
+    // switch (get_status_pts(ctx, pts1), get_status_pts(ctx, pts2)) {
+    // | (Solved(ty1), Solved(ty2)) => Solved(Sum(ty1, ty2))
+    // | (Solved(ty1), Unsolved(_)) =>
+    //   Unsolved([Sum(ty1, Unknown(NoProvenance))])
+    // | (Unsolved(_), Solved(ty2)) =>
+    //   Unsolved([Sum(Unknown(NoProvenance), ty2)])
+    // | (Unsolved(_), Unsolved(_)) =>
+    //   Unsolved([Sum(Unknown(NoProvenance), Unknown(NoProvenance))])
+    // }
+    Unsolved([]) // TODO anand and raef: unimplemented
   | Prod(tys_inner) =>
     let is_solved = (s: status): bool => {
       switch (s) {
