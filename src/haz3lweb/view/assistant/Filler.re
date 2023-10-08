@@ -76,12 +76,15 @@ fun c ->
     "fun x:Int -> ??",
   ),
   (
-    "case Foo(5) | Foo(x) => ?? | Bar => 6",
+    "let get: Option_int => Int =\n"
+    ++ "  case Some(5)\n"
+    ++ "  | Some(x) => ??\n"
+    ++ "  | None => 0 end",
     Type.expected(Some(Ana(Int)), ~ctx=[]),
     "x",
   ),
   (
-    "let num_or_zero = fun maybe_num -> case maybe_num | Some(num) => ?? | None => 0",
+    "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?? \n| None => 0 end",
     Type.expected(Some(Syn), ~ctx=[]),
     "num",
   ),
@@ -197,6 +200,22 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
     ++ "\n";
   };
 };
+
+//TODO(andrew): softcode this hack
+let relevant_aliases = {|
+           Relevant Aliases:
+           # A todo has a description and a status #
+type Todo = (String, Bool) in
+
+# A description input buffer and a todo list #
+type Model = (String, [Todo]) in
+
+type Action =
++ AddTodo
++ RemoveTodo(Int)
+  + ToggleTodo(Int)
+  + UpdateBuffer(String) in
+  |};
 
 let mk_user_message = (~expected_ty, sketch: string): string =>
   "{\n"

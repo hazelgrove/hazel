@@ -174,6 +174,7 @@ let test_result_layer =
 
 let deco =
     (
+      ~inject,
       ~zipper,
       ~settings,
       ~measured,
@@ -198,7 +199,8 @@ let deco =
       let term_ranges = term_ranges;
       let tiles = TileMap.mk(unselected);
     });
-  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos =
+    selected ? Deco.all(zipper, segment, ~inject) : Deco.err_holes(zipper);
   let decos =
     switch (test_results) {
     | None => decos
@@ -326,6 +328,7 @@ let editor_view =
     );
   let deco_view =
     deco(
+      ~inject,
       ~zipper,
       ~settings,
       ~unselected,

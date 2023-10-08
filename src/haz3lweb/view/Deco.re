@@ -386,23 +386,28 @@ module Deco =
     Id.Map.find_opt(up_index, processed_map); //return entry for cursor
   };
 
-  let live_aid_val_view = (~env, ~width, d: DHExp.t) =>
-    Node.div(
-      ~attr=Attr.classes(["env-entry"] @ (env ? ["env"] : ["res"])),
-      [
-        DHCode.view(
-          ~settings={
-            show_case_clauses: true,
-            show_fn_bodies: false,
-            show_casts: false,
-          },
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width,
-          d,
-        ),
-      ],
-    );
+  let live_aid_val_view = (~env, ~width, ~inject, d: DHExp.t) =>
+    switch (d) {
+    | Ap(Constructor("Div"), _) =>
+      Node.div(MVU.go2(~settings, ~inject, ~font_metrics, ~node=d))
+    | _ =>
+      Node.div(
+        ~attr=Attr.classes(["env-entry"] @ (env ? ["env"] : ["res"])),
+        [
+          DHCode.view(
+            ~settings={
+              show_case_clauses: true,
+              show_fn_bodies: false,
+              show_casts: false,
+            },
+            ~selected_hole_instance=None,
+            ~font_metrics,
+            ~width,
+            d,
+          ),
+        ],
+      )
+    };
 
   let env_entries_row = (m, ns: list(Node.t)) => {
     Node.div(
@@ -451,7 +456,7 @@ module Deco =
     /* Preconsition: e is nonempty */
     (e |> List.hd |> fst, e |> List.rev |> List.hd |> fst);
 
-  let live_aid = (zipper: Zipper.t) => {
+  let live_aid = (zipper: Zipper.t, ~inject) => {
     let col = Measured.width(M.map) + 2;
     let width = 40;
     switch (live_aid_target_data(zipper), live_aid_data(zipper)) {
@@ -469,6 +474,7 @@ module Deco =
              List.map(
                (entry: entry) =>
                  live_aid_val_view(
+                   ~inject,
                    ~width,
                    ~env=entry.binding_id != res_id,
                    entry.v,
@@ -488,7 +494,7 @@ module Deco =
     };
   };
 
-  let all = (zipper, sel_seg) =>
+  let all = (zipper, sel_seg, ~inject) =>
     List.concat(
       [
         caret(zipper),
@@ -498,6 +504,6 @@ module Deco =
         targets'(zipper.backpack, sel_seg),
         err_holes(zipper),
       ]
-      @ (settings.live_inspector.on ? [live_aid(zipper)] : []),
+      @ (settings.live_inspector.on ? [live_aid(zipper, ~inject)] : []),
     );
 };

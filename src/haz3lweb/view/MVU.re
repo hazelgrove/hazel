@@ -288,7 +288,7 @@ let update =
         wait... step 1.2 makes assumptions about the term being closed
         could for now make it a static error on the stage if the model
         child has nonempty co-ctx. or simply require it to be a value
-        Q: how to canonically to check if its a value?
+        Q: how to canonica lly to check if its a value?
         */
   } else {
     let model =

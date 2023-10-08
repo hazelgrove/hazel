@@ -105,7 +105,12 @@ exception PostprocessError(EvaluatorPost.error);
 // };
 
 let evaluate =
-    (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
+    (
+      ~settings: CoreSettings.t,
+      ~es=EvaluatorState.init,
+      ~env=Builtins.env_init,
+      d: DHExp.t,
+    )
     : ProgramResult.t => {
   let err_wrap = (error): (EvaluatorState.t, EvaluatorResult.t) => (
     EvaluatorState.init,
@@ -118,7 +123,7 @@ let evaluate =
     | _ when !settings.dynamics =>
       err_wrap("Dynamics disabled: No evaluation")
     | _ =>
-      try(Evaluator.evaluate(env, d)) {
+      try(Evaluator.evaluate(~es, env, d)) {
       | EvaluatorError.Exception(reason) =>
         err_wrap("Internal exception: " ++ EvaluatorError.show(reason))
       | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
@@ -152,6 +157,14 @@ let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
   switch (evaluate(~settings, d)) {
   | (result, _, _) => EvaluatorResult.unbox(result)
   };
+
+let eval_e2e =
+    (~settings: CoreSettings.t, es: EvaluatorState.t, d: DHExp.t)
+    : (EvaluatorState.t, DHExp.t) => {
+  //NOTE: assumes empty init ctx, env
+  let (result, es, _) = evaluate(~es, ~settings, d);
+  (es, EvaluatorResult.unbox(result));
+};
 
 let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
   //NOTE: assumes empty init ctx, env

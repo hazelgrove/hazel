@@ -9,4 +9,5 @@ type ground_cases =
   [es] is the accumulated state.
  */
 let evaluate:
-  (Environment.t, DHExp.t) => (EvaluatorState.t, EvaluatorResult.t);
+  (~es: EvaluatorState.t=?, Environment.t, DHExp.t) =>
+  (EvaluatorState.t, EvaluatorResult.t);
