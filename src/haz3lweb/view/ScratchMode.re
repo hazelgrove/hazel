@@ -119,32 +119,47 @@ let breadcrumb_bar =
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
   switch (zipper.backpack, Indicated.index(zipper)) {
-  | ([_, ..._], _) => [div([text("error")])]
-  | (_, None) => [div([text("error")])]
+  | ([_, ..._], _) => [div([text("")])]
+  | (_, None) => [div([text("")])]
   | (_, Some(id)) =>
     switch (Id.Map.find_opt(id, info_map)) {
-    | None => [div([text("error")])]
+    | None => [div([text("")])]
     | Some(ci) =>
       let ancestors = Info.ancestors_of(ci);
-      let info_term = (ancestor: Info.t) =>
-        if (ancestor |> Info.cls_of |> Term.Cls.show == "Function literal") {
-          "Fun";
-        } else {
-          "";
+      let check_fun_in_let = ancestors =>
+        switch (Id.Map.find_opt(List.hd(ancestors), info_map)) {
+        | Some(v) =>
+          switch (v) {
+          | Info.InfoExp({term, _}) =>
+            switch (term.term) {
+            | Let({term: Var(name), _}, {term: Fun(_), _}, _) => name
+            | _ => ""
+            }
+          | _ => ""
+          }
+        | _ => ""
+        };
+      let check_parenet_fun = ancestor =>
+        switch (Id.Map.find_opt(ancestor, info_map)) {
+        | Some(v) =>
+          switch (v) {
+          | Info.InfoExp({term, ancestors, _}) =>
+            switch (term.term) {
+            | Fun(_) => check_fun_in_let(ancestors)
+            | _ => ""
+            }
+          | _ => ""
+          }
+        | None => ""
         };
       let rec ancestors_string = ancestors => {
         switch (ancestors) {
         | [] => ""
         | [x, ...xs] =>
-          switch (Id.Map.find_opt(x, info_map)) {
-          | Some(v) =>
-            if (info_term(v) == "") {
-              ancestors_string(xs);
-            } else {
-              Printf.printf("info_term: %s\n", Info.show(v));
-              info_term(v) ++ "->" ++ ancestors_string(xs);
-            }
-          | None => ""
+          if (check_parenet_fun(x) == "") {
+            ancestors_string(xs);
+          } else {
+            check_parenet_fun(x) ++ "->" ++ ancestors_string(xs);
           }
         };
       };
