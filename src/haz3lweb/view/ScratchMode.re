@@ -98,7 +98,39 @@ let download_slide_state = state => {
   let json_data = ScratchSlide.export(state);
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
-
+let breadcrumb_bar =
+    (
+      ~inject,
+      ~model as
+        {
+          editors,
+          //font_metrics,
+          //show_backpack_targets,
+          settings,
+          //mousedown,
+          //langDocMessages,
+          _,
+          //results,
+        }: Model.t,
+    ) => {
+  let editor = Editors.get_editor(editors);
+  let zipper = editor.state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let info_map = Statics.mk_map(term);
+  switch (zipper.backpack, Indicated.index(zipper)) {
+  | ([_, ..._], _) => [div([text("error")])]
+  | (_, None) => [div([text("error")])]
+  | (_, Some(id)) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | None => [div([text("error")])]
+    | Some(ci) => [
+        CursorInspector.ctx_toggle(~inject, settings.context_inspector),
+        CtxInspector.view(~inject, ~settings, ci),
+      ]
+    }
+  };
+};
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
     Widgets.button(

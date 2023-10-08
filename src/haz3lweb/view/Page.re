@@ -100,11 +100,14 @@ let nut_menu =
     ),
   ),
 ];
-
+let breadcrumb_bar = () => {
+  [div([text("Breadcrumb bar")])];
+};
 let top_bar_view =
     (
       ~inject: Update.t => 'a,
       ~toolbar_buttons: list(Node.t),
+      ~breadcrumb_bar: list(Node.t),
       ~model as {editors, settings, _}: Model.t,
     ) =>
   div(
@@ -113,7 +116,8 @@ let top_bar_view =
     @ [div(~attr=Attr.id("title"), [text("hazel")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)]
     @ history_bar(Editors.get_editor(editors), ~inject)
-    @ toolbar_buttons,
+    @ toolbar_buttons
+    @ breadcrumb_bar,
   );
 
 let exercises_view =
@@ -143,7 +147,8 @@ let exercises_view =
     @ [
       Grading.GradingReport.view_overall_score(exercise_mode.grading_report),
     ];
-  [top_bar_view(~inject, ~model, ~toolbar_buttons)]
+  let breadcrumb_bar = ScratchMode.breadcrumb_bar(~inject, ~model);
+  [top_bar_view(~inject, ~model, ~toolbar_buttons, ~breadcrumb_bar)]
   @ ExerciseMode.view(
       ~inject,
       ~font_metrics,
@@ -155,7 +160,8 @@ let exercises_view =
 
 let slide_view = (~inject, ~model, slide_state) => {
   let toolbar_buttons = ScratchMode.toolbar_buttons(~inject, slide_state);
-  [top_bar_view(~inject, ~toolbar_buttons, ~model)]
+  let breadcrumb_bar = ScratchMode.breadcrumb_bar(~inject, ~model);
+  [top_bar_view(~inject, ~toolbar_buttons, ~breadcrumb_bar, ~model)]
   @ ScratchMode.view(~inject, ~model);
 };
 
