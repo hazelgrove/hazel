@@ -118,7 +118,8 @@ let rec modulize = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
   | Member(name, ty) => Member(x ++ "." ++ name, ty)
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(modulize(ctx, x, ty1), modulize(ctx, x, ty2))
-  | Prod(tys) => Prod(List.map(modulize(ctx, x), tys))
+  | Prod(tys) =>
+    Prod(tys |> List.map(((p, t)) => (p, modulize(ctx, x, t))))
   | Sum(sm) => Sum(TagMap.map(Option.map(modulize(ctx, x)), sm))
   | Rec(y, ty) => Rec(y, modulize(ctx, x, ty))
   | List(ty) => List(modulize(ctx, x, ty))

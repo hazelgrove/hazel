@@ -2,6 +2,7 @@ include TypBase.Typ;
 module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
+open LabeledTupleUtil;
 
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
@@ -30,7 +31,8 @@ let matched_arrow: t => (t, t) =
 let matched_prod: (int, t) => list(t) =
   length =>
     fun
-    | Prod(tys) when List.length(tys) == length => tys
+    | Prod(tys) when List.length(tys) == length =>
+      labeled_tuple_to_unlabeled_tuple(tys)
     | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
     | _ => List.init(length, _ => Unknown(Internal));
 
@@ -76,7 +78,7 @@ let rec subst = (s: t, x: TypVar.t, ty: t) => {
   | Member(name, ty) => Member(name, subst(s, x, ty))
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-  | Prod(tys) => Prod(List.map(subst(s, x), tys))
+  | Prod(tys) => Prod(tys |> List.map(((p, e)) => (p, subst(s, x, e))))
   | Sum(sm) => Sum(TagMap.map(Option.map(subst(s, x)), sm))
   | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
@@ -120,7 +122,12 @@ let rec eq = (t1: t, t2: t): bool => {
   | (Unknown(_), _) => false
   | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
   | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
+  | (Prod(tys1), Prod(tys2)) =>
+    List.equal(
+      eq,
+      labeled_tuple_to_unlabeled_tuple(tys1),
+      labeled_tuple_to_unlabeled_tuple(tys2),
+    )
   | (Prod(_), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
@@ -150,7 +157,11 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
       | Some(typ) => free_vars(~bound, typ),
       List.map(snd, sm),
     )
-  | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+  | Prod(tys) =>
+    ListUtil.flat_map(
+      free_vars(~bound),
+      labeled_tuple_to_unlabeled_tuple(tys),
+    )
   | Module(inner_ctx) =>
     let ctx_entry_subst = (l: list(Token.t), e: Ctx.entry): list(Token.t) => {
       switch (e) {
@@ -234,9 +245,15 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Arrow(ty1, ty2);
   | (Arrow(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    let* tys = ListUtil.map2_opt(join(ctx), tys1, tys2);
+    let tysp = labeled_tuple_to_labels(tys1);
+    let* tys =
+      ListUtil.map2_opt(
+        join',
+        labeled_tuple_to_unlabeled_tuple(tys1),
+        labeled_tuple_to_unlabeled_tuple(tys2),
+      );
     let+ tys = OptUtil.sequence(tys);
-    Prod(tys); //TODO: what if same variable in both ctx?
+    Prod(List.combine(tysp, tys)); //TODO: Fix this
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let (sorted1, sorted2) =
@@ -298,7 +315,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | String => ty
   | List(t) => List(normalize(ctx, t))
   | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts))
+  | Prod(ts) => Prod(ts |> List.map(((p, e)) => (p, normalize(ctx, e))))
   | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
   | Module(inner_ctx) =>
     let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {

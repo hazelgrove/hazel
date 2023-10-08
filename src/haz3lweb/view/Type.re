@@ -48,6 +48,8 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Prod([_]) =>
     div(~attr=clss(["typ-view", "Prod"]), [text("Singleton Product")])
   | Prod([t0, ...ts]) =>
+    let (_, t0) = t0;
+    let ts = ts |> List.map(((_, t)) => t);
     div(
       ~attr=clss(["typ-view", "atom", "Prod"]),
       [
@@ -59,7 +61,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         ),
         text(")"),
       ],
-    )
+    );
   | Module([]) => div(~attr=clss(["typ-view", "Module"]), [text("Module")])
   | Module([e, ...es]) =>
     let view_entry = (m: Haz3lcore.TypBase.Ctx.entry): list(t) => {

@@ -75,7 +75,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | TupLabel(DHPat.t, t)
-    | Tuple(list((option(DHPat.t), t)))
+    | Tuple(list((option(LabeledTuple.t), t)))
     | Prj(t, int)
     | Tag(string)
     | ConsistentCase(case)
@@ -90,7 +90,7 @@ module rec DHExp: {
 
   let constructor_string: t => string;
 
-  let mk_tuple: list((option(DHPat.t), t)) => t;
+  let mk_tuple: list((option(LabeledTuple.t), t)) => t;
 
   let cast: (t, Typ.t, Typ.t) => t;
 
@@ -176,7 +176,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | TupLabel(DHPat.t, t)
-    | Tuple(list((option(DHPat.t), t)))
+    | Tuple(list((option(LabeledTuple.t), t)))
     | Prj(t, int)
     | Tag(string)
     | ConsistentCase(case)
@@ -230,7 +230,7 @@ module rec DHExp: {
     | ModuleVal(_) => "ModuleVal"
     };
 
-  let mk_tuple: list((option(DHPat.t), t)) => t =
+  let mk_tuple: list((option(LabeledTuple.t), t)) => t =
     fun
     | []
     | [_] => failwith("mk_tuple: expected at least 2 elements")

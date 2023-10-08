@@ -176,8 +176,7 @@ module UTyp = {
              | _ => (outer_ctx, inner_ctx)
              };
            };*/
-        let us = us |> List.map(((_, u)) => u);
-        Prod(List.map(to_typ(ctx), us));
+        Prod(us |> List.map(((p, e)) => (p, to_typ(ctx, e))))
       | Sum(uts) => Sum(to_tag_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
@@ -207,6 +206,7 @@ module UTyp = {
           | Triv
           | ListLit(_)
           | Cons(_)
+          | TupLabel(_)
           | Tuple(_)
           | Ap(_) => (outer_ctx, inner_ctx)
           | TypeAnn(var, utyp1) =>
@@ -324,6 +324,7 @@ module UTyp = {
             | Triv
             | ListLit(_)
             | Cons(_)
+            | TupLabel(_)
             | Ap(_) =>
               let (_, module_ctx) = upat_to_ctx((ctx, []), ut);
               Module(module_ctx);
@@ -448,6 +449,7 @@ module UPat = {
     | Tag
     | Cons
     | Var
+    | TupLabel
     | Tuple
     | Parens
     | Ap
@@ -482,6 +484,7 @@ module UPat = {
     | Tag(_) => Tag
     | Cons(_) => Cons
     | Var(_) => Var
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -503,6 +506,7 @@ module UPat = {
     | Tag => "Constructor Pattern"
     | Cons => "Cons Pattern"
     | Var => "Pattern Variable"
+    | TupLabel => "Tuple Label Pattern"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
     | Ap => "Constructor Application Pattern"
@@ -526,6 +530,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | TupLabel(_, _)
     | Tuple(_)
     | Tag(_)
     | Ap(_) => false
@@ -549,6 +554,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | TupLabel(_, _)
     | Tuple(_)
     | Tag(_)
     | Ap(_) => false
@@ -578,6 +584,7 @@ module UPat = {
       | TypeAnn(_)
       | TyAlias(_)
       | Tag(_)
+      | TupLabel(_)
       | Ap(_) => false
       }
     );
@@ -599,6 +606,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | TupLabel(_, _)
     | Tuple(_)
     | Tag(_)
     | Ap(_) => None
@@ -622,6 +630,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | TupLabel(_, _)
     | Tuple(_)
     | Var(_)
     | Ap(_) => None
@@ -650,6 +659,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | TupLabel(_, _)
     | Tuple(_)
     | Tag(_)
     | Ap(_) => None
@@ -685,6 +695,7 @@ module UPat = {
       | TypeAnn(_)
       | TyAlias(_)
       | Tag(_)
+      | TupLabel(_, _)
       | Ap(_) => None
       }
     };

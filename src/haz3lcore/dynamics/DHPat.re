@@ -15,11 +15,11 @@ type t =
   | StringLit(string)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
-  | Tuple(list((option(t), t)))
+  | Tuple(list((option(LabeledTuple.t), t)))
   | Tag(string)
   | Ap(t, t);
 
-let mk_tuple: list((option(t), t)) => t =
+let mk_tuple: list((option(LabeledTuple.t), t)) => t =
   fun
   | []
   | [_] => failwith("mk_tuple: expected at least 2 elements")

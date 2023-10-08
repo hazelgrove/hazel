@@ -2,6 +2,7 @@ open Util;
 open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 open EvaluatorResult;
+open LabeledTupleUtil;
 
 /**
   Alias for EvaluatorMonad.
@@ -24,7 +25,9 @@ let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
+  NotGroundOrHole(
+    Prod(ListUtil.replicate(length, (None, Typ.Unknown(Internal)))),
+  );
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
   let sm' = sm |> TagMap.map(Option.map(const_unknown));
   NotGroundOrHole(Sum(sm'));
@@ -53,7 +56,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
           fun
           | Typ.Unknown(_) => true
           | _ => false,
-          tys,
+          labeled_tuple_to_unlabeled_tuple(tys),
         )) {
       Ground;
     } else {
@@ -234,7 +237,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       d,
       List.map(
         p => [p],
-        List.combine(tys, List.init(List.length(tys), const_unknown)),
+        List.combine(
+          tys,
+          List.init(List.length(tys), t => (None, const_unknown(t))),
+        ),
       ),
     )
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
@@ -243,7 +249,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       d,
       List.map(
         p => [p],
-        List.combine(List.init(List.length(tys'), const_unknown), tys'),
+        List.combine(
+          List.init(List.length(tys'), t => (None, const_unknown(t))),
+          tys',
+        ),
       ),
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
@@ -334,14 +343,26 @@ and matches_cast_Sum =
   }
 and matches_cast_Tuple =
     (
-      dps: list((option(DHPat.t), DHPat.t)),
+      dps: list((option(LabeledTuple.t), DHPat.t)),
       d: DHExp.t,
-      elt_casts: list(list((Typ.t, Typ.t))),
+      elt_casts:
+        list(
+          list(
+            (
+              (option(LabeledTuple.t), Typ.t),
+              (option(LabeledTuple.t), Typ.t),
+            ),
+          ),
+        ),
     )
     : match_result =>
+  // TODO: Fix this whole thing
   switch (d) {
   | TupLabel(_) => DoesNotMatch
   | Tuple(ds) =>
+    let elt_casts =
+      elt_casts
+      |> List.map(l => l |> List.map((((_, e1), (_, e2))) => (e1, e2)));
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
@@ -362,7 +383,7 @@ and matches_cast_Tuple =
         List.combine(List.combine(dps, ds), elt_casts),
         Matches(Environment.empty),
       );
-    }
+    };
   | Cast(d', Prod(tys), Prod(tys')) =>
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
@@ -375,14 +396,14 @@ and matches_cast_Tuple =
       );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
-    let tys' = List.init(List.length(tys), const_unknown);
+    let tys' = List.init(List.length(tys), t => (None, const_unknown(t)));
     matches_cast_Tuple(
       dps,
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(d', Unknown(_), Prod(tys')) =>
-    let tys = List.init(List.length(tys'), const_unknown);
+    let tys = List.init(List.length(tys'), t => (None, const_unknown(t)));
     matches_cast_Tuple(
       dps,
       d',
@@ -963,8 +984,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             );
           } else {
-            let ty = List.nth(tys, n);
-            let ty' = List.nth(tys', n);
+            let (_, ty) = List.nth(tys, n);
+            let (_, ty') = List.nth(tys', n);
             evaluate(env, Cast(Prj(targ', n), ty, ty'));
           }
         | _ => return(Indet(d))

@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open LabeledTupleUtil;
 
 module ElaborationResult = {
   [@deriving sexp]
@@ -100,7 +101,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
+        let us = List.init(List.length(ds), _ => (None, Typ.Unknown(prov)));
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
@@ -196,21 +197,22 @@ let rec dhexp_of_uexp =
       | TupLabel(_, e) =>
         //let* dp = dhpat_of_upat(m, p);
         let+ de = dhexp_of_uexp(m, e);
-        //DHExp.TupLabel(dp, de); // TODO check this
+        //DHExp.TupLabel(dp, de); // TODO check this. Remove from dh.re?
         de;
       | Tuple(es) =>
-        //TODO: Fix this
-        let tempfuncname = p =>
-          switch (p) {
-          | Some(d) => dhpat_of_upat(m, d)
-          | None => None
-          };
-        let dsp = es |> List.map(((p, _)) => tempfuncname(p));
+        /*let tempfuncname = p =>
+            switch (p) {
+            | Some(d) => dhpat_of_upat(m, d)
+            | None => None
+            };
+          let dsp = es |> List.map(((p, _)) => tempfuncname(p));*/
+        let dsp = labeled_tuple_to_labels(es);
         let+ ds =
           es
           |> List.map(((_, d)) => dhexp_of_uexp(m, d))
           |> OptUtil.sequence;
         DHExp.Tuple(List.combine(dsp, ds));
+      //TODO: Fix this
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
@@ -418,13 +420,18 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
+    // TODO: Fix this
+    | TupLabel(_, p2) =>
+      let* dp2 = dhpat_of_upat(m, p2);
+      wrap(dp2);
     | Tuple(ps) =>
-      let tempfuncname = p =>
-        switch (p) {
-        | Some(d) => dhpat_of_upat(m, d)
-        | None => None
-        };
-      let dsp = ps |> List.map(((p, _)) => tempfuncname(p));
+      /*let tempfuncname = p =>
+          switch (p) {
+          | Some(d) => dhpat_of_upat(m, d)
+          | None => None
+          };
+        let dsp = ps |> List.map(((p, _)) => tempfuncname(p));*/
+      let dsp = labeled_tuple_to_labels(ps);
       let* ds =
         ps |> List.map(((_, d)) => dhpat_of_upat(m, d)) |> OptUtil.sequence;
       wrap(DHPat.Tuple(List.combine(dsp, ds)));

@@ -12,6 +12,7 @@
 
 open Util;
 open Term;
+open LabeledTupleUtil;
 
 // TODO make less hacky
 let tokens =
@@ -88,10 +89,19 @@ let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
 let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
 // TODO: Clean this up
-// Tuple util functions
-let make_labeled_tuple_exp_helper = (exp: UExp.t): (option(UPat.t), UExp.t) =>
+// Tuplabel util functions
+// TODO: filter patternss so that result (option(Var.t), UExp.t)
+
+let return_tuplabel = (p: UPat.t, t: 'a): (option(LabeledTuple.t), 'a) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TOOD: put the real error
+  };
+
+let make_labeled_tuple_exp_helper =
+    (exp: UExp.t): (option(LabeledTuple.t), UExp.t) =>
   switch (exp.term) {
-  | TupLabel(p, e) => (Some(p), e)
+  | TupLabel(p, e) => return_tuplabel(p, e)
   | _ => (None, exp)
   };
 
@@ -99,14 +109,10 @@ let make_labeled_tuple_exp = (es: list(UExp.t)) => {
   es |> List.map(make_labeled_tuple_exp_helper);
 };
 
-let labeled_tuple_to_unlabeled_exp = (es: list((option(UPat.t), UExp.t))) => {
-  es |> List.map(((_, e)) => e);
-};
-
-let make_labeled_tuple_pat_helper = (pat: UPat.t): (option(UPat.t), UPat.t) =>
+let make_labeled_tuple_pat_helper =
+    (pat: UPat.t): (option(LabeledTuple.t), UPat.t) =>
   switch (pat.term) {
-  // TODO: Make thiss TupLabel
-  //| TupLabel(p, pt) => (Some(p), pt)
+  | TupLabel(p, pt) => return_tuplabel(p, pt)
   | _ => (None, pat)
   };
 
@@ -114,22 +120,15 @@ let make_labeled_tuple_pat = (ps: list(UPat.t)) => {
   ps |> List.map(make_labeled_tuple_pat_helper);
 };
 
-let labeled_tuple_to_unlabeled_pat = (ps: list((option(UPat.t), UPat.t))) => {
-  ps |> List.map(((_, p)) => p);
-};
-
-let make_labeled_tuple_typ_helper = (typ: UTyp.t): (option(UPat.t), UTyp.t) =>
+let make_labeled_tuple_typ_helper =
+    (typ: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
   switch (typ.term) {
-  | TupLabel(p, t) => (Some(p), t)
+  | TupLabel(p, t) => return_tuplabel(p, t)
   | _ => (None, typ)
   };
 
-let make_labeled_tuple_typ = (ts: list(UTyp.t)) => {
+let make_labeled_tuple_typ = (ts: list('a)) => {
   ts |> List.map(make_labeled_tuple_typ_helper);
-};
-
-let labeled_tuple_to_unlabeled_typ = (ts: list((option(UPat.t), UTyp.t))) => {
-  ts |> List.map(((_, t)) => t);
 };
 
 let is_grout = tiles =>
@@ -250,7 +249,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {ids, term: Tuple(es)} => (
-            ListLit(labeled_tuple_to_unlabeled_exp(es)),
+            ListLit(labeled_tuple_to_unlabeled_tuple(es)),
             ids,
           )
         | term => ret(ListLit([term]))
@@ -299,7 +298,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | Bin(Pat(p), tiles, Exp(e)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(TupLabel(p, e))
+    | ([(_id, (["="], []))], []) => ret(TupLabel(p, e))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -373,7 +372,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} =>
-            ListLit(labeled_tuple_to_unlabeled_pat(ps))
+            ListLit(labeled_tuple_to_unlabeled_tuple(ps))
           | term => ListLit([term])
           }
         | _ => hole(tm)
@@ -415,6 +414,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       ret(Tuple(make_labeled_tuple_pat([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
+      // TODO: tuplabel modified for now since it shares symbol with typeann
+      | ([(_id, (["="], []))], []) => ret(TupLabel(l, r))
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -480,7 +481,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Bin(Pat(p), tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(TupLabel(p, t))
+    | ([(_id, (["="], []))], []) => ret(TupLabel(p, t))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

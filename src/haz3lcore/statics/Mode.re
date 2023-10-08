@@ -39,6 +39,7 @@ let of_arrow: t => (t, t) =
       (Ana(ty_in), Ana(ty_out));
     };
 
+//TODO: prob change analysis here or matched_prod
 let of_prod = (mode: t, length): list(t) =>
   switch (mode) {
   | Syn

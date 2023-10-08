@@ -1,4 +1,5 @@
 open Term;
+open LabeledTupleUtil;
 
 /* STATICS.re
 
@@ -208,11 +209,12 @@ and uexp_to_info_map =
       );
     add(~self=Just(e.ty), ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | Tuple(es) =>
-    let es = es |> List.map(((_, e)) => e);
+    let esp = labeled_tuple_to_labels(es);
+    let es = labeled_tuple_to_unlabeled_tuple(es);
     let modes = Mode.of_prod(mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
-      ~self=Just(Prod(List.map(Info.exp_ty, es))),
+      ~self=Just(Prod(List.combine(esp, List.map(Info.exp_ty, es)))),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
@@ -450,11 +452,17 @@ and upat_to_info_map =
       let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
       add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
     }
+  // TODO: Fix this
+  | TupLabel(p1, p2) =>
+    let (p2, m) = go(~ctx, ~mode, p2, m);
+    let (_, m) = go(~ctx, ~mode, p1, m);
+    add(~self=Just(p2.ty), ~ctx=p2.ctx, m);
   | Tuple(ps) =>
-    let ps = ps |> List.map(((_, p)) => p);
+    let psp = labeled_tuple_to_labels(ps);
+    let ps = labeled_tuple_to_unlabeled_tuple(ps);
     let modes = Mode.of_prod(mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Just(Prod(tys)), ~ctx, m);
+    add(~self=Just(Prod(List.combine(psp, tys))), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
@@ -655,6 +663,7 @@ and uexp_to_module =
       | Triv
       | ListLit([])
       | TyAlias(_)
+      | TupLabel(_)
       | Ap(_) => Syn
       | Var(name)
       | Tag(name) =>
@@ -664,11 +673,11 @@ and uexp_to_module =
         }
       | Parens(pat) => out_moded(out_mode, pat)
       | Tuple(pats) =>
-        let pats = pats |> List.map(((_, p)) => p);
+        let pats = labeled_tuple_to_unlabeled_tuple(pats);
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {
             switch (mode, out_moded(out_mode, p)) {
-            | (Ana(Prod(ps)), Ana(t)) => Ana(Prod(ps @ [t]))
+            | (Ana(Prod(ps)), Ana(t)) => Ana(Prod(ps @ [(None, t)]))
             | _ => Syn
             }
           },
