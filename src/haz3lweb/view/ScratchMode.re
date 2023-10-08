@@ -106,7 +106,7 @@ let breadcrumb_bar =
           editors,
           //font_metrics,
           //show_backpack_targets,
-          settings,
+          //settings,
           //mousedown,
           //langDocMessages,
           _,
@@ -154,19 +154,33 @@ let breadcrumb_bar =
         };
       let rec ancestors_string = ancestors => {
         switch (ancestors) {
-        | [] => ""
+        | [] => []
         | [x, ...xs] =>
           if (check_parenet_fun(x) == "") {
             ancestors_string(xs);
           } else {
-            check_parenet_fun(x) ++ "->" ++ ancestors_string(xs);
+            [
+              div(
+                ~attr=
+                  Attr.many([
+                    clss(["breadcrumb_bar_function"]),
+                    Attr.on_click(_ =>
+                      inject(UpdateAction.PerformAction(Jump(TileId(x))))
+                    ),
+                  ]),
+                [text(check_parenet_fun(x)), text("    ->")],
+              ),
+            ]
+            @ ancestors_string(xs);
           }
         };
       };
-      [
-        div([text(ancestors_string(List.rev(ancestors)))]),
-        CtxInspector.view(~inject, ~settings, ci),
-      ];
+      //[
+      //  div(
+      //    ~attr=clss(["breadcrumb_bar"]),
+      ancestors_string(List.rev(ancestors));
+    //  ),
+    //];
     }
   };
 };

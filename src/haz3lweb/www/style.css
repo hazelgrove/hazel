@@ -374,7 +374,6 @@ select {
   align-items: center;
   background-color: #a69461;
 }
-
 #top-bar .menu:hover,
 #top-bar .menu-icon:hover+.menu {
   transform: scaleY(1);
@@ -442,7 +441,9 @@ select {
   transform: scale(100%);
   cursor: not-allowed;
 }
-
+#top-bar .breadcrumb_bar_function{
+  color:#13aed2
+}
 #top-bar #editor-mode {
   color: #fdf6e3;
   display: flex;
