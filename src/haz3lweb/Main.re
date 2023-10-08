@@ -1,8 +1,11 @@
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
+open Virtual_dom.Vdom;
 
 let action_applied = ref(true);
+let edit_action_applied = ref(true);
+let last_edit_action = ref(JsUtil.timestamp());
 
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
@@ -36,6 +39,11 @@ let restart_caret_animation = () =>
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
   action_applied := true;
+  if (UpdateAction.is_edit(action)) {
+    last_edit_action := JsUtil.timestamp();
+    edit_action_applied := true;
+  };
+  last_edit_action := JsUtil.timestamp();
   switch (
     try({
       let new_model = Update.apply(model, action, state, ~schedule_action);
@@ -51,37 +59,34 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     print_endline(Update.Failure.show(FailedToPerform(err)));
     //{...model, history: ActionHistory.failure(err, model.history)};
     model;
-  | Error(UnrecognizedInput(reason)) =>
-    // TODO(andrew): reinstate this history functionality
-    print_endline(Update.Failure.show(UnrecognizedInput(reason)));
-    model;
-  //{...model, history: ActionHistory.just_failed(reason, model.history)};
   | Error(err) =>
     print_endline(Update.Failure.show(err));
     model;
   };
 };
 
-let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
-  Virtual_dom.Vdom.Effect.(
-    switch (evts) {
-    | [] => Many([])
-    | evts => Many([Prevent_default, Stop_propagation, ...evts])
+let update_handler =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~model: Model.t,
+      ~dir: Key.dir,
+      evt: Js.t(Dom_html.keyboardEvent),
+    )
+    : Effect.t(unit) =>
+  Effect.(
+    switch (Keyboard.handle_key_event(Key.mk(dir, evt), ~model)) {
+    | None => Ignore
+    | Some(action) =>
+      Many([Prevent_default, Stop_propagation, inject(action)])
     }
   );
-};
 
-let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
-  let key = Key.mk(dir, evt);
-  Keyboard.handle_key_event(key, ~model) |> List.map(inject) |> do_many;
-};
-
-let handlers = (~inject, ~model: Model.t) =>
-  Virtual_dom.Vdom.[
-    Attr.on_keypress(_ => Effect.Prevent_default),
-    Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
-    Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
-  ];
+let handlers =
+    (~inject: UpdateAction.t => Ui_effect.t(unit), ~model: Model.t) => [
+  Attr.on_keypress(_ => Effect.Prevent_default),
+  Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
+  Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
+];
 
 module App = {
   module Model = Model;
@@ -127,26 +132,32 @@ module App = {
   let create =
       (
         model: Incr.t(Haz3lweb.Model.t),
-        ~old_model: Incr.t(Haz3lweb.Model.t),
+        ~old_model as _: Incr.t(Haz3lweb.Model.t),
         ~inject,
       ) => {
     open Incr.Let_syntax;
-    let%map model = model
-    and old_model = old_model;
+    let%map model = model;
+    /* Note: mapping over the old_model here may
+       trigger an additional redraw */
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
-      ~on_display=(_, ~schedule_action as _) =>
-      if (action_applied.contents) {
-        let old_zipper = Editors.get_editor(model.editors).state.zipper;
-        let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
-
-        action_applied := false;
-        if (old_zipper != new_zipper) {
+      ~on_display=(_, ~schedule_action) => {
+        if (edit_action_applied^
+            && JsUtil.timestamp()
+            -. last_edit_action^ > 1000.0) {
+          /* If an edit action has been applied, but no other edit action
+             has been applied for 1 second, save the model. */
+          edit_action_applied := false;
+          print_endline("Saving...");
+          schedule_action(Update.Save);
+        };
+        if (action_applied.contents) {
+          action_applied := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };
-      }
+      },
     );
   };
 };
@@ -160,9 +171,7 @@ let fragment =
 let initial_model = {
   switch (fragment) {
   | "debug" => Model.debug
-  | _ =>
-    let model = Update.load_model(Model.blank);
-    model;
+  | _ => Model.load(Model.blank)
   };
 };
 

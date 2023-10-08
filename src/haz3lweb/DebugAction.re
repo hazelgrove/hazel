@@ -1,13 +1,13 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | TurnOffDynamics
-  | ClearLocalStorage;
+  | ClearStore;
 
 let perform = action => {
   switch (action) {
   | TurnOffDynamics =>
-    let settings = LocalStorage.Settings.load();
-    LocalStorage.Settings.save({...settings, dynamics: false});
-  | ClearLocalStorage => JsUtil.clear_localstore()
+    let settings = Store.Settings.load();
+    Store.Settings.save({...settings, dynamics: false});
+  | ClearStore => JsUtil.clear_localstore()
   };
 };

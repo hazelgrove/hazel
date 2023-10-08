@@ -1,4 +1,5 @@
 open Util;
+open Util.OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), yojson)]
 type t = {
@@ -110,6 +111,7 @@ let to_log_flat = (~measured, z: Zipper.t): string => {
 };
 
 let zipper_of_string =
+<<<<<<< HEAD
     (~zipper_init=?, id_gen: IdGen.state, str: string)
     : option((Zipper.t, IdGen.state)) => {
   let (zipper_init, id_gen) =
@@ -136,9 +138,16 @@ let zipper_of_string =
         (z, id_gen);
       | Ok(r) => r
       };
+=======
+    (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
+  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
+    let* z = z;
+    try(c == "\r" ? Some(z) : Insert.go(c == "\n" ? Form.linebreak : c, z)) {
+    | exn =>
+      print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
+      None;
+>>>>>>> dev
     };
-  str
-  |> Util.StringUtil.to_list
-  |> List.fold_left(insert_to_zid, (zipper_init, id_gen))
-  |> Option.some;
+  };
+  str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
 };

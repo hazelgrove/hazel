@@ -30,27 +30,22 @@ type t = {
   // col_target: int,
 };
 
-let init: int => t =
-  id => {
+let init: unit => t =
+  () => {
     selection: {
       focus: Left,
       content: [],
     },
     backpack: [],
     relatives: {
-      siblings: ([], [Grout({id, shape: Convex})]),
+      siblings: ([], [Grout({id: Id.mk(), shape: Convex})]),
       ancestors: [],
     },
     caret: Outer,
     // col_target: 0,
   };
 
-let next_blank = id => {
-  (id + 1, init(id));
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type state = (t, IdGen.state);
+let next_blank = _ => Id.mk();
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chunkiness =
@@ -123,10 +118,9 @@ let right_neighbor_monotile: Siblings.t => option(Token.t) =
 let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
-let regrout = (d: Direction.t, z: t): IdGen.t(t) => {
+let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
-  open IdGen.Syntax;
-  let+ relatives = Relatives.regrout(d, z.relatives);
+  let relatives = Relatives.regrout(d, z.relatives);
   {...z, relatives};
 };
 
@@ -135,8 +129,7 @@ let remold = (z: t): t => {
   {...z, relatives: Relatives.remold(z.relatives)};
 };
 
-let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
-  z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
 let unselect = (z: t): t => {
   let relatives =
@@ -255,72 +248,56 @@ let put_down = (d: Direction.t, z: t): option(t) => {
 };
 
 let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t)
-        : IdGen.t(t) => {
-  IdGen.Syntax.(
-    switch (label) {
-    | [t] when Form.is_string_delim(t) =>
-      /* Special case for constructing string literals.
-         See Insert.move_into_if_stringlit for more special-casing. */
-      construct(
-        ~caret,
-        ~backpack,
-        [Form.string_delim ++ Form.string_delim],
-        z,
-      )
-    | [content] when Form.is_comment(content) =>
-      /* Special case for comments, can't rely on the last branch to construct */
-      let content = Secondary.construct_comment(content);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      let z = destruct(z);
-      let selections = [Selection.mk(Base.mk_secondary(id, content))];
-      let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down(caret, {...z, backpack}));
+        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
+  switch (label) {
+  | [t] when Form.is_string_delim(t) =>
+    /* Special case for constructing string literals.
+       See Insert.move_into_if_stringlit for more special-casing. */
+    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
+  | [content] when Form.is_comment(content) =>
+    /* Special case for comments, can't rely on the last branch to construct */
+    let content = Secondary.construct_comment(content);
+    let id = Id.mk();
+    Effect.s_touch([id]);
+    let z = destruct(z);
+    let selections = [Selection.mk(Base.mk_secondary(id, content))];
+    let backpack = Backpack.push_s(selections, z.backpack);
+    Option.get(put_down(caret, {...z, backpack}));
 
-    | [content] when Form.is_secondary(content) =>
-      let content = Secondary.Whitespace(content);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      z
-      |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
-    | _ =>
-      let z = destruct(z);
-      let molds = Molds.get(label);
-      assert(molds != []);
-      // initial mold to typecheck, will be remolded
-      let mold = List.hd(molds);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      let selections =
-        Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-        |> List.map(Segment.of_tile)
-        |> List.map(Selection.mk)
-        |> ListUtil.rev_if(backpack == Right);
-      let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down(caret, {...z, backpack}));
-    }
-  );
+  | [content] when Form.is_secondary(content) =>
+    let content = Secondary.Whitespace(content);
+    let id = Id.mk();
+    Effect.s_touch([id]);
+    z |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
+  | _ =>
+    let z = destruct(z);
+    let molds = Molds.get(label);
+    assert(molds != []);
+    // initial mold to typecheck, will be remolded
+    let mold = List.hd(molds);
+    let id = Id.mk();
+    Effect.s_touch([id]);
+    let selections =
+      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      |> List.map(Segment.of_tile)
+      |> List.map(Selection.mk)
+      |> ListUtil.rev_if(backpack == Right);
+    let backpack = Backpack.push_s(selections, z.backpack);
+    Option.get(put_down(caret, {...z, backpack}));
+  };
 };
 
-let construct_mono = (d: Direction.t, t: Token.t, z: t): IdGen.t(t) =>
+let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
   construct(~caret=d, ~backpack=Left, [t], z);
 
 let replace =
-    (
-      ~caret: Direction.t,
-      ~backpack: Direction.t,
-      l: Label.t,
-      (z, id_gen): state,
-    )
-    : option(state) =>
+    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
+    : option(t) =>
   /* i.e. select and construct, overwriting the selection */
-  z
-  |> delete(caret)
-  |> Option.map(z => construct(~caret, ~backpack, l, z, id_gen));
+  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
-let replace_mono = (d: Direction.t, t: Token.t, state: state): option(state) =>
-  replace(~caret=d, ~backpack=Left, [t], state);
+let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
+  replace(~caret=d, ~backpack=Left, [t], z);
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
@@ -372,3 +349,9 @@ let serialize = (z: t): string => {
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
+
+let can_put_down = z =>
+  switch (pop_backpack(z)) {
+  | Some(_) => z.caret == Outer
+  | None => false
+  };

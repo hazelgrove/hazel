@@ -4,6 +4,7 @@ open Zipper;
 let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
+  | MoveToNextHole(_)
   | Unselect
   | Jump(_)
   | Select(_) => false
@@ -17,13 +18,8 @@ let is_write_action = (a: Action.t) => {
 };
 
 let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      a: Action.t,
-      z: Zipper.t,
-      id_gen: IdGen.state,
-    )
-    : Action.Result.t((Zipper.t, IdGen.state)) => {
+    (~meta: option(Editor.Meta.t)=?, a: Action.t, z: Zipper.t)
+    : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -34,9 +30,15 @@ let go_z =
   module Select = Select.Make(M);
   switch (a) {
   | Move(d) =>
-    Move.go(d, z)
-    |> Option.map(IdGen.id(id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
+  | MoveToNextHole(d) =>
+    let p: Piece.t => bool = (
+      fun
+      | Grout(_) => true
+      | _ => false
+    );
+    Move.go(Goal(Piece(p, d)), z)
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 
@@ -50,47 +52,54 @@ let go_z =
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
-        let* binding_id =
-          Option.bind(idx, Statics.get_binding_site(_, statics));
+        let* idx = idx;
+        let* ci = Id.Map.find_opt(idx, statics);
+        let* binding_id = Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
     )
-    |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move);
   | Unselect =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
-    Ok((z, id_gen));
+    Ok(z);
   | Select(Term(Current)) =>
     switch (Indicated.index(z)) {
     | None => Error(Action.Failure.Cant_select)
     | Some(id) =>
       switch (Select.term(id, z)) {
-      | Some(z) => Ok((z, id_gen))
+      | Some(z) => Ok(z)
       | None => Error(Action.Failure.Cant_select)
       }
     }
+  | Select(All) =>
+    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+    | Some(z) =>
+      switch (Select.go(Extreme(Down), z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Action.Failure.Cant_select)
+      }
+    | None => Error(Action.Failure.Cant_select)
+    }
   | Select(Term(Id(id))) =>
     switch (Select.term(id, z)) {
-    | Some(z) => Ok((z, id_gen))
+    | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z)
-    |> Option.map(IdGen.id(id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_select)
+    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
   | Destruct(d) =>
-    (z, id_gen)
+    z
     |> Destruct.go(d)
-    |> Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen))
+    |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
-    (z, id_gen)
+    z
     |> Insert.go(char)
     /* note: remolding here is done case-by-case */
-    //|> Option.map(((z, id_gen)) => remold_regrout(Right, z, id_gen))
+    //|> Option.map((z) => remold_regrout(Right, z))
     |> Result.of_option(~error=Action.Failure.Cant_insert)
-  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z), id_gen))
+  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
@@ -99,29 +108,37 @@ let go_z =
       | Outer => Zipper.put_down(Left, z)
       };
     z
-    |> Option.map(z => remold_regrout(Left, z, id_gen))
+    |> Option.map(remold_regrout(Left))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
-    Ok((z, id_gen));
+    Ok(z);
   | MoveToBackpackTarget(d) =>
     Move.to_backpack_target(d, z)
-    |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
 };
 
+<<<<<<< HEAD
 let go =
     (a: Action.t, ed: Editor.t, id_gen: IdGen.state, inference_enabled)
     : Action.Result.t((Editor.t, IdGen.state)) =>
+=======
+let go = (a: Action.t, ed: Editor.t): Action.Result.t(Editor.t) =>
+>>>>>>> dev
   if (ed.read_only && is_write_action(a)) {
-    Result.Ok((ed, id_gen));
+    Result.Ok(ed);
   } else {
     open Result.Syntax;
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
+<<<<<<< HEAD
     let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
     let ed =
       Editor.new_state(~effects=Effect.s^, a, z, ed, inference_enabled);
     (ed, id_gen);
+=======
+    let+ z = go_z(~meta, a, zipper);
+    Editor.new_state(~effects=Effect.s^, a, z, ed);
+>>>>>>> dev
   };
