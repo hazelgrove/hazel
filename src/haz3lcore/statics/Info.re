@@ -229,7 +229,12 @@ type t =
   | InfoPat(pat)
   | InfoTyp(typ)
   | InfoTPat(tpat);
-
+let ancestors_of: t => ancestors =
+  fun
+  | InfoExp({ancestors, _})
+  | InfoPat({ancestors, _})
+  | InfoTyp({ancestors, _})
+  | InfoTPat({ancestors, _}) => ancestors;
 let sort_of: t => Sort.t =
   fun
   | InfoExp(_) => Exp

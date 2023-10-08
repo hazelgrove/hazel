@@ -124,10 +124,34 @@ let breadcrumb_bar =
   | (_, Some(id)) =>
     switch (Id.Map.find_opt(id, info_map)) {
     | None => [div([text("error")])]
-    | Some(ci) => [
-        CursorInspector.ctx_toggle(~inject, settings.context_inspector),
+    | Some(ci) =>
+      let ancestors = Info.ancestors_of(ci);
+      let info_term = (ancestor: Info.t) =>
+        if (ancestor |> Info.cls_of |> Term.Cls.show == "Function literal") {
+          "Fun";
+        } else {
+          "";
+        };
+      let rec ancestors_string = ancestors => {
+        switch (ancestors) {
+        | [] => ""
+        | [x, ...xs] =>
+          switch (Id.Map.find_opt(x, info_map)) {
+          | Some(v) =>
+            if (info_term(v) == "") {
+              ancestors_string(xs);
+            } else {
+              Printf.printf("info_term: %s\n", Info.show(v));
+              info_term(v) ++ "->" ++ ancestors_string(xs);
+            }
+          | None => ""
+          }
+        };
+      };
+      [
+        div([text(ancestors_string(List.rev(ancestors)))]),
         CtxInspector.view(~inject, ~settings, ci),
-      ]
+      ];
     }
   };
 };
