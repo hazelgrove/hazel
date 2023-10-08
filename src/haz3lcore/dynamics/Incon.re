@@ -56,6 +56,34 @@ let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
   };
 };
 
+let is_inconsistent_bool = (xis: list(Constraint.t)): bool => {
+  let (bool_set, not_bool_list) =
+    List.fold_left(
+      ((bool_set, not_bool_list), xi: Constraint.t) =>
+        switch (xi) {
+        | Bool(b) => (BoolSet.add(b, bool_set), not_bool_list)
+        | NotBool(b) => (bool_set, [b, ...not_bool_list])
+        | _ => failwith("input can only be Bool | NotBool")
+        },
+      (BoolSet.empty, []),
+      xis,
+    );
+  if (BoolSet.cardinal(bool_set) > 1) {
+    true;
+  } else {
+    List.fold_left(
+      (incon, b) =>
+        if (incon) {
+          incon;
+        } else {
+          BoolSet.mem(b, bool_set);
+        },
+      false,
+      not_bool_list,
+    );
+  };
+};
+
 let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
   let (string_set, not_string_list) =
     List.fold_left(
@@ -168,6 +196,20 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
         )
       ) {
       | (fs, []) => is_inconsistent_float(fs)
+      | (fs, other) => is_inconsistent(~may, other @ fs)
+      }
+    | Bool(_)
+    | NotBool(_) =>
+      switch (
+        List.partition(
+          fun
+          | Constraint.Bool(_)
+          | NotBool(_) => true
+          | _ => false,
+          xis,
+        )
+      ) {
+      | (fs, []) => is_inconsistent_bool(fs)
       | (fs, other) => is_inconsistent(~may, other @ fs)
       }
     | String(_)
