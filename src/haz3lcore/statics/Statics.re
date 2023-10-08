@@ -370,12 +370,19 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, m) => {
+  let add = (~self, ~ctx, ~constraint_, m) => {
     let info =
-      Info.derived_pat(~upat, ~ctx, ~mode, ~ancestors, ~self=Common(self));
+      Info.derived_pat(
+        ~upat,
+        ~ctx,
+        ~mode,
+        ~ancestors,
+        ~self=Common(self),
+        ~constraint_,
+      );
     (info, add_info(ids, InfoPat(info), m));
   };
-  let atomic = self => add(~self, ~ctx, m);
+  let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
@@ -386,17 +393,18 @@ and upat_to_info_map =
         |> (((info, m)) => (info.ctx, tys @ [info.ty], m)),
       (ctx, [], m),
     );
+  let hole = self => atomic(self, Constraint.Hole);
   switch (term) {
   | MultiHole(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~ctx, m);
-  | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(unknown))
-  | Int(_) => atomic(Just(Int))
-  | Float(_) => atomic(Just(Float))
+    add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
+  | Invalid(token) => hole(BadToken(token))
+  | EmptyHole => hole(Just(unknown))
+  | Int(int) => atomic(Just(Int), Constraint.Int(int))
+  | Float(float) => atomic(Just(Float), Constraint.Float(float))
   | Triv => atomic(Just(Prod([])))
-  | Bool(_) => atomic(Just(Bool))
-  | String(_) => atomic(Just(String))
+  | Bool(bool) => atomic(Just(Bool), Constraint.Bool(bool))
+  | String(string) => atomic(Just(String), Constraint.String(string))
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
@@ -407,7 +415,7 @@ and upat_to_info_map =
     let (tl, m) =
       go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
     add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
-  | Wild => atomic(Just(unknown))
+  | Wild => atomic(Just(unknown), Constraint.Truth)
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
@@ -415,14 +423,19 @@ and upat_to_info_map =
     let ctx_typ =
       Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+    add(
+      ~self=Just(unknown),
+      ~ctx=Ctx.extend(ctx, entry),
+      ~constraint_=Constraint.Truth,
+      m,
+    );
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
-    add(~self=Just(p.ty), ~ctx=p.ctx, m);
+    add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
@@ -433,7 +446,7 @@ and upat_to_info_map =
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
-    add(~self=Just(ann.ty), ~ctx=p.ctx, m);
+    add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   };
 }
 and utyp_to_info_map =
