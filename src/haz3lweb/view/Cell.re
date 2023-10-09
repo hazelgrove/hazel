@@ -228,7 +228,7 @@ let stepper_footer_view =
         ),
       ],
     );
-  let dh_code_previous = expr =>
+  let dh_code_previous = (expr, eval_ob) =>
     div(
       ~attr=Attr.classes(["result"]),
       [
@@ -238,6 +238,8 @@ let stepper_footer_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
+          ~next_steps=[eval_ob],
+          ~disabled=true,
           expr,
         ),
       ],
@@ -256,15 +258,17 @@ let stepper_footer_view =
         show_history,
       ],
     );
-  let previous_step = ((expr, just)) => {
+  let previous_step = (step: EvaluatorStep.Stepper.step) => {
     div(
       ~attr=Attr.classes(["cell-result"]),
       [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        dh_code_previous(expr),
+        dh_code_previous(step.d, step.step),
         div(
           ~attr=Attr.classes(["stepper-justification"]),
-          [Node.text(just)],
+          [
+            Node.text(EvaluatorStep.Stepper.get_justification(step.step.exp)),
+          ],
         ),
       ],
     );
@@ -315,173 +319,6 @@ let eval_result_footer_view =
     )
   );
 };
-
-/*
- let eval_result_footer_view =
-     (
-       ~inject,
-       ~font_metrics,
-       ~elab,
-       ~settings: ModelSettings.t,
-       model_result: ModelResult.t,
-     ) => {
-   let show_error = () => [
-         Node.text("No result available. Elaboration follows:"),
-         DHCode.view(
-           ~inject,
-           ~settings={
-             ...Settings.Evaluation.init,
-             evaluate: true,
-             show_case_clauses: true,
-             show_fn_bodies: true,
-             show_casts: true,
-             show_unevaluated_elaboration: false,
-           },
-           ~selected_hole_instance=None,
-           ~font_metrics,
-           ~width=80,
-           elab,
-         ),
-       ];
-   let d_view = show_
-     switch (model_result.stepper) {
-     | None =>
-       switch (model_result.current) {
-         | ResultOk(r) =>
-       }
-     | None
-     | Some({eval_result: [], _}) => show_error()
-     | Some({eval_results: [InvalidText(id, 0, "EXCEPTION")], _})
-         when id == Id.invalid => show_error()
-     | Some({eval_results: [hd, ...tl], _}) =>
-       let hd_view =
-         DHCode.view(
-           ~inject,
-           ~settings={...settings.dynamics, postprocess: false},
-           ~selected_hole_instance=None,
-           ~font_metrics,
-           ~width=80,
-           hd,
-         );
-       if (settings.dynamics.show_record) {
-         let tl_view =
-           tl
-           |> List.map(
-                DHCode.view(
-                  ~inject,
-                  ~settings={
-                    ...settings.dynamics,
-                    stepping: false,
-                    postprocess: false,
-                  },
-                  ~selected_hole_instance=None,
-                  ~font_metrics,
-                  ~width=80,
-                ),
-              );
-         [hd_view] @ tl_view;
-       } else {
-         [hd_view];
-       };
-     };
-   switch (d_view) {
-   | [] => failwith("empty d_view")
-   | [hd] =>
-     if (settings.dynamics.stepping) {
-       let equiv =
-         Node.(
-           div(
-             ~attr=
-               settings.dynamics.stepping
-                 ? Attr.many([
-                     Attr.title("Go back to previous step"),
-                     Attr.classes(["equiv", "step-back"]),
-                     Attr.on_click(_ => inject(UpdateAction.StepBackward)),
-                   ])
-                 : Attr.class_("equiv"),
-             [span([Node.text("≡")])],
-           )
-         );
-       let current =
-         Node.(
-           div(
-             ~attr=Attr.classes(["cell-result"]),
-             [equiv, div(~attr=Attr.classes(["result"]), [hd])],
-           )
-         );
-       let ellipsis =
-         Node.div(
-           ~attr=
-             Attr.many([
-               Attr.class_("cell-result"),
-               Attr.on_double_click(_ =>
-                 inject(Set(Dynamics(Toggle_show_record)))
-               ),
-             ]),
-           [Node.text("...")],
-         );
-       if (settings.dynamics.show_record) {
-         Node.(div(~attr=Attr.class_("cell-item"), [current]));
-       } else {
-         Node.(div(~attr=Attr.class_("cell-item"), [ellipsis, current]));
-       };
-     } else {
-       Node.(
-         div(
-           ~attr=Attr.classes(["cell-item", "cell-result"]),
-           [
-             div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-             div(~attr=Attr.classes(["result"]), [hd]),
-           ],
-         )
-       );
-     }
-   | [hd, ...tl] =>
-     let current =
-       Node.(
-         div(
-           ~attr=Attr.classes(["cell-result"]),
-           [
-             div(
-               ~attr=
-                 settings.dynamics.stepping
-                   ? Attr.many([
-                       Attr.title("Go back to previous step"),
-                       Attr.classes(["equiv", "step-back"]),
-                       Attr.on_click(_ => inject(UpdateAction.StepBackward)),
-                     ])
-                   : Attr.class_("equiv"),
-               [span([Node.text("≡")])],
-             ),
-             div(~attr=Attr.classes(["result"]), [hd]),
-           ],
-         )
-       );
-     let previous =
-       List.rev_map(
-         d =>
-           Node.(
-             div(
-               ~attr=
-                 Attr.many([
-                   Attr.title("Show evaluation history"),
-                   Attr.classes(["cell-result"]),
-                   Attr.on_double_click(_ =>
-                     inject(Set(Dynamics(Toggle_show_record)))
-                   ),
-                 ]),
-               [
-                 Node.div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-                 Node.div(~attr=Attr.classes(["result"]), [d]),
-               ],
-             )
-           ),
-         tl,
-       );
-     Node.(div(~attr=Attr.class_("cell-item"), previous @ [current]));
-   };
- };
- */
 
 let editor_view =
     (
@@ -608,14 +445,6 @@ let editor_with_result_view =
     editor,
   );
 };
-// switch (simple_result) {
-//     | None => None
-//     | Some(simple) =>
-//       Option.map(
-//         (simple_data: ModelResult.simple_data) => simple_data.test_results,
-//         simple,
-//       )
-//     };
 
 let test_view =
     (

@@ -1562,7 +1562,7 @@ svg.expandable path {
 }
 
 .stepper-justification {
-  width: 180px;
+  width: 260px;
 }
 
 /* DYNAMICS - DHEXP */
@@ -1972,9 +1972,17 @@ svg.expandable path {
   left: -1em;
 }
 
-.Steppable {
+.steppable {
   border: 1px var(--step-hole-color);
-  background-color:rgb(231, 255, 186);
+  background-color:rgb(232, 255, 196);
+  margin: -1px;
+  cursor: pointer;
+}
+
+
+.stepped {
+  border: 1px var(--step-hole-color);
+  background-color:#ddcda3;
   margin: -1px;
   cursor: pointer;
 }

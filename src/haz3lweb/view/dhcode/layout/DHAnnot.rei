@@ -16,4 +16,5 @@ type t =
   | FailedCastDecoration
   | CastDecoration
   | OperationError(InvalidOperationError.t)
-  | Steppable(EvaluatorStep.EvalObj.t);
+  | Steppable(EvaluatorStep.EvalObj.t)
+  | Stepped;
