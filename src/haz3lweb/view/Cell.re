@@ -249,12 +249,18 @@ let stepper_footer_view =
   let current =
     div(
       ~attr=Attr.classes(["cell-result"]),
-      [button_back, dh_code_current, show_history],
+      [
+        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+        dh_code_current,
+        button_back,
+        show_history,
+      ],
     );
   let previous_step = ((expr, just)) => {
     div(
       ~attr=Attr.classes(["cell-result"]),
       [
+        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
         dh_code_previous(expr),
         div(
           ~attr=Attr.classes(["stepper-justification"]),
