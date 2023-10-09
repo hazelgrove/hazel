@@ -1514,17 +1514,17 @@ module Stepper = {
 
   let get_justification: DHExp.t => string =
     fun
-    | ConsistentCase(_) => "by matching"
-    | BoundVar(_) => "by variable lookup"
-    | Sequence(_) => "by sequence"
-    | Let(_) => "by substitution"
-    | Ap(TestLit(_), _) => "by evaluating a test"
-    | Ap(Closure(_, Fun(_)), _) => "by function application"
-    | ApBuiltin(_) => "by builtin application"
-    | BinBoolOp(_) => "by boolean logic"
-    | BinIntOp(_) => "by arithmetic"
-    | BinFloatOp(_) => "by arithmetic"
-    | BinStringOp(_) => "by string operation"
+    | ConsistentCase(_) => "matching"
+    | BoundVar(_) => "variable lookup"
+    | Sequence(_) => "sequence"
+    | Let(_) => "substitution"
+    | Ap(TestLit(_), _) => "evaluating a test"
+    | Ap(Closure(_, Fun(_)), _) => "function application"
+    | ApBuiltin(_) => "builtin application" // TODO[Matt]: What is a builtin Ap?
+    | BinBoolOp(_) => "boolean logic"
+    | BinIntOp(_) => "arithmetic"
+    | BinFloatOp(_) => "arithmetic"
+    | BinStringOp(_) => "string operation"
     | EmptyHole(_)
     | NonEmptyHole(_)
     | ExpandingKeyword(_)
@@ -1553,6 +1553,5 @@ module Stepper = {
     | Ap(Cast(_), _)
     | Ap(_, _) => "unidentified step";
 
-  let get_history = stepper =>
-    List.map(s => (s.d, get_justification(s.step.exp)), stepper.previous);
+  let get_history = stepper => stepper.previous;
 };
