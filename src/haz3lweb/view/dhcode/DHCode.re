@@ -27,13 +27,19 @@ let view_of_layout =
                    Node.span(
                      ~attr=
                        Attr.many([
-                         Attr.class_("Steppable"),
+                         Attr.class_("steppable"),
                          Attr.on_click(_ =>
                            inject(UpdateAction.StepForward(obj))
                          ),
                        ]),
                      txt,
                    ),
+                 ],
+                 ds,
+               )
+             | Stepped => (
+                 [
+                   Node.span(~attr=Attr.many([Attr.class_("stepped")]), txt),
                  ],
                  ds,
                )
@@ -124,11 +130,13 @@ let view =
       ~width: int,
       ~pos=0,
       ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~disabled=false,
       d: DHExp.t,
     )
     : Node.t => {
   let maker =
-    settings.postprocess ? DHDoc_Exp.mk : DHDoc_Step.mk(~next_steps);
+    settings.postprocess
+      ? DHDoc_Exp.mk : DHDoc_Step.mk(~next_steps, ~disabled);
   let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
   |> c

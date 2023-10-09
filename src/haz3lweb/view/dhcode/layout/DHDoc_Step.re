@@ -1,98 +1,6 @@
 open Haz3lcore;
+open DHDoc_Exp;
 module Doc = Pretty.Doc;
-
-let precedence_bin_bool_op = (op: TermBase.UExp.op_bin_bool) =>
-  switch (op) {
-  | And => DHDoc_common.precedence_And
-  | Or => DHDoc_common.precedence_Or
-  };
-
-let precedence_bin_int_op = (bio: TermBase.UExp.op_bin_int) =>
-  switch (bio) {
-  | Times => DHDoc_common.precedence_Times
-  | Power => DHDoc_common.precedence_Power
-  | Divide => DHDoc_common.precedence_Divide
-  | Plus => DHDoc_common.precedence_Plus
-  | Minus => DHDoc_common.precedence_Minus
-  | Equals => DHDoc_common.precedence_Equals
-  | NotEquals => DHDoc_common.precedence_Equals
-  | LessThan => DHDoc_common.precedence_LessThan
-  | LessThanOrEqual => DHDoc_common.precedence_LessThan
-  | GreaterThan => DHDoc_common.precedence_GreaterThan
-  | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
-  };
-let precedence_bin_float_op = (bfo: TermBase.UExp.op_bin_float) =>
-  switch (bfo) {
-  | Times => DHDoc_common.precedence_Times
-  | Power => DHDoc_common.precedence_Power
-  | Divide => DHDoc_common.precedence_Divide
-  | Plus => DHDoc_common.precedence_Plus
-  | Minus => DHDoc_common.precedence_Minus
-  | Equals => DHDoc_common.precedence_Equals
-  | NotEquals => DHDoc_common.precedence_Equals
-  | LessThan => DHDoc_common.precedence_LessThan
-  | LessThanOrEqual => DHDoc_common.precedence_LessThan
-  | GreaterThan => DHDoc_common.precedence_GreaterThan
-  | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
-  };
-let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
-  switch (bso) {
-  | Concat => DHDoc_common.precedence_Plus
-  | Equals => DHDoc_common.precedence_Equals
-  };
-let rec precedence = (~show_casts: bool, d: DHExp.t) => {
-  let precedence' = precedence(~show_casts);
-  switch (d) {
-  | BoundVar(_)
-  | FreeVar(_)
-  | InvalidText(_)
-  | ExpandingKeyword(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | Sequence(_)
-  | TestLit(_)
-  | FloatLit(_)
-  | StringLit(_)
-  | ListLit(_)
-  | Prj(_)
-  | EmptyHole(_)
-  | Constructor(_)
-  | FailedCast(_)
-  | InvalidOperation(_)
-  | Fun(_)
-  | Closure(_)
-  | Filter(_) => DHDoc_common.precedence_const
-  | Cast(d1, _, _) =>
-    show_casts ? DHDoc_common.precedence_const : precedence'(d1)
-  | Let(_)
-  | FixF(_)
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max
-  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
-  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
-  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
-  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
-  | Ap(_) => DHDoc_common.precedence_Ap
-  | ApBuiltin(_) => DHDoc_common.precedence_Ap
-  | Cons(_) => DHDoc_common.precedence_Cons
-  | ListConcat(_) => DHDoc_common.precedence_Plus
-  | Tuple(_) => DHDoc_common.precedence_Comma
-
-  | NonEmptyHole(_, _, _, d) => precedence'(d)
-  };
-};
-
-let mk_bin_bool_op = (op: TermBase.UExp.op_bin_bool): DHDoc.t =>
-  Doc.text(TermBase.UExp.bool_op_to_string(op));
-
-let mk_bin_int_op = (op: TermBase.UExp.op_bin_int): DHDoc.t =>
-  Doc.text(TermBase.UExp.int_op_to_string(op));
-
-let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
-  Doc.text(TermBase.UExp.float_op_to_string(op));
-
-let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
-  Doc.text(TermBase.UExp.string_op_to_string(op));
 
 let rec mk =
         (
@@ -101,6 +9,7 @@ let rec mk =
           ~enforce_inline: bool,
           ~selected_hole_instance: option(HoleInstance.t),
           ~next_steps: list(EvaluatorStep.EvalObj.t),
+          ~disabled=false,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -465,7 +374,14 @@ let rec mk =
     let doc = (~enforce_inline) =>
       switch (steppable) {
       | Some((_, full)) =>
-        fdoc(~enforce_inline, d, []) |> annot(DHAnnot.Steppable(full))
+        fdoc(~enforce_inline, d, [])
+        |> annot(
+             if (disabled) {
+               DHAnnot.Stepped;
+             } else {
+               DHAnnot.Steppable(full);
+             },
+           )
       | None => fdoc(~enforce_inline, d, objs)
       };
     (parenthesize(doc), cast);

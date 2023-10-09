@@ -117,5 +117,6 @@ module Stepper: {
   let step_forward: (EvalObj.t, t) => t;
   let step_backward: t => t;
   let update_expr: (DHExp.t, t) => t;
-  let get_history: t => list((DHExp.t, string));
+  let get_history: t => list(step);
+  let get_justification: DHExp.t => string;
 };
