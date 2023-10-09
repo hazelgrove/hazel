@@ -388,10 +388,17 @@ and upat_to_info_map =
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
-      ((ctx, tys, m), e, mode) =>
+      ((ctx, tys, cons, m), e, mode) =>
         go(~ctx, ~mode, e, m)
-        |> (((info, m)) => (info.ctx, tys @ [info.ty], m)),
-      (ctx, [], m),
+        |> (
+          ((info, m)) => (
+            info.ctx,
+            tys @ [info.ty],
+            cons @ [info.constraint_],
+            m,
+          )
+        ),
+      (ctx, [], [], m),
     );
   let hole = self => atomic(self, Constraint.Hole);
   switch (term) {
@@ -402,19 +409,36 @@ and upat_to_info_map =
   | EmptyHole => hole(Just(unknown))
   | Int(int) => atomic(Just(Int), Constraint.Int(int))
   | Float(float) => atomic(Just(Float), Constraint.Float(float))
-  | Triv => atomic(Just(Prod([])))
+  | Triv => atomic(Just(Prod([])), Constraint.Truth)
   | Bool(bool) => atomic(Just(Bool), Constraint.Bool(bool))
   | String(string) => atomic(Just(String), Constraint.String(string))
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
-    let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Self.listlit(~empty=unknown, ctx, tys, ids), ~ctx, m);
+    let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
+    let rec cons_fold_list = cs =>
+      switch (cs) {
+      | [] => Constraint.InjL(Constraint.Truth) // Left = nil, Right = cons
+      | [hd, ...tl] =>
+        Constraint.InjR(Constraint.Pair(hd, cons_fold_list(tl)))
+      };
+    add(
+      ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
+      ~ctx,
+      ~constraint_=cons_fold_list(cons),
+      m,
+    );
   | Cons(hd, tl) =>
     let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =
       go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
-    add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
+    add(
+      ~self=Just(List(hd.ty)),
+      ~ctx=tl.ctx,
+      ~constraint_=
+        Constraint.InjR(Constraint.Pair(hd.constraint_, tl.constraint_)),
+      m,
+    );
   | Wild => atomic(Just(unknown), Constraint.Truth)
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
@@ -431,18 +455,29 @@ and upat_to_info_map =
     );
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
-    let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Just(Prod(tys)), ~ctx, m);
+    let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
+    let rec cons_fold_tuple = cs =>
+      switch (cs) {
+      | [] => Constraint.Truth
+      | [elt] => elt
+      | [hd, ...tl] => Constraint.Pair(hd, cons_fold_tuple(tl))
+      };
+    add(
+      ~self=Just(Prod(tys)),
+      ~ctx,
+      ~constraint_=cons_fold_tuple(cons),
+      m,
+    );
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
+  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr), Constraint.Falsity) // TODO
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    add(~self=Just(ty_out), ~ctx=arg.ctx, m);
+    add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_=arg.constraint_, m);
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
