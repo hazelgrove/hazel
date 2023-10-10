@@ -726,7 +726,6 @@ select {
   font-weight: bold;
 }
 
-<<<<<<< HEAD
 .code .text-Exp {
   color: var(--exp-text-color);
 }
@@ -768,9 +767,6 @@ select {
 .code .token.mono {}
 
 .code .token.mono-string-lit {
-=======
-.code .token.mono.string-lit {
->>>>>>> dev
   color: var(--string-lit-color);
 }
 
