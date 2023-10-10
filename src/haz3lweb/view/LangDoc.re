@@ -2861,7 +2861,12 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: LangDocMessages.t, index': option(Id.t), info_map: Statics.Map.t) => {
+    (
+      ~global_inference_info,
+      ~doc: LangDocMessages.t,
+      index': option(Id.t),
+      info_map: Statics.Map.t,
+    ) => {
   let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
@@ -2871,11 +2876,12 @@ let get_color_map =
       }
     | None => None
     };
-  let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);
+  let (_, (_, (color_map, _)), _) =
+    get_doc(~global_inference_info, ~docs=doc, info, Colorings);
   color_map;
 };
 
-let view =
+let _view =
     (
       ~global_inference_info: InferenceResult.global_inference_info,
       ~doc: LangDocMessages.t,
@@ -2902,11 +2908,11 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: ModelSettings.t,
       ~doc: LangDocMessages.t,
-      index': option(int),
-      info_map: Statics.map,
+      index': option(Id.t),
+      info_map: Statics.Map.t,
       global_inference_info: InferenceResult.global_inference_info,
     ) => {
-  let info: option(Statics.t) =
+  let info: option(Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {

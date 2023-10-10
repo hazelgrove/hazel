@@ -168,9 +168,11 @@ let evaluate_and_schedule =
 // =======
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
-    model.editors
-    |> Editors.get_editor
-    |> Haz3lcore.Perform.go(a, model.langDocMessages.annotations)
+    Haz3lcore.Perform.go(
+      a,
+      Editors.get_editor(model.editors),
+      model.langDocMessages.annotations,
+    )
   ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>

@@ -368,6 +368,7 @@ let view =
           ~doc=langDocMessages,
           Indicated.index(focal_zipper),
           focal_info_map,
+          global_inference_info,
         )
       : div([]);
   [

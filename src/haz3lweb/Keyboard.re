@@ -95,8 +95,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
           |> StringUtil.to_list
           |> List.filter(s => s != "?" && s != "!")
           |> join;
-        [UpdateAction.Paste(no_hole_marks)];
-      | _ => now_save(Insert(Form.linebreak))
+        Some(UpdateAction.Paste(no_hole_marks));
+      | _ => now(Insert(Form.linebreak))
       };
     | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
       /* TODO(andrew): length==1 is hack to prevent things

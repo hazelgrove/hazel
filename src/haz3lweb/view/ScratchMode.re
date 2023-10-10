@@ -92,7 +92,7 @@ let view =
           info_map,
           global_inference_info,
         )
-      : [];
+      : div([]);
 
   [
     div(

@@ -1,4 +1,5 @@
 open Term;
+open Util;
 
 /* STATICS.re
 
@@ -214,39 +215,38 @@ and uexp_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
-    let (modes, constraints) =
+    let (modes, mode_cs) =
       Mode.of_list_lit(ctx, List.length(es), UExp.rep_id(uexp), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
       ~self=Self.listlit(~empty=Unknown(NoProvenance), ctx, tys, ids),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
-      ~constraints,
+      ~constraints=mode_cs @ ListUtil.flat_map(Info.exp_constraints, es),
       m,
     );
   | Cons(hd, tl) =>
-    let (hd_mode, hd_constraints) =
+    let (hd_mode, hd_mode_cs) =
       Mode.of_cons_hd(ctx, mode, UExp.rep_id(uexp));
     let (hd, m) = go(~mode=hd_mode, hd, m);
-    let (tl_mode, tl_constraints) =
+    let (tl_mode, tl_mode_cs) =
       Mode.of_cons_tl(ctx, mode, hd.ty, UExp.rep_id(uexp));
     let (tl, m) = go(~mode=tl_mode, tl, m);
     add(
       ~self=Just(List(hd.ty)),
       ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
       m,
-      ~constraints=hd_constraints @ tl_constraints,
+      ~constraints=hd.constraints @ tl.constraints @ hd_mode_cs @ tl_mode_cs,
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let (mode, constraints) =
-      Mode.of_list_concat(ctx, UExp.rep_id(uexp), mode);
+    let (mode, mode_cs) = Mode.of_list_concat(ctx, UExp.rep_id(uexp), mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
       ~self=Self.list_concat(ctx, [e1.ty, e2.ty], ids),
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-      ~constraints,
+      ~constraints=mode_cs @ e1.constraints @ e2.constraints,
       m,
     );
   | Var(name) =>
@@ -255,12 +255,12 @@ and uexp_to_info_map =
       | None => (Free(name), Unknown(AstNode(UExp.rep_id(uexp))))
       | Some(var) => (Common(Just(var.typ)), var.typ)
       };
-    let (mode_ty, constraints) = Mode.ty_of(ctx, mode, UExp.rep_id(uexp));
+    let (mode_ty, mode_cs) = Mode.ty_of(ctx, mode, UExp.rep_id(uexp));
     add'(
       ~self,
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), mode_ty),
       m,
-      ~constraints=subsumption_constraints(mode, final_typ) @ constraints,
+      ~constraints=subsumption_constraints(mode, final_typ) @ mode_cs,
     );
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
@@ -286,7 +286,7 @@ and uexp_to_info_map =
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
-      ~constraints,
+      ~constraints=constraints @ ListUtil.flat_map(Info.exp_constraints, es),
       m,
     );
   | Test(e) =>
@@ -341,6 +341,7 @@ and uexp_to_info_map =
       ~self=Just(body.ty),
       ~co_ctx=
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+      ~constraints=p_ana.constraints @ def.constraints @ body.constraints,
       m,
     );
   | If(e0, e1, e2) =>
@@ -349,9 +350,9 @@ and uexp_to_info_map =
     let (cons, m) = go(~mode, e1, m);
     let (alt, m) = go(~mode, e2, m);
     add(
-      ~constraints,
       ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
       ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
+      ~constraints=cond.constraints @ cons.constraints @ alt.constraints,
       m,
     );
   | Match(scrut, rules) =>
@@ -361,6 +362,7 @@ and uexp_to_info_map =
     let (ps, m) =
       map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
     let p_ctxs = List.map(Info.pat_ctx, ps);
+    let p_constraints = ListUtil.flat_map(Info.pat_constraints, ps);
     let (es, m) =
       List.fold_left2(
         ((es, m), e, ctx) =>
@@ -370,10 +372,11 @@ and uexp_to_info_map =
         p_ctxs,
       );
     let e_tys = List.map(Info.exp_ty, es);
+    let e_constraints = ListUtil.flat_map(Info.exp_constraints, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     add(
-      ~constraints,
+      ~constraints=scrut.constraints @ e_constraints @ p_constraints,
       ~self=Self.match(ctx, e_tys, branch_ids),
       ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
       m,
@@ -415,7 +418,8 @@ and uexp_to_info_map =
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-      add(~self=Just(ty_escape), ~constraints, ~co_ctx, m);
+      //TODO anand: constraints?
+      add(~self=Just(ty_escape), ~constraints=[], ~co_ctx, m);
     | Var(_)
     | Invalid(_)
     | EmptyHole
@@ -423,6 +427,7 @@ and uexp_to_info_map =
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      //TODO anand: constraints?
       add(~self=Just(ty_body), ~constraints=[], ~co_ctx, m);
     };
   };
@@ -440,9 +445,9 @@ and upat_to_info_map =
   let id = UPat.rep_id(upat);
   let add = (~self, ~ctx, ~constraints, m) => {
     let joined_constraints =
-      switch (self) {
-      | Joined(wrap, sources) =>
-        sources |> Typ.source_tys |> List.map(wrap) |> join_constraints
+      switch ((self: Self.t)) {
+      | NoJoin(wrap, sources) =>
+        sources |> Typ.of_source |> List.map(wrap) |> join_constraints
       | _ => []
       };
     let info =
@@ -451,7 +456,7 @@ and upat_to_info_map =
         ~ctx,
         ~mode,
         ~ancestors,
-        ~constraints,
+        ~constraints=constraints @ joined_constraints,
         ~self=Common(self),
       );
     (info, add_info(ids, InfoPat(info), m));
@@ -469,23 +474,27 @@ and upat_to_info_map =
       ~constraints=subsumption_constraints(mode, final_typ),
     );
   };
-  let ancestors = [UPat.rep_id(upat)] @ ancestors;
+  let ancestors = [id] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors);
-  let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
+  let unknown = Typ.Unknown(is_synswitch ? SynSwitch(id) : NoProvenance);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
-      ((ctx, tys, m), e, mode) =>
+      (((ctx, cs), tys, m), e, mode) =>
         go(~ctx, ~mode, e, m)
-        |> (((info, m)) => (info.ctx, tys @ [info.ty], m)),
-      (ctx, [], m),
+        |> (
+          ((info, m)) => (
+            (info.ctx, info.constraints @ cs),
+            tys @ [info.ty],
+            m,
+          )
+        ),
+      ((ctx, []), [], m),
     );
   switch (term) {
   | MultiHole(tms) =>
     let (_, constraints, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~ctx, ~constraints, m);
-  | Invalid(token) =>
-    let final_typ: Typ.t = Unknown(AstNode(Term.UPat.rep_id(upat)));
-    atomic(BadToken(token));
+  | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(unknown))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -494,20 +503,25 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
-    let (modes, constraints) =
-      Mode.of_list_lit(ctx, List.length(ps), UExp.rep_id(uexp), mode);
-    let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
+    let (modes, mode_cs) = Mode.of_list_lit(ctx, List.length(ps), id, mode);
+    let ((ctx, constraints), tys, m) = ctx_fold(ctx, m, ps, modes);
     add(
       ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
       ~ctx,
-      ~constraints,
+      ~constraints=mode_cs @ constraints,
       m,
     );
   | Cons(hd, tl) =>
-    let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
-    let (tl, m) =
-      go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
-    add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
+    let (mode_hd, mode_cs_hd) = Mode.of_cons_hd(ctx, mode, id);
+    let (hd, m) = go(~ctx, ~mode=mode_hd, hd, m);
+    let (mode_tl, mode_cs_tl) = Mode.of_cons_tl(ctx, mode_hd, hd.ty, id);
+    let (tl, m) = go(~ctx=hd.ctx, ~mode=mode_tl, tl, m);
+    add(
+      ~self=Just(List(hd.ty)),
+      ~ctx=tl.ctx,
+      ~constraints=hd.constraints @ tl.constraints @ mode_cs_hd @ mode_cs_tl,
+      m,
+    );
   | Wild => atomic(Just(unknown))
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
@@ -517,29 +531,41 @@ and upat_to_info_map =
       Info.fixed_typ_pat(
         ctx,
         mode,
-        Common(Just(Unknown(Internal))),
-        rep_id(term),
+        Common(Just(Unknown(AstNode(id)))),
+        id,
       );
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+    let entry = Ctx.VarEntry({name, id, typ: ctx_typ});
+    add(
+      ~self=Just(unknown),
+      ~ctx=Ctx.extend(ctx, entry),
+      ~constraints=subsumption_constraints(mode, ctx_typ),
+      m,
+    );
   | Tuple(ps) =>
-    let (modes, constraints) =
+    let (modes, mode_cs) =
       Mode.of_prod(ctx, mode, UPat.rep_id(upat), List.length(ps));
-    let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Just(Prod(tys)), ~ctx, ~constraints, m);
+    let ((ctx, constraints), tys, m) = ctx_fold(ctx, m, ps, modes);
+    add(~self=Just(Prod(tys)), ~ctx, ~constraints=mode_cs @ constraints, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
-    add(~self=Just(p.ty), ~ctx=p.ctx, ~constraints=[], m);
+    add(~self=Just(p.ty), ~ctx=p.ctx, ~constraints=p.constraints, m);
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let ((ty_in, ty_out), constraints) = Typ.matched_arrow(ctx, id, fn.ty);
+    let ((ty_in, ty_out), matched_constraints) =
+      Typ.matched_arrow(ctx, id, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraints, m);
+    add(
+      ~self=Just(ty_out),
+      ~ctx=arg.ctx,
+      ~constraints=fn.constraints @ arg.constraints @ matched_constraints,
+      m,
+    );
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
+    //TODO anand: constraints?
     add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraints=[], m);
   };
 }
@@ -562,7 +588,7 @@ and utyp_to_info_map =
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
   | MultiHole(tms) =>
-    let (_, m) = multi(~ctx, ~ancestors, m, tms);
+    let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Invalid(_)
   | EmptyHole
@@ -589,7 +615,8 @@ and utyp_to_info_map =
       switch (expects) {
       | VariantExpected(m, sum_ty) =>
         ConstructorExpected(m, Arrow(ty_in, sum_ty))
-      | _ => ConstructorExpected(Unique, Arrow(ty_in, Unknown(Internal)))
+      | _ =>
+        ConstructorExpected(Unique, Arrow(ty_in, Unknown(NoProvenance)))
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
@@ -654,3 +681,30 @@ let mk_map =
     uexp_to_info_map(~ctx=Builtins.ctx_init, ~ancestors=[], e, Id.Map.empty)
     |> snd
   });
+
+let mk_map_and_inference_solutions =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    e => {
+      let (info, map) =
+        uexp_to_info_map(
+          ~ctx=Builtins.ctx_init,
+          ~ancestors=[],
+          e,
+          Id.Map.empty,
+        );
+
+      // rewrite is here
+      let ctx = Infer.Ctx.create();
+      let _ =
+        List.iter(
+          c => {
+            let (typ1, typ2) = c;
+            Infer.constrain(ctx, typ1, typ2);
+          },
+          info.constraints,
+        );
+
+      (map, ctx);
+    },
+  );

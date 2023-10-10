@@ -48,14 +48,10 @@ let get_suggestion_ui_for_id =
     let status = Infer.get_status(global_inference_info.ctx, id);
     switch (status) {
     | Solved(typ) =>
-      Solvable(
-        typ |> Type.view(~font_metrics=Some(font_metrics), ~with_cls=false),
-      )
+      Solvable(typ |> Type.view(~font_metrics, ~with_cls=false))
     | Unsolved([]) => NoSuggestion(NonTypeHoleId)
     | Unsolved([typ]) =>
-      NestedInconsistency(
-        Type.view(~font_metrics=Some(font_metrics), ~with_cls=false, typ),
-      )
+      NestedInconsistency(Type.view(~font_metrics, ~with_cls=false, typ))
     | Unsolved(_tys) => NoSuggestion(InconsistentSet) // TODO anand: use tys
     };
   } else {

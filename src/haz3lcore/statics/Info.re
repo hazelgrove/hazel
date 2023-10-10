@@ -257,6 +257,10 @@ let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
+let exp_constraints: exp => Typ.constraints =
+  ({constraints, _}) => constraints;
+let pat_constraints: pat => Typ.constraints =
+  ({constraints, _}) => constraints;
 
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>

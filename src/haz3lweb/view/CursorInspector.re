@@ -9,6 +9,8 @@ let okc = "ok";
 let div_err = div(~attr=clss([errc]));
 let div_ok = div(~attr=clss([okc]));
 
+let infoc = "info"; //TODO: ????
+
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
 
@@ -85,7 +87,7 @@ let view_of_global_inference_info =
       ~inject,
       ~font_metrics: FontMetrics.t,
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
-      id: int,
+      id: Id.t,
     ) => {
   let font_metrics = Some(font_metrics);
   if (global_inference_info.enabled) {
@@ -213,7 +215,15 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
   };
 };
 
-let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
+let typ_ok_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~id,
+      _cls: Term.Cls.t,
+      ok: Info.ok_typ,
+    ) =>
   switch (ok) {
   | Type(ty) =>
     switch (
@@ -224,28 +234,15 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
     ) {
     | NoSuggestion(SuggestionsDisabled)
     | NoSuggestion(NonTypeHoleId)
-    | NoSuggestion(OnlyHoleSolutions) =>
-      div(
-        ~attr=clss([infoc, "typ"]),
-        [
-          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-          text("is"),
-          Type.view(ty),
-        ],
-      )
-    | _ =>
-      div(
-        ~attr=clss([infoc, "typ"]),
-        [
-          term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-          view_of_global_inference_info(
-            ~inject,
-            ~font_metrics,
-            ~global_inference_info,
-            id,
-          ),
-        ],
-      )
+    | NoSuggestion(OnlyHoleSolutions) => [Type.view(ty)]
+    | _ => [
+        view_of_global_inference_info(
+          ~inject,
+          ~font_metrics,
+          ~global_inference_info,
+          id,
+        ),
+      ]
     }
   //TODO(andrew): restore this message?
   //| Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
@@ -291,9 +288,27 @@ let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
 
-let typ_view = (cls: Term.Cls.t, status: Info.status_typ) =>
+let typ_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~id,
+      cls: Term.Cls.t,
+      status: Info.status_typ,
+    ) =>
   switch (status) {
-  | NotInHole(ok) => div_ok(typ_ok_view(cls, ok))
+  | NotInHole(ok) =>
+    div_ok(
+      typ_ok_view(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~id,
+        cls,
+        ok,
+      ),
+    )
   | InHole(err) => div_err(typ_err_view(err))
   };
 
@@ -317,6 +332,7 @@ let view_of_info =
       ~global_inference_info,
       ~settings,
       ~show_lang_doc: bool,
+      ~id,
       ci: Statics.Info.t,
     )
     : Node.t => {
@@ -328,7 +344,17 @@ let view_of_info =
   switch (ci) {
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
-  | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
+  | InfoTyp({cls, status, _}) =>
+    wrapper(
+      typ_view(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~id,
+        cls,
+        status,
+      ),
+    )
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
   };
 };
@@ -340,6 +366,7 @@ let inspector_view =
       ~global_inference_info,
       ~settings,
       ~show_lang_doc,
+      ~id,
       ci,
     )
     : Node.t =>
@@ -352,6 +379,7 @@ let inspector_view =
         ~global_inference_info,
         ~settings,
         ~show_lang_doc,
+        ~id,
         ci,
       ),
     ],
@@ -389,6 +417,7 @@ let view =
           ~global_inference_info,
           ~settings,
           ~show_lang_doc,
+          ~id,
           ci,
         ),
         div(

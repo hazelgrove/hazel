@@ -31,13 +31,13 @@ let of_delim =
 
 let of_grout =
     (
-      ~font_metrics,
-      ~global_inference_info: InferenceResult.global_inference_info,
+      font_metrics: FontMetrics.t,
+      global_inference_info: InferenceResult.global_inference_info,
       id: Id.t,
     ) => {
   let suggestion: InferenceResult.suggestion(Node.t) =
     InferenceView.get_suggestion_ui_for_id(
-      ~font_metrics,
+      ~font_metrics=Some(font_metrics),
       id,
       global_inference_info,
       false,
@@ -85,22 +85,30 @@ let of_secondary =
    values, they will need to be explictly encoded in the key.
 
    TODO: Consider setting a limit for the hashtbl size */
-let piece_hash: Hashtbl.t((Sort.t, Piece.t, int, ModelSettings.t), list(t)) =
+let piece_hash:
+  Hashtbl.t(
+    (
+      Sort.t,
+      Piece.t,
+      int,
+      ModelSettings.t,
+      FontMetrics.t,
+      InferenceResult.global_inference_info,
+    ),
+    list(t),
+  ) =
   Hashtbl.create(10000);
 
-module Text =
-       (
-         M: {
-           let map: Measured.t;
-           let global_inference_info: InferenceResult.global_inference_info;
-           let settings: ModelSettings.t;
-         },
-       ) => {
+module Text = (M: {
+                 let map: Measured.t;
+                 let settings: ModelSettings.t;
+               }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
           (
             no_sorts,
             sort,
+            font_metrics: FontMetrics.t,
             global_inference_info: InferenceResult.global_inference_info,
             seg: Segment.t,
           )
@@ -119,37 +127,55 @@ module Text =
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(~font_metrics, ~global_inference_info, sort_of_p_idx(i), p)
+         of_piece(font_metrics, global_inference_info, sort_of_p_idx(i), p)
        );
   }
   and of_piece' =
       (
-        expected_sort: Sort.t,
+        font_metrics: FontMetrics.t,
         global_inference_info: InferenceResult.global_inference_info,
+        expected_sort: Sort.t,
         p: Piece.t,
       )
       : list(Node.t) => {
     switch (p) {
     | Tile(t) =>
-      of_tile(~font_metrics, ~global_inference_info, expected_sort, t)
-    | Grout(g) => of_grout(~font_metrics, ~global_inference_info, g.id)
+      of_tile(font_metrics, global_inference_info, expected_sort, t)
+    | Grout(g) => of_grout(font_metrics, global_inference_info, g.id)
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (
+        font_metrics: FontMetrics.t,
+        global_inference_info: InferenceResult.global_inference_info,
+        expected_sort: Sort.t,
+        p: Piece.t,
+      )
+      : list(Node.t) => {
     /* Last two elements of arg track the functorial args which
        can effect the code layout; without these the first,
        indentation can get out of sync */
-    let arg = (expected_sort, p, m(p).last.col, M.settings);
+    let arg = (
+      expected_sort,
+      p,
+      m(p).last.col,
+      M.settings,
+      font_metrics,
+      global_inference_info,
+    );
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
-      let res = of_piece'(expected_sort, p);
+      let res =
+        of_piece'(font_metrics, global_inference_info, expected_sort, p);
       Hashtbl.add(piece_hash, arg, res);
       res;
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (font_metrics, global_inference_info, expected_sort: Sort.t, t: Tile.t)
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -160,7 +186,7 @@ module Text =
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(false, sort, seg, global_inference_info)
+         of_segment(false, sort, font_metrics, global_inference_info, seg)
        )
     |> List.concat;
   };
@@ -213,7 +239,6 @@ let simple_view =
   module Text =
     Text({
       let map = map;
-      let global_inference_info = global_inference_info;
       let settings = settings;
     });
   div(
@@ -221,7 +246,13 @@ let simple_view =
     [
       span_c(
         "code-text",
-        Text.of_segment(false, Sort.Any, unselected, global_inference_info),
+        Text.of_segment(
+          false,
+          Sort.Any,
+          font_metrics,
+          global_inference_info,
+          unselected,
+        ),
       ),
     ],
   );
@@ -230,7 +261,7 @@ let simple_view =
 let view =
     (
       ~sort: Sort.t,
-      ~font_metrics,
+      ~font_metrics: FontMetrics.t,
       ~segment,
       ~unselected,
       ~measured,
@@ -241,12 +272,17 @@ let view =
   module Text =
     Text({
       let map = measured;
-      let global_inference_info = global_inference_info;
       let settings = settings;
     });
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(false, sort, unselected, global_inference_info)
+      Text.of_segment(
+        false,
+        sort,
+        font_metrics,
+        global_inference_info,
+        unselected,
+      )
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

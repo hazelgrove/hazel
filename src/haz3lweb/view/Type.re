@@ -9,22 +9,20 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-let prov_view: Typ.type_provenance => Node.t =
+//TODO: restore or delete
+/*let prov_view: Typ.type_provenance => Node.t =
   fun
-  | Internal => div([])
+  | NoProvenance => div([])
   | Free(name) =>
     div(~attr=clss(["typ-mod", "free-type-var"]), [text(name)])
-  | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
-  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
+  | AstNode(_) => div(~attr=clss(["typ-mod", "ast-node"]), [text("𝜏")])
+  | Matched(_) => div(~attr=clss(["typ-mod", "matched"]), [text("m")])
+  | SynSwitch(_) => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);*/
 
 let rec view_ty =
-        (
-          ~font_metrics: option(FontMetrics.t)=None,
-          ~with_cls: bool=true,
-          ~is_left_child: bool=false,
-          ty: Haz3lcore.Typ.t,
-        )
+        (~font_metrics, ~with_cls, ~is_left_child: bool=false, ty: Typ.t)
         : Node.t => {
+  let view_ty' = view_ty(~font_metrics, ~with_cls);
   //TODO: parens on ops when ambiguous
   let parenthesize_if_left_child = (n): Node.t =>
     (is_left_child ? [Node.text("("), ...n] @ [Node.text(")")] : n) |> span;
@@ -39,13 +37,14 @@ let rec view_ty =
         ~attr=
           Attr.many([
             clss(["typ-view", "atom", "unknown"]),
-            Attr.title(Typ.show_type_provenance(prov)),
+            //TODO: restore provenance view on hover?
+            //Attr.title(Typ.show_type_provenance(prov)),
           ]),
         [
           EmptyHoleDec.relative_view(
             ~font_metrics,
             false,
-            Haz3lcore.InferenceResult.hole_mold,
+            InferenceResult.hole_mold,
           ),
         ],
       )
@@ -59,22 +58,18 @@ let rec view_ty =
   | Rec(x, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("Rec " ++ x ++ ". "), view_ty(t)],
+      [text("Rec " ++ x ++ ". "), view_ty'(t)],
     )
   | List(t) =>
     div(
       ~attr=clss(["typ-view", "atom", "List"]),
-      [text("["), view_ty(~font_metrics, ~with_cls, t), text("]")],
+      [text("["), view_ty'(t), text("]")],
     )
   | Arrow(t1, t2) =>
     [
       div(
         ~attr=clss(["typ-view", "Arrow"]),
-        [
-          view_ty(~font_metrics, ~with_cls, ~is_left_child=true, t1),
-          text(" -> "),
-          view_ty(~font_metrics, ~with_cls, t2),
-        ],
+        [view_ty'(~is_left_child=true, t1), text(" -> "), view_ty'(t2)],
       ),
     ]
     |> parenthesize_if_left_child
@@ -88,38 +83,42 @@ let rec view_ty =
         text("("),
         div(
           ~attr=clss(["typ-view", "Prod"]),
-          [view_ty(~font_metrics, ~with_cls, t0)]
-          @ (
-            List.map(
-              t => [text(", "), view_ty(~font_metrics, ~with_cls, t)],
-              ts,
-            )
-            |> List.flatten
-          ),
+          [view_ty'(t0)]
+          @ (List.map(t => [text(", "), view_ty'(t)], ts) |> List.flatten),
         ),
         text(")"),
       ],
     )
   | Sum(ts) =>
+    let ctr_view' = ctr_view(~font_metrics, ~with_cls);
     div(
       ~attr=clss(["typ-view", "Sum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
-      | [t0] => [text("+")] @ ctr_view(t0)
+      | [t0] => [text("+")] @ ctr_view'(t0)
       | [t0, ...ts] =>
         let ts_views =
-          List.map(t => [text(" + ")] @ ctr_view(~font_metrics, t), ts)
-          |> List.flatten;
-        ctr_view(t0) @ ts_views;
+          List.map(t => [text(" + ")] @ ctr_view'(t), ts) |> List.flatten;
+        ctr_view'(t0) @ ts_views;
       },
-    )
+    );
   };
 }
-and ctr_view = (~font_metrics, (ctr, typ)) =>
+and ctr_view = (~font_metrics, ~with_cls, (ctr, typ)) =>
   switch (typ) {
   | None => [text(ctr)]
-  | Some(typ) => [text(ctr ++ "("), view_ty(~font_metrics, typ), text(")")]
+  | Some(typ) => [
+      text(ctr ++ "("),
+      view_ty(~font_metrics, ~with_cls, typ),
+      text(")"),
+    ]
   };
 
-let view = (ty: Haz3lcore.Typ.t): Node.t =>
-  div_c("typ-wrapper", [view_ty(ty)]);
+let view =
+    (
+      ~font_metrics: option(FontMetrics.t)=None,
+      ~with_cls: bool=true,
+      ty: Typ.t,
+    )
+    : Node.t =>
+  div_c("typ-wrapper", [view_ty(~font_metrics, ~with_cls, ty)]);
