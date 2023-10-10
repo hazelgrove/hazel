@@ -1984,5 +1984,4 @@ svg.expandable path {
   border: 1px var(--step-hole-color);
   background-color:#ddcda3;
   margin: -1px;
-  cursor: pointer;
 }
