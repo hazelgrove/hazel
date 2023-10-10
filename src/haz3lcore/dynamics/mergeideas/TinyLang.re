@@ -107,11 +107,14 @@ module Transition = (EV: EV_MODE) => {
 module Evaluator: {
   include EV_MODE;
   let unfinished: result('a) => option('a);
+  let box_value: 'a => result('a);
 } = {
   type result('a) =
     | BoxedValue('a)
     | Indet('a)
     | Uneval('a);
+
+  let box_value = x => BoxedValue(x);
 
   let unfinished =
     fun
@@ -174,7 +177,6 @@ module Evaluator: {
 
   let no_req = apply_rule;
 };
-
 module Eval = Transition(Evaluator);
 
 let rec evaluate = (env, d) => {
@@ -184,6 +186,17 @@ let rec evaluate = (env, d) => {
   | Some(x) => evaluate(env, x)
   };
 };
+
+let rec pausable_eval = (pause_oracle, env, d) =>
+  if (pause_oracle(d)) {
+    Evaluator.box_value(d);
+  } else {
+    let u = Eval.transition(pausable_eval(pause_oracle), env, d);
+    switch (Evaluator.unfinished(u)) {
+    | None => u
+    | Some(x) => pausable_eval(pause_oracle, env, x)
+    };
+  };
 
 /*
  This module takes an expression, and creates a list of expressions that
