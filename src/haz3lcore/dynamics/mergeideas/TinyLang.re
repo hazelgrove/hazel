@@ -9,6 +9,8 @@ type tinylang =
   | Ap(tinylang, tinylang)
 and env = list((string, tinylang));
 
+type location = list(int);
+
 let add_env = (e, k, v) => [(k, v), ...e];
 let rec get_env = (e, k) =>
   switch (e) {
@@ -17,91 +19,88 @@ let rec get_env = (e, k) =>
   | [] => failwith("Not in environment")
   };
 
-type kind =
-  | Value
-  | Expr;
-
 type rule =
-  | Step(unit => tinylang, unit => tinylang, kind)
-  | Constructor(unit => tinylang)
-  | Indet(unit => tinylang);
+  | Step({
+      undo: unit => tinylang,
+      apply: unit => tinylang,
+      final: bool,
+    })
+  | Constructor(tinylang)
+  | Indet(tinylang);
 
 module type EV_MODE = {
   type result('a);
 
-  /*
-   There are three types of requirement:
-   a - must be fully evaluated before the syntactic form it's a part of
-   b - ideally fully evaluated before the syntactic form it's a part of
-   c - could be evaluated before the syntactic form it's a part of
-   */
-  let req_a:
-    (tinylang => result(tinylang), tinylang) => (result(tinylang), bool);
-  let req_b:
-    (tinylang => result(tinylang), tinylang) => (result(tinylang), bool);
-  let req_c:
-    (tinylang => result(tinylang), tinylang) => (result(tinylang), bool);
+  let req_value:
+    (int, tinylang => result(tinylang), tinylang) =>
+    (result(tinylang), bool);
+  let req_finished:
+    (int, tinylang => result(tinylang), tinylang) =>
+    (result(tinylang), bool);
+  let do_not_req:
+    (int, tinylang => result(tinylang), tinylang) =>
+    (result(tinylang), bool);
 
-  let bind: ((result('a), bool), 'a => rule) => result(tinylang);
-  let combine:
+  let (let.): ((result('a), bool), 'a => rule) => result(tinylang);
+  let (and.):
     ((result('a), bool), (result('b), bool)) => (result(('a, 'b)), bool);
+
   let no_req: rule => result(tinylang);
 };
 
 module Transition = (EV: EV_MODE) => {
-  let (let.) = EV.bind;
-  let (and.) = EV.combine;
+  open EV;
 
   let transition = (continue, env: list((string, tinylang))) =>
     fun
-    | Hole => EV.no_req(Indet(() => Hole))
-    | Const(x) => EV.no_req(Constructor(() => Const(x)))
+    | Hole => no_req(Indet(Hole))
+    | Const(x) => no_req(Constructor(Const(x)))
     | Add(x, y) => {
-        let. x' = EV.req_a(continue(env), x)
-        and. y' = EV.req_a(continue(env), y);
-        Step(
-          () => Add(x', y'),
-          () =>
+        let. x' = req_value(0, continue(env), x)
+        and. y' = req_value(1, continue(env), y);
+        Step({
+          undo: () => Add(x', y'),
+          apply: () =>
             switch (x', y') {
             | (Const(a), Const(b)) => Const(a + b)
             | _ => failwith("invalid addition")
             },
-          Value,
-        );
+          final: true,
+        });
       }
     | Seq(x, y) => {
-        let. x' = EV.req_b(continue(env), x)
-        and. y' = EV.req_c(continue(env), y);
-        Step(() => Seq(x', y'), () => y', Expr);
+        let. x' = EV.req_finished(0, continue(env), x)
+        and. y' = EV.do_not_req(1, continue(env), y);
+        Step({undo: () => Seq(x', y'), apply: () => y', final: false});
       }
     | Var(x) =>
       EV.no_req(
-        Step(
-          () => Var(x),
-          () => get_env(env, x),
-          Value // Should be Value on Evaluator :/
-        ),
+        Step({
+          undo: () => Var(x),
+          apply: () => get_env(env, x),
+          final: true,
+        }),
       )
     | Fun(s, Closure(env', x)) =>
-      EV.no_req(Constructor(() => Fun(s, Closure(env', x))))
-    | Fun(s, x) => EV.no_req(Constructor(() => Fun(s, Closure(env, x))))
+      EV.no_req(Constructor(Fun(s, Closure(env', x))))
+    | Fun(s, x) => EV.no_req(Constructor(Fun(s, Closure(env, x))))
     | Closure(env', x) => {
-        let. x' = EV.req_a(continue(env'), x);
-        Step(() => Closure(env', x), () => x', Value);
+        let. x' = EV.req_value(0, continue(env'), x);
+        Step({undo: () => Closure(env', x), apply: () => x', final: true});
       }
     | Ap(x, y) => {
-        let. x' = EV.req_a(continue(env), x)
-        and. y' = EV.req_a(continue(env), y); // I would love for this to be req_b...
-        Step(
-          () => Ap(x', y'),
-          () =>
+        let. x' = EV.req_value(0, continue(env), x)
+        and. y' = EV.req_value(1, continue(env), y); // I would love for this to be req_b...
+        Step({
+          undo: () => Ap(x', y'),
+          apply: () =>
             switch (x') {
             | Ap(Fun(s, Closure(env', d1)), d2) =>
               Closure(add_env(env', s, d2), d1)
             | _ => failwith("Invalid application")
             },
-          Expr,
-        );
+          final: false,
+        });
       };
 };
 
@@ -120,34 +119,38 @@ module Evaluator: {
     | Indet(_) => None
     | Uneval(x) => Some(x);
 
-  let req_a = (f, x) =>
+  let req_value = (_, f, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedValue(x), true)
     | Uneval(x) => (Uneval(x), false)
     | Indet(x) => (Indet(x), false)
     };
 
-  let req_b = (f, x) =>
+  let req_finished = (_, f, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedValue(x), true)
     | Uneval(x) => (Uneval(x), true)
     | Indet(x) => (Indet(x), true)
     };
 
-  let req_c = (_, x) => (Uneval(x), true);
+  let do_not_req = (_, _, x) => (Uneval(x), true);
 
   let apply_rule =
     fun
-    | Step(_, f, Value) => BoxedValue(f())
-    | Step(_, f, Expr) => Uneval(f())
-    | Constructor(f) => BoxedValue(f())
-    | Indet(f) => Indet(f());
+    | Step(s) =>
+      if (s.final) {
+        BoxedValue(s.apply());
+      } else {
+        Uneval(s.apply());
+      }
+    | Constructor(v) => BoxedValue(v)
+    | Indet(v) => Indet(v);
 
   let retreat =
     fun
-    | Step(g, _, _) => Indet(g())
-    | Constructor(f) => Indet(f())
-    | Indet(f) => Indet(f());
+    | Step(s) => Indet(s.undo())
+    | Constructor(v) => Indet(v)
+    | Indet(v) => Indet(v);
 
   let unbox =
     fun
@@ -155,12 +158,12 @@ module Evaluator: {
     | Indet(x) => x
     | Uneval(x) => x;
 
-  let combine = ((x1, b1), (x2, b2)) => (
+  let (and.) = ((x1, b1), (x2, b2)) => (
     BoxedValue((unbox(x1), unbox(x2))),
     b1 && b2,
   );
 
-  let bind = ((x, b), rl) => {
+  let (let.) = ((x, b), rl) => {
     let x = unbox(x);
     if (b) {
       apply_rule(rl(x));
@@ -191,44 +194,46 @@ module Deconstructor: EV_MODE = {
   type result('a) =
     | BoxedValue('a)
     | Indet('a)
-    | PossibleSteps('a, list('a));
+    | PossibleSteps('a, list((location, tinylang)));
 
-  let req_a = (f, x) =>
+  let add_loc = i => List.map(((j, x)) => ([i, ...j], x));
+
+  let req_value = (i, f, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedValue(x), true)
     | Indet(x) => (Indet(x), false)
-    | PossibleSteps(x, y) => (PossibleSteps(x, y), false)
+    | PossibleSteps(x, y) => (PossibleSteps(x, add_loc(i, y)), false)
     };
 
-  let req_b = (f, x) =>
+  let req_finished = (i, f, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedValue(x), true)
     | Indet(x) => (Indet(x), true)
-    | PossibleSteps(x, y) => (PossibleSteps(x, y), false)
+    | PossibleSteps(x, y) => (PossibleSteps(x, add_loc(i, y)), false)
     };
 
-  let req_c = (f, x) =>
+  let do_not_req = (i, f, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedValue(x), true)
     | Indet(x) => (Indet(x), true)
-    | PossibleSteps(x, y) => (PossibleSteps(x, y), false) // Perhaps this should be true
+    | PossibleSteps(x, y) => (PossibleSteps(x, add_loc(i, y)), false) // Perhaps this should be true
     };
 
   let retreat =
     fun
-    | Step(g, _, _) => g()
-    | Constructor(f) => f()
-    | Indet(f) => f();
+    | Step(s) => s.undo()
+    | Constructor(v) => v
+    | Indet(v) => v;
 
   let apply_rule =
     fun
-    | Step(g, f, _) => PossibleSteps(g(), [f()])
-    | Constructor(f) => BoxedValue(f())
-    | Indet(f) => Indet(f());
+    | Step(s) => PossibleSteps(s.undo(), [([], s.apply())])
+    | Constructor(v) => BoxedValue(v)
+    | Indet(v) => Indet(v);
 
   let no_req = apply_rule;
 
-  let bind = ((x, b), rl) =>
+  let (let.) = ((x, b), rl): result(tinylang) =>
     if (b) {
       switch (x) {
       | BoxedValue(d) => apply_rule(rl(d))
@@ -239,14 +244,11 @@ module Deconstructor: EV_MODE = {
       switch (x) {
       | BoxedValue(_) => failwith("[TODO: Refactor Away]")
       | Indet(u) => Indet(retreat(rl(u)))
-      | PossibleSteps(x, y) =>
-        PossibleSteps(retreat(rl(x)), List.map(u => retreat(rl(u)), y))
+      | PossibleSteps(x, y) => PossibleSteps(retreat(rl(x)), y)
       };
     };
 
-  let map = List.map;
-
-  let combine = ((u1, b1), (u2, b2)) => (
+  let (and.) = ((u1, b1), (u2, b2)) => (
     switch (u1, u2) {
     // If everything is a value, the result is a value
     | (BoxedValue(x), BoxedValue(y)) => BoxedValue((x, y))
@@ -256,17 +258,12 @@ module Deconstructor: EV_MODE = {
     | (Indet(x), Indet(y)) => Indet((x, y))
     // If anything can be stepped create a list of steps
     | (BoxedValue(x), PossibleSteps(y, z))
-    | (Indet(x), PossibleSteps(y, z)) =>
-      PossibleSteps((x, y), map(u => (x, u), z))
+    | (Indet(x), PossibleSteps(y, z)) => PossibleSteps((x, y), z)
     | (PossibleSteps(x, y), BoxedValue(z))
-    | (PossibleSteps(x, y), Indet(z)) =>
-      PossibleSteps((x, z), map(u => (u, z), y))
+    | (PossibleSteps(x, y), Indet(z)) => PossibleSteps((x, z), y)
     // Combine two list of steps by stepping one or the other
     | (PossibleSteps(x1, y1), PossibleSteps(x2, y2)) =>
-      PossibleSteps(
-        (x1, x2),
-        map(u => (x1, u), y2) @ map(u => (u, x2), y1),
-      )
+      PossibleSteps((x1, x2), y1 @ y2)
     },
     b1 && b2,
   );
