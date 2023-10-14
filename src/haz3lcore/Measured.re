@@ -277,6 +277,8 @@ let of_segment =
             ~map,
             ~container_indent: abs_indent=0,
             ~origin=Point.zero,
+            ~compress=false,
+            ~outermost=false,
             seg: Segment.t,
           )
           : (Point.t, t) => {
@@ -320,9 +322,17 @@ let of_segment =
              );
         (origin, map);
       | [hd, ...tl] =>
+        let fold = (origin: Point.t, last: Point.t) => {
+          let folded_last =
+            switch (tl) {
+            | [] when outermost => Point.{...origin, col: origin.col + 7}
+            | _ => origin
+            };
+          compress ? folded_last : last;
+        };
         let (contained_indent, origin, map) =
           switch (hd) {
-          | Secondary(w) when Secondary.is_linebreak(w) =>
+          | Secondary(w) when Secondary.is_linebreak(w) && !compress =>
             let row_indent = container_indent + contained_indent;
             let indent =
               if (Segment.sameline_secondary(tl)) {
@@ -353,11 +363,12 @@ let of_segment =
           | Secondary(w) =>
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
-            let last = {...origin, col: origin.col + wspace_length};
+            let last =
+              {...origin, col: origin.col + wspace_length} |> fold(origin);
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            let last = {...origin, col: origin.col + 1};
+            let last = {...origin, col: origin.col + 1} |> fold(origin);
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
@@ -367,7 +378,8 @@ let of_segment =
                 Point.{
                   ...origin,
                   col: origin.col + String.length(token(shard)),
-                };
+                }
+                |> fold(origin);
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map, count + 1);
             };
@@ -376,7 +388,8 @@ let of_segment =
                 Point.{
                   ...origin,
                   col: origin.col + (Module.foldable(t) ? 2 : 0),
-                };
+                }
+                |> fold(origin);
               add_shard(origin, shard, map, count);
             };
             let (last, map, _) =
@@ -384,19 +397,22 @@ let of_segment =
               |> Aba.fold_left(
                    shard => add_shard'(origin, shard, map, 0),
                    ((origin, map, count), child, shard) => {
+                     let in_folded = List.mem(t.id, folded) && count == 2;
                      let (child_last, child_map) =
                        go_nested(
                          ~map,
                          ~container_indent=container_indent + contained_indent,
                          ~origin,
+                         ~compress=compress || in_folded,
+                         ~outermost=in_folded && !compress,
                          child,
                        );
-                     let child_last =
-                       if (List.mem(t.id, folded) && count == 2) {
-                         Point.{...origin, col: origin.col + 7};
-                       } else {
-                         child_last;
-                       };
+                     //  let child_last =
+                     //    if (List.mem(t.id, folded_list) && count == 2) {
+                     //      Point.{...origin, col: origin.col + 7};
+                     //    } else {
+                     //      child_last;
+                     //    };
                      add_shard(child_last, shard, child_map, count);
                    },
                  );
