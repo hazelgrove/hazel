@@ -87,6 +87,7 @@ let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
 
 let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   fun
+  | Meta(Unquote) => (Var("$Meta"), Unknown(Free("$Meta")))
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
@@ -210,19 +211,23 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
       m,
     )
-  | MetaVar(name) =>
-    if (is_in_filter) {
-      atomic(Just(Unknown(Internal)));
-    } else {
-      add'(
-        ~self=Self.of_exp_var(ctx, name),
-        ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
-        m,
-      );
-    }
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+  | UnOp(Meta(Unquote), e) when is_in_filter =>
+    let e: UExp.t = {
+      ids: e.ids,
+      term:
+        switch (e.term) {
+        | Var("e") => UExp.Constructor("$Expr")
+        | Var("v") => UExp.Constructor("$Value")
+        | _ => e.term
+        },
+    };
+    let ty_in = Typ.Var("$Meta");
+    let ty_out = Typ.Unknown(Internal);
+    let (e, m) = go(~mode=Ana(ty_in), e, m);
+    add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
   | UnOp(op, e) =>
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (e, m) = go(~mode=Ana(ty_in), e, m);

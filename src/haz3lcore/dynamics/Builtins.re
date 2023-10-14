@@ -276,12 +276,25 @@ module Pervasives = {
     |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
 };
 
-let ctx_init: Ctx.t =
-  List.map(
-    ((name, Builtin.{typ, _})) =>
-      Ctx.VarEntry({name, typ, id: Id.invalid}),
-    Pervasives.builtins,
-  );
+let ctx_init: Ctx.t = {
+  let meta_cons_map =
+    ConstructorMap.of_list([("$Expr", None), ("$Value", None)]);
+  let meta =
+    Ctx.TVarEntry({
+      name: "$Meta",
+      id: Id.invalid,
+      kind: Kind.Singleton(Sum(meta_cons_map)),
+    });
+  let ctx =
+    List.map(
+      ((name, Builtin.{typ, _})) =>
+        Ctx.VarEntry({name, typ, id: Id.invalid}),
+      Pervasives.builtins,
+    );
+  let ctx = Ctx.extend(ctx, meta);
+  let ctx = Ctx.add_ctrs(ctx, "$Meta", Id.invalid, meta_cons_map);
+  ctx;
+};
 
 let forms_init: forms =
   List.map(

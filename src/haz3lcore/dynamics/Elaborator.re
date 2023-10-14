@@ -117,7 +117,11 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+        (m: Statics.Map.t, uexp: Term.UExp.t, in_filter: bool)
+        : option(DHExp.t) => {
+  let dhexp_of_uexp = (~in_filter=in_filter, m, uexp) => {
+    dhexp_of_uexp(m, uexp, in_filter);
+  };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
@@ -157,6 +161,12 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.ListConcat(dc1, dc2);
+      | UnOp(Meta(Unquote), e) =>
+        switch (e.term) {
+        | Var("e") when in_filter => Some(Constructor("$Expr"))
+        | Var("v") when in_filter => Some(Constructor("$Value"))
+        | _ => Some(DHExp.EmptyHole(id, 0))
+        }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
@@ -187,7 +197,7 @@ let rec dhexp_of_uexp =
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Ap(TestLit(id), dtest);
       | Filter(act, cond, body) =>
-        let* dcond = dhexp_of_uexp(m, cond);
+        let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
         DHExp.Filter([DHExp.Filter.mk(dcond, act)], dbody);
       | Var(name) =>
@@ -195,13 +205,6 @@ let rec dhexp_of_uexp =
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
-      | MetaVar(name) =>
-        print_endline("Elaborator: MetaVar: name = " ++ name);
-        switch (name) {
-        | "$e" => Some(Ap(Constructor("~MExp"), Tuple([])))
-        | "$v" => Some(Ap(Constructor("~MVal"), Tuple([])))
-        | _ => None
-        };
       | Constructor(name) =>
         switch (err_status) {
         | InHole(Common(NoType(FreeConstructor(_)))) =>
@@ -352,7 +355,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+  switch (dhexp_of_uexp(m, uexp, false)) {
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);

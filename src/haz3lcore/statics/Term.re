@@ -474,7 +474,6 @@ module UExp = {
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
-    | MetaVar(_) => MetaVar
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
@@ -489,6 +488,10 @@ module UExp = {
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
 
+  let show_op_un_meta: op_un_meta => string =
+    fun
+    | Unquote => "Un-quotation";
+
   let show_op_un_bool: op_un_bool => string =
     fun
     | Not => "Boolean Negation";
@@ -499,6 +502,7 @@ module UExp = {
 
   let show_unop: op_un => string =
     fun
+    | Meta(op) => show_op_un_meta(op)
     | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
@@ -592,7 +596,6 @@ module UExp = {
     | ListLit(_)
     | Tuple(_)
     | Var(_)
-    | MetaVar(_)
     | Let(_)
     | TyAlias(_)
     | Ap(_)
@@ -626,7 +629,6 @@ module UExp = {
       | ListLit(_)
       | Fun(_)
       | Var(_)
-      | MetaVar(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
