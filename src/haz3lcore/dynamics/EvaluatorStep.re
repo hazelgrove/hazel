@@ -618,7 +618,7 @@ module Transition = {
         | BoxedValue(d2') =>
           switch (d1', d2') {
           | (ListLit(u, i, ty, ds1), ListLit(_, _, _, ds2)) =>
-            BoxedValue(ListLit(u, i, ty, ds1 @ ds2)) |> return
+            Step(ListLit(u, i, ty, ds1 @ ds2)) |> return
           | (Cast(d1, List(ty), List(ty')), d2)
           | (d1, Cast(d2, List(ty), List(ty'))) =>
             transition(env, Cast(ListConcat(d1, d2), List(ty), List(ty')))
