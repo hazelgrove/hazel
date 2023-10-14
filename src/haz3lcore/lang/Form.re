@@ -94,7 +94,6 @@ let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
-let is_meta_var = regexp("^[$][a-z][A-Za-z0-9_]*$");
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
@@ -186,7 +185,6 @@ let bad_token_cls: string => bad_token_cls =
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("meta_var", (is_meta_var, [mk_op(Exp, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -208,6 +206,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    priority for forms which share the same labels */
 
 let forms: list((string, t)) = [
+  ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   ("typ_plus", mk_infix("+", Typ, P.or_)),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("cell-join", mk_infix(";", Exp, 10)),

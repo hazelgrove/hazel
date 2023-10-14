@@ -1278,19 +1278,6 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | MetaVar(_var) =>
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.var_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.var_exp_group,
-          doc.explanation.message,
-          [],
-        );
       | Let(pat, def, body) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
@@ -2055,6 +2042,23 @@ let get_doc =
         );
       | UnOp(op, exp) =>
         switch (op) {
+        | Meta(Unquote) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.bool_unary_not_group,
+              docs,
+            );
+          let exp_id = List.nth(exp.ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.bool_unary_not_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%s"),
+              exp_id |> Id.to_string,
+            ),
+            LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
+          );
         | Bool(Not) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(

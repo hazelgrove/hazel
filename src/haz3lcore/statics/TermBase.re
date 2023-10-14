@@ -44,6 +44,10 @@ and UExp: {
     | Not;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_meta =
+    | Unquote;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -87,6 +91,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
+    | Meta(op_un_meta)
     | Int(op_un_int)
     | Bool(op_un_bool);
 
@@ -117,7 +122,6 @@ and UExp: {
     | Fun
     | Tuple
     | Var
-    | MetaVar
     | Let
     | Ap
     | If
@@ -146,7 +150,6 @@ and UExp: {
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
-    | MetaVar(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
@@ -176,6 +179,10 @@ and UExp: {
     | Not;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_meta =
+    | Unquote;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -219,6 +226,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
+    | Meta(op_un_meta)
     | Int(op_un_int)
     | Bool(op_un_bool);
 
@@ -249,7 +257,6 @@ and UExp: {
     | Fun
     | Tuple
     | Var
-    | MetaVar
     | Let
     | Ap
     | If
@@ -278,7 +285,6 @@ and UExp: {
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
-    | MetaVar(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
