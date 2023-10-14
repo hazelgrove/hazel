@@ -325,8 +325,8 @@ and uexp_to_info_map =
       get_constraints,
       );
     let generatedSelf= switch(final_constraint){
-      |true =>Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids));
-      |false =>InexhaustiveMatch(Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids)));
+      |true =>Self.Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids));
+      |false =>Self.InexhaustiveMatch(Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids)));
     };
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
