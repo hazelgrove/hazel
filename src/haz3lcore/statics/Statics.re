@@ -303,7 +303,7 @@ and uexp_to_info_map =
       );
     };
     let (pats, exps) = List.split(rules);
-    let final_constraint =
+    let get_constraints = 
       List.map(
         (pat: UPat.t): Constraint.t => {
           let (patInfo, _) =
@@ -319,8 +319,12 @@ and uexp_to_info_map =
         },
         pats,
       );
-    let exhaustive = Incon.is_exhaustive(final_constraint);
-    let generatedSelf= switch(exhaustive){
+    let final_constraint = List.fold_left(
+      (acc,c) => {Incon.is_exhaustive(c) && acc},
+      true,
+      get_constraints,
+      );
+    let generatedSelf= switch(final_constraint){
       |true =>Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids));
       |false =>InexhaustiveMatch(Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids)));
     };
