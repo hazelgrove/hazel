@@ -302,8 +302,28 @@ and uexp_to_info_map =
         rules,
       );
     };
-
-    let e_tys = List.map(Info.exp_ty, es);
+    let (pats, exps) = List.split(rules);
+    let final_constraint =
+      List.map(
+        (pat: UPat.t): Constraint.t => {
+          let (patInfo, _) =
+            upat_to_info_map(
+              ~is_synswitch=true,
+              ~ctx,
+              ~ancestors,
+              ~mode,
+              pat,
+              m,
+            );
+          patInfo.constraint_;
+        },
+        pats,
+      );
+    let exhaustive = Incon.is_exhaustive(final_constraint);
+    let generatedSelf= switch(exhaustive){
+      |true =>Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids));
+      |false =>InexhaustiveMatch(Common(Self.match(ctx, ruls_to_info_map(exps), branch_ids)));
+    };
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     add'(
