@@ -1946,7 +1946,7 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
-      | Filter(Step, pat, body) =>
+      | Filter(Pause, pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_step_group,

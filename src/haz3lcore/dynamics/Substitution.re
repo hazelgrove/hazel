@@ -14,10 +14,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
-  | Filter(fenv, dbody) =>
+  | Filter(filter, dbody) =>
     let dbody = subst_var(d1, x, dbody);
-    let fenv' = subst_var_fenv(d1, x, fenv);
-    Filter(fenv', dbody);
+    let filter = subst_var_filter(d1, x, filter);
+    Filter(filter, dbody);
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -42,12 +42,13 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       let d3 = subst_var(d1, x, d3);
       Fun(dp, ty, d3, s);
     }
-  | Closure(env, d3) =>
+  | Closure(env, fenv, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
     let env' = subst_var_env(d1, x, env);
+    let fenv' = subst_var_fenv(d1, x, fenv);
     let d3' = subst_var(d1, x, d3);
-    Closure(env', d3');
+    Closure(env', fenv', d3');
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -158,9 +159,13 @@ and subst_var_env =
 }
 
 and subst_var_fenv =
-    (d1: DHExp.t, x: Var.t, fenv: DHExp.FilterEnvironment.t)
-    : DHExp.FilterEnvironment.t => {
-  fenv |> List.map(f => DHExp.Filter.{...f, pat: subst_var(d1, x, f.pat)});
+    (d1: DHExp.t, x: Var.t, fenv: FilterEnvironment.t): FilterEnvironment.t => {
+  fenv |> List.map(f => Filter.{...f, pat: subst_var(d1, x, f.pat)});
+}
+
+and subst_var_filter = (d1: DHExp.t, x: Var.t, flt: Filter.t): Filter.t => {
+  ...flt,
+  pat: subst_var(d1, x, flt.pat),
 };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>

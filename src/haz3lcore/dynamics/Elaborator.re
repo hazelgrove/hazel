@@ -72,6 +72,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | InconsistentBranches(_)
     | Sequence(_)
     | Let(_)
+    | Filter(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
@@ -82,7 +83,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
     | Closure(_)
-    | Filter(_)
     | FailedCast(_)
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
@@ -199,7 +199,7 @@ let rec dhexp_of_uexp =
       | Filter(act, cond, body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
-        DHExp.Filter([DHExp.Filter.mk(dcond, act)], dbody);
+        DHExp.Filter({pat: dcond, act}, dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))

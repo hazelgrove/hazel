@@ -105,6 +105,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FreeVar(_)) => IndetMatch
   | (_, InvalidText(_)) => IndetMatch
   | (_, Let(_)) => IndetMatch
+  | (_, Filter(_)) => IndetMatch
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
   | (_, BinBoolOp(_)) => IndetMatch
@@ -113,8 +114,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, ConsistentCase(Case(_))) => IndetMatch
 
   /* Closure should match like underlying expression. */
-  | (_, Closure(_, d'))
-  | (_, Filter(_, d')) => matches(dp, d')
+  | (_, Closure(_, _, d')) => matches(dp, d')
 
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -389,11 +389,11 @@ and matches_cast_Tuple =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Filter(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
-  | Closure(_, _) => IndetMatch
-  | Filter(_, _) => IndetMatch
+  | Closure(_, _, Fun(_)) => DoesNotMatch
+  | Closure(_, _, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -402,7 +402,7 @@ and matches_cast_Tuple =
   | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
-  | Sequence(_)
+  | Sequence(_) => IndetMatch
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
@@ -527,10 +527,10 @@ and matches_cast_Cons =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Filter(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
-  | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
+  | Closure(_, _, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -664,7 +664,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | Indet(d1) =>
         switch (matches(dp, d1)) {
         | IndetMatch
-        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
+        | DoesNotMatch => Indet(Closure(env, [], Let(dp, d1, d2))) |> return
         | Matches(env') =>
           let* env = evaluate_extend_env(env', env);
           evaluate(env, d2);
@@ -675,7 +675,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d');
 
-    | Fun(_) => BoxedValue(Closure(env, d)) |> return
+    | Fun(_) => BoxedValue(Closure(env, [], d)) |> return
 
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -687,7 +687,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
         };
-      | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
+      | BoxedValue(Closure(closure_env, _, Fun(dp, _, d3, _)) as d1) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2)
@@ -979,7 +979,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Generalized closures evaluate to themselves. Only
        lambda closures are BoxedValues; other closures are all Indet. */
-    | Closure(_, d') =>
+    | Closure(env, _, d') =>
       switch (d') {
       | Fun(_) => BoxedValue(d) |> return
       | d => evaluate(env, d)
@@ -990,26 +990,29 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
       //TODO: revisit this, consider some kind of dynamic casting
-      Indet(Closure(env, InconsistentBranches(u, i, Case(d1, rules, n))))
+      Indet(
+        Closure(env, [], InconsistentBranches(u, i, Case(d1, rules, n))),
+      )
       |> return
 
-    | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
+    | EmptyHole(u, i) => Indet(Closure(env, [], EmptyHole(u, i))) |> return
 
     | NonEmptyHole(reason, u, i, d1) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(d1')
       | Indet(d1') =>
-        Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))) |> return
+        Indet(Closure(env, [], NonEmptyHole(reason, u, i, d1'))) |> return
       };
 
-    | FreeVar(u, i, x) => Indet(Closure(env, FreeVar(u, i, x))) |> return
+    | FreeVar(u, i, x) =>
+      Indet(Closure(env, [], FreeVar(u, i, x))) |> return
 
     | ExpandingKeyword(u, i, kw) =>
-      Indet(Closure(env, ExpandingKeyword(u, i, kw))) |> return
+      Indet(Closure(env, [], ExpandingKeyword(u, i, kw))) |> return
 
     | InvalidText(u, i, text) =>
-      Indet(Closure(env, InvalidText(u, i, text))) |> return
+      Indet(Closure(env, [], InvalidText(u, i, text))) |> return
 
     /* Cast calculus */
     | Cast(d1, ty, ty') =>
@@ -1143,9 +1146,9 @@ and eval_rule =
     let case = DHExp.Case(scrut, rules, current_rule_index);
     (
       switch (inconsistent_info) {
-      | None => Indet(Closure(env, ConsistentCase(case)))
+      | None => Indet(Closure(env, [], ConsistentCase(case)))
       | Some((u, i)) =>
-        Indet(Closure(env, InconsistentBranches(u, i, case)))
+        Indet(Closure(env, [], InconsistentBranches(u, i, case)))
       }
     )
     |> return;
@@ -1155,9 +1158,9 @@ and eval_rule =
       let case = DHExp.Case(scrut, rules, current_rule_index);
       (
         switch (inconsistent_info) {
-        | None => Indet(Closure(env, ConsistentCase(case)))
+        | None => Indet(Closure(env, [], ConsistentCase(case)))
         | Some((u, i)) =>
-          Indet(Closure(env, InconsistentBranches(u, i, case)))
+          Indet(Closure(env, [], InconsistentBranches(u, i, case)))
         }
       )
       |> return;
