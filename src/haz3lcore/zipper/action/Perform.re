@@ -32,14 +32,15 @@ let go_z =
   switch (a) {
   | Click(_) => Ok(z)
   | Move(d) =>
-    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
+    Move.go(d, z, ~folded=meta.folded)
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
     let p: Piece.t => bool = (
       fun
       | Grout(_) => true
       | _ => false
     );
-    Move.go(Goal(Piece(p, d)), z)
+    Move.go(Goal(Piece(p, d)), z, ~folded=meta.folded)
     |> Result.of_option(~error=Action.Failure.Cant_move);
   | Jump(jump_target) =>
     open OptUtil.Syntax;
