@@ -33,7 +33,11 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
-      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+      switch (d) {
+      | Cast(_) => d
+      | _ =>
+        DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+      }
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -361,12 +365,11 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);
-    print_endline(DHExp.show(d));
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
       | None => Typ.Unknown(Internal)
       };
-    TypeAssignment.property_test(ty, d, m);
+    let _check = TypeAssignment.property_test(ty, d, m);
     Elaborates(d, ty, Delta.empty);
   };

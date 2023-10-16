@@ -112,17 +112,10 @@ let rec typ_of_dhexp =
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    print_endline("AP");
-    print_endline(Typ.show(ty1));
-    print_endline(Typ.show(ty2));
     switch (arrow_aux(ty1)) {
     | Arrow(tyl, tyr) =>
       if (Typ.eq(tyl, ty2)) {
-        if (Typ.eq(tyl, Unknown(Internal))) {
-          Some(Typ.Unknown(Internal));
-        } else {
-          Some(tyr);
-        };
+        Some(tyr);
       } else {
         None;
       }
@@ -279,7 +272,7 @@ let rec typ_of_dhexp =
   };
 };
 
-let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): unit => {
+let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 
   let dh_typ =
@@ -288,14 +281,5 @@ let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): unit =>
     | Some(ty) => ty
     };
 
-  print_endline(Typ.show(dh_typ));
-  print_endline(Typ.show(uexp_typ));
-
-  if (dhexp_typ == None) {
-    print_endline("DHEXP type got none");
-  } else if (dh_typ == uexp_typ) {
-    print_endline("Types equal");
-  } else {
-    print_endline("Types not equal");
-  };
+  Typ.eq(dh_typ, uexp_typ);
 };
