@@ -295,15 +295,17 @@ and uexp_to_info_map =
       inf.ty;
     };
 
-    let rec ruls_to_info_map = (rules: list(UExp.t)): list(Typ.t) => {
+    //ruls_to_info_map was implemented but not sure where to use yet
+    [@warning "-26"]
+    let ruls_to_info_map = (rules: list(UExp.t)): list(Typ.t) => {
       List.fold_left(
         (acc, rule) => {List.append(acc, [type_of_exp(rule)])},
         [],
         rules,
       );
     };
-    let (pats, exps) = List.split(rules);
-    let get_constraints = 
+    let (pats, _) = List.split(rules);
+    let get_constraints =
       List.map(
         (pat: UPat.t): Constraint.t => {
           let (patInfo, _) =
@@ -319,17 +321,16 @@ and uexp_to_info_map =
         },
         pats,
       );
-    let final_constraint = List.fold_left(
-      (acc,c) => {Incon.is_exhaustive(c) && acc},
-      true,
-      get_constraints,
-      );
+    let final_constraint = Constraint.or_constraints(get_constraints);
     let e_tys = List.map(Info.exp_ty, es);
-    let generatedSelf: Self.exp= switch(final_constraint){
-      |true =>Self.Common(Self.match(ctx, e_tys, branch_ids));
-      |false =>InexhaustiveMatch(Common(Self.match(ctx, e_tys, branch_ids)));
-    };
-    
+
+    //generate_self is generating a Self.exp that is yet to be utilized
+    [@warning "-26"]
+    let generate_self: Self.exp =
+      Incon.is_exhaustive(final_constraint)
+        ? Self.Common(Self.match(ctx, e_tys, branch_ids))
+        : InexhaustiveMatch(Common(Self.match(ctx, e_tys, branch_ids)));
+
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     add'(
