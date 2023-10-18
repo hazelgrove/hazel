@@ -209,8 +209,7 @@ let transition =
             ),
           )
           |> return
-        | _ =>
-          builtin(Evaluator.eval_bin_int_op(op, n1, n2))
+        | _ => builtin(Evaluator.eval_bin_int_op(op, n1, n2))
         }
       | BoxedValue(d2) =>
         print_endline("InvalidBoxedIntLit1");
@@ -661,11 +660,8 @@ let rec evaluate =
       require: evaluate,
       evaluate,
       builtin,
-      continue: evaluate
+      continue: evaluate,
     };
-    transition(
-      ~env,
-      d,
-    );
+    transition(~env, d);
   };
 };

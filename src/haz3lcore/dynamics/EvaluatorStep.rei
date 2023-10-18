@@ -101,6 +101,17 @@ module EvalObj: {
   let unwrap: (t, EvalCtx.cls) => option(t);
 };
 
+module Decompose: {
+  module Result: {
+    [@deriving show({with_path: false})]
+    type t =
+      | Indet
+      | BoxedValue
+      | Eval(EvalObj.t)
+      | Step(list(EvalObj.t));
+  };
+};
+
 let evaluate_with_history: DHExp.t => list(DHExp.t);
 
 let step: EvalObj.t => ProgramResult.t;

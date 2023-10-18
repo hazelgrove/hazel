@@ -348,9 +348,8 @@ and Filter: {
   let matches = (d: DHExp.t, f: t): option(FilterAction.t) => {
     let rec matches_exp = (d: DHExp.t, f: DHExp.t): bool => {
       switch (d, f) {
-      | (Ap(Constructor("$Expr"), _), _) =>
-        failwith("$Expr in matched expression")
-      | (Ap(Constructor("$Value"), _), _) =>
+      | (Constructor("$Expr"), _) => failwith("$Expr in matched expression")
+      | (Constructor("$Value"), _) =>
         failwith("$Value in matched expression")
 
       | (Closure(_, _, d), _) => matches_exp(d, f)
@@ -363,13 +362,13 @@ and Filter: {
       | (FailedCast(d, _, _), _) => matches_exp(d, f)
       | (_, FailedCast(f, _, _)) => matches_exp(d, f)
 
-      | (_, Ap(Constructor("$Expr"), Tuple([]))) => true
+      | (_, Constructor("$Expr")) => true
       | (_, EmptyHole(_)) => true
       | (EmptyHole(_), _) => false
 
       | (
           BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_),
-          Ap(Constructor("$Value"), Tuple([])),
+          Constructor("$Value"),
         ) =>
         true
 

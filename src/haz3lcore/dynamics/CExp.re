@@ -7,6 +7,8 @@ type t =
   | BinStringOp(TermBase.UExp.op_bin_string, string, string)
   | ListConcat(list(DHExp.t), list(DHExp.t))
 and closure =
-  | Closure([@opaque] ClosureEnvironment.t,
+  | Closure(
+      [@opaque] ClosureEnvironment.t,
       [@opaque] FilterEnvironment.t,
-      DHExp.t);
+      DHExp.t,
+    );

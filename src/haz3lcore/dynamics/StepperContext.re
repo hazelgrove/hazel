@@ -34,4 +34,3 @@ and rule =
 and t =
   | Cont(cont)
   | Term(DHExp.t);
-
