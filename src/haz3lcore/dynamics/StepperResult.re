@@ -1,10 +1,10 @@
 type t =
   | Expr(DHExp.t)
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
+  | Indet(DHExp.t)
+  | BoxedValue(DHExp.t);
 
 let unbox =
   fun
   | Expr(d)
-  | BoxedValue(d)
-  | Indet(d) => d;
+  | Indet(d)
+  | BoxedValue(d) => d;
