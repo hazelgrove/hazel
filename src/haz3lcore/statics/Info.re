@@ -268,12 +268,13 @@ let rec status_common =
   switch (self, mode) {
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
+    let ty = Typ.remove_foralls(ctx, ty);
     switch (
       Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)
     ) {
     | Some(_) => NotInHole(Syn(ty))
     | None => InHole(Inconsistent(WithArrow(ty)))
-    }
+    };
   | (Just(ty), SynTypFun) =>
     /* Use ty first to preserve name if it exists. */
     switch (Typ.join_fix(ctx, ty, Forall("?", Unknown(Internal)))) {

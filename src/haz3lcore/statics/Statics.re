@@ -229,7 +229,8 @@ and uexp_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+    let fn_ty = Typ.remove_foralls(ctx, fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     add(
       ~self=Just(ty_out),
@@ -446,7 +447,8 @@ and upat_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+    let fn_ty = Typ.remove_foralls(ctx, fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>

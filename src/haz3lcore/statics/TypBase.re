@@ -56,6 +56,7 @@ module rec Typ: {
   let matched_forall: (Ctx.t, t) => (option(string), t);
   let matched_prod: (Ctx.t, int, t) => list(t);
   let matched_list: (Ctx.t, t) => t;
+  let remove_foralls: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
@@ -420,6 +421,12 @@ module rec Typ: {
     | List(ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => Unknown(Internal)
+    };
+
+  let rec remove_foralls = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Forall(_, ty) => remove_foralls(ctx, ty)
+    | other => other
     };
 
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>

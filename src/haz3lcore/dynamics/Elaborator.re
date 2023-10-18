@@ -260,9 +260,25 @@ let rec dhexp_of_uexp =
           Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
       | Ap(fn, arg) =>
+        let* fn_ty = fixed_exp_typ(m, fn);
+
+        let rec wrap_with_holes = (ty: Typ.t) => {
+          switch (ty) {
+          | Forall(_, ty) => (
+              wrapped =>
+                DHExp.TypAp(
+                  wrap_with_holes(ty, wrapped),
+                  Typ.Unknown(Internal),
+                )
+            )
+          | _ => (wrapped => wrapped)
+          };
+        };
+
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
-        DHExp.Ap(c_fn, c_arg);
+        DHExp.Ap(wrap_with_holes(fn_ty, c_fn), c_arg);
+
       | TypAp(fn, uty_arg) =>
         let+ d_fn = dhexp_of_uexp(m, fn);
         DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
