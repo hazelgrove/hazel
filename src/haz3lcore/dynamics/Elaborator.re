@@ -33,7 +33,11 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
-      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+      switch (d) {
+      | Cast(_) => d
+      | _ =>
+        DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+      }
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -206,14 +210,14 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let+ ty_body = fixed_exp_typ(m, body);
+        let+ ty = fixed_pat_typ(m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
+          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -235,7 +239,7 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
+          Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
