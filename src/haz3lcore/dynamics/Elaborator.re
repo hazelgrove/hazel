@@ -31,7 +31,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
   | SynFun =>
-    switch (self_ty) {
+    switch (Typ.remove_foralls(ctx, self_ty)) {
     | Unknown(prov) =>
       DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
     | Arrow(_) => d
@@ -262,22 +262,19 @@ let rec dhexp_of_uexp =
       | Ap(fn, arg) =>
         let* fn_ty = fixed_exp_typ(m, fn);
 
-        let rec wrap_with_holes = (ty: Typ.t) => {
+        let rec wrap_with_holes = (ty: Typ.t): option(DHExp.t) => {
           switch (ty) {
-          | Forall(_, ty) => (
-              wrapped =>
-                DHExp.TypAp(
-                  wrap_with_holes(ty, wrapped),
-                  Typ.Unknown(Internal),
-                )
-            )
-          | _ => (wrapped => wrapped)
+          | Forall(_, ty) =>
+            let+ wrapped_ty = wrap_with_holes(ty);
+            DHExp.TypAp(wrapped_ty, Typ.Unknown(Internal));
+          | _ => dhexp_of_uexp(m, fn)
           };
         };
 
-        let* c_fn = dhexp_of_uexp(m, fn);
+        let* c_fn = wrap_with_holes(fn_ty);
         let+ c_arg = dhexp_of_uexp(m, arg);
-        DHExp.Ap(wrap_with_holes(fn_ty, c_fn), c_arg);
+        let return_value = DHExp.Ap(c_fn, c_arg);
+        return_value;
 
       | TypAp(fn, uty_arg) =>
         let+ d_fn = dhexp_of_uexp(m, fn);

@@ -425,7 +425,7 @@ module rec Typ: {
 
   let rec remove_foralls = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
-    | Forall(_, ty) => remove_foralls(ctx, ty)
+    | Forall(x, ty) => remove_foralls(ctx, subst(Unknown(Internal), x, ty))
     | other => other
     };
 
