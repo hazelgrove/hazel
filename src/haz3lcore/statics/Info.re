@@ -279,7 +279,7 @@ let rec status_common =
        check the context for the ctr's type */
 
     switch (Mode.ctr_ana_typ(ctx, mode, name), syn_ty) {
-    | (Some(ana_ty), _) => status_common(ctx, Ana(ana_ty), Just(ana_ty))
+    | (Some(ana_ty), _) => status_common(ctx, mode, Just(ana_ty))
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(NoType(FreeConstructor(name)))
     }

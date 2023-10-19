@@ -275,11 +275,8 @@ let rec typ_of_dhexp =
 let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 
-  let dh_typ =
-    switch (dhexp_typ) {
-    | None => Typ.Unknown(Internal)
-    | Some(ty) => ty
-    };
-
-  Typ.eq(dh_typ, uexp_typ);
+  switch (dhexp_typ) {
+  | None => false
+  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
+  };
 };
