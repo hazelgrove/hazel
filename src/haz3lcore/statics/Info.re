@@ -70,6 +70,7 @@ type error_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | ExpectedConstructor /* Only construtors can be applied */
+  // TODO
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
