@@ -445,7 +445,9 @@ and Ctx: {
     name: Var.t,
     id: Id.t,
     typ: Typ.t,
-    nth: int // temporary name
+    /* Temporary variables. Better implementation is a TO-DO. */
+    nth: int,
+    num_variants: int,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -493,7 +495,9 @@ and Ctx: {
     name: Var.t,
     id: Id.t,
     typ: Typ.t,
-    nth: int // temporary name
+    /* Temporary variables. Better implementation is a TO-DO. */
+    nth: int,
+    num_variants: int,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -592,6 +596,7 @@ and Ctx: {
     //     (ctx, 0, Fun.id),
     //     ctrs,
     //   );
+    let num_variants = List.length(ctrs);
     let (ctx, _) =
       List.fold_left(
         ((ctx, nth), (ctr, typ)) => {
@@ -605,6 +610,7 @@ and Ctx: {
                 | Some(typ) => Arrow(typ, Var(name))
                 },
               nth,
+              num_variants,
             });
           ([entry, ...ctx], nth + 1);
         },

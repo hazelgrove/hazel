@@ -500,7 +500,8 @@ and upat_to_info_map =
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr), Constraint.Falsity) // TODO
   | Ap(fn, arg) =>
-    let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
+    let ctr = UPat.ctr_name(fn);
+    let fn_mode = Mode.of_ap(ctx, mode, ctr);
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
