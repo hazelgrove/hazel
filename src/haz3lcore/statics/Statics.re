@@ -504,7 +504,12 @@ and upat_to_info_map =
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_=arg.constraint_, m);
+    add(
+      ~self=Just(ty_out),
+      ~ctx=arg.ctx,
+      ~constraint_=Constraint.Falsity,
+      m,
+    ); // TODO
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);

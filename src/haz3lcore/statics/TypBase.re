@@ -443,7 +443,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    | ConstructorEntry(var_entry)
+    | ConstructorEntry(var_entry, Constraint.t => Constraint.t)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -482,7 +482,7 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    | ConstructorEntry(var_entry)
+    | ConstructorEntry(var_entry, Constraint.t => Constraint.t)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -517,7 +517,7 @@ and Ctx: {
   let get_id: entry => Id.t =
     fun
     | VarEntry({id, _})
-    | ConstructorEntry({id, _})
+    | ConstructorEntry({id, _}, _)
     | TVarEntry({id, _}) => id;
 
   let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -591,7 +591,7 @@ and Ctx: {
          ((ctx, term_set, typ_set), entry) => {
            switch (entry) {
            | VarEntry({name, _})
-           | ConstructorEntry({name, _}) =>
+           | ConstructorEntry({name, _}, _) =>
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
