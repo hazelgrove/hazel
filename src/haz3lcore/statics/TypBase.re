@@ -443,7 +443,8 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    | ConstructorEntry(var_entry, Constraint.t => Constraint.t)
+    // | ConstructorEntry(var_entry, Constraint.t => Constraint.t) /* obselete because of dependency cycle */
+    | ConstructorEntry(var_entry, int)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -482,7 +483,8 @@ and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    | ConstructorEntry(var_entry, Constraint.t => Constraint.t)
+    // | ConstructorEntry(var_entry, Constraint.t => Constraint.t) /* obselete because of dependency cycle */
+    | ConstructorEntry(var_entry, int)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -543,19 +545,40 @@ and Ctx: {
     };
 
   let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t => {
-    let (ctx, _, _) =
-      List.fold_left(
-        ((ctx, nth, wrap), (ctr, typ)) => {
-          // List.length(ctrs) == 0: EmptyHole
-          // List.length(ctrs) == 1: Type variable not found
-          assert(List.length(ctrs) > 1);
+    // let (ctx, _, _) =
+    //   List.fold_left(
+    //     ((ctx, nth, wrap), (ctr, typ)) => {
+    //       // List.length(ctrs) == 0: EmptyHole
+    //       // List.length(ctrs) == 1: Type variable not found
+    //       assert(List.length(ctrs) > 1);
 
-          // List.length(ctrs) == 2:
-          // nth == 0: xi => InjL(xi)
-          // nth == 1: xi => InjR(InjL(xi))
-          // nth == 2: xi => InjR(InjR(xi))
-          let constraint_ctor = xi =>
-            wrap(nth == List.length(ctrs) - 1 ? Constraint.InjL(xi) : xi);
+    //       // List.length(ctrs) == 2:
+    //       // nth == 0: xi => InjL(xi)
+    //       // nth == 1: xi => InjR(InjL(xi))
+    //       // nth == 2: xi => InjR(InjR(xi))
+    //       let constraint_ctor = xi =>
+    //         wrap(nth == List.length(ctrs) - 1 ? Constraint.InjL(xi) : xi);
+    //       let entry =
+    //         ConstructorEntry(
+    //           {
+    //             name: ctr,
+    //             id,
+    //             typ:
+    //               switch (typ) {
+    //               | None => Var(name)
+    //               | Some(typ) => Arrow(typ, Var(name))
+    //               },
+    //           },
+    //           constraint_ctor,
+    //         );
+    //       ([entry, ...ctx], nth + 1, xi => wrap(Constraint.InjR(xi)));
+    //     },
+    //     (ctx, 0, Fun.id),
+    //     ctrs,
+    //   );
+    let (ctx, _) =
+      List.fold_left(
+        ((ctx, nth), (ctr, typ)) => {
           let entry =
             ConstructorEntry(
               {
@@ -567,11 +590,11 @@ and Ctx: {
                   | Some(typ) => Arrow(typ, Var(name))
                   },
               },
-              constraint_ctor,
+              nth,
             );
-          ([entry, ...ctx], nth + 1, xi => wrap(Constraint.InjR(xi)));
+          ([entry, ...ctx], nth + 1);
         },
-        (ctx, 0, Fun.id),
+        (ctx, 0),
         ctrs,
       );
     ctx;
