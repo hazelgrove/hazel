@@ -324,20 +324,15 @@ and uexp_to_info_map =
     let final_constraint = Constraint.or_constraints(get_constraints);
     let e_tys = List.map(Info.exp_ty, es);
 
-    //generate_self is generating a Self.exp that is yet to be utilized
-    [@warning "-26"]
-    let generate_self: Self.exp =
+    let unwrapped_self: Self.exp =
+      Common(Self.match(ctx, e_tys, branch_ids));
+    let self =
       Incon.is_exhaustive(final_constraint)
-        ? Self.Common(Self.match(ctx, e_tys, branch_ids))
-        : InexhaustiveMatch(Common(Self.match(ctx, e_tys, branch_ids)));
+        ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
 
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
-    add'(
-      ~self=InexhaustiveMatch(Common(Self.match(ctx, e_tys, branch_ids))),
-      ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
-      m,
-    );
+    add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
