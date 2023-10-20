@@ -145,3 +145,13 @@ let rec or_constraints = (lst: list(t)): t =>
   | [xi] => xi
   | [xi, ...xis] => Or(xi, or_constraints(xis))
   };
+
+// Temporary name
+let rec of_nth_variant = (num_variants, nth): (t => t) =>
+  if (num_variants == 1) {
+    Fun.id;
+  } else if (nth == 0) {
+    xi => InjL(xi);
+  } else {
+    xi => InjR(xi |> of_nth_variant(num_variants - 1, nth - 1));
+  };
