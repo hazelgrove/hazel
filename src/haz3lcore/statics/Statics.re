@@ -272,6 +272,22 @@ and uexp_to_info_map =
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
+    let xis =
+      List.map(
+        (pat: UPat.t): Constraint.t => {
+          let (patInfo, _) =
+            upat_to_info_map(
+              ~is_synswitch=true,
+              ~ctx,
+              ~ancestors,
+              ~mode,
+              pat,
+              m,
+            );
+          patInfo.constraint_;
+        },
+        ps,
+      );
     let (ps, m) =
       map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
     let p_ctxs = List.map(Info.pat_ctx, ps);
@@ -304,24 +320,7 @@ and uexp_to_info_map =
         rules,
       );
     };
-    let (pats, _) = List.split(rules);
-    let get_constraints =
-      List.map(
-        (pat: UPat.t): Constraint.t => {
-          let (patInfo, _) =
-            upat_to_info_map(
-              ~is_synswitch=true,
-              ~ctx,
-              ~ancestors,
-              ~mode,
-              pat,
-              m,
-            );
-          patInfo.constraint_;
-        },
-        pats,
-      );
-    let final_constraint = Constraint.or_constraints(get_constraints);
+    let final_constraint = Constraint.or_constraints(xis);
     let e_tys = List.map(Info.exp_ty, es);
 
     let unwrapped_self: Self.exp =
