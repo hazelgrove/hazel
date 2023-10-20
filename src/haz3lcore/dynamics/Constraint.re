@@ -18,6 +18,7 @@ type t =
   | InjL(t)
   | InjR(t)
   | Pair(t, t);
+// | Tuple(list(t));
 
 let rec constrains = (c: t, ty: Typ.t): bool =>
   switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
@@ -48,7 +49,12 @@ let rec constrains = (c: t, ty: Typ.t): bool =>
     | map' => constrains(c2, Sum(map'))
     }
   | (InjR(_), _) => false
-  | (Pair(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
+  | (Pair(c1, c2), Prod([ty_hd, ...ty_tl])) =>
+    constrains(c1, ty_hd) && constrains(c2, Prod(ty_tl))
+  | (Pair(_), _) => false
+  // | (Tuple(cs), Prod(tys)) when List.length(cs) == List.length(tys) =>
+  //   List.for_all2(constrains, cs, tys)
+  // | (Tuple(_), _) => false
   };
 
 let rec dual = (c: t): t =>
@@ -60,8 +66,8 @@ let rec dual = (c: t): t =>
   | NotInt(n) => Int(n)
   | Float(n) => NotFloat(n)
   | NotFloat(n) => Float(n)
-  | Bool(n) => NotBool(n)
-  | NotBool(n) => Bool(n)
+  | Bool(b) => NotBool(b)
+  | NotBool(b) => Bool(b)
   | String(n) => NotString(n)
   | NotString(n) => String(n)
   | And(c1, c2) => Or(dual(c1), dual(c2))
@@ -73,6 +79,7 @@ let rec dual = (c: t): t =>
       Pair(c1, dual(c2)),
       Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
     )
+  // | Tuple(cs) => // TODO
   };
 
 /** substitute Truth for Hole */
