@@ -441,10 +441,18 @@ and Ctx: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type constructor_entry = {
+    name: Var.t,
+    id: Id.t,
+    typ: Typ.t,
+    nth: int // temporary name
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
     // | ConstructorEntry(var_entry, Constraint.t => Constraint.t) /* obselete because of dependency cycle */
-    | ConstructorEntry(var_entry, int)
+    | ConstructorEntry(constructor_entry)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -458,7 +466,7 @@ and Ctx: {
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
   let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
-  let lookup_ctr: (t, string) => option(var_entry);
+  let lookup_ctr: (t, string) => option(constructor_entry);
   let is_alias: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
@@ -481,10 +489,18 @@ and Ctx: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type constructor_entry = {
+    name: Var.t,
+    id: Id.t,
+    typ: Typ.t,
+    nth: int // temporary name
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
     // | ConstructorEntry(var_entry, Constraint.t => Constraint.t) /* obselete because of dependency cycle */
-    | ConstructorEntry(var_entry, int)
+    | ConstructorEntry(constructor_entry)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -519,7 +535,7 @@ and Ctx: {
   let get_id: entry => Id.t =
     fun
     | VarEntry({id, _})
-    | ConstructorEntry({id, _}, _)
+    | ConstructorEntry({id, _})
     | TVarEntry({id, _}) => id;
 
   let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -530,10 +546,10 @@ and Ctx: {
       ctx,
     );
 
-  let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
+  let lookup_ctr = (ctx: t, name: string): option(constructor_entry) =>
     List.find_map(
       fun
-      | ConstructorEntry(t, _) when t.name == name => Some(t)
+      | ConstructorEntry(t) when t.name == name => Some(t)
       | _ => None,
       ctx,
     );
@@ -580,18 +596,16 @@ and Ctx: {
       List.fold_left(
         ((ctx, nth), (ctr, typ)) => {
           let entry =
-            ConstructorEntry(
-              {
-                name: ctr,
-                id,
-                typ:
-                  switch (typ) {
-                  | None => Var(name)
-                  | Some(typ) => Arrow(typ, Var(name))
-                  },
-              },
+            ConstructorEntry({
+              name: ctr,
+              id,
+              typ:
+                switch (typ) {
+                | None => Var(name)
+                | Some(typ) => Arrow(typ, Var(name))
+                },
               nth,
-            );
+            });
           ([entry, ...ctx], nth + 1);
         },
         (ctx, 0),
@@ -633,7 +647,7 @@ and Ctx: {
          ((ctx, term_set, typ_set), entry) => {
            switch (entry) {
            | VarEntry({name, _})
-           | ConstructorEntry({name, _}, _) =>
+           | ConstructorEntry({name, _}) =>
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
