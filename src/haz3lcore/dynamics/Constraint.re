@@ -141,7 +141,7 @@ let unwrap_pair =
 
 let rec or_constraints = (lst: list(t)): t =>
   switch (lst) {
-  | [] => failwith("should have at least one constraint")
+  | [] => Falsity
   | [xi] => xi
   | [xi, ...xis] => Or(xi, or_constraints(xis))
   };
