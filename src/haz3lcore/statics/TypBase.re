@@ -531,7 +531,7 @@ and Ctx: {
   let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
     List.find_map(
       fun
-      | ConstructorEntry(t) when t.name == name => Some(t)
+      | ConstructorEntry(t, _) when t.name == name => Some(t)
       | _ => None,
       ctx,
     );
@@ -542,21 +542,40 @@ and Ctx: {
     | None => false
     };
 
-  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
-    List.map(
-      ((ctr, typ)) =>
-        ConstructorEntry({
-          name: ctr,
-          id,
-          typ:
-            switch (typ) {
-            | None => Var(name)
-            | Some(typ) => Arrow(typ, Var(name))
-            },
-        }),
-      ctrs,
-    )
-    @ ctx;
+  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t => {
+    let (ctx, _, _) =
+      List.fold_left(
+        ((ctx, nth, wrap), (ctr, typ)) => {
+          // List.length(ctrs) == 0: EmptyHole
+          // List.length(ctrs) == 1: Type variable not found
+          assert(List.length(ctrs) > 1);
+
+          // List.length(ctrs) == 2:
+          // nth == 0: xi => InjL(xi)
+          // nth == 1: xi => InjR(InjL(xi))
+          // nth == 2: xi => InjR(InjR(xi))
+          let constraint_ctor = xi =>
+            wrap(nth == List.length(ctrs) - 1 ? Constraint.InjL(xi) : xi);
+          let entry =
+            ConstructorEntry(
+              {
+                name: ctr,
+                id,
+                typ:
+                  switch (typ) {
+                  | None => Var(name)
+                  | Some(typ) => Arrow(typ, Var(name))
+                  },
+              },
+              constraint_ctor,
+            );
+          ([entry, ...ctx], nth + 1, xi => wrap(Constraint.InjR(xi)));
+        },
+        (ctx, 0, Fun.id),
+        ctrs,
+      );
+    ctx;
+  };
 
   let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
     // NOTE: does not check that the prefix is an actual prefix
