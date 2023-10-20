@@ -498,7 +498,8 @@ and upat_to_info_map =
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr), Constraint.Falsity) // TODO
+  | Constructor(ctr) =>
+    atomic(Self.of_ctr(ctx, ctr), Constraint.of_ctr(ctx, ctr))
   | Ap(fn, arg) =>
     let ctr = UPat.ctr_name(fn);
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
@@ -508,9 +509,9 @@ and upat_to_info_map =
     add(
       ~self=Just(ty_out),
       ~ctx=arg.ctx,
-      ~constraint_=Constraint.Falsity,
+      ~constraint_=Constraint.of_ap(ctx, ctr, arg.constraint_),
       m,
-    ); // TODO
+    );
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);

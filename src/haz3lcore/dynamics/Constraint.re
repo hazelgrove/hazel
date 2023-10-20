@@ -147,13 +147,13 @@ let rec or_constraints = (lst: list(t)): t =>
   };
 
 // Temporary name
-let rec of_nth_variant = (num_variants, nth): (t => t) =>
+let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
   if (num_variants == 1) {
     Fun.id;
   } else if (nth == 0) {
     xi => InjL(xi);
   } else {
-    xi => InjR(xi |> of_nth_variant(num_variants - 1, nth - 1));
+    xi => InjR(xi |> ctr_of_nth_variant(num_variants - 1, nth - 1));
   };
 
 let of_ap = (ctx, ctr: option(Constructor.t), arg: t): t =>
@@ -162,7 +162,7 @@ let of_ap = (ctx, ctr: option(Constructor.t), arg: t): t =>
     switch (Ctx.lookup_ctr(ctx, name)) {
     | None => Hole // TODO: review
     | Some({num_variants, nth, _}) =>
-      arg |> of_nth_variant(num_variants, nth)
+      arg |> ctr_of_nth_variant(num_variants, nth)
     }
   | None => Hole // TODO: review
   };
