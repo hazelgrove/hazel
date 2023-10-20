@@ -270,67 +270,38 @@ and uexp_to_info_map =
     );
   | Match(scrut, rules) =>
     let (scrut, m) = go(~mode=Syn, scrut, m);
-    let (ps, es) = List.split(rules);
-    let branch_ids = List.map(UExp.rep_id, es);
-    let xis =
-      List.map(
-        (pat: UPat.t): Constraint.t => {
-          let (patInfo, _) =
-            upat_to_info_map(
-              ~is_synswitch=true,
-              ~ctx,
-              ~ancestors,
-              ~mode,
-              pat,
-              m,
-            );
-          patInfo.constraint_;
-        },
-        ps,
-      );
-    let (ps, m) =
-      map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
-    let p_ctxs = List.map(Info.pat_ctx, ps);
-    let (es, m) =
-      List.fold_left2(
-        ((es, m), e, ctx) =>
-          go'(~ctx, ~mode, e, m) |> (((e, m)) => (es @ [e], m)),
-        ([], m),
-        es,
-        p_ctxs,
-      );
-
-    let type_of_exp = (rule: UExp.t): Typ.t => {
-      let (inf, _) =
-        uexp_to_info_map(
-          ~ctx=Builtins.ctx_init,
-          ~ancestors=[],
-          rule,
-          Id.Map.empty,
+    let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
+      let (ps, es) = List.split(rules);
+      let branch_ids = List.map(UExp.rep_id, es);
+      let (ps, m) =
+        map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
+      let p_constraints = List.map(Info.pat_constraint, ps);
+      let p_ctxs = List.map(Info.pat_ctx, ps);
+      let (es, m) =
+        List.fold_left2(
+          ((es, m), e, ctx) =>
+            go'(~ctx, ~mode, e, m) |> (((e, m)) => (es @ [e], m)),
+          ([], m),
+          es,
+          p_ctxs,
         );
-      inf.ty;
-    };
-
-    //ruls_to_info_map was implemented but not sure where to use yet
-    [@warning "-26"]
-    let ruls_to_info_map = (rules: list(UExp.t)): list(Typ.t) => {
-      List.fold_left(
-        (acc, rule) => {List.append(acc, [type_of_exp(rule)])},
-        [],
-        rules,
+      (
+        es,
+        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es)),
+        branch_ids,
+        Constraint.or_constraints(p_constraints),
+        m,
       );
     };
-    let final_constraint = Constraint.or_constraints(xis);
+    let (es, e_co_ctxs, branch_ids, final_constraint, m) =
+      rules_to_info_map(rules, m);
     let e_tys = List.map(Info.exp_ty, es);
-
     let unwrapped_self: Self.exp =
       Common(Self.match(ctx, e_tys, branch_ids));
     let self =
       Incon.is_exhaustive(final_constraint)
         ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
 
-    let e_co_ctxs =
-      List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
