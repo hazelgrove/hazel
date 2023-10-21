@@ -9,8 +9,8 @@ type t =
   | NotInt(int)
   | Float(float)
   | NotFloat(float)
-  | Bool(bool)
-  | NotBool(bool)
+  | Bool(bool) // Wrong
+  | NotBool(bool) // Wrong
   | String(string)
   | NotString(string)
   | And(t, t)
@@ -20,6 +20,7 @@ type t =
   | Pair(t, t);
 // | Tuple(list(t));
 
+// Unused
 let rec constrains = (c: t, ty: Typ.t): bool =>
   switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
   | (Truth, _)
@@ -61,6 +62,7 @@ let rec dual = (c: t): t =>
   switch (c) {
   | Truth => Falsity
   | Falsity => Truth
+  // The complement of an indeterministic set is still indeterministic
   | Hole => Hole
   | Int(n) => NotInt(n)
   | NotInt(n) => Int(n)
