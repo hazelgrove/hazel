@@ -248,6 +248,8 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
+    | (IfThenElse(d11, d12, d13), IfThenElse(d21, d22, d23)) =>
+      fast_equal(d11, d21) && fast_equal(d12, d22) && fast_equal(d13, d23)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)
@@ -268,6 +270,7 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
+    | (IfThenElse(_), _)
     | (ConsistentCase(_), _) => false
 
     /* Hole forms: when checking environments, only check that
