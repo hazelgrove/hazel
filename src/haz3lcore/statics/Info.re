@@ -70,7 +70,7 @@ type error_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | ExpectedConstructor /* Only construtors can be applied */
-  // TODO
+  | Redundant(option(error_pat))
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -301,8 +301,9 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
+  // TODO: |
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
