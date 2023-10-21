@@ -62,6 +62,7 @@ let rec dual = (c: t): t =>
   switch (c) {
   | Truth => Falsity
   | Falsity => Truth
+  // The complement of an indeterministic set is still indeterministic
   | Hole => Hole
   | Int(n) => NotInt(n)
   | NotInt(n) => Int(n)
