@@ -89,9 +89,9 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
     List.fold_left(
       ((string_set, not_string_list), xi: Constraint.t) =>
         switch (xi) {
-        | Float(n) => (StringSet.add(n, string_set), not_string_list)
-        | NotFloat(n) => (string_set, [n, ...not_string_list])
-        | _ => failwith("input can only be Float | NotFloat")
+        | String(n) => (StringSet.add(n, string_set), not_string_list)
+        | NotString(n) => (string_set, [n, ...not_string_list])
+        | _ => failwith("input can only be String | NotString")
         },
       (StringSet.empty, []),
       xis,
@@ -251,6 +251,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
     }
   };
 
+// xi_cur must not indeterminately entail xi_pre
 let is_redundant = (xi_cur: Constraint.t, xi_pre: Constraint.t): bool =>
   is_inconsistent(
     ~may=false,
