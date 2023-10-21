@@ -20,7 +20,7 @@ let buttons_view = (~inject): Node.t =>
     ~attr=clss(["buttons"]),
     [
       button_view(~inject, Query.CursorPos, "cursor position"),
-      button_view(~inject, Query.Expression, "expression"),
+      button_view(~inject, Query.CursorInfo, "cursor info"),
     ],
   );
 
