@@ -44,6 +44,21 @@ let map_m = (f, xs, m: Map.t) =>
     xs,
   );
 
+let map_m_constraint = (f, xs, m: Map.t) =>
+  List.fold_left(
+    ((xs, m, acc_cons), x) =>
+      f(x, m)
+      |> (
+        ((x, m)) => (
+          xs @ [x],
+          m,
+          Constraint.or_constraints([acc_cons, Info.pat_constraint(x)]),
+        )
+      ),
+    ([], m, Constraint.Falsity),
+    xs,
+  );
+
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
@@ -273,8 +288,14 @@ and uexp_to_info_map =
     let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
-      let (ps, m) =
-        map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
+      [@warning "-27"]
+      //final_cons is the final constraint generated during the mapping process
+      let (ps, m, final_cons) =
+        map_m_constraint(
+          go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)),
+          ps,
+          m,
+        );
       let p_constraints = List.map(Info.pat_constraint, ps);
       let p_ctxs = List.map(Info.pat_ctx, ps);
       let (es, m) =
