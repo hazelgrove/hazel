@@ -402,7 +402,13 @@ and upat_to_info_map =
   | Int(int) => atomic(Just(Int), Constraint.Int(int))
   | Float(float) => atomic(Just(Float), Constraint.Float(float))
   | Triv => atomic(Just(Prod([])), Constraint.Truth)
-  | Bool(bool) => atomic(Just(Bool), Constraint.Bool(bool))
+  | Bool(bool) =>
+    atomic(
+      Just(Bool),
+      bool
+        ? Constraint.InjL(Constraint.Truth)
+        : Constraint.InjR(Constraint.Truth),
+    )
   | String(string) => atomic(Just(String), Constraint.String(string))
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);

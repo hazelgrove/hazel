@@ -9,8 +9,8 @@ type t =
   | NotInt(int)
   | Float(float)
   | NotFloat(float)
-  | Bool(bool)
-  | NotBool(bool)
+  | Bool(bool) // Wrong
+  | NotBool(bool) // Wrong
   | String(string)
   | NotString(string)
   | And(t, t)
@@ -20,6 +20,7 @@ type t =
   | Pair(t, t);
 // | Tuple(list(t));
 
+// Unused
 let rec constrains = (c: t, ty: Typ.t): bool =>
   switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
   | (Truth, _)
