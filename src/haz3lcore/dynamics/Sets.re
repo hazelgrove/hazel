@@ -18,6 +18,6 @@ module FloatSet =
 
 module StringSet =
   Set.Make({
-    type t = float;
+    type t = string;
     let compare = compare;
   });
