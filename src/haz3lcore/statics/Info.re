@@ -303,7 +303,18 @@ let rec status_common =
 
 let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
-  // TODO: |
+  | (_, Redundant(self)) =>
+    let additional_err =
+      switch (status_pat(ctx, mode, self)) {
+      | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
+      | InHole(Common(NoType(_)) as err) => Some(err)
+      | NotInHole(_) => None
+      | InHole(Common(Inconsistent(WithArrow(_))))
+      | InHole(ExpectedConstructor | Redundant(_)) =>
+        // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
+        failwith("InHole(Redundant(impossible_err))")
+      };
+    InHole(Redundant(additional_err));
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
