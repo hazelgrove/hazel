@@ -174,9 +174,18 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
 
-let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
+let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
+  | InHole(Redundant(additional_err)) =>
+    switch (additional_err) {
+    | None => div_err([text("Pattern is necessarily redundant")])
+    | Some(err) =>
+      div_err([
+        pat_view(cls, InHole(err)),
+        text("; pattern is necessarily redundant"),
+      ])
+    }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };

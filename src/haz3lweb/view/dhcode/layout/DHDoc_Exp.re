@@ -94,6 +94,7 @@ let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
 let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
   Doc.text(TermBase.UExp.string_op_to_string(op));
 
+// DHExp is annotated here
 let rec mk =
         (
           ~settings: Settings.Evaluation.t,
