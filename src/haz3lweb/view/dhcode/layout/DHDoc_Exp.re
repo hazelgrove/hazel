@@ -66,6 +66,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Let(_)
   | FixF(_)
   | ConsistentCase(_)
+  | InexhaustiveCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
@@ -175,6 +176,8 @@ let rec mk =
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | InexhaustiveCase(u, i, Case(dscrut, drs, _)) =>
+        go_case(dscrut, drs) |> annot(DHAnnot.InexhaustiveCase((u, i)))
       | BoundVar(x) => text(x)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)

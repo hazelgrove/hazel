@@ -304,6 +304,7 @@ and matches_cast_Sum =
   | BinFloatOp(_)
   | BinStringOp(_)
   | InconsistentBranches(_)
+  | InexhaustiveCase(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
@@ -409,6 +410,7 @@ and matches_cast_Tuple =
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
+  | InexhaustiveCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
@@ -544,6 +546,7 @@ and matches_cast_Cons =
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
+  | InexhaustiveCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
@@ -986,6 +989,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
       //TODO: revisit this, consider some kind of dynamic casting
       Indet(Closure(env, InconsistentBranches(u, i, Case(d1, rules, n))))
+      |> return
+
+    | InexhaustiveCase(u, i, Case(d1, rules, n)) =>
+      //TODO: revisit this, consider some kind of dynamic casting
+      Indet(Closure(env, InexhaustiveCase(u, i, Case(d1, rules, n))))
       |> return
 
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
