@@ -126,6 +126,17 @@ let rec falsify = (c: t): t =>
   | Pair(c1, c2) => Pair(falsify(c1), falsify(c2))
   };
 
+// temporary name
+let is_injL =
+  fun
+  | InjL(_) => true
+  | _ => false;
+
+let is_injR =
+  fun
+  | InjR(_) => true
+  | _ => false;
+
 let unwrapL =
   fun
   | InjL(c) => c
