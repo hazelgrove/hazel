@@ -77,6 +77,7 @@ let view_of_layout = (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
                ([with_cls("exception", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
+             | InexhaustiveCase(_)
              | Invalid(_) =>
                let offset = start.col - indent;
                let decoration =

@@ -69,7 +69,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
-    | NotExhaustive(_)
+    | InexhaustiveCase(_)
     | InconsistentBranches(_)
     | Sequence(_)
     | Let(_)
@@ -272,7 +272,11 @@ let rec dhexp_of_uexp =
         | InHole(
             InexhaustiveMatch(Some(Common(Inconsistent(Internal(_))))),
           ) =>
+          // TODO: review
+          // If multiple errors are associated with a case expression,
+          // DHExp.InconsistentBranches is prioritized.
           DHExp.InconsistentBranches(id, 0, d)
+        | InHole(InexhaustiveMatch(_)) => DHExp.InexhaustiveCase(id, 0, d)
         | _ => ConsistentCase(d)
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
