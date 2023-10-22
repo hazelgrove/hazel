@@ -383,19 +383,10 @@ let of_segment =
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map, count + 1);
             };
-            let add_shard' = (origin, shard, map, count) => {
-              let origin =
-                Point.{
-                  ...origin,
-                  col: origin.col + (Module.foldable(t) ? 2 : 0),
-                }
-                |> fold(origin);
-              add_shard(origin, shard, map, count);
-            };
             let (last, map, _) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
-                   shard => add_shard'(origin, shard, map, 0),
+                   shard => add_shard(origin, shard, map, 0),
                    ((origin, map, count), child, shard) => {
                      let in_folded = List.mem(t.id, folded) && count == 2;
                      let (child_last, child_map) =
