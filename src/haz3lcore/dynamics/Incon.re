@@ -69,7 +69,7 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
   };
 };
 
-let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
+let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
   switch (xis) {
   | [] => false
   | _
@@ -79,26 +79,25 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
     true
   | [xi, ...xis'] =>
     switch (xi) {
-    | Truth => is_inconsistent(~may, xis')
+    | Truth => is_inconsistent(xis')
     | Falsity => true
     | Hole => assert(false) // Impossible
-    | And(xi1, xi2) => is_inconsistent(~may, [xi1, xi2, ...xis'])
+    | And(xi1, xi2) => is_inconsistent([xi1, xi2, ...xis'])
     | Or(xi1, xi2) =>
-      is_inconsistent(~may, [xi1, ...xis'])
-      && is_inconsistent(~may, [xi2, ...xis'])
+      is_inconsistent([xi1, ...xis']) && is_inconsistent([xi2, ...xis'])
     | InjL(_) =>
       switch (List.partition(Constraint.is_inl, xis)) {
       | (injLs, []) =>
         let unwrap = List.map(Constraint.unwrapL, injLs);
-        is_inconsistent(~may, unwrap);
-      | (injLs, other) => is_inconsistent(~may, other @ injLs)
+        is_inconsistent(unwrap);
+      | (injLs, other) => is_inconsistent(other @ injLs)
       }
     | InjR(_) =>
       switch (List.partition(Constraint.is_inr, xis)) {
       | (injRs, []) =>
         let unwrap = List.map(Constraint.unwrapR, injRs);
-        is_inconsistent(~may, unwrap);
-      | (injRs, other) => is_inconsistent(~may, other @ injRs)
+        is_inconsistent(unwrap);
+      | (injRs, other) => is_inconsistent(other @ injRs)
       }
     | Int(_)
     | NotInt(_) =>
@@ -112,7 +111,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
         )
       ) {
       | (ns, []) => is_inconsistent_nums(ns)
-      | (ns, other) => is_inconsistent(~may, other @ ns)
+      | (ns, other) => is_inconsistent(other @ ns)
       }
     | Float(_)
     | NotFloat(_) =>
@@ -126,7 +125,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
         )
       ) {
       | (fs, []) => is_inconsistent_float(fs)
-      | (fs, other) => is_inconsistent(~may, other @ fs)
+      | (fs, other) => is_inconsistent(other @ fs)
       }
     | Bool(_)
     | NotBool(_) => assert(false) // Unused
@@ -142,7 +141,7 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
         )
       ) {
       | (fs, []) => is_inconsistent_string(fs)
-      | (fs, other) => is_inconsistent(~may, other @ fs)
+      | (fs, other) => is_inconsistent(other @ fs)
       }
     | Pair(_, _) =>
       switch (
@@ -163,17 +162,16 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
             ([], []),
             pairs,
           );
-        is_inconsistent(~may, xisL) || is_inconsistent(~may, xisR);
-      | (pairs, other) => is_inconsistent(~may, other @ pairs)
+        is_inconsistent(xisL) || is_inconsistent(xisR);
+      | (pairs, other) => is_inconsistent(other @ pairs)
       }
     }
   };
 
 let is_redundant = (xi_cur: Constraint.t, xi_pre: Constraint.t): bool =>
   is_inconsistent(
-    ~may=false,
     Constraint.[And(truify(xi_cur), dual(falsify(xi_pre)))],
   );
 
 let is_exhaustive = (xi: Constraint.t): bool =>
-  is_inconsistent(~may=true, Constraint.[dual(truify(xi))]);
+  is_inconsistent(Constraint.[dual(truify(xi))]);
