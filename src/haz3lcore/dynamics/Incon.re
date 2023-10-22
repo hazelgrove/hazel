@@ -16,12 +16,7 @@ let is_inconsistent_nums = (xis: list(Constraint.t)): bool => {
     true;
   } else {
     List.fold_left(
-      (incon, n) =>
-        if (incon) {
-          incon;
-        } else {
-          IntSet.mem(n, int_set);
-        },
+      (incon, n) => incon || IntSet.mem(n, int_set),
       false,
       not_int_list,
     );
@@ -44,42 +39,9 @@ let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
     true;
   } else {
     List.fold_left(
-      (incon, n) =>
-        if (incon) {
-          incon;
-        } else {
-          FloatSet.mem(n, float_set);
-        },
+      (incon, n) => incon || FloatSet.mem(n, float_set),
       false,
       not_float_list,
-    );
-  };
-};
-
-let is_inconsistent_bool = (xis: list(Constraint.t)): bool => {
-  let (bool_set, not_bool_list) =
-    List.fold_left(
-      ((bool_set, not_bool_list), xi: Constraint.t) =>
-        switch (xi) {
-        | Bool(b) => (BoolSet.add(b, bool_set), not_bool_list)
-        | NotBool(b) => (bool_set, [b, ...not_bool_list])
-        | _ => failwith("input can only be Bool | NotBool")
-        },
-      (BoolSet.empty, []),
-      xis,
-    );
-  if (BoolSet.cardinal(bool_set) > 1) {
-    true;
-  } else {
-    List.fold_left(
-      (incon, b) =>
-        if (incon) {
-          incon;
-        } else {
-          BoolSet.mem(b, bool_set);
-        },
-      false,
-      not_bool_list,
     );
   };
 };
@@ -100,12 +62,7 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
     true;
   } else {
     List.fold_left(
-      (incon, n) =>
-        if (incon) {
-          incon;
-        } else {
-          StringSet.mem(n, string_set);
-        },
+      (incon, n) => incon || StringSet.mem(n, string_set),
       false,
       not_string_list,
     );
