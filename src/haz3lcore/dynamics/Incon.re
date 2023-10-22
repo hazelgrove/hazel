@@ -104,8 +104,6 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
       | (fs, []) => is_inconsistent_float(fs)
       | (fs, others) => is_inconsistent(others @ fs)
       }
-    | Bool(_)
-    | NotBool(_) => assert(false) // Unused
     | String(_)
     | NotString(_) =>
       switch (
