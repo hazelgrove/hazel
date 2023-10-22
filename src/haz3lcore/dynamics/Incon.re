@@ -1,6 +1,6 @@
 open Sets;
 
-let is_inconsistent_nums = (xis: list(Constraint.t)): bool => {
+let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
   let (int_set, not_int_list) =
     List.fold_left(
       ((int_set, not_int_list), xi: Constraint.t) =>
@@ -12,15 +12,8 @@ let is_inconsistent_nums = (xis: list(Constraint.t)): bool => {
       (IntSet.empty, []),
       xis,
     );
-  if (IntSet.cardinal(int_set) > 1) {
-    true;
-  } else {
-    List.fold_left(
-      (incon, n) => incon || IntSet.mem(n, int_set),
-      false,
-      not_int_list,
-    );
-  };
+  IntSet.cardinal(int_set) > 1
+  || List.exists(IntSet.mem(_, int_set), not_int_list);
 };
 
 let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
@@ -35,15 +28,8 @@ let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
       (FloatSet.empty, []),
       xis,
     );
-  if (FloatSet.cardinal(float_set) > 1) {
-    true;
-  } else {
-    List.fold_left(
-      (incon, n) => incon || FloatSet.mem(n, float_set),
-      false,
-      not_float_list,
-    );
-  };
+  FloatSet.cardinal(float_set) > 1
+  || List.exists(FloatSet.mem(_, float_set), not_float_list);
 };
 
 let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
@@ -58,15 +44,8 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
       (StringSet.empty, []),
       xis,
     );
-  if (StringSet.cardinal(string_set) > 1) {
-    true;
-  } else {
-    List.fold_left(
-      (incon, n) => incon || StringSet.mem(n, string_set),
-      false,
-      not_string_list,
-    );
-  };
+  StringSet.cardinal(string_set) > 1
+  || List.exists(StringSet.mem(_, string_set), not_string_list);
 };
 
 let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
@@ -88,16 +67,14 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
     | InjL(_) =>
       switch (List.partition(Constraint.is_inl, xis)) {
       | (injLs, []) =>
-        let unwrap = List.map(Constraint.unwrapL, injLs);
-        is_inconsistent(unwrap);
-      | (injLs, other) => is_inconsistent(other @ injLs)
+        injLs |> List.map(Constraint.unwrapL) |> is_inconsistent
+      | (injLs, others) => is_inconsistent(others @ injLs)
       }
     | InjR(_) =>
       switch (List.partition(Constraint.is_inr, xis)) {
       | (injRs, []) =>
-        let unwrap = List.map(Constraint.unwrapR, injRs);
-        is_inconsistent(unwrap);
-      | (injRs, other) => is_inconsistent(other @ injRs)
+        injRs |> List.map(Constraint.unwrapR) |> is_inconsistent
+      | (injRs, others) => is_inconsistent(others @ injRs)
       }
     | Int(_)
     | NotInt(_) =>
@@ -110,8 +87,8 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
           xis,
         )
       ) {
-      | (ns, []) => is_inconsistent_nums(ns)
-      | (ns, other) => is_inconsistent(other @ ns)
+      | (ns, []) => is_inconsistent_int(ns)
+      | (ns, others) => is_inconsistent(others @ ns)
       }
     | Float(_)
     | NotFloat(_) =>
@@ -125,7 +102,7 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
         )
       ) {
       | (fs, []) => is_inconsistent_float(fs)
-      | (fs, other) => is_inconsistent(other @ fs)
+      | (fs, others) => is_inconsistent(others @ fs)
       }
     | Bool(_)
     | NotBool(_) => assert(false) // Unused
@@ -140,8 +117,8 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
           xis,
         )
       ) {
-      | (fs, []) => is_inconsistent_string(fs)
-      | (fs, other) => is_inconsistent(other @ fs)
+      | (ss, []) => is_inconsistent_string(ss)
+      | (ss, others) => is_inconsistent(others @ ss)
       }
     | Pair(_, _) =>
       switch (
@@ -154,16 +131,9 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
       ) {
       | (pairs, []) =>
         let (xisL, xisR) =
-          List.fold_left(
-            ((xisL, xisR), pair) => {
-              let (xiL, xiR) = Constraint.unwrap_pair(pair);
-              ([xiL, ...xisL], [xiR, ...xisR]);
-            },
-            ([], []),
-            pairs,
-          );
+          pairs |> List.map(Constraint.unwrap_pair) |> List.split;
         is_inconsistent(xisL) || is_inconsistent(xisR);
-      | (pairs, other) => is_inconsistent(other @ pairs)
+      | (pairs, others) => is_inconsistent(others @ pairs)
       }
     }
   };
