@@ -273,23 +273,37 @@ and uexp_to_info_map =
     let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
-      [@warning "-27"]
-      //final_cons is the final constraint generated during the mapping process
-      let (ps, m, final_cons) =
+      let (ps, m, final_constraint) =
         List.fold_left(
-          ((xs, m, acc_cons), x) =>
-            go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty), x, m)
-            |> (
-              ((x, m)) => (
-                xs @ [x],
-                m,
-                Constraint.Or(acc_cons, Info.pat_constraint(x)),
-              )
-            ),
+          ((ps, m, acc_constraint), p) => {
+            let (p, m) =
+              go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty), p, m);
+            let p_constraint = Info.pat_constraint(p);
+            if (!Incon.is_redundant(p_constraint, acc_constraint)) {
+              (ps @ [p], m, Constraint.Or(p_constraint, acc_constraint));
+            } else {
+              let info =
+                Info.derived_pat(
+                  ~upat=p.term,
+                  ~ctx=p.ctx,
+                  ~mode=p.mode,
+                  ~ancestors=p.ancestors,
+                  ~self=Redundant(p.self),
+                  // Mark patterns as redundant at the top level
+                  // because redundancy doesn't make sense in a smaller context
+                  ~constraint_=p_constraint,
+                );
+              (
+                ps @ [info],
+                // Override the info for the single upat
+                add_info(p.term.ids, InfoPat(info), m),
+                acc_constraint // Redundant patterns are ignored
+              );
+            };
+          },
           ([], m, Constraint.Falsity),
           ps,
         );
-      let p_constraints = List.map(Info.pat_constraint, ps);
       let p_ctxs = List.map(Info.pat_ctx, ps);
       let (es, m) =
         List.fold_left2(
@@ -303,7 +317,7 @@ and uexp_to_info_map =
         es,
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es)),
         branch_ids,
-        Constraint.or_constraints(p_constraints),
+        final_constraint,
         m,
       );
     };
