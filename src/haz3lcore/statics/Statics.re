@@ -44,21 +44,6 @@ let map_m = (f, xs, m: Map.t) =>
     xs,
   );
 
-let map_m_constraint = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ((xs, m, acc_cons), x) =>
-      f(x, m)
-      |> (
-        ((x, m)) => (
-          xs @ [x],
-          m,
-          Constraint.or_constraints([acc_cons, Info.pat_constraint(x)]),
-        )
-      ),
-    ([], m, Constraint.Falsity),
-    xs,
-  );
-
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
@@ -291,10 +276,18 @@ and uexp_to_info_map =
       [@warning "-27"]
       //final_cons is the final constraint generated during the mapping process
       let (ps, m, final_cons) =
-        map_m_constraint(
-          go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)),
+        List.fold_left(
+          ((xs, m, acc_cons), x) =>
+            go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty), x, m)
+            |> (
+              ((x, m)) => (
+                xs @ [x],
+                m,
+                Constraint.Or(acc_cons, Info.pat_constraint(x)),
+              )
+            ),
+          ([], m, Constraint.Falsity),
           ps,
-          m,
         );
       let p_constraints = List.map(Info.pat_constraint, ps);
       let p_ctxs = List.map(Info.pat_ctx, ps);
