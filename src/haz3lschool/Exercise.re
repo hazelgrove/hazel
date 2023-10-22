@@ -578,6 +578,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   /* Multiple stitchings are needed for each exercise
      (see comments in the stitched type above)
+
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
   let stitch_static = ({eds, _}: state): stitched_statics => {
