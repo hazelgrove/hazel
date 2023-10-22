@@ -117,8 +117,8 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
   | [] => false
   | _
       when
-        List.exists(Constraint.is_injL, xis)
-        && List.exists(Constraint.is_injR, xis) =>
+        List.exists(Constraint.is_inl, xis)
+        && List.exists(Constraint.is_inr, xis) =>
     true
   | [xi, ...xis'] =>
     switch (xi) {
@@ -130,28 +130,14 @@ let rec is_inconsistent = (~may=false, xis: list(Constraint.t)): bool =>
       is_inconsistent(~may, [xi1, ...xis'])
       && is_inconsistent(~may, [xi2, ...xis'])
     | InjL(_) =>
-      switch (
-        List.partition(
-          fun
-          | Constraint.InjL(_) => true
-          | _ => false,
-          xis,
-        )
-      ) {
+      switch (List.partition(Constraint.is_inl, xis)) {
       | (injLs, []) =>
         let unwrap = List.map(Constraint.unwrapL, injLs);
         is_inconsistent(~may, unwrap);
       | (injLs, other) => is_inconsistent(~may, other @ injLs)
       }
     | InjR(_) =>
-      switch (
-        List.partition(
-          fun
-          | Constraint.InjR(_) => true
-          | _ => false,
-          xis,
-        )
-      ) {
+      switch (List.partition(Constraint.is_inr, xis)) {
       | (injRs, []) =>
         let unwrap = List.map(Constraint.unwrapR, injRs);
         is_inconsistent(~may, unwrap);
