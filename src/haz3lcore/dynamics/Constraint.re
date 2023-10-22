@@ -9,8 +9,6 @@ type t =
   | NotInt(int)
   | Float(float)
   | NotFloat(float)
-  | Bool(bool) // Wrong
-  | NotBool(bool) // Wrong
   | String(string)
   | NotString(string)
   | And(t, t)
@@ -30,8 +28,6 @@ let rec constrains = (c: t, ty: Typ.t): bool =>
   | (Int(_) | NotInt(_), _) => false
   | (Float(_) | NotFloat(_), Float) => true
   | (Float(_) | NotFloat(_), _) => false
-  | (Bool(_) | NotBool(_), Bool) => true
-  | (Bool(_) | NotBool(_), _) => false
   | (String(_) | NotString(_), String) => true
   | (String(_) | NotString(_), _) => false
   | (And(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
@@ -68,8 +64,6 @@ let rec dual = (c: t): t =>
   | NotInt(n) => Int(n)
   | Float(n) => NotFloat(n)
   | NotFloat(n) => Float(n)
-  | Bool(b) => NotBool(b)
-  | NotBool(b) => Bool(b)
   | String(n) => NotString(n)
   | NotString(n) => String(n)
   | And(c1, c2) => Or(dual(c1), dual(c2))
@@ -94,8 +88,6 @@ let rec truify = (c: t): t =>
   | NotInt(_)
   | Float(_)
   | NotFloat(_)
-  | Bool(_)
-  | NotBool(_)
   | String(_)
   | NotString(_) => c
   | And(c1, c2) => And(truify(c1), truify(c2))
@@ -115,8 +107,6 @@ let rec falsify = (c: t): t =>
   | NotInt(_)
   | Float(_)
   | NotFloat(_)
-  | Bool(_)
-  | NotBool(_)
   | String(_)
   | NotString(_) => c
   | And(c1, c2) => And(falsify(c1), falsify(c2))
