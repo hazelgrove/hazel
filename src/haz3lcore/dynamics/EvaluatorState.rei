@@ -32,6 +32,10 @@ let put_eig: (EnvironmentIdGen.t, t) => t;
  */
 let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t), t) => ('a, t);
 
+let get_step: t => int;
+
+let put_step: (int, t) => t;
+
 /**
   [take_step es] is [es] with the updated step count.
  */
