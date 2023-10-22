@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Truth
   | Falsity
@@ -9,6 +9,8 @@ type t =
   | NotInt(int)
   | Float(float)
   | NotFloat(float)
+  | Bool(bool) // Wrong
+  | NotBool(bool) // Wrong
   | String(string)
   | NotString(string)
   | And(t, t)
@@ -16,7 +18,9 @@ type t =
   | InjL(t)
   | InjR(t)
   | Pair(t, t);
+// | Tuple(list(t));
 
+// Unused
 let rec constrains = (c: t, ty: Typ.t): bool =>
   switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
   | (Truth, _)
@@ -26,6 +30,8 @@ let rec constrains = (c: t, ty: Typ.t): bool =>
   | (Int(_) | NotInt(_), _) => false
   | (Float(_) | NotFloat(_), Float) => true
   | (Float(_) | NotFloat(_), _) => false
+  | (Bool(_) | NotBool(_), Bool) => true
+  | (Bool(_) | NotBool(_), _) => false
   | (String(_) | NotString(_), String) => true
   | (String(_) | NotString(_), _) => false
   | (And(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
@@ -44,18 +50,26 @@ let rec constrains = (c: t, ty: Typ.t): bool =>
     | map' => constrains(c2, Sum(map'))
     }
   | (InjR(_), _) => false
-  | (Pair(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
+  | (Pair(c1, c2), Prod([ty_hd, ...ty_tl])) =>
+    constrains(c1, ty_hd) && constrains(c2, Prod(ty_tl))
+  | (Pair(_), _) => false
+  // | (Tuple(cs), Prod(tys)) when List.length(cs) == List.length(tys) =>
+  //   List.for_all2(constrains, cs, tys)
+  // | (Tuple(_), _) => false
   };
 
 let rec dual = (c: t): t =>
   switch (c) {
   | Truth => Falsity
   | Falsity => Truth
+  // The complement of an indeterministic set is still indeterministic
   | Hole => Hole
   | Int(n) => NotInt(n)
   | NotInt(n) => Int(n)
   | Float(n) => NotFloat(n)
   | NotFloat(n) => Float(n)
+  | Bool(b) => NotBool(b)
+  | NotBool(b) => Bool(b)
   | String(n) => NotString(n)
   | NotString(n) => String(n)
   | And(c1, c2) => Or(dual(c1), dual(c2))
@@ -67,6 +81,7 @@ let rec dual = (c: t): t =>
       Pair(c1, dual(c2)),
       Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
     )
+  // | Tuple(cs) => // TODO
   };
 
 /** substitute Truth for Hole */
@@ -79,6 +94,8 @@ let rec truify = (c: t): t =>
   | NotInt(_)
   | Float(_)
   | NotFloat(_)
+  | Bool(_)
+  | NotBool(_)
   | String(_)
   | NotString(_) => c
   | And(c1, c2) => And(truify(c1), truify(c2))
@@ -98,6 +115,8 @@ let rec falsify = (c: t): t =>
   | NotInt(_)
   | Float(_)
   | NotFloat(_)
+  | Bool(_)
+  | NotBool(_)
   | String(_)
   | NotString(_) => c
   | And(c1, c2) => And(falsify(c1), falsify(c2))
@@ -124,7 +143,30 @@ let unwrap_pair =
 
 let rec or_constraints = (lst: list(t)): t =>
   switch (lst) {
-  | [] => failwith("should have at least one constraint")
+  | [] => Falsity
   | [xi] => xi
   | [xi, ...xis] => Or(xi, or_constraints(xis))
   };
+
+// Temporary name
+let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
+  if (num_variants == 1) {
+    Fun.id;
+  } else if (nth == 0) {
+    xi => InjL(xi);
+  } else {
+    xi => InjR(xi |> ctr_of_nth_variant(num_variants - 1, nth - 1));
+  };
+
+let of_ap = (ctx, ctr: option(Constructor.t), arg: t): t =>
+  switch (ctr) {
+  | Some(name) =>
+    switch (Ctx.lookup_ctr(ctx, name)) {
+    | None => Hole // TODO: review
+    | Some({num_variants, nth, _}) =>
+      arg |> ctr_of_nth_variant(num_variants, nth)
+    }
+  | None => Hole // TODO: review
+  };
+
+let of_ctr = (ctx, name) => of_ap(ctx, Some(name), Truth);

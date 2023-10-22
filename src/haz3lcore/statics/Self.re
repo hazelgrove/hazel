@@ -35,6 +35,7 @@ type t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
+  | InexhaustiveMatch(exp)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -56,7 +57,8 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
-    | Free(_) => None
+    | Free(_)
+    | InexhaustiveMatch(_) => None
     | Common(self) => typ_of(ctx, self);
 
 let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
