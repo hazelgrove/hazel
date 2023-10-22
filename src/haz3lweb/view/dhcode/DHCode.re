@@ -134,12 +134,26 @@ let view =
       d: DHExp.t,
     )
     : Node.t => {
-  let maker =
-    settings.postprocess
-      ? DHDoc_Exp.mk : DHDoc_Step.mk(~next_steps, ~disabled);
-  let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
-  d
-  |> c
+  let doc =
+    if (settings.postprocess) {
+      DHDoc_Exp.mk(
+        ~settings,
+        ~enforce_inline=false,
+        ~selected_hole_instance,
+        d,
+      );
+    } else {
+      DHDoc_Step.mk(
+        ~settings,
+        ~enforce_inline=false,
+        ~selected_hole_instance,
+        ~next_steps,
+        ~disabled,
+        EvaluatorStep.init(d),
+      );
+    };
+
+  doc
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")

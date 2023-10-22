@@ -1,13 +1,13 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type cont =
-  | Mark(DHExp.t)
+type t =
+  | Mark(FilterAction.t, DHExp.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
   | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
   | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
   | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-  | Closure([@opaque] ClosureEnvironment.t, [@opaque] FilterEnvironment.t, t)
+  | Closure([@opaque] StepperEnvironment.t, t)
   | Sequence(t, DHExp.t)
   | Let(DHPat.t, t, DHExp.t)
   | Filter(Filter.t, t)
@@ -20,7 +20,7 @@ type cont =
   | BinStringOp1(TermBase.UExp.op_bin_string, t)
   | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
   | Cons(t, t)
-  | ListConcat1(t, t)
+  | ListConcat(t, t)
   | Tuple(list(t))
   | Prj(t, int)
   | ConsistentCase(case)
@@ -30,7 +30,4 @@ type cont =
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, DHExp.t)
-and t =
-  | Cont(cont)
-  | Term(DHExp.t);
+  | Rule(DHPat.t, DHExp.t);

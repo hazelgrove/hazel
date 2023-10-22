@@ -25,6 +25,8 @@
   lwt
   lwtutil
   omd)
+ (flags
+  (:standard -g))
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
@@ -40,6 +42,8 @@
  (name main)
  (modules Main)
  (libraries ppx_yojson_conv.expander haz3lweb)
+ (flags
+  (:standard -g))
  (modes js)
  (js_of_ocaml
   (flags
@@ -56,6 +60,8 @@
  (name worker)
  (modules Worker)
  (libraries haz3lweb)
+ (flags
+  (:standard -g))
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
@@ -69,7 +75,7 @@
    (flags (:standard)))))
 
 (rule
- (write-file js-of-ocaml-flags-dev "(:standard)"))
+ (write-file js-of-ocaml-flags-dev "(:standard --source-map)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))

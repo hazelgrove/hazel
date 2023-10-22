@@ -1,7 +1,7 @@
-type t =
-  | Expr(DHExp.t)
-  | Indet(DHExp.t)
-  | BoxedValue(DHExp.t);
+type t('a) =
+  | Expr('a)
+  | Indet('a)
+  | BoxedValue('a);
 
 let unbox =
   fun

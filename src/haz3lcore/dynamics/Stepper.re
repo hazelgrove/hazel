@@ -1,12 +1,13 @@
 open Util;
 
 open StepperResult;
+open DHExp;
 open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 
 type evaluator =
   (~env: ClosureEnvironment.t=?, ~fenv: FilterEnvironment.t=?, DHExp.t) =>
-  EvaluatorMonad.t(StepperResult.t);
+  EvaluatorMonad.t(StepperResult.t(DHExp.t));
 
 type environment = {
   env: ClosureEnvironment.t,
@@ -18,7 +19,8 @@ type environment = {
 };
 
 let transition =
-    (~env: environment, d: DHExp.t): EvaluatorMonad.t(StepperResult.t) => {
+    (~env: environment, d: DHExp.t)
+    : EvaluatorMonad.t(StepperResult.t(DHExp.t)) => {
   let {env, fenv, require, evaluate, builtin, continue} = env;
   switch (d) {
   | BoundVar(x) =>
@@ -613,7 +615,7 @@ let rec transition_rule =
           rules: list(DHExp.rule),
           current_rule_index: int,
         )
-        : EvaluatorMonad.t(StepperResult.t) => {
+        : EvaluatorMonad.t(StepperResult.t(DHExp.t)) => {
   let {env, fenv, continue, _} = tenv;
   switch (List.nth_opt(rules, current_rule_index)) {
   | None =>

@@ -1,1 +1,4 @@
-type t = {var: ClosureEnvironment.t};
+type t = {
+  var: ClosureEnvironment.t,
+  filter: FilterEnvironment.t,
+};

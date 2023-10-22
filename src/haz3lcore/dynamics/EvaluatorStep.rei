@@ -118,6 +118,8 @@ let step: EvalObj.t => ProgramResult.t;
 
 let decompose: DHExp.t => list(EvalObj.t);
 
+let init: DHExp.t => DHExp.t;
+
 module Stepper: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type step = {

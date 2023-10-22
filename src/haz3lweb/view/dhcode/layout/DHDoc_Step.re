@@ -117,8 +117,26 @@ let rec mk =
          cannot be met. */
       | Closure(_, _, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
 
-      | Filter(_, d') => go'(d', unwrap(objs, Filter)) |> mk_cast
-
+      | Filter({pat, act}, dbody) =>
+        let keyword =
+          switch (act) {
+          | Pause => "step"
+          | Eval => "skip"
+          };
+        let flt_doc = (~enforce_inline) =>
+          mk_cast(go(~enforce_inline, pat, unwrap(objs, Filter)));
+        vseps([
+          hcats([
+            DHDoc_common.Delim.mk(keyword),
+            flt_doc
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            DHDoc_common.Delim.mk("in"),
+          ]),
+          mk_cast(go(~enforce_inline=false, dbody, [])),
+        ]);
       /* Hole expressions must appear within a closure in
          the postprocessed result */
       | EmptyHole(u, i) =>
