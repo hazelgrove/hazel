@@ -389,12 +389,7 @@ module ImplGradingReport = {
 
   let individual_reports = (~inject, ~report) => {
     switch (report.test_results) {
-    | Some(test_results)
-        when
-          List.length(test_results.test_map)
-          == List.length(report.hinted_results) =>
-      /* NOTE: This condition will be false when evaluation crashes,
-       * for example due to a stack overflow, which may occur in normal operation  */
+    | Some(test_results) =>
       div(
         report.hinted_results
         |> List.mapi((i, (status, hint)) =>
@@ -407,7 +402,7 @@ module ImplGradingReport = {
              )
            ),
       )
-    | _ => div([])
+    | None => div([])
     };
   };
 

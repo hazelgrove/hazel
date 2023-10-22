@@ -191,8 +191,7 @@ let switch_exercise_editor =
   | Scratch(_) => None
   | Exercise(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    //Note: now saving after each edit (delayed by 1 second) so no need to save here
-    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    Store.Exercise.save_exercise(exercise, ~instructor_mode);
     Some(Exercise(m, specs, exercise));
   };
 
@@ -271,7 +270,7 @@ let apply =
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Ok({...model, editors})
+      | Some(editors) => Model.save_and_return({...model, editors})
       };
     | SetMode(mode) =>
       let model = update_settings(Mode(mode), model);
