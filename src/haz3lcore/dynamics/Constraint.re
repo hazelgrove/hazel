@@ -127,12 +127,12 @@ let rec falsify = (c: t): t =>
   };
 
 // temporary name
-let is_injL =
+let is_inl =
   fun
   | InjL(_) => true
   | _ => false;
 
-let is_injR =
+let is_inr =
   fun
   | InjR(_) => true
   | _ => false;
