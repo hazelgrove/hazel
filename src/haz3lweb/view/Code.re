@@ -129,19 +129,16 @@ module Text = (M: {
        )
     |> {
       x => {
-        let x =
-          switch (x) {
-          | [a, b, c, _, ...xs] when List.mem(t.id, folded) => [
-              a,
-              b,
-              c,
-              Fold.view,
-              ...xs,
-            ]
-          | _ => x
-          };
-        Module.foldable(t)
-          ? [Fold.button_view(font_metrics, inject, folded, t.id)] @ x : x;
+        switch (x) {
+        | [a, b, c, _, ...xs] when List.mem(t.id, folded) => [
+            a,
+            b,
+            c,
+            Fold.view,
+            ...xs,
+          ]
+        | _ => x
+        };
       };
     }
     |> List.concat;
@@ -174,6 +171,54 @@ let rec holes =
          ],
      );
 
+let fold_buttons =
+    (~font_metrics, ~map: Measured.t, seg: Segment.t, ~folded, ~inject)
+    : list(Node.t) => {
+  let rec fold_buttons_with_row = seg =>
+    List.concat_map(
+      fun
+      | Piece.Secondary(_)
+      | Grout(_) => []
+      | Tile(t) when Module.foldable(t) => {
+          let row = Measured.find_t(t, map).origin.row;
+          let button =
+            Fold.button_view(font_metrics, inject, folded, t.id, row);
+          let children =
+            switch (t.children) {
+            | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
+            | _ => t.children
+            };
+          [
+            (button, row),
+            ...List.concat_map(fold_buttons_with_row, children),
+          ];
+        }
+      | Tile(t) => {
+          let children =
+            switch (t.children) {
+            | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
+            | _ => t.children
+            };
+          List.concat_map(fold_buttons_with_row, children);
+        },
+      seg,
+    );
+  let remove_duplicates = res_with_row => {
+    let (res, _) =
+      List.fold_left(
+        ((buttons, rows), (new_button, new_row)) =>
+          if (List.mem(new_row, rows)) {
+            (buttons, rows);
+          } else {
+            ([new_button, ...buttons], [new_row, ...rows]);
+          },
+        ([], []),
+        res_with_row,
+      );
+    res;
+  };
+  seg |> fold_buttons_with_row |> remove_duplicates;
+};
 let simple_view =
     (~unselected, ~map, ~settings: ModelSettings.t, ~inject, ~font_metrics)
     : Node.t => {
@@ -232,9 +277,14 @@ let view =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
       holes(~map=measured, ~font_metrics, segment, ~folded)
     );
+  let buttons =
+    TimeUtil.measure_time("Code.view/buttons", settings.benchmark, () =>
+      fold_buttons(~map=measured, ~font_metrics, segment, ~folded, ~inject)
+    );
   div(
     ~attr=Attr.class_("code"),
-    [
+    buttons
+    @ [
       span_c("code-text", unselected),
       // TODO restore (already regressed so no loss in commenting atm)
       // span_c("code-text-shards", Text.of_segment(segment)),

@@ -20,24 +20,24 @@ let fold_button_style = (font_metrics: FontMetrics.t) =>
   );
 
 let button_view =
-    (font_metrics: FontMetrics.t, inject, folded: list(Id.t), tile_id) => {
-  [
-    Node.input(
-      ~attr=
-        Attr.many(
-          [
-            Attr.create("type", "checkbox"),
-            fold_button_style(font_metrics),
-            Attr.on_input((_evt, _str) => {
-              inject(UpdateAction.PerformAction(Click(tile_id)))
-            }),
-            stop_mousedown_propagation,
-          ]
-          @ (List.mem(tile_id, folded) ? [Attr.checked] : []),
-        ),
-      [],
-    ),
-  ];
+    (font_metrics: FontMetrics.t, inject, folded: list(Id.t), tile_id, row) => {
+  let origin: Measured.Point.t = {row, col: (-2)};
+
+  Node.input(
+    ~attr=
+      Attr.many(
+        [
+          DecUtil.abs_position(~font_metrics, origin),
+          Attr.create("type", "checkbox"),
+          Attr.on_input((_evt, _str) => {
+            inject(UpdateAction.PerformAction(Click(tile_id)))
+          }),
+          stop_mousedown_propagation,
+        ]
+        @ (List.mem(tile_id, folded) ? [Attr.checked] : []),
+      ),
+    [],
+  );
 };
 
 let view = {
