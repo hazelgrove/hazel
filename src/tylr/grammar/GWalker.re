@@ -8,48 +8,48 @@ module Walk = {
 
   let eq = t => {eq: Some(t), neq: []};
 
+  // general ineq walks might include eq steps
+  // followed by neq steps, but currently disallowed
+  // for presumed usability reasons
   let eq_xor_neq = w =>
     switch (w.neq) {
     | [] => Option.is_some(w.eq)
     | [_, ..._] => Option.is_none(w.eq)
     };
 
-  let eq_steps = w => w.eq |> Option.map(GTerrace.root) |> Option.value(~default=[]);
-  let neq_steps = w => List.map(GTerrace.root, w.neq);
+  let steps_eq = w => w.eq |> Option.map(GTerrace.root) |> Option.value(~default=[]);
+  let steps_neq = w => List.map(GTerrace.root, w.neq);
+  let steps = w => [steps_eq(w), ...steps_neq(w)];
 
-  let no_spurious_tiles = w =>
-    neq_steps(w)
-    |> ListUtil.split_last_opt
-    |> Option.map(((leading, _)) =>
-      List.concat(leading)
-      |> List.for_all(m => Option.is_none(Material.is_tile(m)))
-    );
-
-  let short_neq = w =>
-    w.neq
-    |> List.for_all(t => Terrace.length(t) == 1);
-
-  let leq = w => {
-    let seen_tile =
-      eq_steps(w)
+  let no_tiles_above_last = w =>
+    switch (ListUtil.split_last_opt(steps(w))) {
+    | None => true
+    | Some((above, _)) =>
+      List.concat(above)
       |> List.filter_map(Material.is_tile)
       |> List.is_empty
-      |> Bool.not;
-    seen_tile
-    ? List.is_empty(w.neq)
-    : no_spurious_tiles(w) && short_neq(w);
-  };
+      |> Bool.not
+    };
 
-  let geq = w => {
-    let seen_tile =
-      eq_steps(w)
-      |> List.filter_map(Material.is_tile)
-      |> List.is_empty
-      |> Bool.not;
-    seen_tile
-    ? List.is_empty(w.neq)
-    : no_spurious_tiles(w);
-  };
+  let no_tiles_across_last = w =>
+    switch (ListUtil.split_last_opt(steps(w))) {
+    | None => true
+    | Some((_, last)) =>
+      switch (ListUtil.split_last_opt(last)) {
+      | None => true
+      | Some((across, _)) =>
+        across
+        |> List.filter_map(Material.is_tile)
+        |> List.is_empty
+        |> Bool.not
+      }
+    };
+
+  let eq = w => Option.is_some(w.eq) && List.is_empty(w.neq);
+  let neq = w => !List.is_empty(w.neq);
+
+  let leq = w => neq(w) && no_tiles_above_last(w) && no_tiles_across_last(w);
+  let geq = w => neq(w) && no_tiles_above_last(w);
 
   let face = walk => {
     open OptUtil.Syntax;

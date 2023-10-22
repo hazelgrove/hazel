@@ -1,20 +1,29 @@
 module Material = {
   include Material;
 
-  let leq = ((l: Bound.t(Material.t), r: Material.t)) =>
+  let memo = f =>
+    FunUtil.uncurry2(f)
+    |> Core.Memo.general
+    |> FunUtil.curry2;
+
+  let eq = memo((l: Material.t, r: Material.t) =>
     GWalker.walk(R, l)
     |> GWalker.Walked.find(r.material)
-    |> List.filter(GWalker.Walk.leq);
-  let leq = FunUtil.curry2(Core.Memo.general(leq));
+    |> List.filter(GWalker.Walk.eq)
+  );
 
-  let geq = ((l: Material.t, r: Bound.t(Material.t))) =>
+  let leq = memo((l: Bound.t(Material.t), r: Material.t) =>
+    GWalker.walk(R, l)
+    |> GWalker.Walked.find(r.material)
+    |> List.filter(GWalker.Walk.leq)
+  );
+
+  let geq = memo((l: Material.t, r: Bound.t(Material.t)) =>
     GWalker.walk(L, r)
     |> GWalker.Walked.find(l.material)
-    |> List.filter(GWalker.Walk.geq);
-  let geq = FunUtil.curry2(Core.Memo.general(leq));
+    |> List.filter(GWalker.Walk.geq)
+  );
 };
-
-// WIP CHECKPOINT
 
 module Piece = {
   include Piece;
@@ -22,31 +31,55 @@ module Piece = {
   let zip = (l: Piece.t, r: Piece.t) =>
     Id.eq(l.id, r.id) ? Some({...l, token: l.token ++ r.token}) : None;
 
-  let eq = (l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) =>
-    switch (zip(l, r)) {
-    | Some(p) =>
-      assert(Slot.is_empty(slot));
-      EWald.singleton(p);
-    | None =>
-      GWalker.walk(R, l)
-      |> GWalker.Walked.find(r.material)
-      |> ETerrace.R.pick_and_bake(~slot, ~face=r)
-      |> Option.map(t => EWald.link(l, ~slot=t.slot, t.wald))
+  let replace = (l: Piece.t, r: Piece.t) =>
+    if (Material.eq(l.material, r.material) && Piece.is_unfinished(l)) {
+      Some(r)
+    } else if (Material.eq(l.material, r.material) && Piece.is_unfinished(r)) {
+      Some(l)
+    } else {
+      None
     };
 
-  let lt = (~without=[], l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
-    l
-    |> Bound.map(p => p.material)
-    |> GWalker.walk(R)
-    |> GWalker.Walked.find(r.material)
+  let eq = (l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) => {
+    open OptUtil.Syntax;
+    let/ () = zip(l, r);
+    let/ () = replace(l, r);
+    let+ t =
+      Material.eq(l.material, r.material)
+      |> ETerrace.R.pick_and_bake(~slot, ~face=r);
+    EWald.link(l, ~slot=t.slot, t.wald);
+  };
+
+  let lt = (l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
+    Material.lt(Bound.map(p => p.material, l), r.material)
     |> ESlope.Dn.pick_and_bake(~slot, ~face=r);
 
-  let gt = (~without=[], l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
-    r
-    |> Bound.map(p => p.material)
-    |> GWalker.descend(L)
-    |> GWalker.Descended.find(l.material)
-    |> ESlope.Up.pick_and_bake(~face=l, ~slot);
+  let gt = (l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
+    Material.gt(l.material, Bound.map(p => p.material, r))
+    |> ESlope.Up.pick_and_bake(~slot, ~face=l);
+};
+
+module Wald = {
+  let rec eq_l = (l: EWald.t, ~slot=ESlot.Empty, r: Piece.t) => {
+    open OptUtil.Syntax;
+    let/ () =
+      switch (EWald.unknil(l)) {
+      | Ok((tl, sl, p)) when Piece.is_unfinished(p) =>
+        let slot = failwith("todo: merge slot and sl");
+        eq(tl, ~slot, r);
+      | Error(p)
+          when
+            Piece.is_unfinished(p)
+            && p.material == EWald.face(~side=L, r).material
+            && ESlot.has_no_tiles(slot) =>
+        return(EWald.singleton(r))
+      | _ => None
+      };
+    // L2R: tl_l hd_l
+    let (hd_l, tl_l) = EWald.split_face(l, ~side=R);
+    Piece.eq(hd_l, ~slot, r)
+    |> Option.map(EWald.extend(~side=L, tl_l));
+  };
 };
 
 module Wald = {
