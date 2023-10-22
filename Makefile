@@ -35,7 +35,7 @@ release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release
 
 release-student: setup-student
-	dune build @src/fmt --auto-promote src --profile dev
+	dune build @src/fmt --auto-promote src --profile release
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"
