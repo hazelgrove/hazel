@@ -450,11 +450,18 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
+let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
+  // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
+  let self =
+    switch (self) {
+    | Redundant(self) => self
+    | _ => self
+    };
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
+};
 
 let fixed_constraint_pat =
     (ctx, mode: Mode.t, self: Self.pat, constraint_: Constraint.t)
