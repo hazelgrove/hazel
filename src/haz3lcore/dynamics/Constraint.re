@@ -162,11 +162,11 @@ let of_ap = (ctx, ctr: option(Constructor.t), arg: t): t =>
   switch (ctr) {
   | Some(name) =>
     switch (Ctx.lookup_ctr(ctx, name)) {
-    | None => Hole // TODO: review
+    | None => Falsity // TODO: review
     | Some({num_variants, nth, _}) =>
       arg |> ctr_of_nth_variant(num_variants, nth)
     }
-  | None => Hole // TODO: review
+  | None => Falsity // TODO: review
   };
 
 let of_ctr = (ctx, name) => of_ap(ctx, Some(name), Truth);
