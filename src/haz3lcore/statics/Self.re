@@ -62,10 +62,10 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | InexhaustiveMatch(_) => None
     | Common(self) => typ_of(ctx, self);
 
-let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
-    | Redundant(_) => None
+    | Redundant(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
