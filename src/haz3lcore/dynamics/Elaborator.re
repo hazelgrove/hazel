@@ -289,6 +289,13 @@ let rec dhexp_of_uexp =
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
+    // NOTE: for the current implementation, redundancy is considered a static error
+    // but not a runtime error.
+    let self =
+      switch (self) {
+      | Redundant(self) => self
+      | _ => self
+      };
     let err_status = Info.status_pat(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
