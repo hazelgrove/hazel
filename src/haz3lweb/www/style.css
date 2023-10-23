@@ -1562,6 +1562,11 @@ svg.expandable path {
   color: var(--err-color)
 }
 
+.DHCode .MismatchedRuleDecoration {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
 .DHCode .EmptyHole {
   background-color: #ac9a6a;
   border-radius: 0.2em;

@@ -403,15 +403,18 @@ and mk_rule =
           ]),
         ])
       : hcat(space(), hidden_clause);
-  hcats(
-    [
-      DHDoc_common.Delim.bar_Rule,
-      DHDoc_Pat.mk(dp)
-      |> DHDoc_common.pad_child(
-           ~inline_padding=(space(), space()),
-           ~enforce_inline=false,
-         ),
-    ]
-    @ (crossed_out ? [] : [DHDoc_common.Delim.arrow_Rule, clause_doc]),
-  );
+  // temporary name
+  let r = [
+    DHDoc_common.Delim.bar_Rule,
+    DHDoc_Pat.mk(dp)
+    |> DHDoc_common.pad_child(
+         ~inline_padding=(space(), space()),
+         ~enforce_inline=false,
+       ),
+    DHDoc_common.Delim.arrow_Rule,
+    clause_doc,
+  ];
+  let r =
+    crossed_out ? List.map(annot(DHAnnot.MismatchedRuleDecoration), r) : r;
+  hcats(r);
 };
