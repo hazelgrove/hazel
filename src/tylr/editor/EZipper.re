@@ -36,45 +36,41 @@ let unselect = (~toward=?, z: t) =>
     mk(Melder.Stepwell.push_zigg(~onto, sel, z.ctx));
   };
 
-module Path = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    // top-down
-    slots: list(int),
-    piece: int,
-    offset: int,
-  };
-  exception Invalid;
-};
-
-module Zipped = {
-  type t = (Path.t, Slot.p);
-};
-
-let rec unzip = (~ctx=empty, (p, slot): Zipped.t): t =>
-  switch (slot) {
-  | None => mk(ctx)
-  | Some(m) =>
-    let get = OptUtil.get_or_raise(Path.Invalid);
-    switch (p.slots) {
-    | [hd, ...slots] =>
-      let (slot, bridge) = get(Meld.unzip_slot(hd, m));
-      let ctx = link(bridge, ctx);
-      unzip(~ctx, ({...p, slots}, slot));
-    | [] =>
-      let (pre, p, suf) = get(Meld.unzip_piece(p.piece, m));
-      switch (Piece.unzip(p.offset, p)) {
-      | Ok((l, r)) =>
-        let l = Terrace.L.of_prefix(pre, l);
-        let r = Terrace.R.of_suffix(r, suf);
-        cons_slopes(([l], [r]), well);
-      | Error(side) =>
-        unzip_slot(side == L ? p.piece : p.piece + 1, m =>
-          mk(cons_slopes(Slopes.of_meld(side, m), well))
-        )
-      };
+let rec unzip = (zipped: ESlot.Marked.t) => {
+  let go = (~ctx=EStepwell.empty, zipped) =>
+    switch (zipped) {
+    | Empty => ctx
+    | Full((marks, _) as m) =>
+      let m = EMeld.Marked.unmk(m);
+      let get = OptUtil.get_or_raise(EPath.Invalid);
+      switch (marks.cursor) {
+      | None => EStepwell.cons_slopes(([], ESlope.Up.unroll(m)), ctx)
+      | Some(({slots: [hd, ...slots], _}, _)) =>
+        let (l, slot, r) = get(EMeld.unzip_slot(hd, m));
+        let ctx = EStepwell.cons_unzipped((l, r), ctx);
+        unzip(~ctx, ({...p, slots}, slot));
+      | Some(({slots: [], piece}, offset)) =>
+        let (pre, p, suf) = get(EMeld.unzip_piece(piece, m));
+        switch (Piece.unzip(offset, p)) {
+        | Ok((l, r)) =>
+          let l = Terrace.L.of_prefix(pre, l);
+          let r = Terrace.R.of_suffix(r, suf);
+          EStepwell.cons_slopes(([l], [r]), ctx);
+        | Error(side) =>
+          // ignore prev unzip to piece, re-unzip to neighbor slot
+          let (l, slot, r) = EMeld.unzip_slot(side == L ? piece : piece + 1, m);
+          ctx
+          |> EStepwell.cons_unzipped((l, r))
+          |> cons_slopes(
+            side == L
+            ? (ESlope.Dn.unroll(m), [])
+            : ([], ESlope.Up.unroll(m))
+          )
+        };
+      }
     };
-  };
+  mk(go(zipped));
+};
 
 let zip_up = (_, _) => failwith("todo");
 let zip_dn = (_, _) => failwith("todo");
