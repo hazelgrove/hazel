@@ -163,11 +163,11 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
     div_err([code_err(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
     switch (additional_err) {
-    | None => div_err([text("Case expression is necessarily inexhaustive")])
+    | None => div_err([text("Case expression is inexhaustive")])
     | Some(err) =>
       div_err([
         exp_view(Exp(Match), InHole(err)),
-        text("; case expression is necessarily inexhaustive"),
+        text("; case expression is inexhaustive"),
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
