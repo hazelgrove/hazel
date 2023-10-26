@@ -179,11 +179,11 @@ let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
     switch (additional_err) {
-    | None => div_err([text("Pattern is necessarily redundant")])
+    | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
         pat_view(cls, InHole(err)),
-        text("; pattern is necessarily redundant"),
+        text("; pattern is redundant"),
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
