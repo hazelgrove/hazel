@@ -163,11 +163,11 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
     div_err([code_err(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
     switch (additional_err) {
-    | None => div_err([text("Case expression is necessarily inexhaustive")])
+    | None => div_err([text("Case expression is inexhaustive")])
     | Some(err) =>
       div_err([
         exp_view(Exp(Match), InHole(err)),
-        text("; case expression is necessarily inexhaustive"),
+        text("; case expression is inexhaustive"),
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
@@ -179,11 +179,11 @@ let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
     switch (additional_err) {
-    | None => div_err([text("Pattern is necessarily redundant")])
+    | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
         pat_view(cls, InHole(err)),
-        text("; pattern is necessarily redundant"),
+        text("; pattern is redundant"),
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
