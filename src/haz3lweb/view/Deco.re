@@ -300,6 +300,11 @@ module Deco =
 
   // faster infomap traversal
   let err_holes = (_z: Zipper.t) => {
+    let is_rep = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, M.terms)) {
+      | None => false
+      | Some(term) => id == Term.rep_id(term)
+      };
     Id.Map.fold(
       (id, info, acc) =>
         /* Because of artefacts in Maketerm ID handling,
@@ -309,7 +314,12 @@ module Deco =
          * when iterating over the info_map should have no
          * effect, beyond supressing the resulting Not_found exs */
         switch (Id.Map.find_opt(id, M.term_ranges)) {
-        | Some(_) when Info.is_error(info) => [
+        /* Without filtering out non-rep ids, there will be
+         * multiple error holes wrapping around a case expression
+         * or a list literal that has at least one comma, since the
+         * rules of case expressions and the inner commas of list
+         * literals are technically different forms */
+        | Some(_) when is_rep(id) && Info.is_error(info) => [
             term_highlight(~clss=["err-hole"], id),
             ...acc,
           ]
