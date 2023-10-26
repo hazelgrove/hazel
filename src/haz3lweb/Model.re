@@ -24,12 +24,14 @@ type ui_state = {
   font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   mousedown: bool,
+  focus: UpdateAction.focus,
 };
 
 let ui_state_init = {
   font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   mousedown: false,
+  focus: Editor,
 };
 
 /* Non-persistent application state */
@@ -37,9 +39,16 @@ let ui_state_init = {
 type meta = {
   ui_state,
   results: ModelResults.t,
+  auto: UpdateAction.auto_llm,
+  mvu_states: VarMap.t_(DHExp.t),
 };
 
-let meta_init = {ui_state: ui_state_init, results: ModelResults.empty};
+let meta_init = {
+  ui_state: ui_state_init,
+  results: ModelResults.empty,
+  mvu_states: VarMap.empty,
+  auto: Auto.init,
+};
 
 type t = {
   editors: Editors.t,

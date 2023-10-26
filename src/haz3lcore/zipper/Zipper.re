@@ -359,16 +359,16 @@ let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
 
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
+  ...z,
+  selection: Selection.mk_buffer(mode, content),
+};
+
 let can_put_down = z =>
   switch (pop_backpack(z)) {
   | Some(_) => z.caret == Outer
   | None => false
   };
-
-let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
-  ...z,
-  selection: Selection.mk_buffer(mode, content),
-};
 
 let is_linebreak_to_right_of_caret =
     ({relatives: {siblings: (_, r), _}, _}: t): bool => {
@@ -445,3 +445,60 @@ let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
 let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
+
+let fold_lefti = (f, acc, seg) =>
+  List.fold_left2(f, acc, seg, List.init(List.length(seg), Fun.id));
+
+/* fold_lefti(
+     ((goal_path, s_a), p: Piece.t, idx: int) => {
+       let s_a =
+         switch (p) {
+         | Secondary(_)
+         | Grout(_) => s_a
+         | Tile(t) =>
+           fold_lefti(
+             (map, child, idx) => zip_to_path'([idx, ...goal_path], map, child),
+             s_a,
+             t.children,
+           )
+         };
+       (goal_path, s_a);
+     },
+     (goal_path, s_a),
+     seg,
+   )
+   |> snd;*/
+
+let rec zip_to_path_piece =
+        (path: Measured.piece_path, {siblings, ancestors}: Relatives.t)
+        : Relatives.t =>
+  switch (path, siblings) {
+  | ([], _) => {siblings, ancestors}
+  | (
+      [idx, ...path],
+      (seg_l, [Tile({id, label, mold, shards, children}), ...seg_r]),
+    ) =>
+    let shards = ListUtil.split_n(idx + 1, shards);
+    let (l, seg, r) = ListUtil.split_nth(idx, children);
+    let ancestor = Ancestor.{id, label, mold, shards, children: (l, r)};
+    let ancestors = [(ancestor, (seg_l, seg_r)), ...ancestors];
+    zip_to_path_seg(seg, ancestors, path);
+  | _ => failwith("zip_to_path_piece: invalid input")
+  }
+and zip_to_path_seg =
+    (seg: Segment.t, ancestors, path: Measured.piece_path): Relatives.t =>
+  switch (path) {
+  | [] => {ancestors, siblings: ([], seg)}
+  | [idx, ...path] =>
+    zip_to_path_piece(path, {ancestors, siblings: Siblings.unzip(idx, seg)})
+  };
+
+let zip_to_path =
+    (seg: Segment.t, path: Measured.piece_path, caret: Caret.t): t =>
+  /*NOTE: Path must be reversed as it is gathered by consing */
+  {
+    selection: Selection.empty,
+    backpack: [],
+    relatives: zip_to_path_seg(seg, Ancestors.empty, List.rev(path)),
+    caret,
+  };

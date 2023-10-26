@@ -1,4 +1,24 @@
 open Sexplib.Std;
+open Haz3lcore;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type live_inspector = {
+  on: bool,
+  use_cursor: bool,
+  show_fns_in_env: bool,
+  ids: list(Id.t),
+  cur_env_idx: int,
+  cur_env: Haz3lcore.ProbeMap.dhexp_env,
+};
+
+let live_inspector_init = {
+  on: false,
+  use_cursor: true,
+  show_fns_in_env: false,
+  ids: [],
+  cur_env_idx: 0,
+  cur_env: [],
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -17,6 +37,7 @@ let mode_of_string = (s: string): mode =>
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  live_inspector,
   captions: bool,
   secondary_icons: bool,
   core: Haz3lcore.CoreSettings.t,

@@ -152,3 +152,10 @@ let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
     }
   };
 };
+
+let of_backpack = (z: Zipper.t): list(string) => {
+  let to_string = (s: Selection.t): string => {
+    s.content |> of_segment(~holes=None);
+  };
+  List.map(to_string, z.backpack);
+};

@@ -36,24 +36,30 @@ let dh_err = (error: string): DHExp.t =>
   InvalidText(Id.invalid, -666, error);
 
 let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab');
 
 exception DoesNotElaborate;
-let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
+let elaborate = (~probe_ids=[], ~settings: CoreSettings.t, map, term): DHExp.t =>
   switch (settings.statics) {
   | false => dh_err("Statics disabled: No elaboration")
   | true =>
-    switch (elaborate(map, term)) {
+    switch (elaborate(probe_ids, map, term)) {
     | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
     | Elaborates(d, _, _) => d
     }
   };
 
 let elaborate_editor =
-    (~settings: CoreSettings.t, ~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
+    (
+      ~probe_ids=[],
+      ~settings: CoreSettings.t,
+      ~ctx_init: Ctx.t,
+      editor: Editor.t,
+    )
+    : DHExp.t => {
   let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
   let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  elaborate(~settings, info_map, term);
+  elaborate(~probe_ids, ~settings, info_map, term);
 };
 
 exception EvalError(EvaluatorError.t);
@@ -99,7 +105,12 @@ exception PostprocessError(EvaluatorPost.error);
 // };
 
 let evaluate =
-    (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
+    (
+      ~settings: CoreSettings.t,
+      ~es=EvaluatorState.init,
+      ~env=Builtins.env_init,
+      d: DHExp.t,
+    )
     : ProgramResult.t => {
   let err_wrap = (error): (EvaluatorState.t, EvaluatorResult.t) => (
     EvaluatorState.init,
@@ -112,7 +123,7 @@ let evaluate =
     | _ when !settings.dynamics =>
       err_wrap("Dynamics disabled: No evaluation")
     | _ =>
-      try(Evaluator.evaluate(env, d)) {
+      try(Evaluator.evaluate(~es, env, d)) {
       | EvaluatorError.Exception(reason) =>
         err_wrap("Internal exception: " ++ EvaluatorError.show(reason))
       | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
@@ -146,6 +157,14 @@ let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
   switch (evaluate(~settings, d)) {
   | (result, _, _) => EvaluatorResult.unbox(result)
   };
+
+let eval_e2e =
+    (~settings: CoreSettings.t, es: EvaluatorState.t, d: DHExp.t)
+    : (EvaluatorState.t, DHExp.t) => {
+  //NOTE: assumes empty init ctx, env
+  let (result, es, _) = evaluate(~es, ~settings, d);
+  (es, EvaluatorResult.unbox(result));
+};
 
 let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
   //NOTE: assumes empty init ctx, env

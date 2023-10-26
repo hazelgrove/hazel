@@ -178,6 +178,11 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
 
+/* TODO(andrew): document or remove */
+let is_filler_prompt = regexp("^\\?\\?$");
+let is_oracle_prompt = regexp("^\".*\\?\\?\"$");
+let is_prompt = str => is_filler_prompt(str) || is_oracle_prompt(str);
+
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
    the empty list and empty tuple. Technically this should be derivable from
@@ -201,7 +206,8 @@ let const_mono_delims =
   base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
-let is_explicit_hole = t => t == explicit_hole;
+let expliciter_hole = "??";
+let is_explicit_hole = t => t == explicit_hole || t == expliciter_hole;
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {
@@ -213,6 +219,7 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("export", (Hyper.is_export, [mk_op(Exp, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",

@@ -436,3 +436,9 @@ let assoc_err = (x, xs, err: string) =>
   | None => failwith(err)
   | Some(y) => y
   };
+
+let all_eq = (~eq=(==), xs: list('a)): bool =>
+  switch (xs) {
+  | [] => true
+  | [x, ...xs] => List.for_all(eq(x), xs)
+  };

@@ -46,6 +46,7 @@ let nut_menu =
         core: {statics, elaborate, assist, dynamics},
         benchmark,
         instructor_mode,
+        live_inspector,
         _,
       }: Settings.t,
     ) => [
@@ -64,6 +65,9 @@ let nut_menu =
       ),
       toggle("𝑒", ~tooltip="Show Elaboration", elaborate, _ =>
         inject(Set(Elaborate))
+      ),
+      toggle("L", ~tooltip="Toggle Live Inspector", live_inspector.on, _ =>
+        inject(Set(LiveInspector(ToggleOn)))
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))
@@ -138,6 +142,7 @@ let exercises_view =
         meta: {
           ui_state: {font_metrics, show_backpack_targets, mousedown, _},
           results,
+          mvu_states,
           _,
         },
         _,
@@ -161,6 +166,7 @@ let exercises_view =
       ~font_metrics,
       ~mousedown,
       ~show_backpack_targets,
+      ~mvu_states,
       exercise_mode,
     );
 };
@@ -193,6 +199,7 @@ let view = (~inject, ~handlers, model: Model.t) =>
       Attr.many(
         Attr.[
           id("page"),
+          Attr.tabindex(1),
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
           on_blur(_ => {
@@ -201,7 +208,8 @@ let view = (~inject, ~handlers, model: Model.t) =>
           }),
           on_focus(_ => {
             JsUtil.focus_clipboard_shim();
-            Virtual_dom.Vdom.Effect.Ignore;
+            print_endline("focus: editor (Page.view)");
+            Virtual_dom.Vdom.Effect.Many([inject(SetMeta(Focus(Editor)))]);
           }),
           on_copy(_ => {
             JsUtil.copy(get_selection(model));
@@ -209,14 +217,14 @@ let view = (~inject, ~handlers, model: Model.t) =>
           }),
           on_cut(_ => {
             JsUtil.copy(get_selection(model));
-            inject(UpdateAction.PerformAction(Destruct(Left)));
+            inject(PerformAction(Destruct(Left)));
           }),
           on_paste(evt => {
             let pasted_text =
               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
               |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
             Dom.preventDefault(evt);
-            inject(UpdateAction.Paste(pasted_text));
+            inject(Paste(pasted_text));
           }),
           ...handlers(~inject, ~model),
         ],

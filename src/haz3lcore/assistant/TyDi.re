@@ -91,6 +91,12 @@ let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
   let* tok_to_left = token_to_left(z);
   let* ci = z_to_ci(~settings, ~ctx, z);
   let suggestions = suggest(ci, z);
+  /*print_endline("suggestions:");
+  print_endline(
+    suggestions
+    |> List.map((s: Suggestion.t) => s.content)
+    |> String.concat(", "),
+  );*/
   let suggestions =
     suggestions
     |> List.filter(({content, _}: Suggestion.t) =>

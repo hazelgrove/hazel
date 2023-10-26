@@ -65,6 +65,11 @@ let elements_noun: Term.Cls.t => string =
 
 let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
   switch (err) {
+  | NoType(MultiError) => [
+      text(
+        "Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)",
+      ),
+    ]
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
     | BadInt => [text("Integer is too large or too small")]

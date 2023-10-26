@@ -407,27 +407,44 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    first => find_p(first, of_segment(seg)).origin,
-    ListUtil.hd_opt(seg),
-  );
+let height = (m: t): int => IntMap.cardinal(m.rows);
 
-let segment_last = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    last => find_p(last, of_segment(seg)).last,
-    ListUtil.last_opt(seg),
-  );
+let width = (m: t): int =>
+  IntMap.fold((_, {max_col, _}: Rows.shape) => max(max_col), m.rows, 0);
 
-let segment_height = (seg: Segment.t) =>
-  switch (segment_last(seg), segment_origin(seg)) {
-  | (Some(last), Some(first)) => 1 + last.row - first.row
-  | _ => 0
-  };
+let segment_height = (seg: Segment.t) => seg |> of_segment |> height;
 
-let segment_width = (seg: Segment.t): int =>
-  IntMap.fold(
-    (_, {max_col, _}: Rows.shape, acc) => max(max_col, acc),
-    of_segment(seg).rows,
-    0,
-  );
+let segment_width = (seg: Segment.t): int => seg |> of_segment |> width;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type piece_path = list(int);
+
+let fold_lefti = (f, acc, seg) =>
+  List.fold_left2(f, acc, seg, List.init(List.length(seg), Fun.id));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+let path_map = (seg: Segment.t): Id.Map.t(piece_path) => {
+  //NOTE: paths will be in reverse order
+  let rec go = (path: piece_path, map: Id.Map.t(piece_path), seg: Segment.t) =>
+    fold_lefti(
+      (map, p: Piece.t, idx: int) => {
+        let path = [idx, ...path];
+        let map = Id.Map.add(Piece.id(p), path, map);
+        let map =
+          switch (p) {
+          | Secondary(_)
+          | Grout(_) => map
+          | Tile(t) =>
+            fold_lefti(
+              (map, child, idx) => go([idx, ...path], map, child),
+              map,
+              t.children,
+            )
+          };
+        map;
+      },
+      map,
+      seg,
+    );
+  go([], Id.Map.empty, seg);
+};

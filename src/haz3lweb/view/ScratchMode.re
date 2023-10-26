@@ -16,6 +16,7 @@ let view =
           langDocMessages,
           meta: {
             results,
+            mvu_states,
             ui_state: {font_metrics, show_backpack_targets, mousedown, _},
             _,
           },
@@ -39,6 +40,7 @@ let view =
   let code_id = "code-container";
   let editor_view =
     Cell.editor_with_result_view(
+      ~mvu_states,
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,

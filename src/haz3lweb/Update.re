@@ -5,6 +5,33 @@ include UpdateAction; // to prevent circularity
 let update_settings =
     (a: settings_action, {settings, _} as model: Model.t): Model.t =>
   switch (a) {
+  | LiveInspector(a) =>
+    let live_inspector = settings.live_inspector;
+    let live_inspector =
+      switch (a) {
+      | ToggleOn => {...live_inspector, on: !live_inspector.on}
+      | ToggleCursor => {
+          ...live_inspector,
+          use_cursor: !live_inspector.use_cursor,
+        }
+      | ToggleShowFnsInEnv => {
+          ...live_inspector,
+          show_fns_in_env: !live_inspector.show_fns_in_env,
+        }
+      | UpdateIds(f) => {...live_inspector, ids: f(live_inspector.ids)}
+      | SetCurrentEnvIdx(i) => {...live_inspector, cur_env_idx: i}
+      | UpdateCurrentEnv(f) => {
+          ...live_inspector,
+          cur_env: f(live_inspector.cur_env),
+        }
+      };
+    {
+      ...model,
+      settings: {
+        ...settings,
+        live_inspector,
+      },
+    };
   | Statics =>
     /* NOTE: dynamics depends on statics, so if dynamics is on and
        we're turning statics off, turn dynamics off as well */
@@ -117,7 +144,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | Dynamics
     | InstructorMode
     | ContextInspector
-    | Mode(_) => true
+    | Mode(_)
+    | LiveInspector(_) => true
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
@@ -125,7 +153,10 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | Mouseup
     | ShowBackpackTargets(_)
     | FontMetrics(_)
-    | Result(_) => false
+    | Result(_)
+    | Focus(_) => false
+    | MVU(_)
+    | Auto(_) => true
     }
   | PerformAction(
       Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
@@ -139,13 +170,18 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
-  | DoTheThing => false
+  | DoTheThing
+  | StoreKey(_)
   | ExportPersistentData => false
+  | MUVSyntax(_)
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
   | ReparseCurrentEditor
-  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
+  | PerformAction(
+      Destruct(_) | Insert(_) | Pick_up | Put_down | Remote(_) |
+      InsertSegment(_),
+    )
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
@@ -155,6 +191,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | Cut
   | Paste(_)
   | Assistant(_)
+  | Execute
   | Undo
   | Redo
   | Reset => true;
@@ -290,6 +327,20 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | StoreKey(k, v) =>
+      Store.Generic.save(k, v);
+      Ok(model);
+    | Execute =>
+      let editor = model.editors |> Editors.get_editor;
+      let str = Printer.to_string_selection(editor);
+      print_endline("Execute: Parsing action: " ++ str);
+      let update: UpdateAction.t =
+        try(str |> Sexplib.Sexp.of_string |> t_of_sexp) {
+        | _ =>
+          print_endline("Execute: Action not recognized");
+          Save;
+        };
+      apply(model, update, state, ~schedule_action);
     | Save => Model.save_and_return(model)
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
@@ -350,6 +401,10 @@ let rec apply =
           : Zipper.can_put_down(z)
               ? PerformAction(Put_down) : MoveToNextHole(Right);
       apply(model, a, state, ~schedule_action);
+    | PerformAction(Insert("?") as a) =>
+      let editor = model.editors |> Editors.get_editor;
+      UpdateAssistant.schedule_prompt(editor.state.zipper, ~schedule_action);
+      perform_action(model, a);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
@@ -428,12 +483,38 @@ let rec apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
+    | MUVSyntax(id, update, action) =>
+      //TODO(andrew): perf, cleanup
+      let settings = model.settings;
+      let ctx = Editors.get_ctx_init(~settings, model.editors);
+      let map =
+        model.editors
+        |> Editors.active_zipper
+        |> MakeTerm.from_zip_for_sem
+        |> fst
+        |> Interface.Statics.mk_map_ctx(settings.core, ctx);
+      let ci = Id.Map.find_opt(id, map);
+      switch (MVU.get_stage_child(ci)) {
+      | Some((id, model_uexp)) =>
+        /* NOTE: This assumes that the stage term is closed! */
+        let init_model =
+          Interface.elaborate(~settings=settings.core, map, model_uexp);
+        let res =
+          Interface.eval_d2d(
+            ~settings=settings.core,
+            Ap(update, Tuple([init_model, action])),
+          );
+        let seg = DHExpToSeg.go(res);
+        let action: Action.t = Remote(id, InsertSegment(seg));
+        perform_action(model, action);
+      | _ => Ok(model)
+      };
     };
   reevaluate_post_update(model.settings, update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
 }
 and meta_update =
-    (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
+    (model: Model.t, update: set_meta, ~schedule_action): Model.meta => {
   switch (update) {
   | Mousedown => {
       ...model.meta,
@@ -463,6 +544,13 @@ and meta_update =
         font_metrics,
       },
     }
+  | MVU(name, dh) => {
+      ...model.meta,
+      mvu_states: VarMap.extend(model.meta.mvu_states, (name, dh)),
+    }
+  | Focus(focus) =>
+    let ui_state = {...model.meta.ui_state, focus};
+    {...model.meta, ui_state};
   | Result(key, res) =>
     /* If error, print a message. */
     switch (res) {
@@ -482,5 +570,6 @@ and meta_update =
       |> ModelResult.update_current(res);
     let results = model.meta.results |> ModelResults.add(key, r);
     {...model.meta, results};
+  | Auto(action) => UpdateAuto.go(model, action, ~schedule_action)
   };
 };

@@ -40,6 +40,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       |> Statics.Map.show
       |> print;
     | "F5" =>
+      //TODO(andrew): simplify below
       let ctx_init = Editors.get_ctx_init(~settings, model.editors);
       let env_init = Editors.get_env_init(~settings, model.editors);
       Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, zipper)
@@ -62,6 +63,24 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       | _ => print("DEBUG: No indicated index")
       };
     | "F7" => Some(Benchmark(Start))
+    | "F8" => Some(SetMeta(Auto(StartTest())))
+    | "F9" => Some(SetMeta(Auto(StartRun())))
+    | "F10" =>
+      print_endline(
+        "DEBUG: F10: Zipper with dump_backpack=true, erase_buffer=false",
+      );
+      zipper |> Zipper.seg_for_sem |> Segment.show |> print;
+    | "F11" =>
+      /* TODO(andrew): cleanup. testing for probe */
+      /*zipper
+        |> get_elab
+        |> Interface.evaluate
+        |> ProgramResult.get_state
+        |> EvaluatorState.get_probes
+        |> ProbeMap.process
+        |> ProbeMap.show_processed_map
+        |> print*/
+      None
     | _ => None
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
@@ -120,6 +139,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
     | "k" => Some(ReparseCurrentEditor)
+    | "e" => Some(Execute)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
@@ -135,6 +155,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
     | "k" => Some(ReparseCurrentEditor)
+    | "e" => Some(Execute)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))

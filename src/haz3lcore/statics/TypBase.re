@@ -48,6 +48,7 @@ module rec Typ: {
     ty: t,
   };
 
+  let to_string: (~holes: type_provenance => string=?, t) => string;
   let of_source: list(source) => list(t);
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
@@ -99,6 +100,29 @@ module rec Typ: {
   type source = {
     id: Id.t,
     ty: t,
+  };
+
+  let rec to_string = (~holes=_ => "?", t: t): string => {
+    let s = to_string(~holes);
+    switch (t) {
+    | Int => "Int"
+    | Float => "Float"
+    | Bool => "Bool"
+    | String => "String"
+    | Unknown(prov) => holes(prov)
+    | Arrow(t1, t2) => "(" ++ s(t1) ++ " -> " ++ s(t2) ++ ")"
+    | Prod(tys) => "(" ++ String.concat(", ", List.map(s, tys)) ++ ")"
+    | Sum(sm) =>
+      let entry = ((ctr, ty)) =>
+        switch (ty) {
+        | None => ctr
+        | Some(t) => ctr ++ "(" ++ s(t) ++ ")"
+        };
+      "(" ++ String.concat(" + ", List.map(entry, sm)) ++ ")";
+    | Rec(x, ty) => "rec " ++ x ++ ".{" ++ s(ty) ++ "}"
+    | List(ty) => "[" ++ s(ty) ++ "]"
+    | Var(x) => x
+    };
   };
 
   /* Strip location information from a list of sources */

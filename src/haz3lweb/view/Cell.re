@@ -174,7 +174,9 @@ let test_result_layer =
 
 let deco =
     (
+      ~inject,
       ~zipper,
+      ~settings,
       ~measured,
       ~term_ranges,
       ~unselected,
@@ -188,6 +190,7 @@ let deco =
     ) => {
   module Deco =
     Deco.Deco({
+      let settings = settings;
       let font_metrics = font_metrics;
       let map = measured;
       let show_backpack_targets = show_backpack_targets;
@@ -196,7 +199,8 @@ let deco =
       let term_ranges = term_ranges;
       let tiles = TileMap.mk(unselected);
     });
-  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos =
+    selected ? Deco.all(zipper, segment, ~inject) : Deco.err_holes(zipper);
   let decos =
     switch (test_results) {
     | None => decos
@@ -212,8 +216,9 @@ let deco =
 
 let eval_result_footer_view =
     (
-      ~settings as _: Settings.t,
-      ~inject as _,
+      ~settings: Settings.t,
+      ~mvu_states,
+      ~inject,
       ~font_metrics,
       ~elab,
       results: ModelResult.simple,
@@ -231,10 +236,43 @@ let eval_result_footer_view =
         Node.text("Evaluation disabled. Elaboration follows:"),
         dhcode_view(~show_casts=true, elab),
       ]
+    | Some({eval_result: Ap(Constructor("Div"), _) as node, _}) =>
+      //TODO(andrew): more general constructor catch
+      MVU.go2(~settings, ~inject, ~font_metrics, ~node)
+    // @ [dhcode_view(~show_casts=false, node)]
+    | Some({
+        eval_result:
+          Ap(
+            Constructor("Render"),
+            Tuple([StringLit(name), init_model, view, update]),
+          ),
+        _,
+      }) =>
+      MVU.go(
+        ~settings,
+        ~mvu_states,
+        ~name,
+        ~init_model,
+        ~inject,
+        ~view,
+        ~update,
+        ~font_metrics,
+      )
     | Some({eval_result, _}) =>
+      let segment = DHExpToSeg.go(eval_result);
+      let experiemental_code_view =
+        Code.view(
+          ~sort=Exp,
+          ~font_metrics,
+          ~buffer_ids=[],
+          ~segment,
+          ~unselected=segment,
+          ~measured=Measured.of_segment(segment),
+          ~settings,
+        );
       /* Disabling casts in this case as large casts
        * can blow up UI perf unexpectedly */
-      [dhcode_view(~show_casts=false, eval_result)]
+      [dhcode_view(~show_casts=false, eval_result), experiemental_code_view];
     };
   Node.(
     div(
@@ -290,7 +328,9 @@ let editor_view =
     );
   let deco_view =
     deco(
+      ~inject,
       ~zipper,
+      ~settings,
       ~unselected,
       ~measured,
       ~term_ranges,
@@ -309,6 +349,7 @@ let editor_view =
     );
   code_cell_view(
     ~inject,
+    //~settings,
     ~font_metrics,
     ~clss,
     ~selected,
@@ -323,6 +364,7 @@ let editor_view =
 
 let editor_with_result_view =
     (
+      ~mvu_states,
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,
@@ -343,11 +385,17 @@ let editor_with_result_view =
     settings.core.statics
       ? eval_result_footer_view(
           ~settings,
+          ~mvu_states,
           ~inject,
           ~font_metrics,
           ~elab=
             settings.core.elaborate
-              ? Interface.elaborate(~settings=settings.core, info_map, term)
+              ? Interface.elaborate(
+                  ~probe_ids=editor |> Editor.get_indicated |> Option.to_list,
+                  ~settings=settings.core,
+                  info_map,
+                  term,
+                )
               : Interface.dh_err("Elaboration disabled"),
           result,
         )

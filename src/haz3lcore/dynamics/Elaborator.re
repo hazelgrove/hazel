@@ -97,7 +97,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Monitor(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -116,9 +116,10 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+        (~probe_ids, m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+  let dhexp_of_uexp = dhexp_of_uexp(~probe_ids);
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -126,10 +127,20 @@ let rec dhexp_of_uexp =
       | Invalid(t) => Some(DHExp.InvalidText(id, 0, t))
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
       | MultiHole(_tms) =>
+        let+ ds =
+          _tms
+          |> List.map(
+               fun
+               | Term.Exp(t) => dhexp_of_uexp(m, t)
+               | _ => Some(EmptyHole(id, 0)),
+             )
+          |> OptUtil.sequence;
+        //TODO(andrew): turning this into tuples for now; yolo
         /* TODO: add a dhexp case and eval logic for multiholes.
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
-        Some(EmptyHole(id, 0))
+        //Some(EmptyHole(id, 0))
+        DHExp.Tuple(ds);
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
@@ -184,7 +195,7 @@ let rec dhexp_of_uexp =
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Ap(TestLit(id), dtest);
+        DHExp.Ap(Monitor(Test, id), dtest);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -192,6 +203,8 @@ let rec dhexp_of_uexp =
         }
       | Constructor(name) =>
         switch (err_status) {
+        | _ when Hyper.is_export(name) =>
+          Some(DHExp.Ap(Monitor(Test, Hyper.export_id), Tuple([])))
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
         | _ => Some(Constructor(name))
@@ -237,6 +250,50 @@ let rec dhexp_of_uexp =
                );
           Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
+      | Ap(
+          {term: Constructor("Stage"), _},
+          {term: Tuple([update, model]), _},
+        ) =>
+        let id_str = Term.UExp.rep_id(uexp) |> Id.to_string;
+        let body: Term.UExp.t = {
+          term:
+            Ap(
+              {term: Constructor("Inject"), ids: [Id.mk()]},
+              {
+                term:
+                  Tuple([
+                    {term: String(id_str), ids: [Id.mk()]},
+                    update,
+                    {term: Var("action"), ids: [Id.mk()]},
+                  ]),
+                ids: [Id.mk()],
+              },
+            ),
+          ids: [Id.mk()],
+        };
+        let inject: Term.UExp.t = {
+          term: Fun({term: Var("action"), ids: [Id.mk()]}, body),
+          ids: [Id.mk()],
+        };
+        //TODO(andrew): include actual stage ids / ana type somewhere?
+        let ret: Term.UExp.t = {
+          term: Tuple([model, inject]),
+          ids: [Id.mk()],
+        };
+        //(<init_model>, fun (action:Action) -> Inject(Int(<init_model>.uuid), <update>, action)
+        /*let* update = dhexp_of_uexp(m, update);
+          let+ model = dhexp_of_uexp(m, model);
+          let body =
+            DHExp.Ap(
+              Constructor("Inject"),
+              Tuple([StringLit(id_str), update, BoundVar("action")]),
+            );
+          let inject =
+            DHExp.Fun(Var("action"), Unknown(Internal), body, None);
+          DHExp.Tuple([model, inject]);*/
+        let (_, m_new) =
+          Statics.uexp_to_info_map(~ctx, ~mode, ~ancestors, ret, m);
+        dhexp_of_uexp(m_new, ret);
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
@@ -273,9 +330,21 @@ let rec dhexp_of_uexp =
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
-  | None => None
+    let d = wrap(ctx, id, mode, self, d);
+    /* Wrap with probe if indicated by id */
+    List.mem(id, probe_ids) ? DHExp.Ap(Monitor(Probe, id), d) : d;
+  | Some((InfoPat(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    Printf.printf(
+      "Elaborate: Exp: Infomap returned wrong sort: %s\n",
+      Info.show(ci),
+    );
+    None;
+  | None =>
+    Printf.printf(
+      "Elaborate: Exp: Infomap lookup failed for: %s\n",
+      Id.to_string(Term.UExp.rep_id(uexp)),
+    );
+    None;
   };
 }
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
@@ -332,18 +401,26 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
-  | None => None
+  | Some((InfoExp(_) | InfoTyp(_) | InfoTPat(_)) as ci) =>
+    Printf.printf(
+      "Elaborate: Pat: Infomap returned wrong sort: %s\n",
+      Info.show(ci),
+    );
+    None;
+  | None =>
+    Printf.printf(
+      "Elaborate: Pat: Infomap lookup failed for: %s\n",
+      Id.to_string(Term.UPat.rep_id(upat)),
+    );
+    None;
   };
 };
 
-//let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
-
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+let uexp_elab =
+    (~probe_ids=[], m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+  switch (dhexp_of_uexp(~probe_ids, m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) =>
-    //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
@@ -351,3 +428,8 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       };
     Elaborates(d, ty, Delta.empty);
   };
+
+//TODO(andrew): cleanup
+let uexp_elab' =
+    (probe_ids, m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+  uexp_elab(~probe_ids, m, uexp);

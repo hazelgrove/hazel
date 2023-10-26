@@ -223,6 +223,7 @@ let deco =
     ) => {
   module Deco =
     Deco.Deco({
+      let settings = settings;
       let font_metrics = font_metrics;
       let map = map;
       let show_backpack_targets = false;

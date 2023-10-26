@@ -234,7 +234,33 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  | Constructor(ctr) when Hyper.is_export(ctr) =>
+    //TODO(andrew): hack
+    let info =
+      Info.derived_exp(
+        ~uexp,
+        ~ctx,
+        ~mode,
+        ~ancestors,
+        ~self=Common(Self.of_ctr(ctx, ctr)),
+        ~co_ctx=[],
+      );
+    (info, add_info([Hyper.export_id] @ ids, InfoExp(info), m));
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
+  | Ap({term: Constructor("Stage"), ids: _constructor_ids}, arg) =>
+    let (ty_self, ty_arg) =
+      switch (mode) {
+      | Syn
+      | SynFun => (Typ.Unknown(SynSwitch), Typ.Unknown(SynSwitch))
+      | Ana(Prod([model, Arrow(action, event)])) => (
+          Prod([model, Arrow(action, event)]),
+          Prod([Arrow(Prod([model, action]), model), model]),
+        )
+      | _ => (Unknown(Internal), Unknown(Internal))
+      };
+    let (arg, m) = go(~mode=Ana(ty_arg), arg, m);
+    let self: Self.t = Just(ty_self);
+    add(~self, ~co_ctx=arg.co_ctx, m);
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);

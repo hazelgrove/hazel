@@ -4,13 +4,22 @@ open Zipper;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type piece_goal =
-  | Grout;
+  | Grout
+  | FillMarker;
+
+//TODO(andrew): cleanup
+let fill_marker = "FILL_ME";
 
 let of_piece_goal =
   fun
   | Grout => (
       fun
       | Piece.Grout(_) => true
+      | _ => false
+    )
+  | FillMarker => (
+      fun
+      | Piece.Tile({label: [t], _}) => t == fill_marker
       | _ => false
     );
 
@@ -52,6 +61,8 @@ type t =
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
+  | Remote(Id.t, t)
+  | InsertSegment(Segment.t)
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up

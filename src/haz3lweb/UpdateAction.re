@@ -3,6 +3,15 @@ open Util;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type live_inspector_action =
+  | ToggleOn
+  | ToggleCursor
+  | ToggleShowFnsInEnv
+  | UpdateIds(list(Id.t) => list(Id.t))
+  | SetCurrentEnvIdx(int)
+  | UpdateCurrentEnv(ProbeMap.dhexp_env => ProbeMap.dhexp_env);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
   | SecondaryIcons
@@ -12,17 +21,27 @@ type settings_action =
   | Dynamics
   | Benchmark
   | ContextInspector
+  | LiveInspector(live_inspector_action)
   | InstructorMode
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
-  | TyDi;
+  | TyDi
+  | Weather
+  | Oracle
+  | Filler(FillerOptions.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent_action =
   | Prompt(agent)
+  | SetBuffer(string)
   | AcceptSuggestion;
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type focus =
+  | Editor
+  | MVU;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type set_meta =
@@ -30,7 +49,10 @@ type set_meta =
   | Mouseup
   | ShowBackpackTargets(bool)
   | FontMetrics(FontMetrics.t)
-  | Result(ModelResults.Key.t, ModelResult.current);
+  | MVU(string, DHExp.t)
+  | Focus(focus)
+  | Result(ModelResults.Key.t, ModelResult.current)
+  | Auto(Auto.action(Auto.llm_report));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type benchmark_action =
@@ -45,6 +67,8 @@ type t =
   | SetMeta(set_meta)
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
+  | StoreKey(string, string)
+  | Execute /* Attempt to parse selection as sexp UpdateAction */
   | ExportPersistentData
   /* editors */
   | ResetCurrentEditor
@@ -57,6 +81,7 @@ type t =
   | FinishImportScratchpad(option(string))
   | SwitchScratchSlide(int)
   /* editor */
+  | MUVSyntax(Id.t, DHExp.t, DHExp.t)
   | DoTheThing
   | Save
   | PerformAction(Action.t)
@@ -69,6 +94,9 @@ type t =
   | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
   | Assistant(agent_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type auto_llm = Auto.t(t, Auto.llm_report);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

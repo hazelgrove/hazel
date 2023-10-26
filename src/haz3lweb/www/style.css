@@ -179,6 +179,7 @@
     17px 33.9px 42.7px -2.1px hsl(var(--shadow-color) / 0.34),
     25px 50px 62.9px -2.5px hsl(var(--shadow-color) / 0.34);
 
+    --link-gradient: linear-gradient(-90deg, #ee7752 0%, #e73c7e 10%, #23a6d5 30%, #23d5ab 50%, #23a6d5 70%, #e73c7e 90%, #ee7752 100%);
 }
 
 /* BASE ELEMENTS */
@@ -717,7 +718,21 @@ select {
 }
 
 .code .token.poly {
+ 
+}
+.code .token.poly.default {
+  /*text-transform: uppercase;*/
+  color: #c9bfa0;
+  /*opacity: 80%;*/
   font-weight: bold;
+}
+.code .token.poly.parens {
+  color: #b0a37b;
+  display: inline-block;
+  transform: scale(0.6);
+  /*opacity: 90%;*/
+}
+.code .token.poly.square {
 }
 
 .code .token.mono.string-lit {
@@ -736,6 +751,14 @@ select {
   
 .code .token.incomplete {
   color: var(--code-emphasis) !important;
+}
+
+.code .token.active-prompt {
+  background: var(--link-gradient);
+  background-size: 800% 800%;
+  animation: gradient 12s linear infinite alternate;
+  color: white !important;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
 }
 
 .code .token.explicit-hole {
@@ -1941,4 +1964,78 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
+}
+
+/* Assistant */
+
+@keyframes gradient {
+	0% {
+		background-position: 0% 0%;
+	}
+	100% {
+		background-position: 400% 0%;
+	}
+}
+
+.mvu-render .DHCode {
+  /*TODO(andrew):unhardcode*/
+  display: inline-flex;
+  background-color: #fffcf3;
+  color: #586e75;
+  border-radius: 0.2em;
+}
+
+@keyframes backgroundColorPalette {
+  0% {
+    background: #ee6055;
+  }
+  25% {
+    background: #60d394;
+  }
+  50% {
+    background: #aaf683;
+  }
+  75% {
+    background: #ffd97d;
+  }
+  100% {
+    background: #f785ff;
+  }
+}
+
+/* live aid */
+
+.env-entries-row {
+  position: absolute;
+  display: flex;
+  gap: 0.2em;
+  color: #c7b480;
+}
+
+.env-entry {
+  -webkit-mask-image: linear-gradient(to right, black 6.5em, transparent);
+  overflow: hidden;
+  max-width: 8em;
+  height: 1.4em;
+  border-bottom: 1px solid #0000;
+  border-top: 1px solid #0000;
+}
+.env-entry.res {
+  color: #7a6219 !important;
+}
+.env-entry.env {
+  color: #169fdc !important;
+}
+
+.env-entry:hover {
+  -webkit-mask-image: none;
+  position: relative;
+  background: rgb(240 231 214);
+  box-shadow: 0px 6px 14px #e2d9c4;
+  border-radius: 0.3em;
+  overflow: visible;
+  max-width: fit-content;
+  height: auto;
+  border-bottom: 1px solid #baac84;
+  border-top: 1px solid white;
 }

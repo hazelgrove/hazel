@@ -8,6 +8,8 @@ let is_write_action = (a: Action.t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
+  | Remote(_)
+  | InsertSegment(_)
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -17,14 +19,14 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      ~settings: CoreSettings.t,
-      a: Action.t,
-      z: Zipper.t,
-    )
-    : Action.Result.t(Zipper.t) => {
+let rec go_z =
+        (
+          ~meta: option(Editor.Meta.t)=?,
+          ~settings: CoreSettings.t,
+          a: Action.t,
+          z: Zipper.t,
+        )
+        : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -44,12 +46,77 @@ let go_z =
       }
     };
 
+  //TODO(andrew): make better
+  let init_pos = (z: Zipper.t): option((Id.t, Zipper.t => Zipper.t)) => {
+    /* We need to decide where we are initially. If there's a token to
+       our right, use its id as our initial position. We use the rightward
+       token because by our convention caret=Outer coincides with being 'on'
+       that token. If there is no token rightward, use the leftward token
+       id. But in this case, if caret=Outer, we're going to end up repositioned
+       to the left of the leftward token, so we need to move one token right. */
+    let {relatives: {siblings: (l, r), ancestors: _}, _} = z;
+    switch (ListUtil.hd_opt(r), ListUtil.last_opt(l)) {
+    | (Some(p), _) => Some((Piece.id(p), (z => z)))
+    | (_, Some(p)) =>
+      Some((
+        Piece.id(p),
+        (
+          z =>
+            switch (Zipper.move(Right, z)) {
+            | None => z
+            | Some(z) => z
+            }
+        ),
+      ))
+    | _ => None
+    };
+  };
+
   switch (a) {
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
     Move.go(Goal(Piece(Grout, d)), z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | Remote(id, action) =>
+    switch (init_pos(z)) {
+    | None => Error(Action.Failure.Cant_move)
+    | Some((old_id, position_adjustment)) =>
+      let old_caret = z.caret;
+      let segment = Zipper.unselect_and_zip(z);
+      //TODO(andrew): perf below
+      let map = Measured.path_map(segment);
+      let old_path = Id.Map.find(id, map); //TODO: catch or opt
+      let z = Zipper.zip_to_path(segment, old_path, Outer);
+      switch (go_z(~meta, ~settings, action, z)) {
+      | Error(_) => Error(Action.Failure.Cant_move)
+      | Ok(z) =>
+        let segment = Zipper.unselect_and_zip(z);
+        //TODO(andrew): perf below
+        let map = Measured.path_map(segment);
+        let z =
+          switch (Id.Map.find_opt(old_id, map)) {
+          | Some(path) =>
+            let z = Zipper.zip_to_path(segment, path, old_caret);
+            position_adjustment(z);
+          | None =>
+            /* This case occurs if we're inside the syntax being replaced */
+            Zipper.zip_to_path(segment, old_path, Outer)
+          };
+
+        Ok(z);
+      };
+    }
+  | InsertSegment(segment) =>
+    switch (go_z(~meta, ~settings, Select(Term(Current)), z)) {
+    | Error(e) => Error(e)
+    | Ok(z) =>
+      let z = {...z, selection: Selection.mk(segment)};
+      switch (go_z(~meta, ~settings, Unselect(Some(Left)), z)) {
+      | Error(e) => Error(e)
+      | Ok(z) => Ok(z)
+      };
+    }
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 
