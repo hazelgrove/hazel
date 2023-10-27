@@ -32,10 +32,6 @@ let put_eig: (EnvironmentIdGen.t, t) => t;
  */
 let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t), t) => ('a, t);
 
-let get_step: t => int;
-
-let put_step: (int, t) => t;
-
 /**
   [take_step es] is [es] with the updated step count.
  */
@@ -45,6 +41,8 @@ let take_step: t => t;
   [get_step es] is the number of steps taken.
  */
 let get_step: t => int;
+
+let put_step: (int, t) => t;
 
 let add_test: (t, KeywordID.t, TestMap.instance_report) => t;
 

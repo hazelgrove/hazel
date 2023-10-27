@@ -18,10 +18,88 @@ type environment = {
   continue: evaluator,
 };
 
+
 let transition =
     (~env: environment, d: DHExp.t)
     : EvaluatorMonad.t(StepperResult.t(DHExp.t)) => {
   let {env, fenv, require, evaluate, builtin, continue} = env;
+
+  module Let_syntax = {
+    let init = (f) => {
+      `BoxedValue(f, `Some(())) |> return;
+    };
+  };
+  open Let_syntax;
+
+  let init = (f) => {
+    `BoxedValue(f, `Some(())) |> return;
+  };
+  let combine = (f, d) => {
+    let* f = f;
+    switch (f) {
+    | `BoxedValue(f, `Some(t)) =>
+      let* r = require(d);
+      switch (r) {
+      | BoxedValue(d) => `BoxedValue(f(d), `Some(t, `BoxedValue(d))) |> return
+      | Indet(d) => `Indet(f(d), `Some(t, `Indet(d))) |> return
+      | Expr(d) => `Expr(f(d), `None) |> return
+      }
+    | `Indet(f, `None) =>
+      let* r = require(d);
+      switch (r) {
+      | BoxedValue(d) => `Indet(f(d), `None) |> return
+      | Indet(d) => `Indet(f(d), `None) |> return
+      | Expr(d) => `Expr(f(d), `None) |> return
+      }
+    | `Indet(f, `Some(t)) =>
+      let* r = require(d);
+      switch (r) {
+      | BoxedValue(d) => `Indet(f(d), `Some(t, `Indet(d))) |> return
+      | Indet(d) => `Indet(f(d), `Some(t, `Indet(d))) |> return
+      | Expr(d) => `Expr(f(d), `None) |> return
+      }
+    | `Expr(f, _) => `Expr(f(d), `None) |> return
+    }
+  };
+  let combine2 = (f, d) => {
+    let* f = f;
+    switch (f) {
+    | `BoxedValue(f, `Some(t)) =>
+      let* r = require(d);
+      switch (r) {
+      | BoxedValue(d) => `BoxedValue(f(d), `Some(t, `BoxedValue(d))) |> return
+      | Indet(d) => `Indet(f(d), `None) |> return
+      | Expr(d) => `Expr(f(d), `None) |> return
+      }
+    | `Indet(f, `Some(t)) =>
+      let* r = require(d);
+      switch (r) {
+      | BoxedValue(d) => `Indet(f(d), `Some(t, `BoxedValue(d))) |> return
+      | Indet(d) => `Indet(f(d), `None) |> return
+      | Expr(d) => `Expr(f(d), `None) |> return
+      }
+    | `Indet(f, `None) =>
+      let* r = require(d);
+      switch (r) {
+      | BoxedValue(d)
+      | Indet(d) => `Indet(f(d), `None) |> return
+      | Expr(d) => `Expr(f(d), `None) |> return
+      }
+    | `Expr(f, _) => `Expr(f(d), `None) |> return
+    }
+  };
+  let bind = (f, k) => {
+    let* f = f;
+    switch (f) {
+    | `Expr(d, _) => StepperResult.Expr(d) |> return
+    | `Indet(d, `None) => StepperResult.Indet(d) |> return
+    | `Indet(_, `Some(t))
+    | `BoxedValue(_, `Some(t)) => k(t)
+    }
+  };
+  let ( and+ ) = combine;
+  let ( and= ) = combine2;
+  let ( let+ ) = bind;
   switch (d) {
   | BoundVar(x) =>
     let d =
@@ -68,63 +146,46 @@ let transition =
   | Fun(_) => BoxedValue(Closure(env, fenv, d)) |> return
 
   | Ap(d1, d2) =>
-    let* r1 = require(d1);
+    let+ () = init(d1 => d2 => Ap(d1, d2))
+    and+ r1 = d1
+    and+ r2 = d2;
+    let return = (r: StepperResult.t(DHExp.t)) => { return(r); };
     switch (r1) {
-    | Expr(d1) =>
-      let* r2 = require(d2);
+    | `BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
+    | `BoxedValue(Constructor(_)) =>
       switch (r2) {
-      | Expr(d2)
-      | Indet(d2)
-      | BoxedValue(d2) => Expr(Ap(d1, d2)) |> return
+      | `BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
+      | `Indet(d2) => Indet(Ap(d1, d2)) |> return
       };
-    | BoxedValue(TestLit(id)) =>
-      let* r2 = Evaluator.evaluate_test(env, id, d2);
+    | `BoxedValue(Closure(closure_env, _, Fun(dp, _, d3, _)) as d1) =>
       switch (r2) {
-      | Indet(r2) => Indet(r2) |> return
-      | BoxedValue(r2) => BoxedValue(r2) |> return
-      };
-    | BoxedValue(Constructor(_) as d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(Ap(d1, d2)) |> return
-      | Indet(d2) => Indet(Ap(d1, d2)) |> return
-      | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
-      };
-    | BoxedValue(Closure(env, fenv, Fun(dp, _, d3, _)) as d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(Ap(d1, d2)) |> return
-      | BoxedValue(_)
-      | Indet(_) =>
+      | `BoxedValue(d2)
+      | `Indet(d2) =>
         switch (Evaluator.matches(dp, d2)) {
         | DoesNotMatch
         | IndetMatch => Indet(Ap(d1, d2)) |> return
         | Matches(env') =>
-          /* evaluate a closure: extend the closure environment with the
-           * new bindings introduced by the function application. */
-          let* env = env |> Evaluator.evaluate_extend_env(env');
-          continue(~env, ~fenv, d3);
+          // evaluate a closure: extend the closure environment with the
+          // new bindings introduced by the function application.
+          let* env = Evaluator.evaluate_extend_env(env', closure_env);
+          continue(~env, d3);
         }
       };
-    | BoxedValue(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2')))
-    | Indet(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-      let* r2 = require(d2);
+    | `BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
+    | `Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
       switch (r2) {
-      | Expr(d2) => Expr(Ap(d1, d2)) |> return
-      | Indet(d2)
-      | BoxedValue(d2) =>
+      | `BoxedValue(d2')
+      | `Indet(d2') =>
         /* ap cast rule */
-        continue(Cast(Ap(d1, Cast(d2, ty1', ty1)), ty2, ty2'))
+        continue(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       };
-    | BoxedValue(d1) =>
+    | `BoxedValue(d1') =>
       print_endline("InvalidBoxedFun");
-      raise(EvaluatorError.Exception(InvalidBoxedFun(d1)));
-    | Indet(d1) =>
-      let* r2 = require(d2);
+      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
+    | `Indet(d1') =>
       switch (r2) {
-      | Expr(d2) => Expr(Ap(d1, d2)) |> return
-      | Indet(d2)
-      | BoxedValue(d2) => Indet(Ap(d1, d2)) |> return
+      | `BoxedValue(d2')
+      | `Indet(d2') => Indet(Ap(d1', d2')) |> return
       };
     };
 
@@ -143,57 +204,35 @@ let transition =
   | Constructor(_) => BoxedValue(d) |> return
 
   | BinBoolOp(op, d1, d2) =>
-    let* r1 = require(d1);
+    let+ () = init(d1 => d2 => BinBoolOp(op, d1, d2))
+    and= `BoxedValue(r1) = d1
+    and= `BoxedValue(r2) = d2;
     switch (r1) {
-    | Expr(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2)
-      | Indet(d2)
-      | BoxedValue(d2) => Expr(BinBoolOp(op, d1, d2)) |> return
-      };
-    | BoxedValue(BoolLit(b1) as d1) =>
+    | BoolLit(b1) =>
       switch (Evaluator.eval_bin_bool_op_short_circuit(op, b1)) {
       | Some(b3) => builtin(b3)
       | None =>
-        let* r2 = require(d2);
         switch (r2) {
-        | Expr(d2) => Expr(BinBoolOp(op, d1, d2)) |> return
-        | Indet(d2) => Indet(BinBoolOp(op, d1, d2)) |> return
-        | BoxedValue(BoolLit(b2)) =>
+        | BoolLit(b2) =>
           builtin(Evaluator.eval_bin_bool_op(op, b1, b2))
-        | BoxedValue(d2) =>
+        | d2 =>
           print_endline("InvalidBoxedBoolLit");
           raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)));
         };
       }
-    | BoxedValue(d1) =>
+    | d1 =>
       print_endline("InvalidBoxedBoolLit");
       raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)));
-    | Indet(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinBoolOp(op, d1, d2)) |> return
-      | Indet(d2)
-      | BoxedValue(d2) => Indet(BinBoolOp(op, d1, d2)) |> return
-      };
     };
 
   | BinIntOp(op, d1, d2) =>
-    let* r1 = require(d1);
+    let+ () = init(d1 => d2 => BinIntOp(op, d1, d2))
+    and= `BoxedValue(r1) = d1
+    and= `BoxedValue(r2) = d2;
     switch (r1) {
-    | Expr(d1) =>
-      let* r2 = require(d2);
+    | IntLit(n1) =>
       switch (r2) {
-      | Expr(d2)
-      | Indet(d2)
-      | BoxedValue(d2) => Expr(BinIntOp(op, d1, d2)) |> return
-      };
-    | BoxedValue(IntLit(n1) as d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinIntOp(op, d1, d2)) |> return
-      | BoxedValue(IntLit(n2)) =>
+      | IntLit(n2) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) =>
           Indet(
@@ -213,87 +252,49 @@ let transition =
           |> return
         | _ => builtin(Evaluator.eval_bin_int_op(op, n1, n2))
         }
-      | BoxedValue(d2) =>
+      | d2 =>
         print_endline("InvalidBoxedIntLit1");
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)));
-      | Indet(d2) => Indet(BinIntOp(op, d1, d2)) |> return
       };
-    | BoxedValue(d1) =>
+    | d1 =>
       print_endline("InvalidBoxedIntLit2");
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)));
-    | Indet(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinIntOp(op, d1, d2)) |> return
-      | BoxedValue(d2)
-      | Indet(d2) => Indet(BinIntOp(op, d1, d2)) |> return
-      };
     };
 
   | BinFloatOp(op, d1, d2) =>
-    let* r1 = require(d1);
-    switch (r1) {
-    | Expr(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2)
-      | Indet(d2)
-      | BoxedValue(d2) => Expr(BinFloatOp(op, d1, d2)) |> return
-      };
-    | BoxedValue(FloatLit(f1) as d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinFloatOp(op, d1, d2)) |> return
-      | BoxedValue(FloatLit(f2)) =>
+    let+ () = init(d1 => d2 => BinFloatOp(op, d1, d2))
+    and= `BoxedValue(d1) = d1
+    and= `BoxedValue(d2) = d2;
+    switch (d1) {
+    | FloatLit(f1) =>
+      switch (d2) {
+      | FloatLit(f2) =>
         builtin(Evaluator.eval_bin_float_op(op, f1, f2))
-      | BoxedValue(d2) =>
+      | d2 =>
         print_endline("InvalidBoxedFloatLit");
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2)));
-      | Indet(d2) => Indet(BinFloatOp(op, d1, d2)) |> return
       };
-    | BoxedValue(d1) =>
+    | d1 =>
       print_endline("InvalidBoxedFloatLit");
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)));
-    | Indet(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinFloatOp(op, d1, d2)) |> return
-      | BoxedValue(d2)
-      | Indet(d2) => Indet(BinFloatOp(op, d1, d2)) |> return
-      };
     };
 
   | BinStringOp(op, d1, d2) =>
-    let* r1 = require(d1);
-    switch (r1) {
-    | Expr(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2)
-      | Indet(d2)
-      | BoxedValue(d2) => Expr(BinStringOp(op, d1, d2)) |> return
-      };
-    | BoxedValue(StringLit(s1) as d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinStringOp(op, d1, d2)) |> return
-      | BoxedValue(StringLit(s2)) =>
+    let+ () = init(d1 => d2 => BinStringOp(op, d1, d2))
+    and= `BoxedValue(d1) = d1
+    and= `BoxedValue(d2) = d2;
+    switch (d1) {
+    | StringLit(s1) =>
+      switch (d2) {
+      | StringLit(s2) =>
         builtin(Evaluator.eval_bin_string_op(op, s1, s2))
-      | BoxedValue(d2) =>
+      | d2 =>
         print_endline("InvalidBoxedStringLit");
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2)));
-      | Indet(d2) => Indet(BinStringOp(op, d1, d2)) |> return
       };
-    | BoxedValue(d1) =>
+    | d1 =>
       print_endline("InvalidBoxedStringLit");
       raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)));
-    | Indet(d1) =>
-      let* r2 = require(d2);
-      switch (r2) {
-      | Expr(d2) => Expr(BinStringOp(op, d1, d2)) |> return
-      | BoxedValue(d2)
-      | Indet(d2) => Indet(BinStringOp(op, d1, d2)) |> return
-      };
     };
 
   | ListConcat(d1, d2) =>
