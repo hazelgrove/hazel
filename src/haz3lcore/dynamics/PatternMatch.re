@@ -249,6 +249,7 @@ and matches_cast_Sum =
   | EmptyHole(_)
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
+  | Test(_)
   | InvalidOperation(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
@@ -264,7 +265,6 @@ and matches_cast_Sum =
   | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)
-  | TestLit(_)
   | Cons(_)
   | ListConcat(_) => DoesNotMatch
   }
@@ -342,7 +342,7 @@ and matches_cast_Tuple =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
-  | TestLit(_) => DoesNotMatch
+  | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
@@ -479,7 +479,7 @@ and matches_cast_Cons =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
-  | TestLit(_) => DoesNotMatch
+  | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
