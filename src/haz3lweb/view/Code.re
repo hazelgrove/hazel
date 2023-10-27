@@ -263,28 +263,36 @@ let view =
       let settings = settings;
     });
   let unselected =
-    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(
-        false,
-        sort,
-        unselected,
-        ~font_metrics,
-        ~inject,
-        ~folded,
-      )
+    TimeUtil.measure_time(
+      "Code.view/unselected",
+      settings.benchmark,
+      () => {
+        let buttons =
+          fold_buttons(
+            ~map=measured,
+            ~font_metrics,
+            segment,
+            ~folded,
+            ~inject,
+          );
+        Text.of_segment(
+          false,
+          sort,
+          unselected,
+          ~font_metrics,
+          ~inject,
+          ~folded,
+        )
+        @ buttons;
+      },
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
       holes(~map=measured, ~font_metrics, segment, ~folded)
     );
-  let buttons =
-    TimeUtil.measure_time("Code.view/buttons", settings.benchmark, () =>
-      fold_buttons(~map=measured, ~font_metrics, segment, ~folded, ~inject)
-    );
   div(
     ~attr=Attr.class_("code"),
-    buttons
-    @ [
+    [
       span_c("code-text", unselected),
       // TODO restore (already regressed so no loss in commenting atm)
       // span_c("code-text-shards", Text.of_segment(segment)),
