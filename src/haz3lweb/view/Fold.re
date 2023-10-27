@@ -28,7 +28,7 @@ let button_view =
       origin: Measured.Point.t,
     ) => {
   let button_origin: Measured.Point.t = {...origin, col: (-2)};
-  Node.span(
+  Node.button(
     ~attr=
       Attr.many([
         DecUtil.abs_position(~font_metrics, button_origin),
