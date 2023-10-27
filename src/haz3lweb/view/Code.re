@@ -180,16 +180,16 @@ let fold_buttons =
       | Piece.Secondary(_)
       | Grout(_) => []
       | Tile(t) when Module.foldable(t) => {
-          let row = Measured.find_t(t, map).origin.row;
+          let origin = Measured.find_t(t, map).origin;
           let button =
-            Fold.button_view(font_metrics, inject, folded, t.id, row);
+            Fold.button_view(font_metrics, inject, folded, t.id, origin);
           let children =
             switch (t.children) {
             | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
             | _ => t.children
             };
           [
-            (button, row),
+            (button, origin.row),
             ...List.concat_map(fold_buttons_with_row, children),
           ];
         }

@@ -20,26 +20,28 @@ let fold_button_style = (font_metrics: FontMetrics.t) =>
   );
 
 let button_view =
-    (font_metrics: FontMetrics.t, inject, folded: list(Id.t), tile_id, row) => {
-  let origin: Measured.Point.t = {row, col: (-2)};
+    (
+      font_metrics: FontMetrics.t,
+      inject,
+      folded: list(Id.t),
+      tile_id,
+      origin: Measured.Point.t,
+    ) => {
+  let button_origin: Measured.Point.t = {...origin, col: (-2)};
   Node.input(
     ~attr=
       Attr.many(
         [
-          DecUtil.abs_position(~font_metrics, origin),
+          DecUtil.abs_position(~font_metrics, button_origin),
           Attr.create("type", "checkbox"),
           Attr.on_mousedown(_evt => {
             Js_of_ocaml.Dom_html.stopPropagation(_evt);
-            let goals: Measured.Point.t = {row, col: 0};
+            let goal: Measured.Point.t = {...origin, col: origin.col + 1};
             let events = [
               inject(UpdateAction.PerformAction(Click(tile_id))),
+              inject(UpdateAction.PerformAction(Move(Goal(Point(goal))))),
               inject(
-                UpdateAction.PerformAction(
-                  Move(Goal(Point({row: 0, col: 0}))),
-                ),
-              ),
-              inject(
-                UpdateAction.PerformAction(Move(Goal(Point(goals)))),
+                UpdateAction.PerformAction(Move(Goal(Point(origin)))),
               ),
             ];
             Virtual_dom.Vdom.Effect.Many(events);
