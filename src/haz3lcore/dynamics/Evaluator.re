@@ -1,6 +1,4 @@
 open Util;
-open EvaluatorMonad;
-open EvaluatorMonad.Syntax;
 open EvaluatorResult;
 open PatternMatch;
 
@@ -56,735 +54,573 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   };
 };
 
-/**
-  Alias for EvaluatorMonad.
- */
-type m('a) = EvaluatorMonad.t('a);
+// TODO(Matt): PURGE THE ABOVE
 
-/**
-  [eval_bin_bool_op op b1 b2] is the result of applying [op] to [b1] and [b2].
- */
-let eval_bin_bool_op =
-    (op: TermBase.UExp.op_bin_bool, b1: bool, b2: bool): DHExp.t =>
-  switch (op) {
-  | And => BoolLit(b1 && b2)
-  | Or => BoolLit(b1 || b2)
-  };
+type rule =
+  | Step({
+      undo: DHExp.t,
+      apply: unit => DHExp.t,
+      final: bool,
+    })
+  | Constructor(DHExp.t)
+  | Indet(DHExp.t);
 
-/**
-  [eval_bin_bool_op_short_circuit op b1] is [Some b] if [op b1 b2] can be
-  resolved with just [b1].
- */
-let eval_bin_bool_op_short_circuit =
-    (op: TermBase.UExp.op_bin_bool, b1: bool): option(DHExp.t) =>
-  switch (op, b1) {
-  | (Or, true) => Some(BoolLit(true))
-  | (And, false) => Some(BoolLit(false))
-  | _ => None
-  };
+let undo_rule =
+  fun
+  // If anything going into it is indet, the result should be indet
+  | Step({undo: x, _})
+  | Constructor(x)
+  | Indet(x) => x;
 
-/**
-  [eval_bin_int_op op n1 n2] is the result of applying [op] to [n1] and [n2].
- */
-let eval_bin_int_op =
-    (op: TermBase.UExp.op_bin_int, n1: int, n2: int): DHExp.t => {
-  switch (op) {
-  | Minus => IntLit(n1 - n2)
-  | Plus => IntLit(n1 + n2)
-  | Times => IntLit(n1 * n2)
-  | Power => IntLit(IntUtil.ipow(n1, n2))
-  | Divide => IntLit(n1 / n2)
-  | LessThan => BoolLit(n1 < n2)
-  | LessThanOrEqual => BoolLit(n1 <= n2)
-  | GreaterThan => BoolLit(n1 > n2)
-  | GreaterThanOrEqual => BoolLit(n1 >= n2)
-  | Equals => BoolLit(n1 == n2)
-  | NotEquals => BoolLit(n1 != n2)
-  };
+module type EV_MODE = {
+  type state;
+  type result;
+  type intermediate('a);
+
+  let req_value: (DHExp.t => result, int, DHExp.t) => intermediate(DHExp.t);
+  let req_all_value:
+    (DHExp.t => result, int, list(DHExp.t)) => intermediate(list(DHExp.t));
+  let req_final: (DHExp.t => result, int, DHExp.t) => intermediate(DHExp.t);
+  let req_all_final:
+    (DHExp.t => result, int, list(DHExp.t)) => intermediate(list(DHExp.t));
+  let do_not_req: (DHExp.t => result, int, DHExp.t) => intermediate(DHExp.t);
+
+  let (let.): (intermediate('a), 'a => rule) => result;
+  let (and.):
+    (intermediate('a), intermediate('b)) => intermediate(('a, 'b));
+
+  let no_req: rule => result;
+
+  let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
+  let extend_env:
+    (state, ClosureEnvironment.t, Environment.t) => ClosureEnvironment.t;
 };
 
-/**
-  [eval_bin_float_op op f1 f2] is the result of applying [op] to [f1] and [f2].
- */
-let eval_bin_float_op =
-    (op: TermBase.UExp.op_bin_float, f1: float, f2: float): DHExp.t => {
-  switch (op) {
-  | Plus => FloatLit(f1 +. f2)
-  | Minus => FloatLit(f1 -. f2)
-  | Times => FloatLit(f1 *. f2)
-  | Power => FloatLit(f1 ** f2)
-  | Divide => FloatLit(f1 /. f2)
-  | LessThan => BoolLit(f1 < f2)
-  | LessThanOrEqual => BoolLit(f1 <= f2)
-  | GreaterThan => BoolLit(f1 > f2)
-  | GreaterThanOrEqual => BoolLit(f1 >= f2)
-  | Equals => BoolLit(f1 == f2)
-  | NotEquals => BoolLit(f1 != f2)
-  };
-};
+module Transition = (EV: EV_MODE) => {
+  open EV;
+  let (let.match) = ((state, env, match_result), r) =>
+    switch (match_result) {
+    | IndetMatch
+    | DoesNotMatch => Indet(Closure(env, undo_rule(r(env))))
+    | Matches(env') => r(EV.extend_env(state, env, env'))
+    };
 
-let eval_bin_string_op =
-    (op: TermBase.UExp.op_bin_string, s1: string, s2: string): DHExp.t =>
-  switch (op) {
-  | Concat => StringLit(s1 ++ s2)
-  | Equals => BoolLit(s1 == s2)
-  };
-
-let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
-  (env, d) => {
-    /* Increment number of evaluation steps (calls to `evaluate`). */
-    let* () = take_step;
-
-    switch (d) {
-    | BoundVar(x) =>
-      let d =
-        x
-        |> ClosureEnvironment.lookup(env)
-        |> OptUtil.get(() => {
-             print_endline("FreeInvalidVar:" ++ x);
-             raise(EvaluatorError.Exception(FreeInvalidVar(x)));
-           });
-      /* We need to call [evaluate] on [d] again since [env] does not store
-       * final expressions. */
-      evaluate(env, d);
-
-    | Sequence(d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(_d1) => evaluate(env, d2)
-      /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
-       * if evaluated d1 is indet. */
-      | Indet(_d1) =>
-        /* let* r2 = evaluate(env, d2); */
-        /* switch (r2) { */
-        /* | BoxedValue(d2) */
-        /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
-        /* }; */
-        evaluate(env, d2)
-      };
-
-    | Let(dp, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(d1)
-      | Indet(d1) =>
-        switch (matches(dp, d1)) {
-        | IndetMatch
-        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
-        | Matches(env') =>
-          let* env = evaluate_extend_env(env', env);
-          evaluate(env, d2);
-        }
-      };
-
-    | FixF(f, _, d') =>
-      let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
-      evaluate(env', d');
-
-    | Fun(_) => BoxedValue(Closure(env, d)) |> return
-
-    | Ap(d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
-      | BoxedValue(Constructor(_)) =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
-        | Indet(d2) => Indet(Ap(d1, d2)) |> return
+  let transition = (req, state, env): (DHExp.t => 'a) =>
+    fun
+    | BoundVar(x) => {
+        let d =
+          x
+          |> ClosureEnvironment.lookup(env)
+          |> OptUtil.get(() => {
+               print_endline("FreeInvalidVar:" ++ x);
+               raise(EvaluatorError.Exception(FreeInvalidVar(x)));
+             });
+        no_req(
+          Step({
+            undo: BoundVar(x),
+            apply: () => d,
+            final: false // TODO(Matt): Can we make this true?
+          }),
+        );
+      }
+    | Sequence(d1, d2) => {
+        let. d1' = req_final(req(state, env), 0, d1)
+        and. d2' = do_not_req(req(state, env), 1, d2);
+        Step({undo: Sequence(d1', d2'), apply: () => d2', final: false});
+      }
+    | Let(dp, d1, d2) => {
+        let. d1' = req_final(req(state, env), 0, d1)
+        and. d2' = do_not_req(req(state, env), 1, d2);
+        let.match env' = (state, env, matches(dp, d1'));
+        Step({
+          undo: Closure(env, Let(dp, d1', d2')),
+          apply: () => Closure(env', d2'),
+          final: false,
+        });
+      }
+    | Fun(_) as d =>
+      no_req(Step({undo: d, apply: () => Closure(env, d), final: true}))
+    | FixF(f, t, d1) =>
+      // TODO(Matt): Would it be safer to have a fourth argument to FixF?
+      no_req(
+        // TODO(Matt): is this a step?
+        Step({
+          undo: FixF(f, t, d1), // TODO(Matt): Is t needed here?
+          apply: () =>
+            Closure(
+              extend_env(state, env, Environment.singleton((f, d1))),
+              d1,
+            ),
+          final: false,
+        }),
+      )
+    | Test(id, d) => {
+        let. d' = req_final(req(state, env), 0, d);
+        Step({
+          undo: Test(id, d'),
+          apply: () =>
+            switch (d') {
+            | BoolLit(true) =>
+              update_test(state, id, (d', Pass));
+              d;
+            | BoolLit(false) =>
+              update_test(state, id, (d', Fail));
+              d;
+            /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
+            | _ =>
+              update_test(state, id, (d', Indet));
+              d;
+            },
+          final: true,
+        });
+      }
+    | Ap(d1, d2) => {
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = req_final(req(state, env), 1, d2);
+        switch (d1') {
+        | Constructor(_) => Constructor(Ap(d1', d2')) // TODO(Matt): Two different "Constructor" constructors is confusing
+        | Closure(env', Fun(dp, _, d3, _)) =>
+          let.match env'' = (state, env', matches(dp, d2'));
+          Step({
+            undo: Ap(d1', d2'),
+            apply: () => Closure(env'', d3),
+            final: false,
+          });
+        | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+          Step({
+            undo: Ap(d1', d2'), // TODO(Matt): we've changed the semantics of cast slightly here - check that it doesn't cause problems
+            apply: () => Cast(Ap(d3', Cast(d2', ty1', ty1)), ty2, ty2'),
+            final: false,
+          })
+        | _ =>
+          Step({
+            undo: Ap(d1', d2'),
+            apply: () => {
+              print_endline("InvalidBoxedFun");
+              raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
+            },
+            final: true,
+          }) // TODO(Matt): Check that when I implement Indet it won't indet a partially-run program
         };
-      | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2)
-        | Indet(d2) =>
-          switch (matches(dp, d2)) {
-          | DoesNotMatch
-          | IndetMatch => Indet(Ap(d1, d2)) |> return
+      }
+    | ApBuiltin(ident, args) => {
+        let. _args' = req_all_final(req(state, env), 0, args);
+        Step({
+          undo: ApBuiltin(ident, args),
+          apply: () => failwith("Builtins not implemented yet"), // TODO(Matt): Add builtins back.
+          // VarMap.lookup(Builtins.forms_init, ident)
+          // |> OptUtil.get(() => {
+          //      print_endline("InvalidBuiltin");
+          //      raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
+          //    }),
+          final: false,
+        });
+      }
+    | BoolLit(_) as d
+    | IntLit(_) as d
+    | FloatLit(_) as d
+    | StringLit(_) as d
+    | Constructor(_) as d => no_req(Constructor(d))
+    | BinBoolOp(And, d1, d2) => {
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = do_not_req(req(state, env), 1, d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+        Step({
+          undo: BinBoolOp(And, d1', d2'),
+          apply: () =>
+            switch (d1') {
+            | BoolLit(true) => d2'
+            | BoolLit(false) => BoolLit(false)
+            | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1'))) // TODO(Matt): Make it consistent whether we print
+            },
+          final: false,
+        });
+      }
+    | BinBoolOp(Or, d1, d2) => {
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = do_not_req(req(state, env), 1, d2);
+        Step({
+          undo: BinBoolOp(Or, d1', d2'),
+          apply: () =>
+            switch (d1') {
+            | BoolLit(true) => BoolLit(true)
+            | BoolLit(false) => d2'
+            | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
+            },
+          final: false,
+        });
+      }
+    | BinIntOp(op, d1, d2) => {
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = req_value(req(state, env), 1, d2);
+        Step({
+          undo: BinIntOp(op, d1', d2'),
+          apply: () =>
+            switch (d1', d2') {
+            | (IntLit(n1), IntLit(n2)) =>
+              switch (op) {
+              | Plus => IntLit(n1 + n2)
+              | Minus => IntLit(n1 - n2)
+              | Power when n2 < 0 =>
+                InvalidOperation(
+                  BinIntOp(op, IntLit(n1), IntLit(n2)),
+                  NegativeExponent,
+                )
+              | Power => IntLit(IntUtil.ipow(n1, n2))
+              | Times => IntLit(n1 * n2)
+              | Divide when n2 == 0 =>
+                InvalidOperation(
+                  BinIntOp(op, IntLit(n1), IntLit(n2)),
+                  DivideByZero,
+                )
+              | Divide => IntLit(n1 / n2)
+              | LessThan => BoolLit(n1 < n2)
+              | LessThanOrEqual => BoolLit(n1 <= n2)
+              | GreaterThan => BoolLit(n1 > n2)
+              | GreaterThanOrEqual => BoolLit(n1 >= n2)
+              | Equals => BoolLit(n1 == n2)
+              | NotEquals => BoolLit(n1 != n2)
+              }
+            | (IntLit(_), _) =>
+              raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
+            | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
+            },
+          final: false // False so that InvalidOperations are caught and made indet
+        });
+      }
+    | BinFloatOp(op, d1, d2) => {
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = req_value(req(state, env), 1, d2);
+        Step({
+          undo: BinFloatOp(op, d1', d2'),
+          apply: () =>
+            switch (d1', d2') {
+            | (FloatLit(n1), FloatLit(n2)) =>
+              switch (op) {
+              | Plus => FloatLit(n1 +. n1)
+              | Minus => FloatLit(n1 -. n2)
+              | Power => FloatLit(n1 ** n2)
+              | Times => FloatLit(n1 *. n2)
+              | Divide => FloatLit(n1 /. n2) // Do we like that this behavior is not consistent w/ integers?
+              | LessThan => BoolLit(n1 < n2)
+              | LessThanOrEqual => BoolLit(n1 <= n2)
+              | GreaterThan => BoolLit(n1 > n2)
+              | GreaterThanOrEqual => BoolLit(n1 >= n2)
+              | Equals => BoolLit(n1 == n2)
+              | NotEquals => BoolLit(n1 != n2)
+              }
+            | (FloatLit(_), _) =>
+              raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
+            | _ =>
+              raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
+            },
+          final: true,
+        });
+      }
+    | BinStringOp(op, d1, d2) => {
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = req_value(req(state, env), 1, d2);
+        Step({
+          undo: BinStringOp(op, d1', d2'),
+          apply: () =>
+            switch (d1', d2') {
+            | (StringLit(s1), StringLit(s2)) =>
+              switch (op) {
+              | Concat => StringLit(s1 ++ s2)
+              | Equals => BoolLit(s1 == s2)
+              }
+            | (StringLit(_), _) =>
+              raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
+            | _ =>
+              raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
+            },
+          final: true,
+        });
+      }
+    | Tuple(ds) => {
+        let. ds' = req_all_value(req(state, env), 0, ds);
+        Constructor(Tuple(ds'));
+      }
+    // TODO(Matt): As far as I can tell this case is only used for mutual recursion - could we cut it and replace w/ let?
+    | Prj(d1, n) => {
+        let. d1' = req_final(req(state, env), 0, d1);
+        Step({
+          undo: Prj(d1, n),
+          apply: () =>
+            switch (d1') {
+            | Tuple(ds) when n < 0 || List.length(ds) <= n =>
+              InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            | Tuple(ds) => List.nth(ds, n)
+            | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
+              InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            | Cast(d2, Prod(ts1), Prod(ts2)) =>
+              Cast(Prj(d2, n), List.nth(ts1, n), List.nth(ts2, n))
+            | _ =>
+              InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            },
+          final: false,
+        });
+      }
+    // TODO(Matt): (unrelated to comment location: do we ever need req_value??)
+    // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
+    | Cons(d1, d2) => {
+        let. d1' = req_final(req(state, env), 0, d1)
+        and. d2' = req_value(req(state, env), 1, d2);
+        Step({
+          undo: Cons(d1', d2'),
+          apply: () =>
+            switch (d2') {
+            | ListLit(u, i, ty, ds) => ListLit(u, i, ty, [d1', ...ds])
+            | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
+            },
+          final: true,
+        });
+      }
+    // TODO(Matt): Why are lists represented as literals with all the fancy stuff instead of just nil and cons?
+    | ListConcat(d1, d2) => {
+        // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
+        let. d1' = req_value(req(state, env), 0, d1)
+        and. d2' = req_value(req(state, env), 1, d2);
+        Step({
+          undo: ListConcat(d1', d2'),
+          apply: () =>
+            switch (d1', d2') {
+            | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
+              ListLit(u1, i1, t1, ds1 @ ds2)
+            | (ListLit(_), _) =>
+              raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
+            | (_, _) =>
+              raise(EvaluatorError.Exception(InvalidBoxedListLit(d1')))
+            },
+          final: true,
+        });
+      }
+    | ListLit(u, i, ty, ds) => {
+        let. ds' = req_all_final(req(state, env), 0, ds);
+        Constructor(ListLit(u, i, ty, ds'));
+      }
+    // TODO(Matt): This will currently re-traverse d1
+    | ConsistentCase(Case(d1, rules, n)) => {
+        let. d1' = req_final(req(state, env), 0, d1);
+        switch (List.nth_opt(rules, n)) {
+        | None => Indet(Closure(env, ConsistentCase(Case(d1', rules, n)))) // TODO: Why do we need a closure when everything is final?
+        | Some(Rule(dp, d2)) =>
+          switch (matches(dp, d1')) {
           | Matches(env') =>
-            // evaluate a closure: extend the closure environment with the
-            // new bindings introduced by the function application.
-            let* env = evaluate_extend_env(env', closure_env);
-            evaluate(env, d3);
+            Step({
+              undo: ConsistentCase(Case(d1', rules, n)),
+              apply: () => Closure(extend_env(state, env, env'), d2),
+              final: false,
+            })
+          | DoesNotMatch =>
+            Step({
+              undo: ConsistentCase(Case(d1', rules, n)),
+              apply: () => ConsistentCase(Case(d1', rules, n + 1)),
+              final: false,
+            })
+          | IndetMatch =>
+            Indet(Closure(env, ConsistentCase(Case(d1', rules, n)))) // TODO(Matt): Is Closure necessary?
           }
-        };
-      | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
-      | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2')
-        | Indet(d2') =>
-          /* ap cast rule */
-          evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
-        };
-      | BoxedValue(d1') =>
-        print_endline("InvalidBoxedFun");
-        raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
-      | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(Ap(d1', d2')) |> return
-        };
-      };
-
-    | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
-
-    | TestLit(_)
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
-    | Constructor(_) => BoxedValue(d) |> return
-
-    | BinBoolOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(BoolLit(b1) as d1') =>
-        switch (eval_bin_bool_op_short_circuit(op, b1)) {
-        | Some(b3) => BoxedValue(b3) |> return
-        | None =>
-          let* r2 = evaluate(env, d2);
-          switch (r2) {
-          | BoxedValue(BoolLit(b2)) =>
-            BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
-          | BoxedValue(d2') =>
-            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
-          | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
-          };
-        }
-      | BoxedValue(d1') =>
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
-      | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
-        };
-      };
-
-    | BinIntOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(IntLit(n1) as d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(IntLit(n2)) =>
-          switch (op, n1, n2) {
-          | (Divide, _, 0) =>
-            Indet(
-              InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
-                DivideByZero,
-              ),
-            )
-            |> return
-          | (Power, _, _) when n2 < 0 =>
-            Indet(
-              InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
-                NegativeExponent,
-              ),
-            )
-            |> return
-          | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
-          }
-        | BoxedValue(d2') =>
-          print_endline("InvalidBoxedIntLit1");
-          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
-        | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
-        };
-      | BoxedValue(d1') =>
-        print_endline("InvalidBoxedIntLit2");
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
-      | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
-        };
-      };
-
-    | BinFloatOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(FloatLit(f1) as d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(FloatLit(f2)) =>
-          BoxedValue(eval_bin_float_op(op, f1, f2)) |> return
-        | BoxedValue(d2') =>
-          print_endline("InvalidBoxedFloatLit");
-          raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
-        | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
-        };
-      | BoxedValue(d1') =>
-        print_endline("InvalidBoxedFloatLit");
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')));
-      | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
-        };
-      };
-
-    | BinStringOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(StringLit(f1) as d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(StringLit(f2)) =>
-          BoxedValue(eval_bin_string_op(op, f1, f2)) |> return
-        | BoxedValue(d2') =>
-          print_endline("InvalidBoxedStringLit");
-          raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
-        | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
-        };
-      | BoxedValue(d1') =>
-        print_endline("InvalidBoxedStringLit");
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')));
-      | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
-        };
-      };
-
-    | Tuple(ds) =>
-      let+ lst = ds |> List.map(evaluate(env)) |> sequence;
-      let (ds', indet) =
-        List.fold_right(
-          (el, (lst, indet)) =>
-            switch (el) {
-            | BoxedValue(el) => ([el, ...lst], false || indet)
-            | Indet(el) => ([el, ...lst], true)
-            },
-          lst,
-          ([], false),
-        );
-
-      let d = DHExp.Tuple(ds');
-      if (indet) {
-        Indet(d);
-      } else {
-        BoxedValue(d);
-      };
-
-    | Prj(targ, n) =>
-      if (n < 0) {
-        return(
-          Indet(
-            InvalidOperation(d, InvalidOperationError.InvalidProjection),
-          ),
-        );
-      } else {
-        let* r = evaluate(env, targ);
-        switch (r) {
-        | BoxedValue(Tuple(ds) as rv) =>
-          if (n >= List.length(ds)) {
-            return(
-              Indet(
-                InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-              ),
-            );
-          } else {
-            return(BoxedValue(List.nth(ds, n)));
-          }
-        | Indet(Tuple(ds) as rv) =>
-          if (n >= List.length(ds)) {
-            return(
-              Indet(
-                InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-              ),
-            );
-          } else {
-            return(Indet(List.nth(ds, n)));
-          }
-        | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)
-        | Indet(Cast(targ', Prod(tys), Prod(tys')) as rv) =>
-          if (n >= List.length(tys)) {
-            return(
-              Indet(
-                InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-              ),
-            );
-          } else {
-            let ty = List.nth(tys, n);
-            let ty' = List.nth(tys', n);
-            evaluate(env, Cast(Prj(targ', n), ty, ty'));
-          }
-        | _ => return(Indet(d))
         };
       }
-
-    | Cons(d1, d2) =>
-      let* d1 = evaluate(env, d1);
-      let* d2 = evaluate(env, d2);
-      switch (d1, d2) {
-      | (Indet(d1), Indet(d2))
-      | (Indet(d1), BoxedValue(d2))
-      | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
-      | (BoxedValue(d1), BoxedValue(d2)) =>
-        switch (d2) {
-        | ListLit(u, i, ty, ds) =>
-          BoxedValue(ListLit(u, i, ty, [d1, ...ds])) |> return
-        | Cons(_)
-        | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
-        | _ =>
-          print_endline("InvalidBoxedListLit");
-          raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
-        }
-      };
-
-    | ListConcat(d1, d2) =>
-      let* d1 = evaluate(env, d1);
-      let* d2 = evaluate(env, d2);
-      switch (d1, d2) {
-      | (Indet(d1), Indet(d2))
-      | (Indet(d1), BoxedValue(d2))
-      | (BoxedValue(d1), Indet(d2)) => Indet(ListConcat(d1, d2)) |> return
-      | (BoxedValue(d1), BoxedValue(d2)) =>
-        switch (d1, d2) {
-        | (ListLit(u, i, ty, ds1), ListLit(_, _, _, ds2)) =>
-          BoxedValue(ListLit(u, i, ty, ds1 @ ds2)) |> return
-        | (Cast(d1, List(ty), List(ty')), d2)
-        | (d1, Cast(d2, List(ty), List(ty'))) =>
-          evaluate(env, Cast(ListConcat(d1, d2), List(ty), List(ty')))
-        | (ListLit(_), _) =>
-          print_endline("InvalidBoxedListLit: " ++ DHExp.show(d2));
-          raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
-        | _ =>
-          print_endline("InvalidBoxedListLit: " ++ DHExp.show(d1));
-          raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
-        }
-      };
-
-    | ListLit(u, i, ty, lst) =>
-      let+ lst = lst |> List.map(evaluate(env)) |> sequence;
-      let (lst, indet) =
-        List.fold_right(
-          (el, (lst, indet)) =>
-            switch (el) {
-            | BoxedValue(el) => ([el, ...lst], false || indet)
-            | Indet(el) => ([el, ...lst], true)
-            },
-          lst,
-          ([], false),
-        );
-      let d = DHExp.ListLit(u, i, ty, lst);
-      if (indet) {
-        Indet(d);
-      } else {
-        BoxedValue(d);
-      };
-
-    | ConsistentCase(Case(d1, rules, n)) =>
-      evaluate_case(env, None, d1, rules, n)
-
-    /* Generalized closures evaluate to themselves. Only
-       lambda closures are BoxedValues; other closures are all Indet. */
-    | Closure(_, d') =>
-      switch (d') {
-      | Fun(_) => BoxedValue(d) |> return
-      | _ => Indet(d) |> return
+    | InconsistentBranches(_) as d => no_req(Indet(Closure(env, d))) // TODO(Matt): Closure
+    | Closure(env', d) => {
+        let. d' = req_final(req(state, env'), 0, d);
+        Step({undo: Closure(env', d), apply: () => d', final: true});
       }
-
-    /* Hole expressions */
-    | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-      //TODO: revisit this, consider some kind of dynamic casting
-      Indet(Closure(env, InconsistentBranches(u, i, Case(d1, rules, n))))
-      |> return
-
-    | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
-
-    | NonEmptyHole(reason, u, i, d1) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(d1')
-      | Indet(d1') =>
-        Indet(Closure(env, NonEmptyHole(reason, u, i, d1'))) |> return
-      };
-
-    | FreeVar(u, i, x) => Indet(Closure(env, FreeVar(u, i, x))) |> return
-
-    | ExpandingKeyword(u, i, kw) =>
-      Indet(Closure(env, ExpandingKeyword(u, i, kw))) |> return
-
-    | InvalidText(u, i, text) =>
-      Indet(Closure(env, InvalidText(u, i, text))) |> return
-
-    /* Cast calculus */
-    | Cast(d1, ty, ty') =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(d1') as result =>
-        switch (ground_cases_of(ty), ground_cases_of(ty')) {
-        | (Hole, Hole) => result |> return
+    | NonEmptyHole(reason, u, i, d1) => {
+        let. d1' = req_final(req(state, env), 0, d1);
+        Indet(Closure(env, NonEmptyHole(reason, u, i, d1')));
+      }
+    | EmptyHole(_) as d
+    | FreeVar(_) as d
+    | InvalidText(_) as d
+    | InvalidOperation(_) as d
+    | ExpandingKeyword(_) as d => no_req(Indet(Closure(env, d)))
+    | Cast(d, t1, t2) => {
+        /* Cast calculus */
+        let. d' = req_final(req(state, env), 0, d);
+        switch (ground_cases_of(t1), ground_cases_of(t2)) {
+        | (Hole, Hole)
         | (Ground, Ground) =>
           /* if two types are ground and consistent, then they are eq */
-          result |> return
+          Step({undo: Cast(d', t1, t2), apply: () => d', final: true})
         | (Ground, Hole) =>
           /* can't remove the cast or do anything else here, so we're done */
-          BoxedValue(Cast(d1', ty, ty')) |> return
+          Constructor(Cast(d', t1, t2))
         | (Hole, Ground) =>
-          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-          switch (d1') {
-          | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
-              BoxedValue(d1'') |> return;
+          switch (d') {
+          | Cast(d2, t3, Unknown(_)) =>
+            /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
+            if (Typ.eq(t3, t2)) {
+              Step({undo: Cast(d', t1, t2), apply: () => d2, final: true});
             } else {
-              Indet(FailedCast(d1', ty, ty')) |> return;
+              Step({
+                undo: Cast(d', t1, t2),
+                apply: () => FailedCast(d', t1, t2),
+                final: false,
+              });
             }
-          | _ => raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
+          | _ =>
+            Step({
+              undo: Cast(d', t1, t2),
+              apply: () =>
+                raise(EvaluatorError.Exception(CastBVHoleGround(d'))),
+              final: true,
+            }) // TODO(Matt): I don't like the way this looks
           }
-        | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        | (Hole, NotGroundOrHole(t2_grounded)) =>
           /* ITExpand rule */
-          let d' =
-            DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-          evaluate(env, d');
-        | (NotGroundOrHole(ty_grounded), Hole) =>
+          Step({
+            undo: Cast(d', t1, t2),
+            apply: () =>
+              DHExp.Cast(Cast(d', t1, t2_grounded), t2_grounded, t2),
+            final: false,
+          })
+        | (NotGroundOrHole(t1_grounded), Hole) =>
           /* ITGround rule */
-          let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-          evaluate(env, d');
+          Step({
+            undo: Cast(d', t1, t2),
+            apply: () =>
+              DHExp.Cast(Cast(d', t1, t1_grounded), t1_grounded, t2),
+            final: false,
+          })
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
-          BoxedValue(Cast(d1', ty, ty')) |> return
+          Constructor(Cast(d', t1, t2))
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
-            result |> return;
+          if (Typ.eq(t1, t2)) {
+            Step({undo: Cast(d', t1, t2), apply: () => d', final: true});
           } else {
-            BoxedValue(Cast(d1', ty, ty')) |> return;
+            Constructor(Cast(d', t1, t2));
           }
-        }
-      | Indet(d1') as result =>
-        switch (ground_cases_of(ty), ground_cases_of(ty')) {
-        | (Hole, Hole) => result |> return
-        | (Ground, Ground) =>
-          /* if two types are ground and consistent, then they are eq */
-          result |> return
-        | (Ground, Hole) =>
-          /* can't remove the cast or do anything else here, so we're done */
-          Indet(Cast(d1', ty, ty')) |> return
-        | (Hole, Ground) =>
-          switch (d1') {
-          | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
-              Indet(d1'') |> return;
-            } else {
-              Indet(FailedCast(d1', ty, ty')) |> return;
-            }
-          | _ => Indet(Cast(d1', ty, ty')) |> return
-          }
-        | (Hole, NotGroundOrHole(ty'_grounded)) =>
-          /* ITExpand rule */
-          let d' =
-            DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-          evaluate(env, d');
-        | (NotGroundOrHole(ty_grounded), Hole) =>
-          /* ITGround rule */
-          let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-          evaluate(env, d');
-        | (Ground, NotGroundOrHole(_))
-        | (NotGroundOrHole(_), Ground) =>
-          /* can't do anything when casting between diseq, non-hole types */
-          Indet(Cast(d1', ty, ty')) |> return
-        | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-          /* it might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
-            result |> return;
-          } else {
-            Indet(Cast(d1', ty, ty')) |> return;
-          }
-        }
-      };
-
-    | FailedCast(d1, ty, ty') =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(d1')
-      | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
-      };
-
-    | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
-    };
-  }
-
-/**
-  [evaluate_case env inconsistent_info scrut rules current_rule_index]
-  evaluates a case expression.
- */
-and evaluate_case =
-    (
-      env: ClosureEnvironment.t,
-      inconsistent_info: option(HoleInstance.t),
-      scrut: DHExp.t,
-      rules: list(DHExp.rule),
-      current_rule_index: int,
-    )
-    : m(EvaluatorResult.t) => {
-  let* rscrut = evaluate(env, scrut);
-  switch (rscrut) {
-  | BoxedValue(scrut)
-  | Indet(scrut) =>
-    eval_rule(env, inconsistent_info, scrut, rules, current_rule_index)
-  };
-}
-and eval_rule =
-    (
-      env: ClosureEnvironment.t,
-      inconsistent_info: option(HoleInstance.t),
-      scrut: DHExp.t,
-      rules: list(DHExp.rule),
-      current_rule_index: int,
-    )
-    : m(EvaluatorResult.t) => {
-  switch (List.nth_opt(rules, current_rule_index)) {
-  | None =>
-    let case = DHExp.Case(scrut, rules, current_rule_index);
-    (
-      switch (inconsistent_info) {
-      | None => Indet(Closure(env, ConsistentCase(case)))
-      | Some((u, i)) =>
-        Indet(Closure(env, InconsistentBranches(u, i, case)))
+        };
       }
-    )
-    |> return;
-  | Some(Rule(dp, d)) =>
-    switch (matches(dp, scrut)) {
-    | IndetMatch =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
-      (
-        switch (inconsistent_info) {
-        | None => Indet(Closure(env, ConsistentCase(case)))
-        | Some((u, i)) =>
-          Indet(Closure(env, InconsistentBranches(u, i, case)))
-        }
-      )
-      |> return;
-    | Matches(env') =>
-      // extend environment with new bindings introduced
-      let* env = evaluate_extend_env(env', env);
-      evaluate(env, d);
-    // by the rule and evaluate the expression.
-    | DoesNotMatch =>
-      eval_rule(env, inconsistent_info, scrut, rules, current_rule_index + 1)
-    }
-  };
-}
-
-/**
-  [evaluate_extend_env env' env] extends [env] with bindings from [env'].
- */
-and evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : m(ClosureEnvironment.t) => {
-  let map =
-    Environment.union(new_bindings, ClosureEnvironment.map_of(to_extend));
-  map |> ClosureEnvironment.of_environment |> with_eig;
-}
-
-/**
-  [evaluate_ap_builtin env ident args] evaluates the builtin function given by
-  [ident] with [args].
- */
-and evaluate_ap_builtin =
-    (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
-    : m(EvaluatorResult.t) => {
-  switch (VarMap.lookup(Builtins.forms_init, ident)) {
-  | Some(eval) => eval(env, args, evaluate)
-  | None =>
-    print_endline("InvalidBuiltin");
-    raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
-  };
-}
-
-and evaluate_test =
-    (env: ClosureEnvironment.t, n: KeywordID.t, arg: DHExp.t)
-    : m(EvaluatorResult.t) => {
-  let* (arg_show, arg_result) =
-    switch (DHExp.strip_casts(arg)) {
-    | BinBoolOp(op, arg_d1, arg_d2) =>
-      let mk_op = (arg_d1, arg_d2) => DHExp.BinBoolOp(op, arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
-    | BinIntOp(op, arg_d1, arg_d2) =>
-      let mk_op = (arg_d1, arg_d2) => DHExp.BinIntOp(op, arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
-    | BinFloatOp(op, arg_d1, arg_d2) =>
-      let mk_op = (arg_d1, arg_d2) => DHExp.BinFloatOp(op, arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
-
-    | Ap(fn, Tuple(args)) =>
-      let* args_d: list(EvaluatorResult.t) =
-        args |> List.map(evaluate(env)) |> sequence;
-      let arg_show =
-        DHExp.Ap(fn, Tuple(List.map(EvaluatorResult.unbox, args_d)));
-      let* arg_result = evaluate(env, arg_show);
-      (arg_show, arg_result) |> return;
-
-    | Ap(Ap(arg_d1, arg_d2), arg_d3) =>
-      let* arg_d1 = evaluate(env, arg_d1);
-      let* arg_d2 = evaluate(env, arg_d2);
-      let* arg_d3 = evaluate(env, arg_d3);
-      let arg_show =
-        DHExp.Ap(
-          Ap(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2)),
-          EvaluatorResult.unbox(arg_d3),
-        );
-      let* arg_result = evaluate(env, arg_show);
-      (arg_show, arg_result) |> return;
-
-    | Ap(arg_d1, arg_d2) =>
-      let mk = (arg_d1, arg_d2) => DHExp.Ap(arg_d1, arg_d2);
-      evaluate_test_eq(env, mk, arg_d1, arg_d2);
-
-    | _ =>
-      let* arg = evaluate(env, arg);
-      (EvaluatorResult.unbox(arg), arg) |> return;
-    };
-
-  let test_status: TestStatus.t =
-    switch (arg_result) {
-    | BoxedValue(BoolLit(true)) => Pass
-    | BoxedValue(BoolLit(false)) => Fail
-    | _ => Indet
-    };
-
-  let* _ = add_test(n, (arg_show, test_status));
-  let r: EvaluatorResult.t =
-    switch (arg_result) {
-    | BoxedValue(BoolLit(_)) => BoxedValue(Tuple([]))
-    | BoxedValue(arg)
-    | Indet(arg) => Indet(Ap(TestLit(n), arg))
-    };
-  r |> return;
-}
-
-and evaluate_test_eq =
-    (
-      env: ClosureEnvironment.t,
-      mk_arg_op: (DHExp.t, DHExp.t) => DHExp.t,
-      arg_d1: DHExp.t,
-      arg_d2: DHExp.t,
-    )
-    : m((DHExp.t, EvaluatorResult.t)) => {
-  let* arg_d1 = evaluate(env, arg_d1);
-  let* arg_d2 = evaluate(env, arg_d2);
-
-  let arg_show =
-    mk_arg_op(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2));
-  let* arg_result = evaluate(env, arg_show);
-
-  (arg_show, arg_result) |> return;
+    | FailedCast(d1, t1, t2) => {
+        let. d1' = req_final(req(state, env), 0, d1);
+        Indet(FailedCast(d1', t1, t2));
+      };
 };
 
-let evaluate = (env, d) => {
-  let es = EvaluatorState.init;
-  let (env, es) =
-    es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  evaluate(env, d, es);
+module Evaluator: {
+  type result_unfinished =
+    | BoxedValue(DHExp.t)
+    | Indet(DHExp.t)
+    | Uneval(DHExp.t);
+  include
+    EV_MODE with
+      type state = ref(EvaluatorState.t) and type result = result_unfinished;
+} = {
+  type intermediate('a) = ('a, bool);
+
+  type state = ref(EvaluatorState.t);
+  let update_test = (state, id, v) =>
+    state := EvaluatorState.add_test(state^, id, v);
+
+  let extend_env = (state, env, env') => {
+    let (env'', state') =
+      EvaluatorState.with_eig(
+        ClosureEnvironment.of_environment(
+          Environment.union(env', ClosureEnvironment.map_of(env)),
+        ),
+        state^,
+      );
+    state := state';
+    env'';
+  };
+
+  type result_unfinished =
+    | BoxedValue(DHExp.t)
+    | Indet(DHExp.t)
+    | Uneval(DHExp.t);
+
+  type result = result_unfinished;
+
+  let req_value = (f, _, x) =>
+    switch (f(x)) {
+    | BoxedValue(x) => (x, true)
+    | Uneval(x) => (x, false)
+    | Indet(x) => (x, false)
+    };
+
+  let rec req_all_value = (f, i) =>
+    fun
+    | [] => ([], true)
+    | [x, ...xs] => {
+        let (x', b1) = req_value(f, i, x);
+        let (xs', b2) = req_all_value(f, i + 1, xs);
+        ([x', ...xs'], b1 && b2);
+      };
+
+  let req_final = (f, _, x) =>
+    switch (f(x)) {
+    | BoxedValue(x) => (x, true)
+    | Uneval(x) => (x, true)
+    | Indet(x) => (x, true)
+    };
+
+  let rec req_all_final = (f, i) =>
+    fun
+    | [] => ([], true)
+    | [x, ...xs] => {
+        let (x', b1) = req_final(f, i, x);
+        let (xs', b2) = req_all_final(f, i + 1, xs);
+        ([x', ...xs'], b1 && b2);
+      };
+
+  let do_not_req = (_, _, x) => (x, true);
+
+  let apply_rule =
+    fun
+    | Step(s) =>
+      if (s.final) {
+        BoxedValue(s.apply());
+      } else {
+        Uneval(s.apply());
+      }
+    | Constructor(v) => BoxedValue(v)
+    | Indet(v) => Indet(v);
+
+  let retreat =
+    fun
+    | Step(s) => Indet(s.undo)
+    | Constructor(v) => Indet(v)
+    | Indet(v) => Indet(v);
+
+  let (and.) = ((x1, b1), (x2, b2)) => ((x1, x2), b1 && b2);
+
+  let (let.) = ((x, b), rl) =>
+    if (b) {
+      apply_rule(rl(x));
+    } else {
+      retreat(rl(x));
+    };
+
+  let no_req = apply_rule;
+};
+module Eval = Transition(Evaluator);
+
+let rec evaluate = (state, env, d) => {
+  let u = Eval.transition(evaluate, state, env, d);
+  switch (u) {
+  | BoxedValue(x) => BoxedValue(x)
+  | Indet(x) => Indet(x)
+  | Uneval(x) => evaluate(state, env, x)
+  };
+};
+
+let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
+  let state = EvaluatorState.init;
+  let (env, state) =
+    EvaluatorState.with_eig(ClosureEnvironment.of_environment(env), state);
+  let state = ref(state);
+  let result = evaluate(state, env, d);
+  let result =
+    switch (result) {
+    | BoxedValue(x) => BoxedValue(x)
+    | Indet(x) => Indet(x)
+    | Uneval(x) => Indet(x)
+    };
+  (state^, result);
 };
