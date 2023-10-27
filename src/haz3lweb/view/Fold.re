@@ -28,28 +28,23 @@ let button_view =
       origin: Measured.Point.t,
     ) => {
   let button_origin: Measured.Point.t = {...origin, col: (-2)};
-  Node.input(
+  Node.span(
     ~attr=
-      Attr.many(
-        [
-          DecUtil.abs_position(~font_metrics, button_origin),
-          Attr.create("type", "checkbox"),
-          Attr.on_mousedown(_evt => {
-            Js_of_ocaml.Dom_html.stopPropagation(_evt);
-            let goal: Measured.Point.t = {...origin, col: origin.col + 1};
-            let events = [
-              inject(UpdateAction.PerformAction(Click(tile_id))),
-              inject(UpdateAction.PerformAction(Move(Goal(Point(goal))))),
-              inject(
-                UpdateAction.PerformAction(Move(Goal(Point(origin)))),
-              ),
-            ];
-            Virtual_dom.Vdom.Effect.Many(events);
-          }),
-        ]
-        @ (List.mem(tile_id, folded) ? [Attr.checked] : []),
-      ),
-    [],
+      Attr.many([
+        DecUtil.abs_position(~font_metrics, button_origin),
+        Attr.classes(["token", "default"]),
+        Attr.on_mousedown(_evt => {
+          Js_of_ocaml.Dom_html.stopPropagation(_evt);
+          let goal: Measured.Point.t = {...origin, col: origin.col + 1};
+          let events = [
+            inject(UpdateAction.PerformAction(Click(tile_id))),
+            inject(UpdateAction.PerformAction(Move(Goal(Point(goal))))),
+            inject(UpdateAction.PerformAction(Move(Goal(Point(origin))))),
+          ];
+          Virtual_dom.Vdom.Effect.Many(events);
+        }),
+      ]),
+    [Node.text(List.mem(tile_id, folded) ? "> " : "∨")],
   );
 };
 
