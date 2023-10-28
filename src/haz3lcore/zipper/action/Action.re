@@ -40,7 +40,8 @@ type t =
   | Insert(string)
   | RotateBackpack
   | MoveToBackpackTarget(planar)
-  | Click(Id.t)
+  | Fold(Id.t)
+  | Unfold(Id.t)
   | Pick_up
   | Put_down;
 

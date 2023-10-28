@@ -49,9 +49,8 @@ module Meta = {
     let unselected = Zipper.unselect_and_zip(z);
     let folded =
       switch (a) {
-      | Click(id) =>
-        List.mem(id, folded)
-          ? List.filter(x => x !== id, folded) : [id, ...folded]
+      | Fold(id) => [id, ...folded]
+      | Unfold(id) => List.filter(x => x !== id, folded)
       | _ => folded
       };
     let measured =

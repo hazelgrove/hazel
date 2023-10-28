@@ -87,7 +87,8 @@ let reevaluate_post_update =
       Move(_) | MoveToNextHole(_) | Select(_) | Unselect | RotateBackpack |
       MoveToBackpackTarget(_) |
       Jump(_) |
-      Click(_),
+      Fold(_) |
+      Unfold(_),
     )
   | MoveToNextHole(_) //
   | Mousedown
