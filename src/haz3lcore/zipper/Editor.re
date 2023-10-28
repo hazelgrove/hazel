@@ -47,6 +47,13 @@ module Meta = {
     let {touched, measured, col_target, folded, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
+    let folded =
+      switch (a) {
+      | Click(id) =>
+        List.mem(id, folded)
+          ? List.filter(x => x !== id, folded) : [id, ...folded]
+      | _ => folded
+      };
     let measured =
       Measured.of_segment(~touched, ~old=measured, unselected, ~folded);
     let term_ranges = TermRanges.mk(unselected);
@@ -55,13 +62,6 @@ module Meta = {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
-      };
-    let folded =
-      switch (a) {
-      | Click(id) =>
-        List.mem(id, folded)
-          ? List.filter(x => x !== id, folded) : [id, ...folded]
-      | _ => folded
       };
     {touched, measured, term_ranges, col_target, folded};
   };
