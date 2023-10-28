@@ -35,10 +35,8 @@ let button_view =
         Attr.classes(["token", "default"]),
         Attr.on_mousedown(_evt => {
           Js_of_ocaml.Dom_html.stopPropagation(_evt);
-          let goal: Measured.Point.t = {...origin, col: origin.col + 1};
           let events = [
             inject(UpdateAction.PerformAction(Click(tile_id))),
-            inject(UpdateAction.PerformAction(Move(Goal(Point(goal))))),
             inject(UpdateAction.PerformAction(Move(Goal(Point(origin))))),
           ];
           Virtual_dom.Vdom.Effect.Many(events);
