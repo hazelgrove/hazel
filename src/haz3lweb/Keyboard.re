@@ -9,6 +9,25 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let restricted = Backpack.restricted(zipper.backpack);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
+  let try_fold = (isfold: bool) => {
+    let (_, current) = zipper.relatives.siblings;
+    let rec find_fold = (current: Segment.t, ancestors: Ancestors.t) =>
+      switch (current, ancestors) {
+      | ([Tile(t), ..._], _) when Module.foldable(t) =>
+        if (isfold) {
+          now(Fold(t.id));
+        } else {
+          now(Unfold(t.id));
+        }
+      | (_, [(parent, _), ...ancestors]) =>
+        let current: Segment.t = [
+          Tile(Ancestor.zip(Segment.empty, parent)),
+        ];
+        find_fold(current, ancestors);
+      | _ => None
+      };
+    find_fold(current, zipper.relatives.ancestors);
+  };
   let print = str => str |> print_endline |> (_ => None);
   switch (k) {
   | {key: U(key), _} =>
@@ -83,6 +102,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Extreme(Up))))
     | "ArrowDown" => now(Select(Resize(Extreme(Down))))
+    | "{" => try_fold(true)
+    | "}" => try_fold(false)
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
@@ -95,6 +116,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "ArrowDown" => now(Select(Resize(Local(Down))))
     | "Home" => now(Select(Resize(Extreme(Up))))
     | "End" => now(Select(Resize(Extreme(Down))))
+    | "{" => try_fold(true)
+    | "}" => try_fold(false)
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>

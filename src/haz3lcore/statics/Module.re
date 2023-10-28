@@ -54,3 +54,9 @@ let rec get_module =
 let foldable = (tile: Tile.t) =>
   tile.label == ["module", "=", "in"]
   && List.length(tile.shards) == List.length(tile.label);
+let foldable_anc = (tile: Ancestor.t) => {
+  let (s1, s2) = tile.shards;
+  let shard_length = List.length(s1) + List.length(s2);
+  tile.label == ["module", "=", "in"]
+  && shard_length == List.length(tile.label);
+};
