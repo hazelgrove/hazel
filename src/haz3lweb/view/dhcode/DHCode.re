@@ -149,7 +149,7 @@ let view =
         ~selected_hole_instance,
         ~next_steps,
         ~disabled,
-        EvaluatorStep.init(d),
+        d,
       );
     };
 

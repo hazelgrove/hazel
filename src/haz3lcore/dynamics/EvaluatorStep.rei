@@ -101,6 +101,17 @@ module EvalObj: {
   let unwrap: (t, EvalCtx.cls) => option(t);
 };
 
+module Transition: {
+  module Result: {
+    [@deriving show({with_path: false})]
+    type t('a) =
+      | Paused('a)
+      | Stepped('a)
+      | Indet('a)
+      | BoxedValue('a);
+  };
+};
+
 module Decompose: {
   module Result: {
     [@deriving show({with_path: false})]
@@ -117,8 +128,6 @@ let evaluate_with_history: DHExp.t => list(DHExp.t);
 let step: EvalObj.t => ProgramResult.t;
 
 let decompose: DHExp.t => list(EvalObj.t);
-
-let init: DHExp.t => DHExp.t;
 
 module Stepper: {
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t =
+type cont =
   | Mark(FilterAction.t, DHExp.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
   | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
@@ -30,4 +30,7 @@ type t =
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, DHExp.t);
+  | Rule(DHPat.t, DHExp.t)
+and t =
+  | Cont(cont)
+  | Expr(DHExp.t);

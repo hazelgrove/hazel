@@ -1,3 +1,10 @@
+type boxed('a) =
+  | BoxedValue('a);
+
+type indet('a) =
+  | Indet('a)
+  | BoxedValue('a);
+
 type t('a) =
   | Expr('a)
   | Indet('a)

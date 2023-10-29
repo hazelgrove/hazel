@@ -604,7 +604,7 @@ and FilterEnvironment: {
 
   let extends: (Filter.t, t) => t;
 
-  let matches: (DHExp.t, FilterAction.t, t) => FilterAction.t;
+  let matches: (DHExp.t, t) => option(FilterAction.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(Filter.t);
@@ -634,15 +634,8 @@ and FilterEnvironment: {
     [f, ...env];
   };
 
-  let rec matches = (d: DHExp.t, act: FilterAction.t, env: t): FilterAction.t => {
-    switch (env) {
-    | [] => act
-    | [hd, ...tl] =>
-      switch (Filter.matches(d, hd)) {
-      | Some(act) => act
-      | None => matches(d, act, tl)
-      }
-    };
+  let matches = (d: DHExp.t, env: t): option(FilterAction.t) => {
+    env |> List.find_map(Filter.matches(d));
   };
 }
 

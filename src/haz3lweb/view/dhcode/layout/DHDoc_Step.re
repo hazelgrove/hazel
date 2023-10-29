@@ -108,8 +108,8 @@ let rec mk =
     let fdoc =
         (
           ~enforce_inline,
-          d: DHExp.t,
-          objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
+          ~d: DHExp.t,
+          ~objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
         ) => {
       switch (d) {
       /* Now any of the postprocess checking is not done since most of
@@ -177,12 +177,14 @@ let rec mk =
           |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(
-            DHDoc_common.precedence_Ap,
-            (d1, unwrap(objs, Ap1)),
-            (d2, unwrap(objs, Ap2)),
-          );
+        let (doc1, doc2) = (
+          go'(
+            ~parenthesize=precedence(d1) > DHDoc_common.precedence_Ap,
+            d1,
+            unwrap(objs, Ap1),
+          ),
+          go'(~parenthesize=false, d2, unwrap(objs, Ap2)),
+        );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | ApBuiltin(ident, args) =>
         switch (args) {
@@ -392,7 +394,7 @@ let rec mk =
     let doc = (~enforce_inline) =>
       switch (steppable) {
       | Some((_, full)) =>
-        fdoc(~enforce_inline, d, [])
+        fdoc(~enforce_inline, ~d, ~objs=[])
         |> annot(
              if (disabled) {
                DHAnnot.Stepped;
@@ -400,7 +402,7 @@ let rec mk =
                DHAnnot.Steppable(full);
              },
            )
-      | None => fdoc(~enforce_inline, d, objs)
+      | None => fdoc(~enforce_inline, ~d, ~objs)
       };
     (parenthesize(doc), cast);
   };

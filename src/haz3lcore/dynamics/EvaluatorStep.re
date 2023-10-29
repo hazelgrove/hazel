@@ -4,68 +4,6 @@ module Monad = EvaluatorMonad;
 open Monad;
 open Monad.Syntax;
 
-// let debug = ref(true);
-//
-// type debug_stack_frame = {
-//   name: string,
-//   count: int,
-// };
-//
-// let string_of_debug_stack_frame = f =>
-//   if (f.count == 0) {
-//     f.name;
-//   } else {
-//     Printf.sprintf("%s (%d)", f.name, f.count + 1);
-//   };
-//
-// let debug_stack: ref(list(debug_stack_frame)) = ref([]);
-//
-// let debug_endline = (v, c) =>
-//   if (debug^) {
-//     let stack = debug_stack^ |> List.rev;
-//     let prefix =
-//       List.fold_left(
-//         (s, f) => s ++ string_of_debug_stack_frame(f) ++ " > ",
-//         "== ",
-//         stack,
-//       );
-//     print_endline(prefix ++ v ++ " ==\n" ++ c);
-//     print_endline("--------");
-//   };
-//
-// let debug_push = (f: string) => {
-//   switch (debug_stack^) {
-//   | [] => debug_stack := [{name: f, count: 0}]
-//   | [hd, ...tl] =>
-//     if (hd.name == f) {
-//       debug_stack := [{...hd, count: hd.count + 1}, ...tl];
-//     } else {
-//       debug_stack := [{name: f, count: 0}, hd, ...tl];
-//     }
-//   };
-// };
-//
-// exception Debug_stack_empty;
-//
-// let debug_pop = () => {
-//   switch (debug_stack^) {
-//   | [] => raise(Debug_stack_empty)
-//   | [hd, ...tl] =>
-//     if (hd.count == 0) {
-//       debug_stack := tl;
-//     } else {
-//       debug_stack := [{...hd, count: hd.count - 1}, ...tl];
-//     }
-//   };
-// };
-//
-// let debug_run = (name, f) => {
-//   debug_push(name);
-//   let a = f();
-//   debug_pop();
-//   a;
-// };
-
 module EvalCtx = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -247,12 +185,12 @@ module EvalObj = {
 
 module Transition = {
   module Result = {
-    [@deriving show]
-    type t =
-      | Paused(DHExp.t)
-      | Stepped(DHExp.t)
-      | Indet(DHExp.t)
-      | BoxedValue(DHExp.t);
+    [@deriving show({with_path: false})]
+    type t('a) =
+      | Paused('a)
+      | Stepped('a)
+      | Indet('a)
+      | BoxedValue('a);
     let unbox =
       fun
       | Paused(d)
@@ -269,39 +207,49 @@ module Transition = {
             rules: list(DHExp.rule),
             current_rule_index: int,
           )
-          : m(Result.t) => {
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
-      Result.Indet(Closure(env, flt, ConsistentCase(case))) |> return;
-    | Some(Rule(dp, d)) =>
-      switch (Evaluator.matches(dp, scrut)) {
-      | IndetMatch =>
-        let case = DHExp.Case(scrut, rules, current_rule_index);
-        Result.Indet(Closure(env, flt, ConsistentCase(case))) |> return;
-      | Matches(env') =>
-        // extend environment with new bindings introduced
-        let* env = env |> Evaluator.evaluate_extend_env(env');
-        Result.Stepped(Closure(env, flt, d)) |> return;
-      // by the rule and evaluate the expression.
-      | DoesNotMatch =>
-        transition_rule(env, flt, scrut, rules, current_rule_index + 1)
-      }
-    };
+          : m(Result.t(DHExp.t)) => {
+    Result.(
+      DHExp.(
+        switch (List.nth_opt(rules, current_rule_index)) {
+        | None =>
+          let case = DHExp.Case(scrut, rules, current_rule_index);
+          Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+        | Some(Rule(dp, d)) =>
+          switch (Evaluator.matches(dp, scrut)) {
+          | IndetMatch =>
+            let case = DHExp.Case(scrut, rules, current_rule_index);
+            Result.Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+          | Matches(env') =>
+            // extend environment with new bindings introduced
+            let* env = env |> Evaluator.evaluate_extend_env(env');
+            Result.Stepped(Closure(env, flt, d)) |> return;
+          // by the rule and evaluate the expression.
+          | DoesNotMatch =>
+            transition_rule(env, flt, scrut, rules, current_rule_index + 1)
+          }
+        }
+      )
+    );
   }
   and transition_case =
       (
         transition:
-          (ClosureEnvironment.t, FilterEnvironment.t, DHExp.t) => m(Result.t),
+          (
+            ~env: ClosureEnvironment.t=?,
+            ~flt: FilterEnvironment.t=?,
+            DHExp.t
+          ) =>
+          m(Result.t(DHExp.t)),
         env: ClosureEnvironment.t,
         flt: FilterEnvironment.t,
         scrut: DHExp.t,
         rules: list(DHExp.rule),
         current_rule_index: int,
       )
-      : m(Result.t) => {
+      : m(Result.t(DHExp.t)) => {
     open Result;
-    let* rscrut = transition(env, flt, scrut);
+    open DHExp;
+    let* rscrut = transition(~env, ~flt, scrut);
     switch (rscrut) {
     | BoxedValue(scrut) =>
       transition_rule(env, flt, scrut, rules, current_rule_index)
@@ -318,43 +266,64 @@ module Transition = {
   and eval_rule =
       (
         transition:
-          (ClosureEnvironment.t, FilterEnvironment.t, DHExp.t) => m(Result.t),
+          (
+            ~env: ClosureEnvironment.t=?,
+            ~flt: FilterEnvironment.t=?,
+            DHExp.t
+          ) =>
+          m(Result.t(DHExp.t)),
         env: ClosureEnvironment.t,
         flt: FilterEnvironment.t,
         scrut: DHExp.t,
         rules: list(DHExp.rule),
         current_rule_index: int,
       )
-      : m(Result.t) => {
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None =>
-      let case = DHExp.Case(scrut, rules, current_rule_index);
-      Result.Indet(Closure(env, flt, ConsistentCase(case))) |> return;
-    | Some(Rule(dp, d)) =>
-      switch (Evaluator.matches(dp, scrut)) {
-      | IndetMatch =>
-        let case = DHExp.Case(scrut, rules, current_rule_index);
-        Result.Indet(Closure(env, flt, ConsistentCase(case))) |> return;
-      | Matches(env') =>
-        // extend environment with new bindings introduced
-        let* env = env |> Evaluator.evaluate_extend_env(env');
-        transition(env, flt, d);
-      // by the rule and evaluate the expression.
-      | DoesNotMatch =>
-        eval_rule(transition, env, flt, scrut, rules, current_rule_index + 1)
-      }
-    };
+      : m(Result.t(DHExp.t)) => {
+    Result.(
+      DHExp.(
+        switch (List.nth_opt(rules, current_rule_index)) {
+        | None =>
+          let case = DHExp.Case(scrut, rules, current_rule_index);
+          Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+        | Some(Rule(dp, d)) =>
+          switch (Evaluator.matches(dp, scrut)) {
+          | IndetMatch =>
+            let case = DHExp.Case(scrut, rules, current_rule_index);
+            Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+          | Matches(env') =>
+            // extend environment with new bindings introduced
+            let* env = env |> Evaluator.evaluate_extend_env(env');
+            transition(~env, d);
+          // by the rule and evaluate the expression.
+          | DoesNotMatch =>
+            eval_rule(
+              transition,
+              env,
+              flt,
+              scrut,
+              rules,
+              current_rule_index + 1,
+            )
+          }
+        }
+      )
+    );
   }
   and transition_test =
       (
         transition:
-          (ClosureEnvironment.t, FilterEnvironment.t, DHExp.t) => m(Result.t),
+          (
+            ~env: ClosureEnvironment.t=?,
+            ~flt: FilterEnvironment.t=?,
+            DHExp.t
+          ) =>
+          m(Result.t(DHExp.t)),
         env: ClosureEnvironment.t,
         flt: FilterEnvironment.t,
         n: KeywordID.t,
         arg: DHExp.t,
       )
-      : m(Result.t) => {
+      : m(Result.t(DHExp.t)) => {
     open Monad;
     let* (arg_show, arg_result) =
       switch (DHExp.strip_casts(arg)) {
@@ -369,22 +338,22 @@ module Transition = {
         transition_test_eq(transition, env, flt, mk_op, arg_d1, arg_d2);
 
       | Ap(fn, Tuple(args)) =>
-        let* args_d: list(Result.t) =
-          args |> List.map(transition(env, flt)) |> sequence;
+        let* args_d: list(Result.t(DHExp.t)) =
+          args |> List.map(transition) |> sequence;
         let arg_show = DHExp.Ap(fn, Tuple(List.map(Result.unbox, args_d)));
-        let* arg_result = transition(env, flt, arg_show);
+        let* arg_result = transition(arg_show);
         (arg_show, arg_result) |> return;
 
       | Ap(Ap(arg_d1, arg_d2), arg_d3) =>
-        let* arg_d1 = transition(env, flt, arg_d1);
-        let* arg_d2 = transition(env, flt, arg_d2);
-        let* arg_d3 = transition(env, flt, arg_d3);
+        let* arg_d1 = transition(arg_d1);
+        let* arg_d2 = transition(arg_d2);
+        let* arg_d3 = transition(arg_d3);
         let arg_show =
           DHExp.Ap(
             Ap(Result.unbox(arg_d1), Result.unbox(arg_d2)),
             Result.unbox(arg_d3),
           );
-        let* arg_result = transition(env, flt, arg_show);
+        let* arg_result = transition(arg_show);
         (arg_show, arg_result) |> return;
 
       | Ap(arg_d1, arg_d2) =>
@@ -392,7 +361,7 @@ module Transition = {
         transition_test_eq(transition, env, flt, mk, arg_d1, arg_d2);
 
       | _ =>
-        let* arg = transition(env, flt, arg);
+        let* arg = transition(arg);
         (Result.unbox(arg), arg) |> return;
       };
 
@@ -404,7 +373,7 @@ module Transition = {
       };
 
     let* _ = add_test(n, (arg_show, test_status));
-    let r: Result.t =
+    let r: Result.t(DHExp.t) =
       switch (arg_result) {
       | Paused(arg) => Paused(Ap(TestLit(n), arg))
       | Stepped(arg) => Stepped(Ap(TestLit(n), arg))
@@ -417,729 +386,859 @@ module Transition = {
   and transition_test_eq =
       (
         transition:
-          (ClosureEnvironment.t, FilterEnvironment.t, DHExp.t) => m(Result.t),
-        env: ClosureEnvironment.t,
-        flt: FilterEnvironment.t,
+          (
+            ~env: ClosureEnvironment.t=?,
+            ~flt: FilterEnvironment.t=?,
+            DHExp.t
+          ) =>
+          m(Result.t(DHExp.t)),
+        _env: ClosureEnvironment.t,
+        _flt: FilterEnvironment.t,
         mk_arg_op: (DHExp.t, DHExp.t) => DHExp.t,
         arg_d1: DHExp.t,
         arg_d2: DHExp.t,
       )
-      : m((DHExp.t, Result.t)) => {
-    let* arg_d1 = transition(env, flt, arg_d1);
-    let* arg_d2 = transition(env, flt, arg_d2);
+      : m((DHExp.t, Result.t(DHExp.t))) => {
+    let* arg_d1 = transition(arg_d1);
+    let* arg_d2 = transition(arg_d2);
 
     let arg_show = mk_arg_op(Result.unbox(arg_d1), Result.unbox(arg_d2));
-    let* arg_result = transition(env, flt, arg_show);
+    let* arg_result = transition(arg_show);
 
     (arg_show, arg_result) |> return;
   };
 
   let transition =
       (
-        fixed:
-          (ClosureEnvironment.t, FilterEnvironment.t, DHExp.t) => m(Result.t),
+        transition:
+          (
+            ~env: ClosureEnvironment.t=?,
+            ~flt: FilterEnvironment.t=?,
+            DHExp.t
+          ) =>
+          m(Result.t(DHExp.t)),
         env: ClosureEnvironment.t,
         flt: FilterEnvironment.t,
         d: DHExp.t,
       )
-      : m(Result.t) => {
-    open Evaluator;
-    open Result;
-    let transition = (~env=env, ~flt=flt, d: DHExp.t) => {
-      fixed(env, flt, d);
-    };
-    /* TODO: Investigate */
-    /* Increment number of evaluation steps (calls to `evaluate`). */
-    switch (d) {
-    | BoundVar(x) =>
-      let d =
-        x
-        |> ClosureEnvironment.lookup(env)
-        |> OptUtil.get(() => {
-             print_endline("FreeInvalidVar: " ++ x);
-             raise(EvaluatorError.Exception(FreeInvalidVar(x)));
-           });
-      /* We need to call [evaluate] on [d] again since [env] does not store
-       * final expressions. */
-      Stepped(d) |> return;
+      : m(Result.t(DHExp.t)) => {
+    Evaluator.(
+      Result.(
+        DHExp.
+          // let (and|) = (f, d) => {
+          //   let* f = f;
+          //   switch (f) {
+          //   | `BoxedValue(f, `Some(t)) =>
+          //     let* r = transition(d);
+          //     switch (r) {
+          //     | BoxedValue(d) =>
+          //       `BoxedValue((f(d), `Some((t, `BoxedValue(d))))) |> return
+          //     | Indet(d) => `Indet((f(d), `Some((t, `Indet(d))))) |> return
+          //     | Expr(d) => `Expr((f(d), `None)) |> return
+          //     }
+          //   | `Indet(f, `None) =>
+          //     let* r = transition(d);
+          //     switch (r) {
+          //     | BoxedValue(d)
+          //     | Indet(d) => `Indet((f(d), `None)) |> return
+          //     | Expr(d) => `Expr((f(d), `None)) |> return
+          //     }
+          //   | `Expr(f, `None) => `Expr((f(d), `None)) |> return
+          //   }
+          // };
+          // let (and&) = (f, d) => {
+          //   let* f = f;
+          //   switch (f) {
+          //   | `BoxedValue(f, `Some(t)) =>
+          //     let* r = transition(d);
+          //     switch (r) {
+          //     | BoxedValue(d) =>
+          //       `BoxedValue((f(d), `Some((t, `BoxedValue(d))))) |> return
+          //     | Indet(d) => `Indet((f(d), `None)) |> return
+          //     | Expr(d) => `Expr((f(d), `None)) |> return
+          //     };
+          //   | `Indet(f, `Some(t)) =>
+          //     let* r = transition(d);
+          //     switch (r) {
+          //     | BoxedValue(d) =>
+          //       `Indet((f(d), `Some((t, `BoxedValue(d))))) |> return
+          //     | Indet(d) => `Indet((f(d), `None)) |> return
+          //     | Expr(d) => `Expr((f(d), `None)) |> return
+          //     };
+          //   | `Indet(f, `None) =>
+          //     let* r = transition(d);
+          //     switch (r) {
+          //     | BoxedValue(d)
+          //     | Indet(d) => `Indet((f(d), `None)) |> return
+          //     | Expr(d) => `Expr((f(d), `None)) |> return
+          //     };
+          //   | `Expr(f, _) => `Expr((f(d), `None)) |> return
+          //   };
+          // };
+          // let (let@) = (f, k) => {
+          //   let* f = f;
+          //   switch (f) {
+          //   | `Expr(d, _) => StepperResult.Expr(d) |> return
+          //   | `Indet(d, `None) => StepperResult.Indet(d) |> return
+          //   | `Indet(_, `Some(t))
+          //   | `BoxedValue(_, `Some(t)) => k(t)
+          //   };
+          // };
+          /* TODO: Investigate */
+          /* Increment number of evaluation steps (calls to `evaluate`). */
+          (
+            switch (d) {
+            | BoundVar(x) =>
+              let d =
+                x
+                |> ClosureEnvironment.lookup(env)
+                |> OptUtil.get(() => {
+                     print_endline("FreeInvalidVar: " ++ x);
+                     raise(EvaluatorError.Exception(FreeInvalidVar(x)));
+                   });
+              /* We need to call [evaluate] on [d] again since [env] does not store
+               * final expressions. */
+              Stepped(d) |> return;
 
-    | Sequence(d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Stepped(d1) => Stepped(Sequence(d1, d2)) |> return
-      | Paused(d1) => Paused(Sequence(d1, d2)) |> return
-      | BoxedValue(d1)
-      /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
-       * if evaluated d1 is indet. */
-      | Indet(d1) =>
-        d1 |> ignore;
-        /* let* r2 = step(env, d2, opt); */
-        /* switch (r2) { */
-        /* | BoxedValue(d2) */
-        /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
-        /* }; */
-        Stepped(d2) |> return;
-      };
+            | Sequence(d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(Sequence(d1, d2)) |> return
+              | Paused(d1) => Paused(Sequence(d1, d2)) |> return
+              | BoxedValue(d1)
+              /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
+               * if evaluated d1 is indet. */
+              | Indet(d1) =>
+                d1 |> ignore;
+                /* let* r2 = step(env, d2, opt); */
+                /* switch (r2) { */
+                /* | BoxedValue(d2) */
+                /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
+                /* }; */
+                Stepped(d2) |> return;
+              };
 
-    | Let(dp, d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Stepped(d1) => Stepped(Let(dp, d1, d2)) |> return
-      | Paused(d1) => Paused(Let(dp, d1, d2)) |> return
-      | BoxedValue(d1)
-      | Indet(d1) =>
-        switch (Evaluator.matches(dp, d1)) {
-        | IndetMatch
-        | DoesNotMatch => Indet(Let(dp, d1, d2)) |> return
-        | Matches(env') =>
-          let* env = env |> Evaluator.evaluate_extend_env(env');
-          Stepped(Closure(env, flt, d2)) |> return;
-        }
-      };
+            | Let(dp, d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(Let(dp, d1, d2)) |> return
+              | Paused(d1) => Paused(Let(dp, d1, d2)) |> return
+              | BoxedValue(d1)
+              | Indet(d1) =>
+                switch (Evaluator.matches(dp, d1)) {
+                | IndetMatch
+                | DoesNotMatch => Indet(Let(dp, d1, d2)) |> return
+                | Matches(env') =>
+                  let* env = env |> Evaluator.evaluate_extend_env(env');
+                  Stepped(Closure(env, flt, d2)) |> return;
+                }
+              };
 
-    | Filter(flt', d1) =>
-      let flt = flt |> FilterEnvironment.extends(flt');
-      Stepped(Closure(env, flt, d1)) |> return;
+            | Filter(flt', d1) =>
+              let flt = flt |> FilterEnvironment.extends(flt');
+              Stepped(Closure(env, flt, d1)) |> return;
 
-    | FixF(f, ty, d1) =>
-      let env' = Environment.singleton((f, DHExp.FixF(f, ty, d1)));
-      let* env = env |> Evaluator.evaluate_extend_env(env');
-      Stepped(Closure(env, flt, d1)) |> return;
+            | FixF(f, ty, d1) =>
+              let env' = Environment.singleton((f, DHExp.FixF(f, ty, d1)));
+              let* env = env |> Evaluator.evaluate_extend_env(env');
+              Stepped(Closure(env, flt, d1)) |> return;
 
-    | Fun(_) => Stepped(Closure(env, flt, d)) |> return
+            | Fun(_) => Stepped(Closure(env, flt, d)) |> return
 
-    | Ap(d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Stepped(d1) => Stepped(Ap(d1, d2)) |> return
-      | Paused(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Paused(d2) => Paused(Ap(d1, d2)) |> return
-        | Stepped(d2) => Stepped(Ap(d1, d2)) |> return
-        | Indet(d2) => Paused(Ap(d1, d2)) |> return
-        | BoxedValue(d2) => Paused(Ap(d1, d2)) |> return
-        };
-      | BoxedValue(TestLit(id)) =>
-        let* r2 = transition_test(fixed, env, flt, id, d2);
-        switch (r2) {
-        | Stepped(r2) => Stepped(r2) |> return
-        | Paused(r2) => Paused(r2) |> return
-        | Indet(r2) => Indet(r2) |> return
-        | BoxedValue(r2) => BoxedValue(r2) |> return
-        };
-      | BoxedValue(Constructor(_) as d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(Ap(d1, d2), s2) |> return
-        | Indet(d2) => Indet(Ap(d1, d2)) |> return
-        | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
-        };
-      | BoxedValue(Closure(env, flt, Fun(dp, _, d3, _)) as d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(Ap(d1, d2), s2) |> return
-        | BoxedValue(d2)
-        | Indet(d2) =>
-          switch (Evaluator.matches(dp, d2)) {
-          | DoesNotMatch
-          | IndetMatch => Indet(Ap(d1, d2)) |> return
-          | Matches(env') =>
-            /* evaluate a closure: extend the closure environment with the
-             * new bindings introduced by the function application. */
-            let* env = env |> Evaluator.evaluate_extend_env(env');
-            Step(Closure(env, flt, d3), Stepped) |> return;
-          }
-        };
-      | BoxedValue(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2')))
-      | Indet(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(Ap(d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) =>
-          /* ap cast rule */
-          Step(Cast(Ap(d1, Cast(d2, ty1', ty1)), ty2, ty2'), Stepped)
-          |> return
-        };
-      | BoxedValue(d1) =>
-        print_endline("InvalidBoxedFun: " ++ DHExp.show(d1));
-        raise(EvaluatorError.Exception(InvalidBoxedFun(d1)));
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(Ap(d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Indet(Ap(d1, d2)) |> return
-        };
-      };
+            | Ap(d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(Ap(d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(Ap(d1, d2)) |> return
+                | Stepped(d2) => Stepped(Ap(d1, d2)) |> return
+                | Indet(d2) => Paused(Ap(d1, d2)) |> return
+                | BoxedValue(d2) => Paused(Ap(d1, d2)) |> return
+                };
+              | BoxedValue(TestLit(id)) =>
+                let* r2 = transition_test(transition, env, flt, id, d2);
+                switch (r2) {
+                | Stepped(r2) => Stepped(r2) |> return
+                | Paused(r2) => Paused(r2) |> return
+                | Indet(r2) => Indet(r2) |> return
+                | BoxedValue(r2) => BoxedValue(r2) |> return
+                };
+              | BoxedValue(Constructor(_) as d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(Ap(d1, d2)) |> return
+                | Stepped(d2) => Stepped(Ap(d1, d2)) |> return
+                | Indet(d2) => Indet(Ap(d1, d2)) |> return
+                | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
+                };
+              | BoxedValue(Closure(env, flt, Fun(dp, _, d3, _)) as d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(Ap(d1, d2)) |> return
+                | Stepped(d2) => Stepped(Ap(d1, d2)) |> return
+                | BoxedValue(d2)
+                | Indet(d2) =>
+                  switch (Evaluator.matches(dp, d2)) {
+                  | DoesNotMatch
+                  | IndetMatch => Indet(Ap(d1, d2)) |> return
+                  | Matches(env') =>
+                    /* evaluate a closure: extend the closure environment with the
+                     * new bindings introduced by the function application. */
+                    let* env = env |> Evaluator.evaluate_extend_env(env');
+                    Stepped(Closure(env, flt, d3)) |> return;
+                  }
+                };
+              | BoxedValue(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2')))
+              | Indet(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(Ap(d1, d2)) |> return
+                | Stepped(d2) => Stepped(Ap(d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) =>
+                  /* ap cast rule */
+                  Stepped(Cast(Ap(d1, Cast(d2, ty1', ty1)), ty2, ty2'))
+                  |> return
+                };
+              | BoxedValue(d1) =>
+                print_endline("InvalidBoxedFun: " ++ DHExp.show(d1));
+                raise(EvaluatorError.Exception(InvalidBoxedFun(d1)));
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(Ap(d1, d2)) |> return
+                | Stepped(d2) => Stepped(Ap(d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Indet(Ap(d1, d2)) |> return
+                };
+              };
 
-    | ApBuiltin(ident, args) =>
-      let* r = Evaluator.evaluate_ap_builtin(env, ident, args);
-      switch (r) {
-      | Indet(d) => Indet(d) |> return
-      | BoxedValue(d) => Step(d, Stepped) |> return
-      };
+            | ApBuiltin(ident, args) =>
+              let* r = Evaluator.evaluate_ap_builtin(env, ident, args);
+              switch (r) {
+              | Indet(d) => Indet(d) |> return
+              | BoxedValue(d) => Stepped(d) |> return
+              };
 
-    | TestLit(_)
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
-    | Constructor(_) => BoxedValue(d) |> return
+            | TestLit(_)
+            | BoolLit(_)
+            | IntLit(_)
+            | FloatLit(_)
+            | StringLit(_)
+            | Constructor(_) => BoxedValue(d) |> return
 
-    | BinBoolOp(op, d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1, Stepped) => Step(BinBoolOp(op, d1, d2), Stepped) |> return
-      | Step(d1, Paused) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinBoolOp(op, d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Step(BinBoolOp(op, d1, d2), Paused) |> return
-        };
-      | BoxedValue(BoolLit(b1) as d1) =>
-        switch (Evaluator.eval_bin_bool_op_short_circuit(op, b1)) {
-        | Some(b3) => Step(b3, Stepped) |> return
-        | None =>
-          let* r2 = transition(d2);
-          switch (r2) {
-          | Step(d2, s2) => Step(BinBoolOp(op, d1, d2), s2) |> return
-          | BoxedValue(BoolLit(b2)) =>
-            Step(Evaluator.eval_bin_bool_op(op, b1, b2), Stepped) |> return
-          | BoxedValue(d2) =>
-            print_endline("InvalidBoxedBoolLit");
-            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)));
-          | Indet(d2) => Indet(BinBoolOp(op, d1, d2)) |> return
-          };
-        }
-      | BoxedValue(d1) =>
-        print_endline("InvalidBoxedBoolLit");
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)));
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinBoolOp(op, d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Indet(BinBoolOp(op, d1, d2)) |> return
-        };
-      };
+            | BinBoolOp(op, d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(BinBoolOp(op, d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinBoolOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinBoolOp(op, d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Paused(BinBoolOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(BoolLit(b1) as d1) =>
+                switch (Evaluator.eval_bin_bool_op_short_circuit(op, b1)) {
+                | Some(b3) => Stepped(b3) |> return
+                | None =>
+                  let* r2 = transition(d2);
+                  switch (r2) {
+                  | Paused(d2) => Paused(BinBoolOp(op, d1, d2)) |> return
+                  | Stepped(d2) => Stepped(BinBoolOp(op, d1, d2)) |> return
+                  | BoxedValue(BoolLit(b2)) =>
+                    Stepped(Evaluator.eval_bin_bool_op(op, b1, b2)) |> return
+                  | BoxedValue(d2) =>
+                    print_endline("InvalidBoxedBoolLit");
+                    raise(
+                      EvaluatorError.Exception(InvalidBoxedBoolLit(d2)),
+                    );
+                  | Indet(d2) => Indet(BinBoolOp(op, d1, d2)) |> return
+                  };
+                }
+              | BoxedValue(d1) =>
+                print_endline("InvalidBoxedBoolLit");
+                raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)));
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinBoolOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinBoolOp(op, d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Indet(BinBoolOp(op, d1, d2)) |> return
+                };
+              };
 
-    | BinIntOp(op, d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1, Stepped) => Step(BinIntOp(op, d1, d2), Stepped) |> return
-      | Step(d1, Paused) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinIntOp(op, d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Step(BinIntOp(op, d1, d2), Paused) |> return
-        }
-      | BoxedValue(IntLit(n1) as d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinIntOp(op, d1, d2), s2) |> return
-        | BoxedValue(IntLit(n2)) =>
-          switch (op, n1, n2) {
-          | (Divide, _, 0) =>
-            Indet(
-              InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
-                DivideByZero,
-              ),
-            )
-            |> return
-          | (Power, _, _) when n2 < 0 =>
-            Indet(
-              InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
-                NegativeExponent,
-              ),
-            )
-            |> return
-          | _ => Step(Evaluator.eval_bin_int_op(op, n1, n2), Stepped) |> return
-          }
-        | BoxedValue(d2) =>
-          print_endline("InvalidBoxedIntLit1");
-          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)));
-        | Indet(d2) => Indet(BinIntOp(op, d1, d2)) |> return
-        };
-      | BoxedValue(d1) =>
-        print_endline("InvalidBoxedIntLit2");
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)));
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinIntOp(op, d1, d2), s2) |> return
-        | BoxedValue(d2)
-        | Indet(d2) => Indet(BinIntOp(op, d1, d2)) |> return
-        };
-      };
+            | BinIntOp(op, d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(BinIntOp(op, d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinIntOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinIntOp(op, d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Paused(BinIntOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(IntLit(n1) as d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinIntOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinIntOp(op, d1, d2)) |> return
+                | BoxedValue(IntLit(n2)) =>
+                  switch (op, n1, n2) {
+                  | (Divide, _, 0) =>
+                    Indet(
+                      InvalidOperation(
+                        BinIntOp(op, IntLit(n1), IntLit(n2)),
+                        DivideByZero,
+                      ),
+                    )
+                    |> return
+                  | (Power, _, _) when n2 < 0 =>
+                    Indet(
+                      InvalidOperation(
+                        BinIntOp(op, IntLit(n1), IntLit(n2)),
+                        NegativeExponent,
+                      ),
+                    )
+                    |> return
+                  | _ =>
+                    Stepped(Evaluator.eval_bin_int_op(op, n1, n2)) |> return
+                  }
+                | BoxedValue(d2) =>
+                  print_endline("InvalidBoxedIntLit1");
+                  raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)));
+                | Indet(d2) => Indet(BinIntOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(d1) =>
+                print_endline("InvalidBoxedIntLit2");
+                raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)));
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinIntOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinIntOp(op, d1, d2)) |> return
+                | BoxedValue(d2)
+                | Indet(d2) => Indet(BinIntOp(op, d1, d2)) |> return
+                };
+              };
 
-    | BinFloatOp(op, d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1, Stepped) => Step(BinFloatOp(op, d1, d2), Stepped) |> return
-      | Step(d1, Paused) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinFloatOp(op, d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Step(BinFloatOp(op, d1, d2), Paused) |> return
-        }
-      | BoxedValue(FloatLit(f1) as d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinFloatOp(op, d1, d2), s2) |> return
-        | BoxedValue(FloatLit(f2)) =>
-          Step(Evaluator.eval_bin_float_op(op, f1, f2), Stepped) |> return
-        | BoxedValue(d2) =>
-          print_endline("InvalidBoxedFloatLit");
-          raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2)));
-        | Indet(d2) => Indet(BinFloatOp(op, d1, d2)) |> return
-        };
-      | BoxedValue(d1) =>
-        print_endline("InvalidBoxedFloatLit");
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)));
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinFloatOp(op, d1, d2), s2) |> return
-        | BoxedValue(d2)
-        | Indet(d2) => Indet(BinFloatOp(op, d1, d2)) |> return
-        };
-      };
+            | BinFloatOp(op, d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(BinFloatOp(op, d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinFloatOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinFloatOp(op, d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Stepped(BinFloatOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(FloatLit(f1) as d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinFloatOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinFloatOp(op, d1, d2)) |> return
+                | BoxedValue(FloatLit(f2)) =>
+                  Stepped(Evaluator.eval_bin_float_op(op, f1, f2)) |> return
+                | BoxedValue(d2) =>
+                  print_endline("InvalidBoxedFloatLit");
+                  raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2)));
+                | Indet(d2) => Indet(BinFloatOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(d1) =>
+                print_endline("InvalidBoxedFloatLit");
+                raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)));
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinFloatOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinFloatOp(op, d1, d2)) |> return
+                | BoxedValue(d2)
+                | Indet(d2) => Indet(BinFloatOp(op, d1, d2)) |> return
+                };
+              };
 
-    | BinStringOp(op, d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1, Stepped) => Step(BinStringOp(op, d1, d2), Stepped) |> return
-      | Step(d1, Paused) =>
-        let* r2 = transition(d2);
-        switch (r2){
-        | Step(d2, s2) => Step(BinStringOp(op, d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Step(BinStringOp(op, d1, d2), Paused) |> return
-        }
-      | BoxedValue(StringLit(s1) as d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinStringOp(op, d1, d2), s2) |> return
-        | BoxedValue(StringLit(s2)) =>
-          Step(Evaluator.eval_bin_string_op(op, s1, s2), Stepped) |> return
-        | BoxedValue(d2) =>
-          print_endline("InvalidBoxedStringLit");
-          raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2)));
-        | Indet(d2) => Indet(BinStringOp(op, d1, d2)) |> return
-        };
-      | BoxedValue(d1) =>
-        print_endline("InvalidBoxedStringLit");
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)));
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(BinStringOp(op, d1, d2), s2) |> return
-        | BoxedValue(d2)
-        | Indet(d2) => Indet(BinStringOp(op, d1, d2)) |> return
-        };
-      };
+            | BinStringOp(op, d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(BinStringOp(op, d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinStringOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinStringOp(op, d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Paused(BinStringOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(StringLit(s1) as d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinStringOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinStringOp(op, d1, d2)) |> return
+                | BoxedValue(StringLit(s2)) =>
+                  Stepped(Evaluator.eval_bin_string_op(op, s1, s2)) |> return
+                | BoxedValue(d2) =>
+                  print_endline("InvalidBoxedStringLit");
+                  raise(
+                    EvaluatorError.Exception(InvalidBoxedStringLit(d2)),
+                  );
+                | Indet(d2) => Indet(BinStringOp(op, d1, d2)) |> return
+                };
+              | BoxedValue(d1) =>
+                print_endline("InvalidBoxedStringLit");
+                raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1)));
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(BinStringOp(op, d1, d2)) |> return
+                | Stepped(d2) => Stepped(BinStringOp(op, d1, d2)) |> return
+                | BoxedValue(d2)
+                | Indet(d2) => Indet(BinStringOp(op, d1, d2)) |> return
+                };
+              };
 
-    | ListConcat(d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1, Stepped) => Step(ListConcat(d1, d2), Stepped) |> return
-      | Step(d1, Paused) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(ListConcat(d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Step(ListConcat(d1, d2), Paused) |> return
-        }
-      | BoxedValue(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(ListConcat(d1, d2), s2) |> return
-        | BoxedValue(d2') =>
-          switch (d1, d2') {
-          | (ListLit(u, i, ty, ds1), ListLit(_, _, _, ds2)) =>
-            Step(ListLit(u, i, ty, ds1 @ ds2), Stepped) |> return
-          | (Cast(d1, List(ty), List(ty')), d2)
-          | (d1, Cast(d2, List(ty), List(ty'))) =>
-            Step(Cast(ListConcat(d1, d2), List(ty), List(ty')), Stepped) |> return
-          | (ListLit(_), _) =>
-            print_endline("InvalidBoxedListLit: " ++ DHExp.show(d2));
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
-          | _ =>
-            print_endline("InvalidBoxedListLit: " ++ DHExp.show(d1));
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
-          }
-        | Indet(d2) => Indet(ListConcat(d1, d2)) |> return
-        };
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2, s2) => Step(ListConcat(d1, d2), s2) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Indet(ListConcat(d1, d2)) |> return
-        };
-      };
+            | ListConcat(d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(ListConcat(d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(ListConcat(d1, d2)) |> return
+                | Stepped(d2) => Stepped(ListConcat(d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Paused(ListConcat(d1, d2)) |> return
+                };
+              | BoxedValue(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(ListConcat(d1, d2)) |> return
+                | Stepped(d2) => Stepped(ListConcat(d1, d2)) |> return
+                | BoxedValue(d2') =>
+                  switch (d1, d2') {
+                  | (ListLit(u, i, ty, ds1), ListLit(_, _, _, ds2)) =>
+                    Stepped(ListLit(u, i, ty, ds1 @ ds2)) |> return
+                  | (Cast(d1, List(ty), List(ty')), d2)
+                  | (d1, Cast(d2, List(ty), List(ty'))) =>
+                    Stepped(Cast(ListConcat(d1, d2), List(ty), List(ty')))
+                    |> return
+                  | (ListLit(_), _) =>
+                    print_endline("InvalidBoxedListLit: " ++ DHExp.show(d2));
+                    raise(
+                      EvaluatorError.Exception(InvalidBoxedListLit(d2)),
+                    );
+                  | _ =>
+                    print_endline("InvalidBoxedListLit: " ++ DHExp.show(d1));
+                    raise(
+                      EvaluatorError.Exception(InvalidBoxedListLit(d1)),
+                    );
+                  }
+                | Indet(d2) => Indet(ListConcat(d1, d2)) |> return
+                };
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Paused(d2) => Paused(ListConcat(d1, d2)) |> return
+                | Stepped(d2) => Stepped(ListConcat(d1, d2)) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Indet(ListConcat(d1, d2)) |> return
+                };
+              };
 
-    | Tuple(ds) =>
-      let+ drs =
-        ds |> List.map(d => transition(d) >>| (r => (d, r))) |> sequence;
+            | Tuple(ds) =>
+              let* ds =
+                BoxedValue([])
+                |> return
+                |> List.fold_right(
+                     (d, dst) => {
+                       let* dst = dst;
+                       switch (dst) {
+                       | Stepped(dst) => Stepped([d, ...dst]) |> return
+                       | Paused(dst) =>
+                         let* r = transition(d);
+                         switch (r) {
+                         | Stepped(d) => Stepped([d, ...dst]) |> return
+                         | Paused(d)
+                         | Indet(d)
+                         | BoxedValue(d) => Paused([d, ...dst]) |> return
+                         };
+                       | Indet(dst) =>
+                         let* r = transition(d);
+                         switch (r) {
+                         | Stepped(d) => Stepped([d, ...dst]) |> return
+                         | Paused(d) => Paused([d, ...dst]) |> return
+                         | Indet(d)
+                         | BoxedValue(d) => Indet([d, ...dst]) |> return
+                         };
+                       | BoxedValue(dst) =>
+                         let* r = transition(d);
+                         switch (r) {
+                         | Stepped(d) => Stepped([d, ...dst]) |> return
+                         | Paused(d) => Paused([d, ...dst]) |> return
+                         | Indet(d) => Indet([d, ...dst]) |> return
+                         | BoxedValue(d) => BoxedValue([d, ...dst]) |> return
+                         };
+                       };
+                     },
+                     ds,
+                   );
 
-      let empty = DHExp.Tuple([]);
-      let (tag, ds') =
-        List.fold_right(
-          ((el, r), (tag, dst)) => {
-            switch (tag, r) {
-            | (Step(_), _) => (Step(empty), [el, ...dst])
-            | (_, Step(el')) => (Step(empty), [el', ...dst])
-            | (Indet(_), _) => (Indet(empty), [el, ...dst])
-            | (_, Indet(el')) => (Indet(empty), [el', ...dst])
-            | (BoxedValue(_), BoxedValue(el')) => (
-                BoxedValue(empty),
-                [el', ...dst],
+              switch (ds) {
+              | Stepped(ds) => Stepped(DHExp.Tuple(ds)) |> return
+              | Paused(ds) => Paused(DHExp.Tuple(ds)) |> return
+              | Indet(ds) => Indet(DHExp.Tuple(ds)) |> return
+              | BoxedValue(ds) => BoxedValue(DHExp.Tuple(ds)) |> return
+              };
+
+            | Prj(d1, n) =>
+              let invalid_projection = d =>
+                InvalidOperation(d, InvalidOperationError.InvalidProjection);
+              if (n < 0) {
+                Stepped(Prj(d1, n) |> invalid_projection) |> return;
+              } else {
+                let* r = transition(d1);
+                switch (r) {
+                | Stepped(d1) => Stepped(Prj(d1, n)) |> return
+                | Paused(d1) => Paused(Prj(d1, n)) |> return
+                | BoxedValue(Tuple(ds) as d)
+                | Indet(Closure(_, _, Tuple(ds)) as d)
+                | Indet(Tuple(ds) as d) when n >= List.length(ds) =>
+                  Stepped(d |> invalid_projection) |> return
+                | BoxedValue(Tuple(ds))
+                | Indet(Closure(_, _, Tuple(ds)))
+                | Indet(Tuple(ds)) => Stepped(List.nth(ds, n)) |> return
+                | BoxedValue(Cast(_, Prod(tys), Prod(_)) as rv)
+                | Indet(Cast(_, Prod(tys), Prod(_)) as rv)
+                    when n >= List.length(tys) =>
+                  Indet(rv |> invalid_projection) |> return
+                | BoxedValue(Cast(d, Prod(tys), Prod(tys')))
+                | Indet(Cast(d, Prod(tys), Prod(tys'))) =>
+                  let ty = List.nth(tys, n);
+                  let ty' = List.nth(tys', n);
+                  Stepped(Cast(Prj(d, n), ty, ty')) |> return;
+                | BoxedValue(d)
+                | Indet(d) => Indet(d) |> return
+                };
+              };
+
+            | Cons(d1, d2) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(Cons(d1, d2)) |> return
+              | Paused(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Stepped(d2) => Stepped(Cons(d1, d2)) |> return
+                | Paused(d2)
+                | Indet(d2)
+                | BoxedValue(d2) => Paused(Cons(d1, d2)) |> return
+                };
+              | Indet(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Stepped(d2) => Stepped(Cons(d1, d2)) |> return
+                | Paused(d2) => Paused(Cons(d1, d2)) |> return
+                | Indet(ListLit(u, i, ty, ds))
+                | BoxedValue(ListLit(u, i, ty, ds)) =>
+                  Indet(ListLit(u, i, ty, [d1, ...ds])) |> return
+                | Indet(d2)
+                | BoxedValue(d2) => Indet(Cons(d1, d2)) |> return
+                };
+              | BoxedValue(d1) =>
+                let* r2 = transition(d2);
+                switch (r2) {
+                | Stepped(d2) => Stepped(Cons(d1, d2)) |> return
+                | Paused(d2) => Paused(Cons(d1, d2)) |> return
+                | Indet(ListLit(u, i, ty, ds)) =>
+                  Indet(ListLit(u, i, ty, [d1, ...ds])) |> return
+                | BoxedValue(ListLit(u, i, ty, ds)) =>
+                  Stepped(ListLit(u, i, ty, [d1, ...ds])) |> return
+                | BoxedValue(Cons(_))
+                | BoxedValue(Cast(ListLit(_), List(_), List(_))) =>
+                  BoxedValue(Cons(d1, d2)) |> return
+                | Indet(Cons(_))
+                | Indet(Cast(ListLit(_), List(_), List(_))) =>
+                  Indet(Cons(d1, d2)) |> return
+                | _ =>
+                  print_endline("InvalidBoxedListLit");
+                  raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+                };
+              };
+
+            | ListLit(u, i, ty, ds) =>
+              let* ds =
+                BoxedValue([])
+                |> return
+                |> List.fold_right(
+                     (d, dst) => {
+                       let* dst = dst;
+                       switch (dst) {
+                       | Stepped(dst) => Stepped([d, ...dst]) |> return
+                       | Paused(dst) =>
+                         let* r = transition(d);
+                         switch (r) {
+                         | Stepped(d) => Stepped([d, ...dst]) |> return
+                         | Paused(d)
+                         | Indet(d)
+                         | BoxedValue(d) => Paused([d, ...dst]) |> return
+                         };
+                       | Indet(dst) =>
+                         let* r = transition(d);
+                         switch (r) {
+                         | Stepped(d) => Stepped([d, ...dst]) |> return
+                         | Paused(d) => Paused([d, ...dst]) |> return
+                         | Indet(d)
+                         | BoxedValue(d) => Indet([d, ...dst]) |> return
+                         };
+                       | BoxedValue(dst) =>
+                         let* r = transition(d);
+                         switch (r) {
+                         | Stepped(d) => Stepped([d, ...dst]) |> return
+                         | Paused(d) => Paused([d, ...dst]) |> return
+                         | Indet(d) => Indet([d, ...dst]) |> return
+                         | BoxedValue(d) => BoxedValue([d, ...dst]) |> return
+                         };
+                       };
+                     },
+                     ds,
+                   );
+
+              switch (ds) {
+              | Stepped(ds) => Stepped(DHExp.ListLit(u, i, ty, ds)) |> return
+              | Paused(ds) => Paused(DHExp.ListLit(u, i, ty, ds)) |> return
+              | Indet(ds) => Indet(DHExp.ListLit(u, i, ty, ds)) |> return
+              | BoxedValue(ds) =>
+                BoxedValue(DHExp.ListLit(u, i, ty, ds)) |> return
+              };
+
+            | ConsistentCase(Case(d1, rules, n)) =>
+              transition_case(transition, env, flt, d1, rules, n)
+
+            /* Generalized closures evaluate to themselves. Only
+               lambda closures are BoxedValues; other closures are all Indet. */
+            | Closure(env, flt, d) =>
+              switch (d) {
+              | Fun(_) => BoxedValue(Closure(env, flt, d)) |> return
+              | d =>
+                let* r = transition(~env, ~flt, d);
+                switch (r) {
+                | Stepped(d) => Stepped(Closure(env, flt, d)) |> return
+                | Paused(d) => Paused(Closure(env, flt, d)) |> return
+                | Indet(d) => Indet(d) |> return
+                | BoxedValue(d) => BoxedValue(d) |> return
+                };
+              }
+
+            /* Hole expressions */
+            | InconsistentBranches(u, i, Case(d1, rules, n)) =>
+              //TODO: revisit this, consider some kind of dynamic casting
+              Indet(
+                Closure(
+                  env,
+                  flt,
+                  InconsistentBranches(u, i, Case(d1, rules, n)),
+                ),
               )
+              |> return
+
+            | EmptyHole(u, i) =>
+              Indet(Closure(env, flt, EmptyHole(u, i))) |> return
+
+            | NonEmptyHole(reason, u, i, d1) =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) =>
+                Stepped(Closure(env, flt, NonEmptyHole(reason, u, i, d1)))
+                |> return
+              | Paused(d1) =>
+                Paused(Closure(env, flt, NonEmptyHole(reason, u, i, d1)))
+                |> return
+              | BoxedValue(d1)
+              | Indet(d1) =>
+                Indet(Closure(env, flt, NonEmptyHole(reason, u, i, d1)))
+                |> return
+              };
+
+            | FreeVar(u, i, x) =>
+              Indet(Closure(env, flt, FreeVar(u, i, x))) |> return
+
+            | ExpandingKeyword(u, i, kw) =>
+              Indet(Closure(env, flt, ExpandingKeyword(u, i, kw))) |> return
+
+            | InvalidText(u, i, text) =>
+              Indet(Closure(env, flt, InvalidText(u, i, text))) |> return
+
+            /* Cast calculus */
+            | Cast(d1, ty, ty') =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(Cast(d1, ty, ty')) |> return
+              | Paused(d1) => Paused(Cast(d1, ty, ty')) |> return
+              | BoxedValue(d1) =>
+                switch (
+                  Evaluator.ground_cases_of(ty),
+                  Evaluator.ground_cases_of(ty'),
+                ) {
+                | (Hole, Hole) => BoxedValue(d1) |> return
+                | (Ground, Ground) =>
+                  /* if two types are ground and consistent, then they are eq */
+                  BoxedValue(d1) |> return
+                | (Ground, Hole) =>
+                  /* can't remove the cast or do anything else here, so we're done */
+                  BoxedValue(Cast(d1, ty, ty')) |> return
+                | (Hole, Ground) =>
+                  /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
+                  switch (d1) {
+                  | Cast(d1'', ty'', Unknown(_)) =>
+                    if (Typ.eq(ty'', ty')) {
+                      BoxedValue(d1'') |> return;
+                    } else {
+                      Indet(FailedCast(d1, ty, ty')) |> return;
+                    }
+                  | _ =>
+                    print_endline("CastBVHoleGround");
+                    raise(EvaluatorError.Exception(CastBVHoleGround(d1)));
+                  }
+                | (Hole, NotGroundOrHole(ty'_grounded)) =>
+                  /* ITExpand rule */
+                  let d1 =
+                    DHExp.Cast(
+                      Cast(d1, ty, ty'_grounded),
+                      ty'_grounded,
+                      ty',
+                    );
+                  Stepped(d1) |> return;
+                | (NotGroundOrHole(ty_grounded), Hole) =>
+                  /* ITGround rule */
+                  let d1 =
+                    DHExp.Cast(Cast(d1, ty, ty_grounded), ty_grounded, ty');
+                  Stepped(d1) |> return;
+                | (Ground, NotGroundOrHole(_))
+                | (NotGroundOrHole(_), Ground) =>
+                  /* can't do anything when casting between diseq, non-hole types */
+                  BoxedValue(Cast(d1, ty, ty')) |> return
+                | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+                  /* they might be eq in this case, so remove cast if so */
+                  if (Typ.eq(ty, ty')) {
+                    BoxedValue(d1) |> return;
+                  } else {
+                    BoxedValue(Cast(d1, ty, ty')) |> return;
+                  }
+                }
+              | Indet(d1) =>
+                switch (
+                  Evaluator.ground_cases_of(ty),
+                  Evaluator.ground_cases_of(ty'),
+                ) {
+                | (Hole, Hole) => Indet(d1) |> return
+                | (Ground, Ground) =>
+                  /* if two types are ground and consistent, then they are eq */
+                  Indet(d1) |> return
+                | (Ground, Hole) =>
+                  /* can't remove the cast or do anything else here, so we're done */
+                  Indet(Cast(d1, ty, ty')) |> return
+                | (Hole, Ground) =>
+                  switch (d1) {
+                  | Cast(d1'', ty'', Unknown(_)) =>
+                    if (Typ.eq(ty'', ty')) {
+                      Indet(d1'') |> return;
+                    } else {
+                      Indet(FailedCast(d1, ty, ty')) |> return;
+                    }
+                  | _ => Indet(Cast(d1, ty, ty')) |> return
+                  }
+                | (Hole, NotGroundOrHole(ty'_grounded)) =>
+                  /* ITExpand rule */
+                  let d1 =
+                    DHExp.Cast(
+                      Cast(d1, ty, ty'_grounded),
+                      ty'_grounded,
+                      ty',
+                    );
+                  Stepped(d1) |> return;
+                | (NotGroundOrHole(ty_grounded), Hole) =>
+                  /* ITGround rule */
+                  let d1 =
+                    DHExp.Cast(Cast(d1, ty, ty_grounded), ty_grounded, ty');
+                  Stepped(d1) |> return;
+                | (Ground, NotGroundOrHole(_))
+                | (NotGroundOrHole(_), Ground) =>
+                  /* can't do anything when casting between diseq, non-hole types */
+                  Indet(Cast(d1, ty, ty')) |> return
+                | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+                  /* it might be eq in this case, so remove cast if so */
+                  if (Typ.eq(ty, ty')) {
+                    Indet(d1) |> return;
+                  } else {
+                    Indet(Cast(d1, ty, ty')) |> return;
+                  }
+                }
+              };
+
+            | FailedCast(d1, ty, ty') =>
+              let* r1 = transition(d1);
+              switch (r1) {
+              | Stepped(d1) => Stepped(FailedCast(d1, ty, ty')) |> return
+              | Paused(d1) => Paused(FailedCast(d1, ty, ty')) |> return
+              | BoxedValue(d1)
+              | Indet(d1) => Indet(FailedCast(d1, ty, ty')) |> return
+              };
+
+            | InvalidOperation(d, err) =>
+              Indet(InvalidOperation(d, err)) |> return
             }
-          },
-          drs,
-          (BoxedValue(empty), []),
-        );
-      let d' = DHExp.Tuple(ds');
-
-      switch (tag) {
-      | Step(_) => Step(d')
-      | Indet(_) => Indet(d')
-      | BoxedValue(_) => BoxedValue(d')
-      };
-
-    | Prj(targ, n) =>
-      if (n < 0) {
-        Indet(InvalidOperation(d, InvalidOperationError.InvalidProjection))
-        |> return;
-      } else {
-        let* r = transition(targ);
-        switch (r) {
-        | Step(Tuple(ds) as rv) =>
-          if (n >= List.length(ds)) {
-            Step(
-              InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-            )
-            |> return;
-          } else {
-            Step(List.nth(ds, n)) |> return;
-          }
-        | BoxedValue(Tuple(ds) as rv) =>
-          if (n >= List.length(ds)) {
-            Indet(
-              InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-            )
-            |> return;
-          } else {
-            Step(List.nth(ds, n)) |> return;
-          }
-        | Indet(Closure(_, _, Tuple(ds)) as rv)
-        | Indet(Tuple(ds) as rv) =>
-          if (n >= List.length(ds)) {
-            Indet(
-              InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-            )
-            |> return;
-          } else {
-            Indet(List.nth(ds, n)) |> return;
-          }
-        | Step(Cast(targ', Prod(tys), Prod(tys')) as rv)
-        | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)
-        | Indet(Cast(targ', Prod(tys), Prod(tys')) as rv) =>
-          if (n >= List.length(tys)) {
-            Indet(
-              InvalidOperation(rv, InvalidOperationError.InvalidProjection),
-            )
-            |> return;
-          } else {
-            let ty = List.nth(tys, n);
-            let ty' = List.nth(tys', n);
-            Step(Cast(Prj(targ', n), ty, ty')) |> return;
-          }
-        | Step(d) => Step(Prj(d, n)) |> return
-        | _ => Indet(d) |> return
-        };
-      }
-
-    | Cons(d1, d2) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1) => Step(Cons(d1, d2)) |> return
-      | Indet(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2) => Step(Cons(d1, d2)) |> return
-        | Indet(ListLit(u, i, ty, ds))
-        | BoxedValue(ListLit(u, i, ty, ds)) =>
-          Indet(ListLit(u, i, ty, [d1, ...ds])) |> return
-        | Indet(d2)
-        | BoxedValue(d2) => Indet(Cons(d1, d2)) |> return
-        };
-      | BoxedValue(d1) =>
-        let* r2 = transition(d2);
-        switch (r2) {
-        | Step(d2) => Step(Cons(d1, d2)) |> return
-        | Indet(ListLit(u, i, ty, ds)) =>
-          Indet(ListLit(u, i, ty, [d1, ...ds])) |> return
-        | BoxedValue(ListLit(u, i, ty, ds)) =>
-          Step(ListLit(u, i, ty, [d1, ...ds])) |> return
-        | BoxedValue(Cons(_))
-        | BoxedValue(Cast(ListLit(_), List(_), List(_))) =>
-          BoxedValue(Cons(d1, d2)) |> return
-        | Indet(Cons(_))
-        | Indet(Cast(ListLit(_), List(_), List(_))) =>
-          Indet(Cons(d1, d2)) |> return
-        | _ =>
-          print_endline("InvalidBoxedListLit");
-          raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
-        };
-      };
-
-    | ListLit(u, i, ty, ds) =>
-      let+ drs =
-        ds |> List.map(d => transition(d) >>| (r => (d, r))) |> sequence;
-
-      let empty = DHExp.Tuple([]);
-      let (tag, ds') =
-        List.fold_right(
-          ((el, r), (tag, dst)) => {
-            switch (tag, r) {
-            | (Step(_), _) => (Step(empty), [el, ...dst])
-            | (_, Step(el')) => (Step(empty), [el', ...dst])
-            | (Indet(_), _) => (Indet(empty), [el, ...dst])
-            | (_, Indet(el')) => (Indet(empty), [el', ...dst])
-            | (BoxedValue(_), BoxedValue(el')) => (
-                BoxedValue(empty),
-                [el', ...dst],
-              )
-            }
-          },
-          drs,
-          (BoxedValue(empty), []),
-        );
-
-      let d' = DHExp.ListLit(u, i, ty, ds');
-
-      switch (tag) {
-      | Step(_) => Step(d')
-      | Indet(_) => Indet(d')
-      | BoxedValue(_) => BoxedValue(d')
-      };
-
-    | ConsistentCase(Case(d1, rules, n)) =>
-      transition_case(fixed, env, flt, d1, rules, n)
-
-    /* Generalized closures evaluate to themselves. Only
-       lambda closures are BoxedValues; other closures are all Indet. */
-    | Closure(env, flt, d) =>
-      switch (d) {
-      | Fun(_) => BoxedValue(Closure(env, flt, d)) |> return
-      | d =>
-        let* r = transition(~env, ~flt, d);
-        switch (r) {
-        | Step(d) => Step(Closure(env, flt, d)) |> return
-        | Indet(d) => Indet(d) |> return
-        | BoxedValue(d) => BoxedValue(d) |> return
-        };
-      }
-
-    /* Hole expressions */
-    | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-      //TODO: revisit this, consider some kind of dynamic casting
-      Indet(
-        Closure(env, flt, InconsistentBranches(u, i, Case(d1, rules, n))),
+          )
       )
-      |> return
-
-    | EmptyHole(u, i) =>
-      Indet(Closure(env, flt, EmptyHole(u, i))) |> return
-
-    | NonEmptyHole(reason, u, i, d1) =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1') =>
-        Step(Closure(env, flt, NonEmptyHole(reason, u, i, d1'))) |> return
-      | BoxedValue(d1')
-      | Indet(d1') =>
-        Indet(Closure(env, flt, NonEmptyHole(reason, u, i, d1'))) |> return
-      };
-
-    | FreeVar(u, i, x) =>
-      Indet(Closure(env, flt, FreeVar(u, i, x))) |> return
-
-    | ExpandingKeyword(u, i, kw) =>
-      Indet(Closure(env, flt, ExpandingKeyword(u, i, kw))) |> return
-
-    | InvalidText(u, i, text) =>
-      Indet(Closure(env, flt, InvalidText(u, i, text))) |> return
-
-    /* Cast calculus */
-    | Cast(d1, ty, ty') =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1) => Step(Cast(d1, ty, ty')) |> return
-      | BoxedValue(d1) =>
-        switch (
-          Evaluator.ground_cases_of(ty),
-          Evaluator.ground_cases_of(ty'),
-        ) {
-        | (Hole, Hole) => BoxedValue(d1) |> return
-        | (Ground, Ground) =>
-          /* if two types are ground and consistent, then they are eq */
-          BoxedValue(d1) |> return
-        | (Ground, Hole) =>
-          /* can't remove the cast or do anything else here, so we're done */
-          BoxedValue(Cast(d1, ty, ty')) |> return
-        | (Hole, Ground) =>
-          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-          switch (d1) {
-          | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
-              BoxedValue(d1'') |> return;
-            } else {
-              Indet(FailedCast(d1, ty, ty')) |> return;
-            }
-          | _ =>
-            print_endline("CastBVHoleGround");
-            raise(EvaluatorError.Exception(CastBVHoleGround(d1)));
-          }
-        | (Hole, NotGroundOrHole(ty'_grounded)) =>
-          /* ITExpand rule */
-          let d1 = DHExp.Cast(Cast(d1, ty, ty'_grounded), ty'_grounded, ty');
-          Step(d1) |> return;
-        | (NotGroundOrHole(ty_grounded), Hole) =>
-          /* ITGround rule */
-          let d1 = DHExp.Cast(Cast(d1, ty, ty_grounded), ty_grounded, ty');
-          Step(d1) |> return;
-        | (Ground, NotGroundOrHole(_))
-        | (NotGroundOrHole(_), Ground) =>
-          /* can't do anything when casting between diseq, non-hole types */
-          BoxedValue(Cast(d1, ty, ty')) |> return
-        | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-          /* they might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
-            BoxedValue(d1) |> return;
-          } else {
-            BoxedValue(Cast(d1, ty, ty')) |> return;
-          }
-        }
-      | Indet(d1) =>
-        switch (
-          Evaluator.ground_cases_of(ty),
-          Evaluator.ground_cases_of(ty'),
-        ) {
-        | (Hole, Hole) => Indet(d1) |> return
-        | (Ground, Ground) =>
-          /* if two types are ground and consistent, then they are eq */
-          Indet(d1) |> return
-        | (Ground, Hole) =>
-          /* can't remove the cast or do anything else here, so we're done */
-          Indet(Cast(d1, ty, ty')) |> return
-        | (Hole, Ground) =>
-          switch (d1) {
-          | Cast(d1'', ty'', Unknown(_)) =>
-            if (Typ.eq(ty'', ty')) {
-              Indet(d1'') |> return;
-            } else {
-              Indet(FailedCast(d1, ty, ty')) |> return;
-            }
-          | _ => Indet(Cast(d1, ty, ty')) |> return
-          }
-        | (Hole, NotGroundOrHole(ty'_grounded)) =>
-          /* ITExpand rule */
-          let d1 = DHExp.Cast(Cast(d1, ty, ty'_grounded), ty'_grounded, ty');
-          Step(d1) |> return;
-        | (NotGroundOrHole(ty_grounded), Hole) =>
-          /* ITGround rule */
-          let d1 = DHExp.Cast(Cast(d1, ty, ty_grounded), ty_grounded, ty');
-          Step(d1) |> return;
-        | (Ground, NotGroundOrHole(_))
-        | (NotGroundOrHole(_), Ground) =>
-          /* can't do anything when casting between diseq, non-hole types */
-          Indet(Cast(d1, ty, ty')) |> return
-        | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-          /* it might be eq in this case, so remove cast if so */
-          if (Typ.eq(ty, ty')) {
-            Indet(d1) |> return;
-          } else {
-            Indet(Cast(d1, ty, ty')) |> return;
-          }
-        }
-      };
-
-    | FailedCast(d1, ty, ty') =>
-      let* r1 = transition(d1);
-      switch (r1) {
-      | Step(d1') => Step(FailedCast(d1', ty, ty')) |> return
-      | BoxedValue(d1')
-      | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
-      };
-
-    | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
-    };
+    );
   };
 
   let rec step =
-          (
-            env: ClosureEnvironment.t,
-            flt: FilterEnvironment.t,
-            act: StepperAction.t,
-            d: DHExp.t,
-          )
-          : EvaluatorMonad.t(Result.t) => {
-    print_endline("======== step ========");
-    print_endline("act = " ++ StepperAction.show(act));
-    print_endline("exp = " ++ DHExp.show(d));
-    let act: StepperAction.t =
-      switch (act) {
-      | Step =>
-        let act = flt |> FilterEnvironment.matches(d, Pause);
-        switch (act) {
-        | Pause => StepperAction.Step
-        | Eval => Eval
-        };
-      | Pause =>
-        let act = flt |> FilterEnvironment.matches(d, Pause);
-        switch (act) {
-        | Pause => StepperAction.Pause
-        | Eval => Eval
-        };
-      | Eval =>
-        let act = flt |> FilterEnvironment.matches(d, Eval);
-        switch (act) {
-        | Pause => StepperAction.Pause
-        | Eval => Eval
-        };
-      };
-    let fixed = (env, flt, d) => step(env, flt, act, d);
-    let* r = transition(fixed, env, flt, d);
-    let* r =
-      switch (act) {
-      | Step => r |> return
-      | Pause =>
-        switch (r) {
-        | BoxedValue(d) => Result.BoxedValue(d) |> return
-        | Indet(d) => Result.Indet(d) |> return
-        | Step(_) => Result.Step(d) |> return
-        }
-      | Eval =>
-        switch (r) {
-        | BoxedValue(d) => Result.BoxedValue(d) |> return
-        | Indet(d) => Result.Indet(d) |> return
-        | Step(d) => step(env, flt, act, d)
-        }
-      };
-    print_endline("out = " ++ Result.show(r));
-    print_endline("-------- step --------");
-    r |> return;
+          (env: ClosureEnvironment.t, flt: FilterEnvironment.t, d: DHExp.t)
+          : Monad.t(Result.t(DHExp.t)) => {
+    let fixed = (~env=env, ~flt=flt, d) => step(env, flt, d);
+    transition(fixed, env, flt, d);
+  };
+
+  let rec walk =
+          (env: ClosureEnvironment.t, flt: FilterEnvironment.t, d: DHExp.t)
+          : Monad.t(Result.t(DHExp.t)) => {
+    open Result;
+    let act = flt |> FilterEnvironment.matches(d);
+    let fixed = (~env=env, ~flt=flt, d) => walk(env, flt, d);
+    let+ r = transition(fixed, env, flt, d);
+    switch (act) {
+    | Some(Pause) =>
+      switch (r) {
+      | Paused(d) => Paused(d)
+      | Stepped(_) => Paused(d)
+      | Indet(d) => Indet(d)
+      | BoxedValue(d) => BoxedValue(d)
+      }
+    | Some(Eval)
+    | None => r
+    };
+  };
+
+  let rec eval =
+          (env: ClosureEnvironment.t, flt: FilterEnvironment.t, d: DHExp.t)
+          : Monad.t(Result.t(DHExp.t)) => {
+    open Result;
+    let* r = walk(env, flt, d);
+    switch (r) {
+    | Paused(d) => Paused(d) |> return
+    | Stepped(d) =>
+      let* () = take_step;
+      eval(env, flt, d);
+    | BoxedValue(d) => BoxedValue(d) |> return
+    | Indet(d) => Indet(d) |> return
+    };
   };
 };
 
@@ -1264,11 +1363,17 @@ module Decompose = {
       let indet = Result.Indet |> Monad.return;
     };
 
-    let* r = Transition.step(env, flt, Pause, exp);
+    let* () = 0 |> put_step;
+    let* r = Transition.eval(env, flt, exp);
+    let* s = get_step;
+    print_endline("rexp = " ++ Transition.Result.show(DHExp.pp, r));
     switch (r) {
-    | BoxedValue(_) => Return.boxed
-    | Indet(_) => Return.indet
-    | Step(_) =>
+    | BoxedValue(_) when s == 0 => Return.boxed
+    | BoxedValue(_) => Return.mark(Eval)
+    | Indet(_) when s == 0 => Return.indet
+    | Indet(_) => Return.mark(Eval)
+    | Stepped(_)
+    | Paused(_) =>
       switch (exp) {
       | EmptyHole(_) => Return.indet
       | NonEmptyHole(_) => Return.indet
@@ -1281,7 +1386,8 @@ module Decompose = {
       | Closure(_, _, Fun(_)) => Return.boxed
       | Closure(env, flt, d1) =>
         decompose(~env, ~flt, d1) >>| Return.wrap(c => Closure(env, flt, c))
-      | Cast(_) => Return.mark(act)
+      | Cast(d1, ty, ty') =>
+        decompose(~env, ~flt, d1) >>| Return.wrap(c => Cast(c, ty, ty'))
       | BoundVar(_) => Return.mark(act)
       | Sequence(d1, d2) =>
         let* r1 = decompose(d1);
@@ -1509,15 +1615,15 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): m(DHExp.t) => {
 };
 
 let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
-  let act: StepperAction.t =
+  let* r =
     switch (obj.act) {
-    | Pause => Step
-    | Eval => Eval
+    | Pause => Transition.step(obj.env, obj.flt, obj.exp)
+    | Eval => Transition.eval(obj.env, obj.flt, obj.exp)
     };
-  let* r = Transition.step(obj.env, obj.flt, act, obj.exp);
   let* d = compose(obj.ctx, Transition.Result.unbox(r));
   switch (r) {
-  | Step(_, _)
+  | Paused(_)
+  | Stepped(_)
   | BoxedValue(_) => EvaluatorResult.BoxedValue(d) |> return
   | Indet(_) => EvaluatorResult.Indet(d) |> return
   };
@@ -1528,15 +1634,15 @@ let evaluate_with_history = (d: DHExp.t) => {
           (
             env: ClosureEnvironment.t,
             fenv: FilterEnvironment.t,
-            fact: StepperAction.t,
             d: DHExp.t,
             rs: m(list(DHExp.t)),
           )
           : m(list(DHExp.t)) => {
     let* rs = rs;
-    let* r = Transition.step(env, fenv, fact, d);
+    let* r = Transition.step(env, fenv, d);
     switch (r) {
-    | Step(d) => go(env, fenv, Step, d, [d, ...rs] |> return)
+    | Stepped(d)
+    | Paused(d) => go(env, fenv, d, [d, ...rs] |> return)
     | BoxedValue(_) => rs |> return
     | Indet(_) => rs |> return
     };
@@ -1546,7 +1652,7 @@ let evaluate_with_history = (d: DHExp.t) => {
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
   let fenv = FilterEnvironment.empty;
-  let (_, rs) = go(env, fenv, Pause, d, [] |> return, es);
+  let (_, rs) = go(env, fenv, d, [] |> return, es);
   rs;
 };
 
@@ -1577,23 +1683,12 @@ let decompose = (d: DHExp.t) => {
     Environment.empty
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  print_endline("======== decompose_wrap ========");
+  print_endline("======== decompose ========");
   print_endline("exp = " ++ DHExp.show(d));
   let (_, rs) =
     Decompose.decompose(env, FilterEnvironment.empty, Pause, d, es);
+  print_endline("rs = " ++ Decompose.Result.show(rs));
   Decompose.Result.unbox(rs);
-};
-
-let init = (d: DHExp.t): DHExp.t => {
-  let (env, es) =
-    Environment.empty
-    |> ClosureEnvironment.of_environment
-    |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  print_endline("======== init ========");
-  print_endline("exp = " ++ DHExp.show(d));
-  let (_, r) = Transition.step(env, FilterEnvironment.empty, Pause, d, es);
-  print_endline("out = " ++ Transition.Result.show(r));
-  Transition.Result.unbox(r);
 };
 
 module Stepper = {
