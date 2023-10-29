@@ -1211,10 +1211,10 @@ module Transition = {
           : Monad.t(Result.t(DHExp.t)) => {
     open Result;
     let act = flt |> FilterEnvironment.matches(env, d);
-    print_endline("======== walk ========");
-    print_endline("flt = " ++ FilterEnvironment.show(flt));
-    print_endline("act = " ++ [%show: option(FilterAction.t)](act));
-    print_endline("exp = " ++ DHExp.show(d));
+    // print_endline("======== walk ========");
+    // print_endline("flt = " ++ FilterEnvironment.show(flt));
+    // print_endline("act = " ++ [%show: option(FilterAction.t)](act));
+    // print_endline("exp = " ++ DHExp.show(d));
     let fixed = (~env=env, ~flt=flt, d) => walk(env, flt, d);
     let+ r = transition(fixed, env, flt, d);
     switch (act) {
@@ -1233,9 +1233,10 @@ module Transition = {
   let rec eval =
           (env: ClosureEnvironment.t, flt: FilterEnvironment.t, d: DHExp.t)
           : Monad.t(Result.t(DHExp.t)) => {
-    print_endline("======== eval =========");
-    print_endline("exp = " ++ DHExp.show(d));
     open Result;
+    // print_endline("======== eval =========");
+    // print_endline("exp = " ++ DHExp.show(d));
+
     let* r = walk(env, flt, d);
     switch (r) {
     | Paused(d) => Paused(d) |> return
@@ -1632,6 +1633,8 @@ let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
     | Eval => Transition.eval(obj.env, obj.flt, obj.exp)
     };
   let* d = compose(obj.ctx, Transition.Result.unbox(r));
+  print_endline("======== step ========");
+  print_endline("res = " ++ DHExp.show(d));
   switch (r) {
   | Paused(_)
   | Stepped(_)

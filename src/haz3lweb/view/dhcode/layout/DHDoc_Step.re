@@ -36,6 +36,14 @@ let rec mk =
             objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
           )
           : (DHDoc.t, option(Typ.t)) => {
+    print_endline("======== go ========");
+    print_endline("exp = " ++ DHExp.show(d));
+    print_endline(
+      "obj = "
+      ++ [%show: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t))](
+           objs,
+         ),
+    );
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, objs, drs) =>
@@ -60,7 +68,11 @@ let rec mk =
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
             drs
             |> List.map(
-                 mk_rule(~settings, ~selected_hole_instance, ~next_steps),
+                 mk_rule(
+                   ~settings,
+                   ~selected_hole_instance,
+                   ~next_steps=objs |> List.map(snd),
+                 ),
                ),
             [DHDoc_common.Delim.close_Case],
           ]),
@@ -90,20 +102,19 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let unwrap =
+    let unwrap = (l, sel) =>
       if (next_steps != []) {
-        (l, sel) =>
-          List.fold_right(
-            ((step, full), lst) =>
-              switch (EvaluatorStep.EvalObj.unwrap(step, sel)) {
-              | Some(obj) => [(obj, full), ...lst]
-              | None => lst
-              },
-            l,
-            [],
-          );
+        List.fold_right(
+          ((step, full), lst) =>
+            switch (EvaluatorStep.EvalObj.unwrap(step, sel)) {
+            | Some(obj) => [(obj, full), ...lst]
+            | None => lst
+            },
+          l,
+          [],
+        );
       } else {
-        (l, _) => l;
+        l;
       };
     let fdoc =
         (
@@ -111,6 +122,12 @@ let rec mk =
           ~d: DHExp.t,
           ~objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
         ) => {
+      print_endline("======== fdoc ========");
+      print_endline("exp = " ++ DHExp.show(d));
+      print_endline(
+        "obj = "
+        ++ [%show: list(EvaluatorStep.EvalObj.t)](objs |> List.map(fst)),
+      );
       switch (d) {
       /* Now any of the postprocess checking is not done since most of
          the time the result is partial evaluated and those conditions
@@ -340,7 +357,7 @@ let rec mk =
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
-            mk_cast(go(~enforce_inline, dbody, objs));
+            mk_cast(go(~enforce_inline, dbody, []));
           hcats([
             DHDoc_common.Delim.sym_Fun,
             DHDoc_Pat.mk(dp)

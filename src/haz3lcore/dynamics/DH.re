@@ -347,13 +347,7 @@ and Filter: {
 
   let matches =
       (env: ClosureEnvironment.t, d: DHExp.t, f: t): option(FilterAction.t) => {
-    print_endline("======== Filter.matches ========");
-    print_endline("exp = " ++ DHExp.show(d));
-    print_endline("pat = " ++ DHExp.show(f.pat));
     let rec matches_exp = (d: DHExp.t, f: DHExp.t): bool => {
-      print_endline("======== Filter.matches_exp ========");
-      print_endline("d = " ++ DHExp.show(d));
-      print_endline("f = " ++ DHExp.show(f));
       switch (d, f) {
       | (Constructor("$Expr"), _) => failwith("$Expr in matched expression")
       | (Constructor("$Value"), _) =>
@@ -376,25 +370,15 @@ and Filter: {
       | (FreeVar(_, _, dx), BoundVar(fx))
       | (FreeVar(_, _, dx), FreeVar(_, _, fx)) => dx == fx
       | (BoundVar(dx), _) =>
-        print_endline(
-          "FilterEnvironment.matches: Var(" ++ dx ++ ") =? " ++ DHExp.show(f),
-        );
         switch (ClosureEnvironment.lookup(env, dx)) {
         | Some(d) => matches_exp(d, f)
         | None => false
-        };
+        }
       | (_, BoundVar(fx)) =>
-        print_endline(
-          "FilterEnvironment.matches: "
-          ++ DHExp.show(d)
-          ++ " =? Var("
-          ++ fx
-          ++ ")",
-        );
         switch (ClosureEnvironment.lookup(env, fx)) {
         | Some(f) => matches_exp(d, f)
         | None => false
-        };
+        }
 
       | (Filter(_, d1), _) => matches_exp(d1, f)
 
