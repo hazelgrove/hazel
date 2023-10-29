@@ -195,7 +195,8 @@ module rec DHExp: {
     | StringLit(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
-    | IfThenElse(a, b, c) => IfThenElse(strip_casts(a), strip_casts(b), strip_casts(c))
+    | IfThenElse(a, b, c) =>
+      IfThenElse(strip_casts(a), strip_casts(b), strip_casts(c))
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
