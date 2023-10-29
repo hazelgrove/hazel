@@ -386,6 +386,12 @@ let apply =
       Ok(model);
     | PerformQuery(query) =>
       //TODO
+      print_endline(
+        Query.query_reply(
+          Query.CursorMove,
+          Editors.get_editor(model.editors),
+        ),
+      );
       print_endline(Query.to_string(query));
       print_endline(
         Query.query_reply(query, Editors.get_editor(model.editors)),
