@@ -1210,7 +1210,11 @@ module Transition = {
           (env: ClosureEnvironment.t, flt: FilterEnvironment.t, d: DHExp.t)
           : Monad.t(Result.t(DHExp.t)) => {
     open Result;
-    let act = flt |> FilterEnvironment.matches(d);
+    let act = flt |> FilterEnvironment.matches(env, d);
+    print_endline("======== walk ========");
+    print_endline("flt = " ++ FilterEnvironment.show(flt));
+    print_endline("act = " ++ [%show: option(FilterAction.t)](act));
+    print_endline("exp = " ++ DHExp.show(d));
     let fixed = (~env=env, ~flt=flt, d) => walk(env, flt, d);
     let+ r = transition(fixed, env, flt, d);
     switch (act) {
@@ -1229,6 +1233,8 @@ module Transition = {
   let rec eval =
           (env: ClosureEnvironment.t, flt: FilterEnvironment.t, d: DHExp.t)
           : Monad.t(Result.t(DHExp.t)) => {
+    print_endline("======== eval =========");
+    print_endline("exp = " ++ DHExp.show(d));
     open Result;
     let* r = walk(env, flt, d);
     switch (r) {
@@ -1296,6 +1302,11 @@ module Decompose = {
     let decompose = (~env=env, ~flt=flt, ~act=act, exp: DHExp.t) => {
       decompose(env, flt, act, exp);
     };
+    let act =
+      switch (FilterEnvironment.matches(env, exp, flt)) {
+      | Some(act) => act
+      | None => act
+      };
     module Return = {
       type t =
         | Operator

@@ -333,7 +333,7 @@ and Filter: {
     act: FilterAction.t,
   };
 
-  let matches: (DHExp.t, t) => option(FilterAction.t);
+  let matches: (ClosureEnvironment.t, DHExp.t, t) => option(FilterAction.t);
 
   let fast_equal: (t, t) => bool;
 
@@ -345,26 +345,58 @@ and Filter: {
     act: FilterAction.t,
   };
 
-  let matches = (d: DHExp.t, f: t): option(FilterAction.t) => {
+  let matches =
+      (env: ClosureEnvironment.t, d: DHExp.t, f: t): option(FilterAction.t) => {
+    print_endline("======== Filter.matches ========");
+    print_endline("exp = " ++ DHExp.show(d));
+    print_endline("pat = " ++ DHExp.show(f.pat));
     let rec matches_exp = (d: DHExp.t, f: DHExp.t): bool => {
+      print_endline("======== Filter.matches_exp ========");
+      print_endline("d = " ++ DHExp.show(d));
+      print_endline("f = " ++ DHExp.show(f));
       switch (d, f) {
       | (Constructor("$Expr"), _) => failwith("$Expr in matched expression")
       | (Constructor("$Value"), _) =>
         failwith("$Value in matched expression")
 
+      | (_, Constructor("$Expr")) => true
+      | (_, EmptyHole(_)) => true
+      | (EmptyHole(_), _) => false
+
       | (Closure(_, _, d), _) => matches_exp(d, f)
       | (_, Closure(_, _, f)) => matches_exp(d, f)
-
-      | (Filter(_, d1), _) => matches_exp(d1, f)
 
       | (Cast(d, _, _), _) => matches_exp(d, f)
       | (_, Cast(f, _, _)) => matches_exp(d, f)
       | (FailedCast(d, _, _), _) => matches_exp(d, f)
       | (_, FailedCast(f, _, _)) => matches_exp(d, f)
 
-      | (_, Constructor("$Expr")) => true
-      | (_, EmptyHole(_)) => true
-      | (EmptyHole(_), _) => false
+      | (BoundVar(dx), BoundVar(fx))
+      | (BoundVar(dx), FreeVar(_, _, fx))
+      | (FreeVar(_, _, dx), BoundVar(fx))
+      | (FreeVar(_, _, dx), FreeVar(_, _, fx)) => dx == fx
+      | (BoundVar(dx), _) =>
+        print_endline(
+          "FilterEnvironment.matches: Var(" ++ dx ++ ") =? " ++ DHExp.show(f),
+        );
+        switch (ClosureEnvironment.lookup(env, dx)) {
+        | Some(d) => matches_exp(d, f)
+        | None => false
+        };
+      | (_, BoundVar(fx)) =>
+        print_endline(
+          "FilterEnvironment.matches: "
+          ++ DHExp.show(d)
+          ++ " =? Var("
+          ++ fx
+          ++ ")",
+        );
+        switch (ClosureEnvironment.lookup(env, fx)) {
+        | Some(f) => matches_exp(d, f)
+        | None => false
+        };
+
+      | (Filter(_, d1), _) => matches_exp(d1, f)
 
       | (
           BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_),
@@ -373,24 +405,19 @@ and Filter: {
         true
 
       | (BoolLit(dv), BoolLit(fv)) => dv == fv
-      | (_, BoolLit(_))
       | (BoolLit(_), _) => false
 
       | (IntLit(dv), IntLit(fv)) => dv == fv
-      | (_, IntLit(_))
       | (IntLit(_), _) => false
 
       | (FloatLit(dv), FloatLit(fv)) => dv == fv
-      | (_, FloatLit(_))
       | (FloatLit(_), _) => false
 
       | (StringLit(dv), StringLit(fv)) => dv == fv
-      | (_, StringLit(_))
       | (StringLit(_), _) => false
 
       | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
       | (Constructor(dt), Constructor(ft)) => dt == ft
-      | (_, Constructor(_))
       | (Constructor(_), _) => false
 
       | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
@@ -398,17 +425,9 @@ and Filter: {
         && dty1 == fty1
         && matches_exp(d1, f1)
         && dname1 == fname1
-      | (_, Fun(_))
       | (Fun(_), _) => false
 
-      | (BoundVar(dx), BoundVar(fx))
-      | (BoundVar(dx), FreeVar(_, _, fx))
-      | (FreeVar(_, _, dx), BoundVar(fx))
-      | (FreeVar(_, _, dx), FreeVar(_, _, fx)) => dx == fx
-      | (BoundVar(_), _)
-      | (_, BoundVar(_))
-      | (FreeVar(_), _)
-      | (_, FreeVar(_)) => false
+      | (FreeVar(_), _) => false
 
       | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
         matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
@@ -417,22 +436,18 @@ and Filter: {
 
       | (Ap(d1, d2), Ap(f1, f2)) =>
         matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Ap(_), _)
-      | (_, Ap(_)) => false
+      | (Ap(_), _) => false
 
       | (Sequence(d1, d2), Sequence(f1, f2)) =>
         matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Sequence(_), _)
-      | (_, Sequence(_)) => false
+      | (Sequence(_), _) => false
 
       | (TestLit(d1), TestLit(f1)) => d1 == f1
-      | (TestLit(_), _)
-      | (_, TestLit(_)) => false
+      | (TestLit(_), _) => false
 
       | (Cons(d1, d2), Cons(f1, f2)) =>
         matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Cons(_), _)
-      | (_, Cons(_)) => false
+      | (Cons(_), _) => false
 
       | (ListLit(_, _, dt, dv), ListLit(_, _, ft, fv)) =>
         dt == ft
@@ -442,8 +457,7 @@ and Filter: {
              dv,
              fv,
            )
-      | (ListLit(_), _)
-      | (_, ListLit(_)) => false
+      | (ListLit(_), _) => false
 
       | (Tuple(dv), Tuple(fv)) =>
         List.fold_left2(
@@ -452,29 +466,23 @@ and Filter: {
           dv,
           fv,
         )
-      | (Tuple(_), _)
-      | (_, Tuple(_)) => false
+      | (Tuple(_), _) => false
 
       | (BinBoolOp(d_op_bin, d1, d2), BinBoolOp(f_op_bin, f1, f2)) =>
         d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-
-      | (BinBoolOp(_), _)
-      | (_, BinBoolOp(_)) => false
+      | (BinBoolOp(_), _) => false
 
       | (BinIntOp(d_op_bin, d1, d2), BinIntOp(f_op_bin, f1, f2)) =>
         d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (BinIntOp(_), _)
-      | (_, BinIntOp(_)) => false
+      | (BinIntOp(_), _) => false
 
       | (BinFloatOp(d_op_bin, d1, d2), BinFloatOp(f_op_bin, f1, f2)) =>
         d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (BinFloatOp(_), _)
-      | (_, BinFloatOp(_)) => false
+      | (BinFloatOp(_), _) => false
 
       | (BinStringOp(d_op_bin, d1, d2), BinStringOp(f_op_bin, f1, f2)) =>
         d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (BinStringOp(_), _)
-      | (_, BinStringOp(_)) => false
+      | (BinStringOp(_), _) => false
 
       | (ListConcat(_), _) => false
 
@@ -501,9 +509,7 @@ and Filter: {
           }
         )
       | (ConsistentCase(_), _)
-      | (_, ConsistentCase(_))
-      | (InconsistentBranches(_), _)
-      | (_, InconsistentBranches(_)) => false
+      | (InconsistentBranches(_), _) => false
 
       | (NonEmptyHole(_), _) => false
       | (ExpandingKeyword(_), _) => false
@@ -512,8 +518,7 @@ and Filter: {
 
       | (FixF(dv, dt, dc), FixF(fv, ft, fc)) =>
         dv == fv && dt == ft && matches_exp(dc, fc)
-      | (FixF(_), _)
-      | (_, FixF(_)) => false
+      | (FixF(_), _) => false
 
       | (ApBuiltin(dname, dargs), ApBuiltin(fname, fargs)) =>
         dname == fname
@@ -523,8 +528,7 @@ and Filter: {
              dargs,
              fargs,
            )
-      | (ApBuiltin(_), _)
-      | (_, ApBuiltin(_)) => false
+      | (ApBuiltin(_), _) => false
 
       | (Prj(dv, di), Prj(fv, fi)) => matches_exp(dv, fv) && di == fi
       | (Prj(_), _) => false
@@ -604,7 +608,7 @@ and FilterEnvironment: {
 
   let extends: (Filter.t, t) => t;
 
-  let matches: (DHExp.t, t) => option(FilterAction.t);
+  let matches: (ClosureEnvironment.t, DHExp.t, t) => option(FilterAction.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(Filter.t);
@@ -634,8 +638,9 @@ and FilterEnvironment: {
     [f, ...env];
   };
 
-  let matches = (d: DHExp.t, env: t): option(FilterAction.t) => {
-    env |> List.find_map(Filter.matches(d));
+  let matches =
+      (var: ClosureEnvironment.t, d: DHExp.t, env: t): option(FilterAction.t) => {
+    env |> List.find_map(Filter.matches(var, d));
   };
 }
 
