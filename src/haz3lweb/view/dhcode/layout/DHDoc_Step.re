@@ -36,14 +36,6 @@ let rec mk =
             objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
           )
           : (DHDoc.t, option(Typ.t)) => {
-    print_endline("======== go ========");
-    print_endline("exp = " ++ DHExp.show(d));
-    print_endline(
-      "obj = "
-      ++ [%show: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t))](
-           objs,
-         ),
-    );
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, objs, drs) =>
@@ -122,12 +114,6 @@ let rec mk =
           ~d: DHExp.t,
           ~objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
         ) => {
-      print_endline("======== fdoc ========");
-      print_endline("exp = " ++ DHExp.show(d));
-      print_endline(
-        "obj = "
-        ++ [%show: list(EvaluatorStep.EvalObj.t)](objs |> List.map(fst)),
-      );
       switch (d) {
       /* Now any of the postprocess checking is not done since most of
          the time the result is partial evaluated and those conditions

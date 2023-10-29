@@ -354,8 +354,12 @@ and Filter: {
         failwith("$Value in matched expression")
 
       | (_, Constructor("$Expr")) => true
-      | (_, EmptyHole(_)) => true
-      | (EmptyHole(_), _) => false
+
+      | (
+          BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_),
+          Constructor("$Value"),
+        ) =>
+        true
 
       | (Closure(_, _, d), _) => matches_exp(d, f)
       | (_, Closure(_, _, f)) => matches_exp(d, f)
@@ -364,6 +368,11 @@ and Filter: {
       | (_, Cast(f, _, _)) => matches_exp(d, f)
       | (FailedCast(d, _, _), _) => matches_exp(d, f)
       | (_, FailedCast(f, _, _)) => matches_exp(d, f)
+
+      | (_, Constructor("$Value")) => false
+
+      | (_, EmptyHole(_)) => true
+      | (EmptyHole(_), _) => false
 
       | (BoundVar(dx), BoundVar(fx))
       | (BoundVar(dx), FreeVar(_, _, fx))
@@ -381,12 +390,6 @@ and Filter: {
         }
 
       | (Filter(_, d1), _) => matches_exp(d1, f)
-
-      | (
-          BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_),
-          Constructor("$Value"),
-        ) =>
-        true
 
       | (BoolLit(dv), BoolLit(fv)) => dv == fv
       | (BoolLit(_), _) => false
