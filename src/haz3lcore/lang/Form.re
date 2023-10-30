@@ -87,7 +87,8 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
-let is_reserved = str => is_bool(str);
+let is_undefined = str => str == "undefined";
+let is_reserved = str => is_bool(str) || is_undefined(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = is_capitalized_name;
@@ -194,6 +195,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "empty_tuple",
     (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
   ),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),

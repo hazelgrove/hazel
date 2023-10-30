@@ -98,11 +98,39 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Undefined
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Tag
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | Ap
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -194,11 +222,39 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Undefined
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Tag
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | Ap
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)

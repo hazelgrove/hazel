@@ -47,6 +47,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FreeVar(_)
   | InvalidText(_)
   | ExpandingKeyword(_)
+  | Undefined
   | BoolLit(_)
   | IntLit(_)
   | Sequence(_)
@@ -177,6 +178,7 @@ let rec mk =
       | BoundVar(x) => text(x)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+      | Undefined => DHDoc_common.mk_StringLit("undefined") // TODO: not sure what's going on here
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)

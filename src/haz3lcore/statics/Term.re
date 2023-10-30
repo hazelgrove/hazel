@@ -197,6 +197,7 @@ module UPat = {
     | Bool
     | String
     | Triv
+    | Undefined
     | ListLit
     | Constructor
     | Cons
@@ -258,6 +259,7 @@ module UPat = {
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
     | TypeAnn => "Annotation";
+    | Undefined => "Undefined Literal"
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
@@ -463,6 +465,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Undefined => Undefined
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -565,6 +568,7 @@ module UExp = {
     | Seq => "Sequence expression"
     | Test => "Test"
     | Parens => "Parenthesized expression"
+    | Undefined => "Undefined Literal"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
@@ -579,6 +583,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Undefined
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -611,6 +616,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Undefined
       | Bool(_)
       | Int(_)
       | Float(_)

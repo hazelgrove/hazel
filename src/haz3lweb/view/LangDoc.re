@@ -604,6 +604,19 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | Undefined =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.undef_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.undef_exp_group,
+          doc.explanation.message,
+          [],
+        );
       | Bool(_bool_lit) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(

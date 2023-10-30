@@ -152,6 +152,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
+      | (["undefined"], []) => ret(Undefined)
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_string(t) =>
         ret(String(Form.strip_quotes(t)))
@@ -275,6 +276,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
         | ([t], []) when t != " " => Invalid(t)
+        | (["undefined"], []) => Term.UPat.hole([Term.Nul()])
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {

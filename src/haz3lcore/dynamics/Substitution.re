@@ -51,6 +51,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | ApBuiltin(ident, args) =>
     let args = List.map(subst_var(d1, x), args);
     ApBuiltin(ident, args);
+  | Undefined
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)

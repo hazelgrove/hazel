@@ -307,6 +307,7 @@ and matches_cast_Sum =
   | EmptyHole(_)
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
+  | Undefined => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
@@ -385,6 +386,7 @@ and matches_cast_Tuple =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
+  | Undefined => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
@@ -543,6 +545,7 @@ and matches_cast_Cons =
   | Tuple(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
+  | Undefined => IndetMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -726,6 +729,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | FloatLit(_)
     | StringLit(_)
     | Constructor(_) => BoxedValue(d) |> return
+    | Undefined => Indet(Undefined) |> return
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = evaluate(env, d1);
