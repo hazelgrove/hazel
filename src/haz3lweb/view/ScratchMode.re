@@ -126,61 +126,92 @@ let breadcrumb_bar =
     | None => [div([text("")])]
     | Some(ci) =>
       let ancestors = Info.ancestors_of(ci);
-      let check_fun_in_let = ancestors =>
-        switch (Id.Map.find_opt(List.hd(ancestors), info_map)) {
-        | Some(v) =>
-          switch (v) {
-          | Info.InfoExp({term, _}) =>
-            switch (term.term) {
-            | Let({term: Var(name), _}, {term: Fun(_), _}, _) => name
-            | _ => ""
+      let ancestors =
+        List.map(
+          a => {
+            switch (Id.Map.find_opt(a, info_map)) {
+            | Some(v) =>
+              switch (v) {
+              | Info.InfoExp({term, ancestors, _}) =>
+                switch (term.term) {
+                | Fun(_) => List.hd(ancestors)
+                | _ => Uuidm.nil
+                }
+              | _ => Uuidm.nil
+              }
+            | None => Uuidm.nil
             }
-          | _ => ""
-          }
-        | _ => ""
-        };
-      let check_parenet_fun = ancestor =>
-        switch (Id.Map.find_opt(ancestor, info_map)) {
-        | Some(v) =>
-          switch (v) {
-          | Info.InfoExp({term, ancestors, _}) =>
-            switch (term.term) {
-            | Fun(_) => check_fun_in_let(ancestors)
-            | _ => ""
-            }
-          | _ => ""
-          }
-        | None => ""
-        };
-      let rec ancestors_string = ancestors => {
-        switch (ancestors) {
-        | [] => []
-        | [x, ...xs] =>
-          if (check_parenet_fun(x) == "") {
-            ancestors_string(xs);
+          },
+          ancestors,
+        );
+      Printf.printf("ancestors: %s\n", Info.show_ancestors(ancestors));
+      Printf.printf("term: %s\n", TermBase.UExp.show(term));
+      let rec term_to_breadcrumb = (term: TermBase.UExp.t, level: int) => {
+        switch (term.term) {
+        | Let({term: Var(name), ids}, {term: Fun(_, fbody), _}, body) =>
+          let res =
+            if (List.exists(a => a == List.hd(term.ids), ancestors)) {
+              [
+                div(
+                  ~attr=
+                    Attr.many([
+                      clss(["breadcrumb_bar_function_selected"]),
+                      Attr.on_click(_ =>
+                        inject(
+                          UpdateAction.PerformAction(
+                            Jump(TileId(List.hd(ids))),
+                          ),
+                        )
+                      ),
+                    ]),
+                  [text(name)],
+                ),
+              ];
+            } else {
+              [
+                div(
+                  ~attr=
+                    Attr.many([
+                      clss(["breadcrumb_bar_function"]),
+                      Attr.on_click(_ =>
+                        inject(
+                          UpdateAction.PerformAction(
+                            Jump(TileId(List.hd(ids))),
+                          ),
+                        )
+                      ),
+                    ]),
+                  [text(name)],
+                ),
+              ];
+            };
+          if (level == 0) {
+            let res =
+              if (term_to_breadcrumb(body, level + 1) == []) {
+                res;
+              } else {
+                res @ [text(",")] @ term_to_breadcrumb(body, level + 1);
+              };
+            res;
           } else {
-            [
-              div(
-                ~attr=
-                  Attr.many([
-                    clss(["breadcrumb_bar_function"]),
-                    Attr.on_click(_ =>
-                      inject(UpdateAction.PerformAction(Jump(TileId(x))))
-                    ),
-                  ]),
-                [text(check_parenet_fun(x)), text("    ->")],
-              ),
-            ]
-            @ ancestors_string(xs);
-          }
+            let res =
+              if (term_to_breadcrumb(body, level + 1) == []) {
+                res;
+              } else {
+                res @ [text(",")] @ term_to_breadcrumb(body, level + 1);
+              };
+            let res =
+              if (term_to_breadcrumb(fbody, level + 1) == []) {
+                res;
+              } else {
+                res @ [text("->")] @ term_to_breadcrumb(fbody, level + 1);
+              };
+            res;
+          };
+        | _ => []
         };
       };
-      //[
-      //  div(
-      //    ~attr=clss(["breadcrumb_bar"]),
-      ancestors_string(List.rev(ancestors));
-    //  ),
-    //];
+      term_to_breadcrumb(term, 0);
     }
   };
 };

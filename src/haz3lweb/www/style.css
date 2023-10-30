@@ -442,7 +442,10 @@ select {
   cursor: not-allowed;
 }
 #top-bar .breadcrumb_bar_function{
-  color:#13aed2
+  color:#000000
+}
+#top-bar .breadcrumb_bar_function_selected{
+  color:#e71115
 }
 #top-bar #editor-mode {
   color: #fdf6e3;
