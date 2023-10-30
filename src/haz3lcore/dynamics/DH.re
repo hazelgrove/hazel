@@ -207,8 +207,8 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
-    | (Constructor(_), _) => d1 == d2
     | (Undefined, _)
+    | (Constructor(_), _) => d1 == d2
     | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
     | (StringLit(_), _) => false
 

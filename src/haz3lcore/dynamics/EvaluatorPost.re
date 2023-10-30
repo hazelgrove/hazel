@@ -58,9 +58,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Constructor(_) => d |> return
   | Undefined
-
+  | Constructor(_) => d |> return
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
     let+ d2' = pp_eval(d2);
@@ -273,9 +272,8 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Constructor(_) => d |> return
   | Undefined
-
+  | Constructor(_) => d |> return
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let+ d2' = pp_uneval(env, d2);

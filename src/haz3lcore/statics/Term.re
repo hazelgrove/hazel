@@ -258,8 +258,8 @@ module UPat = {
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
-    | TypeAnn => "Annotation";
-    | Undefined => "Undefined Literal"
+    | TypeAnn => "Annotation"
+    | Undefined => "Undefined Literal";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
@@ -432,6 +432,7 @@ module UExp = {
     | String
     | ListLit
     | Constructor
+    | Undefined
     | Fun
     | Tuple
     | Var
