@@ -324,7 +324,8 @@ and matches_cast_Sum =
   | Closure(_)
   | TestLit(_)
   | Cons(_)
-  | ListConcat(_) => DoesNotMatch
+  | ListConcat(_) 
+  | IfThenElse(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
     (
@@ -409,7 +410,8 @@ and matches_cast_Tuple =
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) => IndetMatch
+  | InconsistentBranches(_) 
+  | IfThenElse(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
@@ -544,7 +546,8 @@ and matches_cast_Cons =
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) => IndetMatch
+  | InconsistentBranches(_) 
+  | IfThenElse(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
