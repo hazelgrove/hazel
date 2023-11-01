@@ -44,6 +44,26 @@ let update_settings =
         secondary_icons: !settings.secondary_icons,
       },
     }
+  | Breadcrumb_bar(level, isJump) => {
+      ...model,
+      settings: {
+        ...settings,
+        breadcrumb_bars:
+          if (isJump) {
+            List.init(10, _ => false);
+          } else {
+            List.mapi(
+              (i, b) =>
+                if (i == level) {
+                  !b;
+                } else {
+                  b;
+                },
+              settings.breadcrumb_bars,
+            );
+          },
+      },
+    }
   | ContextInspector => {
       ...model,
       settings: {
@@ -81,6 +101,7 @@ let reevaluate_post_update =
     | Dynamics
     | InstructorMode
     | ContextInspector
+    | Breadcrumb_bar(_)
     | Mode(_) => true
     }
   | PerformAction(

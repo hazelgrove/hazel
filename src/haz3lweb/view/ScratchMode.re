@@ -106,7 +106,7 @@ let breadcrumb_bar =
           editors,
           //font_metrics,
           //show_backpack_targets,
-          //settings,
+          settings,
           //mousedown,
           //langDocMessages,
           _,
@@ -144,74 +144,133 @@ let breadcrumb_bar =
           },
           ancestors,
         );
-      Printf.printf("ancestors: %s\n", Info.show_ancestors(ancestors));
-      Printf.printf("term: %s\n", TermBase.UExp.show(term));
-      let rec term_to_breadcrumb = (term: TermBase.UExp.t, level: int) => {
+      let view_fun = (name, ids, level) => [
+        div(
+          ~attr=
+            Attr.many([
+              clss(["breadcrumb_bar_function"]),
+              Attr.on_click(_ =>
+                inject(
+                  UpdateAction.PerformAction(Jump(TileId(List.hd(ids)))),
+                )
+              ),
+              Attr.on_click(_ =>
+                inject(Update.Set(Breadcrumb_bar(level, true)))
+              ),
+            ]),
+          [text(name)],
+        ),
+      ];
+      //if (List.exists(a => a == List.hd(ids), ancestors)) {
+      //} else {
+      //  [];
+      //};
+      let funs_display = Array.make(10, []);
+      funs_display[0] = [];
+      let rec tag_term = (term: TermBase.UExp.t, level: int) => {
         switch (term.term) {
         | Let({term: Var(name), ids}, {term: Fun(_, fbody), _}, body) =>
-          let res =
-            if (List.exists(a => a == List.hd(term.ids), ancestors)) {
-              [
-                div(
-                  ~attr=
-                    Attr.many([
-                      clss(["breadcrumb_bar_function_selected"]),
-                      Attr.on_click(_ =>
-                        inject(
-                          UpdateAction.PerformAction(
-                            Jump(TileId(List.hd(ids))),
-                          ),
-                        )
-                      ),
-                    ]),
-                  [text(name)],
-                ),
-              ];
-            } else {
-              [
-                div(
-                  ~attr=
-                    Attr.many([
-                      clss(["breadcrumb_bar_function"]),
-                      Attr.on_click(_ =>
-                        inject(
-                          UpdateAction.PerformAction(
-                            Jump(TileId(List.hd(ids))),
-                          ),
-                        )
-                      ),
-                    ]),
-                  [text(name)],
-                ),
-              ];
-            };
-          if (level == 0) {
-            let res =
-              if (term_to_breadcrumb(body, level + 1) == []) {
-                res;
-              } else {
-                res @ [text(",")] @ term_to_breadcrumb(body, level + 1);
-              };
-            res;
-          } else {
-            let res =
-              if (term_to_breadcrumb(body, level + 1) == []) {
-                res;
-              } else {
-                res @ [text(",")] @ term_to_breadcrumb(body, level + 1);
-              };
-            let res =
-              if (term_to_breadcrumb(fbody, level + 1) == []) {
-                res;
-              } else {
-                res @ [text("->")] @ term_to_breadcrumb(fbody, level + 1);
-              };
-            res;
-          };
-        | _ => []
+          funs_display[level] =
+            List.cons((name, term.ids), funs_display[level]);
+          Printf.printf(
+            "name: %s, id: %s\n",
+            name,
+            Uuidm.to_string(List.hd(ids)),
+          );
+          tag_term(body, level);
+          tag_term(fbody, level + 1);
+        | UnOp(_, t1)
+        | Fun(_, t1)
+        | TyAlias(_, _, t1)
+        | Test(t1)
+        | Parens(t1)
+        | Ap(_, t1) => tag_term(t1, level)
+        | Let(_, t1, t2)
+        | Seq(t1, t2)
+        | Cons(t1, t2)
+        | ListConcat(t1, t2)
+        | BinOp(_, t1, t2) =>
+          tag_term(t1, level);
+          tag_term(t2, level);
+        | If(t1, t2, t3) =>
+          tag_term(t1, level);
+          tag_term(t2, level);
+          tag_term(t3, level);
+        | ListLit(t)
+        | Tuple(t) => List.iter(t1 => tag_term(t1, level), t)
+        | Match(t1, t) =>
+          tag_term(t1, level);
+          List.iter(t1 => tag_term(t1, level), List.map(snd, t));
+        | _ => ()
         };
       };
-      term_to_breadcrumb(term, 0);
+      let () = tag_term(term, 1);
+      let rec breadcrumb_funs = (level, res) =>
+        if (level == 0) {
+          res;
+        } else if (funs_display[level] == []) {
+          breadcrumb_funs(level - 1, res);
+        } else {
+          let toggle =
+            List.concat(
+              List.map(
+                t =>
+                  if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
+                    [text(fst(t))];
+                  } else {
+                    [];
+                  },
+                List.rev(funs_display[level]),
+              ),
+            );
+          let siblings =
+            List.concat(
+              List.map(
+                t => view_fun(fst(t), snd(t), level),
+                List.rev(funs_display[level]),
+              ),
+            );
+          let toggle_div = {
+            div(
+              ~attr=
+                Attr.many([
+                  Attr.on_click(_ =>
+                    inject(Update.Set(Breadcrumb_bar(level, false)))
+                  ),
+                  clss(
+                    ["toggle"]
+                    @ (
+                      List.nth(settings.breadcrumb_bars, level)
+                        ? ["visible"] : []
+                    ),
+                  ),
+                ]),
+              toggle,
+            );
+          };
+          let siblings_div = {
+            let clss =
+              clss(
+                ["siblings"]
+                @ (
+                  List.nth(settings.breadcrumb_bars, level)
+                    ? ["visible"] : []
+                ),
+              );
+            div(~attr=clss, siblings);
+          };
+          let ret = [toggle_div] @ [siblings_div];
+          let ret =
+            if (res == []) {
+              ret;
+            } else if (toggle == []) {
+              ret;
+            } else {
+              ret @ [text("->")] @ res;
+            };
+          breadcrumb_funs(level - 1, ret);
+        };
+      breadcrumb_funs(Array.length(funs_display) - 1, []);
     }
   };
 };

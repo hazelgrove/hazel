@@ -11,6 +11,7 @@ let startup : PersistentData.t =
         instructor_mode = true;
         benchmark = false;
         mode = Examples;
+        breadcrumb_bars = List.init 10 (fun _ -> false);
       };
     scratch =
       ( 0,
