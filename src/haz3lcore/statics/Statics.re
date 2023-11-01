@@ -341,7 +341,10 @@ and uexp_to_info_map =
         let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
         switch (utyp.term) {
         | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
-          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          /* NOTE: When debugging type system issues it may be beneficial to
+             use a different name than the alias for the recursive parameter */
+          //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ty_rec = Typ.Rec(name, ty_pre);
           let ctx_def =
             Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);

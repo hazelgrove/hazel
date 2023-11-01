@@ -148,7 +148,8 @@ let rec mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
+      | Test(_, d) =>
+        DHDoc_common.mk_Test(mk_cast(go'(d, unwrap(objs, Test))))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1, unwrap(objs, Sequence)), go'(d2, []));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));

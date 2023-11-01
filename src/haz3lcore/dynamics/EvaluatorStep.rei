@@ -24,6 +24,7 @@ module EvalCtx: {
     | BinStringOp2
     | Tuple(int)
     | ListLit(int)
+    | Test
     | Cons1
     | Cons2
     | ListConcat1
