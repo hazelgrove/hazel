@@ -255,7 +255,7 @@ module Capture = {
            Environment.empty,
          )
 
-    | TestLit(_)
+    | Test(_, d) => analyze(env, d)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -383,7 +383,7 @@ module Transition = {
       | Step(d1') => Step(Let(dp, d1', d2)) |> return
       | BoxedValue(d1')
       | Indet(d1') =>
-        switch (Evaluator.matches(dp, d1')) {
+        switch (PatternMatch.matches(dp, d1')) {
         | IndetMatch
         | DoesNotMatch => Indet(Let(dp, d1', d2)) |> return
         | Matches(env') =>
@@ -470,7 +470,7 @@ module Transition = {
       | Indet(d) => Indet(d) |> return
       };
 
-    | TestLit(_)
+    | Test(_) => failwith("TODO[Matt]: RE-IMPLEMENT TESTS")
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
