@@ -50,7 +50,15 @@ let update_settings =
         ...settings,
         breadcrumb_bars:
           if (isJump) {
-            List.init(10, _ => false);
+            List.mapi(
+              (i, b) =>
+                if (i == level) {
+                  !b;
+                } else {
+                  b;
+                },
+              List.init(10, _ => false),
+            );
           } else {
             List.mapi(
               (i, b) =>

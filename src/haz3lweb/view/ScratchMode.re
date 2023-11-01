@@ -150,12 +150,12 @@ let breadcrumb_bar =
             Attr.many([
               clss(["breadcrumb_bar_function"]),
               Attr.on_click(_ =>
+                inject(Update.Set(Breadcrumb_bar(level, true)))
+              ),
+              Attr.on_click(_ =>
                 inject(
                   UpdateAction.PerformAction(Jump(TileId(List.hd(ids)))),
                 )
-              ),
-              Attr.on_click(_ =>
-                inject(Update.Set(Breadcrumb_bar(level, true)))
               ),
             ]),
           [text(name)],
@@ -169,14 +169,9 @@ let breadcrumb_bar =
       funs_display[0] = [];
       let rec tag_term = (term: TermBase.UExp.t, level: int) => {
         switch (term.term) {
-        | Let({term: Var(name), ids}, {term: Fun(_, fbody), _}, body) =>
+        | Let({term: Var(name), _}, {term: Fun(_, fbody), _}, body) =>
           funs_display[level] =
             List.cons((name, term.ids), funs_display[level]);
-          Printf.printf(
-            "name: %s, id: %s\n",
-            name,
-            Uuidm.to_string(List.hd(ids)),
-          );
           tag_term(body, level);
           tag_term(fbody, level + 1);
         | UnOp(_, t1)
@@ -230,24 +225,7 @@ let breadcrumb_bar =
                 List.rev(funs_display[level]),
               ),
             );
-          let toggle_div = {
-            div(
-              ~attr=
-                Attr.many([
-                  Attr.on_click(_ =>
-                    inject(Update.Set(Breadcrumb_bar(level, false)))
-                  ),
-                  clss(
-                    ["toggle"]
-                    @ (
-                      List.nth(settings.breadcrumb_bars, level)
-                        ? ["visible"] : []
-                    ),
-                  ),
-                ]),
-              toggle,
-            );
-          };
+
           let siblings_div = {
             let clss =
               clss(
@@ -259,7 +237,27 @@ let breadcrumb_bar =
               );
             div(~attr=clss, siblings);
           };
-          let ret = [toggle_div] @ [siblings_div];
+          let toggle_div = {
+            [
+              div(
+                ~attr=
+                  Attr.many([
+                    Attr.on_click(_ =>
+                      inject(Update.Set(Breadcrumb_bar(level, false)))
+                    ),
+                    clss(
+                      ["toggle"]
+                      @ (
+                        List.nth(settings.breadcrumb_bars, level)
+                          ? ["visible"] : []
+                      ),
+                    ),
+                  ]),
+                toggle @ [siblings_div],
+              ),
+            ];
+          };
+          let ret = toggle_div;
           let ret =
             if (res == []) {
               ret;
