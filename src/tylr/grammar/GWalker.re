@@ -8,15 +8,6 @@ module Walk = {
 
   let eq = t => {eq: Some(t), neq: []};
 
-  // general ineq walks might include eq steps
-  // followed by neq steps, but currently disallowed
-  // for presumed usability reasons
-  let eq_xor_neq = w =>
-    switch (w.neq) {
-    | [] => Option.is_some(w.eq)
-    | [_, ..._] => Option.is_none(w.eq)
-    };
-
   let steps_eq = w => w.eq |> Option.map(GTerrace.root) |> Option.value(~default=[]);
   let steps_neq = w => List.map(GTerrace.root, w.neq);
   let steps = w => [steps_eq(w), ...steps_neq(w)];
@@ -48,8 +39,11 @@ module Walk = {
   let eq = w => Option.is_some(w.eq) && List.is_empty(w.neq);
   let neq = w => !List.is_empty(w.neq);
 
-  let leq = w => neq(w) && no_tiles_above_last(w) && no_tiles_across_last(w);
-  let geq = w => neq(w) && no_tiles_above_last(w);
+  let lt = w => neq(w) && no_tiles_above_last(w) && no_tiles_across_last(w);
+  let gt = w => neq(w) && no_tiles_above_last(w);
+
+  let leq = w => lt(w) || eq(w);
+  let geq = w => gt(w) || eq(w);
 
   let face = walk => {
     open OptUtil.Syntax;

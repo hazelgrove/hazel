@@ -1,3 +1,46 @@
+let lt = (l: Bound.t(EWald.t), ~cell=ECell.empty, r: EWald.t) => {
+  // assume walds arranged so heads are nearest
+  l
+  |> Bound.map(w => EWald.hd(w).material)
+  |> GWalker.walk(R)
+  |> GWalker.Walked.find(EWald.hd(r).material)
+  |> List.filter(GWalker.Walk.lt)
+  |> List.filter_map(
+    ESlope.Dn.bake(
+      ~fill=(l, r) => {
+
+      },
+      ~face=r,
+    )
+  )
+}
+
+
+let bake_r = (w: GWalk.R.t, ~cell: ECell.t, ~face: Piece.t): (ESlope.Dn.t, Oblig.Delta.t) => {
+  GWalk.R.to_slope(w)
+  |> List.fold_left_map(
+    (c, t: GTerr.R.t) => {
+    },
+    Some(cell),
+  )
+};
+
+
+let bake_l = (~face: Piece.t, ~cell: ECell.t, w: GWalk.L.t): (ESlope.Up.t, Oblig.Delta.t) =>
+  failwith("todo");
+
+let bake = (~face: Piece.t, ~cell: ECell.t, d: Dir.t, w: GWalk.t): (ESlope.t, Oblig.Delta.t) =>
+  switch (d) {
+  | L => // geq walk
+    List.fold_right(
+      (gterr, (eslope, delta)) => {
+
+      },
+      GWalk.to_slope(w),
+      (ESlope.Up.empty, Oblig.Delta.empty),
+    )
+  };
+
 module Material = {
   include Material;
 
@@ -12,18 +55,130 @@ module Material = {
     |> List.filter(GWalker.Walk.eq)
   );
 
-  let leq = memo((l: Bound.t(Material.t), r: Material.t) =>
+  let lt = memo((l: Bound.t(Material.t), r: Material.t) =>
     GWalker.walk(R, l)
     |> GWalker.Walked.find(r.material)
-    |> List.filter(GWalker.Walk.leq)
+    |> List.filter_map(GWalk.lt)
   );
+  let lt = (l, ~sort, r) => List.filter(GSlope.takes(sort), lt(l, r));
 
-  let geq = memo((l: Material.t, r: Bound.t(Material.t)) =>
+  let gt = memo((l: Material.t, r: Bound.t(Material.t)) =>
     GWalker.walk(L, r)
     |> GWalker.Walked.find(l.material)
-    |> List.filter(GWalker.Walk.geq)
+    |> List.filter(GWalker.Walk.gt)
   );
 };
+
+let rec lt =
+    (
+      ~repair_walk=true,
+      ~repair_cell=true,
+      l: Bound.t(EWald.t),
+      ~cell=ECell.empty,
+      r: EWald.t
+    )
+    : option((ESlope.Dn.t, Oblig.Delta.t)) =>
+  l
+  |> Bound.map(w => EWald.hd(w).mtrl)
+  |> Fun.flip(Mtrl.lt(~sort=ECell.sort(cell)), r.mtrl)
+  |> List.map(ESlope.bake)
+  |> List.map(
+    switch (ECell.has_substance(cell)) {
+    | None => ESlope.Dn.pad(cell)
+    | Some(m) =>
+      ESlope.Dn.fill(
+        ~top=l,
+        ~fill=(l, )
+      )
+    }
+
+    switch (ECell.sort(cell)) {
+    | Space => pad(cell)
+    | Grout() | Tile(_) =>
+
+    }
+
+
+  )
+  |> List.stable_sort(((_, l), (_, r)) => Oblig.Delta.compare(l, r))
+  |> ListUtil.hd_opt
+and bound = (
+  ~repair=true,
+  ~l: Bound.t(EWald.t),
+  M(c_l, w, c_r): EMeld.t,
+  ~r: Bound.t(EWald.t),
+) => {
+
+}
+and repair_cell = (
+  ~l: Bound.t(EWald.t),
+  cell: ECell.t,
+  ~r: Bound.t(EWald.t),
+): option(ECell.t) => {
+  // assumes input cell
+  open OptUtil.Syntax;
+  let* M(cell_l, w, cell_r) as m = cell.content;
+  let* (dn, delta_lt) = lt(~repair_cell=false, l, ~cell=cell_l, w);
+  let (hd_dn, tl_dn) = List.(hd(dn), tl(dn));
+  let* (up, delta_gt) = gt(~repair_cell=false, hd_dn.wald, ~cell=cell_r, r);
+  let (hd_up, tl_up) = List.(hd(up), tl(up));
+  let cell = ECell.mk(EMeld.mk(~l=hd_dn.cell, hd_up.wald, ~r=hd_up.cell));
+  return(zip(tl_dn, cell, tl_up));
+};
+
+let rec lt =
+    (~repair_cell=true, l: Bound.t(EWald.t), ~cell=ECell.empty, r: EWald.t): option((ESlope.Dn.t, Oblig.Delta.t)) => {
+  l
+  |> Bound.map(w => EWald.hd(w).mtrl)
+  |> Fun.flip(Mtrl.lt, r.mtrl)
+  |> List.filter_map(
+    bake_dn(~repair_cell, ~cell, ~face=r)
+  )
+  |> List.stable_sort(((_, l), (_, r)) => Oblig.Delta.compare)
+  |> ListUtil.hd_opt
+}
+and bake_dn =
+    (~repair_cell, ~cell, ~face, w: GWalk.R.t): option((ESlope.Dn.t, Oblig.Delta.t)) => {
+  let (slope, (cell, delta)) =
+    GWalk.R.to_slope(w)
+    |> List.fold_left_map(((cell, delta), gterr) => {
+        let (eterr, (cell, delta')) = bake_r(~repair_cell, ~cell, gterr);
+        (eterr, (cell, Oblig.Delta.merge(delta, delta')));
+      },
+      cell
+    );
+  Cell.is_empty(cell) ? Some((put_face(face, slope), delta)) : None;
+}
+and bake_r = (~repair_cell, ~cell, t: GTerr.R.t): (ETerr.R.t, Oblig.Delta.t) => {
+  let (sorts, mtrls) = GTerr.R.split(t);
+  // todo: produce delta
+  let pcs = List.map(Piece.bake, mtrls);
+  switch (ECell.sort(cell)) {
+  | Space =>
+    // space-only cells are padded into leftmost cell of given grammar walk
+    let cells = List.map(ECell.bake, sorts);
+    (pad(cell, combine(cells, pcs)), None);
+  | Grout() | Tile(_) =>
+    // non-space cells replace a sort-consistent cell of given grammar walk
+
+    // todo: fold_left_map over sort-mtrl pairs of gterr,
+    // passing forward the last baked piece to the next
+    // pair to use for bounding the potentially inserted cell.
+    // when bounding
+
+    let (cells, fill) =
+      sorts
+      |> List.fold_left_map(
+        (cell, sort) =>
+          ECell.(!is_empty(cell) && consistent(cell, sort))
+          ? (cell, ECell.empty)
+          : (ECell.bake(sort), cell),
+        cell,
+      );
+    (combine(cells, pcs), fill);
+  };
+}
+
 
 module Piece = {
   include Piece;
@@ -40,7 +195,7 @@ module Piece = {
       None
     };
 
-  let eq = (l: Piece.t, ~slot=ESlot.Empty, r: Piece.t) => {
+  let eq = (l: Piece.t, ~slot=ESlot.Empty, r: Piece.t): option(EWald.t) => {
     open OptUtil.Syntax;
     let/ () = zip(l, r);
     let/ () = replace(l, r);
@@ -50,11 +205,15 @@ module Piece = {
     EWald.link(l, ~slot=t.slot, t.wald);
   };
 
-  let lt = (l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t) =>
+  let lt =
+      (l: Bound.t(Piece.t), ~slot=ESlot.Empty, r: Piece.t)
+      : option(ESlope.Dn.t) =>
     Material.lt(Bound.map(p => p.material, l), r.material)
     |> ESlope.Dn.pick_and_bake(~slot, ~face=r);
 
-  let gt = (l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t)) =>
+  let gt =
+      (l: Piece.t, ~slot=ESlot.Empty, r: Bound.t(Piece.t))
+      : option(ESlope.Up.t) =>
     Material.gt(l.material, Bound.map(p => p.material, r))
     |> ESlope.Up.pick_and_bake(~slot, ~face=l);
 };
@@ -127,6 +286,8 @@ module Slope = {
         | Some((eq, lt)) =>
           Some(ESlope.cat(lt, [{...hd, wald: eq}, ...tl]))
         | None =>
+          // todo: if not leq, then need to check for any ghosts to replace
+          // in hd.slot (assuming error-correcting flag is on)
           let slot =
             switch (Wald.gt(hd.wald, ~slot, Piece(w))) {
             | Some(gt) => ESlope.Up.roll(~slot=hd.slot, gt)
@@ -147,6 +308,8 @@ module Slope = {
         | Some((gt, eq)) =>
           Some(ESlope.cat(gt, [{...hd, wald: eq}, ...tl]))
         | None =>
+          // todo: if not geq... shouldn't ever need to check for ghosts
+          // if insertion always goes to the left
           let slot =
             switch (Wald.lt(Piece(w), ~slot, hd.wald)) {
             | Some(lt) => ESlope.Dn.roll(lt, ~slot=hd.slot)

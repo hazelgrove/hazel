@@ -5,7 +5,7 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Pointing
-    | Selecting(Dir.t, EZiggurat.t);
+    | Selecting(Dir.t, EZigg.t);
 
   let is_empty =
     fun
@@ -15,7 +15,10 @@ module Focus = {
   let clear =
     fun
     | Pointing => []
-    | Selecting(_, zigg) => EZiggurat.clear(zigg);
+    | Selecting(_, zigg) => EZigg.clear(zigg);
+}
+module Context = {
+  type t = Chain.t(EFrame.Open.t, EFrame.Closed.t);
 };
 
 // todo: document potential same-id token on either side of caret
@@ -23,7 +26,7 @@ module Focus = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   foc: Focus.t,
-  ctx: EStepwell.t,
+  ctx: Context.t,
 };
 
 let mk = (~foc=Focus.Pointing, ctx) => {foc, ctx};

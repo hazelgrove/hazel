@@ -1,5 +1,7 @@
 include Wald;
-type t = Wald.t(Piece.t, EMeld.t);
+type t = Wald.t(Piece.t, ECell.t);
+
+let bake = Wald.rev_map(EToken.bake, ECell.bake);
 
 // let clear = ESlot.clear_wald;
 

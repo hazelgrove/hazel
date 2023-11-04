@@ -2,13 +2,20 @@ open Sexplib.Std;
 
 include Meld;
 
-module Base = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Meld.t(t, Piece.t);
+module Cell = {
+  type t('a) = {
+    marks: EPath.Marks.t,
+    content: option('a),
+  };
+  let mk = (~marks=EPath.Marks.empty, content) => {marks, content};
+  let empty = mk(None);
 };
-include Base;
 
-let mk = (~l=Slot.Empty, ~r=Slot.Empty, wald) => M(l, wald, r)
+type t = Meld.t(Cell.t(t), EToken.t);
+
+let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
+let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
+  mk(~l, Wald.singleton(t), ~r);
 
 module Marked = {
   [@deriving (show({with_path: false}), sexp, yojson)]

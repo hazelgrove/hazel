@@ -1,11 +1,19 @@
 include Slope;
 
-type t = Slope.t(Piece.t, EMeld.t);
+type t = Slope.t(Piece.t, ECell.t);
 
-let baked_empty = Invalid_argument("cannot bake empty slope");
+let bake = List.rev_map(ETerr.bake);
 
 module Dn = {
   include Dn;
+
+  let bake = (~cell=ECell.empty, ~face: Piece.t, w: GWalk.R.t) => {
+    let (slope, cell) =
+      GWalk.R.to_slope(w)
+      |> List.fold_left_map(cell => ETerr.bake(~cell), cell);
+    assert(Cell.is_empty(cell));
+    put_face(face, slope);
+  };
 
   // L2R: dn slot
   let rec roll = (~slot=ESlot.Empty, dn: t) =>

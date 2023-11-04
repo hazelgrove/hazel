@@ -1,11 +1,14 @@
-include Slot;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Slot.t(EMeld.t);
+include EMeld.Cell;
 
-module Marked = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Slot.t(EMeld.Marked.t);
-};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = EMeld.Cell.t(EMeld.t);
+
+let bake = (cell: GCell.t) =>
+  switch (cell) {
+  | Space => empty
+  | Grout() | Tile(_) =>
+    mk(EMeld.singleton(EToken.mk(Grout((Convex, Convex)))))
+  };
 
 // let clear =
 //   fun

@@ -22,8 +22,8 @@
 //   type t('a) = Result.t(('a, ESlope.Dn.t), ESlot.t);
 // };
 
-let candidates = (p: Piece.Labeled.t): list(Piece.t) => {
-  let ms =
+let candidates = (p: Piece.Labeled.t): list(Piece.t) =>
+  List.map(Piece.mk(~id=p.id, ~token=p.token),
     switch (p.material) {
     | Space => [Space]
     | Grout(tips) => [Grout(tips)]
@@ -32,9 +32,18 @@ let candidates = (p: Piece.Labeled.t): list(Piece.t) => {
       lbls
       |> List.concat_map(Molds.with_label)
       |> List.map(m => Material.Tile(Molded(m)))
-    };
-  List.map(Piece.mk(~id=p.id, ~token=p.token), ms);
-};
+    }
+  );
+
+let mold = (ctx, p: Piece.Labeled.t): option(EContext.t) =>
+  candidates(p)
+  |> List.filter_map(p =>
+    Melder.Context.push(~onto=L, p, ctx)
+    |> Result.to_option
+  )
+  |> List.stable_sort(((_, l), (_, r)) => Oblig.Delta.compare(l, r))
+  |> ListUtil.hd_opt
+  |> Option.map(fst);
 
 let pick = _ => failwith("todo pick slopes based on obligation scores");
 
