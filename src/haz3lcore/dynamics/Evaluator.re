@@ -324,7 +324,7 @@ and matches_cast_Sum =
   | Closure(_)
   | TestLit(_)
   | Cons(_)
-  | ListConcat(_) 
+  | ListConcat(_)
   | IfThenElse(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
@@ -410,7 +410,7 @@ and matches_cast_Tuple =
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) 
+  | InconsistentBranches(_)
   | IfThenElse(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
@@ -546,7 +546,7 @@ and matches_cast_Cons =
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) 
+  | InconsistentBranches(_)
   | IfThenElse(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
@@ -844,6 +844,31 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
         };
+      };
+
+    | IfThenElse(c1, d1, d2) =>
+      let* r1 = evaluate(env, c1);
+      switch (r1) {
+      | BoxedValue(BoolLit(b1) as c1') =>
+        let* r2 = evaluate(env, d1);
+        let* r3 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(d1') =>
+          switch (r3) {
+          | BoxedValue(d2') =>
+            BoxedValue(eval_if_then_else(b1, d1', d2')) |> return
+          | Indet(d2') => Indet(IfThenElse(c1', d1', d2')) |> return
+          }
+        | Indet(d1') =>
+          switch (r3) {
+          | BoxedValue(d2')
+          | Indet(d2') => Indet(IfThenElse(c1', d1', d2')) |> return
+          }
+        };
+      | BoxedValue(c1') =>
+        print_endline("InvalidBoxedBoolLit");
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c1')));
+      | Indet(c1') => Indet(IfThenElse(c1', d1, d2)) |> return
       };
 
     | Tuple(ds) =>
