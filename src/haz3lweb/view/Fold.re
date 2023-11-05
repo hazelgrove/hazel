@@ -35,15 +35,11 @@ let button_view =
         Attr.classes(["token", "default"]),
         Attr.on_mousedown(_evt => {
           Js_of_ocaml.Dom_html.stopPropagation(_evt);
-          let events = [
-            inject(
-              List.mem(tile_id, folded)
-                ? UpdateAction.PerformAction(Unfold(tile_id))
-                : UpdateAction.PerformAction(Fold(tile_id)),
-            ),
-            inject(UpdateAction.PerformAction(Move(Goal(Point(origin))))),
-          ];
-          Virtual_dom.Vdom.Effect.Many(events);
+          inject(
+            List.mem(tile_id, folded)
+              ? UpdateAction.PerformAction(Unfold(tile_id))
+              : UpdateAction.PerformAction(Fold(tile_id)),
+          );
         }),
       ]),
     [Node.text(List.mem(tile_id, folded) ? "> " : "∨")],

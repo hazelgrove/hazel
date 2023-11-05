@@ -31,8 +31,16 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
   switch (a) {
-  | Fold(_)
-  | Unfold(_) => Ok(z)
+  | Fold(tid)
+  | Unfold(tid) =>
+    switch (Measured.find_by_id(tid, meta.measured)) {
+    | Some({origin, _}) =>
+      switch (Move.go(Goal(Point(origin)), z, ~folded=meta.folded)) {
+      | Some(z) => Ok(z)
+      | None => Ok(z)
+      }
+    | None => Error(Action.Failure.Cant_move)
+    }
   | Move(d) =>
     Move.go(d, z, ~folded=meta.folded)
     |> Result.of_option(~error=Action.Failure.Cant_move)
