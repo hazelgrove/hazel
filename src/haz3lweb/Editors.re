@@ -46,6 +46,8 @@ let put_editor = (ed: Editor.t, eds: t): t =>
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
+let get_folded = (editors: t): list(Id.t) =>
+  get_editor(editors).state.meta.folded;
 
 /* Each mode (e.g. Scratch, School) requires
    elaborating on some number of expressions

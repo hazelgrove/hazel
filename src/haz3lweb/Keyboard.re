@@ -11,14 +11,18 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     Some(PerformAction(a));
   let try_fold = (isfold: bool) => {
     let (_, current) = zipper.relatives.siblings;
-    let rec find_fold = (current: Segment.t, ancestors: Ancestors.t) =>
+    let rec find_fold = (current: Segment.t, ancestors: Ancestors.t) => {
+      let folded = (t: Tile.t) => {
+        let folded_list = Editors.get_folded(model.editors);
+        List.mem(t.id, folded_list);
+      };
       switch (current, ancestors) {
-      | ([Tile(t), ..._], _) when Module.foldable(t) =>
-        if (isfold) {
-          now(Fold(t.id));
-        } else {
-          now(Unfold(t.id));
-        }
+      | ([Tile(t), ..._], _)
+          when Module.foldable(t) && isfold && !folded(t) =>
+        now(Fold(t.id))
+      | ([Tile(t), ..._], _)
+          when Module.foldable(t) && !isfold && folded(t) =>
+        now(Unfold(t.id))
       | (_, [(parent, _), ...ancestors]) =>
         let current: Segment.t = [
           Tile(Ancestor.zip(Segment.empty, parent)),
@@ -26,6 +30,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
         find_fold(current, ancestors);
       | _ => None
       };
+    };
     find_fold(current, zipper.relatives.ancestors);
   };
   let print = str => str |> print_endline |> (_ => None);
