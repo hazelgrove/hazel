@@ -856,6 +856,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d1') =>
           switch (r3) {
           | BoxedValue(d2') =>
+            // TODO: implement eval_if_then_else: match type and return correct branch depending on condition
             BoxedValue(eval_if_then_else(b1, d1', d2')) |> return
           | Indet(d2') => Indet(IfThenElse(c1', d1', d2')) |> return
           }
