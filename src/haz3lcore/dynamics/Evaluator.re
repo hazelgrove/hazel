@@ -856,8 +856,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d1') =>
           switch (r3) {
           | BoxedValue(d2') =>
-            // TODO: implement eval_if_then_else: match type and return correct branch depending on condition
-            BoxedValue(eval_if_then_else(b1, d1', d2')) |> return
+            // TODO: We might need to check if d1' and d2' are of the same variant
+            //       Unsure if necessary or not
+            //       I attempted to do the check, but was usure how to treat certain variants like FailedCast and InvalidOperation
+            //       Ignore the check for now to get something that works for now
+            BoxedValue(b1 ? d1' : d2') |> return
           | Indet(d2') => Indet(IfThenElse(c1', d1', d2')) |> return
           }
         | Indet(d1') =>
