@@ -83,7 +83,7 @@ let init = (d: DHExp.t): ProgramResult.t => {
     Builtins.env_init
     |> ClosureEnvironment.of_environment
     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-  (Indet(Closure(env, FilterEnvironment.empty, d)), es);
+  (Indet(Closure(env, d)), es);
 };
 
 let decompose =

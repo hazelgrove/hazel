@@ -60,11 +60,7 @@ let rec mk =
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
             drs
             |> List.map(
-                 mk_rule(
-                   ~settings,
-                   ~selected_hole_instance,
-                   ~next_steps=objs |> List.map(snd),
-                 ),
+                 mk_rule(~settings, ~selected_hole_instance, ~next_steps=[]),
                ),
             [DHDoc_common.Delim.close_Case],
           ]),
@@ -118,7 +114,7 @@ let rec mk =
       /* Now any of the postprocess checking is not done since most of
          the time the result is partial evaluated and those conditions
          cannot be met. */
-      | Closure(_, _, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
+      | Closure(_, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
 
       | Filter({pat, act}, dbody) =>
         let keyword =
@@ -127,7 +123,7 @@ let rec mk =
           | Eval => "skip"
           };
         let flt_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, pat, unwrap(objs, Filter)));
+          mk_cast(go(~enforce_inline, pat, []));
         vseps([
           hcats([
             DHDoc_common.Delim.mk(keyword),
@@ -138,7 +134,7 @@ let rec mk =
                ),
             DHDoc_common.Delim.mk("in"),
           ]),
-          mk_cast(go(~enforce_inline=false, dbody, [])),
+          mk_cast(go(~enforce_inline=false, dbody, unwrap(objs, Filter))),
         ]);
       /* Hole expressions must appear within a closure in
          the postprocessed result */

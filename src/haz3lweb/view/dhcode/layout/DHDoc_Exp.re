@@ -158,7 +158,7 @@ let rec mk =
       };
     let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
       switch (d) {
-      | Closure(_, _, d') => fdoc(~enforce_inline, ~d=d')
+      | Closure(_, d') => fdoc(~enforce_inline, ~d=d')
       | EmptyHole(u, i) =>
         let selected =
           switch (selected_hole_instance) {

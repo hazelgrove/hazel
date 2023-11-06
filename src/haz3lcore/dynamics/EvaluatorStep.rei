@@ -33,11 +33,7 @@ module EvalCtx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Mark
-    | Closure(
-        [@opaque] ClosureEnvironment.t,
-        [@opqaue] FilterEnvironment.t,
-        t,
-      )
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Filter(Filter.t, t)
@@ -78,22 +74,12 @@ module EvalCtx: {
 module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: ClosureEnvironment.t,
-    flt: FilterEnvironment.t,
     ctx: EvalCtx.t,
     act: FilterAction.t,
     exp: DHExp.t,
   };
 
-  let mk:
-    (
-      ClosureEnvironment.t,
-      FilterEnvironment.t,
-      EvalCtx.t,
-      FilterAction.t,
-      DHExp.t
-    ) =>
-    t;
+  let mk: (EvalCtx.t, FilterAction.t, DHExp.t) => t;
 
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;

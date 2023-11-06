@@ -39,11 +39,7 @@ module EvalCtx = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Mark
-    | Closure(
-        [@opaque] ClosureEnvironment.t,
-        [@opaque] FilterEnvironment.t,
-        t,
-      )
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | Sequence(t, DHExp.t)
     | Let(DHPat.t, t, DHExp.t)
     | Filter(Filter.t, t)
@@ -89,16 +85,14 @@ type m('a) = EvaluatorMonad.t('a);
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: [@opaque] ClosureEnvironment.t,
-    flt: FilterEnvironment.t,
     ctx: EvalCtx.t,
     act: FilterAction.t,
     exp: DHExp.t,
   };
 
-  let mk = (env, flt, ctx, act, exp) => {env, flt, ctx, act, exp};
+  let mk = (ctx, act, exp) => {ctx, act, exp};
 
-  let mark = (env, flt, act, exp) => {env, flt, ctx: Mark, act, exp};
+  let mark = (act, exp) => {ctx: Mark, act, exp};
 
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
   let get_exp = (obj: t): DHExp.t => obj.exp;
@@ -112,7 +106,7 @@ module EvalObj = {
       );
       raise(EvaluatorError.Exception(StepDoesNotMatch));
     | (NonEmptyHole, NonEmptyHole(_, _, _, c))
-    | (Closure, Closure(_, _, c))
+    | (Closure, Closure(_, c))
     | (Filter, Filter(_, c))
     | (Sequence, Sequence(c, _))
     | (Let, Let(_, c, _))
@@ -164,7 +158,7 @@ module EvalObj = {
     | (ListConcat1, ListConcat2(_))
     | (ListConcat2, ListConcat1(_)) => None
     | (Closure, _) => Some(obj)
-    | (tag, Closure(_, _, c)) => unwrap({...obj, ctx: c}, tag)
+    | (tag, Closure(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Cast, _) => Some(obj)
     | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
     | (tag, ctx) =>
@@ -197,6 +191,14 @@ module Transition = {
       | Stepped(d)
       | Indet(d)
       | BoxedValue(d) => d;
+    let map = (f, r) => {
+      switch (r) {
+      | Paused(d) => Paused(f(d))
+      | Stepped(d) => Stepped(f(d))
+      | Indet(d) => Indet(f(d))
+      | BoxedValue(d) => BoxedValue(f(d))
+      };
+    };
   };
 
   let rec transition_rule =
@@ -213,16 +215,16 @@ module Transition = {
         switch (List.nth_opt(rules, current_rule_index)) {
         | None =>
           let case = DHExp.Case(scrut, rules, current_rule_index);
-          Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+          Indet(Closure(env, ConsistentCase(case))) |> return;
         | Some(Rule(dp, d)) =>
           switch (Evaluator.matches(dp, scrut)) {
           | IndetMatch =>
             let case = DHExp.Case(scrut, rules, current_rule_index);
-            Result.Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+            Result.Indet(Closure(env, ConsistentCase(case))) |> return;
           | Matches(env') =>
             // extend environment with new bindings introduced
             let* env = env |> Evaluator.evaluate_extend_env(env');
-            Result.Stepped(Closure(env, flt, d)) |> return;
+            Result.Stepped(Closure(env, d)) |> return;
           // by the rule and evaluate the expression.
           | DoesNotMatch =>
             transition_rule(env, flt, scrut, rules, current_rule_index + 1)
@@ -284,12 +286,12 @@ module Transition = {
         switch (List.nth_opt(rules, current_rule_index)) {
         | None =>
           let case = DHExp.Case(scrut, rules, current_rule_index);
-          Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+          Indet(Closure(env, ConsistentCase(case))) |> return;
         | Some(Rule(dp, d)) =>
           switch (Evaluator.matches(dp, scrut)) {
           | IndetMatch =>
             let case = DHExp.Case(scrut, rules, current_rule_index);
-            Indet(Closure(env, flt, ConsistentCase(case))) |> return;
+            Indet(Closure(env, ConsistentCase(case))) |> return;
           | Matches(env') =>
             // extend environment with new bindings introduced
             let* env = env |> Evaluator.evaluate_extend_env(env');
@@ -530,20 +532,26 @@ module Transition = {
                 | DoesNotMatch => Indet(Let(dp, d1, d2)) |> return
                 | Matches(env') =>
                   let* env = env |> Evaluator.evaluate_extend_env(env');
-                  Stepped(Closure(env, flt, d2)) |> return;
+                  Stepped(Closure(env, d2)) |> return;
                 }
               };
 
             | Filter(flt', d1) =>
               let flt = flt |> FilterEnvironment.extends(flt');
-              Stepped(Closure(env, flt, d1)) |> return;
+              let* r = transition(~flt, d1);
+              switch (r) {
+              | Stepped(d) => Stepped(Filter(flt', d)) |> return
+              | Paused(d) => Paused(Filter(flt', d)) |> return
+              | Indet(d) => Indet(d) |> return
+              | BoxedValue(d) => BoxedValue(d) |> return
+              };
 
             | FixF(f, ty, d1) =>
               let env' = Environment.singleton((f, DHExp.FixF(f, ty, d1)));
               let* env = env |> Evaluator.evaluate_extend_env(env');
-              Stepped(Closure(env, flt, d1)) |> return;
+              Stepped(Closure(env, d1)) |> return;
 
-            | Fun(_) => Stepped(Closure(env, flt, d)) |> return
+            | Fun(_) => Stepped(Closure(env, d)) |> return
 
             | Ap(d1, d2) =>
               let* r1 = transition(d1);
@@ -573,7 +581,7 @@ module Transition = {
                 | Indet(d2) => Indet(Ap(d1, d2)) |> return
                 | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
                 };
-              | BoxedValue(Closure(env, flt, Fun(dp, _, d3, _)) as d1) =>
+              | BoxedValue(Closure(env, Fun(dp, _, d3, _)) as d1) =>
                 let* r2 = transition(d2);
                 switch (r2) {
                 | Paused(d2) => Paused(Ap(d1, d2)) |> return
@@ -587,7 +595,7 @@ module Transition = {
                     /* evaluate a closure: extend the closure environment with the
                      * new bindings introduced by the function application. */
                     let* env = env |> Evaluator.evaluate_extend_env(env');
-                    Stepped(Closure(env, flt, d3)) |> return;
+                    Stepped(Closure(env, d3)) |> return;
                   }
                 };
               | BoxedValue(Cast(d1, Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -908,11 +916,11 @@ module Transition = {
                 | Stepped(d1) => Stepped(Prj(d1, n)) |> return
                 | Paused(d1) => Paused(Prj(d1, n)) |> return
                 | BoxedValue(Tuple(ds) as d)
-                | Indet(Closure(_, _, Tuple(ds)) as d)
+                | Indet(Closure(_, Tuple(ds)) as d)
                 | Indet(Tuple(ds) as d) when n >= List.length(ds) =>
                   Stepped(d |> invalid_projection) |> return
                 | BoxedValue(Tuple(ds))
-                | Indet(Closure(_, _, Tuple(ds)))
+                | Indet(Closure(_, Tuple(ds)))
                 | Indet(Tuple(ds)) => Stepped(List.nth(ds, n)) |> return
                 | BoxedValue(Cast(_, Prod(tys), Prod(_)) as rv)
                 | Indet(Cast(_, Prod(tys), Prod(_)) as rv)
@@ -1023,16 +1031,16 @@ module Transition = {
 
             /* Generalized closures evaluate to themselves. Only
                lambda closures are BoxedValues; other closures are all Indet. */
-            | Closure(env, flt, d) =>
-              switch (d) {
-              | Fun(_) => BoxedValue(Closure(env, flt, d)) |> return
-              | d =>
-                let* r = transition(~env, ~flt, d);
+            | Closure(env, d1) =>
+              switch (d1) {
+              | Fun(_) => BoxedValue(Closure(env, d1)) |> return
+              | d1 =>
+                let* r = transition(~env, d1);
                 switch (r) {
-                | Stepped(d) => Stepped(Closure(env, flt, d)) |> return
-                | Paused(d) => Paused(Closure(env, flt, d)) |> return
-                | Indet(d) => Indet(d) |> return
-                | BoxedValue(d) => BoxedValue(d) |> return
+                | Stepped(d1) => Stepped(Closure(env, d1)) |> return
+                | Paused(d1) => Paused(Closure(env, d1)) |> return
+                | Indet(d1) => Indet(d1) |> return
+                | BoxedValue(d1) => BoxedValue(d1) |> return
                 };
               }
 
@@ -1042,38 +1050,37 @@ module Transition = {
               Indet(
                 Closure(
                   env,
-                  flt,
                   InconsistentBranches(u, i, Case(d1, rules, n)),
                 ),
               )
               |> return
 
             | EmptyHole(u, i) =>
-              Indet(Closure(env, flt, EmptyHole(u, i))) |> return
+              Indet(Closure(env, EmptyHole(u, i))) |> return
 
             | NonEmptyHole(reason, u, i, d1) =>
               let* r1 = transition(d1);
               switch (r1) {
               | Stepped(d1) =>
-                Stepped(Closure(env, flt, NonEmptyHole(reason, u, i, d1)))
+                Stepped(Closure(env, NonEmptyHole(reason, u, i, d1)))
                 |> return
               | Paused(d1) =>
-                Paused(Closure(env, flt, NonEmptyHole(reason, u, i, d1)))
+                Paused(Closure(env, NonEmptyHole(reason, u, i, d1)))
                 |> return
               | BoxedValue(d1)
               | Indet(d1) =>
-                Indet(Closure(env, flt, NonEmptyHole(reason, u, i, d1)))
+                Indet(Closure(env, NonEmptyHole(reason, u, i, d1)))
                 |> return
               };
 
             | FreeVar(u, i, x) =>
-              Indet(Closure(env, flt, FreeVar(u, i, x))) |> return
+              Indet(Closure(env, FreeVar(u, i, x))) |> return
 
             | ExpandingKeyword(u, i, kw) =>
-              Indet(Closure(env, flt, ExpandingKeyword(u, i, kw))) |> return
+              Indet(Closure(env, ExpandingKeyword(u, i, kw))) |> return
 
             | InvalidText(u, i, text) =>
-              Indet(Closure(env, flt, InvalidText(u, i, text))) |> return
+              Indet(Closure(env, InvalidText(u, i, text))) |> return
 
             /* Cast calculus */
             | Cast(d1, ty, ty') =>
@@ -1347,12 +1354,12 @@ module Decompose = {
         | (Eval, Eval)
         | (Eval, BoxedValue) =>
           switch (cat) {
-          | Operator => Eval(EvalObj.mark(env, flt, Eval, exp))
+          | Operator => Eval(EvalObj.mark(Eval, exp))
           | Constructor => BoxedValue
           }
         | (Pause, BoxedValue) =>
           switch (cat) {
-          | Operator => Step([EvalObj.mark(env, flt, Pause, exp)])
+          | Operator => Step([EvalObj.mark(Pause, exp)])
           | Constructor => BoxedValue
           }
         | (Eval, Indet)
@@ -1363,9 +1370,7 @@ module Decompose = {
       let wrap = f => Result.map(EvalObj.wrap(f));
 
       let mark = (act: FilterAction.t) => {
-        EvalObj.mark(env, flt, act, exp)
-        |> Result.return(act)
-        |> Monad.return;
+        EvalObj.mark(act, exp) |> Result.return(act) |> Monad.return;
       };
 
       let merge = (cat: t, rs) => rs |> merge(cat) |> Monad.return;
@@ -1395,9 +1400,9 @@ module Decompose = {
       | InconsistentBranches(_) => Return.indet
       | FailedCast(_) => Return.indet
       | InvalidOperation(_) => Return.indet
-      | Closure(_, _, Fun(_)) => Return.boxed
-      | Closure(env, flt, d1) =>
-        decompose(~env, ~flt, d1) >>| Return.wrap(c => Closure(env, flt, c))
+      | Closure(_, Fun(_)) => Return.boxed
+      | Closure(env, d1) =>
+        decompose(~env, ~flt, d1) >>| Return.wrap(c => Closure(env, c))
       | Cast(d1, ty, ty') =>
         decompose(~env, ~flt, d1) >>| Return.wrap(c => Cast(c, ty, ty'))
       | BoundVar(_) => Return.mark(act)
@@ -1417,7 +1422,9 @@ module Decompose = {
         | Indet
         | Step(_) => r1 |> Return.wrap(c => Let(dp, c, d2)) |> Monad.return
         };
-      | Filter(_) => Return.mark(act)
+      | Filter(flt', d1) =>
+        let flt = flt |> FilterEnvironment.extends(flt');
+        decompose(~env, ~flt, d1) >>| Return.wrap(c => Filter(flt', c));
       | FixF(_) => Return.mark(act)
       | Fun(_) => Return.mark(act)
       | Ap(d1, d2) =>
@@ -1530,116 +1537,137 @@ module Decompose = {
   };
 };
 
-let rec compose = (ctx: EvalCtx.t, d: DHExp.t): m(DHExp.t) => {
+let rec compose =
+        (
+          env: ClosureEnvironment.t,
+          flt: FilterEnvironment.t,
+          ctx: EvalCtx.t,
+          act: FilterAction.t,
+          exp: DHExp.t,
+        )
+        : m(Transition.Result.t(DHExp.t)) => {
   open DHExp;
-  let return: DHExp.t => m(DHExp.t) = return;
   let rec rev_concat = (ls: list('a), rs: list('a)) => {
     switch (ls) {
     | [] => rs
     | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
     };
   };
+  let compose = (~env=env, ~flt=flt, ctx: EvalCtx.t, exp: DHExp.t) => {
+    compose(env, flt, ctx, act, exp);
+  };
+  let map = (r, f: DHExp.t => DHExp.t) => {
+    let* r = r;
+    r |> Transition.Result.map(f) |> return;
+  };
+  let (let+) = map;
   switch (ctx) {
-  | Mark => d |> return
-  | Closure(env, fenv, ctx) =>
-    let* d = compose(ctx, d);
-    Closure(env, fenv, d) |> return;
-
+  | Mark =>
+    switch (act) {
+    | Pause => Transition.step(env, flt, exp)
+    | Eval => Transition.eval(env, flt, exp)
+    }
+  | Closure(env, ctx) =>
+    let+ exp = compose(~env, ctx, exp);
+    Closure(env, exp);
   | Sequence(ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     Sequence(d1, d2);
   | Ap1(ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     Ap(d1, d2);
   | Ap2(d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     Ap(d1, d2);
   | BinBoolOp1(op, ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     BinBoolOp(op, d1, d2);
   | BinBoolOp2(op, d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     BinBoolOp(op, d1, d2);
   | BinIntOp1(op, ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     BinIntOp(op, d1, d2);
   | BinIntOp2(op, d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     BinIntOp(op, d1, d2);
   | BinFloatOp1(op, ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     BinFloatOp(op, d1, d2);
   | BinFloatOp2(op, d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     BinFloatOp(op, d1, d2);
   | BinStringOp1(op, ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     BinStringOp(op, d1, d2);
   | BinStringOp2(op, d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     BinStringOp(op, d1, d2);
   | Cons1(ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     Cons(d1, d2);
   | Cons2(d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     Cons(d1, d2);
   | ListConcat1(ctx, d2) =>
-    let+ d1 = compose(ctx, d);
+    let+ d1 = compose(ctx, exp);
     ListConcat(d1, d2);
   | ListConcat2(d1, ctx) =>
-    let+ d2 = compose(ctx, d);
+    let+ d2 = compose(ctx, exp);
     ListConcat(d1, d2);
   | Tuple(ctx, (ld, rd)) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     Tuple(rev_concat(ld, [d, ...rd]));
   | ListLit(m, i, t, ctx, (ld, rd)) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     ListLit(m, i, t, rev_concat(ld, [d, ...rd]));
   | Let(dp, ctx, d1) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     Let(dp, d, d1);
   | Filter(dp, ctx) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     Filter(dp, d);
   | Prj(ctx, n) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     Prj(d, n);
   | Cast(ctx, ty1, ty2) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     Cast(d, ty1, ty2);
   | FailedCast(ctx, ty1, ty2) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     FailedCast(d, ty1, ty2);
   | InvalidOperation(ctx, err) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     InvalidOperation(d, err);
   | NonEmptyHole(reason, u, i, ctx) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     NonEmptyHole(reason, u, i, d);
   | ConsistentCase(Case(ctx, rule, n)) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     ConsistentCase(Case(d, rule, n));
   | InconsistentBranches(u, i, Case(ctx, rule, n)) =>
-    let+ d = compose(ctx, d);
+    let+ d = compose(ctx, exp);
     InconsistentBranches(u, i, Case(d, rule, n));
   };
 };
 
 let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
-  let* r =
-    switch (obj.act) {
-    | Pause => Transition.step(obj.env, obj.flt, obj.exp)
-    | Eval => Transition.eval(obj.env, obj.flt, obj.exp)
-    };
-  let* d = compose(obj.ctx, Transition.Result.unbox(r));
+  let (env, _) =
+    Environment.empty
+    |> ClosureEnvironment.of_environment
+    |> EvaluatorState.with_eig(_, EvaluatorState.init);
+  let flt = FilterEnvironment.empty;
+  let ctx = obj.ctx;
+  let exp = obj.exp;
+  let act = obj.act;
+  let* r = compose(env, flt, ctx, act, exp);
   print_endline("======== step ========");
-  print_endline("res = " ++ DHExp.show(d));
+  print_endline("res = " ++ Transition.Result.show(DHExp.pp, r));
   switch (r) {
-  | Paused(_)
-  | Stepped(_)
-  | BoxedValue(_) => EvaluatorResult.BoxedValue(d) |> return
-  | Indet(_) => EvaluatorResult.Indet(d) |> return
+  | Paused(d)
+  | Stepped(d)
+  | BoxedValue(d) => EvaluatorResult.BoxedValue(d) |> return
+  | Indet(d) => EvaluatorResult.Indet(d) |> return
   };
 };
 
@@ -1749,7 +1777,7 @@ module Stepper = {
     | Sequence(_) => "sequence"
     | Let(_) => "substitution"
     | Ap(TestLit(_), _) => "evaluating a test"
-    | Ap(Closure(_, _, Fun(_)), _) => "function application"
+    | Ap(Closure(_, Fun(_)), _) => "function application"
     | ApBuiltin(_) => "builtin application" // TODO[Matt]: What is a builtin Ap?
     | BinBoolOp(_) => "boolean logic"
     | BinIntOp(_) => "arithmetic"

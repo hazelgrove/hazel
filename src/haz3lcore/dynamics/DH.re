@@ -9,11 +9,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure(
-        [@opaque] ClosureEnvironment.t,
-        [@opaque] FilterEnvironment.t,
-        t,
-      )
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -67,11 +63,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
-    | Closure(
-        [@opaque] ClosureEnvironment.t,
-        [@opaque] FilterEnvironment.t,
-        t,
-      )
+    | Closure([@opaque] ClosureEnvironment.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -118,7 +110,7 @@ module rec DHExp: {
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
-    | Closure(_, _, _) => "Closure"
+    | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
     | TestLit(_) => "TestLit"
@@ -161,8 +153,7 @@ module rec DHExp: {
 
   let rec strip_casts =
     fun
-    | Closure(ei, ef, d) =>
-      Closure(ei, FilterEnvironment.strip_casts(ef), strip_casts(d))
+    | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
@@ -295,10 +286,8 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && x1 == x2
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
       u1 == u2 && i1 == i2 && text1 == text2
-    | (Closure(sigma1, fenv1, d1), Closure(sigma2, fenv2, d2)) =>
-      ClosureEnvironment.id_equal(sigma1, sigma2)
-      && FilterEnvironment.fast_equal(fenv1, fenv2)
-      && fast_equal(d1, d2)
+    | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
+      ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (
         InconsistentBranches(u1, i1, case1),
         InconsistentBranches(u2, i2, case2),
@@ -361,8 +350,8 @@ and Filter: {
         ) =>
         true
 
-      | (Closure(_, _, d), _) => matches_exp(d, f)
-      | (_, Closure(_, _, f)) => matches_exp(d, f)
+      | (Closure(_, d), _) => matches_exp(d, f)
+      | (_, Closure(_, f)) => matches_exp(d, f)
 
       | (Cast(d, _, _), _) => matches_exp(d, f)
       | (_, Cast(f, _, _)) => matches_exp(d, f)
@@ -621,8 +610,8 @@ and FilterEnvironment: {
     env |> List.map(Filter.strip_casts);
   };
 
-  let extends = (f: Filter.t, env: t) => {
-    [f, ...env];
+  let extends = (flt: Filter.t, env: t) => {
+    [flt, ...env];
   };
 
   let matches =
