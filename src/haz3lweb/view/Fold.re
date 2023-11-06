@@ -11,11 +11,9 @@ let fold_button_style = (font_metrics: FontMetrics.t) =>
   Attr.create(
     "style",
     Printf.sprintf(
-      "width: %fpx; height: %fpx; margin-top: 0; margin-bottom: 0; margin-left: %fpx; margin-right: %fpx; vertical-align: bottom; display: inline-block",
-      font_metrics.col_width,
-      font_metrics.row_height,
-      font_metrics.col_width *. 0.5,
-      font_metrics.col_width *. 0.5,
+      "width: %fpx; height: %fpx; margin-top: 0; margin-bottom: 0; margin-left: 0; margin-right: 0; vertical-align: bottom",
+      font_metrics.col_width *. 1.6,
+      font_metrics.row_height *. 0.8,
     ),
   );
 
@@ -28,21 +26,37 @@ let button_view =
       origin: Measured.Point.t,
     ) => {
   let button_origin: Measured.Point.t = {...origin, col: (-2)};
-  Node.button(
+  Node.div(
     ~attr=
       Attr.many([
-        DecUtil.abs_position(~font_metrics, button_origin),
-        Attr.classes(["token", "default"]),
-        Attr.on_mousedown(_evt => {
-          Js_of_ocaml.Dom_html.stopPropagation(_evt);
-          inject(
-            List.mem(tile_id, folded)
-              ? UpdateAction.PerformAction(Unfold(tile_id))
-              : UpdateAction.PerformAction(Fold(tile_id)),
-          );
-        }),
+        DecUtil.abs_position(
+          ~font_metrics,
+          ~width_fudge=font_metrics.col_width,
+          ~top_fudge=font_metrics.row_height *. (-0.05),
+          ~left_fudge=font_metrics.col_width *. 0.1,
+          ~scale=0.7,
+          button_origin,
+        ),
+        Attr.classes(["fold-icon"]),
       ]),
-    [Node.text(List.mem(tile_id, folded) ? "> " : "∨")],
+    [
+      Node.button(
+        ~attr=
+          Attr.many([
+            fold_button_style(font_metrics),
+            Attr.classes(["hide-icon"]),
+            Attr.on_mousedown(_evt => {
+              Js_of_ocaml.Dom_html.stopPropagation(_evt);
+              inject(
+                List.mem(tile_id, folded)
+                  ? UpdateAction.PerformAction(Unfold(tile_id))
+                  : UpdateAction.PerformAction(Fold(tile_id)),
+              );
+            }),
+          ]),
+        [Node.text(List.mem(tile_id, folded) ? "> " : "∨")],
+      ),
+    ],
   );
 };
 

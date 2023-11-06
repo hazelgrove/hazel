@@ -1923,3 +1923,15 @@ svg.expandable path {
   top: -1em;
   left: -1em;
 }
+
+.fold-icon .hide-icon{
+  display: none;
+}
+
+.fold-icon:hover .hide-icon{
+  display: block;
+}
+
+.hide-icon {
+  background-color: #fdf6e3;
+}
