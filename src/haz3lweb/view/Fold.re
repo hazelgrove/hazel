@@ -32,7 +32,7 @@ let button_view =
         DecUtil.abs_position(
           ~font_metrics,
           ~width_fudge=font_metrics.col_width,
-          ~top_fudge=font_metrics.row_height *. (-0.05),
+          ~top_fudge=font_metrics.row_height *. 0.1,
           ~left_fudge=font_metrics.col_width *. 0.1,
           ~scale=0.7,
           button_origin,
