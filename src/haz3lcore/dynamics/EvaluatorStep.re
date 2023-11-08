@@ -1223,17 +1223,18 @@ module Transition = {
     print_endline("act = " ++ [%show: option(FilterAction.t)](act));
     print_endline("exp = " ++ DHExp.show(d));
     let fixed = (~env=env, ~flt=flt, d) => walk(env, flt, d);
-    let+ r = transition(fixed, env, flt, d);
     switch (act) {
     | Some(Pause) =>
+      let+ r = step(env, flt, d);
+      print_endline("res = " ++ Result.show(DHExp.pp, r));
       switch (r) {
       | Paused(d) => Paused(d)
       | Stepped(_) => Paused(d)
       | Indet(d) => Indet(d)
       | BoxedValue(d) => BoxedValue(d)
-      }
+      };
     | Some(Eval)
-    | None => r
+    | None => transition(fixed, env, flt, d)
     };
   };
 
@@ -1624,9 +1625,10 @@ let rec compose =
   | Let(dp, ctx, d1) =>
     let+ d = compose(ctx, exp);
     Let(dp, d, d1);
-  | Filter(dp, ctx) =>
-    let+ d = compose(ctx, exp);
-    Filter(dp, d);
+  | Filter(flt', ctx) =>
+    let flt = flt |> FilterEnvironment.extends(flt');
+    let+ d = compose(ctx, ~flt, exp);
+    Filter(flt', d);
   | Prj(ctx, n) =>
     let+ d = compose(ctx, exp);
     Prj(d, n);
