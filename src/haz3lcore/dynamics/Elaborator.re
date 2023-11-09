@@ -284,6 +284,11 @@ let rec dhexp_of_uexp =
       | Dot(e_mod, e_mem) =>
         let* e_mod = dhexp_of_uexp(m, e_mod);
         let+ e_mem = dhexp_of_uexp(m, e_mem);
+        let e_mem =
+          switch (e_mem) {
+          | Cast(e_mem, _, _) => e_mem
+          | _ => e_mem
+          };
         DHExp.Dot(e_mod, e_mem);
       | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
