@@ -237,8 +237,7 @@ let rec dhexp_of_uexp =
                );
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
-      | Ap(fn, arg)
-      | Pipeline(arg, fn) =>
+      | Ap(fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
