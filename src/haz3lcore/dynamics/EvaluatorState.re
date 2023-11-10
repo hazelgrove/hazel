@@ -1,22 +1,10 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  eig: EnvironmentIdGen.t,
   stats: EvaluatorStats.t,
   tests: TestMap.t,
 };
 
-let init = {
-  eig: EnvironmentIdGen.init,
-  stats: EvaluatorStats.initial,
-  tests: TestMap.empty,
-};
-
-let get_eig = ({eig, _}) => eig;
-let put_eig = (eig, es) => {...es, eig};
-let with_eig = (f, es) => {
-  let (x, eig) = es |> get_eig |> f;
-  (x, es |> put_eig(eig));
-};
+let init = {stats: EvaluatorStats.initial, tests: TestMap.empty};
 
 let take_step = ({stats, _} as es) => {
   ...es,
