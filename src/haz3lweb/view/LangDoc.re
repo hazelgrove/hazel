@@ -1907,6 +1907,25 @@ let get_doc =
             LangDocMessages.funapp_exp_coloring_ids,
           );
         };
+      | Pipeline(arg, fn) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.pipeline_exp_group,
+            docs,
+          );
+        let arg_id = List.nth(arg.ids, 0);
+        let fn_id = List.nth(fn.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.pipeline_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            arg_id |> Id.to_string,
+            fn_id |> Id.to_string,
+          ),
+          LangDocMessages.pipeline_exp_coloring_ids(~arg_id, ~fn_id),
+        );
       | If(cond, then_, else_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
