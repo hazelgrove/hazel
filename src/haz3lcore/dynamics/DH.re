@@ -344,33 +344,25 @@ and ClosureEnvironment: {
 
   let to_list: t => list((Var.t, DHExp.t));
 
-  let of_environment:
-    (Environment.t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let of_environment: Environment.t => t;
 
   let id_equal: (t, t) => bool;
 
-  let empty: EnvironmentIdGen.t => (t, EnvironmentIdGen.t);
+  let empty: t;
   let is_empty: t => bool;
   let length: t => int;
 
   let lookup: (t, Var.t) => option(DHExp.t);
   let contains: (t, Var.t) => bool;
-  let update:
-    (Environment.t => Environment.t, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let update: (Environment.t => Environment.t, t) => t;
   let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend:
-    (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let extend: (t, (Var.t, DHExp.t)) => t;
   let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
-  let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let union: (t, t) => t;
   let union_keep_id: (t, t) => t;
-  let map:
-    (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let map: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
   let map_keep_id: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
-  let filter:
-    (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let filter: (((Var.t, DHExp.t)) => bool, t) => t;
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
   let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
@@ -397,9 +389,9 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = (map, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    (wrap(ei, map), eig);
+  let of_environment = map => {
+    let ei = Id.mk();
+    wrap(ei, map);
   };
 
   /* Equals only needs to check environment id's (faster than structural equality
