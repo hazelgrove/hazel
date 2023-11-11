@@ -2182,6 +2182,30 @@ let get_doc =
           ),
           coloring_ids(~left_id, ~right_id),
         );
+      | UserOp(_, args) =>
+        let (left, right) =
+          switch (args) {
+          | {term: Tuple([l, r]), _} => (l, r)
+          | _ => raise(Invalid_argument("Non-tuple passed to UserOp"))
+          };
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.userop_exp_group,
+            docs,
+          );
+        let left_id = List.nth(left.ids, 0);
+        let right_id = List.nth(right.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.userop_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            left_id |> Id.to_string,
+            right_id |> Id.to_string,
+          ),
+          LangDocMessages.userop_exp_coloring_ids(~left_id, ~right_id),
+        );
       | Match(scrut, _rules) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(

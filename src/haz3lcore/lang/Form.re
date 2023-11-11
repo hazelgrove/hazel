@@ -88,7 +88,6 @@ let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 let is_reserved = str => is_bool(str);
-let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
@@ -171,6 +170,12 @@ let is_comment = t => regexp(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
   List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
+let is_op_in_let_precursor = regexp("^_[~?!$%&*+\\-./:<=>@^]*$");
+let is_op_in_let = regexp("^_[~?!$%&*+\\-./:<=>@^]+_$");
+let is_op = regexp("^[~?!$%&*+\\-./:<=>@^]+$");
+let is_var = str =>
+  !is_reserved(str)
+  && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op_in_let(str));
 
 let bad_token_cls: string => bad_token_cls =
   t =>
@@ -183,6 +188,7 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("op", (is_op, [mk_bin(P.plus, Exp, [])])), // HACK infix expansion
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
@@ -198,6 +204,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
+  ("op_in_let_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
@@ -305,15 +312,16 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
-let atomic_molds: Token.t => list(Mold.t) =
-  s =>
-    List.fold_left(
-      (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
-      [],
-      atomic_forms,
-    );
+let atomic_molds =
+    (s: Token.t, forms: list((string, (string => bool, list(Mold.t)))))
+    : list(Mold.t) =>
+  List.fold_left(
+    (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
+    [],
+    forms,
+  );
 
-let is_atomic = t => atomic_molds(t) != [];
+let is_atomic = t => atomic_molds(t, atomic_forms) != [];
 
 let is_delim = t => List.mem(t, delims);
 
@@ -328,4 +336,34 @@ let is_valid_char = t =>
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
   mk(ss, [t], Mold.(mk_op(sort, [])));
+};
+
+let prec_of_op = (op_name: string): P.t => {
+  switch (op_name) {
+  | "" => P.plus /* error should be called before this point */
+  | _ =>
+    switch (op_name.[0]) {
+    | ';' => 10
+    | '+'
+    | '-' => P.plus
+    | '*'
+    | '/'
+    | '%' => P.mult
+    | '@'
+    | '^' => P.power
+    | '~'
+    | '?'
+    | '!'
+    | '='
+    | '$'
+    | '>'
+    | '<' => P.eqs
+    | '&' => P.and_
+    | '|' => P.or_
+    | '.'
+    | ',' => P.prod
+    | ':' => P.ann
+    | _ => P.plus
+    }
+  };
 };
