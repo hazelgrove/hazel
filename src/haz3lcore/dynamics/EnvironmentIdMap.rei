@@ -2,4 +2,4 @@
 
    Used in HoleInstanceInfo_.re
    */
-include (module type of Util.IntMap);
+include (module type of Id.Map);
