@@ -4,10 +4,22 @@ open Util.Web;
 open Util;
 open Haz3lcore;
 
-let errc = "error";
-let okc = "ok";
-let div_err = div(~attr=clss([errc]));
-let div_ok = div(~attr=clss([okc]));
+let sort_cls = (ci: Statics.Info.t): string =>
+  ci |> Statics.Info.sort_of |> Sort.to_string;
+
+let status_cls: Statics.Info.status_cls => string =
+  fun
+  | Ok => "ok"
+  | Error => "error"
+  | Warn => "warn";
+
+let cls_cls = (ci: Statics.Info.t): string =>
+  Term.Cls.show(Info.cls_of(ci));
+
+let status_view = status => div(~attr=clss([status_cls(status)]));
+let view_err = status_view(Error);
+let view_warn = status_view(Warn);
+let view_ok = status_view(Ok);
 
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
@@ -44,7 +56,7 @@ let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
 let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
-    ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+    ~attr=clss(["ci-header", sort, status_cls(Info.status_cls(ci))]),
     [
       ctx_toggle(~inject, settings.context_inspector),
       CtxInspector.view(~inject, ~settings, ci),
@@ -160,35 +172,46 @@ let typ_err_view = (ok: Info.error_typ) =>
 let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
-    div_err([code_err(name), text("not found")])
-  | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+    view_err([code_err(name), text("not found")])
+  | InHole(Common(error)) => view_err(common_err_view(cls, error))
+  | NotInHole(ok) => view_ok(common_ok_view(cls, ok))
   };
 
 let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   switch (status) {
-  | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
-  | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | Warning(ok, SoloRefutable) =>
+    view_warn(
+      common_ok_view(cls, ok)
+      @ [text(Unicode.nbsp), text("but pattern doesn't cover all cases")],
+    )
+  | Warning(ok, Shadowing(_id)) =>
+    view_warn(
+      common_ok_view(cls, ok)
+      @ [text(Unicode.nbsp), text("but shadowings previous binding")],
+    )
+  | InHole(ExpectedConstructor) =>
+    view_err([text("Expected a constructor")])
+  | InHole(Common(error)) => view_err(common_err_view(cls, error))
+  | NotInHole(ok) => view_ok(common_ok_view(cls, ok))
   };
 
 let typ_view = (cls: Term.Cls.t, status: Info.status_typ) =>
   switch (status) {
-  | NotInHole(ok) => div_ok(typ_ok_view(cls, ok))
-  | InHole(err) => div_err(typ_err_view(err))
+  | NotInHole(ok) => view_ok(typ_ok_view(cls, ok))
+  | InHole(err) => view_err(typ_err_view(err))
   };
 
 let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   switch (status) {
-  | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
-  | NotInHole(Var(name)) => div_ok([Type.alias_view(name)])
+  | NotInHole(Empty) => view_ok([text("Fillable with a new alias")])
+  | NotInHole(Var(name)) => view_ok([Type.alias_view(name)])
   | InHole(NotAVar(NotCapitalized)) =>
-    div_err([text("Must begin with a capital letter")])
-  | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
+    view_err([text("Must begin with a capital letter")])
+  | InHole(NotAVar(_)) => view_err([text("Expected an alias")])
   | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
-    div_err([text("Can't shadow base type"), Type.view(Var(name))])
+    view_err([text("Can't shadow base type"), Type.view(Var(name))])
   | InHole(ShadowsType(name)) =>
-    div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+    view_err([text("Can't shadow existing alias"), Type.view(Var(name))])
   };
 
 let view_of_info =
@@ -208,7 +231,7 @@ let view_of_info =
 
 let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
   div(
-    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    ~attr=clss(["cursor-inspector", status_cls(Info.status_cls(ci))]),
     [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
   );
 

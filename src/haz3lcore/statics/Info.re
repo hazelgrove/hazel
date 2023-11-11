@@ -34,6 +34,20 @@ open Term;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ancestors = list(Id.t);
 
+/* A term can be either ok, in error, or have a warning */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_cls =
+  | Ok
+  | Error
+  | Warn;
+
+/* Classifies patterns into those whose parent expects a single
+   case like lets and funs and those who expect multiple cases like match */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pat_form =
+  | Solo
+  | Branch;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_inconsistent =
   /* Self type (syn) inconsistent with expected type (ana) */
@@ -101,6 +115,11 @@ type ok_exp = ok_common;
 type ok_pat = ok_common;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type warning_pat =
+  | SoloRefutable
+  | Shadowing(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
   | InHole(error_common)
   | NotInHole(ok_common);
@@ -113,6 +132,7 @@ type status_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_pat =
   | InHole(error_pat)
+  | Warning(ok_pat, warning_pat)
   | NotInHole(ok_pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -297,21 +317,48 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
+/* Determined the type of an expression or pattern 'after hole fixing';
+   that is, all ill-typed terms are considered to be 'wrapped in
+   non-empty holes', i.e. assigned Unknown type. */
+let fixed_typ_ok: ok_pat => Typ.t =
+  fun
+  | Syn(syn) => syn
+  | Ana(Consistent({join, _})) => join
+  | Ana(InternallyInconsistent({ana, _})) => ana;
+
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
-    /* Little bit of a hack. Anything other than a bound ctr will, in
+    /* Little bit of a hack. Anything other than a bound tag will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
-       are prohibiting non-ctrs in ctr applications in patterns for now,
-       we catch them here, diverting to an ExpectedConstructor error. But we
-       avoid capturing the second case above, as these will ultimately
-       get a (more precise) unbound ctr  via status_common */
+          are prohibiting non-ctrs in ctr applications in patterns for now,
+          we catch them here, diverting to an ExpectedConstructor error. But we
+          avoid capturing the second case above, as these will ultimately
+          get a (more precise) unbound ctr  via status_common */
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   | (SynFun, _) => InHole(ExpectedConstructor)
+  | (_, PatVar(self, name)) =>
+    switch (status_common(ctx, mode, self)) {
+    | NotInHole(ok_pat) =>
+      switch (Ctx.lookup_var(List.tl(ctx), name)) {
+      /* Uncomment to enable shadowing warnings */
+      //| Some({id, _}) => Warning(ok_pat, Shadowing(id))
+      | _ => NotInHole(ok_pat)
+      }
+    | InHole(err_pat) => InHole(Common(err_pat))
+    }
+  | (_, SoloPos(upat, self)) =>
+    switch (status_common(ctx, mode, self)) {
+    | NotInHole(ok_pat) =>
+      let ty = fixed_typ_ok(ok_pat);
+      UPat.locally_refutable(ctx, upat, ty)
+        ? Warning(ok_pat, SoloRefutable) : NotInHole(ok_pat);
+    | InHole(err_pat) => InHole(Common(err_pat))
+    }
   };
 
 /* Determines whether an expression or pattern is in an error hole,
@@ -388,43 +435,36 @@ let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   };
 
 /* Determines whether any term is in an error hole. */
-let is_error = (ci: t): bool => {
+let status_cls = (ci: t): status_cls => {
   switch (ci) {
   | InfoExp({mode, self, ctx, _}) =>
     switch (status_exp(ctx, mode, self)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
     }
   | InfoPat({mode, self, ctx, _}) =>
     switch (status_pat(ctx, mode, self)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
+    | Warning(_) => Warn
     }
   | InfoTyp({expects, ctx, term, ty, _}) =>
     switch (status_typ(ctx, expects, term, ty)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
     }
   | InfoTPat({term, ctx, _}) =>
     switch (status_tpat(ctx, term)) {
-    | InHole(_) => true
-    | NotInHole(_) => false
+    | InHole(_) => Error
+    | NotInHole(_) => Ok
     }
   };
 };
 
-/* Determined the type of an expression or pattern 'after hole fixing';
-   that is, all ill-typed terms are considered to be 'wrapped in
-   non-empty holes', i.e. assigned Unknown type. */
-let fixed_typ_ok: ok_pat => Typ.t =
-  fun
-  | Syn(syn) => syn
-  | Ana(Consistent({join, _})) => join
-  | Ana(InternallyInconsistent({ana, _})) => ana;
-
 let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
+  | Warning(ok, _)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 

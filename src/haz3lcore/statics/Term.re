@@ -413,6 +413,33 @@ module UPat = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let /*rec*/ locally_refutable = (ctx: Ctx.t, p: t, ty: Typ.t) => {
+    //TODO(andrew): cleanup, document
+    switch (p.term) {
+    /* Considers incomplete patterns same as holes */
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => false
+    | Parens(_p) => false /* LOCALLY */
+    //locally_refutable(ctx, p, ty)
+    | TypeAnn(_p, _uty) => false /* LOCALLY */
+    //locally_refutable(ctx, p, ty /*UTyp.to_typ(ctx, uty)*/)
+    | Tuple(_ps) => false // _LOCALLY_ refutable
+    /*List.exists2(locally_refutable(ctx),ps,Typ.matched_prod(ty, List.length(ps)))*/
+    | Constructor(_)
+    | Ap(_) => !Typ.is_singleton_sum(ctx, ty)
+    | Triv => false
+    | Wild
+    | Var(_) => false
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | ListLit(_)
+    | Cons(_, _) => true
+    };
+  };
 };
 
 module UExp = {

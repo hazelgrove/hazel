@@ -39,6 +39,8 @@ type exp =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
+  | SoloPos(Term.UPat.t, t)
+  | PatVar(t, Token.t)
   | Common(t);
 
 /* What the type would be if the position had been
@@ -62,6 +64,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
 let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
+    | SoloPos(_, self)
+    | PatVar(self, _)
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the

@@ -68,6 +68,7 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
+  let is_singleton_sum: (Ctx.t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -422,6 +423,12 @@ module rec Typ: {
   let is_unknown = (ty: t): bool =>
     switch (ty) {
     | Unknown(_) => true
+    | _ => false
+    };
+
+  let is_singleton_sum = (ctx: Ctx.t, ty: t): bool =>
+    switch (get_sum_constructors(ctx, ty)) {
+    | Some(tags) => VarMap.length(tags) == 1
     | _ => false
     };
 }
