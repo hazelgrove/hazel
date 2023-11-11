@@ -101,7 +101,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        let us = List.init(List.length(ds), _ => (None, Typ.Unknown(prov)));
+        let us = ds |> List.map(((p, _)) => (p, Typ.Unknown(prov)));
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
@@ -266,8 +266,7 @@ let rec dhexp_of_uexp =
           let ddef =
             switch (ddef) {
             | Tuple(a) =>
-              let ap = a |> List.map(((p, _)) => p);
-              let a = a |> List.map(((_, d)) => d);
+              let (ap, a) = List.split(a);
               DHExp.Tuple(
                 List.combine(ap, List.map2(s => add_name(Some(s)), fs, a)),
               );
@@ -311,8 +310,7 @@ let rec dhexp_of_uexp =
           let ddef =
             switch (ddef) {
             | Tuple(a) =>
-              let ap = a |> List.map(((p, _)) => p);
-              let a = a |> List.map(((_, d)) => d);
+              let (ap, a) = List.split(a);
               DHExp.Tuple(
                 List.combine(ap, List.map2(s => add_name(Some(s)), fs, a)),
               );

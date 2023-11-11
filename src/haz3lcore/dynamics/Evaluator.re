@@ -208,15 +208,31 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       DoesNotMatch;
     } else {
       List.fold_left2(
-        (result, (_, dp), (_, d)) =>
+        (result, (pp, dp), (p, d)) =>
           switch (result) {
           | DoesNotMatch => DoesNotMatch
           | IndetMatch => IndetMatch
           | Matches(env) =>
-            switch (matches(dp, d)) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
+            // TODO: Need a function to reorganize lists to match up vars
+            // TODO: check if this logic is right
+            switch (pp, p) {
+            | (Some(sp), Some(s)) =>
+              if (compare(sp, s) == 0) {
+                switch (matches(dp, d)) {
+                | DoesNotMatch => DoesNotMatch
+                | IndetMatch => IndetMatch
+                | Matches(env') => Matches(Environment.union(env, env'))
+                };
+              } else {
+                DoesNotMatch;
+              }
+            | (None, None) =>
+              switch (matches(dp, d)) {
+              | DoesNotMatch => DoesNotMatch
+              | IndetMatch => IndetMatch
+              | Matches(env') => Matches(Environment.union(env, env'))
+              }
+            | (_, _) => DoesNotMatch
             }
           },
         Matches(Environment.empty),
@@ -368,15 +384,29 @@ and matches_cast_Tuple =
     } else {
       assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
       List.fold_right(
-        ((((_, dp), (_, d)), casts), result) => {
+        ((((pp, dp), (p, d)), casts), result) => {
           switch (result) {
           | DoesNotMatch
           | IndetMatch => result
           | Matches(env) =>
-            switch (matches(dp, DHExp.apply_casts(d, casts))) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
+            switch (pp, p) {
+            | (Some(sp), Some(s)) =>
+              if (compare(sp, s) == 0) {
+                switch (matches(dp, DHExp.apply_casts(d, casts))) {
+                | DoesNotMatch => DoesNotMatch
+                | IndetMatch => IndetMatch
+                | Matches(env') => Matches(Environment.union(env, env'))
+                };
+              } else {
+                DoesNotMatch;
+              }
+            | (None, None) =>
+              switch (matches(dp, DHExp.apply_casts(d, casts))) {
+              | DoesNotMatch => DoesNotMatch
+              | IndetMatch => IndetMatch
+              | Matches(env') => Matches(Environment.union(env, env'))
+              }
+            | (_, _) => DoesNotMatch
             }
           }
         },

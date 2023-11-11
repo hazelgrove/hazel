@@ -329,9 +329,15 @@ module rec DHExp: {
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(
-           fast_equal,
-           ds1 |> List.map(((_, e)) => e),
-           ds2 |> List.map(((_, e)) => e),
+           ((ap, ad), (bp, bd)) =>
+             switch (ap, bp) {
+             | (Some(ap), Some(bp)) =>
+               compare(ap, bp) == 0 && fast_equal(ad, bd)
+             | (None, None) => fast_equal(ad, bd)
+             | (_, _) => false
+             },
+           ds1,
+           ds2,
          )
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>

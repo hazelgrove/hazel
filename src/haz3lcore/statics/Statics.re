@@ -198,6 +198,7 @@ and uexp_to_info_map =
   // TODO: Fix this
   | TupLabel(p, e) =>
     let (e, m) = go(~mode=Syn, e, m);
+    // probably no need for p
     let (p, m) =
       upat_to_info_map(
         ~is_synswitch=true,
@@ -209,10 +210,10 @@ and uexp_to_info_map =
       );
     add(~self=Just(e.ty), ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | Tuple(es) =>
-    let esp = labeled_tuple_to_labels(es);
-    let es = labeled_tuple_to_unlabeled_tuple(es);
-    let modes = Mode.of_prod(mode, List.length(es));
-    let (es, m) = map_m_go(m, modes, es);
+    let (esp, ese) = List.split(es);
+    // TODO: check labels within this of_prod
+    let modes = Mode.of_prod(ctx, mode, es);
+    let (es, m) = map_m_go(m, modes, ese);
     add(
       ~self=Just(Prod(List.combine(esp, List.map(Info.exp_ty, es)))),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
@@ -458,10 +459,9 @@ and upat_to_info_map =
     let (_, m) = go(~ctx, ~mode, p1, m);
     add(~self=Just(p2.ty), ~ctx=p2.ctx, m);
   | Tuple(ps) =>
-    let psp = labeled_tuple_to_labels(ps);
-    let ps = labeled_tuple_to_unlabeled_tuple(ps);
-    let modes = Mode.of_prod(mode, List.length(ps));
-    let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
+    let (psp, pse) = List.split(ps);
+    let modes = Mode.of_prod(ctx, mode, ps);
+    let (ctx, tys, m) = ctx_fold(ctx, m, pse, modes);
     add(~self=Just(Prod(List.combine(psp, tys))), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);

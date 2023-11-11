@@ -28,13 +28,84 @@ let matched_arrow: t => (t, t) =
   | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
   | _ => (Unknown(Internal), Unknown(Internal));
 
-let matched_prod: (int, t) => list(t) =
-  length =>
-    fun
-    | Prod(tys) when List.length(tys) == length =>
+let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
+  switch (ty) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => weak_head_normalize(ctx, ty)
+    | None => ty
+    }
+  | Member(_, ty) => ty
+  | _ => ty
+  };
+
+let rec normalize = (ctx: Ctx.t, ty: t): t => {
+  switch (ty) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String => ty
+  | List(t) => List(normalize(ctx, t))
+  | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
+  | Prod(ts) => Prod(ts |> List.map(((p, e)) => (p, normalize(ctx, e))))
+  | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
+  | Module(inner_ctx) =>
+    let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+      switch (e) {
+      | VarEntry(t) => VarEntry({...t, typ: normalize(ctx, t.typ)})
+      | TagEntry(t) => TagEntry({...t, typ: normalize(ctx, t.typ)})
+      | TVarEntry(_) => e
+      };
+    };
+    Module(List.map(ctx_entry_subst, inner_ctx));
+  | Member(_, ty) => normalize(ctx, ty)
+  | Rec(name, ty) =>
+    /* NOTE: Dummy tvar added has fake id but shouldn't matter
+       as in current implementation Recs do not occur in the
+       surface syntax, so we won't try to jump to them. */
+    Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+  };
+};
+
+let matched_prod: (Ctx.t, list((option(LabeledTuple.t), 'a)), t) => list(t) =
+  (ctx, es, t) => {
+    // TODO: Remove the testing output and cases.
+    // Maybe normalize if var?
+    let ty = normalize(ctx, t);
+    switch (ty) {
+    | Prod(tys)
+        when
+          List.length(tys) == List.length(es)
+          && List.fold_right(
+               ((ty, e), b) => {
+                 b
+                   ? switch (ty, e) {
+                     | (Some(tstr), Some(estr)) => tstr == estr
+                     | (None, None) => true
+                     | (_, _) => false
+                     }
+                   : {
+                     false;
+                   }
+               },
+               List.combine(
+                 labeled_tuple_to_labels(tys),
+                 labeled_tuple_to_labels(es),
+               ),
+               true,
+             ) =>
       labeled_tuple_to_unlabeled_tuple(tys)
-    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-    | _ => List.init(length, _ => Unknown(Internal));
+    | Unknown(SynSwitch) =>
+      List.init(List.length(es), _ => Unknown(SynSwitch))
+    | _ => List.init(List.length(es), _ => Unknown(Internal))
+    };
+  };
 
 let matched_cons: t => (t, t) =
   fun
@@ -124,9 +195,14 @@ let rec eq = (t1: t, t2: t): bool => {
   | (Arrow(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     List.equal(
-      eq,
-      labeled_tuple_to_unlabeled_tuple(tys1),
-      labeled_tuple_to_unlabeled_tuple(tys2),
+      ((p1, t1), (p2, t2)) =>
+        switch (p1, p2) {
+        | (Some(ap), Some(bp)) => compare(ap, bp) == 0 && eq(t1, t2)
+        | (None, None) => eq(t1, t2)
+        | (_, _) => false
+        },
+      tys1,
+      tys2,
     )
   | (Prod(_), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
@@ -248,9 +324,19 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let tysp = labeled_tuple_to_labels(tys1);
     let* tys =
       ListUtil.map2_opt(
-        join',
-        labeled_tuple_to_unlabeled_tuple(tys1),
-        labeled_tuple_to_unlabeled_tuple(tys2),
+        ((p1, t1), (p2, t2)) =>
+          switch (p1, p2) {
+          | (Some(ap), Some(bp)) =>
+            if (compare(ap, bp) == 0) {
+              join'(t1, t2);
+            } else {
+              None;
+            }
+          | (None, None) => join'(t1, t2)
+          | (_, _) => None
+          },
+        tys1,
+        tys2,
       );
     let+ tys = OptUtil.sequence(tys);
     Prod(List.combine(tysp, tys)); //TODO: Fix this
@@ -289,51 +375,6 @@ let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
     Some(Unknown(Internal)),
     ts,
   );
-
-let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
-  switch (ty) {
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => weak_head_normalize(ctx, ty)
-    | None => ty
-    }
-  | Member(_, ty) => ty
-  | _ => ty
-  };
-
-let rec normalize = (ctx: Ctx.t, ty: t): t => {
-  switch (ty) {
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize(ctx, ty)
-    | None => ty
-    }
-  | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String => ty
-  | List(t) => List(normalize(ctx, t))
-  | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-  | Prod(ts) => Prod(ts |> List.map(((p, e)) => (p, normalize(ctx, e))))
-  | Sum(ts) => Sum(TagMap.map(Option.map(normalize(ctx)), ts))
-  | Module(inner_ctx) =>
-    let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
-      switch (e) {
-      | VarEntry(t) => VarEntry({...t, typ: normalize(ctx, t.typ)})
-      | TagEntry(t) => TagEntry({...t, typ: normalize(ctx, t.typ)})
-      | TVarEntry(_) => e
-      };
-    };
-    Module(List.map(ctx_entry_subst, inner_ctx));
-  | Member(_, ty) => normalize(ctx, ty)
-  | Rec(name, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
-  };
-};
 
 let sum_entry = (tag: Tag.t, tags: sum_map): option(sum_entry) =>
   List.find_map(

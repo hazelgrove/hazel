@@ -40,11 +40,12 @@ let of_arrow: t => (t, t) =
     };
 
 //TODO: prob change analysis here or matched_prod
-let of_prod = (mode: t, length): list(t) =>
+let of_prod =
+    (ctx: Ctx.t, mode: t, es: list((option(LabeledTuple.t), 'a))): list(t) =>
   switch (mode) {
   | Syn
-  | SynFun => List.init(length, _ => Syn)
-  | Ana(ty) => Typ.matched_prod(length, ty) |> List.map(ty => Ana(ty))
+  | SynFun => List.init(List.length(es), _ => Syn)
+  | Ana(ty) => Typ.matched_prod(ctx, es, ty) |> List.map(ty => Ana(ty))
   };
 
 let of_cons_hd: t => t =
