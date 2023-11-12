@@ -455,7 +455,7 @@ select {
   padding-left: 0.1em;
   padding-right: 0.5em;
   white-space: nowrap;
-  border-radius: 0 0.2em 0em 0;
+  border-radius: 0 0em 0.2em 0.2em;
   color: #586e75;
   border-top: 1px solid #e6ce8f;
   border-right: 1px solid #c7b480;
@@ -1176,6 +1176,7 @@ svg.tile-selected {
   color: #586e75;
   border-top: 1px solid #e6ce8f;
   border-right: 1px solid #c7b480;
+  border-left: 1px solid #c7b480;
   border-bottom: 1px solid #c7b480;
   background-color: #f7ebc5;
   box-shadow: 0px 20px 20px #77580255;
