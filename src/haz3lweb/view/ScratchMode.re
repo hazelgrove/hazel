@@ -161,19 +161,12 @@ let breadcrumb_bar =
           [text(name)],
         ),
       ];
-      //if (List.exists(a => a == List.hd(ids), ancestors)) {
-      //} else {
-      //  [];
-      //};
-      let funs_display = Array.make(10, []);
-      funs_display[0] = [];
       let rec tag_term = (term: TermBase.UExp.t, level: int) => {
         switch (term.term) {
         | Let({term: Var(name), _}, {term: Fun(_, fbody), _}, body) =>
-          funs_display[level] =
-            List.cons((name, term.ids), funs_display[level]);
-          tag_term(body, level);
-          tag_term(fbody, level + 1);
+          let l1 = tag_term(body, level);
+          let l2 = tag_term(fbody, level + 1);
+          List.cons((level, (name, term.ids)), l1) @ l2;
         | UnOp(_, t1)
         | Fun(_, t1)
         | TyAlias(_, _, t1)
@@ -185,25 +178,37 @@ let breadcrumb_bar =
         | Cons(t1, t2)
         | ListConcat(t1, t2)
         | BinOp(_, t1, t2) =>
-          tag_term(t1, level);
-          tag_term(t2, level);
+          let l1 = tag_term(t1, level);
+          let l2 = tag_term(t2, level);
+          l1 @ l2;
         | If(t1, t2, t3) =>
-          tag_term(t1, level);
-          tag_term(t2, level);
-          tag_term(t3, level);
+          tag_term(t1, level) @ tag_term(t2, level) @ tag_term(t3, level)
         | ListLit(t)
-        | Tuple(t) => List.iter(t1 => tag_term(t1, level), t)
+        | Tuple(t) => List.concat(List.map(t1 => tag_term(t1, level), t))
         | Match(t1, t) =>
-          tag_term(t1, level);
-          List.iter(t1 => tag_term(t1, level), List.map(snd, t));
-        | _ => ()
+          let l1 = tag_term(t1, level);
+          let l2 =
+            List.concat(List.map(t1 => tag_term(snd(t1), level), t));
+          l1 @ l2;
+        | _ => []
         };
       };
-      let () = tag_term(term, 1);
+      let combineList = (lst: list((int, (string, list(Uuidm.t))))) => {
+        let combine = (acc, (key, id)) =>
+          switch (List.assoc_opt(key, acc)) {
+          | Some(ids) =>
+            List.remove_assoc(key, acc) @ [(key, [id, ...ids])]
+          | None => [(key, [id]), ...acc]
+          };
+        let result = List.fold_left(combine, [], lst);
+        List.map(((key, ids)) => (key, List.rev(ids)), result);
+      };
+      let lst = tag_term(term, 1);
+      let lst = combineList(lst);
       let rec breadcrumb_funs = (level, res) =>
         if (level == 0) {
           res;
-        } else if (funs_display[level] == []) {
+        } else if (List.find_opt(a => fst(a) == level, lst) == None) {
           breadcrumb_funs(level - 1, res);
         } else {
           let toggle =
@@ -215,17 +220,16 @@ let breadcrumb_bar =
                   } else {
                     [];
                   },
-                List.rev(funs_display[level]),
+                List.rev(snd(List.find(a => fst(a) == level, lst))),
               ),
             );
           let siblings =
             List.concat(
               List.map(
                 t => view_fun(fst(t), snd(t), level),
-                List.rev(funs_display[level]),
+                List.rev(snd(List.find(a => fst(a) == level, lst))),
               ),
             );
-
           let siblings_div = {
             let clss =
               clss(
@@ -268,7 +272,7 @@ let breadcrumb_bar =
             };
           breadcrumb_funs(level - 1, ret);
         };
-      breadcrumb_funs(Array.length(funs_display) - 1, []);
+      breadcrumb_funs(List.length(lst), []);
     }
   };
 };
