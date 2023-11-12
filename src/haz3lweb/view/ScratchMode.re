@@ -134,7 +134,12 @@ let breadcrumb_bar =
               switch (v) {
               | Info.InfoExp({term, ancestors, _}) =>
                 switch (term.term) {
-                | Fun(_) => List.hd(ancestors)
+                | Fun(_) =>
+                  if (List.length(ancestors) >= 1) {
+                    List.hd(ancestors);
+                  } else {
+                    Uuidm.nil;
+                  }
                 | _ => Uuidm.nil
                 }
               | _ => Uuidm.nil
