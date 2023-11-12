@@ -1933,9 +1933,9 @@ let get_doc =
           options,
           LangDocMessages.pipeline_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            arg_id,
-            fn_id,
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            arg_id |> Id.to_string,
+            fn_id |> Id.to_string,
           ),
           LangDocMessages.pipeline_exp_coloring_ids(~arg_id, ~fn_id),
         );
