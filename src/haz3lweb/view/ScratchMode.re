@@ -106,7 +106,7 @@ let breadcrumb_bar =
           editors,
           //font_metrics,
           //show_backpack_targets,
-          settings,
+          //settings,
           //mousedown,
           //langDocMessages,
           _,
@@ -216,61 +216,84 @@ let breadcrumb_bar =
         } else if (List.find_opt(a => fst(a) == level, lst) == None) {
           breadcrumb_funs(level - 1, res);
         } else {
-          let toggle =
-            List.concat(
-              List.map(
-                t =>
-                  if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
-                    [text(fst(t))];
-                  } else {
-                    [];
-                  },
-                List.rev(snd(List.find(a => fst(a) == level, lst))),
-              ),
+          //let toggle =
+          //  List.concat(
+          //    List.map(
+          //      t =>
+          //        if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
+          //          [text(fst(t))];
+          //        } else {
+          //          [];
+          //        },
+          //      List.rev(snd(List.find(a => fst(a) == level, lst))),
+          //    ),
+          //  );
+          //let toggle_option =
+          //  option(~attr=Attr.create("selected", "selected"), toggle);
+          //let siblings =
+          //  List.concat(
+          //    List.map(
+          //      t => view_fun(fst(t), snd(t), level),
+          //      List.rev(snd(List.find(a => fst(a) == level, lst))),
+          //    ),
+          //  );
+          let siblings_div =
+            List.map(
+              t =>
+                if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
+                  option(
+                    ~attr=Attr.many([Attr.create("selected", "selected")]),
+                    view_fun(fst(t), snd(t), level),
+                  );
+                } else {
+                  option(
+                    ~attr=Attr.many([]),
+                    view_fun(fst(t), snd(t), level),
+                  );
+                },
+              List.rev(snd(List.find(a => fst(a) == level, lst))),
             );
-          let siblings =
-            List.concat(
-              List.map(
-                t => view_fun(fst(t), snd(t), level),
-                List.rev(snd(List.find(a => fst(a) == level, lst))),
-              ),
-            );
-          let siblings_div = {
-            let clss =
-              clss(
-                ["siblings"]
-                @ (
-                  List.nth(settings.breadcrumb_bars, level)
-                    ? ["visible"] : []
-                ),
-              );
-            div(~attr=clss, siblings);
-          };
           let toggle_div = {
             [
-              div(
+              select(
                 ~attr=
-                  Attr.many([
-                    Attr.on_click(_ =>
-                      inject(Update.Set(BreadcrumbBar(level, false)))
-                    ),
-                    clss(
-                      ["toggle"]
-                      @ (
-                        List.nth(settings.breadcrumb_bars, level)
-                          ? ["visible"] : []
+                  Attr.on_change((_, name) => {
+                    let all_siblings =
+                      snd(List.find(a => fst(a) == level, lst));
+                    let selected_siblings =
+                      List.hd(
+                        List.filter(a => fst(a) == name, all_siblings),
+                      );
+                    inject(
+                      UpdateAction.PerformAction(
+                        Jump(TileId(List.hd(snd(selected_siblings)))),
                       ),
-                    ),
-                  ]),
-                toggle @ [siblings_div],
+                    );
+                  }),
+                siblings_div,
               ),
+              //div(
+              //  ~attr=
+              //    Attr.many([
+              //      Attr.on_click(_ =>
+              //        inject(Update.Set(BreadcrumbBar(level, false)))
+              //      ),
+              //      clss(
+              //        ["toggle"]
+              //        @ (
+              //          List.nth(settings.breadcrumb_bars, level)
+              //            ? ["visible"] : []
+              //        ),
+              //      ),
+              //    ]),
+              //),
             ];
           };
           let ret = toggle_div;
           let ret =
             if (res == []) {
               ret;
-            } else if (toggle == []) {
+            } else if (siblings_div == []) {
               ret;
             } else {
               ret @ [text("->")] @ res;
