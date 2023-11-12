@@ -307,7 +307,7 @@ and matches_cast_Sum =
   | EmptyHole(_)
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
-  | Undefined => IndetMatch
+  | Undefined
   | InvalidOperation(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)

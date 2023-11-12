@@ -131,7 +131,7 @@ let rec dhexp_of_uexp =
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
-      | Undefined => Some(DHExp.Undefined)
+      | Undefined => Some(Undefined)
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
