@@ -44,7 +44,7 @@ let update_settings =
         secondary_icons: !settings.secondary_icons,
       },
     }
-  | Breadcrumb_bar(level, isJump) => {
+  | BreadcrumbBar(level, isJump) => {
       ...model,
       settings: {
         ...settings,
@@ -109,7 +109,7 @@ let reevaluate_post_update =
     | Dynamics
     | InstructorMode
     | ContextInspector
-    | Breadcrumb_bar(_)
+    | BreadcrumbBar(_)
     | Mode(_) => true
     }
   | PerformAction(

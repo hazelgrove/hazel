@@ -155,7 +155,7 @@ let breadcrumb_bar =
             Attr.many([
               clss(["breadcrumb_bar_function"]),
               Attr.on_click(_ =>
-                inject(Update.Set(Breadcrumb_bar(level, true)))
+                inject(Update.Set(BreadcrumbBar(level, true)))
               ),
               Attr.on_click(_ =>
                 inject(
@@ -252,7 +252,7 @@ let breadcrumb_bar =
                 ~attr=
                   Attr.many([
                     Attr.on_click(_ =>
-                      inject(Update.Set(Breadcrumb_bar(level, false)))
+                      inject(Update.Set(BreadcrumbBar(level, false)))
                     ),
                     clss(
                       ["toggle"]
