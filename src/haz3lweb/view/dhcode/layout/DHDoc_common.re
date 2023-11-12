@@ -132,7 +132,7 @@ let mk_comma_seq = (ld, rd, l) => {
   Doc.(hcats([text(ld)] @ mk_comma_seq_inner(l) @ [text(rd)]));
 };
 
-let mk_UndefinedLit = () => Doc.text("Undefined");
+let mk_UndefinedLit = () => Doc.text("undefined");
 
 let mk_ListLit = l => mk_comma_seq("[", "]", l);
 
