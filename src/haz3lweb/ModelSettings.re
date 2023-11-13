@@ -23,7 +23,6 @@ type t = {
   dynamics: bool,
   async_evaluation: bool,
   context_inspector: bool,
-  breadcrumb_bars: list(bool),
   instructor_mode: bool,
   benchmark: bool,
   mode,

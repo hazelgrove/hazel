@@ -10,7 +10,6 @@ type settings_action =
   | Dynamics
   | Benchmark
   | ContextInspector
-  | BreadcrumbBar(int, bool)
   | InstructorMode
   | Mode(ModelSettings.mode);
 

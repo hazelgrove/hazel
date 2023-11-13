@@ -98,21 +98,7 @@ let download_slide_state = state => {
   let json_data = ScratchSlide.export(state);
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
-let breadcrumb_bar =
-    (
-      ~inject,
-      ~model as
-        {
-          editors,
-          //font_metrics,
-          //show_backpack_targets,
-          //settings,
-          //mousedown,
-          //langDocMessages,
-          _,
-          //results,
-        }: Model.t,
-    ) => {
+let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
@@ -149,14 +135,11 @@ let breadcrumb_bar =
           },
           ancestors,
         );
-      let view_fun = (name, ids, level) => [
+      let view_fun = (name, ids, _) => [
         div(
           ~attr=
             Attr.many([
               clss(["breadcrumb_bar_function"]),
-              Attr.on_click(_ =>
-                inject(Update.Set(BreadcrumbBar(level, true)))
-              ),
               Attr.on_click(_ =>
                 inject(
                   UpdateAction.PerformAction(Jump(TileId(List.hd(ids)))),
@@ -216,27 +199,17 @@ let breadcrumb_bar =
         } else if (List.find_opt(a => fst(a) == level, lst) == None) {
           breadcrumb_funs(level - 1, res);
         } else {
-          //let toggle =
-          //  List.concat(
-          //    List.map(
-          //      t =>
-          //        if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
-          //          [text(fst(t))];
-          //        } else {
-          //          [];
-          //        },
-          //      List.rev(snd(List.find(a => fst(a) == level, lst))),
-          //    ),
-          //  );
-          //let toggle_option =
-          //  option(~attr=Attr.create("selected", "selected"), toggle);
-          //let siblings =
-          //  List.concat(
-          //    List.map(
-          //      t => view_fun(fst(t), snd(t), level),
-          //      List.rev(snd(List.find(a => fst(a) == level, lst))),
-          //    ),
-          //  );
+          let current_level =
+            List.map(
+              t =>
+                if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
+                  snd(t);
+                } else {
+                  [];
+                },
+              List.rev(snd(List.find(a => fst(a) == level, lst))),
+            );
+          let current_level = List.concat(current_level);
           let siblings_div =
             List.map(
               t =>
@@ -272,21 +245,6 @@ let breadcrumb_bar =
                   }),
                 siblings_div,
               ),
-              //div(
-              //  ~attr=
-              //    Attr.many([
-              //      Attr.on_click(_ =>
-              //        inject(Update.Set(BreadcrumbBar(level, false)))
-              //      ),
-              //      clss(
-              //        ["toggle"]
-              //        @ (
-              //          List.nth(settings.breadcrumb_bars, level)
-              //            ? ["visible"] : []
-              //        ),
-              //      ),
-              //    ]),
-              //),
             ];
           };
           let ret = toggle_div;
@@ -298,7 +256,11 @@ let breadcrumb_bar =
             } else {
               ret @ [text("->")] @ res;
             };
-          breadcrumb_funs(level - 1, ret);
+          if (current_level == []) {
+            breadcrumb_funs(level - 1, res);
+          } else {
+            breadcrumb_funs(level - 1, ret);
+          };
         };
       breadcrumb_funs(List.length(lst), []);
     }
