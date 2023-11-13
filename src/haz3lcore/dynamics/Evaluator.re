@@ -32,18 +32,6 @@ module Evaluator: {
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
-  let extend_env = (state, env, env') => {
-    let (env'', state') =
-      EvaluatorState.with_eig(
-        ClosureEnvironment.of_environment(
-          Environment.union(env', ClosureEnvironment.map_of(env)),
-        ),
-        state^,
-      );
-    state := state';
-    env'';
-  };
-
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
@@ -114,10 +102,8 @@ let rec evaluate = (state, env, d) => {
 };
 
 let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
-  let state = EvaluatorState.init;
-  let (env, state) =
-    EvaluatorState.with_eig(ClosureEnvironment.of_environment(env), state);
-  let state = ref(state);
+  let state = ref(EvaluatorState.init);
+  let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   let result =
     switch (result) {
