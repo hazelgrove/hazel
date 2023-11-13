@@ -77,6 +77,15 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   };
 };
 
+let evaluate_extend_env =
+    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
+    : ClosureEnvironment.t => {
+  to_extend
+  |> ClosureEnvironment.map_of
+  |> Environment.union(new_bindings)
+  |> ClosureEnvironment.of_environment;
+};
+
 // TODO(Matt): Check Casts, Fix Cast Calculus Error on ADT Statics example
 // TODO(Matt): PURGE THE ABOVE
 
@@ -111,18 +120,16 @@ module type EV_MODE = {
   let otherwise: 'a => requirements(unit, 'a);
 
   let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
-  let extend_env:
-    (state, ClosureEnvironment.t, Environment.t) => ClosureEnvironment.t;
 };
 
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
-  let (let.match) = ((state, env, match_result), r) =>
+  let (let.match) = ((env, match_result), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
-    | Matches(env') => r(EV.extend_env(state, env, env'))
+    | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
   let transition = (req, state, env, d): 'a =>
@@ -149,7 +156,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise((d1, d2) => Let(dp, d1, d2))
       and. d1' = req_final(req(state, env), 0, d1)
       and. d2' = do_not_req(req(state, env), 1, d2);
-      let.match env' = (state, env, matches(dp, d1'));
+      let.match env' = (env, matches(dp, d1'));
       Step({apply: () => Closure(env', d2'), kind: LetBind, final: false});
     | Fun(_) =>
       let. _ = otherwise(d);
@@ -162,7 +169,7 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           Closure(
-            extend_env(state, env, Environment.singleton((f, d1))),
+            evaluate_extend_env(Environment.singleton((f, d1)), env),
             d1,
           ),
         kind: FixUnwrap,
@@ -195,7 +202,7 @@ module Transition = (EV: EV_MODE) => {
       switch (d1') {
       | Constructor(_) => Constructor // TODO(Matt): Two different "Constructor" constructors is confusing
       | Closure(env', Fun(dp, _, d3, _)) =>
-        let.match env'' = (state, env', matches(dp, d2'));
+        let.match env'' = (env', matches(dp, d2'));
         Step({apply: () => Closure(env'', d3), kind: FunAp, final: false});
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
@@ -416,7 +423,7 @@ module Transition = (EV: EV_MODE) => {
         switch (matches(dp, d1')) {
         | Matches(env') =>
           Step({
-            apply: () => Closure(extend_env(state, env, env'), d2),
+            apply: () => Closure(evaluate_extend_env(env', env), d2),
             kind: CaseApply,
             final: false,
           })
