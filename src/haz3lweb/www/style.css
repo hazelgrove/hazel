@@ -1517,6 +1517,7 @@ svg.expandable path {
 }
 
 .result {
+  padding-top: 0.1em;
   min-height: 1.6em;
   width: 100%;
   overflow-y: hidden;
@@ -1577,8 +1578,6 @@ svg.expandable path {
 
 .DHCode svg.err-hole {
   fill: #d001;
-  transform: scaleY(0.8);
-  /* HACK(andrew) */
   stroke-dasharray: 1, 1;
   stroke: var(--err-color);
   stroke-width: 1.2px;

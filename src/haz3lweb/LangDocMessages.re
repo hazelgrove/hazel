@@ -92,6 +92,7 @@ let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
+let pipeline = () => Example.mk_monotile(Form.get("pipeline"));
 let nil = () => exp("[]");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
@@ -1589,6 +1590,34 @@ let conapp_exp: form = {
   };
 };
 
+let pipeline_exp_group = "pipeline_exp_group";
+let pipeline_exp_ex = {
+  sub_id: "pipeline_exp_ex",
+  term: mk_example("1 |> fun x -> x + 1"),
+  message: "The argument 1 is passed to an increment function, and the entire expression evaluates to 2. The pipeline operator is useful for chaining functions together.",
+  feedback: Unselected,
+};
+let _exp_arg = exp("e_arg");
+let _exp_fun = exp("e_fun");
+let pipeline_exp_coloring_ids =
+    (~arg_id: Id.t, ~fn_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_arg), arg_id),
+  (Piece.id(_exp_fun), fn_id),
+];
+let pipeline_exp: form = {
+  let explanation = {
+    message: "Pipeline operator. Pass the [*argument*](%i) to the [*function*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "pipeline_exp",
+    syntactic_form: [_exp_arg, space(), pipeline(), space(), _exp_fun],
+    expandable_id: None,
+    explanation,
+    examples: [pipeline_exp_ex],
+  };
+};
+
 let if_exp_group = "if_exp_group";
 let if_basic1_exp_ex = {
   sub_id: "if_basic1_exp_ex",
@@ -2005,13 +2034,13 @@ let bool_and2_ex = {
 };
 let bool_or1_ex = {
   sub_id: "bool_or1_ex",
-  term: mk_example("false \\/ 2 < 1"),
+  term: mk_example("false || 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
   feedback: Unselected,
 };
 let bool_or2_ex = {
   sub_id: "bool_or2_ex",
-  term: mk_example("3 < 4 \\/ false"),
+  term: mk_example("3 < 4 || false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
   feedback: Unselected,
 };
@@ -3579,6 +3608,7 @@ let init = {
     tyalias_base_exp,
     funapp_exp,
     conapp_exp,
+    pipeline_exp,
     if_exp,
     seq_exp,
     test_exp,
@@ -3947,6 +3977,7 @@ let init = {
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
     (if_exp_group, init_options([(if_exp.id, [])])),
+    (pipeline_exp_group, init_options([(pipeline_exp.id, [])])),
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),
     (cons_exp_group, init_options([(cons_exp.id, [])])),
