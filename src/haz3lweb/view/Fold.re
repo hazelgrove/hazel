@@ -40,7 +40,7 @@ let button_view =
         Attr.classes(["fold-icon"]),
       ]),
     [
-      Node.button(
+      Node.div(
         ~attr=
           Attr.many([
             fold_button_style(font_metrics),
@@ -54,7 +54,7 @@ let button_view =
               );
             }),
           ]),
-        [Node.text(List.mem(tile_id, folded) ? "> " : "∨")],
+        [Node.text(List.mem(tile_id, folded) ? " 🞂" : "🞃")],
       ),
     ],
   );
