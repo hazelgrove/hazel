@@ -479,13 +479,7 @@ module Transition = (EV: EV_MODE) => {
               final: false,
             });
           }
-        | _ =>
-          Step({
-            apply: () =>
-              raise(EvaluatorError.Exception(CastBVHoleGround(d'))),
-            kind: Cast,
-            final: true,
-          }) // TODO(Matt): I don't like the way this looks
+        | _ => Indet
         }
       | (Hole, NotGroundOrHole(t2_grounded)) =>
         /* ITExpand rule */
