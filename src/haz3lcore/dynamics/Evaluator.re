@@ -6,6 +6,8 @@ module EvaluatorEVMode: {
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
     | Uneval(DHExp.t);
+  let unbox: result_unfinished => DHExp.t;
+
   include
     EV_MODE with
       type state = ref(EvaluatorState.t) and type result = result_unfinished;
@@ -38,6 +40,12 @@ module EvaluatorEVMode: {
     | Uneval(DHExp.t);
 
   type result = result_unfinished;
+
+  let unbox =
+    fun
+    | BoxedValue(x)
+    | Indet(x)
+    | Uneval(x) => x;
 
   let req_value = (f, _, x) =>
     switch (f(x)) {
