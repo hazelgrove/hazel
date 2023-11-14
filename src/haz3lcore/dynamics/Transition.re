@@ -107,7 +107,8 @@ type step_kind =
   | CaseNext
   | CompleteClosure
   | CompleteFilter
-  | Cast;
+  | Cast
+  | Skip;
 
 [@deriving sexp]
 type ground_cases =
@@ -668,6 +669,7 @@ let should_hide_step = (~env=true, ~casts=true) =>
   | CaseApply
   | CaseNext
   | Projection // TODO(Matt): We don't want to show projection to the user
+  | Skip
   | InvalidStep => false
   | VarLookup => env
   | CastAp

@@ -9,15 +9,12 @@ module FilterEnvironment = DHExp.FilterEnvironment;
 module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: ClosureEnvironment.t,
     ctx: EvalCtx.t,
-    act: FilterAction.t,
-    exp: DHExp.t,
+    apply: unit => DHExp.t,
     knd: step_kind,
   };
 
-  let mk:
-    (ClosureEnvironment.t, EvalCtx.t, FilterAction.t, DHExp.t, step_kind) => t;
+  let mk: (EvalCtx.t, unit => DHExp.t, step_kind) => t;
 
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;

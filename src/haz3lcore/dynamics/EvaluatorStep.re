@@ -17,19 +17,17 @@ module FilterEnvironment = DHExp.FilterEnvironment;
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: ClosureEnvironment.t,
     ctx: EvalCtx.t,
-    act: FilterAction.t,
-    exp: DHExp.t,
+    apply: unit => DHExp.t,
     knd: step_kind,
   };
 
-  let mk = (env, ctx, act, exp, knd) => {env, ctx, act, exp, knd};
+  let mk = (ctx, apply, knd) => {ctx, apply, knd};
 
   // let mark = (env, act, exp) => {env, ctx: Mark, act, exp};
 
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
-  let get_exp = (obj: t): DHExp.t => obj.exp;
+  let get_exp = (obj: t): DHExp.t => obj.apply();
 
   let rec unwrap = (obj: t, sel: EvalCtx.cls): option(t) => {
     switch (sel, obj.ctx) {
@@ -256,7 +254,6 @@ module Decompose = {
     type t =
       | Indet
       | BoxedValue
-      | Eval(EvalObj.t)
       | Step(list(EvalObj.t));
 
     /*let map = (f: EvalObj.t => EvalObj.t, r: t) => {
@@ -272,7 +269,6 @@ module Decompose = {
       switch (r) {
       | Indet
       | BoxedValue => []
-      | Eval(obj) => [obj]
       | Step(objs) => objs
       };
     };
@@ -298,7 +294,6 @@ module Decompose = {
       switch (cont(d)) {
       | Result.Indet => (Result.Indet, d)
       | Result.BoxedValue => (Result.BoxedValue, d)
-      | Result.Eval(obj) => (Result.Eval(EvalObj.wrap(wr, obj)), d)
       | Result.Step(objs) => (
           Result.Step(List.map(EvalObj.wrap(wr), objs)),
           d,
@@ -309,8 +304,6 @@ module Decompose = {
     let (&&): (Result.t, Result.t) => Result.t =
       (u, v) =>
         switch (u, v) {
-        | (Eval(_), _)
-        | (_, Eval(_)) => failwith("TODO[Matt]: Fix Eval case")
         | (Step(ss1), Step(ss2)) => Step(ss1 @ ss2)
         | (Step(ss), _)
         | (_, Step(ss)) => Step(ss)
@@ -337,7 +330,6 @@ module Decompose = {
         switch (cont(d)) {
         | Result.Indet => Result.BoxedValue
         | Result.BoxedValue => Result.BoxedValue
-        | Result.Eval(obj) => Result.Eval(EvalObj.wrap(wr, obj))
         | Result.Step(objs) =>
           Result.Step(List.map(EvalObj.wrap(wr), objs))
         },
@@ -366,15 +358,13 @@ module Decompose = {
       (rq, rl) =>
         switch (rq) {
         | (Result.Indet, _, _) => Result.Indet
-        | (Result.BoxedValue, env, v) =>
+        | (Result.BoxedValue, _, v) =>
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
           | Indet => Result.Indet
-          | Step(s) =>
-            Result.Step([EvalObj.mk(env, Mark, Step, s.apply(), s.kind)])
+          | Step(s) => Result.Step([EvalObj.mk(Mark, s.apply, s.kind)])
           }
-        | (Result.Step(_) as r, _, _)
-        | (Result.Eval(_) as r, _, _) => r
+        | (Result.Step(_) as r, _, _) => r
         };
 
     let (and.):
@@ -387,9 +377,81 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
   };
 
+  let rec evaluate_until = (fenv, state, env, exp) => {
+    Evaluator.EvaluatorEVMode.(
+      {
+        let u =
+          switch (FilterEnvironment.matches(exp, Eval, fenv)) {
+          | Step => Indet(exp)
+          | Eval =>
+            switch (exp) {
+            | Filter(fenv', d1) =>
+              let. _ = otherwise(env, (d1) => (Filter(fenv', d1): DHExp.t))
+              and. d1 =
+                req_final(
+                  evaluate_until(
+                    FilterEnvironment.extends(fenv', fenv),
+                    state,
+                    env,
+                  ),
+                  d1 => Filter(fenv', d1),
+                  d1,
+                );
+              Step({apply: () => d1, kind: CompleteFilter, final: true});
+            | _ =>
+              Evaluator.Eval.transition(
+                evaluate_until(fenv),
+                state,
+                env,
+                exp,
+              )
+            }
+          };
+        switch (u) {
+        | BoxedValue(x) => BoxedValue(x)
+        | Indet(x) => Indet(x)
+        | Uneval(x) => evaluate_until(fenv, state, env, x)
+        };
+      }
+    );
+  };
+
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (state, env, exp) => {
-    Decomp.transition(decompose, state, env, exp);
+  let rec decompose = (fenv, state, env, exp) => {
+    switch (FilterEnvironment.matches(exp, Step, fenv)) {
+    | Step =>
+      switch (exp) {
+      | Filter(fenv', d1) =>
+        DecomposeEVMode.(
+          {
+            let. _ = otherwise(env, (d1) => (Filter(fenv', d1): DHExp.t))
+            and. d1 =
+              req_final(
+                decompose(
+                  FilterEnvironment.extends(fenv', fenv),
+                  state,
+                  env,
+                ),
+                d1 => Filter(fenv', d1),
+                d1,
+              );
+            Step({apply: () => d1, kind: CompleteFilter, final: true});
+          }
+        )
+      | _ => Decomp.transition(decompose(fenv), state, env, exp)
+      }
+    | Eval =>
+      Step([
+        EvalObj.mk(
+          Mark,
+          () =>
+            Evaluator.EvaluatorEVMode.unbox(
+              evaluate_until(fenv, state, env, exp),
+            ),
+          Skip,
+        ),
+      ])
+    };
   };
   /*
    let rec decompose =
@@ -804,7 +866,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
 let decompose = (d: DHExp.t) => {
   let es = EvaluatorState.init;
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  let rs = Decompose.decompose(ref(es), env, d);
+  let rs = Decompose.decompose([], ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
 
@@ -812,7 +874,7 @@ let rec evaluate_with_history = d =>
   switch (decompose(d)) {
   | [] => []
   | [x, ..._] =>
-    let next = x.exp;
+    let next = compose(x.ctx, x.apply());
     [next, ...evaluate_with_history(next)];
   };
 
@@ -831,7 +893,7 @@ module Stepper = {
   };
 
   let rec step_forward = (e: EvalObj.t, s: t) => {
-    let current = compose(e.ctx, e.exp);
+    let current = compose(e.ctx, e.apply());
     skip_steps({
       current,
       previous: [{d: s.current, step: e}, ...s.previous],
@@ -886,7 +948,8 @@ module Stepper = {
     | Cast => "cast calculus"
     | CompleteFilter => "unidentified step"
     | CompleteClosure => "unidentified step"
-    | FunClosure => "unidentified step";
+    | FunClosure => "unidentified step"
+    | Skip => "skipped steps";
 
   let get_history = stepper =>
     List.filter(x => !should_hide_step(x.step.knd), stepper.previous);
