@@ -17,6 +17,24 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
+let should_scroll_to_caret = (a: Action.t) => {
+  switch (a) {
+  | Move(_)
+  | MoveToNextHole(_)
+  | Jump(_)
+  | Select(Resize(_))
+  | Select(Term(_))
+  | Destruct(_)
+  | Insert(_)
+  | Pick_up
+  | Put_down
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => true
+  | Unselect
+  | Select(All) => false
+  };
+};
+
 let go_z =
     (~meta: option(Editor.Meta.t)=?, a: Action.t, z: Zipper.t)
     : Action.Result.t(Zipper.t) => {
@@ -119,7 +137,14 @@ let go_z =
   };
 };
 
-let go = (a: Action.t, ed: Editor.t): Action.Result.t(Editor.t) =>
+let go =
+    (a: Action.t, queue_scroll_to_caret: unit => unit, ed: Editor.t)
+    : Action.Result.t(Editor.t) => {
+  if (should_scroll_to_caret(a)) {
+    queue_scroll_to_caret();
+  } else {
+    ();
+  };
   if (ed.read_only && is_write_action(a)) {
     Result.Ok(ed);
   } else {
@@ -129,3 +154,4 @@ let go = (a: Action.t, ed: Editor.t): Action.Result.t(Editor.t) =>
     let+ z = go_z(~meta, a, zipper);
     Editor.new_state(~effects=Effect.s^, a, z, ed);
   };
+};
