@@ -21,9 +21,10 @@ module EvalObj = {
     ctx: EvalCtx.t,
     act: FilterAction.t,
     exp: DHExp.t,
+    knd: step_kind,
   };
 
-  let mk = (env, ctx, act, exp) => {env, ctx, act, exp};
+  let mk = (env, ctx, act, exp, knd) => {env, ctx, act, exp, knd};
 
   // let mark = (env, act, exp) => {env, ctx: Mark, act, exp};
 
@@ -369,7 +370,8 @@ module Decompose = {
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
           | Indet => Result.Indet
-          | Step(s) => Result.Step([EvalObj.mk(env, Mark, Step, s.apply())])
+          | Step(s) =>
+            Result.Step([EvalObj.mk(env, Mark, Step, s.apply(), s.kind)])
           }
         | (Result.Step(_) as r, _, _)
         | (Result.Eval(_) as r, _, _) => r
@@ -828,17 +830,25 @@ module Stepper = {
     next: list(EvalObj.t),
   };
 
-  let mk = d => {
-    {current: d, previous: [], next: decompose(d)};
-  };
-
-  let step_forward = (e: EvalObj.t, s: t) => {
+  let rec step_forward = (e: EvalObj.t, s: t) => {
     let current = compose(e.ctx, e.exp);
-    {
+    skip_steps({
       current,
       previous: [{d: s.current, step: e}, ...s.previous],
       next: decompose(current),
+    });
+  }
+  and skip_steps = s => {
+    switch (
+      List.find_opt((x: EvalObj.t) => should_hide_step(x.knd), s.next)
+    ) {
+    | None => s
+    | Some(e) => step_forward(e, s)
     };
+  };
+
+  let mk = d => {
+    skip_steps({current: d, previous: [], next: decompose(d)});
   };
 
   let step_backward = (s: t) =>
@@ -853,45 +863,31 @@ module Stepper = {
     next: decompose(d),
   };
 
-  let get_justification: DHExp.t => string =
+  let get_justification: step_kind => string =
     fun
-    | ConsistentCase(_) => "matching"
-    | BoundVar(_) => "variable lookup"
-    | Sequence(_) => "sequence"
-    | Let(_) => "substitution"
-    | Ap(Closure(_, Fun(_)), _) => "function application"
-    | Test(_) => "evaluating a test"
-    | ApBuiltin(_) => "builtin application" // TODO[Matt]: What is a builtin Ap?
+    | LetBind => "let binding"
+    | Sequence => "sequence"
+    | FixUnwrap => "unroll fixpoint"
+    | UpdateTest => "update test"
+    | FunAp => "apply function"
+    | Builtin(_) => "builtin application" // TODO[Matt]: Make more specific
     | BinBoolOp(_) => "boolean logic"
     | BinIntOp(_) => "arithmetic"
     | BinFloatOp(_) => "arithmetic"
-    | BinStringOp(_) => "string operation"
-    | EmptyHole(_)
-    | NonEmptyHole(_)
-    | ExpandingKeyword(_)
-    | InvalidText(_)
-    | InconsistentBranches(_)
-    | Closure(_)
-    | Filter(_)
-    | FixF(_)
-    | Fun(_)
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
-    | ListLit(_)
-    | Cons(_)
-    | ListConcat(_)
-    | Tuple(_)
-    | Prj(_)
-    | Constructor(_)
-    | Cast(_)
-    | FailedCast(_)
-    | InvalidOperation(_)
-    | FreeVar(_)
-    | Ap(Constructor(_), _)
-    | Ap(Cast(_), _)
-    | Ap(_, _) => "unidentified step";
+    | BinStringOp(_) => "string manipulation"
+    | ListCons => "list manipulation"
+    | ListConcat => "list manipulation"
+    | CaseApply => "case selection"
+    | CaseNext => "case discarding"
+    | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
+    | InvalidStep => "error"
+    | VarLookup => "variable lookup"
+    | CastAp
+    | Cast => "cast calculus"
+    | CompleteFilter => "unidentified step"
+    | CompleteClosure => "unidentified step"
+    | FunClosure => "unidentified step";
 
-  let get_history = stepper => stepper.previous;
+  let get_history = stepper =>
+    List.filter(x => !should_hide_step(x.step.knd), stepper.previous);
 };

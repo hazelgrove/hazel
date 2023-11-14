@@ -84,6 +84,7 @@ module EvalCtx = {
   and rule = DHExp.rule;
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
   | VarLookup
@@ -650,3 +651,28 @@ module Transition = (EV: EV_MODE) => {
       Step({apply: () => d1, kind: CompleteFilter, final: true});
     };
 };
+
+let should_hide_step = (~env=true, ~casts=true) =>
+  fun
+  | LetBind
+  | Sequence
+  | UpdateTest
+  | FunAp
+  | Builtin(_)
+  | BinBoolOp(_)
+  | BinIntOp(_)
+  | BinFloatOp(_)
+  | BinStringOp(_)
+  | ListCons
+  | ListConcat
+  | CaseApply
+  | CaseNext
+  | Projection // TODO(Matt): We don't want to show projection to the user
+  | InvalidStep => false
+  | VarLookup => env
+  | CastAp
+  | Cast => casts
+  | CompleteClosure
+  | CompleteFilter
+  | FixUnwrap
+  | FunClosure => true;
