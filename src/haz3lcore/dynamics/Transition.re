@@ -1,6 +1,88 @@
+open Sexplib.Std;
 open Util;
 open PatternMatch;
 open DH;
+
+module EvalCtx = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Mark
+    | Closure
+    | Filter
+    | Sequence1
+    | Sequence2
+    | Let1
+    | Let2
+    | Ap1
+    | Ap2
+    | BinBoolOp1
+    | BinBoolOp2
+    | BinIntOp1
+    | BinIntOp2
+    | BinFloatOp1
+    | BinFloatOp2
+    | BinStringOp1
+    | BinStringOp2
+    | Tuple(int)
+    | ListLit(int)
+    | ApBuiltin(int)
+    | Test
+    | Cons1
+    | Cons2
+    | ListConcat1
+    | ListConcat2
+    | Prj
+    | NonEmptyHole
+    | Cast
+    | FailedCast
+    | InvalidOperation
+    | ConsistentCase
+    | InconsistentBranches;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Mark
+    | Closure(ClosureEnvironment.t, t)
+    | Filter(DHExp.FilterEnvironment.t, t)
+    | Sequence1(t, DHExp.t)
+    | Sequence2(DHExp.t, t)
+    | Let1(DHPat.t, t, DHExp.t)
+    | Let2(DHPat.t, DHExp.t, t)
+    | Ap1(t, DHExp.t)
+    | Ap2(DHExp.t, t)
+    | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
+    | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
+    | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
+    | BinIntOp2(TermBase.UExp.op_bin_int, DHExp.t, t)
+    | BinFloatOp1(TermBase.UExp.op_bin_float, t, DHExp.t)
+    | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
+    | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
+    | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
+    | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+    | ApBuiltin(string, t, (list(DHExp.t), list(DHExp.t)))
+    | Test(KeywordID.t, t)
+    | ListLit(
+        MetaVar.t,
+        MetaVarInst.t,
+        Typ.t,
+        t,
+        (list(DHExp.t), list(DHExp.t)),
+      )
+    | Cons1(t, DHExp.t)
+    | Cons2(DHExp.t, t)
+    | ListConcat1(t, DHExp.t)
+    | ListConcat2(DHExp.t, t)
+    | Prj(t, int)
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
+    | InvalidOperation(t, InvalidOperationError.t)
+    | ConsistentCase(case)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+  and case =
+    | Case(t, list(rule), int)
+  and rule = DHExp.rule;
+};
 
 type step_kind =
   | InvalidStep
@@ -106,19 +188,35 @@ module type EV_MODE = {
   type requirement('a);
   type requirements('a, 'b);
 
-  let req_value: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
+  let req_value:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement(DHExp.t);
   let req_all_value:
-    (DHExp.t => result, int, list(DHExp.t)) => requirement(list(DHExp.t));
-  let req_final: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
+    (
+      DHExp.t => result,
+      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
+      list(DHExp.t)
+    ) =>
+    requirement(list(DHExp.t));
+  let req_final:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement(DHExp.t);
   let req_all_final:
-    (DHExp.t => result, int, list(DHExp.t)) => requirement(list(DHExp.t));
-  let do_not_req: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
+    (
+      DHExp.t => result,
+      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
+      list(DHExp.t)
+    ) =>
+    requirement(list(DHExp.t));
+  let do_not_req:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement(DHExp.t);
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
-  let otherwise: 'a => requirements(unit, 'a);
+  let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
   let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
 };
@@ -136,7 +234,7 @@ module Transition = (EV: EV_MODE) => {
   let transition = (req, state, env, d): 'a =>
     switch (d) {
     | BoundVar(x) =>
-      let. _ = otherwise(BoundVar(x));
+      let. _ = otherwise(env, BoundVar(x));
       let d =
         ClosureEnvironment.lookup(env, x)
         |> OptUtil.get(() => {
@@ -149,21 +247,20 @@ module Transition = (EV: EV_MODE) => {
         final: false // TODO(Matt): Can we make this true?
       });
     | Sequence(d1, d2) =>
-      let. _ = otherwise((d1, d2) => Sequence(d1, d2))
-      and. _ = req_final(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => Sequence(d1, d2))
+      and. _ = req_final(req(state, env), d1 => Sequence1(d1, d2), d1)
+      and. d2' = do_not_req(req(state, env), d2 => Sequence2(d1, d2), d2);
       Step({apply: () => d2', kind: Sequence, final: false});
     | Let(dp, d1, d2) =>
-      let. _ = otherwise((d1, d2) => Let(dp, d1, d2))
-      and. d1' = req_final(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2);
+      let. _ = otherwise(env, d1 => Let(dp, d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
       let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2'), kind: LetBind, final: false});
+      Step({apply: () => Closure(env', d2), kind: LetBind, final: false});
     | Fun(_) =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Step({apply: () => Closure(env, d), kind: FunClosure, final: true});
     | FixF(f, t, d1) =>
-      let. _ = otherwise(FixF(f, t, d1));
+      let. _ = otherwise(env, FixF(f, t, d1));
       // TODO(Matt): Would it be safer to have a fourth argument to FixF?
       // TODO(Matt): is this a step?
       // TODO(Matt): is t needed here?
@@ -177,8 +274,8 @@ module Transition = (EV: EV_MODE) => {
         final: false,
       });
     | Test(id, d) =>
-      let. _ = otherwise(d => Test(id, d))
-      and. d' = req_final(req(state, env), 0, d);
+      let. _ = otherwise(env, d => Test(id, d))
+      and. d' = req_final(req(state, env), d => Test(id, d), d);
       Step({
         apply: () =>
           switch (d') {
@@ -197,9 +294,9 @@ module Transition = (EV: EV_MODE) => {
         final: true,
       });
     | Ap(d1, d2) =>
-      let. _ = otherwise((d1, d2) => Ap(d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_final(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
+      and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
+      and. d2' = req_final(req(state, env), d2 => Ap2(d1, d2), d2);
       switch (d1') {
       | Constructor(_) => Constructor // TODO(Matt): Two different "Constructor" constructors is confusing
       | Closure(env', Fun(dp, _, d3, _)) =>
@@ -222,8 +319,13 @@ module Transition = (EV: EV_MODE) => {
         }) // TODO(Matt): Check that when I implement Indet it won't indet a partially-run program
       };
     | ApBuiltin(ident, args) =>
-      let. _ = otherwise(args => ApBuiltin(ident, args))
-      and. _args' = req_all_final(req(state, env), 0, args);
+      let. _ = otherwise(env, args => ApBuiltin(ident, args))
+      and. _args' =
+        req_all_final(
+          req(state, env),
+          (d', ds) => ApBuiltin(ident, d', ds),
+          args,
+        );
       Step({
         apply: () => failwith("Builtins not implemented yet"), // TODO(Matt): Add builtins back.
         // VarMap.lookup(Builtins.forms_init, ident)
@@ -239,12 +341,14 @@ module Transition = (EV: EV_MODE) => {
     | FloatLit(_)
     | StringLit(_)
     | Constructor(_) =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Constructor;
     | BinBoolOp(And, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinBoolOp(And, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+      let. _ = otherwise(env, (d1, d2) => BinBoolOp(And, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinBoolOp1(And, d1, d2), d1)
+      and. d2' =
+        do_not_req(req(state, env), d2 => BinBoolOp2(And, d1, d2), d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
       Step({
         apply: () =>
           switch (d1') {
@@ -256,9 +360,11 @@ module Transition = (EV: EV_MODE) => {
         final: false,
       });
     | BinBoolOp(Or, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinBoolOp(Or, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+      let. _ = otherwise(env, (d1, d2) => BinBoolOp(Or, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinBoolOp1(Or, d1, d2), d1)
+      and. d2' =
+        do_not_req(req(state, env), d2 => BinBoolOp2(Or, d1, d2), d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
       Step({
         apply: () =>
           switch (d1') {
@@ -270,9 +376,10 @@ module Transition = (EV: EV_MODE) => {
         final: false,
       });
     | BinIntOp(op, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinIntOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
+      and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -308,9 +415,11 @@ module Transition = (EV: EV_MODE) => {
         final: false // False so that InvalidOperations are caught and made indet
       });
     | BinFloatOp(op, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinFloatOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => BinFloatOp(op, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinFloatOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinFloatOp2(op, d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -336,9 +445,11 @@ module Transition = (EV: EV_MODE) => {
         final: true,
       });
     | BinStringOp(op, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinStringOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => BinStringOp(op, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinStringOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinStringOp2(op, d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -355,13 +466,14 @@ module Transition = (EV: EV_MODE) => {
         final: true,
       });
     | Tuple(ds) =>
-      let. _ = otherwise(ds => Tuple(ds))
-      and. _ = req_all_value(req(state, env), 0, ds);
+      let. _ = otherwise(env, ds => Tuple(ds))
+      and. _ =
+        req_all_value(req(state, env), (d1, ds) => Tuple(d1, ds), ds);
       Constructor;
     // TODO(Matt): As far as I can tell this case is only used for mutual recursion - could we cut it and replace w/ let?
     | Prj(d1, n) =>
-      let. _ = otherwise(d1 => Prj(d1, n))
-      and. d1' = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => Prj(d1, n))
+      and. d1' = req_final(req(state, env), d1 => Prj(d1, n), d1);
       Step({
         apply: () =>
           switch (d1') {
@@ -380,9 +492,9 @@ module Transition = (EV: EV_MODE) => {
       });
     // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
-      let. _ = otherwise((d1, d2) => Cons(d1, d2))
-      and. d1' = req_final(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => Cons(d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Cons1(d1, d2), d1)
+      and. d2' = req_value(req(state, env), d2 => Cons2(d1, d2), d2);
       Step({
         apply: () =>
           switch (d2') {
@@ -394,9 +506,9 @@ module Transition = (EV: EV_MODE) => {
       });
     | ListConcat(d1, d2) =>
       // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
-      let. _ = otherwise((d1, d2) => ListConcat(d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2))
+      and. d1' = req_value(req(state, env), d1 => ListConcat1(d1, d2), d1)
+      and. d2' = req_value(req(state, env), d2 => ListConcat2(d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -411,13 +523,23 @@ module Transition = (EV: EV_MODE) => {
         final: true,
       });
     | ListLit(u, i, ty, ds) =>
-      let. _ = otherwise(ds => ListLit(u, i, ty, ds))
-      and. _ = req_all_final(req(state, env), 0, ds);
+      let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
+      and. _ =
+        req_all_final(
+          req(state, env),
+          (d1, ds) => ListLit(u, i, ty, d1, ds),
+          ds,
+        );
       Constructor;
     // TODO(Matt): This will currently re-traverse d1
     | ConsistentCase(Case(d1, rules, n)) =>
-      let. _ = otherwise(d1 => ConsistentCase(Case(d1, rules, n)))
-      and. d1' = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => ConsistentCase(Case(d1, rules, n)))
+      and. d1' =
+        req_final(
+          req(state, env),
+          d1 => ConsistentCase(Case(d1, rules, n)),
+          d1,
+        );
       switch (List.nth_opt(rules, n)) {
       | None => Indet // TODO: Why do we need a closure when everything is final?
       | Some(Rule(dp, d2)) =>
@@ -438,27 +560,35 @@ module Transition = (EV: EV_MODE) => {
         }
       };
     | InconsistentBranches(_) as d =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Indet; // TODO(Matt): Closure
+    | Closure(_, Fun(_)) =>
+      let. _ = otherwise(env, d);
+      Constructor;
     | Closure(env', d) =>
-      let. _ = otherwise(d => Closure(env', d))
-      and. d' = req_value(req(state, env'), 0, d);
+      let. _ = otherwise(env, d => Closure(env', d))
+      and. d' = req_value(req(state, env'), d1 => Closure(env', d1), d);
       Step({apply: () => d', kind: CompleteClosure, final: true});
     | NonEmptyHole(reason, u, i, d1) =>
-      let. _ = otherwise(d1 => NonEmptyHole(reason, u, i, d1))
-      and. _ = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1))
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => NonEmptyHole(reason, u, i, d1),
+          d1,
+        );
       Indet;
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
     | InvalidOperation(_)
     | ExpandingKeyword(_) =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
       /* Cast calculus */
-      let. _ = otherwise(d => Cast(d, t1, t2))
-      and. d' = req_final(req(state, env), 0, d);
+      let. _ = otherwise(env, d => Cast(d, t1, t2))
+      and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
       | (Hole, Hole)
       | (Ground, Ground) =>
@@ -511,12 +641,12 @@ module Transition = (EV: EV_MODE) => {
         }
       };
     | FailedCast(d1, t1, t2) =>
-      let. _ = otherwise(d1 => FailedCast(d1, t1, t2))
-      and. _ = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2))
+      and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
       Indet;
     | Filter(f, d1) =>
-      let. _ = otherwise(d1 => Filter(f, d1))
-      and. d1 = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => Filter(f, d1))
+      and. d1 = req_final(req(state, env), d1 => Filter(f, d1), d1);
       Step({apply: () => d1, kind: CompleteFilter, final: true});
     };
 };

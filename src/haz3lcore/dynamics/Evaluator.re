@@ -1,7 +1,7 @@
 open EvaluatorResult;
 open Transition;
 
-module Evaluator: {
+module EvaluatorEVMode: {
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
@@ -50,8 +50,8 @@ module Evaluator: {
     fun
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
-        let (r1, x') = req_value(f, i, x);
-        let (r2, xs') = req_all_value(f, i + 1, xs);
+        let (r1, x') = req_value(f, x => x, x);
+        let (r2, xs') = req_all_value(f, i, xs);
         (r1 && r2, [x', ...xs']);
       };
 
@@ -66,15 +66,15 @@ module Evaluator: {
     fun
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
-        let (r1, x') = req_final(f, i, x);
-        let (r2, xs') = req_all_final(f, i + 1, xs);
+        let (r1, x') = req_final(f, x => x, x);
+        let (r2, xs') = req_all_final(f, i, xs);
         (r1 && r2, [x', ...xs']);
       };
 
   // TODO(Matt): does it make sense to say this isn't indet?
   let do_not_req = (_, _, x) => (IndetReady, x);
 
-  let otherwise = c => (BoxedReady, (), c);
+  let otherwise = (_, c) => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
 
@@ -90,7 +90,7 @@ module Evaluator: {
     | (_, Indet) => Indet(c)
     };
 };
-module Eval = Transition(Evaluator);
+module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate = (state, env, d) => {
   let u = Eval.transition(evaluate, state, env, d);

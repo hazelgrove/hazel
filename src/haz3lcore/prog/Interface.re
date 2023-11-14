@@ -79,10 +79,8 @@ let evaluate = (d: DHExp.t): ProgramResult.t => {
 };
 
 let init = (d: DHExp.t): ProgramResult.t => {
-  let (env, es) =
-    Builtins.env_init
-    |> ClosureEnvironment.of_environment
-    |> EvaluatorState.with_eig(_, EvaluatorState.init);
+  let es = EvaluatorState.init;
+  let env = ClosureEnvironment.of_environment(Builtins.env_init);
   (Indet(Closure(env, d)), es);
 };
 

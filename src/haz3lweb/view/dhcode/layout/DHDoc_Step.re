@@ -151,7 +151,10 @@ let rec mk =
       | Test(_, d) =>
         DHDoc_common.mk_Test(mk_cast(go'(d, unwrap(objs, Test))))
       | Sequence(d1, d2) =>
-        let (doc1, doc2) = (go'(d1, unwrap(objs, Sequence)), go'(d2, []));
+        let (doc1, doc2) = (
+          go'(d1, unwrap(objs, Sequence1)),
+          go'(d2, unwrap(objs, Sequence2)),
+        );
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | ListLit(_, _, _, d_list) =>
         let ol =
@@ -248,7 +251,7 @@ let rec mk =
         doc;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, ddef, unwrap(objs, Let)));
+          mk_cast(go(~enforce_inline, ddef, unwrap(objs, Let1))); // TODO[Matt]: Add Let2
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
