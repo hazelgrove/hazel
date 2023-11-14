@@ -169,8 +169,14 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
-  switch (model.editors |> Editors.get_editor |> Haz3lcore.Perform.go(a)) {
+let perform_action =
+    (model: Model.t, a: Action.t, queue_scroll_to_caret: unit => unit)
+    : Result.t(Model.t) =>
+  switch (
+    model.editors
+    |> Editors.get_editor
+    |> Haz3lcore.Perform.go(a, queue_scroll_to_caret)
+  ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
     let model = {...model, editors: Editors.put_editor(ed, model.editors)};
@@ -234,7 +240,13 @@ let export_persistent_data = () => {
 };
 
 let apply =
-    (model: Model.t, update: t, state: State.t, ~schedule_action)
+    (
+      model: Model.t,
+      update: t,
+      state: State.t,
+      queue_scroll_to_caret: unit => unit,
+      ~schedule_action,
+    )
     : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
@@ -259,49 +271,61 @@ let apply =
       );
       Ok(model);
     | FinishImportScratchpad(data) =>
+      queue_scroll_to_caret();
       let editors = Editors.import_current(model.editors, data);
       Model.save_and_return({...model, editors});
     | ExportPersistentData =>
       export_persistent_data();
       Ok(model);
     | ResetCurrentEditor =>
+      queue_scroll_to_caret();
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
+      queue_scroll_to_caret();
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
     | SwitchExampleSlide(name) =>
+      queue_scroll_to_caret();
       switch (Editors.switch_example_slide(model.editors, name)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
-      }
+      };
     | SwitchEditor(pos) =>
+      queue_scroll_to_caret();
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
     | SetMode(mode) =>
+      queue_scroll_to_caret();
       let model = update_settings(Mode(mode), model);
       /* NOTE: Need to reload model for editors to load */
       Model.save(model);
       Ok(Model.load(model));
-    | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
-    | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
+    | SetShowBackpackTargets(b) =>
+      queue_scroll_to_caret();
+      Ok({...model, show_backpack_targets: b});
+    | SetFontMetrics(font_metrics) =>
+      queue_scroll_to_caret();
+      Ok({...model, font_metrics});
     | SetLogoFontMetrics(logo_font_metrics) =>
-      Ok({...model, logo_font_metrics})
-    | PerformAction(a) => perform_action(model, a)
+      queue_scroll_to_caret();
+      Ok({...model, logo_font_metrics});
+    | PerformAction(a) => perform_action(model, a, queue_scroll_to_caret)
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left))
+      perform_action(model, Destruct(Left), queue_scroll_to_caret)
     | Copy =>
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
-      Ok(model)
+      queue_scroll_to_caret();
+      Ok(model);
     | Paste(clipboard) =>
       let ed = Editors.get_editor(model.editors);
       switch (
@@ -309,6 +333,7 @@ let apply =
       ) {
       | None => Error(CantPaste)
       | Some(z) =>
+        queue_scroll_to_caret();
         /* NOTE(andrew): These two perform calls are a hack to
            deal with the fact that pasting something like "let a = b in"
            won't trigger the barfing of the "in"; to trigger this, we
@@ -324,12 +349,13 @@ let apply =
             let editors = Editors.put_editor(ed, model.editors);
             Ok({...model, editors});
           }
-        }
+        };
       };
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
+      queue_scroll_to_caret();
       let ed = Editors.get_editor(model.editors);
       let zipper_init = Zipper.init();
       let ed_str = Printer.to_string_editor(ed);
@@ -342,6 +368,7 @@ let apply =
         Ok({...model, editors});
       };
     | Undo =>
+      queue_scroll_to_caret();
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
@@ -349,6 +376,7 @@ let apply =
         Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
+      queue_scroll_to_caret();
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
@@ -361,7 +389,11 @@ let apply =
         | Grout(_) => true
         | _ => false
       );
-      perform_action(model, Move(Goal(Piece(p, d))));
+      perform_action(
+        model,
+        Move(Goal(Piece(p, d))),
+        queue_scroll_to_caret,
+      );
     | UpdateLangDocMessages(u) =>
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);
