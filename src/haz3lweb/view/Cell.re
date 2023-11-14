@@ -267,7 +267,7 @@ let stepper_footer_view =
         div(
           ~attr=Attr.classes(["stepper-justification"]),
           [
-            Node.text(EvaluatorStep.Stepper.get_justification(step.step.exp)),
+            Node.text(EvaluatorStep.Stepper.get_justification(step.step.knd)),
           ],
         ),
       ],

@@ -13,9 +13,11 @@ module EvalObj: {
     ctx: EvalCtx.t,
     act: FilterAction.t,
     exp: DHExp.t,
+    knd: step_kind,
   };
 
-  let mk: (ClosureEnvironment.t, EvalCtx.t, FilterAction.t, DHExp.t) => t;
+  let mk:
+    (ClosureEnvironment.t, EvalCtx.t, FilterAction.t, DHExp.t, step_kind) => t;
 
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;
@@ -45,5 +47,5 @@ module Stepper: {
   let step_backward: t => t;
   let update_expr: (DHExp.t, t) => t;
   let get_history: t => list(step);
-  let get_justification: DHExp.t => string;
+  let get_justification: step_kind => string;
 };
