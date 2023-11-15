@@ -111,7 +111,6 @@ module type EV_MODE = {
   let req_final: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
   let req_all_final:
     (DHExp.t => result, int, list(DHExp.t)) => requirement(list(DHExp.t));
-  let do_not_req: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
@@ -148,16 +147,14 @@ module Transition = (EV: EV_MODE) => {
         final: false // TODO(Matt): Can we make this true?
       });
     | Sequence(d1, d2) =>
-      let. _ = otherwise((d1, d2) => Sequence(d1, d2))
-      and. _ = req_final(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2);
-      Step({apply: () => d2', kind: Sequence, final: false});
+      let. _ = otherwise(d1 => Sequence(d1, d2))
+      and. _ = req_final(req(state, env), 0, d1);
+      Step({apply: () => d2, kind: Sequence, final: false});
     | Let(dp, d1, d2) =>
-      let. _ = otherwise((d1, d2) => Let(dp, d1, d2))
-      and. d1' = req_final(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2);
+      let. _ = otherwise(d1 => Let(dp, d1, d2))
+      and. d1' = req_final(req(state, env), 0, d1);
       let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2'), kind: LetBind, final: false});
+      Step({apply: () => Closure(env', d2), kind: LetBind, final: false});
     | Fun(_) =>
       let. _ = otherwise(d);
       Step({apply: () => Closure(env, d), kind: FunClosure, final: true});
@@ -241,29 +238,28 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(d);
       Constructor;
     | BinBoolOp(And, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinBoolOp(And, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+      let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))
+      // TODO(Matt): Make "And" able to evaluate when the left-hand side is not fully evaluated
+      and. d1' = req_value(req(state, env), 0, d1);
       Step({
         apply: () =>
           switch (d1') {
-          | BoolLit(true) => d2'
+          | BoolLit(true) => d2
           | BoolLit(false) => BoolLit(false)
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1'))) // TODO(Matt): Make it consistent whether we print
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
           },
         kind: BinBoolOp(And),
         final: false,
       });
     | BinBoolOp(Or, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinBoolOp(Or, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = do_not_req(req(state, env), 1, d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+      let. _ = otherwise(d1 => BinBoolOp(Or, d1, d2))
+      and. d1' = req_value(req(state, env), 0, d1);
       Step({
         apply: () =>
           switch (d1') {
           | BoolLit(true) => BoolLit(true)
-          | BoolLit(false) => d2'
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
+          | BoolLit(false) => d2
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
           },
         kind: BinBoolOp(Or),
         final: false,
