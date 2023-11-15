@@ -135,9 +135,9 @@ type status =
 let unwrap_solution = (s: status): Typ.t => {
   switch (s) {
   | Solved(ty) => ty
-  | Unsolved([]) => Unknown(NoProvenance)
-  | Unsolved([ty]) => ty
-  | Unsolved([_, ..._]) => Unknown(NoProvenance)
+  | Unsolved([]) => Unknown(NoProvenance) // underdetermined
+  | Unsolved([ty]) => ty // children are unsolved
+  | Unsolved([_, ..._]) => Unknown(NoProvenance) // overdetermined
   };
 };
 
