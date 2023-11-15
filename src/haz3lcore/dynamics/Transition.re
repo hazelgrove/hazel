@@ -2,6 +2,36 @@ open Util;
 open PatternMatch;
 open DH;
 
+/* Transition.re
+
+   This module defines the evaluation semantics of Hazel in terms of small step
+   evaluation. These small steps are wrapped up into a big step in Evaluator.re
+
+   An instructive example is the sequence case:
+
+    | Sequence(d1, d2) =>
+        let. _ = otherwise(d1 => Sequence(d1, d2))
+        and. _ = req_final(req(state, env), 0, d1);
+        Step({apply: () => d2, kind: Sequence, final: false});
+
+
+    Each step semantics starts with a `let. () = otherwise(...)` that defines how
+    to wrap the expression back up if the step couldn't be evaluated.
+
+    This is followed by a series of `and. _ = req_final(req(state, env), <i>, <d>)`
+    which indicate that in order to evaluate the step, <d> must be final. (req_value
+    is also available if it needs to be a value).
+
+    Finally, we have the Step construct that defines the actual step. Note "Step"s
+    should be used if and only if they change the expression. If they do not change
+    the expression, use `Constructor` or `Indet`.
+
+    The step defines firstly, a `() => ...` function giving the result of the step,
+    secondly a `kind`, that describes the step (which will be used in the stepper),
+    and lastly whether the result of the step is `final`, or whether it needs to be
+    further evaluated.
+   */
+
 type step_kind =
   | InvalidStep
   | VarLookup
@@ -17,7 +47,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
-  | Projection // TODO(Matt): This would be horrible if we showed this to the user
+  | Projection
   | ListCons
   | ListConcat
   | CaseApply
@@ -25,55 +55,60 @@ type step_kind =
   | CompleteClosure
   | Cast;
 
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
+module CastHelpers = {
+  [@deriving sexp]
+  type ground_cases =
+    | Hole
+    | Ground
+    | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
-let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+  let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
 
-let grounded_Arrow =
-  NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
-let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
-let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
-  let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
-  NotGroundOrHole(Sum(sm'));
-};
-let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
+  let grounded_Arrow =
+    NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+  let grounded_Prod = length =>
+    NotGroundOrHole(
+      Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
+    );
+  let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
+    let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
+    NotGroundOrHole(Sum(sm'));
+  };
+  let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
-let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-  let is_ground_arg: option(Typ.t) => bool =
-    fun
-    | None
-    | Some(Typ.Unknown(_)) => true
-    | Some(ty) => ground_cases_of(ty) == Ground;
-  switch (ty) {
-  | Unknown(_) => Hole
-  | Bool
-  | Int
-  | Float
-  | String
-  | Var(_)
-  | Rec(_)
-  | Arrow(Unknown(_), Unknown(_))
-  | List(Unknown(_)) => Ground
-  | Prod(tys) =>
-    if (List.for_all(
-          fun
-          | Typ.Unknown(_) => true
-          | _ => false,
-          tys,
-        )) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod;
-    }
-  | Sum(sm) =>
-    sm |> ConstructorMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
-  | Arrow(_, _) => grounded_Arrow
-  | List(_) => grounded_List
+  let rec ground_cases_of = (ty: Typ.t): ground_cases => {
+    let is_ground_arg: option(Typ.t) => bool =
+      fun
+      | None
+      | Some(Typ.Unknown(_)) => true
+      | Some(ty) => ground_cases_of(ty) == Ground;
+    switch (ty) {
+    | Unknown(_) => Hole
+    | Bool
+    | Int
+    | Float
+    | String
+    | Var(_)
+    | Rec(_)
+    | Arrow(Unknown(_), Unknown(_))
+    | List(Unknown(_)) => Ground
+    | Prod(tys) =>
+      if (List.for_all(
+            fun
+            | Typ.Unknown(_) => true
+            | _ => false,
+            tys,
+          )) {
+        Ground;
+      } else {
+        tys |> List.length |> grounded_Prod;
+      }
+    | Sum(sm) =>
+      sm |> ConstructorMap.is_ground(is_ground_arg)
+        ? Ground : grounded_Sum(sm)
+    | Arrow(_, _) => grounded_Arrow
+    | List(_) => grounded_List
+    };
   };
 };
 
@@ -86,11 +121,7 @@ let evaluate_extend_env =
   |> ClosureEnvironment.of_environment;
 };
 
-// TODO(Matt): Check Casts, Fix Cast Calculus Error on ADT Statics example
-// TODO(Matt): PURGE THE ABOVE
-
 type rule =
-  // If anything going into it is indet, the result should be indet
   | Step({
       apply: unit => DHExp.t,
       kind: step_kind,
@@ -141,11 +172,7 @@ module Transition = (EV: EV_MODE) => {
              print_endline("FreeInvalidVar:" ++ x);
              raise(EvaluatorError.Exception(FreeInvalidVar(x)));
            });
-      Step({
-        apply: () => d,
-        kind: VarLookup,
-        final: false // TODO(Matt): Can we make this true?
-      });
+      Step({apply: () => d, kind: VarLookup, final: true});
     | Sequence(d1, d2) =>
       let. _ = otherwise(d1 => Sequence(d1, d2))
       and. _ = req_final(req(state, env), 0, d1);
@@ -160,9 +187,6 @@ module Transition = (EV: EV_MODE) => {
       Step({apply: () => Closure(env, d), kind: FunClosure, final: true});
     | FixF(f, t, d1) =>
       let. _ = otherwise(FixF(f, t, d1));
-      // TODO(Matt): Would it be safer to have a fourth argument to FixF?
-      // TODO(Matt): is this a step?
-      // TODO(Matt): is t needed here?
       Step({
         apply: () =>
           Closure(
@@ -197,7 +221,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_value(req(state, env), 0, d1)
       and. d2' = req_final(req(state, env), 1, d2);
       switch (d1') {
-      | Constructor(_) => Constructor // TODO(Matt): Two different "Constructor" constructors is confusing
+      | Constructor(_) => Constructor
       | Closure(env', Fun(dp, _, d3, _)) =>
         let.match env'' = (env', matches(dp, d2'));
         Step({apply: () => Closure(env'', d3), kind: FunAp, final: false});
@@ -215,7 +239,7 @@ module Transition = (EV: EV_MODE) => {
           },
           kind: InvalidStep,
           final: true,
-        }) // TODO(Matt): Check that when I implement Indet it won't indet a partially-run program
+        })
       };
     | ApBuiltin(ident, args) =>
       let. _ = otherwise(args => ApBuiltin(ident, args))
@@ -300,7 +324,8 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
           },
         kind: BinIntOp(op),
-        final: false // False so that InvalidOperations are caught and made indet
+        // False so that InvalidOperations are caught and made indet by the next step
+        final: false,
       });
     | BinFloatOp(op, d1, d2) =>
       let. _ = otherwise((d1, d2) => BinFloatOp(op, d1, d2))
@@ -315,7 +340,7 @@ module Transition = (EV: EV_MODE) => {
             | Minus => FloatLit(n1 -. n2)
             | Power => FloatLit(n1 ** n2)
             | Times => FloatLit(n1 *. n2)
-            | Divide => FloatLit(n1 /. n2) // Do we like that this behavior is not consistent w/ integers?
+            | Divide => FloatLit(n1 /. n2)
             | LessThan => BoolLit(n1 < n2)
             | LessThanOrEqual => BoolLit(n1 <= n2)
             | GreaterThan => BoolLit(n1 > n2)
@@ -353,7 +378,6 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(ds => Tuple(ds))
       and. _ = req_all_value(req(state, env), 0, ds);
       Constructor;
-    // TODO(Matt): As far as I can tell this case is only used for mutual recursion - could we cut it and replace w/ let?
     | Prj(d1, n) =>
       let. _ = otherwise(d1 => Prj(d1, n))
       and. d1' = req_final(req(state, env), 0, d1);
@@ -361,14 +385,15 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (d1') {
           | Tuple(ds) when n < 0 || List.length(ds) <= n =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           | Tuple(ds) => List.nth(ds, n)
           | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           | Cast(d2, Prod(ts1), Prod(ts2)) =>
             Cast(Prj(d2, n), List.nth(ts1, n), List.nth(ts2, n))
           | _ =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           },
         kind: Projection,
         final: false,
@@ -409,12 +434,12 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(ds => ListLit(u, i, ty, ds))
       and. _ = req_all_final(req(state, env), 0, ds);
       Constructor;
-    // TODO(Matt): This will currently re-traverse d1
+    // TODO(Matt): This will currently re-traverse d1 if it is a large constructor
     | ConsistentCase(Case(d1, rules, n)) =>
       let. _ = otherwise(d1 => ConsistentCase(Case(d1, rules, n)))
       and. d1' = req_final(req(state, env), 0, d1);
       switch (List.nth_opt(rules, n)) {
-      | None => Indet // TODO: Why do we need a closure when everything is final?
+      | None => Indet
       | Some(Rule(dp, d2)) =>
         switch (matches(dp, d1')) {
         | Matches(env') =>
@@ -429,12 +454,12 @@ module Transition = (EV: EV_MODE) => {
             kind: CaseNext,
             final: false,
           })
-        | IndetMatch => Indet // TODO(Matt): Is Closure necessary?
+        | IndetMatch => Indet
         }
       };
     | InconsistentBranches(_) as d =>
       let. _ = otherwise(d);
-      Indet; // TODO(Matt): Closure
+      Indet;
     | Closure(env', d) =>
       let. _ = otherwise(d => Closure(env', d))
       and. d' = req_value(req(state, env'), 0, d);
@@ -451,7 +476,8 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(d);
       Indet;
     | Cast(d, t1, t2) =>
-      /* Cast calculus */
+      open CastHelpers; /* Cast calculus */
+
       let. _ = otherwise(d => Cast(d, t1, t2))
       and. d' = req_final(req(state, env), 0, d);
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
