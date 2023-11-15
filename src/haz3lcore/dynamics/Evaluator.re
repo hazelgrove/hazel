@@ -71,9 +71,6 @@ module Evaluator: {
         (r1 && r2, [x', ...xs']);
       };
 
-  // TODO(Matt): does it make sense to say this isn't indet?
-  let do_not_req = (_, _, x) => (IndetReady, x);
-
   let otherwise = c => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
