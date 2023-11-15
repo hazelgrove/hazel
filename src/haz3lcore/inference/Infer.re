@@ -109,8 +109,12 @@ and combine_if_similar =
     let pts2 = merge(ctx, pts2, pts4);
     Some(Sum(pts1, pts2));
   | (Prod(tys1), Prod(tys2)) =>
-    let tys = List.map2(merge(ctx), tys1, tys2);
-    Some(Prod(tys));
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let tys = List.map2(merge(ctx), tys1, tys2);
+      Some(Prod(tys));
+    }
   // different, doesn't combine
   | _ => None
   };
