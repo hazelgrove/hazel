@@ -137,7 +137,9 @@ type status =
 let unwrap_solution = (s: status): Typ.t => {
   switch (s) {
   | Solved(ty) => ty
-  | Unsolved(_) => Unknown(NoProvenance)
+  | Unsolved([]) => Unknown(NoProvenance)
+  | Unsolved([ty]) => ty
+  | Unsolved([_, ..._]) => Unknown(NoProvenance)
   };
 };
 
