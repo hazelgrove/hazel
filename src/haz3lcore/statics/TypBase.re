@@ -98,6 +98,8 @@ module rec Typ: {
   let typ_to_string: t => string;
   let typ_to_string_with_parens: (bool, t) => string;
   let contains_hole: t => bool;
+  let constraints_to_string: constraints => string;
+  let equivalence_to_string: equivalence => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -295,6 +297,17 @@ module rec Typ: {
     | Sum(_)
     | _ => "DISPLAYING SUM and REC NOT IMPLEMEMNTED TODO anand. Ask Andrew where the code that already does this..."
     };
+  };
+
+  let rec constraints_to_string = (constraints: constraints) => {
+    String.concat("\n", List.map(equivalence_to_string, constraints));
+  }
+  and equivalence_to_string = (equivalence: equivalence) => {
+    let (a, b) = equivalence;
+    String.concat(
+      "",
+      ["(", Typ.typ_to_string(a), ", ", Typ.typ_to_string(b), ")"],
+    );
   };
 
   let rec free_vars = (~bound=[], ty: t): list(Var.t) =>

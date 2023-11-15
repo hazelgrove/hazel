@@ -114,7 +114,8 @@ let subsumption_constraints = (mode: Mode.t, final_typ: Typ.t) => {
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t)
-        : (CoCtx.t, Map.t, Typ.constraints) =>
+        : (CoCtx.t, Map.t, Typ.constraints) => {
+  print_endline("ECHOOOOO");
   switch (any) {
   | Exp(e) =>
     let (Info.{co_ctx, constraints, _}, m) =
@@ -135,7 +136,8 @@ let rec any_to_info_map =
   | Rul(_)
   | Nul ()
   | Any () => (VarMap.empty, m, [])
-  }
+  };
+}
 and multi =
     (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Typ.constraints, Map.t) =>
   List.fold_left(
@@ -693,6 +695,9 @@ let mk_map_and_inference_solutions =
           e,
           Id.Map.empty,
         );
+
+      print_endline("~~~Printing constraints:");
+      info.constraints |> Typ.constraints_to_string |> print_endline;
 
       // rewrite is here
       let ctx = Infer.Ctx.create();
