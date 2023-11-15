@@ -58,13 +58,40 @@ and ptyp_of_typ = (ctx: Ctx.t, t: Typ.t): ptyp => {
   };
 };
 
+// return true if pts1 contains pts2
+let rec contains = (pts1: pts, pts2: pts): bool =>
+  if (UnionFind.eq(pts1, pts2)) {
+    true;
+  } else {
+    let pts1_tys = UnionFind.get(pts1);
+    List.exists(contains_helper(pts2), pts1_tys);
+  }
+// return true if ptyp contains pts2
+and contains_helper = (pts2: pts, ptyp: ptyp): bool => {
+  switch (ptyp) {
+  | Int
+  | Float
+  | Bool
+  | String
+  | Var(_) => false
+  | List(pts1) => contains(pts1, pts2)
+  | Arrow(pts1, pts2) => contains(pts1, pts2) || contains(pts2, pts2)
+  | Sum(pts1, pts2) => contains(pts1, pts2) || contains(pts2, pts2)
+  | Prod(tys) => List.exists(contains(pts2), tys)
+  };
+};
+
 // merge two pts
-let rec merge = (ctx: Ctx.t, pts1: pts, pts2: pts): pts => {
-  let pts3 = merge_helper(ctx, pts1, pts2);
-  let representative = UnionFind.union(pts1, pts2);
-  let _ = UnionFind.set(representative, pts3);
-  representative;
-}
+let rec merge = (ctx: Ctx.t, pts1: pts, pts2: pts): pts =>
+  // TODO: if pts1 contains pts2 or vice versa, pick one arbitrarily and return it
+  if (contains(pts1, pts2) || contains(pts2, pts1)) {
+    pts1;
+  } else {
+    let pts3 = merge_helper(ctx, pts1, pts2);
+    let representative = UnionFind.union(pts1, pts2);
+    let _ = UnionFind.set(representative, pts3);
+    representative;
+  }
 and merge_helper = (ctx: Ctx.t, pts1: pts, pts2: pts): list(ptyp) => {
   let tys1 = UnionFind.get(pts1);
   let tys2 = UnionFind.get(pts2);
