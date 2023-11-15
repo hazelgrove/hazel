@@ -95,11 +95,13 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
-  let typ_to_string: t => string;
-  let typ_to_string_with_parens: (bool, t) => string;
+  let typ_to_string: (t, bool) => string;
+  let typ_to_string_with_parens: (bool, t, bool) => string;
   let contains_hole: t => bool;
   let constraints_to_string: constraints => string;
   let equivalence_to_string: equivalence => string;
+  let prov_to_string: type_provenance => string;
+  let matched_prov_to_string: matched_provenance => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -265,32 +267,52 @@ module rec Typ: {
     };
   };
 
-  let rec typ_to_string = (ty: t): string => {
-    typ_to_string_with_parens(false, ty);
+  let rec prov_to_string = (prov: type_provenance): string => {
+    switch (prov) {
+    | NoProvenance => ""
+    | SynSwitch(id) => Id.to_string(id)
+    | AstNode(id) => Id.to_string(id)
+    | Free(var) => var
+    | Matched(mprov, type_provenance) =>
+      matched_prov_to_string(mprov) ++ prov_to_string(type_provenance)
+    };
   }
-  and typ_to_string_with_parens = (is_left_child: bool, ty: t): string => {
+  and matched_prov_to_string = (mprov: matched_provenance): string => {
+    switch (mprov) {
+    | Matched_Arrow_Left => "M->L @"
+    | Matched_Arrow_Right => "M->R @"
+    | Matched_Prod_Left => "M*L @"
+    | Matched_Prod_Right => "M*R @"
+    | Matched_List => "M[] @"
+    };
+  };
+
+  let rec typ_to_string = (ty: t, debug): string => {
+    typ_to_string_with_parens(false, ty, debug);
+  }
+  and typ_to_string_with_parens = (is_left_child: bool, ty: t, debug): string => {
     //TODO: parens on ops when ambiguous
     let parenthesize_if_left_child = s => is_left_child ? "(" ++ s ++ ")" : s;
     switch (ty) {
-    | Unknown(_) => "?"
+    | Unknown(prov) => "?" ++ (debug ? prov_to_string(prov) : "")
     | Int => "Int"
     | Float => "Float"
     | String => "String"
     | Bool => "Bool"
     | Var(name) => name
-    | List(t) => "[" ++ typ_to_string(t) ++ "]"
+    | List(t) => "[" ++ typ_to_string(t, debug) ++ "]"
     | Arrow(t1, t2) =>
-      typ_to_string_with_parens(true, t1)
+      typ_to_string_with_parens(true, t1, debug)
       ++ " -> "
-      ++ typ_to_string(t2)
+      ++ typ_to_string(t2, debug)
       |> parenthesize_if_left_child
     | Prod([]) => "Unit"
     | Prod([_]) => "BadProduct"
     | Prod([t0, ...ts]) =>
       "("
       ++ List.fold_left(
-           (acc, t) => acc ++ ", " ++ typ_to_string(t),
-           typ_to_string(t0),
+           (acc, t) => acc ++ ", " ++ typ_to_string(t, debug),
+           typ_to_string(t0, debug),
            ts,
          )
       ++ ")"
@@ -306,7 +328,13 @@ module rec Typ: {
     let (a, b) = equivalence;
     String.concat(
       "",
-      ["(", Typ.typ_to_string(a), ", ", Typ.typ_to_string(b), ")"],
+      [
+        "(",
+        Typ.typ_to_string(a, true),
+        ", ",
+        Typ.typ_to_string(b, true),
+        ")",
+      ],
     );
   };
 

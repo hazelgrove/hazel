@@ -20,9 +20,9 @@ let get_suggestion_text_for_id =
     let status = Infer.get_status(global_inference_info.ctx, id);
     switch (status) {
     | Solved(Unknown(_)) => NoSuggestion(OnlyHoleSolutions)
-    | Solved(typ) => Solvable(typ |> Typ.typ_to_string)
+    | Solved(typ) => Solvable(Typ.typ_to_string(typ, false))
     | Unsolved([]) => NoSuggestion(NonTypeHoleId)
-    | Unsolved([typ]) => NestedInconsistency(typ |> Typ.typ_to_string)
+    | Unsolved([typ]) => NestedInconsistency(Typ.typ_to_string(typ, false))
     | Unsolved(_) => NoSuggestion(InconsistentSet)
     };
   } else {

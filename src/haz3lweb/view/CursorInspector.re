@@ -115,7 +115,9 @@ let view_of_global_inference_info =
                          if (!State.get_suggestion_pasted()) {
                            State.set_suggestion_pasted(true);
                            inject(
-                             Update.Paste(Haz3lcore.Typ.typ_to_string(typ)),
+                             Update.Paste(
+                               Haz3lcore.Typ.typ_to_string(typ, false),
+                             ),
                            );
                          } else {
                            inject(Update.Mouseup);
