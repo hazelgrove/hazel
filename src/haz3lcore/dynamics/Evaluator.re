@@ -51,6 +51,15 @@ module Evaluator: {
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
         let (r1, x') = req_value(f, i, x);
+        let _ =
+          print_endline(
+            if (r1 == BoxedReady) {
+              print_endline(DHExp.show(x));
+              "Ayy";
+            } else {
+              "Oww";
+            },
+          );
         let (r2, xs') = req_all_value(f, i + 1, xs);
         (r1 && r2, [x', ...xs']);
       };
@@ -77,10 +86,10 @@ module Evaluator: {
 
   let (let.) = ((r, x, c), s) =>
     switch (r, s(x)) {
-    | (BoxedReady, Step({apply, final: true, _})) => BoxedValue(apply())
-    | (IndetReady, Step({apply, final: true, _})) => Indet(apply())
-    | (BoxedReady, Step({apply, final: false, _}))
-    | (IndetReady, Step({apply, final: false, _})) => Uneval(apply())
+    | (BoxedReady, Step({apply, value: true, _})) => BoxedValue(apply())
+    | (IndetReady, Step({apply, value: true, _})) => Indet(apply())
+    | (BoxedReady, Step({apply, value: false, _}))
+    | (IndetReady, Step({apply, value: false, _})) => Uneval(apply())
     | (BoxedReady, Constructor) => BoxedValue(c)
     | (IndetReady, Constructor) => Indet(c)
     | (IndetBlocked, _) => Indet(c)
