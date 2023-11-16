@@ -27,9 +27,17 @@ open DH;
     the expression, use `Constructor` or `Indet`.
 
     The step defines firstly, a `() => ...` function giving the result of the step,
-    secondly a `kind`, that describes the step (which will be used in the stepper),
-    and lastly whether the result of the step is `final`, or whether it needs to be
-    further evaluated.
+    secondly a `kind`, that describes the step (which will be used in the stepper)
+
+    Lastly, the `value` field allows for some speeding up of the evaluator. If you
+    are unsure, it is always safe to put `value: false`.
+
+    value: true guarantees:
+      - if all requirements are values, then the output will be a value
+      - if some requirements are indet, then the output will be indet
+
+    A value is either a literal, or a function with a closure. (functions without
+    closures immediately inside them do not count as values).
    */
 
 type step_kind =
@@ -125,7 +133,7 @@ type rule =
   | Step({
       apply: unit => DHExp.t,
       kind: step_kind,
-      final: bool,
+      value: bool,
     })
   | Constructor
   | Indet;
@@ -172,19 +180,26 @@ module Transition = (EV: EV_MODE) => {
              print_endline("FreeInvalidVar:" ++ x);
              raise(EvaluatorError.Exception(FreeInvalidVar(x)));
            });
-      Step({apply: () => d, kind: VarLookup, final: true});
+      Step({apply: () => d, kind: VarLookup, value: false});
     | Sequence(d1, d2) =>
       let. _ = otherwise(d1 => Sequence(d1, d2))
       and. _ = req_final(req(state, env), 0, d1);
-      Step({apply: () => d2, kind: Sequence, final: false});
+      Step({apply: () => d2, kind: Sequence, value: false});
     | Let(dp, d1, d2) =>
       let. _ = otherwise(d1 => Let(dp, d1, d2))
       and. d1' = req_final(req(state, env), 0, d1);
       let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2), kind: LetBind, final: false});
-    | Fun(_) =>
+      Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+    | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(d);
-      Step({apply: () => Closure(env, d), kind: FunClosure, final: true});
+      Constructor;
+    | Fun(p, t, d, v) =>
+      let. _ = otherwise(Fun(p, t, d, v));
+      Step({
+        apply: () => Fun(p, t, Closure(env, d), v),
+        kind: FunClosure,
+        value: true,
+      });
     | FixF(f, t, d1) =>
       let. _ = otherwise(FixF(f, t, d1));
       Step({
@@ -194,7 +209,7 @@ module Transition = (EV: EV_MODE) => {
             d1,
           ),
         kind: FixUnwrap,
-        final: false,
+        value: false,
       });
     | Test(id, d) =>
       let. _ = otherwise(d => Test(id, d))
@@ -214,7 +229,7 @@ module Transition = (EV: EV_MODE) => {
             d;
           },
         kind: UpdateTest,
-        final: true,
+        value: true,
       });
     | Ap(d1, d2) =>
       let. _ = otherwise((d1, d2) => Ap(d1, d2))
@@ -222,14 +237,14 @@ module Transition = (EV: EV_MODE) => {
       and. d2' = req_final(req(state, env), 1, d2);
       switch (d1') {
       | Constructor(_) => Constructor
-      | Closure(env', Fun(dp, _, d3, _)) =>
+      | Fun(dp, _, Closure(env', d3), _) =>
         let.match env'' = (env', matches(dp, d2'));
-        Step({apply: () => Closure(env'', d3), kind: FunAp, final: false});
+        Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
           apply: () => Cast(Ap(d3', Cast(d2', ty1', ty1)), ty2, ty2'),
           kind: CastAp,
-          final: false,
+          value: false,
         })
       | _ =>
         Step({
@@ -238,21 +253,24 @@ module Transition = (EV: EV_MODE) => {
             raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
           },
           kind: InvalidStep,
-          final: true,
+          value: true,
         })
       };
     | ApBuiltin(ident, args) =>
       let. _ = otherwise(args => ApBuiltin(ident, args))
-      and. _args' = req_all_final(req(state, env), 0, args);
+      and. args' = req_all_value(req(state, env), 0, args);
       Step({
-        apply: () => failwith("Builtins not implemented yet"), // TODO(Matt): Add builtins back.
-        // VarMap.lookup(Builtins.forms_init, ident)
-        // |> OptUtil.get(() => {
-        //      print_endline("InvalidBuiltin");
-        //      raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
-        //    }),
+        apply: () => {
+          let builtin =
+            VarMap.lookup(Builtins.forms_init, ident)
+            |> OptUtil.get(() => {
+                 print_endline("InvalidBuiltin");
+                 raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
+               });
+          builtin(args');
+        },
         kind: Builtin(ident),
-        final: false,
+        value: false // Not necessarily a value because of InvalidOperations
       });
     | BoolLit(_)
     | IntLit(_)
@@ -273,7 +291,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
           },
         kind: BinBoolOp(And),
-        final: false,
+        value: false,
       });
     | BinBoolOp(Or, d1, d2) =>
       let. _ = otherwise(d1 => BinBoolOp(Or, d1, d2))
@@ -286,7 +304,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
           },
         kind: BinBoolOp(Or),
-        final: false,
+        value: false,
       });
     | BinIntOp(op, d1, d2) =>
       let. _ = otherwise((d1, d2) => BinIntOp(op, d1, d2))
@@ -325,7 +343,7 @@ module Transition = (EV: EV_MODE) => {
           },
         kind: BinIntOp(op),
         // False so that InvalidOperations are caught and made indet by the next step
-        final: false,
+        value: false,
       });
     | BinFloatOp(op, d1, d2) =>
       let. _ = otherwise((d1, d2) => BinFloatOp(op, d1, d2))
@@ -353,7 +371,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
           },
         kind: BinFloatOp(op),
-        final: true,
+        value: true,
       });
     | BinStringOp(op, d1, d2) =>
       let. _ = otherwise((d1, d2) => BinStringOp(op, d1, d2))
@@ -372,11 +390,11 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
           },
         kind: BinStringOp(op),
-        final: true,
+        value: true,
       });
     | Tuple(ds) =>
       let. _ = otherwise(ds => Tuple(ds))
-      and. _ = req_all_value(req(state, env), 0, ds);
+      and. _ = req_all_final(req(state, env), 0, ds);
       Constructor;
     | Prj(d1, n) =>
       let. _ = otherwise(d1 => Prj(d1, n))
@@ -396,7 +414,7 @@ module Transition = (EV: EV_MODE) => {
             InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           },
         kind: Projection,
-        final: false,
+        value: false,
       });
     // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
@@ -410,7 +428,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           },
         kind: ListCons,
-        final: true,
+        value: true,
       });
     | ListConcat(d1, d2) =>
       // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
@@ -428,7 +446,7 @@ module Transition = (EV: EV_MODE) => {
             raise(EvaluatorError.Exception(InvalidBoxedListLit(d1')))
           },
         kind: ListConcat,
-        final: true,
+        value: true,
       });
     | ListLit(u, i, ty, ds) =>
       let. _ = otherwise(ds => ListLit(u, i, ty, ds))
@@ -446,13 +464,13 @@ module Transition = (EV: EV_MODE) => {
           Step({
             apply: () => Closure(evaluate_extend_env(env', env), d2),
             kind: CaseApply,
-            final: false,
+            value: false,
           })
         | DoesNotMatch =>
           Step({
             apply: () => ConsistentCase(Case(d1', rules, n + 1)),
             kind: CaseNext,
-            final: false,
+            value: false,
           })
         | IndetMatch => Indet
         }
@@ -463,7 +481,7 @@ module Transition = (EV: EV_MODE) => {
     | Closure(env', d) =>
       let. _ = otherwise(d => Closure(env', d))
       and. d' = req_value(req(state, env'), 0, d);
-      Step({apply: () => d', kind: CompleteClosure, final: true});
+      Step({apply: () => d', kind: CompleteClosure, value: true});
     | NonEmptyHole(reason, u, i, d1) =>
       let. _ = otherwise(d1 => NonEmptyHole(reason, u, i, d1))
       and. _ = req_final(req(state, env), 0, d1);
@@ -484,7 +502,7 @@ module Transition = (EV: EV_MODE) => {
       | (Hole, Hole)
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
-        Step({apply: () => d', kind: Cast, final: true})
+        Step({apply: () => d', kind: Cast, value: true})
       | (Ground, Hole) =>
         /* can't remove the cast or do anything else here, so we're done */
         Constructor
@@ -493,12 +511,12 @@ module Transition = (EV: EV_MODE) => {
         | Cast(d2, t3, Unknown(_)) =>
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           if (Typ.eq(t3, t2)) {
-            Step({apply: () => d2, kind: Cast, final: true});
+            Step({apply: () => d2, kind: Cast, value: true});
           } else {
             Step({
               apply: () => FailedCast(d', t1, t2),
               kind: Cast,
-              final: false,
+              value: false,
             });
           }
         | _ => Indet
@@ -509,7 +527,7 @@ module Transition = (EV: EV_MODE) => {
           apply: () =>
             DHExp.Cast(Cast(d', t1, t2_grounded), t2_grounded, t2),
           kind: Cast,
-          final: false,
+          value: false,
         })
       | (NotGroundOrHole(t1_grounded), Hole) =>
         /* ITGround rule */
@@ -517,7 +535,7 @@ module Transition = (EV: EV_MODE) => {
           apply: () =>
             DHExp.Cast(Cast(d', t1, t1_grounded), t1_grounded, t2),
           kind: Cast,
-          final: false,
+          value: false,
         })
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
@@ -526,7 +544,7 @@ module Transition = (EV: EV_MODE) => {
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* they might be eq in this case, so remove cast if so */
         if (Typ.eq(t1, t2)) {
-          Step({apply: () => d', kind: Cast, final: true});
+          Step({apply: () => d', kind: Cast, value: true});
         } else {
           Constructor;
         }
