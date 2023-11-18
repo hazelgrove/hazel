@@ -33,6 +33,7 @@ module rec DHExp: {
     | Prj(t, int)
     | Constructor(string)
     | ConsistentCase(case)
+    | InexhaustiveCase(MetaVar.t, HoleInstanceId.t, case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
@@ -87,6 +88,7 @@ module rec DHExp: {
     | Prj(t, int)
     | Constructor(string)
     | ConsistentCase(case)
+    | InexhaustiveCase(MetaVar.t, HoleInstanceId.t, case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
@@ -126,6 +128,7 @@ module rec DHExp: {
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
     | ConsistentCase(_) => "ConsistentCase"
+    | InexhaustiveCase(_, _, _) => "InexhaustiveCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
@@ -173,6 +176,12 @@ module rec DHExp: {
     | ConsistentCase(Case(a, rs, b)) =>
       ConsistentCase(
         Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
+      )
+    | InexhaustiveCase(u, i, Case(scrut, rules, n)) =>
+      InexhaustiveCase(
+        u,
+        i,
+        Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
       )
     | InconsistentBranches(u, i, Case(scrut, rules, n)) =>
       InconsistentBranches(
@@ -284,7 +293,8 @@ module rec DHExp: {
     | (
         InconsistentBranches(u1, i1, case1),
         InconsistentBranches(u2, i2, case2),
-      ) =>
+      )
+    | (InexhaustiveCase(u1, i1, case1), InexhaustiveCase(u2, i2, case2)) =>
       u1 == u2 && i1 == i2 && fast_equal_case(case1, case2)
     | (EmptyHole(_), _)
     | (NonEmptyHole(_), _)
@@ -292,7 +302,8 @@ module rec DHExp: {
     | (FreeVar(_), _)
     | (InvalidText(_), _)
     | (Closure(_), _)
-    | (InconsistentBranches(_), _) => false
+    | (InconsistentBranches(_), _)
+    | (InexhaustiveCase(_), _) => false
     };
   }
   and fast_equal_case = (Case(d1, rules1, i1), Case(d2, rules2, i2)) => {

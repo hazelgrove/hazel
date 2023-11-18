@@ -66,6 +66,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Let(_)
   | FixF(_)
   | ConsistentCase(_)
+  | InexhaustiveCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
@@ -93,6 +94,7 @@ let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
 let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
   Doc.text(TermBase.UExp.string_op_to_string(op));
 
+// DHExp is annotated here
 let rec mk =
         (
           ~settings: Settings.Evaluation.t,
@@ -122,7 +124,7 @@ let rec mk =
           : (DHDoc.t, option(Typ.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
-    let go_case = (dscrut, drs) =>
+    let go_case = (dscrut, drs, current_rule_index) =>
       if (enforce_inline) {
         fail();
       } else {
@@ -137,7 +139,15 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_hole_instance)),
+            drs
+            |> List.mapi((i, rule) =>
+                 mk_rule(
+                   ~settings,
+                   ~selected_hole_instance,
+                   ~crossed_out=i < current_rule_index,
+                   rule,
+                 )
+               ),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -173,7 +183,10 @@ let rec mk =
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
+        go_case(dscrut, drs, 0)
+        |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | InexhaustiveCase(u, i, Case(dscrut, drs, _)) =>
+        go_case(dscrut, drs, 0) |> annot(DHAnnot.InexhaustiveCase((u, i)))
       | BoundVar(x) => text(x)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -237,7 +250,8 @@ let rec mk =
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+      | ConsistentCase(Case(dscrut, drs, current_rule_index)) =>
+        go_case(dscrut, drs, current_rule_index)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
@@ -369,7 +383,12 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
+    (
+      ~settings,
+      ~selected_hole_instance,
+      ~crossed_out,
+      Rule(dp, dclause): DHExp.rule,
+    )
     : DHDoc.t => {
   open Doc;
   let mk' = mk(~settings, ~selected_hole_instance);
@@ -384,7 +403,8 @@ and mk_rule =
           ]),
         ])
       : hcat(space(), hidden_clause);
-  hcats([
+  // temporary name
+  let r = [
     DHDoc_common.Delim.bar_Rule,
     DHDoc_Pat.mk(dp)
     |> DHDoc_common.pad_child(
@@ -393,5 +413,8 @@ and mk_rule =
        ),
     DHDoc_common.Delim.arrow_Rule,
     clause_doc,
-  ]);
+  ];
+  let r =
+    crossed_out ? List.map(annot(DHAnnot.MismatchedRuleDecoration), r) : r;
+  hcats(r);
 };

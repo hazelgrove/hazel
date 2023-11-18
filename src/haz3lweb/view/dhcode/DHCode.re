@@ -72,11 +72,16 @@ let view_of_layout = (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
+             | MismatchedRuleDecoration => (
+                 [with_cls("MismatchedRuleDecoration", txt)],
+                 ds,
+               )
              | Invalid((_, (-666))) =>
                /* Evaluation and Elaboration exceptions */
                ([with_cls("exception", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
+             | InexhaustiveCase(_)
              | Invalid(_) =>
                let offset = start.col - indent;
                let decoration =

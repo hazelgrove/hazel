@@ -138,6 +138,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | BoundVar(_)
   | Let(_)
   | ConsistentCase(_)
+  | InexhaustiveCase(_)
   | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
@@ -400,6 +401,13 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* i = hii_add_instance(u, env);
     Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
     |> return;
+
+  | InexhaustiveCase(u, _, Case(scrut, rules, case_i)) =>
+    let* scrut = pp_uneval(env, scrut);
+    let* rules = pp_uneval_rules(env, rules);
+    let* i = hii_add_instance(u, env);
+    Closure(env, InexhaustiveCase(u, i, Case(scrut, rules, case_i)))
+    |> return;
   }
 
 and pp_uneval_rules =
@@ -489,7 +497,8 @@ let rec track_children_of_hole =
   | NonEmptyHole(_, u, i, d) =>
     let hii = track_children_of_hole(hii, parent, d);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
-  | InconsistentBranches(u, i, Case(scrut, rules, _)) =>
+  | InconsistentBranches(u, i, Case(scrut, rules, _))
+  | InexhaustiveCase(u, i, Case(scrut, rules, _)) =>
     let hii = track_children_of_hole(hii, parent, scrut);
     let hii = track_children_of_hole_rules(hii, parent, rules);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
