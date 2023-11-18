@@ -37,7 +37,6 @@ let rec dual = (c: t): t =>
       Pair(c1, dual(c2)),
       Or(Pair(dual(c1), c2), Pair(dual(c1), dual(c2))),
     )
-  // | Tuple(cs) => // TODO
   };
 
 /** substitute Truth for Hole */
@@ -78,13 +77,12 @@ let rec falsify = (c: t): t =>
   | Pair(c1, c2) => Pair(falsify(c1), falsify(c2))
   };
 
-// temporary name
-let is_inl =
+let is_injL =
   fun
   | InjL(_) => true
   | _ => false;
 
-let is_inr =
+let is_injR =
   fun
   | InjR(_) => true
   | _ => false;
