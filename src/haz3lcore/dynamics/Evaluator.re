@@ -51,15 +51,6 @@ module Evaluator: {
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
         let (r1, x') = req_value(f, i, x);
-        let _ =
-          print_endline(
-            if (r1 == BoxedReady) {
-              print_endline(DHExp.show(x));
-              "Ayy";
-            } else {
-              "Oww";
-            },
-          );
         let (r2, xs') = req_all_value(f, i + 1, xs);
         (r1 && r2, [x', ...xs']);
       };
