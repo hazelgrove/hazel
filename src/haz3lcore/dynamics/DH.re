@@ -481,10 +481,15 @@ and Filter: {
 
   let rec matches_exp = (d: DHExp.t, f: DHExp.t): bool => {
     switch (d, f) {
-    | (Ap(Constructor("$Expr"), _), _) =>
-      failwith("$Expr in matched expression")
-    | (Ap(Constructor("$Value"), _), _) =>
-      failwith("$Value in matched expression")
+    | (Constructor("$Expr"), _) => failwith("$Expr in matched expression")
+    | (Constructor("$Value"), _) => failwith("$Value in matched expression")
+
+    | (
+        BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_) |
+        Closure(_, Fun(_)),
+        Constructor("$Value"),
+      ) =>
+      true
 
     | (Closure(_, d), _) => matches_exp(d, f)
     | (_, Closure(_, f)) => matches_exp(d, f)
@@ -496,15 +501,9 @@ and Filter: {
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (_, FailedCast(f, _, _)) => matches_exp(d, f)
 
-    | (_, Ap(Constructor("$Expr"), Tuple([]))) => true
+    | (_, Constructor("$Expr")) => true
     | (_, EmptyHole(_)) => true
     | (EmptyHole(_), _) => false
-
-    | (
-        BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_),
-        Ap(Constructor("$Value"), Tuple([])),
-      ) =>
-      true
 
     | (BoolLit(dv), BoolLit(fv)) => dv == fv
     | (_, BoolLit(_))
