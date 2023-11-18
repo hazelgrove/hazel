@@ -37,8 +37,8 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
     List.fold_left(
       ((string_set, not_string_list), xi: Constraint.t) =>
         switch (xi) {
-        | String(s) => (StringSet.add(n, string_set), not_string_list)
-        | NotString(s) => (string_set, [n, ...not_string_list])
+        | String(s) => (StringSet.add(s, string_set), not_string_list)
+        | NotString(s) => (string_set, [s, ...not_string_list])
         | _ => failwith("input can only be String | NotString")
         },
       (StringSet.empty, []),
