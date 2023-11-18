@@ -112,142 +112,6 @@ module EvalObj = {
   };
 };
 
-module Capture = {
-  module Environment: {
-    include
-       (module type of VarBstMap.Ordered) with
-        type t_('a) = VarBstMap.Ordered.t_('a);
-    // type t = t_(unit);
-    // let strip: DH.Environment.t => t;
-  } = {
-    include VarBstMap.Ordered;
-    // type t = t_(unit);
-    // let strip = (env: DH.Environment.t) => {
-    //   DH.Environment.mapo(_ => (), env);
-    // };
-  };
-  // type t = Environment.t;
-  // let rec provides = (dp: DHPat.t): t => {
-  //   switch (dp) {
-  //   | Var(x) => Environment.extend(Environment.empty, (x, ()))
-  //   | Ap(dp1, dp2) => Environment.union(provides(dp2), provides(dp1))
-  //   | Tuple(dps) =>
-  //     dps
-  //     |> List.fold_left(
-  //          (acc, dp) => Environment.union(provides(dp), acc),
-  //          Environment.empty,
-  //        )
-  //   | ListLit(_, dps) =>
-  //     dps
-  //     |> List.fold_left(
-  //          (acc, dp) => Environment.union(provides(dp), acc),
-  //          Environment.empty,
-  //        )
-  //   | Cons(dp1, dp2) => Environment.union(provides(dp2), provides(dp1))
-  //   | _ => Environment.empty
-  //   };
-  // };
-  //   let rec analyze = (env: Environment.t, d: DHExp.t): Environment.t => {
-  //     switch (d) {
-  //     | BoundVar(x) =>
-  //       let r = x |> Environment.lookup(env);
-  //       switch (r) {
-  //       | Some(_) => Environment.empty
-  //       | None => Environment.singleton((x, ()))
-  //       };
-  //     | Sequence(d1, d2) =>
-  //       Environment.union(analyze(env, d2), analyze(env, d1))
-  //     | Let(dp, d1, d2) =>
-  //       let env' = Environment.union(provides(dp), env);
-  //       Environment.union(analyze(env, d1), analyze(env', d2));
-  //     | FixF(f, _, d') =>
-  //       let env' = Environment.extend(env, (f, ()));
-  //       analyze(env', d');
-  //     | Fun(dp, _, d1, _) =>
-  //       let env' = Environment.union(provides(dp), env);
-  //       analyze(env', d1);
-  //     | Ap(d1, d2) => Environment.union(analyze(env, d1), analyze(env, d2))
-  //     | ApBuiltin(_, args) =>
-  //       args
-  //       |> List.fold_left(
-  //            (acc, arg) => Environment.union(analyze(env, arg), acc),
-  //            Environment.empty,
-  //          )
-  //     | Test(_, d) => analyze(env, d)
-  //     | BoolLit(_)
-  //     | IntLit(_)
-  //     | FloatLit(_)
-  //     | StringLit(_)
-  //     | Constructor(_) => Environment.empty
-  //     | BinBoolOp(_, d1, d2) =>
-  //       Environment.union(analyze(env, d1), analyze(env, d2))
-  //     | BinIntOp(_, d1, d2) =>
-  //       Environment.union(analyze(env, d1), analyze(env, d2))
-  //     | BinFloatOp(_, d1, d2) =>
-  //       Environment.union(analyze(env, d1), analyze(env, d2))
-  //     | BinStringOp(_, d1, d2) =>
-  //       Environment.union(analyze(env, d1), analyze(env, d2))
-  //     | ListConcat(d1, d2) =>
-  //       Environment.union(analyze(env, d1), analyze(env, d2))
-  //     | Tuple(ds) =>
-  //       ds
-  //       |> List.fold_left(
-  //            (acc, d) => {acc |> Environment.union(analyze(env, d))},
-  //            Environment.empty,
-  //          )
-  //     | Prj(targ, _) => analyze(env, targ)
-  //     | Cons(d1, d2) => Environment.union(analyze(env, d2), analyze(env, d1))
-  //     | ListLit(_, _, _, lst) =>
-  //       lst
-  //       |> List.fold_left(
-  //            (acc, d) => {acc |> Environment.union(analyze(env, d))},
-  //            Environment.empty,
-  //          )
-  //     | ConsistentCase(Case(d1, rules, _)) =>
-  //       rules
-  //       |> List.fold_left(
-  //            (acc: Environment.t, DHExp.Rule(dp, d)) => {
-  //              let env' = Environment.union(provides(dp), env);
-  //              acc |> Environment.union(analyze(env', d));
-  //            },
-  //            analyze(env, d1),
-  //          )
-  //     | Closure(env', d1) =>
-  //       let env' = env' |> ClosureEnvironment.map_of |> Environment.strip;
-  //       let env'' = Environment.union(env', env);
-  //       analyze(env'', d1);
-  //     | Filter(_, d1) => analyze(env, d1)
-  //     | InconsistentBranches(_, _, Case(d1, rules, _)) =>
-  //       rules
-  //       |> List.fold_left(
-  //            (acc: Environment.t, DHExp.Rule(dp, d)) => {
-  //              let env' = Environment.union(provides(dp), env);
-  //              acc |> Environment.union(analyze(env', d));
-  //            },
-  //            analyze(env, d1),
-  //          )
-  //     | EmptyHole(_) => Environment.empty
-  //     | NonEmptyHole(_, _, _, d1) => analyze(env, d1)
-  //     | FreeVar(_)
-  //     | ExpandingKeyword(_)
-  //     | InvalidText(_) => Environment.empty
-  //     | Cast(d1, _, _) => analyze(env, d1)
-  //     | FailedCast(d1, _, _) => analyze(env, d1)
-  //     | InvalidOperation(d1, _) => analyze(env, d1)
-  //     };
-  //   };
-  //   /*let is_closed = (d: DHExp.t): bool => {
-  //       d |> analyze(Environment.empty) |> Environment.is_empty;
-  //     };
-  //     let capture = (d: DHExp.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
-  //         let renv = analyze(Environment.empty, d);
-  //         env
-  //         |> ClosureEnvironment.filter_keep_id(((var, _)) =>
-  //              Environment.lookup(renv, var) |> Option.is_some
-  //            );
-  //       };*/
-};
-
 module Decompose = {
   module Result = {
     type t =
@@ -414,28 +278,28 @@ module Decompose = {
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (fenv, state, env, exp) => {
-    switch (FilterEnvironment.matches(exp, Step, fenv)) {
+  let rec decompose = (flt_env, state, env, exp) => {
+    switch (FilterEnvironment.matches(exp, Step, flt_env)) {
     | Step =>
       switch (exp) {
-      | Filter(fenv', d1) =>
+      | Filter(flt, d1) =>
         DecomposeEVMode.(
           {
-            let. _ = otherwise(env, (d1) => (Filter(fenv', d1): DHExp.t))
+            let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
             and. d1 =
               req_final(
                 decompose(
-                  FilterEnvironment.extends(fenv', fenv),
+                  FilterEnvironment.extends(flt, flt_env),
                   state,
                   env,
                 ),
-                d1 => Filter(fenv', d1),
+                d1 => Filter(flt, d1),
                 d1,
               );
             Step({apply: () => d1, kind: CompleteFilter, value: true});
           }
         )
-      | _ => Decomp.transition(decompose(fenv), state, env, exp)
+      | _ => Decomp.transition(decompose(flt_env), state, env, exp)
       }
     | Eval =>
       Step([
@@ -443,7 +307,7 @@ module Decompose = {
           Mark,
           () =>
             Evaluator.EvaluatorEVMode.unbox(
-              evaluate_until(fenv, state, env, exp),
+              evaluate_until(flt_env, state, env, exp),
             ),
           exp,
           Skip,
@@ -451,237 +315,6 @@ module Decompose = {
       ])
     };
   };
-  /*
-   let rec decompose =
-           (
-             env: ClosureEnvironment.t,
-             flt: FilterEnvironment.t,
-             act: FilterAction.t,
-             exp: DHExp.t,
-           )
-           : Monad.t(Result.t) => {
-     let act = FilterEnvironment.matches(exp, act, flt);
-     let decompose = (~env=env, ~flt=flt, ~act=act, exp) =>
-       decompose(env, flt, act, exp);
-
-     module Return = {
-       type t =
-         | Operator
-         | Constructor;
-
-       let merge =
-           (cat: t, rs: list((Result.t, EvalCtx.t => EvalCtx.t))): Result.t => {
-         let merge_cls = (rc: Result.cls, r: Result.t): Result.cls => {
-           switch (rc, r) {
-           | (_, Step(_))
-           | (Step, _) => Step
-           | (_, Eval(_))
-           | (Eval, _) => Eval
-           | (_, Indet)
-           | (Indet, _) => Indet
-           | (BoxedValue, BoxedValue) => BoxedValue
-           };
-         };
-
-         let cls =
-           rs
-           |> List.fold_left((rc, (r, _)) => merge_cls(rc, r), BoxedValue);
-
-         switch (act, cls) {
-         | (Step, Step)
-         | (Step, Eval)
-         | (Eval, Step) =>
-           let folder = (ac, (r: Result.t, f)) =>
-             switch (r) {
-             | Indet
-             | BoxedValue => ac
-             | Eval(obj) => [obj |> EvalObj.wrap(f), ...ac]
-             | Step(objs) => List.map(EvalObj.wrap(f), objs) @ ac
-             };
-           let rs = rs |> List.fold_left(folder, []);
-           Step(rs);
-         | (Eval, Eval)
-         | (Eval, BoxedValue) =>
-           let env = env |> Capture.capture(exp);
-           switch (cat) {
-           | Operator => Eval(EvalObj.mark(env, Eval, exp))
-           | Constructor => BoxedValue
-           };
-         | (Step, BoxedValue) =>
-           let env = env |> Capture.capture(exp);
-           switch (cat) {
-           | Operator => Step([EvalObj.mark(env, Step, exp)])
-           | Constructor => BoxedValue
-           };
-         | (Eval, Indet)
-         | (Step, Indet) => Indet
-         };
-       };
-
-       let wrap = f => Result.map(EvalObj.wrap(f));
-
-       let mark = act => {
-         let env = env |> Capture.capture(exp);
-         EvalObj.mark(env, act, exp) |> Result.return(act) |> Monad.return;
-       };
-
-       let merge = (cat: t, rs) => rs |> merge(cat) |> Monad.return;
-
-       let boxed = Result.BoxedValue |> Monad.return;
-
-       let indet = Result.Indet |> Monad.return;
-     };
-
-     let* r = Transition.transition(env, exp);
-     switch (r) {
-     | BoxedValue(_) => Return.boxed
-     | Indet(_) => Return.indet
-     | Step(_) =>
-       switch (exp) {
-       | EmptyHole(_) => Return.indet
-       | NonEmptyHole(_) => Return.indet
-       | ExpandingKeyword(_) => Return.indet
-       | FreeVar(_) => Return.indet
-       | InvalidText(_) => Return.indet
-       | InconsistentBranches(_) => Return.indet
-       | FailedCast(_) => Return.indet
-       | InvalidOperation(_) => Return.indet
-       | Closure(_, Fun(_)) => Return.boxed
-       | Closure(env', d1) =>
-         let* env = ClosureEnvironment.union(env', env) |> with_eig;
-         decompose(~env, d1) >>| Return.wrap(c => Closure(env', c));
-       | Filter(flt', d1) =>
-         let flt = DHExp.FilterEnvironment.extends(flt', flt);
-         decompose(~flt, d1) >>| Return.wrap(c => Filter(flt', c));
-       | Cast(d1, ty, ty') =>
-         decompose(d1) >>| Return.wrap(c => Cast(c, ty, ty'))
-       | BoundVar(_) => Return.mark(act)
-       | Sequence(d1, d2) =>
-         let* r1 = decompose(d1);
-         switch (r1) {
-         | BoxedValue
-         | Eval(_) => Return.mark(act)
-         | Indet
-         | Step(_) => r1 |> Return.wrap(c => Sequence(c, d2)) |> Monad.return
-         };
-       | Let(dp, d1, d2) =>
-         let* r1 = decompose(d1);
-         switch (r1) {
-         | BoxedValue
-         | Eval(_) => Return.mark(act)
-         | Indet
-         | Step(_) => r1 |> Return.wrap(c => Let(dp, c, d2)) |> Monad.return
-         };
-       | FixF(_) => Return.mark(act)
-       | Fun(_) => Return.mark(act)
-       | Ap(d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         switch (r1, r2) {
-         | (BoxedValue, BoxedValue)
-         | (BoxedValue, Eval(_))
-         | (Eval(_), BoxedValue)
-         | (Eval(_), Eval(_)) => Return.mark(act)
-         | (Indet, _)
-         | (_, Indet)
-         | (Step(_), _)
-         | (_, Step(_)) =>
-           [(r1, (c => Ap1(c, d2))), (r2, (c => Ap2(d1, c)))]
-           |> Return.merge(Return.Operator)
-         };
-       | ApBuiltin(_) => Return.mark(act)
-       | TestLit(_)
-       | BoolLit(_)
-       | IntLit(_)
-       | FloatLit(_)
-       | StringLit(_)
-       | Constructor(_) => Return.boxed
-       | BinBoolOp(op, d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         [
-           (r1, (c => BinBoolOp1(op, c, d2))),
-           (r2, (c => BinBoolOp2(op, d1, c))),
-         ]
-         |> Return.merge(Return.Operator);
-       | BinIntOp(op, d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         [
-           (r1, (c => BinIntOp1(op, c, d2))),
-           (r2, (c => BinIntOp2(op, d1, c))),
-         ]
-         |> Return.merge(Return.Operator);
-       | BinFloatOp(op, d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         [
-           (r1, (c => BinFloatOp1(op, c, d2))),
-           (r2, (c => BinFloatOp2(op, d1, c))),
-         ]
-         |> Return.merge(Return.Operator);
-       | BinStringOp(op, d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         [
-           (r1, (c => BinStringOp1(op, c, d2))),
-           (r2, (c => BinStringOp2(op, d1, c))),
-         ]
-         |> Return.merge(Return.Operator);
-       | Tuple(ds) =>
-         let rec walk = (ld, rd, rs) => {
-           switch (rd) {
-           | [] => rs
-           | [d, ...rd] =>
-             let* r = decompose(d);
-             let* rs = rs;
-             let rs = [(r, (c => EvalCtx.Tuple(c, (ld, rd)))), ...rs];
-             walk([d, ...ld], rd, return(rs));
-           };
-         };
-         let* rs = walk([], ds, return([]));
-         rs |> Return.merge(Return.Constructor);
-       | Prj(targ, n) => decompose(targ) >>| Return.wrap(c => Prj(c, n))
-       | Cons(d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         [(r1, (c => Cons1(c, d2))), (r2, (c => Cons2(d1, c)))]
-         |> Return.merge(Return.Operator);
-       | ListConcat(d1, d2) =>
-         let* r1 = decompose(d1);
-         let* r2 = decompose(d2);
-         [(r1, (c => ListConcat1(c, d2))), (r2, (c => ListConcat2(d1, c)))]
-         |> Return.merge(Return.Operator);
-       | ListLit(u, i, ty, lst) =>
-         let rec walk = (ld, rd, rs) => {
-           switch (rd) {
-           | [] => rs
-           | [d, ...rd] =>
-             let* r = decompose(d);
-             let* rs = rs;
-             let rs = [
-               (r, (c => EvalCtx.ListLit(u, i, ty, c, (ld, rd)))),
-               ...rs,
-             ];
-             walk([d, ...ld], rd, return(rs));
-           };
-         };
-         let* rs = walk([], lst, return([]));
-         rs |> Return.merge(Return.Constructor);
-       | ConsistentCase(Case(d1, rules, i)) =>
-         let* r1 = decompose(d1);
-         switch (r1) {
-         | BoxedValue
-         | Eval(_) => Return.mark(act)
-         | Indet
-         | Step(_) =>
-           r1
-           |> Return.wrap(c => ConsistentCase(Case(c, rules, i)))
-           |> Monad.return
-         };
-       }
-     };
-   };*/
 };
 
 let rec rev_concat: (list('a), list('a)) => list('a) =
@@ -810,68 +443,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     }
   );
 };
-/*
- let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
-   let* r =
-     switch (obj.act) {
-     | Eval => Evaluator.evaluate_closure(obj.env, obj.exp)
-     | Step =>
-       let* r = Transition.transition(obj.env, obj.exp);
-       switch (r) {
-       | Step(d)
-       | BoxedValue(d) => EvaluatorResult.BoxedValue(d) |> return
-       | Indet(d) => EvaluatorResult.Indet(d) |> return
-       };
-     };
-   let* d = compose(obj.ctx, EvaluatorResult.unbox(r));
-   switch (r) {
-   | BoxedValue(_) => EvaluatorResult.BoxedValue(d) |> return
-   | Indet(_) => EvaluatorResult.Indet(d) |> return
-   };
- };
 
- let evaluate_with_history = (d: DHExp.t) => {
-   let rec go =
-           (env: ClosureEnvironment.t, d: DHExp.t, rs: m(list(DHExp.t)))
-           : m(list(DHExp.t)) => {
-     let* rs = rs;
-     let* r = Transition.transition(env, d);
-     switch (r) {
-     | Step(d) => go(env, d, [d, ...rs] |> return)
-     | BoxedValue(_) => rs |> return
-     | Indet(_) => rs |> return
-     };
-   };
-   let (env, es) =
-     Environment.empty
-     |> ClosureEnvironment.of_environment
-     |> EvaluatorState.with_eig(_, EvaluatorState.init);
-   let (_, rs) = go(env, d, [] |> return, es);
-   rs;
- };
-
- let step = (obj: EvalObj.t) => {
-   step(obj, EvaluatorState.init);
- };
-
- let step = Core.Memo.general(~cache_size_bound=1000, step);
-
- let step = (obj: EvalObj.t): ProgramResult.t => {
-   let (es, d) = step(obj);
-   switch (d) {
-   | BoxedValue(d) => (BoxedValue(d), es)
-   | Indet(d) => (Indet(d), es)
-   | exception (EvaluatorError.Exception(_reason)) =>
-     //HACK(andrew): supress exceptions for release
-     //raise(EvalError(reason))
-     print_endline("Interface.step EXCEPTION");
-     (Indet(InvalidText(Id.invalid, 0, "EXCEPTION")), EvaluatorState.init);
-   | exception _ =>
-     print_endline("Other evaluation exception raised (stack overflow?)");
-     (Indet(InvalidText(Id.invalid, 0, "EXCEPTION")), EvaluatorState.init);
-   };
- };
- */
 let decompose = (d: DHExp.t) => {
   let es = EvaluatorState.init;
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
