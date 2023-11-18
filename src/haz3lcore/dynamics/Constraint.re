@@ -17,42 +17,6 @@ type t =
   | InjR(t)
   | Pair(t, t);
 
-// Unused
-let rec constrains = (c: t, ty: Typ.t): bool =>
-  switch (c, Typ.weak_head_normalize(Builtins.ctx_init, ty)) {
-  | (Truth, _)
-  | (Falsity, _)
-  | (Hole, _) => true
-  | (Int(_) | NotInt(_), Int) => true
-  | (Int(_) | NotInt(_), _) => false
-  | (Float(_) | NotFloat(_), Float) => true
-  | (Float(_) | NotFloat(_), _) => false
-  | (String(_) | NotString(_), String) => true
-  | (String(_) | NotString(_), _) => false
-  | (And(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
-  | (Or(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
-  // Treates sum as if it is left associative
-  | (InjL(c1), Sum(map)) =>
-    switch (List.hd(map)) {
-    | (_, Some(ty1)) => constrains(c1, ty1)
-    | _ => false
-    }
-  | (InjL(_), _) => false
-  | (InjR(c2), Sum(map)) =>
-    switch (List.tl(map)) {
-    | [] => false
-    | [(_, Some(ty2))] => constrains(c2, ty2)
-    | map' => constrains(c2, Sum(map'))
-    }
-  | (InjR(_), _) => false
-  | (Pair(c1, c2), Prod([ty_hd, ...ty_tl])) =>
-    constrains(c1, ty_hd) && constrains(c2, Prod(ty_tl))
-  | (Pair(_), _) => false
-  // | (Tuple(cs), Prod(tys)) when List.length(cs) == List.length(tys) =>
-  //   List.for_all2(constrains, cs, tys)
-  // | (Tuple(_), _) => false
-  };
-
 let rec dual = (c: t): t =>
   switch (c) {
   | Truth => Falsity
