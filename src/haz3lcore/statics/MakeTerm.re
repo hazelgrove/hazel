@@ -12,7 +12,6 @@
 
 open Util;
 open Term;
-open LabeledTupleUtil;
 
 // TODO make less hacky
 let tokens =
@@ -248,10 +247,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, term: Tuple(es)} => (
-            ListLit(labeled_tuple_to_unlabeled_tuple(es)),
-            ids,
-          )
+        | {ids, term: Tuple(es)} =>
+          let (_, es) = List.split(es);
+          (ListLit(es), ids);
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -372,7 +370,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} =>
-            ListLit(labeled_tuple_to_unlabeled_tuple(ps))
+            let (_, ps) = List.split(ps);
+            ListLit(ps);
           | term => ListLit([term])
           }
         | _ => hole(tm)

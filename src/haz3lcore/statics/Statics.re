@@ -1,5 +1,4 @@
 open Term;
-open LabeledTupleUtil;
 
 /* STATICS.re
 
@@ -673,7 +672,7 @@ and uexp_to_module =
         }
       | Parens(pat) => out_moded(out_mode, pat)
       | Tuple(pats) =>
-        let pats = labeled_tuple_to_unlabeled_tuple(pats);
+        let (_, pats) = List.split(pats);
         List.fold_left(
           (mode: Mode.t, p: Term.UPat.t): Mode.t => {
             switch (mode, out_moded(out_mode, p)) {

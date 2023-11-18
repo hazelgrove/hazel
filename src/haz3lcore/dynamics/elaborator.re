@@ -1,6 +1,5 @@
 open Util;
 open OptUtil.Syntax;
-open LabeledTupleUtil;
 
 module ElaborationResult = {
   [@deriving sexp]
@@ -206,7 +205,7 @@ let rec dhexp_of_uexp =
             | None => None
             };
           let dsp = es |> List.map(((p, _)) => tempfuncname(p));*/
-        let dsp = labeled_tuple_to_labels(es);
+        let (dsp, _) = List.split(es);
         let+ ds =
           es
           |> List.map(((_, d)) => dhexp_of_uexp(m, d))
@@ -429,7 +428,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
           | None => None
           };
         let dsp = ps |> List.map(((p, _)) => tempfuncname(p));*/
-      let dsp = labeled_tuple_to_labels(ps);
+      let (dsp, _) = List.split(ps);
       let* ds =
         ps |> List.map(((_, d)) => dhpat_of_upat(m, d)) |> OptUtil.sequence;
       wrap(DHPat.Tuple(List.combine(dsp, ds)));

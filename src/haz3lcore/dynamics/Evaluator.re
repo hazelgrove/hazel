@@ -2,8 +2,6 @@ open Util;
 open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 open EvaluatorResult;
-open LabeledTupleUtil;
-
 /**
   Alias for EvaluatorMonad.
  */
@@ -56,7 +54,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
           fun
           | Typ.Unknown(_) => true
           | _ => false,
-          labeled_tuple_to_unlabeled_tuple(tys),
+          tys |> List.map(((_, b)) => b),
         )) {
       Ground;
     } else {

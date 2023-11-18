@@ -2,7 +2,6 @@ include TypBase.Typ;
 module Ctx = TypBase.Ctx;
 open Util;
 open OptUtil.Syntax;
-open LabeledTupleUtil;
 
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
@@ -95,12 +94,12 @@ let matched_prod: (Ctx.t, list((option(LabeledTuple.t), 'a)), t) => list(t) =
                    }
                },
                List.combine(
-                 labeled_tuple_to_labels(tys),
-                 labeled_tuple_to_labels(es),
+                 tys |> List.map(((a, _)) => a),
+                 es |> List.map(((a, _)) => a),
                ),
                true,
              ) =>
-      labeled_tuple_to_unlabeled_tuple(tys)
+      tys |> List.map(((_, b)) => b)
     | Unknown(SynSwitch) =>
       List.init(List.length(es), _ => Unknown(SynSwitch))
     | _ => List.init(List.length(es), _ => Unknown(Internal))
@@ -234,10 +233,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
       List.map(snd, sm),
     )
   | Prod(tys) =>
-    ListUtil.flat_map(
-      free_vars(~bound),
-      labeled_tuple_to_unlabeled_tuple(tys),
-    )
+    ListUtil.flat_map(free_vars(~bound), tys |> List.map(((_, b)) => b))
   | Module(inner_ctx) =>
     let ctx_entry_subst = (l: list(Token.t), e: Ctx.entry): list(Token.t) => {
       switch (e) {
@@ -321,7 +317,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Arrow(ty1, ty2);
   | (Arrow(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    let tysp = labeled_tuple_to_labels(tys1);
+    let (tysp, _) = List.split(tys1);
     let* tys =
       ListUtil.map2_opt(
         ((p1, t1), (p2, t2)) =>
