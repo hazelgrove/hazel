@@ -492,6 +492,10 @@ let rec track_children_of_hole =
       ds,
       hii,
     )
+  | IfThenElse(c, d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, c);
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
 
   | ConsistentCase(Case(scrut, rules, _)) =>
     let hii =

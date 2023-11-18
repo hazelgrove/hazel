@@ -97,6 +97,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
+    | IfThenElse(_)
     | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
