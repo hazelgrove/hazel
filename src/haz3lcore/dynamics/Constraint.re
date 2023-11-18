@@ -16,7 +16,6 @@ type t =
   | InjL(t)
   | InjR(t)
   | Pair(t, t);
-// | Tuple(list(t));
 
 // Unused
 let rec constrains = (c: t, ty: Typ.t): bool =>
@@ -58,14 +57,13 @@ let rec dual = (c: t): t =>
   switch (c) {
   | Truth => Falsity
   | Falsity => Truth
-  // The complement of an indeterministic set is still indeterministic
   | Hole => Hole
   | Int(n) => NotInt(n)
   | NotInt(n) => Int(n)
   | Float(n) => NotFloat(n)
   | NotFloat(n) => Float(n)
-  | String(n) => NotString(n)
-  | NotString(n) => String(n)
+  | String(s) => NotString(s)
+  | NotString(s) => String(s)
   | And(c1, c2) => Or(dual(c1), dual(c2))
   | Or(c1, c2) => And(dual(c1), dual(c2))
   | InjL(c1) => Or(InjL(dual(c1)), InjR(Truth))
