@@ -79,19 +79,16 @@ module EvaluatorEVMode: {
         (r1 && r2, [x', ...xs']);
       };
 
-  // TODO(Matt): does it make sense to say this isn't indet?
-  let do_not_req = (_, _, x) => (IndetReady, x);
-
   let otherwise = (_, c) => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
 
   let (let.) = ((r, x, c), s) =>
     switch (r, s(x)) {
-    | (BoxedReady, Step({apply, final: true, _})) => BoxedValue(apply())
-    | (IndetReady, Step({apply, final: true, _})) => Indet(apply())
-    | (BoxedReady, Step({apply, final: false, _}))
-    | (IndetReady, Step({apply, final: false, _})) => Uneval(apply())
+    | (BoxedReady, Step({apply, value: true, _})) => BoxedValue(apply())
+    | (IndetReady, Step({apply, value: true, _})) => Indet(apply())
+    | (BoxedReady, Step({apply, value: false, _}))
+    | (IndetReady, Step({apply, value: false, _})) => Uneval(apply())
     | (BoxedReady, Constructor) => BoxedValue(c)
     | (IndetReady, Constructor) => Indet(c)
     | (IndetBlocked, _) => Indet(c)

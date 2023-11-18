@@ -3,6 +3,44 @@ open Util;
 open PatternMatch;
 open DH;
 
+/* Transition.re
+
+   This module defines the evaluation semantics of Hazel in terms of small step
+   evaluation. These small steps are wrapped up into a big step in Evaluator.re
+
+   An instructive example is the sequence case:
+
+    | Sequence(d1, d2) =>
+        let. _ = otherwise(d1 => Sequence(d1, d2))
+        and. _ = req_final(req(state, env), 0, d1);
+        Step({apply: () => d2, kind: Sequence, final: false});
+
+
+    Each step semantics starts with a `let. () = otherwise(...)` that defines how
+    to wrap the expression back up if the step couldn't be evaluated.
+
+    This is followed by a series of `and. _ = req_final(req(state, env), <i>, <d>)`
+    which indicate that in order to evaluate the step, <d> must be final. (req_value
+    is also available if it needs to be a value).
+
+    Finally, we have the Step construct that defines the actual step. Note "Step"s
+    should be used if and only if they change the expression. If they do not change
+    the expression, use `Constructor` or `Indet`.
+
+    The step defines firstly, a `() => ...` function giving the result of the step,
+    secondly a `kind`, that describes the step (which will be used in the stepper)
+
+    Lastly, the `value` field allows for some speeding up of the evaluator. If you
+    are unsure, it is always safe to put `value: false`.
+
+    value: true guarantees:
+      - if all requirements are values, then the output will be a value
+      - if some requirements are indet, then the output will be indet
+
+    A value is either a literal, or a function with a closure. (functions without
+    closures immediately inside them do not count as values).
+   */
+
 module EvalCtx = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -100,7 +138,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
-  | Projection // TODO(Matt): This would be horrible if we showed this to the user
+  | Projection
   | ListCons
   | ListConcat
   | CaseApply
@@ -110,55 +148,60 @@ type step_kind =
   | Cast
   | Skip;
 
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
+module CastHelpers = {
+  [@deriving sexp]
+  type ground_cases =
+    | Hole
+    | Ground
+    | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
-let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+  let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
 
-let grounded_Arrow =
-  NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
-let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
-let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
-  let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
-  NotGroundOrHole(Sum(sm'));
-};
-let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
+  let grounded_Arrow =
+    NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+  let grounded_Prod = length =>
+    NotGroundOrHole(
+      Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
+    );
+  let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
+    let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
+    NotGroundOrHole(Sum(sm'));
+  };
+  let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
-let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-  let is_ground_arg: option(Typ.t) => bool =
-    fun
-    | None
-    | Some(Typ.Unknown(_)) => true
-    | Some(ty) => ground_cases_of(ty) == Ground;
-  switch (ty) {
-  | Unknown(_) => Hole
-  | Bool
-  | Int
-  | Float
-  | String
-  | Var(_)
-  | Rec(_)
-  | Arrow(Unknown(_), Unknown(_))
-  | List(Unknown(_)) => Ground
-  | Prod(tys) =>
-    if (List.for_all(
-          fun
-          | Typ.Unknown(_) => true
-          | _ => false,
-          tys,
-        )) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod;
-    }
-  | Sum(sm) =>
-    sm |> ConstructorMap.is_ground(is_ground_arg) ? Ground : grounded_Sum(sm)
-  | Arrow(_, _) => grounded_Arrow
-  | List(_) => grounded_List
+  let rec ground_cases_of = (ty: Typ.t): ground_cases => {
+    let is_ground_arg: option(Typ.t) => bool =
+      fun
+      | None
+      | Some(Typ.Unknown(_)) => true
+      | Some(ty) => ground_cases_of(ty) == Ground;
+    switch (ty) {
+    | Unknown(_) => Hole
+    | Bool
+    | Int
+    | Float
+    | String
+    | Var(_)
+    | Rec(_)
+    | Arrow(Unknown(_), Unknown(_))
+    | List(Unknown(_)) => Ground
+    | Prod(tys) =>
+      if (List.for_all(
+            fun
+            | Typ.Unknown(_) => true
+            | _ => false,
+            tys,
+          )) {
+        Ground;
+      } else {
+        tys |> List.length |> grounded_Prod;
+      }
+    | Sum(sm) =>
+      sm |> ConstructorMap.is_ground(is_ground_arg)
+        ? Ground : grounded_Sum(sm)
+    | Arrow(_, _) => grounded_Arrow
+    | List(_) => grounded_List
+    };
   };
 };
 
@@ -171,15 +214,11 @@ let evaluate_extend_env =
   |> ClosureEnvironment.of_environment;
 };
 
-// TODO(Matt): Check Casts, Fix Cast Calculus Error on ADT Statics example
-// TODO(Matt): PURGE THE ABOVE
-
 type rule =
-  // If anything going into it is indet, the result should be indet
   | Step({
       apply: unit => DHExp.t,
       kind: step_kind,
-      final: bool,
+      value: bool,
     })
   | Constructor
   | Indet;
@@ -210,9 +249,6 @@ module type EV_MODE = {
       list(DHExp.t)
     ) =>
     requirement(list(DHExp.t));
-  let do_not_req:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement(DHExp.t);
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
@@ -243,24 +279,26 @@ module Transition = (EV: EV_MODE) => {
              print_endline("FreeInvalidVar:" ++ x);
              raise(EvaluatorError.Exception(FreeInvalidVar(x)));
            });
-      Step({
-        apply: () => d,
-        kind: VarLookup,
-        final: false // TODO(Matt): Can we make this true?
-      });
+      Step({apply: () => d, kind: VarLookup, value: false});
     | Sequence(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Sequence(d1, d2))
-      and. _ = req_final(req(state, env), d1 => Sequence1(d1, d2), d1)
-      and. d2' = do_not_req(req(state, env), d2 => Sequence2(d1, d2), d2);
-      Step({apply: () => d2', kind: Sequence, final: false});
+      let. _ = otherwise(env, d1 => Sequence(d1, d2))
+      and. _ = req_final(req(state, env), d1 => Sequence1(d1, d2), d1);
+      Step({apply: () => d2, kind: Sequence, value: false});
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2))
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
       let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2), kind: LetBind, final: false});
-    | Fun(_) =>
+      Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+    | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
-      Step({apply: () => Closure(env, d), kind: FunClosure, final: true});
+      Constructor;
+    | Fun(p, t, d, v) =>
+      let. _ = otherwise(env, Fun(p, t, d, v));
+      Step({
+        apply: () => Fun(p, t, Closure(env, d), v),
+        kind: FunClosure,
+        value: true,
+      });
     | FixF(f, t, d1) =>
       let. _ = otherwise(env, FixF(f, t, d1));
       // TODO(Matt): Would it be safer to have a fourth argument to FixF?
@@ -273,7 +311,7 @@ module Transition = (EV: EV_MODE) => {
             d1,
           ),
         kind: FixUnwrap,
-        final: false,
+        value: false,
       });
     | Test(id, d) =>
       let. _ = otherwise(env, d => Test(id, d))
@@ -293,22 +331,22 @@ module Transition = (EV: EV_MODE) => {
             d;
           },
         kind: UpdateTest,
-        final: true,
+        value: true,
       });
     | Ap(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
       and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
       and. d2' = req_final(req(state, env), d2 => Ap2(d1, d2), d2);
       switch (d1') {
-      | Constructor(_) => Constructor // TODO(Matt): Two different "Constructor" constructors is confusing
-      | Closure(env', Fun(dp, _, d3, _)) =>
+      | Constructor(_) => Constructor
+      | Fun(dp, _, Closure(env', d3), _) =>
         let.match env'' = (env', matches(dp, d2'));
-        Step({apply: () => Closure(env'', d3), kind: FunAp, final: false});
+        Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
           apply: () => Cast(Ap(d3', Cast(d2', ty1', ty1)), ty2, ty2'),
           kind: CastAp,
-          final: false,
+          value: false,
         })
       | _ =>
         Step({
@@ -317,26 +355,29 @@ module Transition = (EV: EV_MODE) => {
             raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
           },
           kind: InvalidStep,
-          final: true,
-        }) // TODO(Matt): Check that when I implement Indet it won't indet a partially-run program
+          value: true,
+        })
       };
     | ApBuiltin(ident, args) =>
       let. _ = otherwise(env, args => ApBuiltin(ident, args))
-      and. _args' =
-        req_all_final(
+      and. args' =
+        req_all_value(
           req(state, env),
           (d', ds) => ApBuiltin(ident, d', ds),
           args,
         );
       Step({
-        apply: () => failwith("Builtins not implemented yet"), // TODO(Matt): Add builtins back.
-        // VarMap.lookup(Builtins.forms_init, ident)
-        // |> OptUtil.get(() => {
-        //      print_endline("InvalidBuiltin");
-        //      raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
-        //    }),
+        apply: () => {
+          let builtin =
+            VarMap.lookup(Builtins.forms_init, ident)
+            |> OptUtil.get(() => {
+                 print_endline("InvalidBuiltin");
+                 raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
+               });
+          builtin(args');
+        },
         kind: Builtin(ident),
-        final: false,
+        value: false // Not necessarily a value because of InvalidOperations
       });
     | BoolLit(_)
     | IntLit(_)
@@ -346,36 +387,32 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Constructor;
     | BinBoolOp(And, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinBoolOp(And, d1, d2))
+      let. _ = otherwise(env, d1 => BinBoolOp(And, d1, d2))
       and. d1' =
-        req_value(req(state, env), d1 => BinBoolOp1(And, d1, d2), d1)
-      and. d2' =
-        do_not_req(req(state, env), d2 => BinBoolOp2(And, d1, d2), d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+        req_value(req(state, env), d1 => BinBoolOp1(And, d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
-          | BoolLit(true) => d2'
+          | BoolLit(true) => d2
           | BoolLit(false) => BoolLit(false)
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1'))) // TODO(Matt): Make it consistent whether we print
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
           },
         kind: BinBoolOp(And),
-        final: false,
+        value: false,
       });
     | BinBoolOp(Or, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinBoolOp(Or, d1, d2))
+      let. _ = otherwise(env, d1 => BinBoolOp(Or, d1, d2))
       and. d1' =
-        req_value(req(state, env), d1 => BinBoolOp1(Or, d1, d2), d1)
-      and. d2' =
-        do_not_req(req(state, env), d2 => BinBoolOp2(Or, d1, d2), d2); // TODO(Matt): This might lead to some unexpected behaviour with not evaluating o | (5 == 3)
+        req_value(req(state, env), d1 => BinBoolOp1(Or, d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
           | BoolLit(true) => BoolLit(true)
-          | BoolLit(false) => d2'
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
+          | BoolLit(false) => d2
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
           },
         kind: BinBoolOp(Or),
-        final: false,
+        value: false,
       });
     | BinIntOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
@@ -414,7 +451,8 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
           },
         kind: BinIntOp(op),
-        final: false // False so that InvalidOperations are caught and made indet
+        // False so that InvalidOperations are caught and made indet by the next step
+        value: false,
       });
     | BinFloatOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinFloatOp(op, d1, d2))
@@ -431,7 +469,7 @@ module Transition = (EV: EV_MODE) => {
             | Minus => FloatLit(n1 -. n2)
             | Power => FloatLit(n1 ** n2)
             | Times => FloatLit(n1 *. n2)
-            | Divide => FloatLit(n1 /. n2) // Do we like that this behavior is not consistent w/ integers?
+            | Divide => FloatLit(n1 /. n2)
             | LessThan => BoolLit(n1 < n2)
             | LessThanOrEqual => BoolLit(n1 <= n2)
             | GreaterThan => BoolLit(n1 > n2)
@@ -444,7 +482,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
           },
         kind: BinFloatOp(op),
-        final: true,
+        value: true,
       });
     | BinStringOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinStringOp(op, d1, d2))
@@ -465,14 +503,13 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
           },
         kind: BinStringOp(op),
-        final: true,
+        value: true,
       });
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds))
       and. _ =
-        req_all_value(req(state, env), (d1, ds) => Tuple(d1, ds), ds);
+        req_all_final(req(state, env), (d1, ds) => Tuple(d1, ds), ds);
       Constructor;
-    // TODO(Matt): As far as I can tell this case is only used for mutual recursion - could we cut it and replace w/ let?
     | Prj(d1, n) =>
       let. _ = otherwise(env, d1 => Prj(d1, n))
       and. d1' = req_final(req(state, env), d1 => Prj(d1, n), d1);
@@ -480,17 +517,18 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (d1') {
           | Tuple(ds) when n < 0 || List.length(ds) <= n =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           | Tuple(ds) => List.nth(ds, n)
           | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           | Cast(d2, Prod(ts1), Prod(ts2)) =>
             Cast(Prj(d2, n), List.nth(ts1, n), List.nth(ts2, n))
           | _ =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection) // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
+            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
           },
         kind: Projection,
-        final: false,
+        value: false,
       });
     // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
@@ -504,7 +542,7 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           },
         kind: ListCons,
-        final: true,
+        value: true,
       });
     | ListConcat(d1, d2) =>
       // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
@@ -522,7 +560,7 @@ module Transition = (EV: EV_MODE) => {
             raise(EvaluatorError.Exception(InvalidBoxedListLit(d1')))
           },
         kind: ListConcat,
-        final: true,
+        value: true,
       });
     | ListLit(u, i, ty, ds) =>
       let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
@@ -533,7 +571,7 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
-    // TODO(Matt): This will currently re-traverse d1
+    // TODO(Matt): This will currently re-traverse d1 if it is a large constructor
     | ConsistentCase(Case(d1, rules, n)) =>
       let. _ = otherwise(env, d1 => ConsistentCase(Case(d1, rules, n)))
       and. d1' =
@@ -543,34 +581,31 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       switch (List.nth_opt(rules, n)) {
-      | None => Indet // TODO: Why do we need a closure when everything is final?
+      | None => Indet
       | Some(Rule(dp, d2)) =>
         switch (matches(dp, d1')) {
         | Matches(env') =>
           Step({
             apply: () => Closure(evaluate_extend_env(env', env), d2),
             kind: CaseApply,
-            final: false,
+            value: false,
           })
         | DoesNotMatch =>
           Step({
             apply: () => ConsistentCase(Case(d1', rules, n + 1)),
             kind: CaseNext,
-            final: false,
+            value: false,
           })
-        | IndetMatch => Indet // TODO(Matt): Is Closure necessary?
+        | IndetMatch => Indet
         }
       };
     | InconsistentBranches(_) as d =>
       let. _ = otherwise(env, d);
-      Indet; // TODO(Matt): Closure
-    | Closure(_, Fun(_)) =>
-      let. _ = otherwise(env, d);
-      Constructor;
+      Indet;
     | Closure(env', d) =>
       let. _ = otherwise(env, d => Closure(env', d))
       and. d' = req_value(req(state, env'), d1 => Closure(env', d1), d);
-      Step({apply: () => d', kind: CompleteClosure, final: true});
+      Step({apply: () => d', kind: CompleteClosure, value: true});
     | NonEmptyHole(reason, u, i, d1) =>
       let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1))
       and. _ =
@@ -588,14 +623,15 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
-      /* Cast calculus */
+      open CastHelpers; /* Cast calculus */
+
       let. _ = otherwise(env, d => Cast(d, t1, t2))
       and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
       | (Hole, Hole)
       | (Ground, Ground) =>
         /* if two types are ground and consistent, then they are eq */
-        Step({apply: () => d', kind: Cast, final: true})
+        Step({apply: () => d', kind: Cast, value: true})
       | (Ground, Hole) =>
         /* can't remove the cast or do anything else here, so we're done */
         Constructor
@@ -604,12 +640,12 @@ module Transition = (EV: EV_MODE) => {
         | Cast(d2, t3, Unknown(_)) =>
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           if (Typ.eq(t3, t2)) {
-            Step({apply: () => d2, kind: Cast, final: true});
+            Step({apply: () => d2, kind: Cast, value: true});
           } else {
             Step({
               apply: () => FailedCast(d', t1, t2),
               kind: Cast,
-              final: false,
+              value: false,
             });
           }
         | _ => Indet
@@ -620,7 +656,7 @@ module Transition = (EV: EV_MODE) => {
           apply: () =>
             DHExp.Cast(Cast(d', t1, t2_grounded), t2_grounded, t2),
           kind: Cast,
-          final: false,
+          value: false,
         })
       | (NotGroundOrHole(t1_grounded), Hole) =>
         /* ITGround rule */
@@ -628,7 +664,7 @@ module Transition = (EV: EV_MODE) => {
           apply: () =>
             DHExp.Cast(Cast(d', t1, t1_grounded), t1_grounded, t2),
           kind: Cast,
-          final: false,
+          value: false,
         })
       | (Ground, NotGroundOrHole(_))
       | (NotGroundOrHole(_), Ground) =>
@@ -637,7 +673,7 @@ module Transition = (EV: EV_MODE) => {
       | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
         /* they might be eq in this case, so remove cast if so */
         if (Typ.eq(t1, t2)) {
-          Step({apply: () => d', kind: Cast, final: true});
+          Step({apply: () => d', kind: Cast, value: true});
         } else {
           Constructor;
         }
@@ -649,7 +685,7 @@ module Transition = (EV: EV_MODE) => {
     | Filter(f, d1) =>
       let. _ = otherwise(env, d1 => Filter(f, d1))
       and. d1 = req_final(req(state, env), d1 => Filter(f, d1), d1);
-      Step({apply: () => d1, kind: CompleteFilter, final: true});
+      Step({apply: () => d1, kind: CompleteFilter, value: true});
     };
 };
 

@@ -1,7 +1,4 @@
 open Sexplib.Std;
-module Monad = EvaluatorMonad;
-open Monad;
-// open Monad.Syntax;
 open Transition;
 
 module Filter = DHExp.Filter;
@@ -283,7 +280,9 @@ module Decompose = {
   // TODO[Matt]: Add Skip/Step back to this
 
   module DecomposeEVMode: {
-    include EV_MODE with type result = Result.t and type state = ref(state);
+    include
+      EV_MODE with
+        type result = Result.t and type state = ref(EvaluatorState.t);
   } = {
     type state = ref(EvaluatorState.t); // TODO[Matt]: Make sure this gets passed around correctly
     type requirement('a) = (Result.t, 'a);
@@ -350,10 +349,6 @@ module Decompose = {
       req_all_final'(cont, wr, [], ds);
     };
 
-    let do_not_req = (_, _, d) => {
-      (Result.BoxedValue, d);
-    };
-
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
       (rq, rl) =>
         switch (rq) {
@@ -397,7 +392,7 @@ module Decompose = {
                   d1 => Filter(fenv', d1),
                   d1,
                 );
-              Step({apply: () => d1, kind: CompleteFilter, final: true});
+              Step({apply: () => d1, kind: CompleteFilter, value: true});
             | _ =>
               Evaluator.Eval.transition(
                 evaluate_until(fenv),
@@ -435,7 +430,7 @@ module Decompose = {
                 d1 => Filter(fenv', d1),
                 d1,
               );
-            Step({apply: () => d1, kind: CompleteFilter, final: true});
+            Step({apply: () => d1, kind: CompleteFilter, value: true});
           }
         )
       | _ => Decomp.transition(decompose(fenv), state, env, exp)
