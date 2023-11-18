@@ -226,7 +226,8 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
-  | Ap(fn, arg) =>
+  | Ap(fn, arg)
+  | Pipeline(arg, fn) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
