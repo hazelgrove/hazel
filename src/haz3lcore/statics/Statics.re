@@ -299,9 +299,13 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, es);
     let unwrapped_self: Self.exp =
       Common(Self.match(ctx, e_tys, branch_ids));
+    let is_exhaustive = Incon.is_exhaustive(final_constraint);
     let self =
-      Incon.is_exhaustive(final_constraint)
-        ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+    if (!is_exhaustive) {
+      let dual_constraint = Constraint.dual(Constraint.or_constraints(final_constraint));
+      // TODO
+    }
 
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
