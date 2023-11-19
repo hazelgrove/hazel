@@ -12,8 +12,6 @@ module EvalObj = {
 
   let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
 
-  // let mark = (env, act, exp) => {env, ctx: Mark, act, exp};
-
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
   let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
@@ -119,15 +117,6 @@ module Decompose = {
       | BoxedValue
       | Step(list(EvalObj.t));
 
-    /*let map = (f: EvalObj.t => EvalObj.t, r: t) => {
-        switch (r) {
-        | Indet => Indet
-        | BoxedValue => BoxedValue
-        | Eval(obj) => Eval(f(obj))
-        | Step(objs) => Step(List.map(f, objs))
-        };
-      };*/
-
     let unbox = (r: t): list(EvalObj.t) => {
       switch (r) {
       | Indet
@@ -135,12 +124,6 @@ module Decompose = {
       | Step(objs) => objs
       };
     };
-    /*let return = (act: DHExp.FilterAction.t, obj: EvalObj.t): t => {
-        switch (act) {
-        | Eval => Eval(obj)
-        | Step => Step([obj])
-        };
-      };*/
   };
 
   // TODO[Matt]: Add Skip/Step back to this
