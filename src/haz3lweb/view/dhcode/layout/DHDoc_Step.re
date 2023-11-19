@@ -169,12 +169,11 @@ let mk =
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(
-            DHDoc_common.precedence_Ap,
-            (d1, Ap1),
-            (d2, Ap2),
-          );
+        let (doc1, doc2) = (
+          go_formattable(d1, Ap1)
+          |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
+          go'(d2, Ap2),
+        );
         DHDoc_common.mk_Ap(doc1, doc2);
       | ApBuiltin(ident, args) =>
         switch (args) {
