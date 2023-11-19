@@ -97,10 +97,37 @@ let return_tuplabel = (p: UPat.t, t: 'a): (option(LabeledTuple.t), 'a) =>
   | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TOOD: put the real error
   };
 
+let return_tuplabel_exp =
+    (p: UPat.t, t: UExp.t): (option(LabeledTuple.t), UExp.t) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ =>
+    let t: UExp.t = {ids: t.ids, term: Invalid("")};
+    (None, t);
+  };
+
+let return_tuplabel_pat =
+    (p: UPat.t, t: UPat.t): (option(LabeledTuple.t), UPat.t) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ =>
+    let t: UPat.t = {ids: t.ids, term: Invalid("")};
+    (None, t);
+  };
+
+let return_tuplabel_typ =
+    (p: UPat.t, t: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ =>
+    let t: UTyp.t = {ids: t.ids, term: Invalid("")};
+    (None, t);
+  };
+
 let make_labeled_tuple_exp_helper =
     (exp: UExp.t): (option(LabeledTuple.t), UExp.t) =>
   switch (exp.term) {
-  | TupLabel(p, e) => return_tuplabel(p, e)
+  | TupLabel(p, e) => return_tuplabel_exp(p, e)
   | _ => (None, exp)
   };
 
@@ -111,7 +138,7 @@ let make_labeled_tuple_exp = (es: list(UExp.t)) => {
 let make_labeled_tuple_pat_helper =
     (pat: UPat.t): (option(LabeledTuple.t), UPat.t) =>
   switch (pat.term) {
-  | TupLabel(p, pt) => return_tuplabel(p, pt)
+  | TupLabel(p, pt) => return_tuplabel_pat(p, pt)
   | _ => (None, pat)
   };
 
@@ -122,7 +149,7 @@ let make_labeled_tuple_pat = (ps: list(UPat.t)) => {
 let make_labeled_tuple_typ_helper =
     (typ: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
   switch (typ.term) {
-  | TupLabel(p, t) => return_tuplabel(p, t)
+  | TupLabel(p, t) => return_tuplabel_typ(p, t)
   | _ => (None, typ)
   };
 
