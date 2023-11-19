@@ -243,7 +243,11 @@ module Decompose = {
                   d1 => Filter(flt, d1),
                   d1,
                 );
-              Step({apply: () => d1, kind: CompleteFilter, value: true});
+              Step({
+                apply: () => Filter(flt, d1),
+                kind: CompleteFilter,
+                value: true,
+              });
             | _ =>
               Evaluator.Eval.transition(
                 evaluate_until(flt_env),
@@ -261,6 +265,8 @@ module Decompose = {
       }
     );
   };
+
+  let _ = evaluate_until;
 
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (flt_env, state, env, exp) => {
@@ -281,7 +287,11 @@ module Decompose = {
                 d1 => Filter(flt, d1),
                 d1,
               );
-            Step({apply: () => d1, kind: CompleteFilter, value: true});
+            Step({
+              apply: () => Filter(flt, d1),
+              kind: CompleteFilter,
+              value: true,
+            });
           }
         )
       | _ => Decomp.transition(decompose(flt_env), state, env, exp)
@@ -291,17 +301,50 @@ module Decompose = {
       | Value
       | Indet => Step([])
       | Expr =>
-        Step([
-          EvalObj.mk(
-            Mark,
-            () =>
-              Evaluator.EvaluatorEVMode.unbox(
-                evaluate_until(flt_env, state, env, exp),
-              ),
-            exp,
-            Skip,
-          ),
-        ])
+        switch (exp) {
+        | Filter(flt, d1) =>
+          DecomposeEVMode.(
+            {
+              let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
+              and. d1 =
+                req_final(
+                  decompose(
+                    FilterEnvironment.extends(flt, flt_env),
+                    state,
+                    env,
+                  ),
+                  d1 => Filter(flt, d1),
+                  d1,
+                );
+              Step({apply: () => d1, kind: CompleteFilter, value: true});
+            }
+          )
+        | Closure(env, d1) =>
+          DecomposeEVMode.(
+            {
+              let. _ = otherwise(env, (d1) => (Closure(env, d1): DHExp.t))
+              and. d1 =
+                req_final(
+                  decompose(flt_env, state, env),
+                  d1 => Closure(env, d1),
+                  d1,
+                );
+              Step({apply: () => d1, kind: CompleteFilter, value: true});
+            }
+          )
+        | _ =>
+          Step([
+            EvalObj.mk(
+              Mark,
+              () =>
+                Evaluator.EvaluatorEVMode.unbox(
+                  evaluate_until(flt_env, state, env, exp),
+                ),
+              exp,
+              Skip,
+            ),
+          ])
+        }
       }
     };
   };
