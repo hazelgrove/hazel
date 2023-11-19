@@ -56,7 +56,8 @@ let rec mk =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
       DHDoc_common.mk_Cons(doc1, doc2);
     | Tuple([]) => DHDoc_common.Delim.triv
-    | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
+    | Tuple(ds) =>
+      DHDoc_common.mk_Tuple(List.map(mk', ds |> List.map(((_, d)) => d)))
     | Ap(dp1, dp2) =>
       let (doc1, doc2) =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);

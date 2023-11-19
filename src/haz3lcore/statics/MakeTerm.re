@@ -48,6 +48,76 @@ let is_tuple_pat = is_nary(TermBase.Any.is_pat, ",");
 let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
 let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
+// TODO: Clean this up
+// Tuplabel util functions
+// TODO: filter patternss so that result (option(Var.t), UExp.t)
+
+let return_tuplabel = (p: UPat.t, t: 'a): (option(LabeledTuple.t), 'a) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TOOD: put the real error
+  };
+
+let return_tuplabel_exp =
+    (p: UPat.t, t: UExp.t): (option(LabeledTuple.t), UExp.t) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ =>
+    let t: UExp.t = {ids: t.ids, term: Invalid("")};
+    (None, t);
+  };
+
+let return_tuplabel_pat =
+    (p: UPat.t, t: UPat.t): (option(LabeledTuple.t), UPat.t) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ =>
+    let t: UPat.t = {ids: t.ids, term: Invalid("")};
+    (None, t);
+  };
+
+let return_tuplabel_typ =
+    (p: UPat.t, t: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
+  switch (p.term) {
+  | Var(s) => (Some(s), t)
+  | _ =>
+    let t: UTyp.t = {ids: t.ids, term: Invalid("")};
+    (None, t);
+  };
+
+let make_labeled_tuple_exp_helper =
+    (exp: UExp.t): (option(LabeledTuple.t), UExp.t) =>
+  switch (exp.term) {
+  | TupLabel(p, e) => return_tuplabel_exp(p, e)
+  | _ => (None, exp)
+  };
+
+let make_labeled_tuple_exp = (es: list(UExp.t)) => {
+  es |> List.map(make_labeled_tuple_exp_helper);
+};
+
+let make_labeled_tuple_pat_helper =
+    (pat: UPat.t): (option(LabeledTuple.t), UPat.t) =>
+  switch (pat.term) {
+  | TupLabel(p, pt) => return_tuplabel_pat(p, pt)
+  | _ => (None, pat)
+  };
+
+let make_labeled_tuple_pat = (ps: list(UPat.t)) => {
+  ps |> List.map(make_labeled_tuple_pat_helper);
+};
+
+let make_labeled_tuple_typ_helper =
+    (typ: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
+  switch (typ.term) {
+  | TupLabel(p, t) => return_tuplabel_typ(p, t)
+  | _ => (None, typ)
+  };
+
+let make_labeled_tuple_typ = (ts: list('a)) => {
+  ts |> List.map(make_labeled_tuple_typ_helper);
+};
+
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
@@ -161,7 +231,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, term: Tuple(es)} => (ListLit(es), ids)
+        | {ids, term: Tuple(es)} =>
+          let (_, es) = List.split(es);
+          (ListLit(es), ids);
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -202,9 +274,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  | Bin(Pat(p), tiles, Exp(e)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["="], []))], []) => ret(TupLabel(p, e))
+    | _ => ret(hole(tm))
+    }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      ret(Tuple(make_labeled_tuple_exp([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -279,7 +357,9 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
+          | {term: Tuple(ps), _} =>
+            let (_, ps) = List.split(ps);
+            ListLit(ps);
           | term => ListLit([term])
           }
         | _ => hole(tm)
@@ -306,9 +386,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      ret(Tuple(make_labeled_tuple_pat([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
+      | ([(_id, (["="], []))], []) => ret(TupLabel(l, r))
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -365,9 +447,15 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
+  | Bin(Pat(p), tiles, Typ(t)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["="], []))], []) => ret(TupLabel(p, t))
+    | _ => ret(hole(tm))
+    }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) =>
+      ret(Tuple(make_labeled_tuple_typ([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))

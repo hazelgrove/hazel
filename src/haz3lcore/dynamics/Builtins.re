@@ -161,7 +161,7 @@ module Pervasives = {
 
     let int_mod = (name, r) =>
       switch (r) {
-      | BoxedValue(Tuple([IntLit(n), IntLit(m)]) as d1) =>
+      | BoxedValue(Tuple([(_, IntLit(n)), (_, IntLit(m))]) as d1) =>
         switch (m) {
         | 0 =>
           Indet(InvalidOperation(ApBuiltin(name, [d1]), DivideByZero))
@@ -183,7 +183,7 @@ module Pervasives = {
     let string_compare =
       unary(
         fun
-        | Tuple([StringLit(s1), StringLit(s2)]) =>
+        | Tuple([(_, StringLit(s1)), (_, StringLit(s2))]) =>
           Ok(IntLit(String.compare(s1, s2)))
         | d => Error(InvalidBoxedTuple(d)),
       );
@@ -203,7 +203,7 @@ module Pervasives = {
     let string_concat =
       unary(
         fun
-        | Tuple([StringLit(s1), ListLit(_, _, _, xs)]) =>
+        | Tuple([(_, StringLit(s1)), (_, ListLit(_, _, _, xs))]) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
           | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
@@ -214,7 +214,7 @@ module Pervasives = {
     let string_sub = name =>
       unary'(
         fun
-        | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
+        | Tuple([(_, StringLit(s)), (_, IntLit(idx)), (_, IntLit(len))]) as d =>
           try(Ok(BoxedValue(StringLit(String.sub(s, idx, len))))) {
           | _ =>
             let d' = DHExp.ApBuiltin(name, [d]);
@@ -260,20 +260,24 @@ module Pervasives = {
     |> fn("asin", Arrow(Float, Float), asin)
     |> fn("acos", Arrow(Float, Float), acos)
     |> fn("atan", Arrow(Float, Float), atan)
-    |> fn("mod", Arrow(Prod([Int, Int]), Int), int_mod)
+    |> fn("mod", Arrow(Prod([(None, Int), (None, Int)]), Int), int_mod)
     |> fn("string_length", Arrow(String, Int), string_length)
     |> fn(
          "string_compare",
-         Arrow(Prod([String, String]), Int),
+         Arrow(Prod([(None, String), (None, String)]), Int),
          string_compare,
        )
     |> fn("string_trim", Arrow(String, String), string_trim)
     |> fn(
          "string_concat",
-         Arrow(Prod([String, List(String)]), String),
+         Arrow(Prod([(None, String), (None, List(String))]), String),
          string_concat,
        )
-    |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
+    |> fn(
+         "string_sub",
+         Arrow(Prod([(None, String), (None, Int), (None, Int)]), String),
+         string_sub,
+       );
 };
 
 let ctx_init: Ctx.t =

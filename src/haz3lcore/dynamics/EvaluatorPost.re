@@ -109,10 +109,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ ds =
       ds
       |> List.fold_left(
-           (ds, d) => {
+           (ds, (p, d)) => {
              let* ds = ds;
              let+ d = pp_eval(d);
-             ds @ [d];
+             ds @ [(p, d)];
            },
            return([]),
          );
@@ -137,6 +137,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
   | Let(_)
+  | TupLabel(_)
   | ConsistentCase(_)
   | Fun(_)
   | EmptyHole(_)
@@ -331,14 +332,18 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
+  | TupLabel(dp, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    TupLabel(dp, d1') |> return;
+
   | Tuple(ds) =>
     let+ ds =
       ds
       |> List.fold_left(
-           (ds, d) => {
+           (ds, (p, d)) => {
              let* ds = ds;
-             let+ d = pp_uneval(env, d);
-             ds @ [d];
+             let+ d = pp_eval(d);
+             ds @ [(p, d)];
            },
            return([]),
          );
@@ -462,9 +467,11 @@ let rec track_children_of_hole =
       hii,
     )
 
+  | TupLabel(_, d) => track_children_of_hole(hii, parent, d)
+
   | Tuple(ds) =>
     List.fold_right(
-      (d, hii) => track_children_of_hole(hii, parent, d),
+      ((_, d), hii) => track_children_of_hole(hii, parent, d),
       ds,
       hii,
     )

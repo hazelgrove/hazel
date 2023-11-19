@@ -75,6 +75,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
+  | TupLabel(_) => DHDoc_common.precedence_Comma
   | Tuple(_) => DHDoc_common.precedence_Comma
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
@@ -233,9 +234,10 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
+      | TupLabel(_, e) => fdoc(~enforce_inline, ~d=e)
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
-        DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
+        DHDoc_common.mk_Tuple(ds |> List.map(((_, d)) => mk_cast(go'(d))))
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>

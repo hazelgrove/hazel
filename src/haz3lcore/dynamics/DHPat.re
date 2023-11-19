@@ -15,11 +15,11 @@ type t =
   | StringLit(string)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
-  | Tuple(list(t))
+  | Tuple(list((option(LabeledTuple.t), t)))
   | Constructor(string)
   | Ap(t, t);
 
-let mk_tuple: list(t) => t =
+let mk_tuple: list((option(LabeledTuple.t), t)) => t =
   fun
   | []
   | [_] => failwith("mk_tuple: expected at least 2 elements")
@@ -42,7 +42,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Constructor(_)
   | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
-  | Tuple(dps) => dps |> List.exists(binds_var(x))
+  | Tuple(dps) => dps |> List.exists(((_, e)) => binds_var(x, e))
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | ListLit(_, d_list) =>
     let new_list = List.map(binds_var(x), d_list);

@@ -210,11 +210,27 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  // TODO: Fix this
+  | TupLabel(p, e) =>
+    let (e, m) = go(~mode=Syn, e, m);
+    // probably no need for p
+    let (p, m) =
+      upat_to_info_map(
+        ~is_synswitch=true,
+        ~ctx,
+        ~ancestors,
+        ~mode=Mode.Ana(e.ty),
+        p,
+        m,
+      );
+    add(~self=Just(e.ty), ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | Tuple(es) =>
-    let modes = Mode.of_prod(ctx, mode, List.length(es));
-    let (es, m) = map_m_go(m, modes, es);
+    let (esp, ese) = List.split(es);
+    // TODO: check labels within this of_prod
+    let modes = Mode.of_prod(ctx, mode, es);
+    let (es, m) = map_m_go(m, modes, ese);
     add(
-      ~self=Just(Prod(List.map(Info.exp_ty, es))),
+      ~self=Just(Prod(List.combine(esp, List.map(Info.exp_ty, es)))),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
@@ -397,10 +413,16 @@ and upat_to_info_map =
       Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+  // TODO: Fix this
+  | TupLabel(p1, p2) =>
+    let (p2, m) = go(~ctx, ~mode, p2, m);
+    let (_, m) = go(~ctx, ~mode, p1, m);
+    add(~self=Just(p2.ty), ~ctx=p2.ctx, m);
   | Tuple(ps) =>
-    let modes = Mode.of_prod(ctx, mode, List.length(ps));
-    let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Just(Prod(tys)), ~ctx, m);
+    let (psp, pse) = List.split(ps);
+    let modes = Mode.of_prod(ctx, mode, ps);
+    let (ctx, tys, m) = ctx_fold(ctx, m, pse, modes);
+    add(~self=Just(Prod(List.combine(psp, tys))), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
@@ -454,7 +476,13 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
+  | TupLabel(p, t) =>
+    let m = go(t, m) |> snd;
+    let (_, m) =
+      upat_to_info_map(~is_synswitch=true, ~ctx, ~ancestors, ~mode=Syn, p, m);
+    add(m);
   | Tuple(ts) =>
+    let ts = ts |> List.map(((_, t)) => t);
     let m = map_m(go, ts, m) |> snd;
     add(m);
   | Ap(t1, t2) =>

@@ -53,10 +53,16 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
+    | TupLabel(_) =>
+      //TODO check this
+      switch (ana_ty) {
+      | Unknown(prov) => DHExp.cast(d, self_ty, Unknown(prov))
+      | _ => d
+      }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
+        let us = ds |> List.map(((p, _)) => (p, Typ.Unknown(prov)));
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
@@ -145,9 +151,25 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TupLabel(_, e) =>
+        //let* dp = dhpat_of_upat(m, p);
+        let+ de = dhexp_of_uexp(m, e);
+        //DHExp.TupLabel(dp, de); // TODO check this. Remove from dh.re?
+        de;
       | Tuple(es) =>
-        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        DHExp.Tuple(ds);
+        /*let tempfuncname = p =>
+            switch (p) {
+            | Some(d) => dhpat_of_upat(m, d)
+            | None => None
+            };
+          let dsp = es |> List.map(((p, _)) => tempfuncname(p));*/
+        let (dsp, _) = List.split(es);
+        let+ ds =
+          es
+          |> List.map(((_, d)) => dhexp_of_uexp(m, d))
+          |> OptUtil.sequence;
+        DHExp.Tuple(List.combine(dsp, ds));
+      //TODO: Fix this
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
@@ -219,7 +241,10 @@ let rec dhexp_of_uexp =
           let ddef =
             switch (ddef) {
             | Tuple(a) =>
-              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+              let (ap, a) = List.split(a);
+              DHExp.Tuple(
+                List.combine(ap, List.map2(s => add_name(Some(s)), fs, a)),
+              );
             | _ => ddef
             };
           let uniq_id = List.nth(def.ids, 0);
@@ -320,9 +345,21 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
+    // TODO: Fix this
+    | TupLabel(_, p2) =>
+      let* dp2 = dhpat_of_upat(m, p2);
+      wrap(dp2);
     | Tuple(ps) =>
-      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      wrap(DHPat.Tuple(ds));
+      /*let tempfuncname = p =>
+          switch (p) {
+          | Some(d) => dhpat_of_upat(m, d)
+          | None => None
+          };
+        let dsp = ps |> List.map(((p, _)) => tempfuncname(p));*/
+      let (dsp, _) = List.split(ps);
+      let* ds =
+        ps |> List.map(((_, d)) => dhpat_of_upat(m, d)) |> OptUtil.sequence;
+      wrap(DHPat.Tuple(List.combine(dsp, ds)));
     | Var(name) => Some(Var(name))
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>

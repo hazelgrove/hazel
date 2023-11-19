@@ -11,9 +11,11 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   switch (upat.term) {
   | Var(x) => x == name
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | ListLit(l)
-  | Tuple(l) =>
+  | ListLit(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
+  | Tuple(l) =>
+    let (_, l) = List.split(l);
+    List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l);
   | Parens(up) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | TypeAnn(up, _) => find_var_upat(name, up)
@@ -26,9 +28,11 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Var(x) => x == name
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_mention(name, body)
-  | ListLit(l)
-  | Tuple(l) =>
+  | ListLit(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+  | Tuple(l) =>
+    let (_, l) = List.split(l);
+    List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l);
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
@@ -61,9 +65,11 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_applied(name, body)
-  | ListLit(l)
-  | Tuple(l) =>
+  | ListLit(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+  | Tuple(l) =>
+    let (_, l) = List.split(l);
+    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l);
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
@@ -117,6 +123,8 @@ let rec find_in_let =
       l;
     }
   | (Tuple(pl), Tuple(ul)) =>
+    let (_, pl) = List.split(pl);
+    let (_, ul) = List.split(ul);
     if (List.length(pl) != List.length(ul)) {
       l;
     } else {
@@ -126,7 +134,7 @@ let rec find_in_let =
         pl,
         ul,
       );
-    }
+    };
   | _ => l
   };
 };
@@ -137,9 +145,11 @@ let rec find_fn =
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
-  | ListLit(ul)
-  | Tuple(ul) =>
+  | ListLit(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+  | Tuple(ul) =>
+    let (_, ul) = List.split(ul);
+    List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul);
   | Fun(_, body) => l |> find_fn(name, body)
   | Parens(u1)
   | UnOp(_, u1)
@@ -181,10 +191,12 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
-  | ListLit(l)
+  | ListLit(l) =>
+    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Tuple(l) =>
     //If l has no recursive calls then true
-    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+    let (_, l) = List.split(l);
+    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l);
   | Test(_) => false
   | TyAlias(_, _, u)
   | Parens(u) => tail_check(name, u)

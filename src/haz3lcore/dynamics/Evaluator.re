@@ -24,7 +24,9 @@ let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
+  NotGroundOrHole(
+    Prod(ListUtil.replicate(length, (None, Typ.Unknown(Internal)))),
+  );
 let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
   let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
   NotGroundOrHole(Sum(sm'));
@@ -52,7 +54,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
           fun
           | Typ.Unknown(_) => true
           | _ => false,
-          tys,
+          tys |> List.map(((_, b)) => b),
         )) {
       Ground;
     } else {
@@ -203,15 +205,31 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       DoesNotMatch;
     } else {
       List.fold_left2(
-        (result, dp, d) =>
+        (result, (pp, dp), (p, d)) =>
           switch (result) {
           | DoesNotMatch => DoesNotMatch
           | IndetMatch => IndetMatch
           | Matches(env) =>
-            switch (matches(dp, d)) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
+            // TODO: Need a function to reorganize lists to match up vars
+            // TODO: check if this logic is right
+            switch (pp, p) {
+            | (Some(sp), Some(s)) =>
+              if (compare(sp, s) == 0) {
+                switch (matches(dp, d)) {
+                | DoesNotMatch => DoesNotMatch
+                | IndetMatch => IndetMatch
+                | Matches(env') => Matches(Environment.union(env, env'))
+                };
+              } else {
+                DoesNotMatch;
+              }
+            | (None, None) =>
+              switch (matches(dp, d)) {
+              | DoesNotMatch => DoesNotMatch
+              | IndetMatch => IndetMatch
+              | Matches(env') => Matches(Environment.union(env, env'))
+              }
+            | (_, _) => DoesNotMatch
             }
           },
         Matches(Environment.empty),
@@ -224,7 +242,13 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches_cast_Tuple(
       dps,
       d,
-      List.map(p => [p], List.combine(tys, tys')),
+      List.map(
+        p => [p],
+        List.combine(
+          tys,
+          List.init(List.length(tys), t => (None, const_unknown(t))),
+        ),
+      ),
     );
   | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
     matches_cast_Tuple(
@@ -232,7 +256,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       d,
       List.map(
         p => [p],
-        List.combine(tys, List.init(List.length(tys), const_unknown)),
+        List.combine(
+          List.init(List.length(tys), t => (None, const_unknown(t))),
+          tys,
+        ),
       ),
     )
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
@@ -241,7 +268,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       d,
       List.map(
         p => [p],
-        List.combine(List.init(List.length(tys'), const_unknown), tys'),
+        List.combine(
+          List.init(List.length(tys'), t => (None, const_unknown(t))),
+          tys',
+        ),
       ),
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
@@ -317,6 +347,7 @@ and matches_cast_Sum =
   | FloatLit(_)
   | StringLit(_)
   | ListLit(_)
+  | TupLabel(_)
   | Tuple(_)
   | Prj(_)
   | ConsistentCase(_)
@@ -328,34 +359,61 @@ and matches_cast_Sum =
   }
 and matches_cast_Tuple =
     (
-      dps: list(DHPat.t),
+      dps: list((option(LabeledTuple.t), DHPat.t)),
       d: DHExp.t,
-      elt_casts: list(list((Typ.t, Typ.t))),
+      elt_casts:
+        list(
+          list(
+            (
+              (option(LabeledTuple.t), Typ.t),
+              (option(LabeledTuple.t), Typ.t),
+            ),
+          ),
+        ),
     )
     : match_result =>
+  // TODO: Fix this whole thing
   switch (d) {
+  | TupLabel(_) => DoesNotMatch
   | Tuple(ds) =>
+    let elt_casts =
+      elt_casts
+      |> List.map(l => l |> List.map((((_, e1), (_, e2))) => (e1, e2)));
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
       assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
       List.fold_right(
-        (((dp, d), casts), result) => {
+        ((((pp, dp), (p, d)), casts), result) => {
           switch (result) {
           | DoesNotMatch
           | IndetMatch => result
           | Matches(env) =>
-            switch (matches(dp, DHExp.apply_casts(d, casts))) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
+            switch (pp, p) {
+            | (Some(sp), Some(s)) =>
+              if (compare(sp, s) == 0) {
+                switch (matches(dp, DHExp.apply_casts(d, casts))) {
+                | DoesNotMatch => DoesNotMatch
+                | IndetMatch => IndetMatch
+                | Matches(env') => Matches(Environment.union(env, env'))
+                };
+              } else {
+                DoesNotMatch;
+              }
+            | (None, None) =>
+              switch (matches(dp, DHExp.apply_casts(d, casts))) {
+              | DoesNotMatch => DoesNotMatch
+              | IndetMatch => IndetMatch
+              | Matches(env') => Matches(Environment.union(env, env'))
+              }
+            | (_, _) => DoesNotMatch
             }
           }
         },
         List.combine(List.combine(dps, ds), elt_casts),
         Matches(Environment.empty),
       );
-    }
+    };
   | Cast(d', Prod(tys), Prod(tys')) =>
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
@@ -368,14 +426,14 @@ and matches_cast_Tuple =
       );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
-    let tys' = List.init(List.length(tys), const_unknown);
+    let tys' = List.init(List.length(tys), t => (None, const_unknown(t)));
     matches_cast_Tuple(
       dps,
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(d', Unknown(_), Prod(tys')) =>
-    let tys = List.init(List.length(tys'), const_unknown);
+    let tys = List.init(List.length(tys'), t => (None, const_unknown(t)));
     matches_cast_Tuple(
       dps,
       d',
@@ -540,6 +598,7 @@ and matches_cast_Cons =
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | TupLabel(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch
@@ -843,8 +902,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
 
+    | TupLabel(_) => BoxedValue(d) |> return //TODO: Fix this?
+
     | Tuple(ds) =>
-      let+ lst = ds |> List.map(evaluate(env)) |> sequence;
+      //TODO: Fix this
+      let lstp = ds |> List.map(((p, _)) => p);
+      let+ lst = ds |> List.map(((_, d)) => evaluate(env, d)) |> sequence;
       let (ds', indet) =
         List.fold_right(
           (el, (lst, indet)) =>
@@ -856,7 +919,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           ([], false),
         );
 
-      let d = DHExp.Tuple(ds');
+      let d = DHExp.Tuple(List.combine(lstp, ds'));
       if (indet) {
         Indet(d);
       } else {
@@ -881,6 +944,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             );
           } else {
+            let ds = ds |> List.map(((_, e)) => e);
             return(BoxedValue(List.nth(ds, n)));
           }
         | Indet(Tuple(ds) as rv) =>
@@ -891,6 +955,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             );
           } else {
+            let ds = ds |> List.map(((_, e)) => e);
             return(Indet(List.nth(ds, n)));
           }
         | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)
@@ -902,6 +967,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             );
           } else {
+            let (_, tys) = List.split(tys);
+            let (_, tys') = List.split(tys');
             let ty = List.nth(tys, n);
             let ty' = List.nth(tys', n);
             evaluate(env, Cast(Prj(targ', n), ty, ty'));
@@ -1211,9 +1278,14 @@ and evaluate_test =
 
     | Ap(fn, Tuple(args)) =>
       let* args_d: list(EvaluatorResult.t) =
-        args |> List.map(evaluate(env)) |> sequence;
+        args |> List.map(((_, e)) => evaluate(env, e)) |> sequence;
       let arg_show =
-        DHExp.Ap(fn, Tuple(List.map(EvaluatorResult.unbox, args_d)));
+        DHExp.Ap(
+          fn,
+          Tuple(
+            List.map(arg => (None, EvaluatorResult.unbox(arg)), args_d),
+          ),
+        );
       let* arg_result = evaluate(env, arg_show);
       (arg_show, arg_result) |> return;
 

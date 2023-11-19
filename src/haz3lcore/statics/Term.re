@@ -30,6 +30,7 @@ module UTyp = {
     | Bool
     | String
     | Arrow
+    | TupLabel
     | Tuple
     | Sum
     | List
@@ -64,6 +65,7 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Constructor(_) => Constructor
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -82,6 +84,7 @@ module UTyp = {
     | Constructor => "Sum constructor"
     | List => "List type"
     | Arrow => "Function type"
+    | TupLabel => "Tuple Lable"
     | Tuple => "Product type"
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
@@ -99,6 +102,7 @@ module UTyp = {
     | Bool
     | String
     | List(_)
+    | TupLabel(_)
     | Tuple(_)
     | Var(_)
     | Constructor(_)
@@ -124,7 +128,8 @@ module UTyp = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | TupLabel(_, ty) => to_typ(ctx, ty) // TODO: this. Lookup in ctx and reorgnize
+      | Tuple(us) => Prod(us |> List.map(((p, e)) => (p, to_typ(ctx, e))))
       | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
@@ -201,6 +206,7 @@ module UPat = {
     | Constructor
     | Cons
     | Var
+    | TupLabel
     | Tuple
     | Parens
     | Ap
@@ -234,6 +240,7 @@ module UPat = {
     | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -254,6 +261,7 @@ module UPat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | TupLabel => "Tuple Label"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
@@ -275,6 +283,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | TupLabel(_, _)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => false
@@ -297,6 +306,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | TupLabel(_, _)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => false
@@ -308,7 +318,9 @@ module UPat = {
     || (
       switch (pat.term) {
       | Parens(pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Tuple(pats) =>
+        let pats = pats |> List.map(((_, u)) => u);
+        pats |> List.for_all(is_fun_var);
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -322,6 +334,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | TupLabel(_)
       | Constructor(_)
       | Ap(_) => false
       }
@@ -343,6 +356,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | TupLabel(_, _)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -370,6 +384,7 @@ module UPat = {
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
+    | TupLabel(_, _)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -383,6 +398,7 @@ module UPat = {
       switch (pat.term) {
       | Parens(pat) => get_recursive_bindings(pat)
       | Tuple(pats) =>
+        let pats = pats |> List.map(((_, p)) => p);
         let fun_vars = pats |> List.map(get_fun_var);
         if (List.exists(Option.is_none, fun_vars)) {
           None;
@@ -402,6 +418,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | TupLabel(_, _)
       | Constructor(_)
       | Ap(_) => None
       }
@@ -431,6 +448,7 @@ module UExp = {
     | ListLit
     | Constructor
     | Fun
+    | TupLabel
     | Tuple
     | Var
     | Let
@@ -471,6 +489,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
@@ -558,6 +577,7 @@ module UExp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | TupLabel => "Tuple Label Exp"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
     | Let => "Let expression"
@@ -587,6 +607,7 @@ module UExp = {
     | Float(_)
     | String(_)
     | ListLit(_)
+    | TupLabel(_)
     | Tuple(_)
     | Var(_)
     | Let(_)
@@ -610,7 +631,9 @@ module UExp = {
     || (
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
-      | Tuple(es) => es |> List.for_all(is_fun)
+      | Tuple(es) =>
+        let es = es |> List.map(((_, e)) => e);
+        es |> List.for_all(is_fun);
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -634,6 +657,7 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | TupLabel(_)
       | Constructor(_) => false
       }
     );

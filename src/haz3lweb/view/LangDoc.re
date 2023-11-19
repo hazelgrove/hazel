@@ -1020,7 +1020,37 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_var_group, options);
           };
+        | TupLabel(_) =>
+          // TODO: Fix this
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_triv_group,
+              docs,
+            );
+          if (LangDocMessages.function_triv_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_triv_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+                pat_id |> Id.to_string,
+                pat_id |> Id.to_string,
+                body_id |> Id.to_string,
+              ),
+              LangDocMessages.function_triv_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            );
+          } else {
+            basic(doc, LangDocMessages.function_triv_group, options);
+          };
         | Tuple(elements) =>
+          // TODO: Fix this
+          let elements = elements |> List.map(((_, e)) => e);
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
@@ -1190,7 +1220,9 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | TupLabel(_) => basic_info(LangDocMessages.empty_hole_exp_group)
       | Tuple(terms) =>
+        let terms = terms |> List.map(((_, e)) => e);
         let basic = (doc, group_id, options) =>
           get_message(
             doc,
@@ -1688,7 +1720,44 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.let_var_exp_group, options);
           };
+        | TupLabel(_) =>
+          // TODO: Fix this
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_triv_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_triv_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_triv_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
+                def_id |> Id.to_string,
+                pat_id |> Id.to_string,
+                def_id |> Id.to_string,
+                body_id |> Id.to_string,
+              ),
+              LangDocMessages.let_triv_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
+            basic(
+              doc,
+              LangDocMessages.let_triv_exp_group,
+              options,
+            );
+          };
         | Tuple(elements) =>
+          let elements = elements |> List.map(((_, e)) => e);
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
@@ -2438,7 +2507,21 @@ let get_doc =
         ),
         [],
       );
+    | TupLabel(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.triv_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.triv_pat_group,
+        doc.explanation.message,
+        [],
+      );
     | Tuple(elements) =>
+      let elements = elements |> List.map(((_, e)) => e);
       let basic = (doc, group, options) =>
         get_message(
           doc,
@@ -2722,7 +2805,21 @@ let get_doc =
           );
         basic(doc, LangDocMessages.arrow_typ_group, options);
       };
+    | TupLabel(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.bool_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.bool_typ_group,
+        doc.explanation.message,
+        [],
+      );
     | Tuple(elements) =>
+      let elements = elements |> List.map(((_, e)) => e);
       let basic = (doc, group, options) =>
         get_message(
           doc,

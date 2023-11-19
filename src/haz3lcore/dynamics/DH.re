@@ -29,7 +29,8 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
-    | Tuple(list(t))
+    | TupLabel(DHPat.t, t)
+    | Tuple(list((option(LabeledTuple.t), t)))
     | Prj(t, int)
     | Constructor(string)
     | ConsistentCase(case)
@@ -43,7 +44,7 @@ module rec DHExp: {
 
   let constructor_string: t => string;
 
-  let mk_tuple: list(t) => t;
+  let mk_tuple: list((option(LabeledTuple.t), t)) => t;
 
   let cast: (t, Typ.t, Typ.t) => t;
 
@@ -83,7 +84,8 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
-    | Tuple(list(t))
+    | TupLabel(DHPat.t, t)
+    | Tuple(list((option(LabeledTuple.t), t)))
     | Prj(t, int)
     | Constructor(string)
     | ConsistentCase(case)
@@ -122,6 +124,7 @@ module rec DHExp: {
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | ListConcat(_, _) => "ListConcat"
+    | TupLabel(_) => "Tuple Item Label"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
@@ -132,7 +135,7 @@ module rec DHExp: {
     | InvalidOperation(_) => "InvalidOperation"
     };
 
-  let mk_tuple: list(t) => t =
+  let mk_tuple: list((option(LabeledTuple.t), t)) => t =
     fun
     | []
     | [_] => failwith("mk_tuple: expected at least 2 elements")
@@ -153,7 +156,8 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
-    | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
+    | TupLabel(p, t) => TupLabel(p, strip_casts(t))
+    | Tuple(ds) => Tuple(ds |> List.map(((p, e)) => (p, strip_casts(e))))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
@@ -221,9 +225,20 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (TupLabel(_, e1), TupLabel(_, e2)) => fast_equal(e1, e2) // TODO: Not right?
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
-      && List.for_all2(fast_equal, ds1, ds2)
+      && List.for_all2(
+           ((ap, ad), (bp, bd)) =>
+             switch (ap, bp) {
+             | (Some(ap), Some(bp)) =>
+               compare(ap, bp) == 0 && fast_equal(ad, bd)
+             | (None, None) => fast_equal(ad, bd)
+             | (_, _) => false
+             },
+           ds1,
+           ds2,
+         )
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)
@@ -255,6 +270,7 @@ module rec DHExp: {
     | (Cons(_), _)
     | (ListConcat(_), _)
     | (ListLit(_), _)
+    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)
     | (BinBoolOp(_), _)

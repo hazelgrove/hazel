@@ -31,7 +31,7 @@ module rec Typ: {
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
-    | Prod(list(t))
+    | Prod(list((option(LabeledTuple.t), t)))
     | Rec(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -52,7 +52,8 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
-  let matched_prod: (Ctx.t, int, t) => list(t);
+  let matched_prod:
+    (Ctx.t, list((option(LabeledTuple.t), 'a)), t) => list(t);
   let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
@@ -88,7 +89,7 @@ module rec Typ: {
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
-    | Prod(list(t))
+    | Prod(list((option(LabeledTuple.t), t)))
     | Rec(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -144,7 +145,7 @@ module rec Typ: {
     | String => String
     | Unknown(prov) => Unknown(prov)
     | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-    | Prod(tys) => Prod(List.map(subst(s, x), tys))
+    | Prod(tys) => Prod(tys |> List.map(((p, e)) => (p, subst(s, x, e))))
     | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
@@ -177,7 +178,17 @@ module rec Typ: {
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) =>
+      List.equal(
+        ((p1, t1), (p2, t2)) =>
+          switch (p1, p2) {
+          | (Some(ap), Some(bp)) => compare(ap, bp) == 0 && eq(t1, t2)
+          | (None, None) => eq(t1, t2)
+          | (_, _) => false
+          },
+        tys1,
+        tys2,
+      )
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
     | (List(_), _) => false
@@ -206,7 +217,8 @@ module rec Typ: {
         | Some(typ) => free_vars(~bound, typ),
         List.map(snd, sm),
       )
-    | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+    | Prod(tys) =>
+      ListUtil.flat_map(free_vars(~bound), tys |> List.map(((_, b)) => b))
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
     };
 
@@ -270,9 +282,25 @@ module rec Typ: {
       Arrow(ty1, ty2);
     | (Arrow(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
+      let (tysp, _) = List.split(tys1);
+      let* tys =
+        ListUtil.map2_opt(
+          ((p1, t1), (p2, t2)) =>
+            switch (p1, p2) {
+            | (Some(ap), Some(bp)) =>
+              if (compare(ap, bp) == 0) {
+                join'(t1, t2);
+              } else {
+                None;
+              }
+            | (None, None) => join'(t1, t2)
+            | (_, _) => None
+            },
+          tys1,
+          tys2,
+        );
       let+ tys = OptUtil.sequence(tys);
-      Prod(tys);
+      Prod(List.combine(tysp, tys)); //TODO: Fix this
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let (sorted1, sorted2) =
@@ -348,7 +376,7 @@ module rec Typ: {
     | String => ty
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-    | Prod(ts) => Prod(List.map(normalize(ctx), ts))
+    | Prod(ts) => Prod(ts |> List.map(((p, e)) => (p, normalize(ctx, e))))
     | Sum(ts) => Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
@@ -365,11 +393,36 @@ module rec Typ: {
     | _ => (Unknown(Internal), Unknown(Internal))
     };
 
-  let matched_prod = (ctx, length, ty) =>
-    switch (weak_head_normalize(ctx, ty)) {
-    | Prod(tys) when List.length(tys) == length => tys
-    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-    | _ => List.init(length, _ => Unknown(Internal))
+  let matched_prod:
+    (Ctx.t, list((option(LabeledTuple.t), 'a)), t) => list(t) =
+    (ctx, es, ty) => {
+      switch (weak_head_normalize(ctx, ty)) {
+      | Prod(tys)
+          when
+            List.length(tys) == List.length(es)
+            && List.fold_right(
+                 ((ty, e), b) => {
+                   b
+                     ? switch (ty, e) {
+                       | (Some(tstr), Some(estr)) => tstr == estr
+                       | (None, None) => true
+                       | (_, _) => false
+                       }
+                     : {
+                       false;
+                     }
+                 },
+                 List.combine(
+                   tys |> List.map(((a, _)) => a),
+                   es |> List.map(((a, _)) => a),
+                 ),
+                 true,
+               ) =>
+        tys |> List.map(((_, b)) => b)
+      | Unknown(SynSwitch) =>
+        List.init(List.length(es), _ => Unknown(SynSwitch))
+      | _ => List.init(List.length(es), _ => Unknown(Internal))
+      };
     };
 
   let matched_list = (ctx, ty) =>
