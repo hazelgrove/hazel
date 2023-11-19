@@ -242,7 +242,7 @@ module Decompose = {
     Evaluator.EvaluatorEVMode.(
       {
         let u =
-          switch (FilterEnvironment.matches(exp, Eval, flt_env)) {
+          switch (FilterMatcher.matches(~env, ~exp, ~act=Eval, flt_env)) {
           | Step => Indet(exp)
           | Eval =>
             switch (exp) {
@@ -279,7 +279,7 @@ module Decompose = {
 
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (flt_env, state, env, exp) => {
-    switch (FilterEnvironment.matches(exp, Step, flt_env)) {
+    switch (FilterMatcher.matches(~env, ~exp, ~act=Step, flt_env)) {
     | Step =>
       switch (exp) {
       | Filter(flt, d1) =>
