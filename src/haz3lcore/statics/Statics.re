@@ -303,7 +303,7 @@ and uexp_to_info_map =
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     if (!is_exhaustive) {
-      let dual_constraint = Constraint.dual(Constraint.or_constraints(final_constraint));
+      let dual_constraint = Constraint.dual(final_constraint);
       // TODO
     }
 
