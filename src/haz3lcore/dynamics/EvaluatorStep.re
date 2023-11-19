@@ -287,17 +287,22 @@ module Decompose = {
       | _ => Decomp.transition(decompose(flt_env), state, env, exp)
       }
     | Eval =>
-      Step([
-        EvalObj.mk(
-          Mark,
-          () =>
-            Evaluator.EvaluatorEVMode.unbox(
-              evaluate_until(flt_env, state, env, exp),
-            ),
-          exp,
-          Skip,
-        ),
-      ])
+      switch (ValueChecker.check_value(env, exp)) {
+      | Value
+      | Indet => Step([])
+      | Expr =>
+        Step([
+          EvalObj.mk(
+            Mark,
+            () =>
+              Evaluator.EvaluatorEVMode.unbox(
+                evaluate_until(flt_env, state, env, exp),
+              ),
+            exp,
+            Skip,
+          ),
+        ])
+      }
     };
   };
 };
