@@ -849,26 +849,23 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | IfThenElse(c1, d1, d2) =>
       let* r1 = evaluate(env, c1);
       switch (r1) {
+      // TODO: evaluate only one branch
       | BoxedValue(BoolLit(b1) as c1') =>
-        let* r2 = evaluate(env, d1);
-        let* r3 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d1') =>
-          switch (r3) {
-          | BoxedValue(d2') =>
-            // TODO: We might need to check if d1' and d2' are of the same variant
-            //       Unsure if necessary or not
-            //       I attempted to do the check, but was usure how to treat certain variants like FailedCast and InvalidOperation
-            //       Ignore the check for now to get something that works for now
-            BoxedValue(b1 ? d1' : d2') |> return
-          | Indet(d2') => Indet(IfThenElse(c1', d1', d2')) |> return
+        b1
+          ? {
+            let* r2 = evaluate(env, d1);
+            switch (r2) {
+            | BoxedValue(d1') => BoxedValue(d1') |> return
+            | Indet(d1') => Indet(IfThenElse(c1', d1', d2)) |> return
+            };
           }
-        | Indet(d1') =>
-          switch (r3) {
-          | BoxedValue(d2')
-          | Indet(d2') => Indet(IfThenElse(c1', d1', d2')) |> return
+          : {
+            let* r3 = evaluate(env, d2);
+            switch (r3) {
+            | BoxedValue(d2') => BoxedValue(d2') |> return
+            | Indet(d2') => Indet(IfThenElse(c1', d1, d2')) |> return
+            };
           }
-        };
       | BoxedValue(c1') =>
         print_endline("InvalidBoxedBoolLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c1')));
