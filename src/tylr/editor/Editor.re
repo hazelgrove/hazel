@@ -13,22 +13,22 @@ module Action = {
 let move = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   let b = Dir.toggle(d);
   switch (z.foc) {
-  | Pointing =>
+  | Point =>
     open OptUtil.Syntax;
-    let+ (p, ctx) = EStepwell.pull(~from=d, z.ctx);
-    let n = Dir.choose(d, Piece.length(p) - 1, 1);
-    switch (Piece.unzip(n, p)) {
+    let+ (t, ctx) = ECtx.pull(~from=d, z.ctx);
+    let n = Dir.choose(d, EToken.length(t) - 1, 1);
+    switch (EToken.unzip(n, p)) {
+    | None => ctx |> Melder.Ctx.push(~onto=b, t) |> EZipper.mk
     | Some((l, r)) =>
       ctx
-      |> Melder.Stepwell.push_piece(~onto=d, Dir.choose(d, l, r))
-      |> Melder.Stepwell.push_piece(~onto=b, Dir.choose(b, l, r))
+      |> Melder.Ctx.push(~onto=d, Dir.choose(d, l, r))
+      |> Melder.Ctx.push(~onto=b, Dir.choose(b, l, r))
       |> EZipper.mk
-    | None => ctx |> Melder.Stepwell.push_piece(~onto=b, p) |> EZipper.mk
     };
-  | Selecting(_, sel) =>
+  | Select(_, sel) =>
     z.ctx
-    |> Melder.Stepwell.push_zigg(~onto=b, sel)
-    |> Melder.Stepwell.rebridge
+    |> Melder.Ctx.push_zigg(~onto=b, sel)
+    |> Melder.Ctx.close
     |> EZipper.mk
     |> Option.some
   };
@@ -46,88 +46,52 @@ let rec move_n = (n: int, z: EZipper.t): EZipper.t => {
 
 let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
   open OptUtil.Syntax;
-  let b = Dir.toggle(d);
-  if (d == z.foc || Ziggurat.is_empty(z.sel)) {
-    let+ (c, rel) = Stepwell.uncons_char(~from=d, z.rel);
-    // let bs = Stepwell.bounds(rel);
-    let sel = push_sel(c, d, z.sel);
-    mk(~foc=d, ~sel, rel);
-  } else {
-    // checked for selection empty above
-    let (c, sel) = Option.get(pull_sel(~char=true, z.foc, z.sel));
-    let ctx =
-      z.ctx |> Stepwell.cons_lexeme(~onto=b, c) |> Stepwell.assemble(~sel);
-    return(mk(~sel, ctx));
-  };
+  let sel = EZipper.selected(z);
+  switch (d, z.foc) {
+  | (_, Point)
+  | (L, Select(L, _))
+  | (R, Select(R, _)) =>
+    open OptUtil.Syntax;
+    let+ (t, ctx) = ECtx.pull(~from=d, z.ctx);
+    let sel = Melder.Zigg.push(~onto=d, t, sel);
+    EZipper.mk(~foc=Select(d, sel), ctx);
+  | (L, Select(R as b, _))
+  | (R, Select(L as b, _)) =>
+    let (t, rest) = EZigg.pull(~from=d, sel);
+    let foc =
+      switch (rest) {
+      | None => EZipper.Focus.Point
+      | Some(sel) => Select(b, sel)
+      };
+    z.ctx
+    |> Melder.Ctx.push(~onto=b, t)
+    |> EZipper.mk(~close=true, ~foc)
+    |> Option.some;
+  }
 };
 
-let insert_piece = (ctx: EStepwell.t, ~slot=ESlot.Empty, p: Piece.Labeled.t) => {
-  let (ctx, lt) =
-    switch (Molder.Stepwell.mold(ctx, ~slot, p)) {
-    | Ok(ok) => ok
-    | Error(_) when Piece.is_empty(p) => (ctx, [])
-    | Error(_) => failwith("bug: failed to mold")
-    };
-  EStepwell.cat_slopes((lt, []), ctx);
-};
-let reinsert_piece = (ctx, ~slot=ESlot.Empty, p: Piece.t) =>
-  insert_piece(ctx, ~slot, Piece.to_labeled(p));
-
-let rec remold_ctx = (~slot=ESlot.Empty, ctx: EStepwell.t): EStepwell.t =>
-  switch (EStepwell.pop_terrace(~from=R, ctx)) {
-  | None => EStepwell.cat_slopes((ESlope.Dn.unroll(slot), []), ctx)
-  | Some((t, ctx)) =>
-    let (face, rest) = EWald.split_face(~side=L, t.wald);
-    let inserted = reinsert_piece(ctx, ~slot, face);
-    switch (EStepwell.face(~side=L, inserted)) {
-    | Some(p) when p.material == face.material =>
-      // fast path for when face piece retains mold
-      inserted
-      |> EStepwell.extend_face(~side=L, rest)
-      |> remold_ctx(~slot=t.slot)
-    | _ =>
-      // otherwise add rest of wald to suffix queue
-      let up =
-        switch (rest) {
-        | ([], _) => []
-        | ([slot, ...slots], ps) =>
-          let t = {...t, wald: Wald.mk(ps, slots)};
-          ESlope.Up.(cat(unroll(slot), [t]));
-        };
-      ctx |> EStepwell.cat_slopes(([], up)) |> remold_ctx;
-    };
-  };
-
-let save_cursor = (ctx: EStepwell.t) => {
-  let w = Wald.singleton(Piece.mk_cursor());
-  Melder.Stepwell.meld_or_fail(~onto=L, w, ctx);
-};
-
+let save_cursor = Melder.Ctx.push_or_fail(~onto=L, Piece.mk_cursor());
 let load_cursor = ctx => ctx |> EZipper.zip |> EZipper.unzip;
 
 // d is side of cleared focus contents the cursor should end up
-let clear_focus = (d: Dir.t, z: EZipper.t): EStepwell.t => {
-  // let ctx = Melder.Stepwell.rebridge(z.ctx);
-  let b = Dir.toggle(d);
-  let ws = EZipper.Focus.clear(z.foc);
-  let meld = Melder.Stepwell.meld_or_fail(~onto=b);
-  switch (b) {
-  | L => List.fold_left(Fun.flip(meld), ctx, ws)
-  | R => List.fold_right(meld, ws, ctx)
+let clear_focus = (d: Dir.t, z: EZipper.t) =>
+  switch (z.foc) {
+  | Point => z.ctx
+  | Select(_, sel) =>
+    let onto = Dir.toggle(d);
+    Melder.Ctx.push_zigg(~onto, sel, z.ctx);
   };
-};
-
-let propagate_change = (ctx: EStepwell.t) =>
-  ctx |> save_cursor |> remold_ctx |> load_cursor |> EZipper.mk;
 
 let insert = (s: string, z: EZipper.t) => {
   let ctx = clear_focus(L, z);
-  let (l, ctx) = EStepwell.pull_token(~from=L, ctx);
-  let (r, ctx) = EStepwell.pull_token(~from=R, ctx);
-  Lexer.lex(l ++ s ++ r)
-  |> List.fold_left(insert_piece, ctx)
-  |> propagate_change
-  |> move_n(- Token.length(r));
+  let (l, ctx) = ECtx.pull(~from=L, ctx);
+  let (r, ctx) = ECtx.pull(~from=R, ctx);
+  Labeler.label(l ++ s ++ r)
+  |> List.fold_left(Molder.mold, ctx)
+  |> save_cursor
+  |> Molder.remold
+  |> load_cursor
+  |> EZipper.mk
 };
 
 let delete = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
