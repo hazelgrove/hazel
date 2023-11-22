@@ -244,7 +244,12 @@ module Decompose = {
                   d1,
                 );
               Step({
-                apply: () => Filter(flt, d1),
+                apply: () =>
+                  switch (ValueChecker.check_value(env, d1)) {
+                  | Indet
+                  | Value => d1
+                  | Expr => Filter(flt, d1)
+                  },
                 kind: CompleteFilter,
                 value: true,
               });
