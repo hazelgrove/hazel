@@ -676,7 +676,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | IndetMatch
         | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
         | Matches(env') =>
-          let* env = evaluate_extend_env(env', env);
+          let env = evaluate_extend_env(env', env);
           evaluate(env, d2);
         }
       };
@@ -691,7 +691,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | IndetMatch
         | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2))) |> return
         | Matches(env') =>
-          let* env = evaluate_extend_env(env', env);
+          let env = evaluate_extend_env(env', env);
           evaluate(env, d2);
         }
       };
@@ -700,8 +700,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(ModuleVal(inner_env)) =>
-        let* inner_env =
-          inner_env |> ClosureEnvironment.of_environment |> with_eig;
+        let inner_env = inner_env |> ClosureEnvironment.of_environment;
         let* r2 = evaluate(inner_env, d2);
         switch (r2) {
         | BoxedValue(_) => r2 |> return
@@ -718,7 +717,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
     | FixF(f, _, d') =>
-      let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
+      let env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
@@ -746,7 +745,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | Matches(env') =>
             // evaluate a closure: extend the closure environment with the
             // new bindings introduced by the function application.
-            let* env = evaluate_extend_env(env', closure_env);
+            let env = evaluate_extend_env(env', closure_env);
             evaluate(env, d3);
           }
         };
@@ -1215,7 +1214,7 @@ and eval_rule =
       |> return;
     | Matches(env') =>
       // extend environment with new bindings introduced
-      let* env = evaluate_extend_env(env', env);
+      let env = evaluate_extend_env(env', env);
       evaluate(env, d);
     // by the rule and evaluate the expression.
     | DoesNotMatch =>
@@ -1229,10 +1228,11 @@ and eval_rule =
  */
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : m(ClosureEnvironment.t) => {
-  let map =
-    Environment.union(new_bindings, ClosureEnvironment.map_of(to_extend));
-  map |> ClosureEnvironment.of_environment |> with_eig;
+    : ClosureEnvironment.t => {
+  to_extend
+  |> ClosureEnvironment.map_of
+  |> Environment.union(new_bindings)
+  |> ClosureEnvironment.of_environment;
 }
 
 /**
@@ -1341,11 +1341,10 @@ and module_evaluate:
         | IndetMatch
         | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
         | Matches(env') =>
-          let* env = evaluate_extend_env(env', env);
-          let* env_in =
+          let env = evaluate_extend_env(env', env);
+          let env_in =
             Environment.union(env', env_in)
-            |> ClosureEnvironment.of_environment
-            |> with_eig;
+            |> ClosureEnvironment.of_environment;
           let env_in = ClosureEnvironment.map_of(env_in);
           module_evaluate(env, env_in, d2);
         }
@@ -1360,11 +1359,10 @@ and module_evaluate:
         | IndetMatch
         | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2))) |> return
         | Matches(env') =>
-          let* env = evaluate_extend_env(env', env);
-          let* env_in =
+          let env = evaluate_extend_env(env', env);
+          let env_in =
             Environment.union(env', env_in)
-            |> ClosureEnvironment.of_environment
-            |> with_eig;
+            |> ClosureEnvironment.of_environment;
           let env_in = ClosureEnvironment.map_of(env_in);
           module_evaluate(env, env_in, d2);
         }
@@ -1375,7 +1373,6 @@ and module_evaluate:
 
 let evaluate = (env, d) => {
   let es = EvaluatorState.init;
-  let (env, es) =
-    es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
+  let env = ClosureEnvironment.of_environment(env);
   evaluate(env, d, es);
 };
