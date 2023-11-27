@@ -241,7 +241,8 @@ and uexp_to_info_map =
       )
     | Free(_) => atomic(Self.of_ctr(ctx, ctr))
     };
-  | Ap(fn, arg) =>
+  | Ap(fn, arg)
+  | Pipeline(arg, fn) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
@@ -904,6 +905,7 @@ and uexp_to_module =
   | UnOp(_)
   | BinOp(_)
   | Match(_)
+  | Pipeline(_)
   | ListConcat(_) =>
     let (info, m) = go(~mode=Syn, uexp, m);
     (inner_ctx, info, m);

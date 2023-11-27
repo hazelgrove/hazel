@@ -246,14 +246,16 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or_", mk_nul_infix("\\", P.eqs)), // HACK: SUBSTRING REQ
-  ("logical_or", mk_infix("\\/", Exp, P.or_)),
   ("dot_var", mk_infix(".", Exp, P.max)),
   ("dot_typ", mk_infix(".", Typ, P.max)),
+  ("logical_or", mk_infix("||", Exp, P.or_)),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
   ("type-arrow", mk_infix("->", Typ, 6)),
+  ("pipeline_aux", mk_infix("|", Exp, P.eqs)), // hack (all Hazel ops have to be valid, even when in a partial state)
+  ("pipeline", mk_infix("|>", Exp, P.eqs)), // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
@@ -281,7 +283,7 @@ let forms: list((string, t)) = [
   (
     "rule",
     mk(
-      ii,
+      di,
       ["|", "=>"],
       {
         out: Rul,
