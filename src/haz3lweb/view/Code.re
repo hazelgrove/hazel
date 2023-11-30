@@ -108,16 +108,21 @@ module Text = (M: {
   }
   and of_piece =
       (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
-    /* Last two elements of arg track the functorial args which
-       can effect the code layout; without these the first,
-       indentation can get out of sync */
-    let arg = (buffer_ids, expected_sort, p, m(p).last.col, M.settings);
-    try(Hashtbl.find(piece_hash, arg)) {
-    | _ =>
-      let res = of_piece'(buffer_ids, expected_sort, p);
-      Hashtbl.add(piece_hash, arg, res);
-      res;
-    };
+    of_piece'(
+      buffer_ids,
+      expected_sort,
+      p,
+      /* Last two elements of arg track the functorial args which
+         can effect the code layout; without these the first,
+         indentation can get out of sync */
+      /*let arg = (buffer_ids, expected_sort, p, m(p).last.col, M.settings);
+        try(Hashtbl.find(piece_hash, arg)) {
+        | _ =>
+          let res = of_piece'(buffer_ids, expected_sort, p);
+          Hashtbl.add(piece_hash, arg, res);
+          res;
+        };*/
+    );
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
     let children_and_sorts =
