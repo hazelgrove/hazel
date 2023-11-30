@@ -689,6 +689,8 @@ and ClosureEnvironment: {
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
   let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
+  let without_keys: (list(Var.t), t) => t;
+
   let placeholder: t;
 } = {
   module Inner: {
@@ -761,4 +763,6 @@ and ClosureEnvironment: {
   let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
 
   let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
+
+  let without_keys = keys => update(Environment.without_keys(keys));
 };

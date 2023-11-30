@@ -9,6 +9,7 @@ module Evaluation = {
   type t = {
     evaluate: bool,
     stepping: bool,
+    substitution: bool,
     postprocess: bool,
     show_record: bool,
     show_case_clauses: bool,
@@ -21,6 +22,7 @@ module Evaluation = {
   let init = {
     evaluate: true,
     stepping: false,
+    substitution: true,
     postprocess: true,
     show_record: false,
     show_case_clauses: false,
