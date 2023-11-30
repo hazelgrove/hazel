@@ -739,7 +739,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let empty_dynamics = (num_hidden_bugs): stitched(DynamicsItem.t) => {
+  let empty_dynamics = (num_hidden_bugs: int): stitched(DynamicsItem.t) => {
     {
       test_validation: DynamicsItem.empty,
       user_impl: DynamicsItem.empty,
