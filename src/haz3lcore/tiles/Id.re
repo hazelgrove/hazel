@@ -59,9 +59,20 @@ type t = Uuidm.t;
 let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
 
 let compare: (t, t) => int = Uuidm.compare;
-let pp: (Format.formatter, t) => unit = Uuidm.pp;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
+let pp: (Format.formatter, t) => unit =
+  (f, id) =>
+    Format.fprintf(
+      f,
+      "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
+      to_string(id),
+    );
+let show = id =>
+  Format.sprintf(
+    "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
+    to_string(id),
+  );
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);

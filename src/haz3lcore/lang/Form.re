@@ -119,8 +119,7 @@ let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator =
-  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s|\\[\\]\\(\\)]+$");
+let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -271,7 +270,8 @@ let forms: list((string, t)) = [
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
-  ("logical_or", mk_infix("\\/", Exp, P.or_)),
+  ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
+  ("logical_or", mk_infix("||", Exp, P.or_)),
   ("list_concat", mk_infix("@", Exp, P.plus)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
@@ -301,8 +301,9 @@ let forms: list((string, t)) = [
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   (
     "rule",
-    mk(is, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),
+    mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),
   ),
+  ("pipeline", mk_infix("|>", Exp, P.eqs)), // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
