@@ -10,6 +10,7 @@ let rec mk =
           ~selected_hole_instance: option(HoleInstance.t),
           ~next_steps: list(EvaluatorStep.EvalObj.t),
           ~disabled=false,
+          ~env: ClosureEnvironment.t,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -33,6 +34,7 @@ let rec mk =
             ~parenthesize=false,
             ~enforce_inline,
             d: DHExp.t,
+            env: ClosureEnvironment.t,
             objs: list((EvaluatorStep.EvalObj.t, EvaluatorStep.EvalObj.t)),
           )
           : (DHDoc.t, option(Typ.t)) => {
@@ -46,12 +48,12 @@ let rec mk =
           choices([
             hcats([
               space(),
-              mk_cast(go(~enforce_inline=true, dscrut, objs)),
+              mk_cast(go(~enforce_inline=true, dscrut, env, objs)),
             ]),
             hcats([
               linebreak(),
               indent_and_align(
-                mk_cast(go(~enforce_inline=false, dscrut, objs)),
+                mk_cast(go(~enforce_inline=false, dscrut, env, objs)),
               ),
             ]),
           ]);
@@ -60,21 +62,27 @@ let rec mk =
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
             drs
             |> List.map(
-                 mk_rule(~settings, ~selected_hole_instance, ~next_steps),
+                 mk_rule(
+                   ~settings,
+                   ~selected_hole_instance,
+                   ~next_steps,
+                   _,
+                   env,
+                 ),
                ),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
       };
     let mk_left_associative_operands =
-        (precedence_op, (d1, objs1), (d2, objs2)) => (
-      go'(~parenthesize=precedence(d1) > precedence_op, d1, objs1),
-      go'(~parenthesize=precedence(d2) >= precedence_op, d2, objs2),
+        (precedence_op, env, (d1, objs1), (d2, objs2)) => (
+      go'(~parenthesize=precedence(d1) > precedence_op, d1, env, objs1),
+      go'(~parenthesize=precedence(d2) >= precedence_op, d2, env, objs2),
     );
     let mk_right_associative_operands =
-        (precedence_op, (d1, objs1), (d2, objs2)) => (
-      go'(~parenthesize=precedence(d1) >= precedence_op, d1, objs1),
-      go'(~parenthesize=precedence(d2) > precedence_op, d2, objs2),
+        (precedence_op, env, (d1, objs1), (d2, objs2)) => (
+      go'(~parenthesize=precedence(d1) >= precedence_op, d1, env, objs1),
+      go'(~parenthesize=precedence(d2) > precedence_op, d2, env, objs2),
     );
     let steppable =
       objs
@@ -115,9 +123,9 @@ let rec mk =
       /* Now any of the postprocess checking is not done since most of
          the time the result is partial evaluated and those conditions
          cannot be met. */
-      | Closure(_, d') => go'(d', unwrap(objs, Closure)) |> mk_cast
+      | Closure(env', d') => go'(d', env', unwrap(objs, Closure)) |> mk_cast
 
-      | Filter(_, d') => go'(d', unwrap(objs, Filter)) |> mk_cast
+      | Filter(_, d') => go'(d', env, unwrap(objs, Filter)) |> mk_cast
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */
@@ -129,7 +137,7 @@ let rec mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, d') =>
-        go'(d', unwrap(objs, NonEmptyHole))
+        go'(d', env, unwrap(objs, NonEmptyHole))
         |> mk_cast
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | ExpandingKeyword(u, i, k) =>
@@ -142,30 +150,39 @@ let rec mk =
         go_case(dscrut, objs, drs)
         |> annot(DHAnnot.InconsistentBranches((u, i)));
 
-      | BoundVar(x) => text(x)
+      | BoundVar(x) =>
+        if (settings.substitution) {
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | None => text(x)
+          | Some(d') => go'(d', ClosureEnvironment.empty, []) |> mk_cast
+          };
+        } else {
+          text(x);
+        }
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) =>
-        DHDoc_common.mk_Test(mk_cast(go'(d, unwrap(objs, Test))))
+        DHDoc_common.mk_Test(mk_cast(go'(d, env, unwrap(objs, Test))))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (
-          go'(d1, unwrap(objs, Sequence1)),
-          go'(d2, unwrap(objs, Sequence2)),
+          go'(d1, env, unwrap(objs, Sequence1)),
+          go'(d2, env, unwrap(objs, Sequence2)),
         );
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | ListLit(_, _, _, d_list) =>
         let ol =
           d_list
-          |> List.mapi((i, d) => go'(d, unwrap(objs, ListLit(i))))
+          |> List.mapi((i, d) => go'(d, env, unwrap(objs, ListLit(i))))
           |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
         let (doc1, doc2) =
           mk_left_associative_operands(
             DHDoc_common.precedence_Ap,
+            env,
             (d1, unwrap(objs, Ap1)),
             (d2, unwrap(objs, Ap2)),
           );
@@ -177,6 +194,7 @@ let rec mk =
           let (doc1, doc2) =
             mk_left_associative_operands(
               DHDoc_common.precedence_Ap,
+              env,
               (BoundVar(ident), []),
               (d', []),
             );
@@ -188,6 +206,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_int_op(op),
+            env,
             (d1, unwrap(objs, BinIntOp1)),
             (d2, unwrap(objs, BinIntOp2)),
           );
@@ -197,6 +216,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_float_op(op),
+            env,
             (d1, unwrap(objs, BinFloatOp1)),
             (d2, unwrap(objs, BinFloatOp2)),
           );
@@ -206,6 +226,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_string_op(op),
+            env,
             (d1, unwrap(objs, BinStringOp1)),
             (d2, unwrap(objs, BinStringOp2)),
           );
@@ -214,6 +235,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(
             DHDoc_common.precedence_Cons,
+            env,
             (d1, unwrap(objs, Cons1)),
             (d2, unwrap(objs, Cons2)),
           );
@@ -222,6 +244,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(
             DHDoc_common.precedence_Plus,
+            env,
             (d1, unwrap(objs, ListConcat1)),
             (d2, unwrap(objs, ListConcat2)),
           );
@@ -230,6 +253,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(
             precedence_bin_bool_op(op),
+            env,
             (d1, unwrap(objs, BinBoolOp1)),
             (d2, unwrap(objs, BinBoolOp2)),
           );
@@ -238,20 +262,29 @@ let rec mk =
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(
           ds
-          |> List.mapi((i, d) => mk_cast(go'(d, unwrap(objs, Tuple(i))))),
+          |> List.mapi((i, d) =>
+               mk_cast(go'(d, env, unwrap(objs, Tuple(i))))
+             ),
         )
       | Prj(d, n) =>
-        DHDoc_common.mk_Prj(mk_cast(go'(d, unwrap(objs, Prj))), n)
+        DHDoc_common.mk_Prj(mk_cast(go'(d, env, unwrap(objs, Prj))), n)
       | ConsistentCase(Case(dscrut, drs, _)) =>
         let objs = unwrap(objs, ConsistentCase);
         go_case(dscrut, objs, drs);
       | Cast(d, _, _) =>
         let objs = unwrap(objs, Cast);
-        let (doc, _) = go'(d, objs);
+        let (doc, _) = go'(d, env, objs);
         doc;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, ddef, unwrap(objs, Let1))); // TODO[Matt]: Add Let2
+          mk_cast(
+            go(
+              ~enforce_inline,
+              ddef,
+              ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+              unwrap(objs, Let1),
+            ),
+          ); // TODO[Matt]: Add Let2
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
@@ -268,10 +301,10 @@ let rec mk =
                ),
             DHDoc_common.Delim.mk("in"),
           ]),
-          mk_cast(go(~enforce_inline=false, dbody, [])),
+          mk_cast(go(~enforce_inline=false, dbody, env, [])),
         ]);
       | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
-        let (d_doc, _) = go'(d, objs);
+        let (d_doc, _) = go'(d, env, objs);
         let cast_decoration =
           hcats([
             DHDoc_common.Delim.open_FailedCast,
@@ -287,7 +320,7 @@ let rec mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        let (d_doc, _) = go'(d, objs);
+        let (d_doc, _) = go'(d, env, objs);
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
@@ -324,7 +357,14 @@ let rec mk =
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
-            mk_cast(go(~enforce_inline, dbody, objs));
+            mk_cast(
+              go(
+                ~enforce_inline,
+                dbody,
+                ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+                objs,
+              ),
+            );
           hcats([
             DHDoc_common.Delim.sym_Fun,
             DHDoc_Pat.mk(dp)
@@ -349,7 +389,13 @@ let rec mk =
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody, objs) |> mk_cast;
+            go(
+              ~enforce_inline,
+              dbody,
+              ClosureEnvironment.without_keys([x], env),
+              objs,
+            )
+            |> mk_cast;
           hcats([
             DHDoc_common.Delim.fix_FixF,
             space(),
@@ -395,6 +441,7 @@ let rec mk =
       ~parenthesize,
       ~enforce_inline,
       d,
+      env,
       List.combine(next_steps, next_steps),
     ),
   );
@@ -405,6 +452,7 @@ and mk_rule =
       ~selected_hole_instance,
       ~next_steps,
       Rule(dp, dclause): DHExp.rule,
+      env: ClosureEnvironment.t,
     )
     : DHDoc.t => {
   open Doc;
@@ -413,11 +461,14 @@ and mk_rule =
   let clause_doc =
     settings.show_case_clauses
       ? choices([
-          hcats([space(), mk'(~enforce_inline=true, ~next_steps, dclause)]),
+          hcats([
+            space(),
+            mk'(~enforce_inline=true, ~next_steps, dclause, ~env),
+          ]),
           hcats([
             linebreak(),
             indent_and_align(
-              mk'(~enforce_inline=false, ~next_steps, dclause),
+              mk'(~enforce_inline=false, ~next_steps, dclause, ~env),
             ),
           ]),
         ])

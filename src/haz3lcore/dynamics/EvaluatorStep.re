@@ -922,16 +922,23 @@ module Stepper = {
 
   let get_justification: step_kind => string =
     fun
-    | LetBind => "let binding"
+    | LetBind => "substitution"
     | Sequence => "sequence"
     | FixUnwrap => "unroll fixpoint"
     | UpdateTest => "update test"
     | FunAp => "apply function"
-    | Builtin(_) => "builtin application" // TODO[Matt]: Make more specific
+    | Builtin(s) => "evaluate " ++ s
+    | BinIntOp(Plus | Minus | Times | Power | Divide)
+    | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
+    | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
+    | BinFloatOp(
+        LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual,
+      ) => "comparison"
+    | BinIntOp(Equals | NotEquals)
+    | BinFloatOp(Equals | NotEquals)
+    | BinStringOp(Equals) => "check equality"
+    | BinStringOp(Concat) => "string manipulation"
     | BinBoolOp(_) => "boolean logic"
-    | BinIntOp(_) => "arithmetic"
-    | BinFloatOp(_) => "arithmetic"
-    | BinStringOp(_) => "string manipulation"
     | ListCons => "list manipulation"
     | ListConcat => "list manipulation"
     | CaseApply => "case selection"

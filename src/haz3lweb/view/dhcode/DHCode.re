@@ -136,7 +136,8 @@ let view =
     : Node.t => {
   let maker =
     settings.postprocess
-      ? DHDoc_Exp.mk : DHDoc_Step.mk(~next_steps, ~disabled);
+      ? DHDoc_Exp.mk
+      : DHDoc_Step.mk(~next_steps, ~disabled, ~env=ClosureEnvironment.empty);
   let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
   |> c
