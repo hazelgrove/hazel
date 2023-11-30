@@ -140,7 +140,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | DoTheThing => false
-  | ExportPersistentData => false
+  | ExportPersistentData
+  | DebugConsole(_) => false
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
@@ -290,6 +291,9 @@ let rec apply =
       Model.save_and_return({...model, langDocMessages});
     | DebugAction(a) =>
       DebugAction.perform(a);
+      Ok(model);
+    | DebugConsole(key) =>
+      DebugConsole.print(model, key);
       Ok(model);
     | Save => Model.save_and_return(model)
     | InitImportAll(file) =>

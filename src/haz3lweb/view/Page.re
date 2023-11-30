@@ -218,7 +218,7 @@ let view = (~inject, ~handlers, model: Model.t) =>
             Dom.preventDefault(evt);
             inject(UpdateAction.Paste(pasted_text));
           }),
-          ...handlers(~inject, ~model),
+          ...handlers(~inject),
         ],
       ),
     [

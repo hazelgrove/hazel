@@ -77,7 +77,6 @@ module Text = (M: {
                  let map: Measured.t;
                  let settings: Settings.t;
                }) => {
-  let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
     /* note: no_sorts flag is used for backback view;
@@ -98,12 +97,13 @@ module Text = (M: {
        );
   }
   and of_piece' =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (buffer_ids, indent: int, expected_sort: Sort.t, p: Piece.t)
+      : list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
-      of_secondary((M.settings.secondary_icons, m(p).last.col, content))
+      of_secondary((M.settings.secondary_icons, indent, content))
     };
   }
   and of_piece =
@@ -111,10 +111,11 @@ module Text = (M: {
     /* Last two elements of arg track the functorial args which
        can effect the code layout; without these the first,
        indentation can get out of sync */
-    let arg = (buffer_ids, expected_sort, p, m(p).last.col, M.settings);
+    let indent = Measured.find_p(p, M.map).last.col;
+    let arg = (buffer_ids, expected_sort, p, indent, M.settings);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
-      let res = of_piece'(buffer_ids, expected_sort, p);
+      let res = of_piece'(buffer_ids, indent, expected_sort, p);
       Hashtbl.add(piece_hash, arg, res);
       res;
     };
@@ -183,21 +184,10 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let unselected =
-    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(buffer_ids, false, sort, unselected)
-    );
-  let holes =
-    TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~map=measured, ~font_metrics, segment)
-    );
+  let unselected = Text.of_segment(buffer_ids, false, sort, unselected);
+  let holes = holes(~map=measured, ~font_metrics, segment);
   div(
     ~attr=Attr.class_("code"),
-    [
-      span_c("code-text", unselected),
-      // TODO restore (already regressed so no loss in commenting atm)
-      // span_c("code-text-shards", Text.of_segment(segment)),
-      ...holes,
-    ],
+    [span_c("code-text", unselected), ...holes],
   );
 };

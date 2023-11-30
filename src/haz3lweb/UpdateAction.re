@@ -46,6 +46,7 @@ type t =
   | UpdateLangDocMessages(LangDocMessages.update)
   | DebugAction(DebugAction.t)
   | ExportPersistentData
+  | DebugConsole(string)
   /* editors */
   | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))

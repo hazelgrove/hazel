@@ -12,7 +12,8 @@ let is_action_logged: UpdateAction.t => bool =
   | ExportPersistentData
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | Benchmark(_) => false
+  | Benchmark(_)
+  | DebugConsole(_) => false
   | Reset
   | DoTheThing
   | Assistant(_)
