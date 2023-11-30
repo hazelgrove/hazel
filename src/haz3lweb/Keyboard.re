@@ -1,69 +1,27 @@
 open Haz3lcore;
 
-let is_printable = s => Re.Str.(string_match(regexp("^[ -~]$"), s, 0));
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
-let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
-  let zipper = Editors.active_zipper(model.editors);
+let handle_key_event = (k: Key.t): option(Update.t) => {
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
-  let print = str => str |> print_endline |> (_ => None);
   switch (k) {
   | {key: U(key), _} =>
-    /* NOTE: Remember that since there is a keyup for every
+    /* Keu-UPpEvents:
+       NOTE: Remember that since there is a keyup for every
        keydown, making an update here may trigger an entire
-       redraw, contingent on model.cutoff */
+       extra redraw, contingent on model.cutoff */
     switch (key) {
     | "Alt" => Some(SetMeta(ShowBackpackTargets(false)))
     | _ => None
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    //TODO: Remove model dependency
-    let settings = model.settings;
     switch (key) {
-    | "F1" => zipper |> Zipper.show |> print
-    | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
-    | "F3" =>
-      zipper
-      |> MakeTerm.from_zip_for_view
-      |> fst
-      |> TermBase.UExp.show
-      |> print
-    | "F4" =>
-      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
-      zipper
-      |> MakeTerm.from_zip_for_view
-      |> fst
-      |> Interface.Statics.mk_map_ctx(settings.core, ctx_init)
-      |> Statics.Map.show
-      |> print;
-    | "F5" =>
-      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
-      let env_init = Editors.get_env_init(~settings, model.editors);
-      Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, zipper)
-      |> ProgramResult.show
-      |> print;
-    | "F6" =>
-      let index = Indicated.index(zipper);
-      let ctx_init = Editors.get_ctx_init(~settings, model.editors);
-      let map =
-        zipper
-        |> MakeTerm.from_zip_for_view
-        |> fst
-        |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
-      switch (index) {
-      | Some(index) =>
-        switch (Haz3lcore.Id.Map.find_opt(index, map)) {
-        | Some(ci) => print(Info.show(ci))
-        | _ => print("DEBUG: No CI found for index")
-        }
-      | _ => print("DEBUG: No indicated index")
-      };
     | "F7" => Some(Benchmark(Start))
-    | _ => None
-    };
+    | _ => Some(DebugConsole(key))
+    }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))
@@ -150,20 +108,14 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | _ => None
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    //TODO: Remove model dependency
-    let restricted = Backpack.restricted(zipper.backpack);
     switch (sys, key) {
-    | (_, "ArrowLeft") when restricted =>
-      now(MoveToBackpackTarget(Left(ByToken)))
-    | (_, "ArrowRight") when restricted =>
-      now(MoveToBackpackTarget(Right(ByToken)))
-    | (Mac, "ArrowLeft") => now(Move(Local(Left(ByToken))))
-    | (Mac, "ArrowRight") => now(Move(Local(Right(ByToken))))
+    | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
+    | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
     | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
     | _ => None
-    };
+    }
   | _ => None
   };
 };
