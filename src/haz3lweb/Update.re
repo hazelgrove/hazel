@@ -241,7 +241,8 @@ let switch_exercise_editor =
   | Scratch(_) => None
   | Exercise(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    //Note: now saving after each edit (delayed by 1 second) so no need to save here
+    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
     Some(Exercise(m, specs, exercise));
   };
 
@@ -331,7 +332,7 @@ let rec apply =
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Model.save_and_return({...model, editors})
+      | Some(editors) => Ok({...model, editors})
       };
     | DoTheThing =>
       /* Attempt to act intelligently when TAB is pressed.
