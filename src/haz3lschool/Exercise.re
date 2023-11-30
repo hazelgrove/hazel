@@ -725,33 +725,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let empty_dynamics_with_statics =
-      (settings, state: state): stitched(DynamicsItem.t) => {
-    let t = stitch_static(settings, stitch_term(state));
-    {
-      test_validation: DynamicsItem.statics_only(t.test_validation),
-      user_impl: DynamicsItem.statics_only(t.user_impl),
-      user_tests: DynamicsItem.statics_only(t.user_tests),
-      instructor: DynamicsItem.statics_only(t.instructor),
-      prelude: DynamicsItem.statics_only(t.prelude),
-      hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
-      hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
-    };
-  };
-
-  let empty_dynamics = (num_hidden_bugs: int): stitched(DynamicsItem.t) => {
-    {
-      test_validation: DynamicsItem.empty,
-      user_impl: DynamicsItem.empty,
-      user_tests: DynamicsItem.empty,
-      instructor: DynamicsItem.empty,
-      prelude: DynamicsItem.empty,
-      hidden_bugs: List.init(num_hidden_bugs, _ => DynamicsItem.empty),
-      hidden_tests: DynamicsItem.empty,
-    };
-  };
-  let empty_dynamics = Core.Memo.general(empty_dynamics);
-
   /* Given the evaluation results, collects the
      relevant information for producing dynamic
      feedback*/
@@ -837,7 +810,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     };
   };
-  let stitch_dynamic = Core.Memo.general(stitch_dynamic);
+
   let stitch_dynamic =
       (
         settings: CoreSettings.t,
@@ -848,10 +821,31 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     if (settings.statics && settings.dynamics) {
       stitch_dynamic(settings, state, results);
     } else if (settings.statics) {
-      empty_dynamics_with_statics(settings, state);
+      let t = stitch_static(settings, stitch_term(state));
+      {
+        test_validation: DynamicsItem.statics_only(t.test_validation),
+        user_impl: DynamicsItem.statics_only(t.user_impl),
+        user_tests: DynamicsItem.statics_only(t.user_tests),
+        instructor: DynamicsItem.statics_only(t.instructor),
+        prelude: DynamicsItem.statics_only(t.prelude),
+        hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
+        hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
+      };
     } else {
-      empty_dynamics(List.length(state.eds.hidden_bugs));
+      {
+        test_validation: DynamicsItem.empty,
+        user_impl: DynamicsItem.empty,
+        user_tests: DynamicsItem.empty,
+        instructor: DynamicsItem.empty,
+        prelude: DynamicsItem.empty,
+        hidden_bugs:
+          List.init(List.length(state.eds.hidden_bugs), _ =>
+            DynamicsItem.empty
+          ),
+        hidden_tests: DynamicsItem.empty,
+      };
     };
+  let stitch_dynamic = Core.Memo.general(stitch_dynamic);
 
   let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
     let {pos, eds} = state;
