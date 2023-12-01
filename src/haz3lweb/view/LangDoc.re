@@ -2570,7 +2570,25 @@ let get_doc =
         ),
         LangDocMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
       );
-    | Guard(_) => default // TODO
+    | Guard(p, e) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.guard_pat_group,
+          docs,
+        );
+      let pat_id = List.nth(p.ids, 0);
+      let exp_id = List.nth(e.ids, 0);
+      get_message(
+        doc,
+        options,
+        LangDocMessages.guard_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s%s"),
+          pat_id |> Id.to_string,
+          exp_id |> Id.to_string,
+        ),
+        LangDocMessages.guard_pat_coloring_ids(~pat_id, ~exp_id),
+      );
     | Invalid(_) // Shouldn't be hit
     | Parens(_) =>
       // Shouldn't be hit?
