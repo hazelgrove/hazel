@@ -294,6 +294,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | Guard(t, UExp.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -318,6 +319,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | Guard(t, UExp.t)
   and t = {
     ids: list(Id.t),
     term,

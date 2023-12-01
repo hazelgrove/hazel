@@ -304,6 +304,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))
     | _ => ret(hole(tm))
     }
+  | Bin(Pat(p), tiles, Exp(e)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["?"], []))], []) => ret(Guard(p, e))
+    | _ => ret(hole(tm))
+    }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
@@ -407,11 +412,13 @@ and tpat_term: unsorted => UTPat.term = {
 //   return(r => Rul(r), ids, {ids, term});
 // }
 and rul = (unsorted: unsorted): URul.t => {
+  print_endline(show_unsorted(unsorted));
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
+      print_endline(UExp.show(scrut));
       switch (is_rules(tiles)) {
       | Some((ps, leading_clauses)) => {
           ids: ids(unsorted),
@@ -419,7 +426,7 @@ and rul = (unsorted: unsorted): URul.t => {
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
         }
       | None => {ids: ids(unsorted), term: hole}
-      }
+      };
     | _ => {ids: ids(unsorted), term: hole}
     }
   | e => {ids: [], term: Rules(e, [])}

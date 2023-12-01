@@ -415,6 +415,10 @@ and upat_to_info_map =
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
     add(~self=Just(ann.ty), ~ctx=p.ctx, m);
+  | Guard(p, e) =>
+    let (p, m) = go(~ctx, ~mode=Syn, p, m);
+    let (e, m) = uexp_to_info_map(~ctx=p.ctx, ~ancestors, e, m);
+    add(~self=Just(p.ty), ~ctx=e.ctx, m);
   };
 }
 and utyp_to_info_map =

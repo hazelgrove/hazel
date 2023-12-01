@@ -1189,6 +1189,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | Guard(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
@@ -1856,6 +1857,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | Guard(_) => default // Shouldn't get hit?
         };
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2568,6 +2570,7 @@ let get_doc =
         ),
         LangDocMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
       );
+    | Guard(_) => default // TODO
     | Invalid(_) // Shouldn't be hit
     | Parens(_) =>
       // Shouldn't be hit?

@@ -332,6 +332,11 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
+    | Guard(p, _) =>
+      // TODO: Add guard support for DHPat
+      let* dp = dhpat_of_upat(m, p);
+      // let* de = dhexp_of_uexp(m, e);
+      wrap(dp);
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
   | None => None

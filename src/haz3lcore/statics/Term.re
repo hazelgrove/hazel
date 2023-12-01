@@ -204,7 +204,8 @@ module UPat = {
     | Tuple
     | Parens
     | Ap
-    | TypeAnn;
+    | TypeAnn
+    | Guard;
 
   include TermBase.UPat;
 
@@ -237,7 +238,8 @@ module UPat = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | TypeAnn(_) => TypeAnn;
+    | TypeAnn(_) => TypeAnn
+    | Guard(_) => Guard;
 
   let show_cls: cls => string =
     fun
@@ -257,13 +259,15 @@ module UPat = {
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
-    | TypeAnn => "Annotation";
+    | TypeAnn => "Annotation"
+    | Guard => "Guard";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_var(pat)
     | Var(_) => true
     | TypeAnn(_)
+    | Guard(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -285,6 +289,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | Guard(pat, _) => is_fun_var(pat)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -322,6 +327,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | Guard(_)
       | Constructor(_)
       | Ap(_) => false
       }
@@ -332,6 +338,7 @@ module UPat = {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
     | TypeAnn(_)
+    | Guard(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -352,6 +359,7 @@ module UPat = {
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
+    | Guard(pat, _) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
       if (UTyp.is_arrow(typ)) {
         get_var(pat) |> Option.map(var => var);
@@ -402,6 +410,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | Guard(_)
       | Constructor(_)
       | Ap(_) => None
       }
