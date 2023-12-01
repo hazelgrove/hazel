@@ -124,7 +124,7 @@ and UExp: {
     | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | Match(t, list((UPat.t, t)))
+    | Match(t, list((UPat.t, option(t), t)))
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -221,7 +221,7 @@ and UExp: {
     | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | Match(t, list((UPat.t, t)))
+    | Match(t, list((UPat.t, option(t), t)))
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -402,7 +402,7 @@ and URul: {
   type term =
     | Invalid(string)
     | Hole(list(Any.t))
-    | Rules(UExp.t, list((UPat.t, UExp.t)))
+    | Rules(UExp.t, list((UPat.t, option(UExp.t), UExp.t)))
   and t = {
     ids: list(Id.t),
     term,
@@ -412,7 +412,7 @@ and URul: {
   type term =
     | Invalid(string)
     | Hole(list(Any.t))
-    | Rules(UExp.t, list((UPat.t, UExp.t)))
+    | Rules(UExp.t, list((UPat.t, option(UExp.t), UExp.t)))
   and t = {
     ids: list(Id.t),
     term,
