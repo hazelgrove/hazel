@@ -95,6 +95,7 @@ let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
 let is_typ_var = is_capitalized_name;
 let wild = "_";
+let is_guard = "?";
 let is_wild = regexp("^" ++ wild ++ "$");
 
 /* The below case represents tokens which we want the user to be able to
@@ -265,6 +266,7 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("boolean_guard", mk(ss, ["?"], mk_bin'(P.ann, Pat, Pat, [], Exp))), // TODO: Change P.ann
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
     "rule",
