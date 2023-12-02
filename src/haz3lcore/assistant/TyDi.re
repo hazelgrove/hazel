@@ -92,11 +92,11 @@ let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
   let* ci = z_to_ci(~settings, ~ctx, z);
   let suggestions = suggest(ci, z);
   /*print_endline("suggestions:");
-  print_endline(
-    suggestions
-    |> List.map((s: Suggestion.t) => s.content)
-    |> String.concat(", "),
-  );*/
+    print_endline(
+      suggestions
+      |> List.map((s: Suggestion.t) => s.content)
+      |> String.concat(", "),
+    );*/
   let suggestions =
     suggestions
     |> List.filter(({content, _}: Suggestion.t) =>
@@ -113,3 +113,113 @@ let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };
+
+let lsp_token_to_left = (z: Zipper.t): option((Id.t, string)) =>
+  switch (
+    z.caret,
+    z.relatives.siblings |> fst |> List.rev,
+    z.relatives.siblings |> snd,
+  ) {
+  | (Outer, [Grout({id, _}), ..._], _) =>
+    print_endline("LSP: experimental leftward grout");
+    Some((id, "<grout>"));
+  | (Outer, [Tile({label: [tok_to_left], id, _}), ..._], _) =>
+    Some((id, tok_to_left))
+  | (Outer, [Tile({label: [tok_to_left, ..._], id, _}), ..._], _) =>
+    print_endline("LSP: experimental non mono case");
+    Some((id, tok_to_left));
+  | (
+      Outer,
+      [Secondary(_), ..._],
+      [Tile({label: [tok_to_left, ..._], id, _}), ..._],
+    ) =>
+    print_endline("LSP: experimental whitespace use rightward tile case");
+    Some((id, tok_to_left));
+  | (Outer, [Secondary(_), ..._], [Grout({id, _}), ..._]) =>
+    print_endline("LSP: experimental whitespace use rightward grout case");
+    Some((id, "<grout>"));
+  | _ => None
+  };
+
+let lsp_z_to_ci =
+    (~settings: CoreSettings.t, ~ctx: Ctx.t, id: Id.t, z: Zipper.t) => {
+  let map =
+    z
+    |> MakeTerm.from_zip_for_sem
+    |> fst
+    |> Interface.Statics.mk_map_ctx(settings, ctx);
+  Id.Map.find_opt(id, map);
+};
+
+let lsp = (s: string): option(list(string)) => {
+  let settings = CoreSettings.on;
+  let ctx_init = []; //Builtins.ctx_init;
+  let* z = Printer.zipper_of_string(s);
+  print_endline("LSP: string parsed successfully");
+  let* (id, tok_to_left) = lsp_token_to_left(z);
+  print_endline("LSP: token to left is: " ++ tok_to_left);
+  let* ci = lsp_z_to_ci(~settings, ~ctx=ctx_init, id, z);
+  let sort = Info.sort_of(ci);
+  print_endline("LSP: current sort is: " ++ Sort.to_string(sort));
+  print_endline(
+    "LSP: current syntax class is: " ++ (Info.cls_of(ci) |> Term.Cls.show),
+  );
+  print_endline("LSP: current ctx is: " ++ (Info.ctx_of(ci) |> Ctx.show));
+  print_endline(
+    "LSP: current error is: "
+    ++ (
+      switch (Info.error_of(ci)) {
+      | Some(err) => Info.show_error(err)
+      | None => "None"
+      }
+    ),
+  );
+  let suggestions_pre =
+    AssistantForms.suggest_operand(ci)
+    @ AssistantForms.suggest_leading(ci)
+    @ AssistantCtx.suggest_variable(ci)
+    @ AssistantCtx.suggest_lookahead_variable(ci)
+    |> List.sort(Suggestion.compare);
+  print_endline(
+    "LSP: suggestions operand and leading: "
+    ++ (
+      suggestions_pre
+      |> List.map((s: Suggestion.t) => s.content)
+      |> String.concat(" ")
+    ),
+  );
+  //TODO: only suggest backpack, operator if prev token is complete (non-errored)?
+  let suggestions =
+    (
+      suggest_backpack(z)
+      @ (
+        AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare)
+      )
+    )
+    @ (
+      suggestions_pre
+      |> List.filter(({content, _}: Suggestion.t) =>
+           String.starts_with(~prefix=tok_to_left, content)
+         )
+    );
+  print_endline(
+    "LSP: suggested tokens: "
+    ++ (
+      suggestions
+      |> List.map((s: Suggestion.t) => s.content)
+      |> String.concat(" ")
+    ),
+  );
+  Some(suggestions |> List.map((s: Suggestion.t) => s.content));
+};
+
+/**
+TODO: also suggest start parens, square brackets, etc.
+done, hacky (see assistant forms hacks)
+
+TODO: figure out current expected shape by figuring out the
+shape of whats to the left, and filter accordingly
+eg only want to suggest operators if left is an operand
+need to see if we already have a defined notion of shape for delimiters
+
+ */;

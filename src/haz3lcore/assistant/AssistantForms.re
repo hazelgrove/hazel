@@ -27,6 +27,8 @@ module Typ = {
     ("let ", unk),
     ("test ", Prod([])),
     ("type ", unk),
+    ("(", unk), //LSP hack
+    ("[", List(unk)) //LSP hack
   ];
 
   let of_infix_delim: list((Token.t, Typ.t)) = [
@@ -110,9 +112,9 @@ module Delims = {
 
   let delayed_leading = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => delated_leading_exp
-    | Pat => delated_leading_pat
-    | Typ => delated_leading_typ
+    | Exp => delated_leading_exp @ ["(", "["] //LSP hack
+    | Pat => delated_leading_pat @ ["(", "["] //LSP hack
+    | Typ => delated_leading_typ @ ["(", "["] //LSP hack
     | _ => []
     };
 
