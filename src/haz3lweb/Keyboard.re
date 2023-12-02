@@ -81,14 +81,14 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
         |> ProbeMap.show_processed_map
         |> print*/
       None
-    | "F12" =>
+    /*| "F12" =>
       open Util.OptUtil.Syntax;
       let editor = Editors.get_editor(model.editors);
       let sel_string = Printer.to_string_selection(editor);
       print_endline("selection string: " ++ sel_string);
       let* toks = TyDi.lsp(sel_string);
       print_endline("tokens: " ++ (toks |> List.length |> string_of_int));
-      None;
+      None;*/
     | _ => None
     };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>

@@ -17,7 +17,7 @@ module Typ = {
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
     ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
-    ("_", unk),
+    ("_", unk) //TODO: need to filter by sort, this shouldn't show up for exp
   ];
 
   let of_leading_delim: list((Token.t, Typ.t)) = [
@@ -27,16 +27,19 @@ module Typ = {
     ("let ", unk),
     ("test ", Prod([])),
     ("type ", unk),
-    ("(", unk), //LSP hack
-    ("[", List(unk)) //LSP hack
+    ("(", unk), // note this one has two possible left tips (parens vs app)
+    ("[", List(unk)),
   ];
 
   let of_infix_delim: list((Token.t, Typ.t)) = [
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
     ("::", List(unk)),
+    (":", List(unk)), //TODO(andrew): hacky, for LSP
     ("@", List(unk)),
-    (";", unk),
+    ("|>", unk),
+    //(";", unk),
     ("&&", Bool),
+    ("||", Bool),
     ("\\/", Bool),
     ("$==", Bool),
     ("==.", Bool),
@@ -106,15 +109,29 @@ module Delims = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let delated_leading_exp = delayed_leading(Exp);
-  let delated_leading_pat = delayed_leading(Pat);
-  let delated_leading_typ = delayed_leading(Typ);
+  let instant_leading = (sort: Sort.t): list(Token.t) =>
+    Form.delims
+    |> List.map(token => {
+         let (lbl, _) = Molds.instant_expansion(token);
+         List.filter_map(
+           (m: Mold.t) =>
+             List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
+               ? Some(token) : None,
+           Molds.get(lbl),
+         );
+       })
+    |> List.flatten
+    |> List.sort_uniq(compare);
 
-  let delayed_leading = (sort: Sort.t): list(string) =>
+  let leading_exp = instant_leading(Exp) @ delayed_leading(Exp);
+  let leading_pat = instant_leading(Pat) @ delayed_leading(Pat);
+  let leading_typ = instant_leading(Typ) @ delayed_leading(Typ);
+
+  let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => delated_leading_exp @ ["(", "["] //LSP hack
-    | Pat => delated_leading_pat @ ["(", "["] //LSP hack
-    | Typ => delated_leading_typ @ ["(", "["] //LSP hack
+    | Exp => leading_exp
+    | Pat => leading_pat
+    | Typ => leading_typ
     | _ => []
     };
 
@@ -197,4 +214,4 @@ let suggest_operand: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
 let suggest_leading: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_leading_delim, Delims.delayed_leading);
+  suggest_form(Typ.of_leading_delim, Delims.leading);

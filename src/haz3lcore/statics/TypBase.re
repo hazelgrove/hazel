@@ -471,6 +471,7 @@ and Ctx: {
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
   let shadows_typ: (t, TypVar.t) => bool;
+  let to_string: t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -614,15 +615,34 @@ and Ctx: {
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
     Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
+
+  let to_string = (ctx: t): string =>
+    ctx
+    |> List.map(
+         fun
+         | VarEntry({name, typ, _}) => name ++ ": " ++ Typ.to_string(typ)
+         | ConstructorEntry({name, typ, _}) =>
+           name ++ ": " ++ Typ.to_string(typ)
+         | TVarEntry({name, kind, _}) =>
+           name ++ ":: " ++ Kind.to_string(kind),
+       )
+    |> String.concat(", ")
+    |> (x => "{" ++ x ++ "}");
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Singleton(Typ.t)
     | Abstract;
+  let to_string: t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Singleton(Typ.t)
     | Abstract;
+  let to_string = (kind: t): string =>
+    switch (kind) {
+    | Singleton(ty) => Typ.to_string(ty)
+    | Abstract => "Abstract"
+    };
 };
