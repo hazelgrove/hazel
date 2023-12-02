@@ -33,7 +33,7 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_all =
-  | FromBackpack;
+  | FromBackpack(Nib.Shape.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_common =

@@ -11,6 +11,14 @@ open OptUtil.Syntax;
 module Typ = {
   let unk: Typ.t = Unknown(Internal);
 
+  let of_abstract_mono_delim: list((Token.t, Typ.t)) = [
+    ("<INTLIT>", Int),
+    ("<FLOATLIT>", Float),
+    ("<STRINGLIT>", String),
+    ("<PATVAR>", unk),
+    ("<TYPVAR>", unk),
+  ];
+
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
     ("true", Bool),
     ("false", Bool),
@@ -181,6 +189,15 @@ module Delims = {
     | Typ => const_mono_typ
     | _ => []
     };
+
+  let abstract_mono = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => ["<INTLIT>", "<FLOATLIT>", "<STRINGLIT>"]
+    | Pat => ["<PATVAR>", "<INTLIT>", "<FLOATLIT>", "<STRINGLIT>"]
+    | Typ => []
+    | TPat => ["<TYPVAR>"]
+    | _ => []
+    };
 };
 
 let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
@@ -215,3 +232,6 @@ let suggest_operand: Info.t => list(Suggestion.t) =
 
 let suggest_leading: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_leading_delim, Delims.leading);
+
+let suggest_abstract_mono: Info.t => list(Suggestion.t) =
+  suggest_form(Typ.of_abstract_mono_delim, Delims.abstract_mono);

@@ -16,18 +16,6 @@ print_endline("LSP: recieved string: " ++ arg_str);
     //actually also need to factor in new infix ops (which id to use...)
   */
 
-type thing_desired =
-  | New(Util.Direction.t)
-  | Either(Util.Direction.t);
-
-let desired_to_string = (d: thing_desired): string =>
-  switch (d) {
-  | New(Left) => "<NEW.."
-  | New(Right) => ">NEW.."
-  | Either(Left) => "<NEW.. or ..COMPLETE<"
-  | Either(Right) => ">NEW.. or ..COMPLETE>"
-  };
-
 //TODO(andrew): this logic is complicated and makes assumptions
 /* assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
@@ -51,46 +39,51 @@ let tile_str = (t: Tile.t): string => {
 };
 
 //This makes similar assumptions to the above
-let rightmost_token = (t: Tile.t): string =>
+let _rightmost_token = (t: Tile.t): string =>
   List.nth(t.label, List.hd(List.rev(t.shards)));
 
-let lsp_token_to_left =
-    (z: Zipper.t): option((Id.t, option(string), thing_desired)) =>
+let hole_to_right = (z: Zipper.t): option(Id.t) =>
+  /* If we're doing pure left to right entry, there should be nothing to
+     the right except for maybe a convex hole inserted by the grouter.
+     If there is a such a hole, its CI should be used to inform new
+     token insertions (but NOT completions of the token to the left) */
+  switch (z.relatives.siblings |> snd) {
+  | [] =>
+    print_endline("LSP: No rightwards piece");
+    None;
+  | [Grout({id, shape: Convex, _})] =>
+    print_endline("LSP: Rightwards piece is Convex Grout");
+    Some(id);
+  | [_, ..._] as rhs =>
+    print_endline("LSP: Rightwards segment is: " ++ Segment.show(rhs));
+    failwith("LSP: EXN: Nonempty Rightwards segment not single Convex Grout");
+  };
+
+type lalala =
+  | Monotile(Id.t, string)
+  | Polytile(Id.t);
+
+type substantial_thing_to_left =
+  | LeftConvex(lalala)
+  | LeftConcave(lalala);
+
+type thing_to_left =
+  | Nothing
+  | Just(substantial_thing_to_left)
+  | SpacesThen(substantial_thing_to_left);
+
+let thing_to_left = (z: Zipper.t): thing_to_left =>
   /*
    Returning Left means we're looking for either a new thing
     that starts with a left-facing chevron, or a completion of the
     thing to the left, which has a left-side right-facing chevron.
     */
-  switch (
-    z.caret,
-    z.relatives.siblings |> fst |> List.rev,
-    z.relatives.siblings |> snd,
-  ) {
-  | (Inner(_), before, after) =>
-    print_endline(
-      "Segment before: "
-      ++ Segment.show(before)
-      ++ "Segment after: "
-      ++ Segment.show(after),
-    );
-    failwith("LSP: EXN: Position is inner");
-  | (Outer, [], []) => failwith("LSP: EXN: Empty segment")
-  | (Outer, _, [Grout({id, shape: Convex, _})]) =>
-    /* TODO: also want to get possible completions of the thing to the left
-       (operator or prefix). But we want to retain this case, because for
-       new things we want the id for the hole for the ci, but for completions
-       we want the id for the thing being completed. So we need to return
-       multiple things here, and also in the monotile case */
-    print_endline("LSP: Rightwards piece is Convex Grout");
-    Some((id, None, Either(Left)));
-  | (Outer, _, [_, ..._] as rhs) =>
-    print_endline("LSP: Rightwards segment is: " ++ Segment.show(rhs));
-    failwith("LSP: EXN: Nonempty Rightwards segment not single Convex Grout");
-  | (Outer, [lht, ..._] as seg, []) =>
+  switch (z.relatives.siblings |> fst |> List.rev) {
+  | [] => Nothing
+  | [lht, ..._] as seg =>
     if (Piece.is_secondary(lht)) {
       print_endline("LSP: Leftward piece is Secondary; trimming");
     };
-    let maybe_complete = !Piece.is_secondary(lht);
     switch (Segment.trim_secondary(Left, seg)) {
     | [] =>
       failwith("LSP: EXN: Rightwards segment after trimming secondaries")
@@ -99,9 +92,12 @@ let lsp_token_to_left =
       | Tile({label: [], _}) => failwith("LSP: EXN: Tile with empty label")
       | Tile({label: [tok_to_left], id, _} as t) =>
         print_endline("LSP: Leftward piece is Monotile: " ++ tile_str(t));
-        let d = right_nib_dir(t) |> Util.Direction.toggle;
-        let desired = maybe_complete ? Either(d) : New(d);
-        Some((id, Some(tok_to_left), desired));
+        let g =
+          switch (right_nib_dir(t)) {
+          | Right => LeftConvex(Monotile(id, tok_to_left))
+          | Left => LeftConcave(Monotile(id, tok_to_left))
+          };
+        Piece.is_secondary(lht) ? SpacesThen(g) : Just(g);
       | Tile(t) =>
         print_endline(
           "LSP: Leftward piece is "
@@ -109,9 +105,12 @@ let lsp_token_to_left =
           ++ " Polytile: "
           ++ tile_str(t),
         );
-        let d = right_nib_dir(t) |> Util.Direction.toggle;
-        let desired = New(d);
-        Some((t.id, Some(rightmost_token(t)), desired));
+        let g =
+          switch (right_nib_dir(t)) {
+          | Right => LeftConvex(Polytile(t.id))
+          | Left => LeftConcave(Polytile(t.id))
+          };
+        Piece.is_secondary(lht) ? SpacesThen(g) : Just(g);
       | Grout({id: _, shape, _}) =>
         failwith("LSP: EXN: Leftward Grout " ++ Grout.show_shape(shape))
       | Secondary(_) =>
@@ -119,6 +118,36 @@ let lsp_token_to_left =
       }
     };
   };
+
+type generation_options =
+  | NewRightConvexToken(Id.t)
+  | NewRightConcaveToken(Id.t) //id here is iffy
+  | LeftConcaveCompletionOrNewRightConvex(Id.t, string, Id.t)
+  | LeftConvexCompletionOrNewRightConcave(Id.t, string, Id.t); //snd id here is iffy
+
+let generation_options = (z: Zipper.t) => {
+  switch (thing_to_left(z), hole_to_right(z)) {
+  | (Nothing, None) => failwith("LSP: EXN: Nothing to left or right")
+  | (Just(LeftConcave(_)) | SpacesThen(LeftConcave(_)), None) =>
+    failwith("LSP: EXN: Concave to left and nothing to right")
+  | (Just(LeftConvex(_)) | SpacesThen(LeftConvex(_)), Some(_)) =>
+    failwith("LSP: EXN: Convex to left and right")
+  | (Nothing | Just(LeftConcave(Polytile(_))) | SpacesThen(_), Some(id)) =>
+    NewRightConvexToken(id)
+  | (Just(LeftConcave(Monotile(id, left_token))), Some(id_to_right)) =>
+    LeftConcaveCompletionOrNewRightConvex(id, left_token, id_to_right)
+  | (
+      Just(LeftConvex(Polytile(id))) |
+      SpacesThen(LeftConvex(Polytile(id) | Monotile(id, _))),
+      None,
+    ) =>
+    //TODO: id here is weird
+    NewRightConcaveToken(id)
+  | (Just(LeftConvex(Monotile(id, left_token))), None) =>
+    //TODO: id here is weird
+    LeftConvexCompletionOrNewRightConcave(id, left_token, id)
+  };
+};
 
 let lsp_z_to_ci =
     (~settings: CoreSettings.t, ~ctx: Ctx.t, id: Id.t, z: Zipper.t) => {
@@ -139,17 +168,11 @@ let error_str = ci =>
   | None => "None"
   };
 
-let lsp = (s: string): option(list(string)) => {
+let nu_sugs =
+    (~shape: Nib.Shape.t, ~completion: option(string), z: Zipper.t, id: Id.t)
+    : option(list(string)) => {
   let settings = CoreSettings.on;
   let ctx_init = []; //Builtins.ctx_init;
-  let* z = Printer.zipper_of_string(s);
-  print_endline("LSP: String parsed successfully");
-  let* (id, tok_to_left, desire) = lsp_token_to_left(z);
-  switch (tok_to_left) {
-  | None => print_endline("LSP: Since rightwards Convex Grout")
-  | Some(tok) => print_endline("LSP: Token to left is: " ++ tok)
-  };
-  print_endline("LSP: Desired: " ++ desired_to_string(desire));
   let* ci = lsp_z_to_ci(~settings, ~ctx=ctx_init, id, z);
   let sort = Info.sort_of(ci);
   let cls = Info.cls_of(ci);
@@ -161,6 +184,7 @@ let lsp = (s: string): option(list(string)) => {
   print_endline("LSP: Having expected type: " ++ Typ.to_string(expected_ty));
   print_endline("LSP: Having error: " ++ error_str(ci));
   let backpack_tokens = TyDi.backpack_to_token_list(z.backpack);
+  // TODO: filter backpack suggestion by shape
   let backpack_suggestion = suggest_backpack(z);
   print_endline(
     "LSP: Pre: Backpack stack: " ++ String.concat(" ", backpack_tokens),
@@ -168,13 +192,20 @@ let lsp = (s: string): option(list(string)) => {
   print_endline(
     "LSP: Pre: Backpack suggestions: " ++ of_sugs(backpack_suggestion),
   );
-  let operand_suggestions = AssistantForms.suggest_operand(ci);
+  let base_mono_operand_suggestions = AssistantForms.suggest_operand(ci);
+  let abstract_mono_operand_suggestions =
+    AssistantForms.suggest_abstract_mono(ci);
   let leading_suggestions = AssistantForms.suggest_leading(ci);
   let variable_suggestions = AssistantCtx.suggest_variable(ci);
   let lookahead_variable_suggestions =
     AssistantCtx.suggest_lookahead_variable(ci);
   print_endline(
-    "LSP: Pre: Operand suggestions: " ++ of_sugs(operand_suggestions),
+    "LSP: Pre: Base mono operand suggestions: "
+    ++ of_sugs(base_mono_operand_suggestions),
+  );
+  print_endline(
+    "LSP: Pre: Base mono operand suggestions: "
+    ++ of_sugs(base_mono_operand_suggestions),
   );
   print_endline(
     "LSP: Pre: Leading suggestions: " ++ of_sugs(leading_suggestions),
@@ -186,38 +217,139 @@ let lsp = (s: string): option(list(string)) => {
     "LSP: Pre: Lookahead variable suggestion: "
     ++ of_sugs(lookahead_variable_suggestions),
   );
-  let operator_suggestions = AssistantForms.suggest_operator(ci);
+  let suggestions_concave = AssistantForms.suggest_operator(ci);
   print_endline(
-    "LSP: Pre: Operator suggestion: " ++ of_sugs(operator_suggestions),
+    "LSP: Pre: Operator suggestion: " ++ of_sugs(suggestions_concave),
   );
-  let suggestions_pre =
-    operand_suggestions
+  let suggestions_convex =
+    base_mono_operand_suggestions
+    @ abstract_mono_operand_suggestions
     @ leading_suggestions
     @ variable_suggestions
     @ lookahead_variable_suggestions
     |> List.sort(Suggestion.compare);
-  let finish_current_token_suggestions =
-    switch (tok_to_left) {
-    | None => []
-    | Some(tok_to_left) =>
-      suggestions_pre
-      |> List.filter(({content, _}: Suggestion.t) =>
-           String.starts_with(~prefix=tok_to_left, content)
-         )
+
+  let base_suggestions =
+    switch (shape) {
+    | Convex =>
+      suggestions_convex
+      @ List.filter_map(
+          ({strategy, _} as s: Suggestion.t) =>
+            switch (strategy) {
+            | Any(FromBackpack(shape)) when shape == Convex => Some(s)
+            | _ => None
+            },
+          backpack_suggestion,
+        )
+
+    | Concave(_) =>
+      suggestions_concave
+      @ List.filter_map(
+          ({strategy, _} as s: Suggestion.t) =>
+            switch (strategy) {
+            | Any(FromBackpack(shape)) when shape != Convex => Some(s)
+            | _ => None
+            },
+          backpack_suggestion,
+        )
     };
+  switch (completion) {
+  | None => Some(base_suggestions |> List.map(Suggestion.content_of))
+  | Some(tok_to_left) =>
+    suggestions_concave
+    @ suggestions_convex
+    @ backpack_suggestion
+    |> List.filter(({content, _}: Suggestion.t) =>
+         String.starts_with(~prefix=tok_to_left, content)
+       )
+    |> List.map(Suggestion.content_of)
+    |> List.filter_map(x => TyDi.suffix_of(x, tok_to_left))
+    |> Option.some
+  };
   //TODO: only suggest backpack, operator if prev token is complete (non-errored)?
-  let suggestions =
-    (
-      backpack_suggestion @ List.sort(Suggestion.compare, operator_suggestions)
-    )
-    @ finish_current_token_suggestions;
-  print_endline(
-    "LSP: Suggested tokens: "
-    ++ (suggestions |> List.map(Suggestion.content_of) |> String.concat(" ")),
-  );
-  Some(suggestions |> List.map(Suggestion.content_of));
+  /*let suggestions =
+      (backpack_suggestion @ List.sort(Suggestion.compare, suggestions_concave))
+      @ finish_current_token_suggestions;
+    print_endline(
+      "LSP: Suggested tokens: "
+      ++ (suggestions |> List.map(Suggestion.content_of) |> String.concat(" ")),
+    );
+    Some(suggestions |> List.map(Suggestion.content_of));*/
 };
 
+let dispatch_generation = (s: string) => {
+  let* z = Printer.zipper_of_string(s);
+  print_endline("LSP: String parsed successfully");
+  let seg_before = z.relatives.siblings |> fst |> List.rev;
+  let seg_after = z.relatives.siblings |> snd;
+  if (z.caret != Outer) {
+    print_endline(
+      "Segment before: "
+      ++ Segment.show(seg_before)
+      ++ "Segment after: "
+      ++ Segment.show(seg_after),
+    );
+    failwith("LSP: EXN: Caret position is inner");
+  };
+  if (seg_before == [] && seg_after == []) {
+    failwith("LSP: EXN: Empty segment");
+  };
+  switch (generation_options(z)) {
+  | NewRightConvexToken(id) => nu_sugs(~shape=Convex, ~completion=None, z, id)
+  | NewRightConcaveToken(id) =>
+    nu_sugs(~shape=Concave(0), ~completion=None, z, id)
+  | LeftConcaveCompletionOrNewRightConvex(id_left, string, id_right) =>
+    let* a = nu_sugs(~shape=Convex, ~completion=None, z, id_right);
+    let+ b =
+      nu_sugs(~shape=Concave(0), ~completion=Some(string), z, id_left);
+    a @ b;
+  | LeftConvexCompletionOrNewRightConcave(id_left, string, id_right) =>
+    let* a = nu_sugs(~shape=Concave(0), ~completion=None, z, id_right);
+    let+ b = nu_sugs(~shape=Convex, ~completion=Some(string), z, id_left);
+    a @ b;
+  };
+};
+
+let toks_to_grammar = (toks: list(string)): string => {
+  //TODO: just let copilot generate these prefix patterns lol, better checkem
+  let _prefix = {|
+intlit ::= [0-9]+
+floatlit ::= [0-9]+ "." [0-9]+
+stringlit ::= "\"" [^"]* "\""
+patvar ::= [a-zA-Z_][a-zA-Z0-9_]*
+typvar ::= [A-Z][a-zA-Z0-9_]*
+whitespace ::= [ \t\n]+
+
+root  ::=
+    whitespace
+  | |};
+  //TODO: make whitespace conditional on something
+  let toks =
+    List.map(
+      tok =>
+        switch (tok) {
+        | "<INTLIT>" => "intlit"
+        | "<FLOATLIT>" => "floatlit"
+        | "<STRINGLIT>" => "stringlit"
+        | "<PATVAR>" => "patvar"
+        | "<TYPVAR>" => "typvar"
+        | tok => "\"" ++ tok ++ "\""
+        },
+      toks,
+    );
+  let toks = String.concat("\n  | ", toks);
+  _prefix ++ toks;
+};
+
+let finals = (s: string) => {
+  switch (dispatch_generation(s)) {
+  | None => print_endline("LSP: No suggestions")
+  | Some(sugs) =>
+    print_endline("LSP: Suggestions: " ++ String.concat(" ", sugs));
+    prerr_endline("LSP: Grammar:\n " ++ toks_to_grammar(sugs));
+  };
+};
+finals(arg_str);
 /**
 TODO: also suggest start parens, square brackets, etc.
 done, hacky (see assistant forms hacks)
@@ -227,5 +359,5 @@ shape of whats to the left, and filter accordingly
 eg only want to suggest operators if left is an operand
 need to see if we already have a defined notion of shape for delimiters
 
- */
-lsp(arg_str);
+ */;
+//lsp(arg_str);

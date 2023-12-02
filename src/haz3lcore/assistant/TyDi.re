@@ -1,6 +1,20 @@
 open Util.OptUtil.Syntax;
 open Suggestion;
 
+let shard_left_shape = (t: Tile.t): Nib.Shape.t => {
+  switch (t.shards) {
+  | [idx, ..._] =>
+    if (idx == 0) {
+      fst(t.mold.nibs).shape;
+    } else if (idx == List.length(t.label) - 2) {
+      snd(t.mold.nibs).shape;
+    } else {
+      Nib.Shape.Concave(0);
+    }
+  | _ => Convex
+  };
+};
+
 /* Suggest the token at the top of the backpack, if we can put it down */
 let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
@@ -8,8 +22,11 @@ let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
   | [] => []
   | [{content, _}, ..._] =>
     switch (content) {
-    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
-        {content: List.nth(label, idx), strategy: Any(FromBackpack)},
+    | [Tile({label, shards: [idx], _} as t)] when Zipper.can_put_down(z) => [
+        {
+          content: List.nth(label, idx),
+          strategy: Any(FromBackpack(shard_left_shape(t))),
+        },
       ]
     | _ => []
     }
