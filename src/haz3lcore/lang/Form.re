@@ -279,7 +279,6 @@ let forms: list((string, t)) = [
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   ("logical_or", mk_infix("\\/", Exp, P.or_)),
-  ("logical_or2", mk_infix("||", Exp, P.or_)),
   ("list_concat", mk_infix("@", Exp, P.plus)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),

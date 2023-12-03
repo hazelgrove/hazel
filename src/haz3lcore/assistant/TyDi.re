@@ -56,13 +56,13 @@ let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
    * combination because we want backpack candidates to show up first */
   suggest_backpack(z)
   @ (
-    AssistantForms.suggest_operand(ci)
-    @ AssistantForms.suggest_leading(ci)
+    AssistantForms.suggest_mono(ci)
+    @ AssistantForms.suggest_prefix_leading(ci)
     @ AssistantCtx.suggest_variable(ci)
     @ AssistantCtx.suggest_lookahead_variable(ci)
     |> List.sort(Suggestion.compare)
   )
-  @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare));
+  @ (AssistantForms.suggest_infix(ci) |> List.sort(Suggestion.compare));
 };
 
 /* If there is a monotile to the left of the caret, return it. We

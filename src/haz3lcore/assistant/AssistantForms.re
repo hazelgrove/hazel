@@ -22,21 +22,27 @@ module Typ = {
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
     ("true", Bool),
     ("false", Bool),
-    //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
-    //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
+    ("[]", List(unk)), /*NOTE: would need to refactor buffer for this to show up */
+    ("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
     ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
-    ("_", unk) //TODO: need to filter by sort, this shouldn't show up for exp
+    ("_", unk) //TODO: this shouldn't show up for exp?
   ];
 
-  let of_leading_delim: list((Token.t, Typ.t)) = [
+  let of_prefix_leading_delim: list((Token.t, Typ.t)) = [
     ("case ", unk),
     ("fun ", Arrow(unk, unk)),
     ("if ", unk),
     ("let ", unk),
     ("test ", Prod([])),
     ("type ", unk),
-    ("(", unk), // note this one has two possible left tips (parens vs app)
+    ("(", unk), //TODO(andrew): note this one has two possible left tips (parens vs app)
     ("[", List(unk)),
+    ("|", unk) //TODO(andrew): hack, for lsp case rules...
+  ];
+
+  let of_postfix_leading_delim: list((Token.t, Typ.t)) = [
+    ("(", unk), // hack? ap case. can do better for type logic?
+    ("|", unk) //TODO(andrew): hack, for lsp case rules...
   ];
 
   let of_infix_delim: list((Token.t, Typ.t)) = [
@@ -45,14 +51,14 @@ module Typ = {
     (":", List(unk)), //TODO(andrew): hacky, for LSP
     ("@", List(unk)),
     ("|>", unk), //TODO: not actually in Forms
-    //(";", unk),
+    ("||", Bool), //TODO: add to Forms
+    //(";", unk), //TODO: do we want this?
     ("&&", Bool),
-    ("||", Bool), //added to Forms
     ("\\/", Bool),
     ("$==", Bool),
     ("==.", Bool),
     ("==", Bool),
-    ("!", Bool), // maybe doesnt belong here? but blocks autocomplete of ! to !=
+    //("!", Bool), // maybe doesnt belong here? but blocks autocomplete of ! to !=
     ("!=", Bool),
     ("!=.", Bool),
     ("<", Bool),
@@ -75,6 +81,8 @@ module Typ = {
     ("**.", Float),
     ("++", String),
   ];
+
+  let of_prefix_delim: list((Token.t, Typ.t)) = [("-", Int), ("!", Bool)];
 
   let expected: Info.t => Typ.t =
     fun
@@ -103,13 +111,16 @@ module Typ = {
 /* Automatically collates most delimiters from Forms, notably all
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
-  let delayed_leading = (sort: Sort.t): list(Token.t) =>
+  let delayed_prefix_leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
          let (lbl, _) = Molds.delayed_expansion(token);
          List.filter_map(
            (m: Mold.t) =>
-             List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
+             List.length(lbl) > 1
+             && token == List.hd(lbl)
+             && fst(m.nibs).shape == Convex
+             && m.out == sort
                ? Some(token ++ " ") : None,
            Molds.get(lbl),
          );
@@ -117,13 +128,17 @@ module Delims = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let instant_leading = (sort: Sort.t): list(Token.t) =>
+  let instant_prefix_leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
          let (lbl, _) = Molds.instant_expansion(token);
          List.filter_map(
            (m: Mold.t) =>
-             List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
+             List.length(lbl) > 1
+             && token == List.hd(lbl)
+             //TODO(andrew): propogate this sort logic everywhere
+             && fst(m.nibs).shape == Convex
+             && fst(m.nibs).sort == sort
                ? Some(token) : None,
            Molds.get(lbl),
          );
@@ -131,15 +146,41 @@ module Delims = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let leading_exp = instant_leading(Exp) @ delayed_leading(Exp);
-  let leading_pat = instant_leading(Pat) @ delayed_leading(Pat);
-  let leading_typ = instant_leading(Typ) @ delayed_leading(Typ);
+  let prefix_leading_exp =
+    instant_prefix_leading(Exp) @ delayed_prefix_leading(Exp);
+  let prefix_leading_pat =
+    instant_prefix_leading(Pat) @ delayed_prefix_leading(Pat);
+  let prefix_leading_typ =
+    instant_prefix_leading(Typ) @ delayed_prefix_leading(Typ);
 
-  let leading = (sort: Sort.t): list(string) =>
+  let instant_postfix_leading = (sort: Sort.t): list(Token.t) =>
+    Form.delims
+    |> List.map(token => {
+         let (lbl, _) = Molds.instant_expansion(token);
+         List.filter_map(
+           (m: Mold.t) =>
+             List.length(lbl) > 1
+             && token == List.hd(lbl)
+             && fst(m.nibs).shape != Convex
+             && fst(m.nibs).sort == sort
+               ? Some(token) : None,
+           Molds.get(lbl),
+         );
+       })
+    |> List.flatten
+    |> List.sort_uniq(compare);
+  let postfix_leading_exp = instant_postfix_leading(Exp);
+  let postfix_leading = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => leading_exp
-    | Pat => leading_pat
-    | Typ => leading_typ
+    | Exp => postfix_leading_exp
+    | _ => []
+    };
+
+  let prefix_leading = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => prefix_leading_exp
+    | Pat => prefix_leading_pat
+    | Typ => prefix_leading_typ
     | _ => []
     };
 
@@ -162,6 +203,28 @@ module Delims = {
     | Exp => infix_exp
     | Pat => infix_pat
     | Typ => infix_typ
+    | _ => []
+    };
+
+  let prefix = (sort: Sort.t): list(Token.t) =>
+    Form.delims
+    |> List.map(token => {
+         List.filter_map(
+           (m: Mold.t) =>
+             m.out == sort && Mold.is_prefix_op(m) ? Some(token) : None,
+           Molds.get([token]),
+         )
+       })
+    |> List.flatten
+    |> List.sort_uniq(compare);
+  let prefix_exp = prefix(Exp);
+  let prefix_pat = prefix(Pat);
+  let prefix_typ = prefix(Typ);
+  let prefix = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => prefix_exp
+    | Pat => prefix_pat
+    | Typ => prefix_typ
     | _ => []
     };
 
@@ -224,14 +287,20 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   };
 };
 
-let suggest_operator: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_infix_delim, Delims.infix);
-
-let suggest_operand: Info.t => list(Suggestion.t) =
+let suggest_mono: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
-let suggest_leading: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_leading_delim, Delims.leading);
+let suggest_infix: Info.t => list(Suggestion.t) =
+  suggest_form(Typ.of_infix_delim, Delims.infix);
+
+let suggest_prefix: Info.t => list(Suggestion.t) =
+  suggest_form(Typ.of_prefix_delim, Delims.prefix);
+
+let suggest_prefix_leading: Info.t => list(Suggestion.t) =
+  suggest_form(Typ.of_prefix_leading_delim, Delims.prefix_leading);
+
+let suggest_postfix_leading: Info.t => list(Suggestion.t) =
+  suggest_form(Typ.of_postfix_leading_delim, Delims.postfix_leading);
 
 let suggest_abstract_mono: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_abstract_mono_delim, Delims.abstract_mono);

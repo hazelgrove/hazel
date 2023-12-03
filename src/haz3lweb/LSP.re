@@ -189,14 +189,16 @@ let nu_sugs =
   let expected_ty = AssistantForms.Typ.expected(ci);
   let backpack_tokens = TyDi.backpack_to_token_list(z.backpack);
   let backpack_suggestion = suggest_backpack(z);
-  let base_convex_mono_suggestions = AssistantForms.suggest_operand(ci);
+  let base_convex_mono_suggestions = AssistantForms.suggest_mono(ci);
   let abstract_mono_operand_suggestions =
     AssistantForms.suggest_abstract_mono(ci);
-  let leading_suggestions = AssistantForms.suggest_leading(ci);
+  let prefix_leading_sugs = AssistantForms.suggest_prefix_leading(ci);
+  let postfix_leading_sugs = AssistantForms.suggest_postfix_leading(ci);
   let variable_suggestions = AssistantCtx.suggest_variable(ci);
   let lookahead_variable_suggestions =
     AssistantCtx.suggest_lookahead_variable(ci);
-  let operator_suggestions = AssistantForms.suggest_operator(ci);
+  let infix_suggestions = AssistantForms.suggest_infix(ci);
+  let prefix_suggestions = AssistantForms.suggest_prefix(ci);
   db("LSP: Cursor info from form: " ++ Term.Cls.show(cls));
   db("LSP: Having sort: " ++ Sort.to_string(sort));
   db("LSP: Having ctx: " ++ Ctx.to_string(ctx));
@@ -209,25 +211,33 @@ let nu_sugs =
     "LSP: Base Convex Abstract Monos: "
     ++ of_sugs(abstract_mono_operand_suggestions),
   );
-  db("LSP: Base Leadings: " ++ of_sugs(leading_suggestions));
+  db("LSP: Base Prefix Leadings: " ++ of_sugs(prefix_leading_sugs));
+  db("LSP: Base Postfix Leadings: " ++ of_sugs(postfix_leading_sugs));
   db("LSP: Base Variables: " ++ of_sugs(variable_suggestions));
   db(
     "LSP: Base Lookahead Variables: "
     ++ of_sugs(lookahead_variable_suggestions),
   );
-  db("LSP: Base Operator: " ++ of_sugs(operator_suggestions));
-  //TODO(andrew): am i missing negation operator from convexes?
-  //TODO(andrew): think through function application concavity
+  db("LSP: Base Mono Infix: " ++ of_sugs(infix_suggestions));
+  db("LSP: Base Mono Prefix: " ++ of_sugs(prefix_suggestions));
+  //TODO(andrew): completing fns apps incl empty ap
+  //TODO(andrew): complete case rules
   //TODO(andrew): not all leading necessarily convex?
+  //TODO(andrew): completing ( and [ into () and []
+  //TODO(andrew): things with unknown type get duplicated lookahead sugs?
+  //TODO(andrew): lookahead case: technically "let a:Int = (f" should suggest fun
+  //TODO(andrew): if unbound error and exist completions, maybe dont sug ws or other new tok
+  //TODO(andrew): cases of being halfway through int/float/stringlits or pat/tyvars
   let suggestions_convex =
     base_convex_mono_suggestions
     @ abstract_mono_operand_suggestions
-    @ leading_suggestions
+    @ prefix_suggestions
+    @ prefix_leading_sugs
     @ variable_suggestions
     @ lookahead_variable_suggestions
     |> List.sort(Suggestion.compare);
   let suggestions_concave =
-    AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare);
+    infix_suggestions @ postfix_leading_sugs |> List.sort(Suggestion.compare);
   switch (completion) {
   | None =>
     let base_suggestions =
@@ -368,7 +378,7 @@ let finals = (s: string) => {
 finals(arg_str);
 
 /*
-TODO(andrew):
-probably want to be more liberal about synthetic position,
-inclding applying things of unknown type, or that return unknown type
- */
+ TODO(andrew):
+ probably want to be more liberal about synthetic position,
+ inclding applying things of unknown type, or that return unknown type
+  */
