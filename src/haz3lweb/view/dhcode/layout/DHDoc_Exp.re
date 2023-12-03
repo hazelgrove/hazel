@@ -315,31 +315,25 @@ let rec mk =
        };
        */
 
-      | IfThenElse(cond, b1 b2) =>
-        if (settings.show_fn_bodies) {
-          let body_doc = (~enforce_inline) =>
-            mk_cast(go(~enforce_inline, dbody));
+      | IfThenElse(cond, b1,b2) =>
+        let def_doc = (~enforce_inline) =>
           hcats([
-            DHDoc_common.Delim.sym_Fun,
-            DHDoc_Pat.mk(dp)
+            DHDoc_common.Delim.mk("if"),
+            DHDoc_Pat.mk(cond)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),
                  ~enforce_inline,
                ),
-            DHDoc_common.Delim.colon_Fun,
-            space(),
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            space(),
-            DHDoc_common.Delim.open_Fun,
-            body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Fun,
-          ]);
-        } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
-          };
-        }
+            DHDoc_common.Delim.mk("then"),
+            DHDoc_Pat.mk(cond)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            DHDoc_common.Delim.mk("else"),
+            DHDoc_Pat.mk(cond)
+          ]),
+          mk_cast(go(~enforce_inline=false, dbody)),
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
