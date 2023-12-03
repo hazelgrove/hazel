@@ -18,9 +18,9 @@ type thing_to_left =
 //TODO: better handling of concaves
 type generation_options =
   | NewRightConvex(Id.t)
-  | LeftCompletionOrNewRightConvex(Id.t, string, Id.t)
+  | CompletionOrNewRightConvex(Id.t, string, Id.t)
   | NewRightConcave(Id.t) //id here is iffy
-  | LeftCompletionOrNewRightConcave(Id.t, string, Id.t); //snd id here is iffy
+  | CompletionOrNewRightConcave(Id.t, string, Id.t); //snd id here is iffy
 
 /* Assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
@@ -124,7 +124,7 @@ let generation_options = (~db, z: Zipper.t) => {
   | (Nothing | Just(LeftConcave(Polytile(_))) | SpacesThen(_), Some(id)) =>
     NewRightConvex(id)
   | (Just(LeftConcave(Monotile(id, left_token))), Some(id_to_right)) =>
-    LeftCompletionOrNewRightConvex(id, left_token, id_to_right)
+    CompletionOrNewRightConvex(id, left_token, id_to_right)
   | (
       Just(LeftConvex(Polytile(id))) |
       SpacesThen(LeftConvex(Polytile(id) | Monotile(id, _))),
@@ -134,7 +134,7 @@ let generation_options = (~db, z: Zipper.t) => {
     NewRightConcave(id)
   | (Just(LeftConvex(Monotile(id, left_token))), None) =>
     //TODO: id here is weird
-    LeftCompletionOrNewRightConcave(id, left_token, id)
+    CompletionOrNewRightConcave(id, left_token, id)
   };
 };
 
@@ -307,7 +307,7 @@ let dispatch_generation = (~db, s: string): list(string) => {
       ++ String.concat(" ", sugs),
     );
     sugs;
-  | LeftCompletionOrNewRightConvex(id_l, string, id_new) =>
+  | CompletionOrNewRightConvex(id_l, string, id_new) =>
     db("  LSP: Syntax: Can insert new right-convex or complete left");
     let s1 = generate(~db, ~shape=Convex, ~completion=None, z, id_new);
     let s2 =
@@ -319,7 +319,7 @@ let dispatch_generation = (~db, s: string): list(string) => {
       "LSP: Final: (2/2) Completion Suggestions: " ++ String.concat(" ", s2),
     );
     s1 @ s2;
-  | LeftCompletionOrNewRightConcave(id_l, string, id_new) =>
+  | CompletionOrNewRightConcave(id_l, string, id_new) =>
     db("  LSP: Syntax: Can insert new right-concave or complete left");
     let s1 = generate(~db, ~shape=Concave(0), ~completion=None, z, id_new);
     let s2 = generate(~db, ~shape=Convex, ~completion=Some(string), z, id_l);

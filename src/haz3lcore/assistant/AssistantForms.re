@@ -116,23 +116,22 @@ module Delims = {
       ? Some(token) : None;
 
   let is_prefix_mono_of = (sort, token, m: Mold.t) =>
-    m.out == sort && Mold.is_prefix_op(m) ? Some(token) : None;
+    Mold.is_prefix_op(m) && m.out == sort ? Some(token) : None;
 
   let is_infix_mono_of = (sort, token, m: Mold.t) =>
-    m.out == sort && Mold.is_infix_op(m) ? Some(token) : None;
+    Mold.is_infix_op(m) && m.out == sort ? Some(token) : None;
 
-  let is_postfix_instant = (sort, token, m: Mold.t) =>
-    fst(m.nibs).shape != Convex && fst(m.nibs).sort == sort
+  let is_left_concave_poly_instant = (sort, token, m: Mold.t) =>
+    Mold.is_left_concave(m) && fst(m.nibs).sort == sort
       ? Some(token) : None;
 
-  let is_prefix_delayed = (sort, token, m: Mold.t) =>
+  let is_left_convex_poly_delayed = (sort, token, m: Mold.t) =>
     //HACK(andrew): addition of space to get autoexpand for tydi
-    fst(m.nibs).shape == Convex && m.out == sort ? Some(token ++ " ") : None;
+    Mold.is_left_convex(m) && m.out == sort ? Some(token ++ " ") : None;
 
-  let is_prefix_instant = (sort, token, m: Mold.t) =>
-    //TODO(andrew): propogate this sort logic everywhere
-    fst(m.nibs).shape == Convex && fst(m.nibs).sort == sort
-      ? Some(token) : None;
+  let is_left_convex_poly_instant = (sort, token, m: Mold.t) =>
+    //TODO(andrew): propogate this sort logic everywhere, replacing .out?
+    Mold.is_left_convex(m) && fst(m.nibs).sort == sort ? Some(token) : None;
 
   let filter_mono = (f, sort: Sort.t, token: Token.t): list(string) =>
     List.filter_map(f(sort, token), Molds.get([token]));
@@ -150,86 +149,86 @@ module Delims = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let delayed_prefix_leading =
+  let left_convex_poly_delayed =
     collate(
       Form.delims,
-      filter_poly(Molds.delayed_expansion, is_prefix_delayed),
+      filter_poly(Molds.delayed_expansion, is_left_convex_poly_delayed),
     );
-  let instant_prefix_leading =
+  let left_convex_poly_instant =
     collate(
       Form.delims,
-      filter_poly(Molds.instant_expansion, is_prefix_instant),
+      filter_poly(Molds.instant_expansion, is_left_convex_poly_instant),
     );
-  let instant_postfix_leading =
+  let left_concave_poly_instant =
     collate(
       Form.delims,
-      filter_poly(Molds.instant_expansion, is_postfix_instant),
+      filter_poly(Molds.instant_expansion, is_left_concave_poly_instant),
     );
   let infix_mono = collate(Form.delims, filter_mono(is_infix_mono_of));
   let prefix_mono = collate(Form.delims, filter_mono(is_prefix_mono_of));
-  let const_mono =
+  let const_convex_mono =
     collate(Form.const_mono_delims, filter_mono(is_const_mono_of));
 
-  let prefix_leading_exp =
-    instant_prefix_leading(Exp) @ delayed_prefix_leading(Exp);
-  let prefix_leading_pat =
-    instant_prefix_leading(Pat) @ delayed_prefix_leading(Pat);
-  let prefix_leading_typ =
-    instant_prefix_leading(Typ) @ delayed_prefix_leading(Typ);
+  let left_convex_poly_exp =
+    left_convex_poly_instant(Exp) @ left_convex_poly_delayed(Exp);
+  let left_convex_poly_pat =
+    left_convex_poly_instant(Pat) @ left_convex_poly_delayed(Pat);
+  let left_convex_poly_typ =
+    left_convex_poly_instant(Typ) @ left_convex_poly_delayed(Typ);
 
-  let prefix_leading = (sort: Sort.t): list(string) =>
+  let left_convex_poly = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => prefix_leading_exp
-    | Pat => prefix_leading_pat
-    | Typ => prefix_leading_typ
+    | Exp => left_convex_poly_exp
+    | Pat => left_convex_poly_pat
+    | Typ => left_convex_poly_typ
     | _ => []
     };
 
-  let postfix_leading_exp = instant_postfix_leading(Exp);
-  let postfix_leading_pat = instant_postfix_leading(Pat);
-  let postfix_leading_typ = instant_postfix_leading(Typ);
-  let postfix_leading = (sort: Sort.t): list(string) =>
+  let left_concave_poly_exp = left_concave_poly_instant(Exp);
+  let left_concave_poly_pat = left_concave_poly_instant(Pat);
+  let left_concave_poly_typ = left_concave_poly_instant(Typ);
+  let left_concave_poly = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => postfix_leading_exp
-    | Pat => postfix_leading_pat
-    | Typ => postfix_leading_typ
+    | Exp => left_concave_poly_exp
+    | Pat => left_concave_poly_pat
+    | Typ => left_concave_poly_typ
     | _ => []
     };
 
-  let infix_exp = infix_mono(Exp);
-  let infix_pat = infix_mono(Pat);
-  let infix_typ = infix_mono(Typ);
-  let infix = (sort: Sort.t): list(string) =>
+  let infix_mono_exp = infix_mono(Exp);
+  let infix_mono_pat = infix_mono(Pat);
+  let infix_mono_typ = infix_mono(Typ);
+  let infix_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => infix_exp
-    | Pat => infix_pat
-    | Typ => infix_typ
+    | Exp => infix_mono_exp
+    | Pat => infix_mono_pat
+    | Typ => infix_mono_typ
     | _ => []
     };
 
-  let prefix_exp = prefix_mono(Exp);
-  let prefix_pat = prefix_mono(Pat);
-  let prefix_typ = prefix_mono(Typ);
-  let prefix = (sort: Sort.t): list(string) =>
+  let prefix_mono_exp = prefix_mono(Exp);
+  let prefix_mono_pat = prefix_mono(Pat);
+  let prefix_mono_typ = prefix_mono(Typ);
+  let prefix_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => prefix_exp
-    | Pat => prefix_pat
-    | Typ => prefix_typ
+    | Exp => prefix_mono_exp
+    | Pat => prefix_mono_pat
+    | Typ => prefix_mono_typ
     | _ => []
     };
 
-  let const_mono_exp = const_mono(Exp);
-  let const_mono_pat = const_mono(Pat);
-  let const_mono_typ = const_mono(Typ);
-  let const_mono = (sort: Sort.t): list(string) =>
+  let const_convex_mono_exp = const_convex_mono(Exp);
+  let const_convex_mono_pat = const_convex_mono(Pat);
+  let const_convex_mono_typ = const_convex_mono(Typ);
+  let const_convex_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => const_mono_exp
-    | Pat => const_mono_pat
-    | Typ => const_mono_typ
+    | Exp => const_convex_mono_exp
+    | Pat => const_convex_mono_pat
+    | Typ => const_convex_mono_typ
     | _ => []
     };
 
-  let abstract_mono = (sort: Sort.t): list(string) =>
+  let abstract_convex_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => ["~INTLIT~", "~FLOATLIT~", "~STRINGLIT~"]
     | Pat => ["~PATVAR~", "~INTLIT~", "~FLOATLIT~", "~STRINGLIT~"]
@@ -264,19 +263,19 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
 };
 
 let suggest_const_mono: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
+  suggest_form(Typ.of_const_mono_delim, Delims.const_convex_mono);
 
 let suggest_abstract_mono: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_abstract_mono_delim, Delims.abstract_mono);
+  suggest_form(Typ.of_abstract_mono_delim, Delims.abstract_convex_mono);
 
 let suggest_infix_mono: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_infix_delim, Delims.infix);
+  suggest_form(Typ.of_infix_delim, Delims.infix_mono);
 
 let suggest_prefix_mono: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_prefix_delim, Delims.prefix);
+  suggest_form(Typ.of_prefix_delim, Delims.prefix_mono);
 
 let suggest_prefix_leading: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_prefix_leading_delim, Delims.prefix_leading);
+  suggest_form(Typ.of_prefix_leading_delim, Delims.left_convex_poly);
 
 let suggest_postfix_leading: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_postfix_leading_delim, Delims.postfix_leading);
+  suggest_form(Typ.of_postfix_leading_delim, Delims.left_concave_poly);
