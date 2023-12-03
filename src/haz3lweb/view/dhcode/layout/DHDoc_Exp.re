@@ -156,6 +156,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
+      // if then else follows Fun
     let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
       switch (d) {
       | Closure(_, d') => fdoc(~enforce_inline, ~d=d')
@@ -314,6 +315,31 @@ let rec mk =
        };
        */
 
+      | IfThenElse(cond, b1 b2) =>
+        if (settings.show_fn_bodies) {
+          let body_doc = (~enforce_inline) =>
+            mk_cast(go(~enforce_inline, dbody));
+          hcats([
+            DHDoc_common.Delim.sym_Fun,
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+            DHDoc_common.Delim.colon_Fun,
+            space(),
+            DHDoc_Typ.mk(~enforce_inline=true, ty),
+            space(),
+            DHDoc_common.Delim.open_Fun,
+            body_doc |> DHDoc_common.pad_child(~enforce_inline),
+            DHDoc_common.Delim.close_Fun,
+          ]);
+        } else {
+          switch (s) {
+          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
+          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
+          };
+        }
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
