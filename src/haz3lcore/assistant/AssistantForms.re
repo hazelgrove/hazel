@@ -44,10 +44,10 @@ module Typ = {
     ("::", List(unk)),
     (":", List(unk)), //TODO(andrew): hacky, for LSP
     ("@", List(unk)),
-    ("|>", unk),
+    ("|>", unk), //TODO: not actually in Forms
     //(";", unk),
     ("&&", Bool),
-    ("||", Bool),
+    ("||", Bool), //added to Forms
     ("\\/", Bool),
     ("$==", Bool),
     ("==.", Bool),

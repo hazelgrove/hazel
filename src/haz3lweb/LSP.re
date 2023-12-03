@@ -58,7 +58,7 @@ type thing_to_left =
   | Just(shapyness)
   | SpacesThen(shapyness);
 
-let thing_to_left = (z: Zipper.t): thing_to_left =>
+let piece_to_left = (z: Zipper.t): thing_to_left =>
   /*
    Returning Left means we're looking for either a new thing
     that starts with a left-facing chevron, or a completion of the
@@ -105,33 +105,34 @@ let thing_to_left = (z: Zipper.t): thing_to_left =>
     };
   };
 
+//TODO: better handling of concaves
 type generation_options =
-  | NewRightConvexToken(Id.t)
-  | NewRightConcaveToken(Id.t) //id here is iffy
-  | LeftConcaveCompletionOrNewRightConvex(Id.t, string, Id.t)
-  | LeftConvexCompletionOrNewRightConcave(Id.t, string, Id.t); //snd id here is iffy
+  | NewRightConvex(Id.t)
+  | LeftCompletionOrNewRightConvex(Id.t, string, Id.t)
+  | NewRightConcave(Id.t) //id here is iffy
+  | LeftCompletionOrNewRightConcave(Id.t, string, Id.t); //snd id here is iffy
 
 let generation_options = (z: Zipper.t) => {
-  switch (thing_to_left(z), hole_to_right(z)) {
+  switch (piece_to_left(z), hole_to_right(z)) {
   | (Nothing, None) => failwith("LSP: EXN: Nothing to left or right")
   | (Just(LeftConcave(_)) | SpacesThen(LeftConcave(_)), None) =>
     failwith("LSP: EXN: Concave to left and nothing to right")
   | (Just(LeftConvex(_)) | SpacesThen(LeftConvex(_)), Some(_)) =>
     failwith("LSP: EXN: Convex to left and right")
   | (Nothing | Just(LeftConcave(Polytile(_))) | SpacesThen(_), Some(id)) =>
-    NewRightConvexToken(id)
+    NewRightConvex(id)
   | (Just(LeftConcave(Monotile(id, left_token))), Some(id_to_right)) =>
-    LeftConcaveCompletionOrNewRightConvex(id, left_token, id_to_right)
+    LeftCompletionOrNewRightConvex(id, left_token, id_to_right)
   | (
       Just(LeftConvex(Polytile(id))) |
       SpacesThen(LeftConvex(Polytile(id) | Monotile(id, _))),
       None,
     ) =>
     //TODO: id here is weird
-    NewRightConcaveToken(id)
+    NewRightConcave(id)
   | (Just(LeftConvex(Monotile(id, left_token))), None) =>
     //TODO: id here is weird
-    LeftConvexCompletionOrNewRightConcave(id, left_token, id)
+    LeftCompletionOrNewRightConcave(id, left_token, id)
   };
 };
 
@@ -154,9 +155,31 @@ let error_str = ci =>
   | None => "None"
   };
 
+let backpack_is_convex = ({strategy, _} as s: Suggestion.t) =>
+  switch (strategy) {
+  | Any(FromBackpack(shape)) when shape == Convex => Some(s)
+  | _ => None
+  };
+
+let backpack_is_concave = ({strategy, _} as s: Suggestion.t) =>
+  switch (strategy) {
+  | Any(FromBackpack(shape)) when shape != Convex => Some(s)
+  | _ => None
+  };
+
 let nu_sugs =
-    (~shape: Nib.Shape.t, ~completion: option(string), z: Zipper.t, id: Id.t)
+    (
+      ~debug=true,
+      ~shape: Nib.Shape.t,
+      ~completion: option(string),
+      z: Zipper.t,
+      id: Id.t,
+    )
     : option(list(string)) => {
+  let db = s =>
+    if (debug) {
+      print_endline(s);
+    };
   let settings = CoreSettings.on;
   let ctx_init = []; //Builtins.ctx_init;
   let* ci = lsp_z_to_ci(~settings, ~ctx=ctx_init, id, z);
@@ -164,94 +187,71 @@ let nu_sugs =
   let cls = Info.cls_of(ci);
   let ctx = Info.ctx_of(ci);
   let expected_ty = AssistantForms.Typ.expected(ci);
-  print_endline("LSP: Cursor info from form: " ++ Term.Cls.show(cls));
-  print_endline("LSP: Having sort: " ++ Sort.to_string(sort));
-  print_endline("LSP: Having ctx: " ++ Ctx.to_string(ctx));
-  print_endline("LSP: Having expected type: " ++ Typ.to_string(expected_ty));
-  print_endline("LSP: Having error: " ++ error_str(ci));
   let backpack_tokens = TyDi.backpack_to_token_list(z.backpack);
   let backpack_suggestion = suggest_backpack(z);
-  print_endline(
-    "LSP: Pre: Backpack stack: " ++ String.concat(" ", backpack_tokens),
-  );
-  print_endline(
-    "LSP: Pre: Backpack suggestions: " ++ of_sugs(backpack_suggestion),
-  );
-  let base_mono_operand_suggestions = AssistantForms.suggest_operand(ci);
+  let base_convex_mono_suggestions = AssistantForms.suggest_operand(ci);
   let abstract_mono_operand_suggestions =
     AssistantForms.suggest_abstract_mono(ci);
   let leading_suggestions = AssistantForms.suggest_leading(ci);
   let variable_suggestions = AssistantCtx.suggest_variable(ci);
   let lookahead_variable_suggestions =
     AssistantCtx.suggest_lookahead_variable(ci);
-  print_endline(
-    "LSP: Pre: Base mono operand suggestions: "
-    ++ of_sugs(base_mono_operand_suggestions),
-  );
-  print_endline(
-    "LSP: Pre: Abstract mono operand suggestions: "
+  let operator_suggestions = AssistantForms.suggest_operator(ci);
+  db("LSP: Cursor info from form: " ++ Term.Cls.show(cls));
+  db("LSP: Having sort: " ++ Sort.to_string(sort));
+  db("LSP: Having ctx: " ++ Ctx.to_string(ctx));
+  db("LSP: Having expected type: " ++ Typ.to_string(expected_ty));
+  db("LSP: Having error: " ++ error_str(ci));
+  db("LSP: Backpack stack: " ++ String.concat(" ", backpack_tokens));
+  db("LSP: Base Backpack: " ++ of_sugs(backpack_suggestion));
+  db("LSP: Base Convex Monos: " ++ of_sugs(base_convex_mono_suggestions));
+  db(
+    "LSP: Base Convex Abstract Monos: "
     ++ of_sugs(abstract_mono_operand_suggestions),
   );
-  print_endline(
-    "LSP: Pre: Leading suggestions: " ++ of_sugs(leading_suggestions),
-  );
-  print_endline(
-    "LSP: Pre: Variable suggestions: " ++ of_sugs(variable_suggestions),
-  );
-  print_endline(
-    "LSP: Pre: Lookahead variable suggestion: "
+  db("LSP: Base Leadings: " ++ of_sugs(leading_suggestions));
+  db("LSP: Base Variables: " ++ of_sugs(variable_suggestions));
+  db(
+    "LSP: Base Lookahead Variables: "
     ++ of_sugs(lookahead_variable_suggestions),
   );
+  db("LSP: Base Operator: " ++ of_sugs(operator_suggestions));
   //TODO(andrew): am i missing negation operator from convexes?
   //TODO(andrew): think through function application concavity
-  let suggestions_concave = AssistantForms.suggest_operator(ci);
-  print_endline(
-    "LSP: Pre: Operator suggestion: " ++ of_sugs(suggestions_concave),
-  );
+  //TODO(andrew): not all leading necessarily convex?
   let suggestions_convex =
-    base_mono_operand_suggestions
+    base_convex_mono_suggestions
     @ abstract_mono_operand_suggestions
     @ leading_suggestions
     @ variable_suggestions
     @ lookahead_variable_suggestions
     |> List.sort(Suggestion.compare);
-  let base_suggestions =
-    switch (shape) {
-    | Convex =>
-      suggestions_convex
-      @ List.filter_map(
-          ({strategy, _} as s: Suggestion.t) =>
-            switch (strategy) {
-            | Any(FromBackpack(shape)) when shape == Convex => Some(s)
-            | _ => None
-            },
-          backpack_suggestion,
-        )
-    | Concave(_) =>
-      suggestions_concave
-      @ List.filter_map(
-          ({strategy, _} as s: Suggestion.t) =>
-            switch (strategy) {
-            | Any(FromBackpack(shape)) when shape != Convex => Some(s)
-            | _ => None
-            },
-          backpack_suggestion,
-        )
-    };
+  let suggestions_concave =
+    AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare);
   switch (completion) {
-  | None => Some(base_suggestions |> List.map(Suggestion.content_of))
+  | None =>
+    let base_suggestions =
+      switch (shape) {
+      | Convex =>
+        suggestions_convex
+        @ List.filter_map(backpack_is_convex, backpack_suggestion)
+      | Concave(_) =>
+        suggestions_concave
+        @ List.filter_map(backpack_is_concave, backpack_suggestion)
+      };
+    Some(List.map(Suggestion.content_of, base_suggestions));
   | Some(tok_to_left) =>
     /* Note that for completion suggestions, we don't want to case on
        shape expectation, because the tile might get remolded */
-    suggestions_concave
-    @ suggestions_convex
-    @ backpack_suggestion
+    let suggestions_all =
+      suggestions_concave @ suggestions_convex @ backpack_suggestion;
+    suggestions_all
     |> List.filter(({content, _}: Suggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        )
     |> List.map(Suggestion.content_of)
     |> List.filter_map(x => TyDi.suffix_of(x, tok_to_left))
-    |> Option.some
+    |> Option.some;
   };
 };
 
@@ -273,7 +273,7 @@ let dispatch_generation = (s: string) => {
     failwith("LSP: EXN: Empty segment");
   };
   switch (generation_options(z)) {
-  | NewRightConvexToken(id) =>
+  | NewRightConvex(id) =>
     let sugs = nu_sugs(~shape=Convex, ~completion=None, z, id);
     print_endline("LSP: Dispatch: Can insert new right-convex");
     switch (sugs) {
@@ -285,7 +285,7 @@ let dispatch_generation = (s: string) => {
       )
     };
     sugs;
-  | NewRightConcaveToken(id) =>
+  | NewRightConcave(id) =>
     print_endline("LSP: Dispatch: Can insert new right-concave");
     let sugs = nu_sugs(~shape=Concave(0), ~completion=None, z, id);
     switch (sugs) {
@@ -297,7 +297,7 @@ let dispatch_generation = (s: string) => {
       )
     };
     sugs;
-  | LeftConcaveCompletionOrNewRightConvex(id_left, string, id_right) =>
+  | LeftCompletionOrNewRightConvex(id_left, string, id_right) =>
     print_endline(
       "LSP: Dispatch: Can insert new right-convex or complete left",
     );
@@ -311,7 +311,7 @@ let dispatch_generation = (s: string) => {
       "LSP: (2/2) Completion Suggestions: " ++ String.concat(" ", b),
     );
     a @ b;
-  | LeftConvexCompletionOrNewRightConcave(id_left, string, id_right) =>
+  | LeftCompletionOrNewRightConcave(id_left, string, id_right) =>
     print_endline(
       "LSP: Dispatch: Can insert new right-concave or complete left",
     );
@@ -329,7 +329,7 @@ let dispatch_generation = (s: string) => {
 
 let toks_to_grammar = (toks: list(string)): string => {
   //TODO: just let copilot generate these prefix patterns lol, better checkem
-  let _prefix = {|
+  let prefix = {|
 intlit ::= [0-9]+
 floatlit ::= [0-9]+ "." [0-9]+
 stringlit ::= "\"" [^"]* "\""
@@ -337,7 +337,7 @@ patvar ::= [a-zA-Z_][a-zA-Z0-9_]*
 typvar ::= [A-Z][a-zA-Z0-9_]*
 whitespace ::= [ \t\n]+
 
-root  ::=
+root ::=
     whitespace
   | |};
   //TODO: make whitespace conditional on something
@@ -355,7 +355,7 @@ root  ::=
       toks,
     );
   let toks = String.concat("\n  | ", toks);
-  _prefix ++ toks;
+  prefix ++ toks;
 };
 
 let finals = (s: string) => {
@@ -366,3 +366,9 @@ let finals = (s: string) => {
 };
 
 finals(arg_str);
+
+/*
+TODO(andrew):
+probably want to be more liberal about synthetic position,
+inclding applying things of unknown type, or that return unknown type
+ */
