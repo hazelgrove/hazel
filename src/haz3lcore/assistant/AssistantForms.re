@@ -111,40 +111,64 @@ module Typ = {
 /* Automatically collates most delimiters from Forms, notably all
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
-  let delayed_prefix_leading = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         let (lbl, _) = Molds.delayed_expansion(token);
-         List.filter_map(
-           (m: Mold.t) =>
-             List.length(lbl) > 1
-             && token == List.hd(lbl)
-             && fst(m.nibs).shape == Convex
-             && m.out == sort
-               ? Some(token ++ " ") : None,
-           Molds.get(lbl),
-         );
-       })
+  let is_const_mono_of = (sort, token, m: Mold.t) =>
+    m.out == sort && List.mem(token, Form.const_mono_delims)
+      ? Some(token) : None;
+
+  let is_prefix_mono_of = (sort, token, m: Mold.t) =>
+    m.out == sort && Mold.is_prefix_op(m) ? Some(token) : None;
+
+  let is_infix_mono_of = (sort, token, m: Mold.t) =>
+    m.out == sort && Mold.is_infix_op(m) ? Some(token) : None;
+
+  let is_postfix_instant = (sort, token, m: Mold.t) =>
+    fst(m.nibs).shape != Convex && fst(m.nibs).sort == sort
+      ? Some(token) : None;
+
+  let is_prefix_delayed = (sort, token, m: Mold.t) =>
+    //HACK(andrew): addition of space to get autoexpand for tydi
+    fst(m.nibs).shape == Convex && m.out == sort ? Some(token ++ " ") : None;
+
+  let is_prefix_instant = (sort, token, m: Mold.t) =>
+    //TODO(andrew): propogate this sort logic everywhere
+    fst(m.nibs).shape == Convex && fst(m.nibs).sort == sort
+      ? Some(token) : None;
+
+  let filter_mono = (f, sort: Sort.t, token: Token.t): list(string) =>
+    List.filter_map(f(sort, token), Molds.get([token]));
+
+  let filter_poly = (expander, f, sort: Sort.t, token: Token.t): list(string) =>
+    switch (token |> expander |> fst) {
+    | [hd, _, ..._] as lbl when token == hd =>
+      List.filter_map(f(sort, token), Molds.get(lbl))
+    | _ => []
+    };
+
+  let collate = (base: list(Token.t), filter, sort: Sort.t): list(Token.t) =>
+    base
+    |> List.map(filter(sort))
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let instant_prefix_leading = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         let (lbl, _) = Molds.instant_expansion(token);
-         List.filter_map(
-           (m: Mold.t) =>
-             List.length(lbl) > 1
-             && token == List.hd(lbl)
-             //TODO(andrew): propogate this sort logic everywhere
-             && fst(m.nibs).shape == Convex
-             && fst(m.nibs).sort == sort
-               ? Some(token) : None,
-           Molds.get(lbl),
-         );
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
+  let delayed_prefix_leading =
+    collate(
+      Form.delims,
+      filter_poly(Molds.delayed_expansion, is_prefix_delayed),
+    );
+  let instant_prefix_leading =
+    collate(
+      Form.delims,
+      filter_poly(Molds.instant_expansion, is_prefix_instant),
+    );
+  let instant_postfix_leading =
+    collate(
+      Form.delims,
+      filter_poly(Molds.instant_expansion, is_postfix_instant),
+    );
+  let infix_mono = collate(Form.delims, filter_mono(is_infix_mono_of));
+  let prefix_mono = collate(Form.delims, filter_mono(is_prefix_mono_of));
+  let const_mono =
+    collate(Form.const_mono_delims, filter_mono(is_const_mono_of));
 
   let prefix_leading_exp =
     instant_prefix_leading(Exp) @ delayed_prefix_leading(Exp);
@@ -152,29 +176,6 @@ module Delims = {
     instant_prefix_leading(Pat) @ delayed_prefix_leading(Pat);
   let prefix_leading_typ =
     instant_prefix_leading(Typ) @ delayed_prefix_leading(Typ);
-
-  let instant_postfix_leading = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         let (lbl, _) = Molds.instant_expansion(token);
-         List.filter_map(
-           (m: Mold.t) =>
-             List.length(lbl) > 1
-             && token == List.hd(lbl)
-             && fst(m.nibs).shape != Convex
-             && fst(m.nibs).sort == sort
-               ? Some(token) : None,
-           Molds.get(lbl),
-         );
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-  let postfix_leading_exp = instant_postfix_leading(Exp);
-  let postfix_leading = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => postfix_leading_exp
-    | _ => []
-    };
 
   let prefix_leading = (sort: Sort.t): list(string) =>
     switch (sort) {
@@ -184,20 +185,20 @@ module Delims = {
     | _ => []
     };
 
-  let infix = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           Molds.get([token]),
-         )
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-  let infix_exp = infix(Exp);
-  let infix_pat = infix(Pat);
-  let infix_typ = infix(Typ);
+  let postfix_leading_exp = instant_postfix_leading(Exp);
+  let postfix_leading_pat = instant_postfix_leading(Pat);
+  let postfix_leading_typ = instant_postfix_leading(Typ);
+  let postfix_leading = (sort: Sort.t): list(string) =>
+    switch (sort) {
+    | Exp => postfix_leading_exp
+    | Pat => postfix_leading_pat
+    | Typ => postfix_leading_typ
+    | _ => []
+    };
+
+  let infix_exp = infix_mono(Exp);
+  let infix_pat = infix_mono(Pat);
+  let infix_typ = infix_mono(Typ);
   let infix = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => infix_exp
@@ -206,20 +207,9 @@ module Delims = {
     | _ => []
     };
 
-  let prefix = (sort: Sort.t): list(Token.t) =>
-    Form.delims
-    |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && Mold.is_prefix_op(m) ? Some(token) : None,
-           Molds.get([token]),
-         )
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-  let prefix_exp = prefix(Exp);
-  let prefix_pat = prefix(Pat);
-  let prefix_typ = prefix(Typ);
+  let prefix_exp = prefix_mono(Exp);
+  let prefix_pat = prefix_mono(Pat);
+  let prefix_typ = prefix_mono(Typ);
   let prefix = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => prefix_exp
@@ -228,23 +218,9 @@ module Delims = {
     | _ => []
     };
 
-  let const_mono = (sort: Sort.t): list(Token.t) =>
-    Form.const_mono_delims
-    |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && List.mem(token, Form.const_mono_delims)
-               ? Some(token) : None,
-           Molds.get([token]),
-         )
-       })
-    |> List.flatten
-    |> List.sort_uniq(compare);
-
   let const_mono_exp = const_mono(Exp);
   let const_mono_pat = const_mono(Pat);
   let const_mono_typ = const_mono(Typ);
-
   let const_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => const_mono_exp
@@ -287,13 +263,16 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   };
 };
 
-let suggest_mono: Info.t => list(Suggestion.t) =
+let suggest_const_mono: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
-let suggest_infix: Info.t => list(Suggestion.t) =
+let suggest_abstract_mono: Info.t => list(Suggestion.t) =
+  suggest_form(Typ.of_abstract_mono_delim, Delims.abstract_mono);
+
+let suggest_infix_mono: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_infix_delim, Delims.infix);
 
-let suggest_prefix: Info.t => list(Suggestion.t) =
+let suggest_prefix_mono: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_prefix_delim, Delims.prefix);
 
 let suggest_prefix_leading: Info.t => list(Suggestion.t) =
@@ -301,6 +280,3 @@ let suggest_prefix_leading: Info.t => list(Suggestion.t) =
 
 let suggest_postfix_leading: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_postfix_leading_delim, Delims.postfix_leading);
-
-let suggest_abstract_mono: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_abstract_mono_delim, Delims.abstract_mono);

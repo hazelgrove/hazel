@@ -1,68 +1,21 @@
 open Util.OptUtil.Syntax;
 open Suggestion;
 
-let shard_left_shape = (t: Tile.t): Nib.Shape.t => {
-  switch (t.shards) {
-  | [idx, ..._] =>
-    if (idx == 0) {
-      fst(t.mold.nibs).shape;
-    } else if (idx == List.length(t.label) - 2) {
-      snd(t.mold.nibs).shape;
-    } else {
-      Nib.Shape.Concave(0);
-    }
-  | _ => Convex
-  };
-};
-
-/* Suggest the token at the top of the backpack, if we can put it down */
-let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
-  /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (z.backpack) {
-  | [] => []
-  | [{content, _}, ..._] =>
-    switch (content) {
-    | [Tile({label, shards: [idx], _} as t)] when Zipper.can_put_down(z) => [
-        {
-          content: List.nth(label, idx),
-          strategy: Any(FromBackpack(shard_left_shape(t))),
-        },
-      ]
-    | _ => []
-    }
-  };
-};
-
-/* precondition: backpack contains only 1-shards. */
-let rec backpack_to_token_list = (backpack: Backpack.t): list(Token.t) => {
-  switch (backpack) {
-  | [] => []
-  | [{content, _}, ...backpack] =>
-    switch (content) {
-    | [Tile({label, shards: [idx], _})] => [
-        List.nth(label, idx),
-        ...backpack_to_token_list(backpack),
-      ]
-    | _ => []
-    }
-  };
-};
-
 let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
-  suggest_backpack(z)
+  AssistantBackpack.suggest(z)
   @ (
-    AssistantForms.suggest_mono(ci)
+    AssistantForms.suggest_const_mono(ci)
     @ AssistantForms.suggest_prefix_leading(ci)
     @ AssistantCtx.suggest_variable(ci)
     @ AssistantCtx.suggest_lookahead_variable(ci)
     |> List.sort(Suggestion.compare)
   )
-  @ (AssistantForms.suggest_infix(ci) |> List.sort(Suggestion.compare));
+  @ (AssistantForms.suggest_infix_mono(ci) |> List.sort(Suggestion.compare));
 };
 
 /* If there is a monotile to the left of the caret, return it. We
