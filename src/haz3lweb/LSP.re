@@ -7,16 +7,6 @@ Js.Unsafe.js_expr("require('process')");
 let arg_str = Js.Unsafe.js_expr("process.argv[2]") |> Js.to_string;
 print_endline("LSP: recieved string: " ++ arg_str);
 
-/*TODO: refactor
-  type thing_desired =
-    (option((tok_cls, cur_string, existing_token_id))    //completion
-      ,
-      option(hole_id))   //new (filling rightwards hole)
-    )
-    //actually also need to factor in new infix ops (which id to use...)
-  */
-
-//TODO(andrew): this logic is complicated and makes assumptions
 /* assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
    completeness, we can just use the left nibs */
@@ -38,10 +28,6 @@ let tile_str = (t: Tile.t): string => {
   left_nib_str(t) ++ label_str ++ right_nib_str(t);
 };
 
-//This makes similar assumptions to the above
-let _rightmost_token = (t: Tile.t): string =>
-  List.nth(t.label, List.hd(List.rev(t.shards)));
-
 let hole_to_right = (z: Zipper.t): option(Id.t) =>
   /* If we're doing pure left to right entry, there should be nothing to
      the right except for maybe a convex hole inserted by the grouter.
@@ -59,18 +45,18 @@ let hole_to_right = (z: Zipper.t): option(Id.t) =>
     failwith("LSP: EXN: Nonempty Rightwards segment not single Convex Grout");
   };
 
-type lalala =
+type tileness =
   | Monotile(Id.t, string)
   | Polytile(Id.t);
 
-type substantial_thing_to_left =
-  | LeftConvex(lalala)
-  | LeftConcave(lalala);
+type shapyness =
+  | LeftConvex(tileness)
+  | LeftConcave(tileness);
 
 type thing_to_left =
   | Nothing
-  | Just(substantial_thing_to_left)
-  | SpacesThen(substantial_thing_to_left);
+  | Just(shapyness)
+  | SpacesThen(shapyness);
 
 let thing_to_left = (z: Zipper.t): thing_to_left =>
   /*
@@ -184,7 +170,6 @@ let nu_sugs =
   print_endline("LSP: Having expected type: " ++ Typ.to_string(expected_ty));
   print_endline("LSP: Having error: " ++ error_str(ci));
   let backpack_tokens = TyDi.backpack_to_token_list(z.backpack);
-  // TODO: filter backpack suggestion by shape
   let backpack_suggestion = suggest_backpack(z);
   print_endline(
     "LSP: Pre: Backpack stack: " ++ String.concat(" ", backpack_tokens),
@@ -204,8 +189,8 @@ let nu_sugs =
     ++ of_sugs(base_mono_operand_suggestions),
   );
   print_endline(
-    "LSP: Pre: Base mono operand suggestions: "
-    ++ of_sugs(base_mono_operand_suggestions),
+    "LSP: Pre: Abstract mono operand suggestions: "
+    ++ of_sugs(abstract_mono_operand_suggestions),
   );
   print_endline(
     "LSP: Pre: Leading suggestions: " ++ of_sugs(leading_suggestions),
@@ -217,6 +202,8 @@ let nu_sugs =
     "LSP: Pre: Lookahead variable suggestion: "
     ++ of_sugs(lookahead_variable_suggestions),
   );
+  //TODO(andrew): am i missing negation operator from convexes?
+  //TODO(andrew): think through function application concavity
   let suggestions_concave = AssistantForms.suggest_operator(ci);
   print_endline(
     "LSP: Pre: Operator suggestion: " ++ of_sugs(suggestions_concave),
@@ -228,7 +215,6 @@ let nu_sugs =
     @ variable_suggestions
     @ lookahead_variable_suggestions
     |> List.sort(Suggestion.compare);
-
   let base_suggestions =
     switch (shape) {
     | Convex =>
@@ -241,7 +227,6 @@ let nu_sugs =
             },
           backpack_suggestion,
         )
-
     | Concave(_) =>
       suggestions_concave
       @ List.filter_map(
@@ -256,6 +241,8 @@ let nu_sugs =
   switch (completion) {
   | None => Some(base_suggestions |> List.map(Suggestion.content_of))
   | Some(tok_to_left) =>
+    /* Note that for completion suggestions, we don't want to case on
+       shape expectation, because the tile might get remolded */
     suggestions_concave
     @ suggestions_convex
     @ backpack_suggestion
@@ -266,15 +253,6 @@ let nu_sugs =
     |> List.filter_map(x => TyDi.suffix_of(x, tok_to_left))
     |> Option.some
   };
-  //TODO: only suggest backpack, operator if prev token is complete (non-errored)?
-  /*let suggestions =
-      (backpack_suggestion @ List.sort(Suggestion.compare, suggestions_concave))
-      @ finish_current_token_suggestions;
-    print_endline(
-      "LSP: Suggested tokens: "
-      ++ (suggestions |> List.map(Suggestion.content_of) |> String.concat(" ")),
-    );
-    Some(suggestions |> List.map(Suggestion.content_of));*/
 };
 
 let dispatch_generation = (s: string) => {
@@ -295,17 +273,56 @@ let dispatch_generation = (s: string) => {
     failwith("LSP: EXN: Empty segment");
   };
   switch (generation_options(z)) {
-  | NewRightConvexToken(id) => nu_sugs(~shape=Convex, ~completion=None, z, id)
+  | NewRightConvexToken(id) =>
+    let sugs = nu_sugs(~shape=Convex, ~completion=None, z, id);
+    print_endline("LSP: Dispatch: Can insert new right-convex");
+    switch (sugs) {
+    | None => print_endline("LSP: Suggestion generation failed")
+    | Some(sugs) =>
+      print_endline(
+        "LSP: (1/1) New right-convex Suggestions: "
+        ++ String.concat(" ", sugs),
+      )
+    };
+    sugs;
   | NewRightConcaveToken(id) =>
-    nu_sugs(~shape=Concave(0), ~completion=None, z, id)
+    print_endline("LSP: Dispatch: Can insert new right-concave");
+    let sugs = nu_sugs(~shape=Concave(0), ~completion=None, z, id);
+    switch (sugs) {
+    | None => print_endline("LSP: Suggestion generation failed")
+    | Some(sugs) =>
+      print_endline(
+        "LSP: (1/1) New right-concave Suggestions: "
+        ++ String.concat(" ", sugs),
+      )
+    };
+    sugs;
   | LeftConcaveCompletionOrNewRightConvex(id_left, string, id_right) =>
+    print_endline(
+      "LSP: Dispatch: Can insert new right-convex or complete left",
+    );
     let* a = nu_sugs(~shape=Convex, ~completion=None, z, id_right);
     let+ b =
       nu_sugs(~shape=Concave(0), ~completion=Some(string), z, id_left);
+    print_endline(
+      "LSP: (1/2) New right-convex Suggestions: " ++ String.concat(" ", a),
+    );
+    print_endline(
+      "LSP: (2/2) Completion Suggestions: " ++ String.concat(" ", b),
+    );
     a @ b;
   | LeftConvexCompletionOrNewRightConcave(id_left, string, id_right) =>
+    print_endline(
+      "LSP: Dispatch: Can insert new right-concave or complete left",
+    );
     let* a = nu_sugs(~shape=Concave(0), ~completion=None, z, id_right);
     let+ b = nu_sugs(~shape=Convex, ~completion=Some(string), z, id_left);
+    print_endline(
+      "LSP: (1/2) New right-concave Suggestions: " ++ String.concat(" ", a),
+    );
+    print_endline(
+      "LSP: (2/2) Completion Suggestions: " ++ String.concat(" ", b),
+    );
     a @ b;
   };
 };
@@ -328,11 +345,11 @@ root  ::=
     List.map(
       tok =>
         switch (tok) {
-        | "<INTLIT>" => "intlit"
-        | "<FLOATLIT>" => "floatlit"
-        | "<STRINGLIT>" => "stringlit"
-        | "<PATVAR>" => "patvar"
-        | "<TYPVAR>" => "typvar"
+        | "~INTLIT~" => "intlit"
+        | "~FLOATLIT~" => "floatlit"
+        | "~STRINGLIT~" => "stringlit"
+        | "~PATVAR~" => "patvar"
+        | "~TYPVAR~" => "typvar"
         | tok => "\"" ++ tok ++ "\""
         },
       toks,
@@ -344,20 +361,8 @@ root  ::=
 let finals = (s: string) => {
   switch (dispatch_generation(s)) {
   | None => print_endline("LSP: No suggestions")
-  | Some(sugs) =>
-    print_endline("LSP: Suggestions: " ++ String.concat(" ", sugs));
-    prerr_endline("LSP: Grammar:\n " ++ toks_to_grammar(sugs));
+  | Some(sugs) => prerr_endline("LSP: Grammar:\n " ++ toks_to_grammar(sugs))
   };
 };
+
 finals(arg_str);
-/**
-TODO: also suggest start parens, square brackets, etc.
-done, hacky (see assistant forms hacks)
-
-TODO: figure out current expected shape by figuring out the
-shape of whats to the left, and filter accordingly
-eg only want to suggest operators if left is an operand
-need to see if we already have a defined notion of shape for delimiters
-
- */;
-//lsp(arg_str);

@@ -12,11 +12,11 @@ module Typ = {
   let unk: Typ.t = Unknown(Internal);
 
   let of_abstract_mono_delim: list((Token.t, Typ.t)) = [
-    ("<INTLIT>", Int),
-    ("<FLOATLIT>", Float),
-    ("<STRINGLIT>", String),
-    ("<PATVAR>", unk),
-    ("<TYPVAR>", unk),
+    ("~INTLIT~", Int),
+    ("~FLOATLIT~", Float),
+    ("~STRINGLIT~", String),
+    ("~PATVAR~", unk),
+    ("~TYPVAR~", unk),
   ];
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
@@ -192,10 +192,10 @@ module Delims = {
 
   let abstract_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => ["<INTLIT>", "<FLOATLIT>", "<STRINGLIT>"]
-    | Pat => ["<PATVAR>", "<INTLIT>", "<FLOATLIT>", "<STRINGLIT>"]
+    | Exp => ["~INTLIT~", "~FLOATLIT~", "~STRINGLIT~"]
+    | Pat => ["~PATVAR~", "~INTLIT~", "~FLOATLIT~", "~STRINGLIT~"]
     | Typ => []
-    | TPat => ["<TYPVAR>"]
+    | TPat => ["~TYPVAR~"]
     | _ => []
     };
 };
