@@ -38,7 +38,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | ModuleVal(Environment.t)
+    | ModuleVal(ClosureEnvironment.t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -95,7 +95,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | ModuleVal(Environment.t)
+    | ModuleVal(ClosureEnvironment.t)
   and case =
     | Case(t, list(rule), int)
   and rule =
