@@ -7,7 +7,7 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((is_in_buffer, sort, is_consistent, is_complete, label, i)) => {
+    ((label, is_in_buffer, sort, is_consistent, is_complete, i)) => {
       let cls =
         switch (label) {
         | _ when is_in_buffer => "in-buffer"
@@ -18,6 +18,7 @@ let of_delim' =
         | _ => "default"
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
+      let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       [
         span(
           ~attr=
@@ -30,11 +31,11 @@ let of_delim' =
 let of_delim =
     (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
+    t.label,
     is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
-    t.label,
     i,
   ));
 
@@ -42,7 +43,7 @@ let of_grout = [Node.text(Unicode.nbsp)];
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=10000, ((secondary_icons, indent, content)) =>
+    ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? Form.linebreak : "";
       [
@@ -59,19 +60,6 @@ let of_secondary =
       [span_c("secondary", [Node.text(Secondary.get_string(content))])];
     }
   );
-
-/* PERF: Tile memoization makes a >2X difference. I've left
-   the memoization in place for delims and secondary above as it still
-   seems like a marginal positive (5-10% difference).
-
-   WARNING: Note that this the table is stored outside the Text functor.
-   This means that if there are data dependencies on the functor argument
-   values, they will need to be explictly encoded in the key.
-
-   TODO: Consider setting a limit for the hashtbl size  */
-let piece_hash:
-  Hashtbl.t((list(Uuidm.t), Sort.t, Piece.t, int, Settings.t), list(t)) =
-  Hashtbl.create(10000);
 
 module Text = (M: {
                  let map: Measured.t;
@@ -97,26 +85,13 @@ module Text = (M: {
          of_piece(buffer_ids, sort_of_p_idx(i), p)
        );
   }
-  and of_piece' =
+  and of_piece =
       (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
-      of_secondary((M.settings.secondary_icons, m(p).last.col, content))
-    };
-  }
-  and of_piece =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
-    /* Last two elements of arg track the functorial args which
-       can effect the code layout; without these the first,
-       indentation can get out of sync */
-    let arg = (buffer_ids, expected_sort, p, m(p).last.col, M.settings);
-    try(Hashtbl.find(piece_hash, arg)) {
-    | _ =>
-      let res = of_piece'(buffer_ids, expected_sort, p);
-      Hashtbl.add(piece_hash, arg, res);
-      res;
+      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {

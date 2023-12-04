@@ -49,6 +49,8 @@ let apply =
       Ok({...model, editors});
     };
   | AcceptSuggestion =>
+    print_endline("accepting suggestion");
+    let trim = AssistantExpander.trim;
     switch (z.selection.mode) {
     | Normal => Ok(model)
     | Buffer(Parsed) => perform_action(model, Unselect(Some(Right)))
@@ -81,15 +83,15 @@ let apply =
         do_actions(
           model,
           [
-            Paste(completion),
+            Paste(trim(completion)),
             PerformAction(Move(Goal(Point(start)))),
             PerformAction(MoveToNextHole(Right)),
             PerformAction(Move(Local(Left(ByToken)))),
           ],
         );
       | Some(completion) =>
-        main(model, Paste(completion), state, ~schedule_action)
+        main(model, Paste(trim(completion)), state, ~schedule_action)
       }
-    }
+    };
   };
 };

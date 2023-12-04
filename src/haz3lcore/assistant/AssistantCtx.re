@@ -1,5 +1,7 @@
 open Suggestion;
 
+let expander = AssistantExpander.c;
+
 /* For suggestions in patterns, suggest variables which
  * occur free in that pattern's scope. */
 let free_variables =
@@ -53,7 +55,7 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
           Typ.is_consistent(ctx, ty_expect, ty_out)
           && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
         Some({
-          content: name ++ "(",
+          content: name ++ "(" ++ expander,
           strategy: Exp(Common(FromCtxAp(ty_out))),
         });
       }
@@ -68,7 +70,10 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
         when
           Typ.is_consistent(ctx, ty, ty_out)
           && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({content: name ++ "(", strategy: wrap(FromCtxAp(ty_out))})
+      Some({
+        content: name ++ "(" ++ expander,
+        strategy: wrap(FromCtxAp(ty_out)),
+      })
     | _ => None,
     ctx,
   );
