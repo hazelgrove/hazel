@@ -46,6 +46,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | ModuleVal(_)
   | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
@@ -57,6 +58,11 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
+
+  | Dot(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Dot(d1', d2') |> return;
 
   | ApBuiltin(f, args) =>
     let* args' = args |> List.map(pp_eval) |> sequence;
@@ -137,6 +143,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
   | Let(_)
+  | Module(_)
   | ConsistentCase(_)
   | Fun(_)
   | EmptyHole(_)
@@ -165,6 +172,12 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       Fun(dp, ty, d, s) |> return;
 
     | Let(dp, d1, d2) =>
+      /* d1 should already be evaluated, d2 is not */
+      let* d1 = pp_eval(d1);
+      let* d2 = pp_uneval(env, d2);
+      Let(dp, d1, d2) |> return;
+
+    | Module(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
       let* d1 = pp_eval(d1);
       let* d2 = pp_uneval(env, d2);
@@ -260,6 +273,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | ModuleVal(_)
   | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
@@ -271,6 +285,16 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     Let(dp, d1', d2') |> return;
+
+  | Module(dp, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Module(dp, d1', d2') |> return;
+
+  | Dot(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Dot(d1', d2') |> return;
 
   | FixF(f, ty, d1) =>
     let* d1' = pp_uneval(env, d1);
@@ -434,7 +458,8 @@ let rec track_children_of_hole =
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | BoundVar(_) => hii
+  | BoundVar(_)
+  | ModuleVal(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d, _)
   | Prj(d, _)
@@ -443,11 +468,13 @@ let rec track_children_of_hole =
   | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
+  | Module(_, d1, d2)
   | Ap(d1, d2)
   | BinBoolOp(_, d1, d2)
   | BinIntOp(_, d1, d2)
   | BinFloatOp(_, d1, d2)
   | BinStringOp(_, d1, d2)
+  | Dot(d1, d2)
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);

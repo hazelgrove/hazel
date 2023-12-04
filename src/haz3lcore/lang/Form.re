@@ -90,6 +90,10 @@ let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 let is_reserved = str => is_bool(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_tag = is_capitalized_name;
+let is_dot_var = str =>
+  regexp("^\\.[A-Za-z][A-Za-z0-9_]*$", str) || str == ".";
+let is_dot_typ = str => regexp("^\\.[A-Z][A-Za-z0-9_]*$", str) || str == ".";
 let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
@@ -242,8 +246,9 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or_", mk_nul_infix("\\", P.eqs)), // HACK: SUBSTRING REQ
+  ("dot_var", mk_infix(".", Exp, P.max)),
+  ("dot_typ", mk_infix(".", Typ, P.max)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
-  ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
@@ -261,8 +266,17 @@ let forms: list((string, t)) = [
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
+    "module_",
+    mk(ds, ["module", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  ("module_type", mk(ii, ["{", "}"], mk_op(Typ, [Pat]))),
+  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
+  ),
+  (
+    "type_alias_pat",
+    mk(ds, ["Type", "="], mk_pre'(P.if_, Pat, Pat, [TPat], Typ)),
   ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),

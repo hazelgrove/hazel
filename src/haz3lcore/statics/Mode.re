@@ -120,3 +120,12 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
     }
   | None => SynFun
   };
+
+let is_module_ana = (mode: t): bool => {
+  switch (mode) {
+  | Ana(Module(_)) => true
+  | Ana(_)
+  | Syn
+  | SynFun => false
+  };
+};

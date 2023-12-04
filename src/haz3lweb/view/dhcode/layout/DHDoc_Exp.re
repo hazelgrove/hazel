@@ -60,10 +60,12 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
-  | Closure(_) => DHDoc_common.precedence_const
+  | Closure(_)
+  | ModuleVal(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
+  | Module(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
@@ -73,6 +75,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinStringOp(op, _, _) => precedence_bin_string_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
+  | Dot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
@@ -179,6 +182,14 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | ModuleVal(e) =>
+        let envlist =
+          Environment.to_listk(e)
+          |> List.map(((name, v)) =>
+               [text("  " ++ name ++ " = "), mk_cast(go'(v)), text(";\n")]
+             )
+          |> List.flatten;
+        Doc.(hcats([text("Module(\n")] @ envlist @ [text(")")]));
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
@@ -193,6 +204,10 @@ let rec mk =
           go'(~parenthesize=false, d2),
         );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | Dot(d1, d2) =>
+        let doc1 = go(~enforce_inline, d1);
+        let doc2 = go(~enforce_inline, d2);
+        Doc.(hcats([mk_cast(doc1), text("."), mk_cast(doc2)]));
       | ApBuiltin(ident, args) =>
         switch (args) {
         | [hd, ...tl] =>
@@ -247,6 +262,27 @@ let rec mk =
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+            DHDoc_common.Delim.mk("="),
+            def_doc
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            DHDoc_common.Delim.mk("in"),
+          ]),
+          mk_cast(go(~enforce_inline=false, dbody)),
+        ]);
+      | Module(dp, ddef, dbody) =>
+        let def_doc = (~enforce_inline) =>
+          mk_cast(go(~enforce_inline, ddef));
+        vseps([
+          hcats([
+            DHDoc_common.Delim.mk("module"),
             DHDoc_Pat.mk(dp)
             |> DHDoc_common.pad_child(
                  ~inline_padding=(space(), space()),

@@ -456,6 +456,7 @@ let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
   switch (pat.term) {
   | Parens(p)
   | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
+  | TyAlias(_) => {...pat, term: EmptyHole}
   | _ => pat
   };
 };
@@ -564,7 +565,7 @@ let get_doc =
   };
 
   switch (info) {
-  | Some(InfoExp({term, _})) =>
+  | Some(InfoExp({term, cls, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
@@ -717,6 +718,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_empty_hole_group, options);
           };
+        | TyAlias(_) // TyAlias should be a invalid form in func
         | MultiHole(_) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1324,6 +1326,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.let_empty_hole_exp_group, options);
           };
+        | TyAlias(_) // TyAlias should be a invalid form in let
         | MultiHole(_) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1857,6 +1860,53 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | Module(pat, def, body) =>
+        let pat = bypass_parens_and_annot_pat(pat);
+        let v =
+          switch (pat.term) {
+          | Constructor(v) => v
+          | _ => ""
+          };
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.module_exp_group,
+            docs,
+          );
+        let pat_id = List.nth(pat.ids, 0);
+        let def_id = List.nth(def.ids, 0);
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.module_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
+            def_id |> Id.to_string,
+            pat_id |> Id.to_string,
+            v,
+            body_id |> Id.to_string,
+          ),
+          LangDocMessages.module_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+        );
+      | Dot(e_mod, e_mem) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.dot_exp_group,
+            docs,
+          );
+        let mod_id = List.nth(e_mod.ids, 0);
+        let mem_id = List.nth(e_mem.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.dot_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            mem_id |> Id.to_string,
+            mod_id |> Id.to_string,
+          ),
+          LangDocMessages.dot_exp_coloring_ids(~mod_id, ~mem_id),
+        );
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
@@ -2199,6 +2249,19 @@ let get_doc =
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
+      | Constructor(_) when cls == Exp(ModuleVar) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.module_var_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.module_var_group,
+          doc.explanation.message,
+          [],
+        );
       | Constructor(v) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -2217,7 +2280,7 @@ let get_doc =
         );
       };
     get_message_exp(term.term);
-  | Some(InfoPat({term, _})) =>
+  | Some(InfoPat({term, cls, _})) =>
     switch (bypass_parens_pat(term).term) {
     | EmptyHole =>
       let (doc, options) =
@@ -2242,6 +2305,19 @@ let get_doc =
         doc,
         options,
         LangDocMessages.multi_hole_pat_group,
+        doc.explanation.message,
+        [],
+      );
+    | TyAlias(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.tyalias_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.tyalias_pat_group,
         doc.explanation.message,
         [],
       );
@@ -2533,6 +2609,19 @@ let get_doc =
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
+    | Constructor(_) when cls == Pat(ModuleVar) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.module_var_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.module_var_pat_group,
+        doc.explanation.message,
+        [],
+      );
     | Constructor(con) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2795,6 +2884,19 @@ let get_doc =
           );
         basic(doc, LangDocMessages.tuple_typ_group, options);
       };
+    | Constructor(_) when cls == Typ(ModuleVar) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.module_var_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.module_var_group,
+        doc.explanation.message,
+        [],
+      );
     | Constructor(_) =>
       basic_info(LangDocMessages.sum_typ_nullary_constructor_def_group)
     | Var(_) when cls == Typ(Constructor) =>
@@ -2817,6 +2919,38 @@ let get_doc =
       );
     | Sum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Ap(_) => basic_info(LangDocMessages.sum_typ_unary_constructor_def_group)
+    | Module(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.module_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.module_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | Dot(e_mod, e_mem) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.dot_typ_group,
+          docs,
+        );
+      let mod_id = List.nth(e_mod.ids, 0);
+      let mem_id = List.nth(e_mem.ids, 0);
+      get_message(
+        doc,
+        options,
+        LangDocMessages.dot_typ_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s%s"),
+          mem_id |> Id.to_string,
+          mod_id |> Id.to_string,
+        ),
+        LangDocMessages.dot_typ_coloring_ids(~mod_id, ~mem_id),
+      );
     | Parens(_) => default // Shouldn't be hit?
     | Invalid(_) => default
     }

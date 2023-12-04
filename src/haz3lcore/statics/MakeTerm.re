@@ -187,6 +187,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
+        | (["module", "=", "in"], [Pat(pat), Exp(def)]) =>
+          Module(pat, def, r)
         | _ => hole(tm)
         },
       )
@@ -238,6 +240,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["."], []) => Dot(l, r)
           | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
@@ -298,6 +301,17 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
+  | Pre(tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["Type", "="], [TPat(arg)]) => TyAlias(arg, ty)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
   | Pre(_) as tm => ret(hole(tm))
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
@@ -337,6 +351,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
+        | (["{", "}"], [Pat(body)]) => Module(body)
         | ([t], []) when t != " " => Invalid(t)
         | _ => hole(tm)
         },
@@ -371,6 +386,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | ([(_id, (["."], []))], []) => ret(Dot(l, r))
       | _ => ret(hole(tm))
       }
     }

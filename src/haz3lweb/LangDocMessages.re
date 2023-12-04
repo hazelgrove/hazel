@@ -92,6 +92,8 @@ let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
+let dot_exp = () => Example.mk_monotile(Form.get("dot_var"));
+let dot_typ = () => Example.mk_monotile(Form.get("dot_typ"));
 let pipeline = () => Example.mk_monotile(Form.get("pipeline"));
 let nil = () => exp("[]");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
@@ -99,7 +101,9 @@ let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
+let mk_module = Example.mk_tile(Form.get("module_"));
 let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
+let mk_tyalias_pat = Example.mk_tile(Form.get("type_alias_pat"));
 
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
@@ -864,6 +868,35 @@ let var_exp: form = {
   };
 };
 
+let module_var_group = "module_var_group";
+let module_var: form = {
+  let explanation = {
+    message: "Module Variable. Retrieves the encapsulated functionality and data elements from a module, obtaining the value and attributes associated with the module's expression that it was linked to.",
+    feedback: Unselected,
+  };
+  {
+    id: "module_var",
+    syntactic_form: [exp("M")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let module_var_pat_group = "module_var_pat_group";
+let module_var_pat: form = {
+  let explanation = {
+    message: "Module variable pattern. All expressions match the *variable pattern*. The matching expression will be packaged as a module and bound to variable `%s`.",
+    feedback: Unselected,
+  };
+  {
+    id: "module_var_pat",
+    syntactic_form: [exp("M")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let ctr_exp_group = "ctr_exp_group";
 let ctr_exp: form = {
   let explanation = {
@@ -879,6 +912,33 @@ let ctr_exp: form = {
   };
 };
 
+let dot_ex = {
+  sub_id: "dot_ex",
+  term: mk_example("module M = \nlet x = 1 in \n in \nM.x"),
+  message: "The module M has a member x which is bound to 1, so the expression evaluates to 1.",
+  feedback: Unselected,
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let dot_exp_coloring_ids =
+    (~mod_id: Id.t, ~mem_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp1), mod_id),
+  (Piece.id(_exp2), mem_id),
+];
+let dot_exp_group = "dot_exp_group";
+let dot_exp: form = {
+  let explanation = {
+    message: "Dot access. Retrieves the value of the [*member*](%s) of the [*module*](%s).",
+    feedback: Unselected,
+  };
+  {
+    id: "dot_exp",
+    syntactic_form: [_exp1, dot_exp(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [dot_ex],
+  };
+};
 let let_base_exp_group = "let_base_exp_group";
 let let_empty_hole_exp_group = "let_empty_hole_exp_group";
 let let_empty_hole_tpat_group = "let_empty_hole_tpat_group";
@@ -1503,6 +1563,62 @@ let let_ap_exp: form = {
     expandable_id: Some(Piece.id(ap)),
     explanation,
     examples: [let_ap_ex],
+  };
+};
+
+let module_ex = {
+  sub_id: "module_ex",
+  term: mk_example("module M = \ntype M = Int in\nlet x : M = 1 in\nin\nM.x"),
+  message: "The variable M is bound to Module(x = 1), so the expression evaluates to 1.",
+  feedback: Unselected,
+};
+let module_exp_group = "module_exp_group";
+let _pat_def_body_module_exp_coloring_ids =
+    (
+      sf_pat_id: Id.t,
+      sf_def_id: Id.t,
+      sf_body_id: Id.t,
+      ~pat_id: Id.t,
+      ~def_id: Id.t,
+      ~body_id: Id.t,
+    )
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_def_id, def_id), (sf_body_id, body_id)];
+};
+let _pat_def_module_exp_coloring_ids =
+    (sf_pat_id: Id.t, sf_def_id: Id.t, ~pat_id: Id.t, ~def_id: Id.t)
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_def_id, def_id)];
+};
+let _pat = pat("p");
+let _exp_def = exp("e_def");
+let module_base_exp_coloring_ids =
+  _pat_def_module_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
+let _pat = pat("M");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let module_exp_coloring_ids =
+  _pat_def_body_module_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
+let module_exp: form = {
+  let explanation = {
+    message: "Module definition expression.  The [*definition*](%s) is packaged as a module and bound to the [*variable*](%s) `%s` in the [*body*](%s).",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_module([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: "module_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [module_ex],
   };
 };
 
@@ -2771,6 +2887,26 @@ let multi_hole_pat: form = {
     examples: [],
   };
 };
+let tyalias_pat_group = "tyalias_pat_group";
+let _tpat = tpat("p");
+let _typ_def = typ("ty_def");
+let tyalias_pat: form = {
+  let explanation = {
+    message: "Type alias pattern. This pattern should only exists as part of module's type annotation. Expressions are not matched against this pattern.",
+    feedback: Unselected,
+  };
+  {
+    id: "tyalias_pat",
+    syntactic_form: [
+      mk_tyalias_pat([[space(), _tpat, space()]]),
+      space(),
+      _typ_def,
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 
 let wild_pat_group = "wild_pat_group";
 let wild_pat: form = {
@@ -3192,6 +3328,30 @@ let list_typ: form = {
   };
 };
 
+let module_typ_ex = {
+  sub_id: "module_typ_ex",
+  term:
+    mk_example(
+      "module M : { \nType T = Int, \nx : T \n} = \ntype T = Int in\nlet x:T = 1 in \n in \nM.x",
+    ),
+  message: "The module M has type member T which is alias of Int, and member x of type T.",
+  feedback: Unselected,
+};
+let module_typ_group = "module_typ_group";
+let module_typ: form = {
+  let explanation = {
+    message: "Module Signature Type. Specifies the structure and specifications of a module, detailing the types and relationships of its members, including variables and type aliases.",
+    feedback: Unselected,
+  };
+  {
+    id: "module_typ",
+    syntactic_form: [typ("{ "), exp("x1"), typ(" : ty1, ... }")],
+    expandable_id: None,
+    explanation,
+    examples: [module_typ_ex],
+  };
+};
+
 let arrow_typ_group = "arrow_typ_group";
 let arrow3_typ_group = "arrow3_typ_group";
 let _typ_arg = typ("ty_arg");
@@ -3386,6 +3546,35 @@ let var_typ: form = {
   };
 };
 
+let dot_typ_ex = {
+  sub_id: "dot_typ_ex",
+  term:
+    mk_example("module M = \ntype T = Int in \nin \nlet x : M.T = 1 in \nx"),
+  message: "The module M has type member T which is alias of Int, so type M.T is consistent with type Int.",
+  feedback: Unselected,
+};
+let _typ1 = typ("T1");
+let _typ2 = typ("T2");
+let dot_typ_coloring_ids =
+    (~mod_id: Id.t, ~mem_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ1), mod_id),
+  (Piece.id(_typ2), mem_id),
+];
+let dot_typ_group = "dot_typ_group";
+let dot_typ: form = {
+  let explanation = {
+    message: "Access [*type member*](%s) of the [*module*](%s).",
+    feedback: Unselected,
+  };
+  {
+    id: "dot_typ",
+    syntactic_form: [_typ1, dot_typ(), _typ2],
+    expandable_id: None,
+    explanation,
+    examples: [dot_typ_ex],
+  };
+};
+
 let var_typ_pat_group = "var_typ_pat_group";
 let var_typ_pat: form = {
   let explanation = {
@@ -3528,6 +3717,9 @@ let init = {
     tuple_exp_size2,
     tuple_exp_size3,
     var_exp,
+    module_var,
+    module_var_pat,
+    dot_exp,
     ctr_exp,
     let_base_exp,
     let_empty_hole_exp,
@@ -3547,6 +3739,7 @@ let init = {
     let_tuple3_exp,
     let_ctr_exp,
     let_ap_exp,
+    module_exp,
     tyalias_base_exp,
     funapp_exp,
     conapp_exp,
@@ -3589,6 +3782,7 @@ let init = {
     // Patterns
     empty_hole_pat,
     multi_hole_pat,
+    tyalias_pat,
     wild_pat,
     intlit_pat,
     floatlit_pat,
@@ -3614,6 +3808,7 @@ let init = {
     bool_typ,
     str_typ,
     list_typ,
+    module_typ,
     arrow_typ,
     arrow3_typ,
     labelled_sum_typ,
@@ -3623,6 +3818,7 @@ let init = {
     tuple2_typ,
     tuple3_typ,
     var_typ,
+    dot_typ,
     var_typ_pat,
   ],
   groups: [
@@ -3787,6 +3983,9 @@ let init = {
       ]),
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
+    (module_var_group, init_options([(module_var.id, [])])),
+    (module_var_pat_group, init_options([(module_var_pat.id, [])])),
+    (dot_exp_group, init_options([(dot_exp.id, [])])),
     (ctr_exp_group, init_options([(ctr_exp.id, [])])),
     (let_base_exp_group, init_options([(let_base_exp.id, [])])),
     (
@@ -3913,6 +4112,7 @@ let init = {
         (let_ap_exp.id, [pat("p_con"), mk_ap_pat([[pat("p_arg")]])]),
       ]),
     ),
+    (module_exp_group, init_options([(module_exp.id, [])])),
     (tyalias_exp_group, init_options([(tyalias_base_exp.id, [])])),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
@@ -3955,6 +4155,7 @@ let init = {
     // Patterns
     (empty_hole_pat_group, init_options([(empty_hole_pat.id, [])])),
     (multi_hole_pat_group, init_options([(multi_hole_pat.id, [])])),
+    (tyalias_pat_group, init_options([(tyalias_pat.id, [])])),
     (wild_pat_group, init_options([(wild_pat.id, [])])),
     (intlit_pat_group, init_options([(intlit_pat.id, [])])),
     (floatlit_pat_group, init_options([(floatlit_pat.id, [])])),
@@ -4001,6 +4202,7 @@ let init = {
     (bool_typ_group, init_options([(bool_typ.id, [])])),
     (str_typ_group, init_options([(str_typ.id, [])])),
     (list_typ_group, init_options([(list_typ.id, [])])),
+    (module_typ_group, init_options([(module_typ.id, [])])),
     (arrow_typ_group, init_options([(arrow_typ.id, [])])),
     (
       arrow3_typ_group,
@@ -4037,6 +4239,7 @@ let init = {
       ]),
     ),
     (var_typ_group, init_options([(var_typ.id, [])])),
+    (dot_typ_group, init_options([(dot_typ.id, [])])),
     (var_typ_pat_group, init_options([(var_typ_pat.id, [])])),
   ],
 };

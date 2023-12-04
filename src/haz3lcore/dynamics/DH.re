@@ -13,6 +13,8 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
+    | Module(DHPat.t, t, t)
+    | Dot(t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -36,6 +38,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | ModuleVal(Environment.t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -67,6 +70,8 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
+    | Module(DHPat.t, t, t)
+    | Dot(t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
@@ -90,6 +95,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | ModuleVal(Environment.t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -105,6 +111,8 @@ module rec DHExp: {
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
     | Let(_, _, _) => "Let"
+    | Module(_, _, _) => "Module"
+    | Dot(_, _) => "DotMember"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
@@ -130,6 +138,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
+    | ModuleVal(_) => "ModuleVal"
     };
 
   let mk_tuple: list(t) => t =
@@ -161,6 +170,8 @@ module rec DHExp: {
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
+    | Module(dp, b, c) => Module(dp, strip_casts(b), strip_casts(c))
+    | Dot(a, b) => Dot(strip_casts(a), strip_casts(b))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
@@ -191,6 +202,7 @@ module rec DHExp: {
     | FloatLit(_) as d
     | StringLit(_) as d
     | Constructor(_) as d
+    | ModuleVal(_) as d
     | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
@@ -212,6 +224,10 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Module(dp1, d11, d21), Module(dp2, d12, d22)) =>
+      dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Dot(d11, d21), Dot(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
@@ -244,10 +260,13 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
+    | (ModuleVal(mv1), ModuleVal(mv2)) => mv1 == mv2
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)
     | (Let(_), _)
+    | (Module(_), _)
+    | (Dot(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
     | (Ap(_), _)
@@ -264,7 +283,8 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
-    | (ConsistentCase(_), _) => false
+    | (ConsistentCase(_), _)
+    | (ModuleVal(_), _) => false
 
     /* Hole forms: when checking environments, only check that
        environment ID's are equal, don't check structural equality.
