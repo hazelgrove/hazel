@@ -100,9 +100,6 @@ let nut_menu =
     ),
   ),
 ];
-let breadcrumb_bar = () => {
-  [div([text("Breadcrumb bar")])];
-};
 let top_bar_view =
     (
       ~inject: Update.t => 'a,
