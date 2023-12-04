@@ -2,17 +2,9 @@ open Haz3lcore;
 include UpdateAction;
 
 /* NOTE: this is duplicated from Update */
-let perform_action =
-    (~queue_scroll_to_caret, model: Model.t, a: Action.t): Result.t(Model.t) => {
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let ed_init = Editors.get_editor(model.editors);
-  switch (
-    Haz3lcore.Perform.go(
-      ~settings=model.settings.core,
-      a,
-      queue_scroll_to_caret,
-      ed_init,
-    )
-  ) {
+  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
   };
@@ -41,7 +33,6 @@ let apply =
       ~schedule_action,
       ~state,
       ~main,
-      ~queue_scroll_to_caret,
     )
     : Result.t(Model.t) => {
   let editor = model.editors |> Editors.get_editor;
@@ -62,8 +53,7 @@ let apply =
     let trim = AssistantExpander.trim;
     switch (z.selection.mode) {
     | Normal => Ok(model)
-    | Buffer(Parsed) =>
-      perform_action(~queue_scroll_to_caret, model, Unselect(Some(Right)))
+    | Buffer(Parsed) => perform_action(model, Unselect(Some(Right)))
     | Buffer(Unparsed) =>
       switch (TyDi.get_buffer(z)) {
       | None => Ok(model)
@@ -83,9 +73,7 @@ let apply =
           switch (actions) {
           | [] => Ok(model)
           | [hd, ...tl] =>
-            switch (
-              main(model, hd, state, queue_scroll_to_caret, ~schedule_action)
-            ) {
+            switch (main(model, hd, state, ~schedule_action)) {
             | Error(err) => Error(err)
             | Ok(model) => do_actions(model, tl)
             }
@@ -102,13 +90,7 @@ let apply =
           ],
         );
       | Some(completion) =>
-        main(
-          model,
-          Paste(trim(completion)),
-          state,
-          queue_scroll_to_caret,
-          ~schedule_action,
-        )
+        main(model, Paste(trim(completion)), state, ~schedule_action)
       }
     };
   };
