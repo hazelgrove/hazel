@@ -444,7 +444,7 @@ and upat_to_info_map =
     /* Note the self type assigned to pattern variables (unknown)
        may be SynSwitch, but the type we add to the context is
        always Unknown Internal */
-    if (Mode.is_module_ana(mode)) {
+    if (Mode.is_module_ana(mode, ctx)) {
       atomic(BadToken(name));
     } else {
       let ctx_typ =
@@ -460,9 +460,10 @@ and upat_to_info_map =
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
   | Constructor(ctr) =>
-    if (Mode.is_module_ana(mode)) {
+    if (Mode.is_module_ana(mode, ctx)) {
       let ctx_typ =
-        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))))
+        |> Typ.normalize(ctx);
       /* Change type var to be type member of module. */
       let ctx_typ = Ctx.modulize(ctx_typ, ctr);
       /** If module has a type member with same name,
