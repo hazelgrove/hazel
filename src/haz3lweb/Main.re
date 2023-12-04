@@ -3,7 +3,7 @@ open Incr_dom;
 open Haz3lweb;
 open Virtual_dom.Vdom;
 
-let action_applied = ref(true);
+let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
 let last_edit_action = ref(JsUtil.timestamp());
 
@@ -38,7 +38,6 @@ let restart_caret_animation = () =>
 
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
-  action_applied := true;
   if (UpdateAction.is_edit(action)) {
     last_edit_action := JsUtil.timestamp();
     edit_action_applied := true;
@@ -46,7 +45,14 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   last_edit_action := JsUtil.timestamp();
   switch (
     try({
-      let new_model = Update.apply(model, action, state, ~schedule_action);
+      let new_model =
+        Update.apply(
+          model,
+          action,
+          state,
+          () => {scroll_to_caret := true},
+          ~schedule_action,
+        );
       Log.update(action);
       new_model;
     }) {
@@ -156,8 +162,8 @@ module App = {
           print_endline("Saving...");
           schedule_action(Update.Save);
         };
-        if (action_applied.contents) {
-          action_applied := false;
+        if (scroll_to_caret.contents) {
+          scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };
       },
