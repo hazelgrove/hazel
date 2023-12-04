@@ -5,9 +5,9 @@ open DH;
 /* Transition.re
 
    This module defines the evaluation semantics of Hazel in terms of small step
-   evaluation. These small steps are wrapped up into a big step in Evaluator.re
+   evaluation. These small steps are wrapped up into a big step in Evaluator.re.
 
-   An instructive example is the sequence case:
+   I'll use the Sequence case as an example:
 
     | Sequence(d1, d2) =>
         let. _ = otherwise(d1 => Sequence(d1, d2))
@@ -18,9 +18,10 @@ open DH;
     Each step semantics starts with a `let. () = otherwise(...)` that defines how
     to wrap the expression back up if the step couldn't be evaluated.
 
-    This is followed by a series of `and. _ = req_final(req(state, env), <i>, <d>)`
-    which indicate that in order to evaluate the step, <d> must be final. (req_value
-    is also available if it needs to be a value).
+    This is followed by a series of `and. d1' = req_final(req(state, env), <i>, <d1>)`
+    which indicate that in order to evaluate the step, <d1> must be final. (req_value
+    is also available if it needs to be a value). Note that if successful, d1' hold
+    contain the fully-evaluated version of d1.
 
     Finally, we have the Step construct that defines the actual step. Note "Step"s
     should be used if and only if they change the expression. If they do not change
@@ -32,7 +33,7 @@ open DH;
     Lastly, the `value` field allows for some speeding up of the evaluator. If you
     are unsure, it is always safe to put `value: false`.
 
-    value: true guarantees:
+    `value: true` guarantees:
       - if all requirements are values, then the output will be a value
       - if some requirements are indet, then the output will be indet
 
@@ -403,15 +404,17 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (d1') {
           | Tuple(ds) when n < 0 || List.length(ds) <= n =>
-            // TODO(Matt): This is iconsistent - we don't deal with any other static error like this
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
+            print_endline("InvalidProjection");
+            raise(EvaluatorError.Exception(InvalidProjection(n)));
           | Tuple(ds) => List.nth(ds, n)
           | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
+            print_endline("InvalidProjection");
+            raise(EvaluatorError.Exception(InvalidProjection(n)));
           | Cast(d2, Prod(ts1), Prod(ts2)) =>
             Cast(Prj(d2, n), List.nth(ts1, n), List.nth(ts2, n))
           | _ =>
-            InvalidOperation(d1', InvalidOperationError.InvalidProjection)
+            print_endline("InvalidProjection");
+            raise(EvaluatorError.Exception(InvalidProjection(n)));
           },
         kind: Projection,
         value: false,
