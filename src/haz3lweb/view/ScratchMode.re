@@ -156,9 +156,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
           let l1 = tag_term(body, level);
           let l2 = tag_term(fbody, level + 1);
           List.cons((level, (name, term.ids)), l1) @ l2;
-        //| Module(_)=>
-        //  Printf.printf("module: %s\n", TermBase.UExp.show(term));
-        //  [];
         | Module(
             {term: TypeAnn({term: Constructor(name), _}, _), _},
             t1,
@@ -167,7 +164,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
         | Module({term: Constructor(name), _}, t1, t2) =>
           let l1 = tag_term(t1, level + 1);
           let l2 = tag_term(t2, level);
-          //Printf.printf("module %s\n", name);
           List.cons((level, (name, term.ids)), l1) @ l2;
         | UnOp(_, t1)
         | Fun(_, t1)
