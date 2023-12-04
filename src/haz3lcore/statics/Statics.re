@@ -90,6 +90,26 @@ let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
+// The input contains only NotInt(_) by default
+let get_unmatched_int = (xs: list(Constraint.t)): int => {
+  let first_int =
+    switch (List.hd(xs)) {
+    | NotInt(y) => y
+    | _ => 0
+    };
+  let max_int =
+    List.fold_left(
+      (x, y: Constraint.t) =>
+        switch (y) {
+        | NotInt(z) => x < z ? z : x
+        | _ => x
+        },
+      first_int,
+      List.tl(xs),
+    );
+  max_int + 1;
+};
+
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -330,7 +350,28 @@ and uexp_to_info_map =
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
     if (!is_exhaustive) {
-      let dual_constraint = Constraint.dual(final_constraint);
+      // Dual constraint: the unwrapped version of dual.
+      // Note that its elements are virtually connected via AND.
+      let dual_constraints =
+        Constraint.unwrap_and(Constraint.dual(final_constraint));
+      switch (dual_constraints) {
+      | [] => print_endline("The constraint is empty")
+      | _ =>
+        switch (List.hd(dual_constraints)) {
+        | NotInt(_) =>
+          let (ns, _) =
+            List.partition(
+              fun
+              | Constraint.NotInt(_) => true
+              | _ => false,
+              dual_constraints,
+            );
+          let unmatched = get_unmatched_int(ns);
+          print_endline(string_of_int(unmatched));
+        | _ => () // TODO
+        }
+      };
+      // print_endline(Constraint.show(dual_constraint));
       ();
       // TODO
     };

@@ -149,6 +149,15 @@ let rec or_constraints = (lst: list(t)): t =>
   | [xi, ...xis] => Or(xi, or_constraints(xis))
   };
 
+// Because `Statics.uexp_to_info_map` generates a nested AND structure as part
+// of its output, we need a function to revert it into lists.
+let rec unwrap_and = (x: t): list(t) =>
+  switch (x) {
+  | And(lhs, rhs) => [lhs, ...unwrap_and(rhs)]
+  | Truth => []
+  | _ => [x]
+  };
+
 // Temporary name
 let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
   if (num_variants == 1) {
