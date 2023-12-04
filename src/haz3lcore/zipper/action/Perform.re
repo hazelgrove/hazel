@@ -17,6 +17,24 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
+let should_scroll_to_caret = (a: Action.t) => {
+  switch (a) {
+  | Move(_)
+  | MoveToNextHole(_)
+  | Jump(_)
+  | Select(Resize(_))
+  | Select(Term(_) | Smart | Tile(_))
+  | Destruct(_)
+  | Insert(_)
+  | Pick_up
+  | Put_down
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => true
+  | Unselect(_)
+  | Select(All) => false
+  };
+};
+
 let go_z =
     (
       ~meta: option(Editor.Meta.t)=?,
@@ -181,8 +199,18 @@ let go_z =
 };
 
 let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) =>
+    (
+      ~settings: CoreSettings.t,
+      a: Action.t,
+      queue_scroll_to_caret: unit => unit,
+      ed: Editor.t,
+    )
+    : Action.Result.t(Editor.t) => {
+  if (should_scroll_to_caret(a)) {
+    queue_scroll_to_caret();
+  } else {
+    ();
+  };
   if (ed.read_only && is_write_action(a)) {
     Result.Ok(ed);
   } else {
@@ -192,3 +220,4 @@ let go =
     let+ z = go_z(~settings, ~meta, a, zipper);
     Editor.new_state(~effects=Effect.s^, a, z, ed);
   };
+};
