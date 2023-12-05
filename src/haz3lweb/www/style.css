@@ -1922,3 +1922,18 @@ svg.expandable path {
   top: -1em;
   left: -1em;
 }
+/*
+.fold-icon .hide-icon{
+  display: none;
+}
+*/
+
+.fold-icon:hover .hide-icon{
+  display: block;
+  transform: scale(130%);
+}
+
+.hide-icon {
+  cursor: pointer;
+  color: var(--top_bar_icon_fill);
+}

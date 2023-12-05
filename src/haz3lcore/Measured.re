@@ -267,7 +267,8 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+let of_segment =
+    (~old: t=empty, ~touched=Touched.empty, ~folded=[], seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -276,6 +277,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             ~map,
             ~container_indent: abs_indent=0,
             ~origin=Point.zero,
+            ~compress=false,
+            ~outermost=false,
             seg: Segment.t,
           )
           : (Point.t, t) => {
@@ -319,9 +322,17 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
              );
         (origin, map);
       | [hd, ...tl] =>
+        let fold = (origin: Point.t, last: Point.t) => {
+          let folded_last =
+            switch (tl) {
+            | [] when outermost => Point.{...origin, col: origin.col + 7}
+            | _ => origin
+            };
+          compress ? folded_last : last;
+        };
         let (contained_indent, origin, map) =
           switch (hd) {
-          | Secondary(w) when Secondary.is_linebreak(w) =>
+          | Secondary(w) when Secondary.is_linebreak(w) && !compress =>
             let row_indent = container_indent + contained_indent;
             let indent =
               if (Segment.sameline_secondary(tl)) {
@@ -352,37 +363,48 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Secondary(w) =>
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
-            let last = {...origin, col: origin.col + wspace_length};
+            let last =
+              {...origin, col: origin.col + wspace_length} |> fold(origin);
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            let last = {...origin, col: origin.col + 1};
+            let last = {...origin, col: origin.col + 1} |> fold(origin);
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
             let token = List.nth(t.label);
-            let add_shard = (origin, shard, map) => {
+            let add_shard = (origin, shard, map, count) => {
               let last =
                 Point.{
                   ...origin,
                   col: origin.col + String.length(token(shard)),
-                };
+                }
+                |> fold(origin);
               let map = map |> add_s(t.id, shard, {origin, last});
-              (last, map);
+              (last, map, count + 1);
             };
-            let (last, map) =
+            let (last, map, _) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
-                   shard => add_shard(origin, shard, map),
-                   ((origin, map), child, shard) => {
+                   shard => add_shard(origin, shard, map, 0),
+                   ((origin, map, count), child, shard) => {
+                     let in_folded = List.mem(t.id, folded) && count == 2;
                      let (child_last, child_map) =
                        go_nested(
                          ~map,
                          ~container_indent=container_indent + contained_indent,
                          ~origin,
+                         ~compress=compress || in_folded,
+                         ~outermost=in_folded && !compress,
                          child,
                        );
-                     add_shard(child_last, shard, child_map);
+                     //  let child_last =
+                     //    if (List.mem(t.id, folded_list) && count == 2) {
+                     //      Point.{...origin, col: origin.col + 7};
+                     //    } else {
+                     //      child_last;
+                     //    };
+                     add_shard(child_last, shard, child_map, count);
                    },
                  );
             (contained_indent, last, map);
@@ -407,27 +429,27 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t): option(Point.t) =>
+let segment_origin = (~folded=[], seg: Segment.t): option(Point.t) =>
   Option.map(
-    first => find_p(first, of_segment(seg)).origin,
+    first => find_p(first, of_segment(seg, ~folded)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(Point.t) =>
+let segment_last = (~folded=[], seg: Segment.t): option(Point.t) =>
   Option.map(
-    last => find_p(last, of_segment(seg)).last,
+    last => find_p(last, of_segment(seg, ~folded)).last,
     ListUtil.last_opt(seg),
   );
 
-let segment_height = (seg: Segment.t) =>
-  switch (segment_last(seg), segment_origin(seg)) {
+let segment_height = (~folded=[], seg: Segment.t) =>
+  switch (segment_last(seg, ~folded), segment_origin(seg, ~folded)) {
   | (Some(last), Some(first)) => 1 + last.row - first.row
   | _ => 0
   };
 
-let segment_width = (seg: Segment.t): int =>
+let segment_width = (~folded=[], seg: Segment.t): int =>
   IntMap.fold(
     (_, {max_col, _}: Rows.shape, acc) => max(max_col, acc),
-    of_segment(seg).rows,
+    of_segment(seg, ~folded).rows,
     0,
   );

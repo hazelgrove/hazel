@@ -5,6 +5,8 @@ let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
   | MoveToNextHole(_)
+  | Fold(_)
+  | Unfold(_)
   | Unselect
   | Jump(_)
   | Select(_) => false
@@ -29,15 +31,26 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
   switch (a) {
+  | Fold(tid)
+  | Unfold(tid) =>
+    switch (Measured.find_by_id(tid, meta.measured)) {
+    | Some({origin, _}) =>
+      switch (Move.go(Goal(Point(origin)), z, ~folded=meta.folded)) {
+      | Some(z) => Ok(z)
+      | None => Ok(z)
+      }
+    | None => Error(Action.Failure.Cant_move)
+    }
   | Move(d) =>
-    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
+    Move.go(d, z, ~folded=meta.folded)
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
     let p: Piece.t => bool = (
       fun
       | Grout(_) => true
       | _ => false
     );
-    Move.go(Goal(Piece(p, d)), z)
+    Move.go(Goal(Piece(p, d)), z, ~folded=meta.folded)
     |> Result.of_option(~error=Action.Failure.Cant_move);
   | Jump(jump_target) =>
     open OptUtil.Syntax;

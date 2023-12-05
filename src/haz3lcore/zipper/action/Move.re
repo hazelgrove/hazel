@@ -73,23 +73,58 @@ module Make = (M: Editor.Meta.S) => {
   let inner_end = (d, d_init, c_max, z) =>
     z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
-  let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    switch (d, z.caret, neighbor_movability(chunkiness, z)) {
+  let can_pass_fold =
+      (
+        folded,
+        d: Direction.t,
+        {relatives: {ancestors, siblings: (l_sib, r_sib)}, _}: t,
+      ) => {
+    switch (d, ancestors) {
+    | (Left, [({id, children: (l_kids, _), _}, _), ..._])
+        when List.mem(id, folded) && List.length(l_kids) == 1 && l_sib != [] =>
+      Some(id)
+    | (Right, [({id, children: (l_kids, _), _}, _), ..._])
+        when List.mem(id, folded) && List.length(l_kids) == 1 && r_sib != [] =>
+      Some(id)
+    | _ => None
+    };
+  };
+  let rec pass_fold = (d: Direction.t, z: t, target_id) => {
+    switch (d, z.relatives.siblings, z.relatives.ancestors) {
+    | (Left, ([], _), [({id, _}, _), ..._])
+    | (Right, (_, []), [({id, _}, _), ..._]) when id == target_id =>
+      Some(z)
+    | _ =>
+      let* z = Zipper.move(d, z);
+      pass_fold(d, z, target_id);
+    };
+  };
+
+  let primary =
+      (~folded=[], chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
+    switch (
+      d,
+      z.caret,
+      neighbor_movability(chunkiness, z),
+      can_pass_fold(folded, d, z),
+    ) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
-    | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
+    | (Left, Outer, _, Some(target_id)) => pass_fold(d, z, target_id)
+    | (Left, Outer, (CanEnter(dlm, c_max), _), _) =>
       inner_end(d, dlm, c_max, z)
-    | (Left, Outer, _) => Zipper.move(d, z)
-    | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
-    | (Left, Inner(_), _) =>
+    | (Left, Outer, _, _) => Zipper.move(d, z)
+    | (Left, Inner(_), _, _) when chunkiness == ByToken => pop_out(z)
+    | (Left, Inner(_), _, _) =>
       Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-    | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
-    | (Right, Outer, _) => Zipper.move(d, z)
-    | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
+    | (Right, Outer, _, Some(target_id)) => pass_fold(d, z, target_id)
+    | (Right, Outer, (_, CanEnter(d_init, _)), _) => inner_start(d_init, z)
+    | (Right, Outer, _, _) => Zipper.move(d, z)
+    | (Right, Inner(_, c), (_, CanEnter(_, c_max)), _) when c == c_max =>
       pop_move(d, z)
-    | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
-    | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
+    | (Right, Inner(_), _, _) when chunkiness == ByToken => pop_move(d, z)
+    | (Right, Inner(delim, c), _, _) => inner_incr(delim, c, z)
     };
   };
 
@@ -219,11 +254,11 @@ module Make = (M: Editor.Meta.S) => {
   /* Do move_action until the indicated piece is such that piece_p is true,
      restarting from the beginning/end if not found in forward direction.
      If no such piece is found, don't move. */
-  let do_until_wrap = (p, d, z) =>
-    switch (do_until(primary(ByToken, d), p, z)) {
+  let do_until_wrap = (p, d, z, ~folded) =>
+    switch (do_until(primary(ByToken, d, ~folded), p, z)) {
     | None =>
       let* z = to_edge(Direction.toggle(d), z);
-      do_until(primary(ByToken, d), p, z);
+      do_until(primary(ByToken, d, ~folded), p, z);
     | Some(z) => Some(z)
     };
 
@@ -316,19 +351,19 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
-  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+  let go = (d: Action.move, z: Zipper.t, ~folded): option(Zipper.t) =>
     switch (d) {
-    | Goal(Piece(p, d)) => do_until_wrap(p, d, z)
+    | Goal(Piece(p, d)) => do_until_wrap(p, d, z, ~folded)
     | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
-      do_towards(primary(ByChar), goal, z);
+      do_towards(primary(ByChar, ~folded), goal, z);
     | Extreme(d) => do_extreme(primary(ByToken), d, z)
     | Local(d) =>
       z
       |> (
         switch (d) {
-        | Left(chunk) => primary(chunk, Left)
-        | Right(chunk) => primary(chunk, Right)
+        | Left(chunk) => primary(chunk, Left, ~folded)
+        | Right(chunk) => primary(chunk, Right, ~folded)
         | Up => vertical(Left)
         | Down => vertical(Right)
         }

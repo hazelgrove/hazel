@@ -68,7 +68,9 @@ module Text = (M: {
                  let settings: ModelSettings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
-  let rec of_segment = (no_sorts, sort, seg: Segment.t): list(Node.t) => {
+  let rec of_segment =
+          (no_sorts, sort, seg: Segment.t, ~inject, ~font_metrics, ~folded)
+          : list(Node.t) => {
     /* note: no_sorts flag is used for backback view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -82,29 +84,37 @@ module Text = (M: {
       };
     seg
     |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
+    |> List.concat_map(((i, p)) =>
+         of_piece(sort_of_p_idx(i), p, ~inject, ~font_metrics, ~folded)
+       );
   }
-  and of_piece' = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece' =
+      (expected_sort: Sort.t, p: Piece.t, ~inject, ~font_metrics, ~folded)
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t)
+    | Tile(t) => of_tile(expected_sort, t, ~inject, ~font_metrics, ~folded)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (expected_sort: Sort.t, p: Piece.t, ~inject, ~font_metrics, ~folded)
+      : list(Node.t) => {
     /* Last two elements of arg track the functorial args which
        can effect the code layout; without these the first,
        indentation can get out of sync */
     let arg = (expected_sort, p, m(p).last.col, M.settings);
     try(Hashtbl.find(piece_hash, arg)) {
     | _ =>
-      let res = of_piece'(expected_sort, p);
+      let res = of_piece'(expected_sort, p, ~inject, ~font_metrics, ~folded);
       Hashtbl.add(piece_hash, arg, res);
       res;
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (expected_sort: Sort.t, t: Tile.t, ~inject, ~font_metrics, ~folded)
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -115,19 +125,41 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(false, sort, seg)
+         of_segment(false, sort, seg, ~inject, ~font_metrics, ~folded)
        )
+    |> {
+      x => {
+        switch (x) {
+        | [a, b, c, _, ...xs] when List.mem(t.id, folded) => [
+            a,
+            b,
+            c,
+            Fold.view,
+            ...xs,
+          ]
+        | _ => x
+        };
+      };
+    }
     |> List.concat;
   };
 };
 
 let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
+        (~font_metrics, ~map: Measured.t, seg: Segment.t, ~folded)
+        : list(Node.t) =>
   seg
   |> List.concat_map(
        fun
        | Piece.Secondary(_) => []
-       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
+       | Tile(t) => {
+           let children =
+             switch (t.children) {
+             | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
+             | _ => t.children
+             };
+           List.concat_map(holes(~map, ~font_metrics, ~folded), children);
+         }
        | Grout(g) => [
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
@@ -139,7 +171,57 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
+let fold_buttons =
+    (~font_metrics, ~map: Measured.t, seg: Segment.t, ~folded, ~inject)
+    : list(Node.t) => {
+  let rec fold_buttons_with_row = seg =>
+    List.concat_map(
+      fun
+      | Piece.Secondary(_)
+      | Grout(_) => []
+      | Tile(t) when Module.foldable(t) => {
+          let origin = Measured.find_t(t, map).origin;
+          let button =
+            Fold.button_view(font_metrics, inject, folded, t.id, origin);
+          let children =
+            switch (t.children) {
+            | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
+            | _ => t.children
+            };
+          [
+            (button, origin.row),
+            ...List.concat_map(fold_buttons_with_row, children),
+          ];
+        }
+      | Tile(t) => {
+          let children =
+            switch (t.children) {
+            | [a, _, ...xs] when List.mem(t.id, folded) => [a, ...xs]
+            | _ => t.children
+            };
+          List.concat_map(fold_buttons_with_row, children);
+        },
+      seg,
+    );
+  let remove_duplicates = res_with_row => {
+    let (res, _) =
+      List.fold_left(
+        ((buttons, rows), (new_button, new_row)) =>
+          if (List.mem(new_row, rows)) {
+            (buttons, rows);
+          } else {
+            ([new_button, ...buttons], [new_row, ...rows]);
+          },
+        ([], []),
+        res_with_row,
+      );
+    res;
+  };
+  seg |> fold_buttons_with_row |> remove_duplicates;
+};
+let simple_view =
+    (~unselected, ~map, ~settings: ModelSettings.t, ~inject, ~font_metrics)
+    : Node.t => {
   module Text =
     Text({
       let map = map;
@@ -147,7 +229,19 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(false, Sort.Any, unselected))],
+    [
+      span_c(
+        "code-text",
+        Text.of_segment(
+          false,
+          Sort.Any,
+          unselected,
+          ~inject,
+          ~font_metrics,
+          ~folded=[],
+        ),
+      ),
+    ],
   );
 };
 
@@ -159,6 +253,8 @@ let view =
       ~unselected,
       ~measured,
       ~settings: ModelSettings.t,
+      ~inject,
+      ~folded,
     )
     : Node.t => {
   module Text =
@@ -167,12 +263,32 @@ let view =
       let settings = settings;
     });
   let unselected =
-    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(false, sort, unselected)
+    TimeUtil.measure_time(
+      "Code.view/unselected",
+      settings.benchmark,
+      () => {
+        let buttons =
+          fold_buttons(
+            ~map=measured,
+            ~font_metrics,
+            segment,
+            ~folded,
+            ~inject,
+          );
+        Text.of_segment(
+          false,
+          sort,
+          unselected,
+          ~font_metrics,
+          ~inject,
+          ~folded,
+        )
+        @ buttons;
+      },
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~map=measured, ~font_metrics, segment)
+      holes(~map=measured, ~font_metrics, segment, ~folded)
     );
   div(
     ~attr=Attr.class_("code"),
