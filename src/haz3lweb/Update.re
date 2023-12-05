@@ -160,6 +160,70 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | Redo
   | Reset => true;
 
+let should_scroll_to_caret =
+  fun
+  | Set(s_action) =>
+    switch (s_action) {
+    | Mode(_) => true
+    | Captions
+    | SecondaryIcons
+    | Statics
+    | Assist
+    | Elaborate
+    | Dynamics
+    | Benchmark
+    | ContextInspector
+    | InstructorMode => false
+    }
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | FontMetrics(_) => true
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_)
+    | Result(_) => false
+    }
+  | Assistant(Prompt(_)) => false
+  | Assistant(AcceptSuggestion) => true
+  | FinishImportScratchpad(_)
+  | FinishImportAll(_)
+  | ResetCurrentEditor
+  | SwitchEditor(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
+  | ReparseCurrentEditor
+  | Reset
+  | Copy
+  | Paste(_)
+  | Cut
+  | Undo
+  | Redo
+  | MoveToNextHole(_)
+  | DoTheThing => true
+  | PerformAction(a) =>
+    switch (a) {
+    | Move(_)
+    | MoveToNextHole(_)
+    | Jump(_)
+    | Select(Resize(_) | Term(_) | Smart | Tile(_))
+    | Destruct(_)
+    | Insert(_)
+    | Pick_up
+    | Put_down
+    | RotateBackpack
+    | MoveToBackpackTarget(_) => true
+    | Unselect(_)
+    | Select(All) => false
+    }
+  | Save
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
+  | UpdateLangDocMessages(_)
+  | DebugAction(_)
+  | ExportPersistentData
+  | DebugConsole(_)
+  | Benchmark(_) => false;
+
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
   let model = {
@@ -204,17 +268,11 @@ let evaluate_and_schedule =
   model;
 };
 
-let perform_action =
-    (model: Model.t, a: Action.t, queue_scroll_to_caret: unit => unit)
-    : Result.t(Model.t) =>
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
     model.editors
     |> Editors.get_editor
-    |> Haz3lcore.Perform.go(
-         ~settings=model.settings.core,
-         a,
-         queue_scroll_to_caret,
-       )
+    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
   ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
@@ -279,13 +337,7 @@ let export_persistent_data = () => {
 };
 
 let rec apply =
-        (
-          model: Model.t,
-          update: t,
-          state: State.t,
-          queue_scroll_to_caret: unit => unit,
-          ~schedule_action,
-        )
+        (model: Model.t, update: t, state: State.t, ~schedule_action)
         : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
@@ -296,8 +348,7 @@ let rec apply =
       // NOTE: Load here necessary to load editors on switching mode
       Ok(Model.load(model));
     | SetMeta(action) =>
-      queue_scroll_to_caret();
-      Ok({...model, meta: meta_update(model, action, ~schedule_action)});
+      Ok({...model, meta: meta_update(model, action, ~schedule_action)})
     | UpdateLangDocMessages(u) =>
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);
@@ -325,32 +376,27 @@ let rec apply =
       );
       Ok(model);
     | FinishImportScratchpad(data) =>
-      queue_scroll_to_caret();
       let editors = Editors.import_current(model.editors, data);
       Model.save_and_return({...model, editors});
     | ExportPersistentData =>
       export_persistent_data();
       Ok(model);
     | ResetCurrentEditor =>
-      queue_scroll_to_caret();
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
-      queue_scroll_to_caret();
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
     | SwitchExampleSlide(name) =>
-      queue_scroll_to_caret();
       switch (Editors.switch_example_slide(model.editors, name)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
-      };
+      }
     | SwitchEditor(pos) =>
-      queue_scroll_to_caret();
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
@@ -372,11 +418,11 @@ let rec apply =
           ? Assistant(AcceptSuggestion)
           : Zipper.can_put_down(z)
               ? PerformAction(Put_down) : MoveToNextHole(Right);
-      apply(model, a, state, queue_scroll_to_caret, ~schedule_action);
+      apply(model, a, state, ~schedule_action);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
-      switch (perform_action(model, a, queue_scroll_to_caret)) {
+      switch (perform_action(model, a)) {
       | Ok(model) when Action.is_edit(a) =>
         UpdateAssistant.apply(
           model,
@@ -384,16 +430,14 @@ let rec apply =
           ~schedule_action,
           ~state,
           ~main=apply,
-          ~queue_scroll_to_caret,
         )
       | x => x
       };
-    | PerformAction(a) => perform_action(model, a, queue_scroll_to_caret)
+    | PerformAction(a) => perform_action(model, a)
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
-      queue_scroll_to_caret();
       let ed = Editors.get_editor(model.editors);
       let zipper_init = Zipper.init();
       let ed_str = Printer.to_string_editor(ed);
@@ -407,25 +451,22 @@ let rec apply =
       };
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left), queue_scroll_to_caret)
+      perform_action(model, Destruct(Left))
     | Copy =>
-      queue_scroll_to_caret();
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
-      Ok(model);
+      Ok(model)
     | Paste(clipboard) =>
       let ed = Editors.get_editor(model.editors);
       switch (Printer.paste_into_zip(ed.state.zipper, clipboard)) {
       | None => Error(CantPaste)
       | Some(z) =>
-        queue_scroll_to_caret();
         //HACK(andrew): below is not strictly a insert action...
         let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
         let editors = Editors.put_editor(ed, model.editors);
         Ok({...model, editors});
       };
     | Undo =>
-      queue_scroll_to_caret();
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
@@ -433,7 +474,6 @@ let rec apply =
         Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
-      queue_scroll_to_caret();
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
@@ -441,11 +481,7 @@ let rec apply =
         Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
-      perform_action(
-        model,
-        Move(Goal(Piece(Grout, d))),
-        queue_scroll_to_caret,
-      )
+      perform_action(model, Move(Goal(Piece(Grout, d))))
     | Assistant(action) =>
       UpdateAssistant.apply(
         model,
@@ -453,7 +489,6 @@ let rec apply =
         ~schedule_action,
         ~state,
         ~main=apply,
-        ~queue_scroll_to_caret,
       )
     | Benchmark(Start) =>
       List.iter(schedule_action, Benchmark.actions_1);
