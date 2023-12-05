@@ -56,7 +56,12 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
       Log.update(action);
       new_model;
     }) {
-    | exc => Error(Exception(Printexc.to_string(exc)))
+    | exc =>
+      Printf.printf(
+        "ERROR: Exception during apply: %s\n",
+        Printexc.to_string(exc),
+      );
+      Error(Exception(Printexc.to_string(exc)));
     }
   ) {
   | Ok(model) => model
@@ -74,24 +79,22 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
 let update_handler =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~model: Model.t,
       ~dir: Key.dir,
       evt: Js.t(Dom_html.keyboardEvent),
     )
     : Effect.t(unit) =>
   Effect.(
-    switch (Keyboard.handle_key_event(Key.mk(dir, evt), ~model)) {
+    switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
     | None => Ignore
     | Some(action) =>
       Many([Prevent_default, Stop_propagation, inject(action)])
     }
   );
 
-let handlers =
-    (~inject: UpdateAction.t => Ui_effect.t(unit), ~model: Model.t) => [
+let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit)) => [
   Attr.on_keypress(_ => Effect.Prevent_default),
-  Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
-  Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
+  Attr.on_keyup(update_handler(~inject, ~dir=KeyUp)),
+  Attr.on_keydown(update_handler(~inject, ~dir=KeyDown)),
 ];
 
 module App = {
@@ -102,7 +105,7 @@ module App = {
   let on_startup = (~schedule_action, _) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
-        schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
+        schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
       );
 
     JsUtil.focus_clipboard_shim();
@@ -121,7 +124,7 @@ module App = {
             | Some(EvaluationFail(reason)) => ResultFail(reason)
             | None => ResultTimeout
             };
-          schedule_action(Update.UpdateResult(key, cr));
+          schedule_action(Update.SetMeta(Result(key, cr)));
         },
         () => (),
       );

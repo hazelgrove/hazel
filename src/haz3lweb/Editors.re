@@ -45,7 +45,24 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     Exercise(n, specs, Exercise.put_editor(exercise, ed))
   };
 
-let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
+let active_zipper = (editors: t): Zipper.t =>
+  get_editor(editors).state.zipper;
+
+let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
+  switch (editors) {
+  | Scratch(_)
+  | DebugLoad
+  | Exercise(_)
+  | Examples(_) => Builtins.ctx_init
+  };
+
+let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
+  switch (editors) {
+  | Scratch(_)
+  | DebugLoad
+  | Exercise(_)
+  | Examples(_) => Builtins.env_init
+  };
 
 /* Each mode (e.g. Scratch, School) requires
    elaborating on some number of expressions
@@ -54,17 +71,28 @@ let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
    is given a key for later lookup by the mode.
 
    Used in the Update module */
-let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
-  switch (editors) {
-  | DebugLoad => []
-  | Scratch(n, slides) =>
-    let slide = List.nth(slides, n);
-    ScratchSlide.spliced_elabs(slide);
-  | Examples(name, slides) =>
-    let slide = List.assoc(name, slides);
-    ScratchSlide.spliced_elabs(slide);
-  | Exercise(_, _, exercise) => Exercise.spliced_elabs(exercise)
-  };
+let get_spliced_elabs =
+    (~settings: Settings.t, editors: t): list((ModelResults.key, DHExp.t)) => {
+  settings.core.dynamics
+    ? {
+      let ctx_init = get_ctx_init(~settings, editors);
+      switch (editors) {
+      | DebugLoad => []
+      | Scratch(idx, slides) =>
+        let current_slide = List.nth(slides, idx);
+        let (key, d) =
+          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+        [(key, d)];
+      | Examples(name, slides) =>
+        let current_slide = List.assoc(name, slides);
+        let (key, d) =
+          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+        [(key, d)];
+      | Exercise(_, _, exercise) =>
+        Exercise.spliced_elabs(settings.core, exercise)
+      };
+    }
+    : [];
 };
 
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
