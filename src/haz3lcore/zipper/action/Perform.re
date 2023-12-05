@@ -5,7 +5,7 @@ let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
   | MoveToNextHole(_)
-  | Unselect
+  | Unselect(_)
   | Jump(_)
   | Select(_) => false
   | Destruct(_)
@@ -23,20 +23,25 @@ let should_scroll_to_caret = (a: Action.t) => {
   | MoveToNextHole(_)
   | Jump(_)
   | Select(Resize(_))
-  | Select(Term(_))
+  | Select(Term(_) | Smart | Tile(_))
   | Destruct(_)
   | Insert(_)
   | Pick_up
   | Put_down
   | RotateBackpack
   | MoveToBackpackTarget(_) => true
-  | Unselect
+  | Unselect(_)
   | Select(All) => false
   };
 };
 
 let go_z =
-    (~meta: option(Editor.Meta.t)=?, a: Action.t, z: Zipper.t)
+    (
+      ~meta: option(Editor.Meta.t)=?,
+      ~settings: CoreSettings.t,
+      a: Action.t,
+      z: Zipper.t,
+    )
     : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
@@ -46,26 +51,32 @@ let go_z =
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
+
+  let select_term_current = z =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_select)
+    | Some(id) =>
+      switch (Select.term(id, z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Action.Failure.Cant_select)
+      }
+    };
+
   switch (a) {
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
-    let p: Piece.t => bool = (
-      fun
-      | Grout(_) => true
-      | _ => false
-    );
-    Move.go(Goal(Piece(p, d)), z)
-    |> Result.of_option(~error=Action.Failure.Cant_move);
+    Move.go(Goal(Piece(Grout, d)), z)
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 
     let idx = Indicated.index(z);
     let (term, _) =
-      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.go", true, () =>
-        MakeTerm.go(Zipper.unselect_and_zip(z))
+      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.from_zip", true, () =>
+        MakeTerm.from_zip_for_view(z)
       );
-    let statics = Statics.mk_map(term);
+    let statics = Interface.Statics.mk_map(settings, term);
 
     (
       switch (jump_target) {
@@ -78,18 +89,10 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move);
-  | Unselect =>
+  | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
+  | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok(z);
-  | Select(Term(Current)) =>
-    switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
-    | Some(id) =>
-      switch (Select.term(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
-    }
   | Select(All) =>
     switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
     | Some(z) =>
@@ -99,8 +102,58 @@ let go_z =
       }
     | None => Error(Action.Failure.Cant_select)
     }
+  | Select(Term(Current)) => select_term_current(z)
+  | Select(Smart) =>
+    /* If the current tile is not coincident with the term,
+       select the term. Otherwise, select the parent term. */
+    let tile_is_term =
+      switch (Indicated.index(z)) {
+      | None => false
+      | Some(id) => Select.tile(id, z) == Select.term(id, z)
+      };
+    if (!tile_is_term) {
+      select_term_current(z);
+    } else {
+      //PERF: this is expensive
+      let (term, _) = MakeTerm.from_zip_for_view(z);
+      let statics = Interface.Statics.mk_map(settings, term);
+      let target =
+        switch (
+          Indicated.index(z)
+          |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
+        ) {
+        | Some(ci) =>
+          switch (Info.ancestors_of(ci)) {
+          | [] => None
+          | [parent, ..._] => Some(parent)
+          }
+        | None => None
+        };
+      switch (target) {
+      | None => Error(Action.Failure.Cant_select)
+      | Some(id) =>
+        switch (Select.term(id, z)) {
+        | Some(z) => Ok(z)
+        | None => Error(Action.Failure.Cant_select)
+        }
+      };
+    };
   | Select(Term(Id(id))) =>
     switch (Select.term(id, z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Action.Failure.Cant_select)
+    }
+  | Select(Tile(Current)) =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_select)
+    | Some(id) =>
+      switch (Select.tile(id, z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Action.Failure.Cant_select)
+      }
+    }
+  | Select(Tile(Id(id))) =>
+    switch (Select.tile(id, z)) {
     | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
     }
@@ -131,14 +184,27 @@ let go_z =
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
     Ok(z);
-  | MoveToBackpackTarget(d) =>
+  | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
+    if (Backpack.restricted(z.backpack)) {
+      Move.to_backpack_target(d, z)
+      |> Result.of_option(~error=Action.Failure.Cant_move);
+    } else {
+      Move.go(Local(d), z)
+      |> Result.of_option(~error=Action.Failure.Cant_move);
+    }
+  | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
 };
 
 let go =
-    (a: Action.t, queue_scroll_to_caret: unit => unit, ed: Editor.t)
+    (
+      ~settings: CoreSettings.t,
+      a: Action.t,
+      queue_scroll_to_caret: unit => unit,
+      ed: Editor.t,
+    )
     : Action.Result.t(Editor.t) => {
   if (should_scroll_to_caret(a)) {
     queue_scroll_to_caret();
@@ -151,7 +217,7 @@ let go =
     open Result.Syntax;
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
-    let+ z = go_z(~meta, a, zipper);
+    let+ z = go_z(~settings, ~meta, a, zipper);
     Editor.new_state(~effects=Effect.s^, a, z, ed);
   };
 };
