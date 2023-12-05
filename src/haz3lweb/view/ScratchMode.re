@@ -111,31 +111,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
     switch (Id.Map.find_opt(id, info_map)) {
     | None => [div([text("")])]
     | Some(ci) =>
-      let ancestors = Info.ancestors_of(ci);
-      let ancestors =
-        List.map(
-          a => {
-            switch (Id.Map.find_opt(a, info_map)) {
-            | Some(v) =>
-              switch (v) {
-              | Info.InfoExp({term, ancestors, _}) =>
-                switch (term.term) {
-                | Module(_) => a
-                | Fun(_) =>
-                  if (List.length(ancestors) >= 1) {
-                    List.hd(ancestors);
-                  } else {
-                    Uuidm.nil;
-                  }
-                | _ => Uuidm.nil
-                }
-              | _ => Uuidm.nil
-              }
-            | None => Uuidm.nil
-            }
-          },
-          ancestors,
-        );
       let view_fun = (name, ids, _) => [
         div(
           ~attr=
@@ -162,8 +137,8 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
             t2,
           )
         | Module({term: Constructor(name), _}, t1, t2) =>
-          let l1 = tag_term(t1, level + 1);
-          let l2 = tag_term(t2, level);
+          let l1 = tag_term(t2, level);
+          let l2 = tag_term(t1, level + 1);
           List.cons((level, (name, term.ids)), l1) @ l2;
         | UnOp(_, t1)
         | Fun(_, t1)
@@ -201,8 +176,69 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
         let result = List.fold_left(combine, [], lst);
         List.map(((key, ids)) => (key, List.rev(ids)), result);
       };
-      let lst = tag_term(term, 1);
-      let lst = combineList(lst);
+      let tagged = tag_term(term, 1);
+      let lst = combineList(tagged);
+      let ancestors = Info.ancestors_of(ci);
+      let rec filter_ancestors = (ancestors_lst: Info.ancestors, level: int) =>
+        if (List.length(ancestors_lst) == 0) {
+          [];
+        } else {
+          switch (Id.Map.find_opt(List.hd(ancestors_lst), info_map)) {
+          | Some(v) =>
+            switch (v) {
+            | Info.InfoExp({term, ancestors, _}) =>
+              switch (term.term) {
+              | Fun(_) =>
+                if (List.length(ancestors) >= 1) {
+                  [
+                    List.hd(ancestors),
+                    ...filter_ancestors(List.tl(ancestors_lst), level - 1),
+                  ];
+                } else {
+                  [
+                    Uuidm.nil,
+                    ...filter_ancestors(List.tl(ancestors_lst), level),
+                  ];
+                }
+              | Module({term: Constructor(name), _}, _, _) =>
+                let lv = List.find_opt(a => fst(snd(a)) == name, tagged);
+                switch (lv) {
+                | Some(lv) =>
+                  if (fst(lv) < level) {
+                    filter_ancestors(ancestors_lst, level - 1);
+                  } else if (fst(lv) == level) {
+                    [
+                      List.hd(ancestors_lst),
+                      ...filter_ancestors(List.tl(ancestors_lst), level - 1),
+                    ];
+                  } else {
+                    [
+                      Uuidm.nil,
+                      ...filter_ancestors(List.tl(ancestors_lst), level),
+                    ];
+                  }
+                | None => [
+                    Uuidm.nil,
+                    ...filter_ancestors(List.tl(ancestors_lst), level),
+                  ]
+                };
+              | _ => [
+                  Uuidm.nil,
+                  ...filter_ancestors(List.tl(ancestors_lst), level),
+                ]
+              }
+            | _ => [
+                Uuidm.nil,
+                ...filter_ancestors(List.tl(ancestors_lst), level),
+              ]
+            }
+          | None => [
+              Uuidm.nil,
+              ...filter_ancestors(List.tl(ancestors_lst), level),
+            ]
+          };
+        };
+      let ancestors = filter_ancestors(ancestors, List.length(lst));
       let rec breadcrumb_funs = (level, res) =>
         if (level == 0) {
           res;
