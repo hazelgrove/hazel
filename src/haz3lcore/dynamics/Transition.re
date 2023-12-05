@@ -20,9 +20,9 @@ open DH;
 
     This is followed by a series of `and. d1' = req_final(req(state, env), <i>, <d1>)`
     which indicate that in order to evaluate the step, <d1> must be final. (req_value
-    is also available if it needs to be a value). Note that if successful, d1' hold
-    contain the fully-evaluated version of d1. The sub-expressions are all enumerated
-    by the <i> field, so i=0 indicates that it is the first sub-expression, i=1 the
+    is also available if it needs to be a value). Note that if successful, d1' will
+    be the fully-evaluated version of d1. The sub-expressions are all enumerated by
+    the <i> field, so i=0 indicates that it is the first sub-expression, i=1 the
     second etc.
 
     Finally, we have the Step construct that defines the actual step. Note "Step"s
