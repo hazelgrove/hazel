@@ -21,7 +21,9 @@ open DH;
     This is followed by a series of `and. d1' = req_final(req(state, env), <i>, <d1>)`
     which indicate that in order to evaluate the step, <d1> must be final. (req_value
     is also available if it needs to be a value). Note that if successful, d1' hold
-    contain the fully-evaluated version of d1.
+    contain the fully-evaluated version of d1. The sub-expressions are all enumerated
+    by the <i> field, so i=0 indicates that it is the first sub-expression, i=1 the
+    second etc.
 
     Finally, we have the Step construct that defines the actual step. Note "Step"s
     should be used if and only if they change the expression. If they do not change
@@ -178,8 +180,7 @@ module Transition = (EV: EV_MODE) => {
       let d =
         ClosureEnvironment.lookup(env, x)
         |> OptUtil.get(() => {
-             print_endline("FreeInvalidVar:" ++ x);
-             raise(EvaluatorError.Exception(FreeInvalidVar(x)));
+             raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            });
       Step({apply: () => d, kind: VarLookup, value: false});
     | Sequence(d1, d2) =>
@@ -250,7 +251,6 @@ module Transition = (EV: EV_MODE) => {
       | _ =>
         Step({
           apply: () => {
-            print_endline("InvalidBoxedFun");
             raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
           },
           kind: InvalidStep,
@@ -265,8 +265,7 @@ module Transition = (EV: EV_MODE) => {
           let builtin =
             VarMap.lookup(Builtins.forms_init, ident)
             |> OptUtil.get(() => {
-                 print_endline("InvalidBuiltin");
-                 raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
+                 raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
                });
           builtin(args');
         },
@@ -404,17 +403,13 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (d1') {
           | Tuple(ds) when n < 0 || List.length(ds) <= n =>
-            print_endline("InvalidProjection");
-            raise(EvaluatorError.Exception(InvalidProjection(n)));
+            raise(EvaluatorError.Exception(InvalidProjection(n)))
           | Tuple(ds) => List.nth(ds, n)
           | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
-            print_endline("InvalidProjection");
-            raise(EvaluatorError.Exception(InvalidProjection(n)));
+            raise(EvaluatorError.Exception(InvalidProjection(n)))
           | Cast(d2, Prod(ts1), Prod(ts2)) =>
             Cast(Prj(d2, n), List.nth(ts1, n), List.nth(ts2, n))
-          | _ =>
-            print_endline("InvalidProjection");
-            raise(EvaluatorError.Exception(InvalidProjection(n)));
+          | _ => raise(EvaluatorError.Exception(InvalidProjection(n)))
           },
         kind: Projection,
         value: false,
