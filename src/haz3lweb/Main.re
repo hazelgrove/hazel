@@ -42,17 +42,13 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
     last_edit_action := JsUtil.timestamp();
     edit_action_applied := true;
   };
+  if (Update.should_scroll_to_caret(action)) {
+    scroll_to_caret := true;
+  };
   last_edit_action := JsUtil.timestamp();
   switch (
     try({
-      let new_model =
-        Update.apply(
-          model,
-          action,
-          state,
-          () => {scroll_to_caret := true},
-          ~schedule_action,
-        );
+      let new_model = Update.apply(model, action, state, ~schedule_action);
       Log.update(action);
       new_model;
     }) {
