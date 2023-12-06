@@ -52,70 +52,118 @@ let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 // Tuplabel util functions
 // TODO: filter patternss so that result (option(Var.t), UExp.t)
 
-let return_tuplabel = (p: UPat.t, t: 'a): (option(LabeledTuple.t), 'a) =>
-  switch (p.term) {
-  | Var(s) => (Some(s), t)
-  | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TOOD: put the real error
-  };
-
-let return_tuplabel_exp =
-    (p: UPat.t, t: UExp.t): (option(LabeledTuple.t), UExp.t) =>
-  switch (p.term) {
-  | Var(s) => (Some(s), t)
-  | _ =>
-    let t: UExp.t = {ids: t.ids, term: Invalid("")};
-    (None, t);
-  };
-
-let return_tuplabel_pat =
-    (p: UPat.t, t: UPat.t): (option(LabeledTuple.t), UPat.t) =>
-  switch (p.term) {
-  | Var(s) => (Some(s), t)
-  | _ =>
-    let t: UPat.t = {ids: t.ids, term: Invalid("")};
-    (None, t);
-  };
-
-let return_tuplabel_typ =
-    (p: UPat.t, t: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
-  switch (p.term) {
-  | Var(s) => (Some(s), t)
-  | _ =>
-    let t: UTyp.t = {ids: t.ids, term: Invalid("")};
-    (None, t);
-  };
+// let return_tuplabel = (p: UPat.t, t: 'a): (option(LabeledTuple.t), 'a) =>
+//   switch (p.term) {
+//   | Var(s) => (Some(s), t)
+//   | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TOOD: put the real error
+//   };
 
 let make_labeled_tuple_exp_helper =
-    (exp: UExp.t): (option(LabeledTuple.t), UExp.t) =>
+    (exp: UExp.t, result: list((option(LabeledTuple.t), UExp.t)))
+    : (option(LabeledTuple.t), UExp.t) =>
   switch (exp.term) {
-  | TupLabel(p, e) => return_tuplabel_exp(p, e)
+  | TupLabel(p, e) =>
+    switch (p.term) {
+    | Var(s)
+        when
+          List.fold_left(
+            (b, opt) =>
+              switch (opt) {
+              | (Some(st), _) when b => compare(st, s) != 0
+              | _ => b
+              },
+            true,
+            result,
+          ) => (
+        Some(s),
+        e,
+      )
+    | _ =>
+      let t: UExp.t = {ids: e.ids, term: Invalid("")};
+      (None, t);
+    }
   | _ => (None, exp)
   };
 
-let make_labeled_tuple_exp = (es: list(UExp.t)) => {
-  es |> List.map(make_labeled_tuple_exp_helper);
+let make_labeled_tuple_exp =
+    (es: list(UExp.t)): list((option(LabeledTuple.t), UExp.t)) => {
+  es
+  |> List.fold_left(
+       (result, e) => {result @ [make_labeled_tuple_exp_helper(e, result)]},
+       [],
+     );
 };
 
 let make_labeled_tuple_pat_helper =
-    (pat: UPat.t): (option(LabeledTuple.t), UPat.t) =>
+    (pat: UPat.t, result: list((option(LabeledTuple.t), UPat.t)))
+    : (option(LabeledTuple.t), UPat.t) =>
   switch (pat.term) {
-  | TupLabel(p, pt) => return_tuplabel_pat(p, pt)
+  | TupLabel(p, pt) =>
+    switch (p.term) {
+    | Var(s)
+        when
+          List.fold_left(
+            (b, opt) =>
+              switch (opt) {
+              | (Some(st), _) when b => compare(st, s) != 0
+              | _ => b
+              },
+            true,
+            result,
+          ) => (
+        Some(s),
+        pt,
+      )
+    | _ =>
+      let t: UPat.t = {ids: pt.ids, term: Invalid("")};
+      (None, t);
+    }
   | _ => (None, pat)
   };
 
-let make_labeled_tuple_pat = (ps: list(UPat.t)) => {
-  ps |> List.map(make_labeled_tuple_pat_helper);
+let make_labeled_tuple_pat =
+    (ps: list(UPat.t)): list((option(LabeledTuple.t), UPat.t)) => {
+  ps
+  |> List.fold_left(
+       (result, p) => {result @ [make_labeled_tuple_pat_helper(p, result)]},
+       [],
+     );
 };
 
 let make_labeled_tuple_typ_helper =
-    (typ: UTyp.t): (option(LabeledTuple.t), UTyp.t) =>
+    (typ: UTyp.t, result: list((option(LabeledTuple.t), UTyp.t)))
+    : (option(LabeledTuple.t), UTyp.t) =>
   switch (typ.term) {
-  | TupLabel(p, t) => return_tuplabel_typ(p, t)
+  | TupLabel(p, t) =>
+    switch (p.term) {
+    | Var(s)
+        when
+          List.fold_left(
+            (b, opt) =>
+              switch (opt) {
+              | (Some(st), _) when b => compare(st, s) != 0
+              | _ => b
+              },
+            true,
+            result,
+          ) => (
+        Some(s),
+        t,
+      )
+    | _ =>
+      let t: UTyp.t = {ids: t.ids, term: Invalid("")};
+      (None, t);
+    }
   | _ => (None, typ)
   };
 
-let make_labeled_tuple_typ = (ts: list('a)) => {
-  ts |> List.map(make_labeled_tuple_typ_helper);
+let make_labeled_tuple_typ =
+    (ts: list(UTyp.t)): list((option(LabeledTuple.t), UTyp.t)) => {
+  ts
+  |> List.fold_left(
+       (result, t) => {result @ [make_labeled_tuple_typ_helper(t, result)]},
+       [],
+     );
 };
 
 let is_grout = tiles =>
