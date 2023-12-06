@@ -37,8 +37,7 @@ module rec Typ: {
   and matched_provenance =
     | Matched_Arrow_Left
     | Matched_Arrow_Right
-    | Matched_Prod_Left
-    | Matched_Prod_Right
+    | Matched_Prod_N(int)
     | Matched_List;
 
   /* TYP.T: Hazel types */
@@ -75,6 +74,7 @@ module rec Typ: {
   };
 
   // TODO: anand and raef; change t, Id.t sigs to source (see above)
+  // TODO: anand and raef; figure out where the equivalent of matched sum is called and add constraints to it
   let of_source: list(source) => list(t);
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
@@ -113,9 +113,7 @@ module rec Typ: {
   and matched_provenance =
     | Matched_Arrow_Left
     | Matched_Arrow_Right
-    // TODO: anand and raef make this be of index and not LR
-    | Matched_Prod_Left
-    | Matched_Prod_Right
+    | Matched_Prod_N(int)
     | Matched_List;
 
   /* TYP.T: Hazel types */
@@ -281,8 +279,7 @@ module rec Typ: {
     switch (mprov) {
     | Matched_Arrow_Left => "M->L @"
     | Matched_Arrow_Right => "M->R @"
-    | Matched_Prod_Left => "M*L @"
-    | Matched_Prod_Right => "M*R @"
+    | Matched_Prod_N(n) => "M* " ++ string_of_int(n)
     | Matched_List => "M[] @"
     };
   };
@@ -517,6 +514,9 @@ module rec Typ: {
     };
   };
 
+  // Todo: anand and raef: everywhere behavior is conditioned meaningfully on synswitch instead needs to make
+  // a recursive check in the case of match to see if it is rooted at synswitch
+
   let matched_arrow =
       (ctx: Ctx.t, termId: Id.t, ty: t): ((t, t), Typ.constraints) => {
     let matched_arrow_of_prov = prov => {
@@ -531,13 +531,12 @@ module rec Typ: {
     };
     switch (weak_head_normalize(ctx, ty)) {
     | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
-    | Unknown(SynSwitch(_) as p) => matched_arrow_of_prov(p)
     | Unknown(prov) => matched_arrow_of_prov(prov)
     | _ => matched_arrow_of_prov(AstNode(termId))
     };
   };
 
-  let matched_prod = (ctx: Ctx.t, length, _termId: Id.t, ty: t) => {
+  let matched_prod = (ctx: Ctx.t, length, termId: Id.t, ty: t) => {
     // let matched_prod_of_prov = prov => {
     //   let (prod_lhs, prod_rhs) = (
     //     Unknown(Matched(Matched_Prod_Left, prov)),
@@ -548,10 +547,15 @@ module rec Typ: {
     //     [(Unknown(prov), Prod([prod_lhs, prod_rhs]))] // TODO anand: this is not right.
     //   );
     // };
+    let matched_prod_of_prov = prov => {
+      let matched_prod_typs =
+        List.init(length, n => Unknown(Matched(Matched_Prod_N(n), prov)));
+      (matched_prod_typs, [(Unknown(prov), Prod(matched_prod_typs))]);
+    };
     switch (weak_head_normalize(ctx, ty)) {
     | Prod(tys) when List.length(tys) == length => (tys, [])
-    | Unknown(SynSwitch(_) as p) => (List.init(length, _ => Unknown(p)), [])
-    | _ => (List.init(length, _ => Unknown(NoProvenance)), [])
+    | Unknown(prov) => matched_prod_of_prov(prov)
+    | _ => matched_prod_of_prov(AstNode(termId))
     };
   };
 
@@ -562,7 +566,6 @@ module rec Typ: {
     };
     switch (ty) {
     | List(ty) => (ty, [])
-    | Unknown(SynSwitch(_) as p) => (Unknown(p), []) // TODO anand: return constraints here
     | Unknown(prov) => matched_list_of_prov(prov)
     | _ => matched_list_of_prov(AstNode(termId))
     };

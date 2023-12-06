@@ -76,7 +76,7 @@ and contains_helper = (pts2: pts, ptyp: ptyp): bool => {
   | Var(_) => false
   | List(pts1) => contains(pts1, pts2)
   | Arrow(pts1, pts2) => contains(pts1, pts2) || contains(pts2, pts2)
-  | Sum(pts1, pts2) => contains(pts1, pts2) || contains(pts2, pts2)
+  | Sum(tys) => List.exists(contains(pts2), tys)
   | Prod(tys) => List.exists(contains(pts2), tys)
   };
 };
@@ -132,11 +132,21 @@ and combine_if_similar =
     let pts1 = merge(ctx, pts1, pts3);
     let pts2 = merge(ctx, pts2, pts4);
     Some(Arrow(pts1, pts2));
-  | (Sum(_), Sum(_)) =>
-    // let pts1 = merge(ctx, pts1, pts3);
-    // let pts2 = merge(ctx, pts2, pts4);
-    // Some(Sum(pts1, pts2))
-    None // TODO anand and raef: unimplemented
+  // for nary types, we're taking the approach of 'if the arity doesn't match, they are inconsistent
+  // this isn't true (eg ? * ? ~ ? * ? * ?) but proceeding as it they are consistent may just expose
+  // the programmer to more linked unknowns that they never really intended to be the same, leading to confusing suggestions.
+  // If they truly intend for them to be consistent, eventually they may change the program so that the arities match
+  // which would lead to further suggestions.
+  // A notable exception to this would be in currying- for arrow types, we DEFINITELY dont want this behavior
+  // but for products and sums, where the associativity is already often vague, it doesn't necessarily make sense to enforce one
+  // and derive constraints accordingly (not that it would be incorrect, but simply that it may not be the frame of reference the user is taking either)
+  | (Sum(tys1), Sum(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let tys = List.map2(merge(ctx), tys1, tys2);
+      Some(Sum(tys));
+    }
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
@@ -203,17 +213,33 @@ and get_status_ptyp = (ctx: Ctx.t, ptyp: ptyp): status => {
     | (Unsolved(_), Unsolved(_)) =>
       Unsolved([Arrow(Unknown(NoProvenance), Unknown(NoProvenance))])
     }
-  | Sum(_) =>
-    // switch (get_status_pts(ctx, pts1), get_status_pts(ctx, pts2)) {
-    // | (Solved(ty1), Solved(ty2)) => Solved(Sum(ty1, ty2))
-    // | (Solved(ty1), Unsolved(_)) =>
-    //   Unsolved([Sum(ty1, Unknown(NoProvenance))])
-    // | (Unsolved(_), Solved(ty2)) =>
-    //   Unsolved([Sum(Unknown(NoProvenance), ty2)])
-    // | (Unsolved(_), Unsolved(_)) =>
-    //   Unsolved([Sum(Unknown(NoProvenance), Unknown(NoProvenance))])
-    // }
-    Unsolved([]) // TODO anand and raef: unimplemented
+  | Sum(tys_inner) =>
+    let is_solved = (s: status): bool => {
+      switch (s) {
+      | Solved(_) => true
+      | Unsolved(_) => false
+      };
+    };
+    let force_unwrap_solution = (s: status): Typ.t => {
+      switch (s) {
+      | Solved(ty) => ty
+      | Unsolved(_) => failwith("unreachable")
+      };
+    };
+    let statuses = List.map(get_status_pts(ctx), tys_inner);
+    if (List.for_all(is_solved, statuses)) {
+      let tys3 =
+        statuses
+        |> List.map(force_unwrap_solution)
+        |> List.map(typ => ("", Some(typ))); // Makes all constructors the empty string! Prob a bad idea!!
+      Solved(Sum(tys3));
+    } else {
+      let tys3 =
+        statuses
+        |> List.map(unwrap_solution)
+        |> List.map(typ => ("", Some(typ)));
+      Unsolved([Sum(tys3)]);
+    };
   | Prod(tys_inner) =>
     let is_solved = (s: status): bool => {
       switch (s) {

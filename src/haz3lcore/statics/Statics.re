@@ -190,7 +190,6 @@ and uexp_to_info_map =
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
-  // TODO: add subsumption constraints
   let atomic = self => {
     let final_typ =
       switch (Self.typ_of(ctx, self)) {
@@ -415,22 +414,27 @@ and uexp_to_info_map =
         | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
-      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+      let (
+        {co_ctx, ty: ty_body, constraints: constraints_body, _}: Info.exp,
+        m,
+      ) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-      //TODO anand: constraints?
-      add(~self=Just(ty_escape), ~constraints=[], ~co_ctx, m);
+      //TODO anand: typ aliases- should they generate new constraints too?
+      add(~self=Just(ty_escape), ~constraints=constraints_body, ~co_ctx, m);
     | Var(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) =>
-      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+      let (
+        {co_ctx, ty: ty_body, constraints: constraints_body, _}: Info.exp,
+        m,
+      ) =
         go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-      //TODO anand: constraints?
-      add(~self=Just(ty_body), ~constraints=[], ~co_ctx, m);
+      add(~self=Just(ty_body), ~constraints=constraints_body, ~co_ctx, m);
     };
   };
 }
@@ -567,8 +571,7 @@ and upat_to_info_map =
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
-    //TODO anand: constraints?
-    add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraints=[], m);
+    add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraints=p.constraints, m);
   };
 }
 and utyp_to_info_map =
