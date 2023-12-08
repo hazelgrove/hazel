@@ -25,7 +25,7 @@ module Evaluation = {
     substitution: true,
     postprocess: true,
     show_record: false,
-    show_case_clauses: false,
+    show_case_clauses: true,
     show_fn_bodies: false,
     show_casts: false,
     show_unevaluated_elaboration: false,

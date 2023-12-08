@@ -11,13 +11,15 @@ module EvalObj: {
   type t = {
     ctx: EvalCtx.t,
     apply: unit => DHExp.t,
+    undo: DHExp.t,
     knd: step_kind,
   };
 
-  let mk: (EvalCtx.t, unit => DHExp.t, step_kind) => t;
+  let mk: (EvalCtx.t, unit => DHExp.t, DHExp.t, step_kind) => t;
 
   let get_ctx: t => EvalCtx.t;
   let get_exp: t => DHExp.t;
+  let get_kind: t => step_kind;
 
   let unwrap: (t, EvalCtx.cls) => option(t);
 };

@@ -129,15 +129,23 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
+      ~previous_step: option(EvaluatorStep.EvalObj.t)=None, // The step that will be displayed above this one
+      ~hidden_steps: list(EvaluatorStep.EvalObj.t)=[], // The hidden steps between the above and the current one
+      ~chosen_step: option(EvaluatorStep.EvalObj.t)=None, // The step that will be taken next
       ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
-      ~disabled=false,
       d: DHExp.t,
     )
     : Node.t => {
   let maker =
     settings.postprocess
-      ? DHDoc_Exp.mk
-      : DHDoc_Step.mk(~next_steps, ~disabled, ~env=ClosureEnvironment.empty);
+      ? DHDoc_Exp.mk(~parenthesize=false)
+      : DHDoc_Step.mk(
+          ~previous_step,
+          ~hidden_steps,
+          ~chosen_step,
+          ~next_steps,
+          ~env=ClosureEnvironment.empty,
+        );
   let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
   |> c

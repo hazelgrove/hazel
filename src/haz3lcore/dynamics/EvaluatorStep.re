@@ -16,15 +16,17 @@ module EvalObj = {
   type t = {
     ctx: EvalCtx.t,
     apply: unit => DHExp.t,
+    undo: DHExp.t,
     knd: step_kind,
   };
 
-  let mk = (ctx, apply, knd) => {ctx, apply, knd};
+  let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
 
   // let mark = (env, act, exp) => {env, ctx: Mark, act, exp};
 
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
   let get_exp = (obj: t): DHExp.t => obj.apply();
+  let get_kind = (obj: t): step_kind => obj.knd;
 
   let rec unwrap = (obj: t, sel: EvalCtx.cls): option(t) => {
     switch (sel, obj.ctx) {
@@ -34,6 +36,8 @@ module EvalObj = {
         ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(obj.ctx)),
       );
       raise(EvaluatorError.Exception(StepDoesNotMatch));
+    | (_, Mark) => None
+    | (BoundVar, c)
     | (NonEmptyHole, NonEmptyHole(_, _, _, c))
     | (Closure, Closure(_, c))
     | (Filter, Filter(_, c))
@@ -41,6 +45,8 @@ module EvalObj = {
     | (Sequence2, Sequence2(_, c))
     | (Let1, Let1(_, c, _))
     | (Let2, Let2(_, _, c))
+    | (Fun, Fun(_, _, c, _))
+    | (FixF, FixF(_, _, c))
     | (Ap1, Ap1(c, _))
     | (Ap2, Ap2(_, c))
     | (BinBoolOp1, BinBoolOp1(_, c, _))
@@ -56,13 +62,18 @@ module EvalObj = {
     | (ListConcat1, ListConcat1(c, _))
     | (ListConcat2, ListConcat2(_, c))
     | (Prj, Prj(c, _)) => Some({...obj, ctx: c})
+    | (ListLit(n), ListLit(_, _, _, c, (ld, _)))
     | (Tuple(n), Tuple(c, (ld, _))) =>
       if (List.length(ld) == n) {
         Some({...obj, ctx: c});
       } else {
         None;
       }
-    | (ListLit(n), ListLit(_, _, _, c, (ld, _))) =>
+    | (ConsistentCaseRule(n), ConsistentCaseRule(_, _, c, (ld, _), _))
+    | (
+        InconsistentBranchesRule(n),
+        InconsistentBranchesRule(_, _, _, _, c, (ld, _), _),
+      ) =>
       if (List.length(ld) == n) {
         Some({...obj, ctx: c});
       } else {
@@ -73,6 +84,7 @@ module EvalObj = {
     | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) =>
       Some({...obj, ctx: scrut})
     | (Cast, Cast(c, _, _))
+    | (FailedCastCast, FailedCast(Cast(c, _, _), _, _))
     | (FailedCast, FailedCast(c, _, _)) => Some({...obj, ctx: c})
     | (Ap1, Ap2(_, _))
     | (Ap2, Ap1(_, _))
@@ -286,7 +298,7 @@ module Decompose = {
   } = {
     type state = ref(EvaluatorState.t); // TODO[Matt]: Make sure this gets passed around correctly
     type requirement('a) = (Result.t, 'a);
-    type requirements('a, 'b) = (Result.t, ClosureEnvironment.t, 'a);
+    type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
     type result = Result.t;
 
     let req_value = (cont, wr, d) => {
@@ -352,22 +364,22 @@ module Decompose = {
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
       (rq, rl) =>
         switch (rq) {
-        | (Result.Indet, _, _) => Result.Indet
-        | (Result.BoxedValue, _, v) =>
+        | (_, Result.Indet, _, _) => Result.Indet
+        | (undo, Result.BoxedValue, _, v) =>
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
           | Indet => Result.Indet
-          | Step(s) => Result.Step([EvalObj.mk(Mark, s.apply, s.kind)])
+          | Step(s) => Result.Step([EvalObj.mk(Mark, s.apply, undo, s.kind)])
           }
-        | (Result.Step(_) as r, _, _) => r
+        | (_, Result.Step(_) as r, _, _) => r
         };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>
       requirements(('a, 'c), 'b) =
-      ((r1, env, v1), (r2, v2)) => (r1 && r2, env, (v1, v2));
+      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
 
-    let otherwise = (env, _) => (Result.BoxedValue, env, ());
+    let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
   };
@@ -443,6 +455,7 @@ module Decompose = {
             Evaluator.EvaluatorEVMode.unbox(
               evaluate_until(fenv, state, env, exp),
             ),
+          exp,
           Skip,
         ),
       ])
@@ -681,120 +694,141 @@ module Decompose = {
    };*/
 };
 
-let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
-  open DHExp;
-  let rec rev_concat = (ls: list('a), rs: list('a)) => {
+let rec rev_concat: (list('a), list('a)) => list('a) =
+  (ls, rs) => {
     switch (ls) {
     | [] => rs
     | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
     };
   };
-  switch (ctx) {
-  | Mark => d
-  | Closure(env, ctx) =>
-    let d = compose(ctx, d);
-    // let flist = Capture.analyze(Environment.empty, d);
-    // if (Environment.is_empty(flist)) {
-    //   d |> return;
-    // } else {
-    Closure(env, d); //;
-  // };
-  | Filter(fenv, ctx) =>
-    let d = compose(ctx, d);
-    switch (d) {
-    | Filter(fenv', d) =>
-      let fenv'' = FilterEnvironment.extends(fenv', fenv);
-      Filter(fenv'', d);
-    | _ => Filter(fenv, d)
-    };
-  | Sequence1(ctx, d2) =>
-    let d1 = compose(ctx, d);
-    Sequence(d1, d2);
-  | Sequence2(d1, ctx) =>
-    let d2 = compose(ctx, d);
-    Sequence(d1, d2);
-  | Ap1(ctx, d2) =>
-    let d1 = compose(ctx, d);
-    Ap(d1, d2);
-  | Ap2(d1, ctx) =>
-    let d2 = compose(ctx, d);
-    Ap(d1, d2);
-  | ApBuiltin(s, ctx, (ds1, ds2)) =>
-    let d' = compose(ctx, d);
-    ApBuiltin(s, rev_concat(ds1, [d', ...ds2]));
-  | Test(lit, ctx) =>
-    let d1 = compose(ctx, d);
-    Test(lit, d1);
-  | BinBoolOp1(op, ctx, d2) =>
-    let d1 = compose(ctx, d);
-    BinBoolOp(op, d1, d2);
-  | BinBoolOp2(op, d1, ctx) =>
-    let d2 = compose(ctx, d);
-    BinBoolOp(op, d1, d2);
-  | BinIntOp1(op, ctx, d2) =>
-    let d1 = compose(ctx, d);
-    BinIntOp(op, d1, d2);
-  | BinIntOp2(op, d1, ctx) =>
-    let d2 = compose(ctx, d);
-    BinIntOp(op, d1, d2);
-  | BinFloatOp1(op, ctx, d2) =>
-    let d1 = compose(ctx, d);
-    BinFloatOp(op, d1, d2);
-  | BinFloatOp2(op, d1, ctx) =>
-    let d2 = compose(ctx, d);
-    BinFloatOp(op, d1, d2);
-  | BinStringOp1(op, ctx, d2) =>
-    let d1 = compose(ctx, d);
-    BinStringOp(op, d1, d2);
-  | BinStringOp2(op, d1, ctx) =>
-    let d2 = compose(ctx, d);
-    BinStringOp(op, d1, d2);
-  | Cons1(ctx, d2) =>
-    let d1 = compose(ctx, d);
-    Cons(d1, d2);
-  | Cons2(d1, ctx) =>
-    let d2 = compose(ctx, d);
-    Cons(d1, d2);
-  | ListConcat1(ctx, d2) =>
-    let d1 = compose(ctx, d);
-    ListConcat(d1, d2);
-  | ListConcat2(d1, ctx) =>
-    let d2 = compose(ctx, d);
-    ListConcat(d1, d2);
-  | Tuple(ctx, (ld, rd)) =>
-    let d = compose(ctx, d);
-    Tuple(rev_concat(ld, [d, ...rd]));
-  | ListLit(m, i, t, ctx, (ld, rd)) =>
-    let d = compose(ctx, d);
-    ListLit(m, i, t, rev_concat(ld, [d, ...rd]));
-  | Let1(dp, ctx, d2) =>
-    let d = compose(ctx, d);
-    Let(dp, d, d2);
-  | Let2(dp, d1, ctx) =>
-    let d = compose(ctx, d);
-    Let(dp, d1, d);
-  | Prj(ctx, n) =>
-    let d = compose(ctx, d);
-    Prj(d, n);
-  | Cast(ctx, ty1, ty2) =>
-    let d = compose(ctx, d);
-    Cast(d, ty1, ty2);
-  | FailedCast(ctx, ty1, ty2) =>
-    let d = compose(ctx, d);
-    FailedCast(d, ty1, ty2);
-  | InvalidOperation(ctx, err) =>
-    let d = compose(ctx, d);
-    InvalidOperation(d, err);
-  | NonEmptyHole(reason, u, i, ctx) =>
-    let d = compose(ctx, d);
-    NonEmptyHole(reason, u, i, d);
-  | ConsistentCase(Case(ctx, rule, n)) =>
-    let d = compose(ctx, d);
-    ConsistentCase(Case(d, rule, n));
-  | InconsistentBranches(u, i, Case(ctx, rule, n)) =>
-    let d = compose(ctx, d);
-    InconsistentBranches(u, i, Case(d, rule, n));
-  };
+
+let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
+  DHExp.(
+    switch (ctx) {
+    | Mark => d
+    | Closure(env, ctx) =>
+      let d = compose(ctx, d);
+      // let flist = Capture.analyze(Environment.empty, d);
+      // if (Environment.is_empty(flist)) {
+      //   d |> return;
+      // } else {
+      Closure(env, d); //;
+    // };
+    | Filter(fenv, ctx) =>
+      let d = compose(ctx, d);
+      switch (d) {
+      | Filter(fenv', d) =>
+        let fenv'' = FilterEnvironment.extends(fenv', fenv);
+        Filter(fenv'', d);
+      | _ => Filter(fenv, d)
+      };
+    | Sequence1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Sequence(d1, d2);
+    | Sequence2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Sequence(d1, d2);
+    | Ap1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Ap(d1, d2);
+    | Ap2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Ap(d1, d2);
+    | ApBuiltin(s, ctx, (ds1, ds2)) =>
+      let d' = compose(ctx, d);
+      ApBuiltin(s, rev_concat(ds1, [d', ...ds2]));
+    | Test(lit, ctx) =>
+      let d1 = compose(ctx, d);
+      Test(lit, d1);
+    | BinBoolOp1(op, ctx, d2) =>
+      let d1 = compose(ctx, d);
+      BinBoolOp(op, d1, d2);
+    | BinBoolOp2(op, d1, ctx) =>
+      let d2 = compose(ctx, d);
+      BinBoolOp(op, d1, d2);
+    | BinIntOp1(op, ctx, d2) =>
+      let d1 = compose(ctx, d);
+      BinIntOp(op, d1, d2);
+    | BinIntOp2(op, d1, ctx) =>
+      let d2 = compose(ctx, d);
+      BinIntOp(op, d1, d2);
+    | BinFloatOp1(op, ctx, d2) =>
+      let d1 = compose(ctx, d);
+      BinFloatOp(op, d1, d2);
+    | BinFloatOp2(op, d1, ctx) =>
+      let d2 = compose(ctx, d);
+      BinFloatOp(op, d1, d2);
+    | BinStringOp1(op, ctx, d2) =>
+      let d1 = compose(ctx, d);
+      BinStringOp(op, d1, d2);
+    | BinStringOp2(op, d1, ctx) =>
+      let d2 = compose(ctx, d);
+      BinStringOp(op, d1, d2);
+    | Cons1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Cons(d1, d2);
+    | Cons2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Cons(d1, d2);
+    | ListConcat1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      ListConcat(d1, d2);
+    | ListConcat2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      ListConcat(d1, d2);
+    | Tuple(ctx, (ld, rd)) =>
+      let d = compose(ctx, d);
+      Tuple(rev_concat(ld, [d, ...rd]));
+    | ListLit(m, i, t, ctx, (ld, rd)) =>
+      let d = compose(ctx, d);
+      ListLit(m, i, t, rev_concat(ld, [d, ...rd]));
+    | Let1(dp, ctx, d2) =>
+      let d = compose(ctx, d);
+      Let(dp, d, d2);
+    | Let2(dp, d1, ctx) =>
+      let d = compose(ctx, d);
+      Let(dp, d1, d);
+    | Fun(dp, t, ctx, v) =>
+      let d = compose(ctx, d);
+      Fun(dp, t, d, v);
+    | FixF(v, t, ctx) =>
+      let d = compose(ctx, d);
+      FixF(v, t, d);
+    | Prj(ctx, n) =>
+      let d = compose(ctx, d);
+      Prj(d, n);
+    | Cast(ctx, ty1, ty2) =>
+      let d = compose(ctx, d);
+      Cast(d, ty1, ty2);
+    | FailedCast(ctx, ty1, ty2) =>
+      let d = compose(ctx, d);
+      FailedCast(d, ty1, ty2);
+    | InvalidOperation(ctx, err) =>
+      let d = compose(ctx, d);
+      InvalidOperation(d, err);
+    | NonEmptyHole(reason, u, i, ctx) =>
+      let d = compose(ctx, d);
+      NonEmptyHole(reason, u, i, d);
+    | ConsistentCase(Case(ctx, rule, n)) =>
+      let d = compose(ctx, d);
+      ConsistentCase(Case(d, rule, n));
+    | ConsistentCaseRule(scr, p, ctx, (lr, rr), n) =>
+      let d = compose(ctx, d);
+      ConsistentCase(
+        Case(scr, rev_concat(lr, [(Rule(p, d): DHExp.rule), ...rr]), n),
+      );
+    | InconsistentBranches(u, i, Case(ctx, rule, n)) =>
+      let d = compose(ctx, d);
+      InconsistentBranches(u, i, Case(d, rule, n));
+    | InconsistentBranchesRule(scr, mv, hi, p, ctx, (lr, rr), n) =>
+      let d = compose(ctx, d);
+      InconsistentBranches(
+        mv,
+        hi,
+        Case(scr, rev_concat(lr, [(Rule(p, d): DHExp.rule), ...rr]), n),
+      );
+    }
+  );
 };
 /*
  let step = (obj: EvalObj.t): m(EvaluatorResult.t) => {
