@@ -225,13 +225,20 @@ let generate =
 
   //TODO(andrew): check tydi handling of synthetic pos, unknown type
   //TODO(andrew): completing fns apps incl empty ap
-  //TODO(andrew): complete case rules
-  //TODO(andrew): not all leading necessarily convex?
+  //TODO(andrew): case rules suggested everywhere in expr
+  //TODO(andrew): not all leading necessarily convex... handle principled
   //TODO(andrew): completing ( and [ into () and []
   //TODO(andrew): things with unknown type get duplicated lookahead sugs?
   //TODO(andrew): lookahead case: technically "let a:Int = (f" should suggest fun
   //TODO(andrew): if unbound error and exist completions, maybe dont sug ws or other new tok
   //TODO(andrew): cases of being halfway through int/float/stringlits or pat/tyvars
+
+  // from kevin:
+  //TODO(andrew): logic for completing free forms regexps
+  // if expected type consistent with tuple, suggest ,
+  // if expecte type consistent with tuple, suggest first type
+  // (in effect we get no type guidance for remaining members of tuple)
+  // cut off lookaheads at space
 
   let suggestions_convex =
     convex_const_mono_sugs
@@ -293,7 +300,9 @@ let dispatch_generation = (~db, s: string): list(string) => {
   switch (generation_options(~db, z)) {
   | NewRightConvex(id) =>
     db("  LSP: Syntax: Can insert new right-convex");
-    let sugs = generate(~db, ~shape=Convex, ~completion=None, z, id);
+    let sugs =
+      generate(~db, ~shape=Convex, ~completion=None, z, id)
+      |> List.sort_uniq(String.compare);
     db(
       "LSP: Final: (1/1) New right-convex Suggestions: "
       ++ String.concat(" ", sugs),
@@ -301,7 +310,9 @@ let dispatch_generation = (~db, s: string): list(string) => {
     sugs;
   | NewRightConcave(id) =>
     db("  LSP: Syntax: Can insert new right-concave");
-    let sugs = generate(~db, ~shape=Concave(0), ~completion=None, z, id);
+    let sugs =
+      generate(~db, ~shape=Concave(0), ~completion=None, z, id)
+      |> List.sort_uniq(String.compare);
     db(
       "LSP: Final: (1/1) New right-concave Suggestions: "
       ++ String.concat(" ", sugs),
@@ -309,9 +320,12 @@ let dispatch_generation = (~db, s: string): list(string) => {
     sugs;
   | CompletionOrNewRightConvex(id_l, string, id_new) =>
     db("  LSP: Syntax: Can insert new right-convex or complete left");
-    let s1 = generate(~db, ~shape=Convex, ~completion=None, z, id_new);
+    let s1 =
+      generate(~db, ~shape=Convex, ~completion=None, z, id_new)
+      |> List.sort_uniq(String.compare);
     let s2 =
-      generate(~db, ~shape=Concave(0), ~completion=Some(string), z, id_l);
+      generate(~db, ~shape=Concave(0), ~completion=Some(string), z, id_l)
+      |> List.sort_uniq(String.compare);
     db(
       "LSP: Final: (1/2) New Token Suggestions: " ++ String.concat(" ", s1),
     );
@@ -321,8 +335,12 @@ let dispatch_generation = (~db, s: string): list(string) => {
     s1 @ s2;
   | CompletionOrNewRightConcave(id_l, string, id_new) =>
     db("  LSP: Syntax: Can insert new right-concave or complete left");
-    let s1 = generate(~db, ~shape=Concave(0), ~completion=None, z, id_new);
-    let s2 = generate(~db, ~shape=Convex, ~completion=Some(string), z, id_l);
+    let s1 =
+      generate(~db, ~shape=Concave(0), ~completion=None, z, id_new)
+      |> List.sort_uniq(String.compare);
+    let s2 =
+      generate(~db, ~shape=Convex, ~completion=Some(string), z, id_l)
+      |> List.sort_uniq(String.compare);
     db("LSP: (1/2) New Token Suggestions: " ++ String.concat(" ", s1));
     db("LSP: (2/2) Completion Suggestions: " ++ String.concat(" ", s2));
     s1 @ s2;
@@ -337,11 +355,9 @@ floatlit ::= [0-9]+ "." [0-9]+
 stringlit ::= "\"" [^"]* "\""
 patvar ::= [a-zA-Z_][a-zA-Z0-9_]*
 typvar ::= [A-Z][a-zA-Z0-9_]*
-whitespace ::= [ \t\n]+
+whitespace ::= [ \n]+
 
-root ::=
-    whitespace
-  | |};
+root ::= whitespace | |};
 
 let mk_grammar = (toks: list(string)): string =>
   List.map(
@@ -352,11 +368,12 @@ let mk_grammar = (toks: list(string)): string =>
       | "~STRINGLIT~" => "stringlit"
       | "~PATVAR~" => "patvar"
       | "~TYPVAR~" => "typvar"
+      | "\\/" => {|"\\/"|}
       | tok => "\"" ++ tok ++ "\""
       },
     toks,
   )
-  |> String.concat("\n  | ")
+  |> String.concat(" | ")
   |> (toks => grammar_prefix ++ toks);
 
 let main = (s: string) => {

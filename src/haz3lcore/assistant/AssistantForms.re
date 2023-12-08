@@ -24,7 +24,7 @@ module Typ = {
     ("false", Bool),
     ("[]", List(unk)), /*NOTE: would need to refactor buffer for this to show up */
     ("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
+    //("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk) //TODO: this shouldn't show up for exp?
   ];
 
@@ -238,11 +238,11 @@ module Delims = {
     };
 };
 
-let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
-  let sort = Info.sort_of(ci);
+let sug' =
+    (ty_map, delims_of_sort, sort: Sort.t, ctx: Ctx.t, ty_expected)
+    : list(Suggestion.t) => {
   let delims = delims_of_sort(sort);
-  let filtered =
-    Typ.filter_by(Info.ctx_of(ci), Typ.expected(ci), ty_map, delims);
+  let filtered = Typ.filter_by(ctx, ty_expected, ty_map, delims);
   switch (sort) {
   | Exp =>
     List.map(
@@ -262,6 +262,15 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   };
 };
 
+let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) =>
+  sug'(
+    ty_map,
+    delims_of_sort,
+    Info.sort_of(ci),
+    Info.ctx_of(ci),
+    Typ.expected(ci),
+  );
+
 let suggest_const_mono: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_convex_mono);
 
@@ -279,3 +288,12 @@ let suggest_prefix_leading: Info.t => list(Suggestion.t) =
 
 let suggest_postfix_leading: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_postfix_leading_delim, Delims.left_concave_poly);
+
+let suggest_all_ty_convex = (s: Sort.t, c: Ctx.t, ty): list(Suggestion.t) => {
+  sug'(Typ.of_const_mono_delim, Delims.const_convex_mono, s, c, ty)
+  @ sug'(Typ.of_abstract_mono_delim, Delims.abstract_convex_mono, s, c, ty)
+  //@ sug'(Typ.of_infix_delim, Delims.infix_mono, s, c, ty)
+  @ sug'(Typ.of_prefix_delim, Delims.prefix_mono, s, c, ty)
+  @ sug'(Typ.of_prefix_leading_delim, Delims.left_convex_poly, s, c, ty);
+                                                                    //@ sug'(Typ.of_postfix_leading_delim, Delims.left_concave_poly, s, c, ty);
+};
