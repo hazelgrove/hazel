@@ -53,6 +53,8 @@ module EvalCtx = {
     | Let2
     | Ap1
     | Ap2
+    | Fun
+    | FixF
     | BinBoolOp1
     | BinBoolOp2
     | BinIntOp1
@@ -75,7 +77,12 @@ module EvalCtx = {
     | FailedCast
     | InvalidOperation
     | ConsistentCase
-    | InconsistentBranches;
+    | ConsistentCaseRule(int)
+    | InconsistentBranches
+    | InconsistentBranchesRule(int)
+    | FailedCastCast
+    // Used when entering a bound variable expression in substitution mode
+    | BoundVar;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -86,6 +93,8 @@ module EvalCtx = {
     | Sequence2(DHExp.t, t)
     | Let1(DHPat.t, t, DHExp.t)
     | Let2(DHPat.t, DHExp.t, t)
+    | Fun(DHPat.t, Typ.t, t, option(Var.t))
+    | FixF(Var.t, Typ.t, t)
     | Ap1(t, DHExp.t)
     | Ap2(DHExp.t, t)
     | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
@@ -116,7 +125,23 @@ module EvalCtx = {
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
     | ConsistentCase(case)
+    | ConsistentCaseRule(
+        DHExp.t,
+        DHPat.t,
+        t,
+        (list(DHExp.rule), list(DHExp.rule)),
+        int,
+      )
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+    | InconsistentBranchesRule(
+        DHExp.t,
+        MetaVar.t,
+        HoleInstanceId.t,
+        DHPat.t,
+        t,
+        (list(DHExp.rule), list(DHExp.rule)),
+        int,
+      )
   and case =
     | Case(t, list(rule), int)
   and rule = DHExp.rule;
