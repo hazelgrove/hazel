@@ -508,6 +508,53 @@ module Stepper = {
     next: list(EvalObj.t),
   };
 
+  let rec ctx_in_flt = (ctx: EvalCtx.t, flt: DHExp.t): bool => {
+    switch (ctx, flt) {
+    | (Mark, _) => false
+    | (Closure(_, ctx), flt) => ctx_in_flt(ctx, flt)
+    | (Filter(_, ctx), flt) => ctx_in_flt(ctx, flt)
+    | (Sequence1(ctx, _), Sequence(flt, _))
+    | (Sequence2(_, ctx), Sequence(_, flt)) => ctx_in_flt(ctx, flt)
+    | (Let1(dp, ctx, _), Let(fp, flt, _))
+    | (Let2(dp, _, ctx), Let(fp, _, flt)) =>
+      FilterMatcher.matches_pat(dp, fp) && ctx_in_flt(ctx, flt)
+    | (Ap1(ctx, _), Ap(flt, _))
+    | (Ap2(_, ctx), Ap(_, flt)) => ctx_in_flt(ctx, flt)
+    | (BinBoolOp1(dop, ctx, _), BinBoolOp(fop, flt, _))
+    | (BinBoolOp2(dop, _, ctx), BinBoolOp(fop, _, flt)) =>
+      dop == fop && ctx_in_flt(ctx, flt)
+    | (BinIntOp1(dop, ctx, _), BinIntOp(fop, flt, _))
+    | (BinIntOp2(dop, _, ctx), BinIntOp(fop, _, flt)) =>
+      dop == fop && ctx_in_flt(ctx, flt)
+    | (BinFloatOp1(dop, ctx, _), BinFloatOp(fop, flt, _))
+    | (BinFloatOp2(dop, _, ctx), BinFloatOp(fop, _, flt)) =>
+      dop == fop && ctx_in_flt(ctx, flt)
+    | (BinStringOp1(dop, ctx, _), BinStringOp(fop, flt, _))
+    | (BinStringOp2(dop, _, ctx), BinStringOp(fop, _, flt)) =>
+      dop == fop && ctx_in_flt(ctx, flt)
+    | (Tuple(ctx, (ls, _)), Tuple(fs)) =>
+      let flt = List.nth(fs, List.length(ls));
+      ctx_in_flt(ctx, flt);
+    | (ApBuiltin(cname, ctx, (ls, _)), ApBuiltin(fname, fs)) =>
+      let flt = List.nth(fs, List.length(ls));
+      cname == fname && ctx_in_flt(ctx, flt);
+    | (Test(cid, ctx), Test(fid, flt)) =>
+      cid == fid && ctx_in_flt(ctx, flt)
+    | (ListLit(_, _, _, ctx, (ls, _)), ListLit(_, _, _, fs)) =>
+      let flt = List.nth(fs, List.length(ls));
+      ctx_in_flt(ctx, flt);
+    | (Cons1(ctx, _), Cons(flt, _))
+    | (Cons2(_, ctx), Cons(_, flt)) => ctx_in_flt(ctx, flt)
+    | (ListConcat1(ctx, _), ListConcat(flt, _))
+    | (ListConcat2(_, ctx), ListConcat(_, flt)) => ctx_in_flt(ctx, flt)
+    | (Prj(ctx, cid), Prj(flt, fid)) => cid == fid && ctx_in_flt(ctx, flt)
+    | (NonEmptyHole(_, _, _, ctx), NonEmptyHole(_, _, _, flt)) =>
+      ctx_in_flt(ctx, flt)
+    | (Cast(ctx, _, _), Cast(flt, _, _)) => ctx_in_flt(ctx, flt)
+    | _ => false
+    };
+  };
+
   let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
     let current = compose(e.ctx, e.apply());
     skip_steps(
