@@ -914,6 +914,11 @@ module Stepper = {
     step: EvalObj.t,
   };
 
+  type step_with_hidden = {
+    step,
+    hidden: list(step),
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: DHExp.t,
@@ -987,6 +992,19 @@ module Stepper = {
     | FunClosure => "unidentified step"
     | Skip => "skipped steps";
 
-  let get_history = stepper =>
-    List.filter(x => !should_hide_step(x.step.knd), stepper.previous);
+  let get_history = stepper => {
+    let rec get_history':
+      list(step) => (list(step), list(step_with_hidden)) =
+      fun
+      | [] => ([], [])
+      | [step, ...steps] => {
+          let (hidden, ss) = get_history'(steps);
+          if (should_hide_step(step.step.knd)) {
+            ([step, ...hidden], ss);
+          } else {
+            ([], [{step, hidden}, ...ss]);
+          };
+        };
+    stepper.previous |> get_history';
+  };
 };

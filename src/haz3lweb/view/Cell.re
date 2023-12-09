@@ -204,7 +204,12 @@ let deco =
 };
 
 let stepper_footer_view =
-    (~inject, ~settings, ~font_metrics, stepper: EvaluatorStep.Stepper.t) => {
+    (
+      ~inject,
+      ~settings: Settings.Evaluation.t,
+      ~font_metrics,
+      stepper: EvaluatorStep.Stepper.t,
+    ) => {
   open Node;
   let button_back =
     Widgets.button_d(
@@ -213,6 +218,12 @@ let stepper_footer_view =
       ~disabled=stepper.previous == [],
       ~tooltip="Step Backwards",
     );
+  let (hidden, previous) =
+    if (settings.show_record) {
+      EvaluatorStep.Stepper.get_history(stepper);
+    } else {
+      ([], []);
+    };
   let dh_code_current =
     div(
       ~attr=Attr.classes(["result"]),
@@ -224,11 +235,14 @@ let stepper_footer_view =
           ~font_metrics,
           ~width=80,
           ~next_steps=stepper.next,
+          ~hidden_steps=
+            List.map((x: EvaluatorStep.Stepper.step) => x.step, hidden),
           stepper.current,
         ),
       ],
     );
-  let dh_code_previous = (expr, eval_ob) =>
+  let dh_code_previous =
+      (step_with_hidden: EvaluatorStep.Stepper.step_with_hidden) =>
     div(
       ~attr=Attr.classes(["result"]),
       [
@@ -238,8 +252,13 @@ let stepper_footer_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
-          ~chosen_step=Some(eval_ob),
-          expr,
+          ~chosen_step=Some(step_with_hidden.step.step),
+          ~hidden_steps=
+            List.map(
+              (x: EvaluatorStep.Stepper.step) => x.step,
+              step_with_hidden.hidden,
+            ),
+          step_with_hidden.step.d,
         ),
       ],
     );
@@ -257,27 +276,23 @@ let stepper_footer_view =
         show_history,
       ],
     );
-  let previous_step = (step: EvaluatorStep.Stepper.step) => {
+  let previous_step = (step: EvaluatorStep.Stepper.step_with_hidden) => {
     div(
       ~attr=Attr.classes(["cell-result"]),
       [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        dh_code_previous(step.d, step.step),
+        dh_code_previous(step),
         div(
           ~attr=Attr.classes(["stepper-justification"]),
           [
-            Node.text(EvaluatorStep.Stepper.get_justification(step.step.knd)),
+            Node.text(
+              EvaluatorStep.Stepper.get_justification(step.step.step.knd),
+            ),
           ],
         ),
       ],
     );
   };
-  let previous =
-    if (settings.show_record) {
-      EvaluatorStep.Stepper.get_history(stepper);
-    } else {
-      [];
-    };
   let nodes_previous = List.map(previous_step, previous);
   List.fold_left((x, y) => List.cons(y, x), [current], nodes_previous);
 };
