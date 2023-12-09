@@ -16,6 +16,7 @@ module Evaluation = {
     show_fn_bodies: bool,
     show_casts: bool,
     show_unevaluated_elaboration: bool,
+    show_filters: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -29,6 +30,7 @@ module Evaluation = {
     show_fn_bodies: false,
     show_casts: false,
     show_unevaluated_elaboration: false,
+    show_filters: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
