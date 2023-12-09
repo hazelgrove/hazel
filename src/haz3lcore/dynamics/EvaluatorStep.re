@@ -1,16 +1,6 @@
 open Sexplib.Std;
 open Transition;
 
-module Filter = DHExp.Filter;
-
-module FilterAction = DHExp.FilterAction;
-
-module FilterEnvironment = DHExp.FilterEnvironment;
-
-/**
-  Alias for EvaluatorMonad.
- */
-// type m('a) = EvaluatorMonad.t('a);
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -384,30 +374,30 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
   };
 
-  let rec evaluate_until = (fenv, state, env, exp) => {
+  let rec evaluate_until = (flt_env, state, env, exp) => {
     Evaluator.EvaluatorEVMode.(
       {
         let u =
-          switch (FilterEnvironment.matches(exp, Eval, fenv)) {
+          switch (FilterEnvironment.matches(exp, Eval, flt_env)) {
           | Step => Indet(exp)
           | Eval =>
             switch (exp) {
-            | Filter(fenv', d1) =>
-              let. _ = otherwise(env, (d1) => (Filter(fenv', d1): DHExp.t))
+            | Filter(flt, d1) =>
+              let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
               and. d1 =
                 req_final(
                   evaluate_until(
-                    FilterEnvironment.extends(fenv', fenv),
+                    FilterEnvironment.extends(flt, flt_env),
                     state,
                     env,
                   ),
-                  d1 => Filter(fenv', d1),
+                  d1 => Filter(flt, d1),
                   d1,
                 );
               Step({apply: () => d1, kind: CompleteFilter, value: true});
             | _ =>
               Evaluator.Eval.transition(
-                evaluate_until(fenv),
+                evaluate_until(flt_env),
                 state,
                 env,
                 exp,
@@ -417,7 +407,7 @@ module Decompose = {
         switch (u) {
         | BoxedValue(x) => BoxedValue(x)
         | Indet(x) => Indet(x)
-        | Uneval(x) => evaluate_until(fenv, state, env, x)
+        | Uneval(x) => evaluate_until(flt_env, state, env, x)
         };
       }
     );
@@ -708,20 +698,10 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Mark => d
     | Closure(env, ctx) =>
       let d = compose(ctx, d);
-      // let flist = Capture.analyze(Environment.empty, d);
-      // if (Environment.is_empty(flist)) {
-      //   d |> return;
-      // } else {
-      Closure(env, d); //;
-    // };
-    | Filter(fenv, ctx) =>
+      Closure(env, d);
+    | Filter(flt_env, ctx) =>
       let d = compose(ctx, d);
-      switch (d) {
-      | Filter(fenv', d) =>
-        let fenv'' = FilterEnvironment.extends(fenv', fenv);
-        Filter(fenv'', d);
-      | _ => Filter(fenv, d)
-      };
+      Filter(flt_env, d);
     | Sequence1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Sequence(d1, d2);
