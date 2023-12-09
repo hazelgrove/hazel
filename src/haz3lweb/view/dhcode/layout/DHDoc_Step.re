@@ -125,7 +125,26 @@ let mk =
          the time the result is partial evaluated and those conditions
          cannot be met. */
       | Closure(env', d') => go'(d', Closure, ~env=env')
-      | Filter(_, d') => go'(d', Filter)
+      | Filter({pat, act}, d') =>
+        let keyword =
+          switch (act) {
+          | Step => "step"
+          | Eval => "skip"
+          };
+        let flt_doc = go_formattable(pat, FilterPattern);
+        vseps([
+          hcats([
+            DHDoc_common.Delim.mk(keyword),
+            flt_doc
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline=false,
+               ),
+            DHDoc_common.Delim.mk("in"),
+          ]),
+          go'(d', Filter),
+        ]);
+
       /* Hole expressions must appear within a closure in
          the postprocessed result */
       | EmptyHole(u, i) =>
