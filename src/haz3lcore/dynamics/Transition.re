@@ -46,6 +46,7 @@ module EvalCtx = {
   type cls =
     | Mark
     | Closure
+    | FilterPattern
     | Filter
     | Sequence1
     | Sequence2
