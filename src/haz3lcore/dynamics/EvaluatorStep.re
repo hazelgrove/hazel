@@ -243,16 +243,7 @@ module Decompose = {
                   d1 => Filter(flt, d1),
                   d1,
                 );
-              Step({
-                apply: () =>
-                  switch (ValueChecker.check_value(env, d1)) {
-                  | Indet
-                  | Value => d1
-                  | Expr => Filter(flt, d1)
-                  },
-                kind: CompleteFilter,
-                value: true,
-              });
+              Step({apply: () => d1, kind: CompleteFilter, value: true});
             | _ =>
               Evaluator.Eval.transition(
                 evaluate_until(flt_env),
