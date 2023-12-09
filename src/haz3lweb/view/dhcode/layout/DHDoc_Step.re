@@ -126,24 +126,28 @@ let mk =
          cannot be met. */
       | Closure(env', d') => go'(d', Closure, ~env=env')
       | Filter({pat, act}, d') =>
-        let keyword =
-          switch (act) {
-          | Step => "step"
-          | Eval => "skip"
-          };
-        let flt_doc = go_formattable(pat, FilterPattern);
-        vseps([
-          hcats([
-            DHDoc_common.Delim.mk(keyword),
-            flt_doc
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline=false,
-               ),
-            DHDoc_common.Delim.mk("in"),
-          ]),
-          go'(d', Filter),
-        ]);
+        if (settings.show_filters) {
+          let keyword =
+            switch (act) {
+            | Step => "step"
+            | Eval => "skip"
+            };
+          let flt_doc = go_formattable(pat, FilterPattern);
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk(keyword),
+              flt_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
+            ]),
+            go'(d', Filter),
+          ]);
+        } else {
+          go'(d', Filter);
+        }
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */
