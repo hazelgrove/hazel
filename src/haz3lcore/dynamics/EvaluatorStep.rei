@@ -1,11 +1,5 @@
 open Transition;
 
-module Filter = DHExp.Filter;
-
-module FilterAction = DHExp.FilterAction;
-
-module FilterEnvironment = DHExp.FilterEnvironment;
-
 module EvalObj: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
