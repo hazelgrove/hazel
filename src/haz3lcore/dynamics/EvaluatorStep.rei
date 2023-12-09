@@ -35,6 +35,11 @@ module Stepper: {
     step: EvalObj.t,
   };
 
+  type step_with_hidden = {
+    step,
+    hidden: list(step),
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: DHExp.t,
@@ -45,6 +50,6 @@ module Stepper: {
   let step_forward: (EvalObj.t, t) => t;
   let step_backward: t => t;
   let update_expr: (DHExp.t, t) => t;
-  let get_history: t => list(step);
+  let get_history: t => (list(step), list(step_with_hidden));
   let get_justification: step_kind => string;
 };
