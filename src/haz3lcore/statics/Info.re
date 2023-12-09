@@ -262,6 +262,13 @@ let ctx_of: t => Ctx.t =
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _}) => ctx;
 
+let co_ctx_of: t => CoCtx.t =
+  fun
+  | InfoExp({co_ctx, _})
+  | InfoPat({co_ctx, _}) => co_ctx
+  | InfoTyp(_)
+  | InfoTPat(_) => CoCtx.empty;
+
 let ancestors_of: t => ancestors =
   fun
   | InfoExp({ancestors, _})

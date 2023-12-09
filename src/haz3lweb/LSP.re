@@ -189,15 +189,60 @@ let generate =
     );
 
   let backpack_sug = AssistantBackpack.suggest(z);
-  let convex_const_mono_sugs = AssistantForms.suggest_const_mono(ci);
-  let convex_abstract_mono_sugs = AssistantForms.suggest_abstract_mono(ci);
-  let prefix_poly_sugs = AssistantForms.suggest_prefix_leading(ci);
-  let postfix_poly_sugs = AssistantForms.suggest_postfix_leading(ci);
-  let convex_var_sugs = AssistantCtx.suggest_variable(ci);
-  let convex_lookahead_var_sugs = AssistantCtx.suggest_lookahead_variable(ci);
+  /*let convex_const_mono_sugs = AssistantForms.suggest_const_mono(ci);
+    let convex_abstract_mono_sugs = AssistantForms.suggest_abstract_mono(ci);
+    let prefix_mono_sugs = AssistantForms.suggest_prefix_mono(ci);
+    let prefix_poly_sugs = AssistantForms.suggest_prefix_leading(ci);*/
+  let suggest_exp = (ctx, ty) =>
+    AssistantCtx.suggest_bound_exp(ty, ctx)
+    @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
+  let suggest_pat = (ctx, co_ctx, ty) =>
+    AssistantCtx.suggest_free_var(ty, ctx, co_ctx)
+    @ AssistantCtx.suggest_bound_pat(ty, ctx)
+    @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
+  let convex_var_sugs =
+    switch (ci) {
+    | InfoExp({mode, ctx, _}) => suggest_exp(ctx, Mode.ty_of(mode))
+    | InfoPat({mode, ctx, co_ctx, _}) =>
+      suggest_pat(ctx, co_ctx, Mode.ty_of(mode))
+    | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+    | _ => []
+    };
+  let nu_convex_lookahead_var_sugs =
+    switch (ci) {
+    | InfoExp({mode, ctx, _}) =>
+      let ty_paths = AssistantCtx.get_lookahead_tys_exp(Mode.ty_of(mode));
+      db(
+        "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
+      );
+      let tys =
+        List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
+      db(
+        "  LSP: Convex: Target types: "
+        ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
+      );
+      List.map(suggest_exp(ctx), tys) |> List.flatten;
+    | InfoPat({mode, ctx, co_ctx, _}) =>
+      let tys = AssistantCtx.get_lookahead_tys_pat(Mode.ty_of(mode));
+      List.map(suggest_pat(ctx, co_ctx), tys) |> List.flatten;
+    | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+    | _ => []
+    };
+  let convex_lookahead_var_sugs =
+    switch (ci) {
+    | InfoExp({mode, ctx, _}) =>
+      let ty = Mode.ty_of(mode);
+      AssistantCtx.suggest_lookahead_variable_exp(ty, ctx)
+      @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
+    | InfoPat({mode, ctx, co_ctx, _}) =>
+      let ty = Mode.ty_of(mode);
+      AssistantCtx.suggest_lookahead_variable_pat(ty, ctx, co_ctx)
+      @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
+    | InfoTyp(_) => []
+    | _ => []
+    };
   let infix_mono_sugs = AssistantForms.suggest_infix_mono(ci);
-  let prefix_mono_sugs = AssistantForms.suggest_prefix_mono(ci);
-
+  let postfix_poly_sugs = AssistantForms.suggest_postfix_leading(ci);
   db(
     "LSP: Gen: Generating "
     ++ (
@@ -208,19 +253,23 @@ let generate =
   );
   show_info(db, ci, z);
   db("  LSP: Base: Backpack suggestion: " ++ of_sugs(backpack_sug));
-  db("  LSP: Base: Mono Convex Const: " ++ of_sugs(convex_const_mono_sugs));
-  db(
-    "  LSP: Base: Mono Convex Abstract: "
-    ++ of_sugs(convex_abstract_mono_sugs),
-  );
   db("  LSP: Base: Mono Convex Vars: " ++ of_sugs(convex_var_sugs));
   db(
     "  LSP: Base: Mono Convex Lookahead Vars: "
     ++ of_sugs(convex_lookahead_var_sugs),
   );
-  db("  LSP: Base: Mono Prefix: " ++ of_sugs(prefix_mono_sugs));
+  db(
+    "  LSP: Base: NU Mono Convex Lookahead Vars: "
+    ++ of_sugs(nu_convex_lookahead_var_sugs),
+  );
+  /*db("  LSP: Base: Mono Convex Const: " ++ of_sugs(convex_const_mono_sugs));
+    db(
+      "  LSP: Base: Mono Convex Abstract: "
+      ++ of_sugs(convex_abstract_mono_sugs),
+    );
+    db("  LSP: Base: Mono Prefix: " ++ of_sugs(prefix_mono_sugs));
+    db("  LSP: Base: Poly Prefix: " ++ of_sugs(prefix_poly_sugs));*/
   db("  LSP: Base: Mono Infix: " ++ of_sugs(infix_mono_sugs));
-  db("  LSP: Base: Poly Prefix: " ++ of_sugs(prefix_poly_sugs));
   db("  LSP: Base: Poly Postfix: " ++ of_sugs(postfix_poly_sugs));
 
   //TODO(andrew): check tydi handling of synthetic pos, unknown type
@@ -233,6 +282,9 @@ let generate =
   //TODO(andrew): if unbound error and exist completions, maybe dont sug ws or other new tok
   //TODO(andrew): cases of being halfway through int/float/stringlits or pat/tyvars
 
+  //TODO(andrew): if on type inconsistency error, suggest everything for now
+  // (but not if on unbound error)
+  
   // from kevin:
   //TODO(andrew): logic for completing free forms regexps
   // if expected type consistent with tuple, suggest ,
@@ -241,12 +293,13 @@ let generate =
   // cut off lookaheads at space
 
   let suggestions_convex =
-    convex_const_mono_sugs
-    @ convex_abstract_mono_sugs
-    @ convex_var_sugs
+    /*convex_const_mono_sugs
+      @ convex_abstract_mono_sugs
+      @ prefix_mono_sugs
+      @ prefix_poly_sugs
+      @ */ convex_var_sugs
     @ convex_lookahead_var_sugs
-    @ prefix_mono_sugs
-    @ prefix_poly_sugs
+    @ nu_convex_lookahead_var_sugs
     |> List.sort(Suggestion.compare);
 
   let suggestions_concave =
