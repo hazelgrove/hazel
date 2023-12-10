@@ -2,11 +2,11 @@
 type t =
   | Missing_term // convex grout
   | Missing_tile // ghost tile
-  | Inconsistent_term // prefix/postfix grout
+  | Incon_term // pre/postfix grout
   | Extra_term; // infix grout
 
 // low to high severity
-let all = [Missing_term, Missing_tile, Inconsistent_term, Extra_term];
+let all = [Missing_term, Missing_tile, Incon_term, Extra_term];
 let severity = o => Option.get(List.find_index((==)(o), all));
 
 module Ord = {
@@ -27,4 +27,20 @@ module Delta = {
       all,
       0,
     );
+};
+
+module Result = {
+  type t('a) = ('a, Delta.t);
+
+  let map = (f, (a, d)) => (f(a), d);
+  let bind = ((a, d), f) => {
+    let (b, d') = f(a);
+    (b, Delta.add([d, d']));
+  };
+
+  module Syntax = {
+    let return = a => (a, Delta.zero);
+    let (let+) = Fun.flip(map);
+    let (let*) = bind;
+  };
 };

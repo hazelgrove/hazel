@@ -12,10 +12,18 @@ let min = Int.min_int;
 let max = Int.max_int;
 let max_op = max - 1;
 
-let lt = (~a=None, l, r) =>
-  compare(l, r) < 0 || compare(l, r) == 0 && a == Some(Dir.R);
-let gt = (~a=None, l, r) =>
-  compare(l, r) > 0 || compare(l, r) == 0 && a == Some(Dir.L);
+let lt = (~a=None, l: Bound.t(t), r) =>
+  switch (l) {
+  | Root => true
+  | Node(l) =>
+    compare(l, r) < 0 || compare(l, r) == 0 && a == Some(Dir.R)
+  };
+let gt = (~a=None, l, r: Bound.t(t)) =>
+  switch (r) {
+  | Root => true
+  | Node(r) =>
+    compare(l, r) > 0 || compare(l, r) == 0 && a == Some(Dir.L)
+  };
 let eq = (~a=None, l, r) => compare(l, r) == 0 && Option.is_none(a);
 
 let leq = (~a=None, l, r) => lt(~a, l, r) || eq(~a, l, r);

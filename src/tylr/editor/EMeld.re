@@ -4,14 +4,19 @@ include Meld;
 
 module Cell = {
   type t('a) = {
-    marks: EPath.Marks.t,
-    content: option('a),
+    sort: Bound.t(EMtrl.Sorted.t),
+    fill: option('a),
   };
-  let mk = (~marks=EPath.Marks.empty, content) => {marks, content};
-  let empty = mk(None);
+  let mk = (~sort=Bound.Root, ~fill=?, ()) =>
+    {sort, fill};
+  let empty = mk();
 };
 
-type t = Meld.t(Cell.t(t), EToken.t);
+type t = Meld.t(Cell.t(EPath.Marked.t(t)), EToken.t);
+
+module Marked = {
+  type nonrec t = EPath.Marked.t(t);
+};
 
 let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>

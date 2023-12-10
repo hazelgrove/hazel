@@ -8,8 +8,6 @@ type t =
   | Seq(s)
   | Alt(s)
 and s = list(t);
-// for internal use in modules below
-type regex = t;
 
 let seq = rs => Seq(rs);
 let alt = rs => Alt(rs);

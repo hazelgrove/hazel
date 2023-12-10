@@ -1,7 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t('x) = ('x, RContext.t);
+type t('focus, 'atom) = ('focus, RCtx.t('atom));
 
-let rec enter = (~ctx=RContext.empty, ~from: Dir.t, r: Regex.t): list(t(Atom.t)) => {
+let rec enter = (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a)) => {
   let go = enter(~from);
   switch (r) {
   | Atom(a) => [(a, ctx)]
@@ -38,4 +38,24 @@ let rec enter = (~ctx=RContext.empty, ~from: Dir.t, r: Regex.t): list(t(Atom.t))
       }
     }
   };
+};
+
+let step = (d: Dir.t, (a, ctx): t('a, 'a)): list(t('a, 'a)) => {
+  let enter = enter(~from=Dir.toggle(d));
+  let rec go = (r: Regex.t('a), ctx) =>
+    switch (ctx) {
+    | [] => []
+    | [f, ...fs] =>
+      switch (d, f) {
+      | (_, Star_) => go(Star(r), fs)
+      | (_, Alt_(ls, rs)) => go(Alt(List.rev(ls) @ [r, ...rs]), fs)
+      | (L, Seq_([], rs)) => go(Seq([r, ...rs]), fs)
+      | (R, Seq_(ls, [])) => go(Seq(List.rev([r, ...ls])), fs)
+      | (L, Seq_([hd, ...tl], rs)) =>
+        enter(hd, ~ctx=[Seq_(tl, [r, ...rs]), ...fs])
+      | (R, Seq_(ls, [hd, ...tl])) =>
+        enter(hd, ~ctx=[Seq_(List.rev([r, ...ls], tl)), ...fs])
+      }
+    };
+  go(Atom(a), ctx);
 };
