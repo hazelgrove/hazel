@@ -508,51 +508,63 @@ module Stepper = {
     next: list(EvalObj.t),
   };
 
-  let rec ctx_in_flt = (ctx: EvalCtx.t, flt: DHExp.t): bool => {
-    switch (ctx, flt) {
-    | (Mark, _) => false
-    | (Closure(_, ctx), flt) => ctx_in_flt(ctx, flt)
-    | (Filter(_, ctx), flt) => ctx_in_flt(ctx, flt)
-    | (Sequence1(ctx, _), Sequence(flt, _))
-    | (Sequence2(_, ctx), Sequence(_, flt)) => ctx_in_flt(ctx, flt)
-    | (Let1(dp, ctx, _), Let(fp, flt, _))
-    | (Let2(dp, _, ctx), Let(fp, _, flt)) =>
-      FilterMatcher.matches_pat(dp, fp) && ctx_in_flt(ctx, flt)
-    | (Ap1(ctx, _), Ap(flt, _))
-    | (Ap2(_, ctx), Ap(_, flt)) => ctx_in_flt(ctx, flt)
-    | (BinBoolOp1(dop, ctx, _), BinBoolOp(fop, flt, _))
-    | (BinBoolOp2(dop, _, ctx), BinBoolOp(fop, _, flt)) =>
-      dop == fop && ctx_in_flt(ctx, flt)
-    | (BinIntOp1(dop, ctx, _), BinIntOp(fop, flt, _))
-    | (BinIntOp2(dop, _, ctx), BinIntOp(fop, _, flt)) =>
-      dop == fop && ctx_in_flt(ctx, flt)
-    | (BinFloatOp1(dop, ctx, _), BinFloatOp(fop, flt, _))
-    | (BinFloatOp2(dop, _, ctx), BinFloatOp(fop, _, flt)) =>
-      dop == fop && ctx_in_flt(ctx, flt)
-    | (BinStringOp1(dop, ctx, _), BinStringOp(fop, flt, _))
-    | (BinStringOp2(dop, _, ctx), BinStringOp(fop, _, flt)) =>
-      dop == fop && ctx_in_flt(ctx, flt)
-    | (Tuple(ctx, (ls, _)), Tuple(fs)) =>
-      let flt = List.nth(fs, List.length(ls));
-      ctx_in_flt(ctx, flt);
-    | (ApBuiltin(cname, ctx, (ls, _)), ApBuiltin(fname, fs)) =>
-      let flt = List.nth(fs, List.length(ls));
-      cname == fname && ctx_in_flt(ctx, flt);
-    | (Test(cid, ctx), Test(fid, flt)) =>
-      cid == fid && ctx_in_flt(ctx, flt)
-    | (ListLit(_, _, _, ctx, (ls, _)), ListLit(_, _, _, fs)) =>
-      let flt = List.nth(fs, List.length(ls));
-      ctx_in_flt(ctx, flt);
-    | (Cons1(ctx, _), Cons(flt, _))
-    | (Cons2(_, ctx), Cons(_, flt)) => ctx_in_flt(ctx, flt)
-    | (ListConcat1(ctx, _), ListConcat(flt, _))
-    | (ListConcat2(_, ctx), ListConcat(_, flt)) => ctx_in_flt(ctx, flt)
-    | (Prj(ctx, cid), Prj(flt, fid)) => cid == fid && ctx_in_flt(ctx, flt)
-    | (NonEmptyHole(_, _, _, ctx), NonEmptyHole(_, _, _, flt)) =>
-      ctx_in_flt(ctx, flt)
-    | (Cast(ctx, _, _), Cast(flt, _, _)) => ctx_in_flt(ctx, flt)
-    | _ => false
+  let rec matches =
+          (
+            env: ClosureEnvironment.t,
+            flt: FilterEnvironment.t,
+            ctx: EvalCtx.t,
+            exp: DHExp.t,
+            act: FilterAction.t,
+          )
+          : FilterAction.t => {
+    let composed = compose(ctx, exp);
+    let act = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
+    switch (ctx) {
+    | Mark => act
+    | Closure(env, ctx) => matches(env, flt, ctx, exp, act)
+    | Filter(flt', ctx) =>
+      let flt = flt |> FilterEnvironment.extends(flt');
+      matches(env, flt, ctx, exp, act);
+    | Sequence1(ctx, _)
+    | Sequence2(_, ctx)
+    | Let1(_, ctx, _)
+    | Let2(_, _, ctx)
+    | Fun(_, _, ctx, _)
+    | FixF(_, _, ctx)
+    | Ap1(ctx, _)
+    | Ap2(_, ctx)
+    | BinBoolOp1(_, ctx, _)
+    | BinBoolOp2(_, _, ctx)
+    | BinIntOp1(_, ctx, _)
+    | BinIntOp2(_, _, ctx)
+    | BinFloatOp1(_, ctx, _)
+    | BinFloatOp2(_, _, ctx)
+    | BinStringOp1(_, ctx, _)
+    | BinStringOp2(_, _, ctx)
+    | Tuple(ctx, _)
+    | ApBuiltin(_, ctx, _)
+    | Test(_, ctx)
+    | ListLit(_, _, _, ctx, _)
+    | Cons1(ctx, _)
+    | Cons2(_, ctx)
+    | ListConcat1(ctx, _)
+    | ListConcat2(_, ctx)
+    | Prj(ctx, _)
+    | NonEmptyHole(_, _, _, ctx)
+    | Cast(ctx, _, _)
+    | FailedCast(ctx, _, _)
+    | InvalidOperation(ctx, _)
+    | ConsistentCase(Case(ctx, _, _))
+    | ConsistentCaseRule(_, _, ctx, _, _)
+    | InconsistentBranches(_, _, Case(ctx, _, _))
+    | InconsistentBranchesRule(_, _, _, _, ctx, _, _) =>
+      matches(env, flt, ctx, exp, act)
     };
+  };
+
+  let should_hide_step = (~settings, x: EvalObj.t) => {
+    should_hide_step(~settings, x.knd)
+    || matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step) == Eval;
   };
 
   let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
@@ -567,12 +579,7 @@ module Stepper = {
     );
   }
   and skip_steps = (~settings, s) => {
-    switch (
-      List.find_opt(
-        (x: EvalObj.t) => should_hide_step(~settings, x.knd),
-        s.next,
-      )
-    ) {
+    switch (List.find_opt(should_hide_step(~settings), s.next)) {
     | None => s
     | Some(e) => step_forward(~settings, e, s)
     };
@@ -586,7 +593,7 @@ module Stepper = {
           (~settings): (list(step) => option((step, list(step)))) =>
     fun
     | [] => None
-    | [x, ...xs] when should_hide_step(~settings, x.step.knd) =>
+    | [x, ...xs] when should_hide_step(~settings, x.step) =>
       undo_point(~settings, xs)
     | [x, ...xs] => Some((x, xs));
 
@@ -643,7 +650,7 @@ module Stepper = {
       | [] => ([], [])
       | [step, ...steps] => {
           let (hidden, ss) = get_history'(steps);
-          if (should_hide_step(~settings, step.step.knd)) {
+          if (should_hide_step(~settings, step.step)) {
             ([step, ...hidden], ss);
           } else {
             (
