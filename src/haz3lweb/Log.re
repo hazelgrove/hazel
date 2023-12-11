@@ -4,22 +4,20 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | Mousedown
-  | Mouseup
+  | SetMeta(_)
   | Save
-  | SetFontMetrics(_)
-  | SetLogoFontMetrics(_)
-  | SetShowBackpackTargets(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateResult(_)
   | DebugAction(_)
   | ExportPersistentData
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | Benchmark(_) => false
+  | Benchmark(_)
+  | DebugConsole(_) => false
+  | Reset
+  | DoTheThing
+  | Assistant(_)
   | Set(_)
-  | SetMode(_)
   | UpdateLangDocMessages(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)

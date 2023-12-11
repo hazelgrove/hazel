@@ -7,11 +7,30 @@ type settings_action =
   | Captions
   | SecondaryIcons
   | Statics
+  | Assist
+  | Elaborate
   | Dynamics
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(ModelSettings.mode);
+  | Mode(Settings.mode);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agent =
+  | TyDi;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agent_action =
+  | Prompt(agent)
+  | AcceptSuggestion;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type set_meta =
+  | Mousedown
+  | Mouseup
+  | ShowBackpackTargets(bool)
+  | FontMetrics(FontMetrics.t)
+  | Result(ModelResults.Key.t, ModelResult.current);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type benchmark_action =
@@ -20,22 +39,27 @@ type benchmark_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  /* meta */
+  | Reset
   | Set(settings_action)
-  | Mousedown
-  | Mouseup
+  | SetMeta(set_meta)
+  | UpdateLangDocMessages(LangDocMessages.update)
+  | DebugAction(DebugAction.t)
+  | ExportPersistentData
+  | DebugConsole(string)
+  /* editors */
+  | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
+  | SwitchEditor(Exercise.pos) //exercisemode only
+  | SwitchExampleSlide(string) //examplemode only
+  // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
-  | ExportPersistentData
-  | ResetCurrentEditor
-  | Save
-  | SetMode(ModelSettings.mode)
   | SwitchScratchSlide(int)
-  | SwitchExampleSlide(string)
-  | SwitchEditor(Exercise.pos)
-  | SetFontMetrics(FontMetrics.t)
-  | SetLogoFontMetrics(FontMetrics.t)
+  /* editor */
+  | DoTheThing
+  | Save
   | PerformAction(Action.t)
   | ReparseCurrentEditor
   | Cut
@@ -43,12 +67,9 @@ type t =
   | Paste(string)
   | Undo
   | Redo
-  | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
-  | UpdateResult(ModelResults.Key.t, ModelResult.current)
-  | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t)
   | Benchmark(benchmark_action)
+  | Assistant(agent_action)
   | PerformQuery(Query.t);
 
 module Failure = {
@@ -58,6 +79,7 @@ module Failure = {
     | CantRedo
     | CantPaste
     | CantReset
+    | CantSuggest
     | FailedToLoad
     | FailedToSwitch
     | FailedToPerform(Action.Failure.t)
@@ -73,6 +95,6 @@ let is_edit: t => bool =
   fun
   | Cut
   | Undo
-  | Redo
-  | PerformAction(Insert(_) | Destruct(_) | Pick_up | Put_down) => true
+  | Redo => true
+  | PerformAction(a) => Action.is_edit(a)
   | _ => false;

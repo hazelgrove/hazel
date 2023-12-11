@@ -8,38 +8,30 @@ type state = (Id.t, Editor.t);
 let view =
     (
       ~inject,
+      ~ctx_init: Ctx.t,
       ~model as
         {
           editors,
-          font_metrics,
-          show_backpack_targets,
           settings,
-          mousedown,
           langDocMessages,
-          results,
-          _,
+          meta: {
+            results,
+            ui_state: {font_metrics, show_backpack_targets, mousedown, _},
+            _,
+          },
         }: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
+  let (term, _) = MakeTerm.from_zip_for_sem(zipper);
+  let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
   let result =
-    settings.dynamics
-      ? ModelResult.get_simple(
-          ModelResults.lookup(results, ScratchSlide.scratch_key),
-        )
-      : None;
+    ModelResult.get_simple(
+      ModelResults.lookup(results, ScratchSlide.scratch_key),
+    );
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
-      Some(
-        LangDoc.get_color_map(
-          ~doc=langDocMessages,
-          Indicated.index(zipper),
-          info_map,
-        ),
-      );
+      Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
     } else {
       None;
     };
@@ -57,24 +49,20 @@ let view =
       ~settings,
       ~color_highlighting,
       ~info_map,
+      ~term,
       ~result,
       editor,
     );
   let bottom_bar =
-    settings.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~show_lang_doc=langDocMessages.show,
-          zipper,
-          info_map,
-        ),
-        Acceessibility.view(~inject),
-      ]
-      : [];
+    CursorInspector.view(
+      ~inject,
+      ~settings,
+      ~show_lang_doc=langDocMessages.show,
+      zipper,
+      info_map,
+    );
   let sidebar =
-    langDocMessages.show && settings.statics
+    langDocMessages.show && settings.core.statics
       ? LangDoc.view(
           ~inject,
           ~font_metrics,
@@ -83,16 +71,16 @@ let view =
           Indicated.index(zipper),
           info_map,
         )
-      : div([]);
-
+      : div_empty;
   [
     div(
       ~attr=Attr.id("main"),
       [div(~attr=clss(["editor", "single"]), [editor_view])],
     ),
     sidebar,
-  ]
-  @ bottom_bar;
+    bottom_bar,
+    Acceessibility.view(~inject),
+  ];
 };
 
 let download_slide_state = state => {
