@@ -128,7 +128,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
       let rec tag_term = (term: TermBase.UExp.t, level: int) => {
         switch (term.term) {
         | Let({term: Var(name), _}, def_body, body) =>
-          //| Let({term: Var(name), _}, {term: Fun(_, fbody), _}, body) =>
           let l1 = tag_term(body, level);
           let l2 = tag_term(def_body, level + 1);
           List.cons((level, (name, term.ids)), l1) @ l2;
@@ -216,10 +215,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
           | Some(Info.InfoExp({term, ancestors, _}))
               when List.length(ancestors) >= 1 =>
             switch (term.term) {
-            //| Fun(_) => [
-            //    List.hd(ancestors),
-            //    ...filter_ancestors(List.tl(ancestors_lst), level - 1),
-            //  ]
             | Let({term: Var(name), _}, _, _)
             | Module({term: Constructor(name), _}, _, _) =>
               let lv = List.find_opt(a => fst(snd(a)) == name, tagged);
@@ -249,17 +244,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
         } else if (List.find_opt(a => fst(a) == level, lst) == None) {
           breadcrumb_funs(level - 1, res);
         } else {
-          //let current_level =
-          //  List.map(
-          //    t =>
-          //      if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
-          //        snd(t);
-          //      } else {
-          //        [];
-          //      },
-          //    List.rev(snd(List.find(a => fst(a) == level, lst))),
-          //  );
-          //let current_level = List.concat(current_level);
           let siblings_div =
             List.map(
               t =>
@@ -307,11 +291,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
               ret @ [text("->")] @ res;
             };
           breadcrumb_funs(level - 1, ret);
-          //if (current_level == []) {
-          //  breadcrumb_funs(level - 1, res);
-          //} else {
-          //  breadcrumb_funs(level - 1, ret);
-          //};
         };
       Printf.printf("length: %d\n", List.length(lst));
       let res = breadcrumb_funs(List.length(ancestors) + 1, []);
