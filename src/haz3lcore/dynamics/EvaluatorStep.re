@@ -223,125 +223,23 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
   };
 
-  let rec evaluate_until = (flt_env, state, env, exp) => {
-    Evaluator.EvaluatorEVMode.(
-      {
-        let u =
-          switch (FilterMatcher.matches(~env, ~exp, ~act=Eval, flt_env)) {
-          | Step => Indet(exp)
-          | Eval =>
-            switch (exp) {
-            | Filter(flt, d1) =>
-              let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-              and. d1 =
-                req_final(
-                  evaluate_until(
-                    FilterEnvironment.extends(flt, flt_env),
-                    state,
-                    env,
-                  ),
-                  d1 => Filter(flt, d1),
-                  d1,
-                );
-              Step({apply: () => d1, kind: CompleteFilter, value: true});
-            | _ =>
-              Evaluator.Eval.transition(
-                evaluate_until(flt_env),
-                state,
-                env,
-                exp,
-              )
-            }
-          };
-        switch (u) {
-        | BoxedValue(x) => BoxedValue(x)
-        | Indet(x) => Indet(x)
-        | Uneval(x) => evaluate_until(flt_env, state, env, x)
-        };
-      }
-    );
-  };
-
-  let _ = evaluate_until;
-
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (flt_env, state, env, exp) => {
-    switch (FilterMatcher.matches(~env, ~exp, ~act=Step, flt_env)) {
-    | Step =>
-      switch (exp) {
-      | Filter(flt, d1) =>
-        DecomposeEVMode.(
-          {
-            let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-            and. d1 =
-              req_final(
-                decompose(
-                  FilterEnvironment.extends(flt, flt_env),
-                  state,
-                  env,
-                ),
-                d1 => Filter(flt, d1),
-                d1,
-              );
-            Step({
-              apply: () => Filter(flt, d1),
-              kind: CompleteFilter,
-              value: true,
-            });
-          }
-        )
-      | _ => Decomp.transition(decompose(flt_env), state, env, exp)
-      }
-    | Eval =>
-      switch (ValueChecker.check_value(env, exp)) {
-      | Value
-      | Indet => Step([])
-      | Expr =>
-        switch (exp) {
-        | Filter(flt, d1) =>
-          DecomposeEVMode.(
-            {
-              let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-              and. d1 =
-                req_final(
-                  decompose(
-                    FilterEnvironment.extends(flt, flt_env),
-                    state,
-                    env,
-                  ),
-                  d1 => Filter(flt, d1),
-                  d1,
-                );
-              Step({apply: () => d1, kind: CompleteFilter, value: true});
-            }
-          )
-        | Closure(env, d1) =>
-          DecomposeEVMode.(
-            {
-              let. _ = otherwise(env, (d1) => (Closure(env, d1): DHExp.t))
-              and. d1 =
-                req_final(
-                  decompose(flt_env, state, env),
-                  d1 => Closure(env, d1),
-                  d1,
-                );
-              Step({apply: () => d1, kind: CompleteFilter, value: true});
-            }
-          )
-        | _ =>
-          Step([
-            EvalObj.mk(
-              Mark,
-              () =>
-                Evaluator.EvaluatorEVMode.unbox(
-                  evaluate_until(flt_env, state, env, exp),
-                ),
-              exp,
-              Skip,
-            ),
-          ])
+    switch (exp) {
+    | DHExp.Filter(flt, d1) =>
+      DecomposeEVMode.(
+        {
+          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
+          and. d1 =
+            req_final(
+              decompose(FilterEnvironment.extends(flt, flt_env), state, env),
+              d1 => Filter(flt, d1),
+              d1,
+            );
+          Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
-      }
+      )
+    | _ => Decomp.transition(decompose(flt_env), state, env, exp)
     };
   };
 };

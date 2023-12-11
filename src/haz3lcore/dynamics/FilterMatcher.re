@@ -19,7 +19,6 @@ let rec matches_exp =
   | (_, FailedCast(f, _, _)) => matches_exp(env, d, f)
 
   | (Closure(env, d), _) => matches_exp(env, d, f)
-  | (Filter(_, d), _) => matches_exp(env, d, f)
   | (Cast(d, _, _), _) => matches_exp(env, d, f)
   | (FailedCast(d, _, _), _) => matches_exp(env, d, f)
 
@@ -42,6 +41,13 @@ let rec matches_exp =
     matches_exp(env, d, f);
 
   | (EmptyHole(_), _) => false
+
+  | (
+      Filter({pat: dpat, act: dact}, dd),
+      Filter({pat: fpat, act: fact}, fd),
+    ) =>
+    dact == fact && DHExp.fast_equal(dpat, fpat) && matches_exp(env, dd, fd)
+  | (Filter(_), _) => false
 
   | (BoolLit(dv), BoolLit(fv)) => dv == fv
   | (BoolLit(_), _) => false
