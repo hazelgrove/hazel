@@ -8,42 +8,42 @@ type state = (Id.t, Editor.t);
 let view =
     (
       ~inject,
+      ~ctx_init: Ctx.t,
       ~model as
         {
           editors,
-          font_metrics,
-          show_backpack_targets,
           settings,
-          mousedown,
           langDocMessages,
-          results,
-          _,
+          meta: {
+            results,
+            ui_state: {font_metrics, show_backpack_targets, mousedown, _},
+            _,
+          },
         }: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
+  let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let (info_map, ctx) = Statics.mk_map_and_inference_solutions(term);
+  //let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term); // TODO anand and raef: do we need to use this instead?
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
       ctx,
     );
   let result =
-    settings.dynamics
-      ? ModelResult.get_simple(
-          ModelResults.lookup(results, ScratchSlide.scratch_key),
-        )
-      : None;
+    ModelResult.get_simple(
+      ModelResults.lookup(results, ScratchSlide.scratch_key),
+    );
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(
         LangDoc.get_color_map(
           ~global_inference_info,
+          ~settings,
           ~doc=langDocMessages,
-          Indicated.index(zipper),
-          info_map,
+          zipper,
         ),
       );
     } else {
@@ -63,26 +63,23 @@ let view =
       ~settings,
       ~color_highlighting,
       ~info_map,
+      ~term,
       ~result,
       ~langDocMessages,
       editor,
     );
   let bottom_bar =
-    settings.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~font_metrics,
-          ~show_lang_doc=langDocMessages.show,
-          zipper,
-          info_map,
-          global_inference_info,
-        ),
-      ]
-      : [];
+    CursorInspector.view(
+      ~inject,
+      ~settings,
+      ~font_metrics,
+      ~show_lang_doc=langDocMessages.show,
+      zipper,
+      info_map,
+      global_inference_info,
+    );
   let sidebar =
-    langDocMessages.show && settings.statics
+    langDocMessages.show && settings.core.statics
       ? LangDoc.view(
           ~inject,
           ~font_metrics,
@@ -92,16 +89,15 @@ let view =
           info_map,
           global_inference_info,
         )
-      : div([]);
-
+      : div_empty;
   [
     div(
       ~attr=Attr.id("main"),
       [div(~attr=clss(["editor", "single"]), [editor_view])],
     ),
     sidebar,
-  ]
-  @ bottom_bar;
+    bottom_bar,
+  ];
 };
 
 let download_slide_state = state => {

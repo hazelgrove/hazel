@@ -118,28 +118,37 @@ let rec any_to_info_map =
   print_endline("ECHOOOOO");
   switch (any) {
   | Exp(e) =>
-    let (Info.{co_ctx, constraints, _}, m) =
+    let ({co_ctx, constraints, _}: Info.exp, m) =
       uexp_to_info_map(~ctx, ~ancestors, e, m);
     (co_ctx, m, constraints);
   | Pat(p) =>
     let (Info.{constraints, _}, m) =
-      upat_to_info_map(~is_synswitch=false, ~ancestors, ~ctx, p, m);
-    (VarMap.empty, m, constraints);
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors,
+        ~ctx,
+        p,
+        m,
+      )
+      |> snd;
+    (CoCtx.empty, m, constraints);
   | TPat(tp) => (
-      VarMap.empty,
+      CoCtx.empty,
       utpat_to_info_map(~ctx, ~ancestors, tp, m) |> snd,
       [],
     )
-  | Typ(ty) =>
-    let (_typ, m) = utyp_to_info_map(~ctx, ~ancestors, ty, m);
-    (VarMap.empty, m, []);
+  | Typ(ty) => (
+      CoCtx.empty,
+      utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
+      [],
+    )
   | Rul(_)
   | Nul ()
-  | Any () => (VarMap.empty, m, [])
+  | Any () => (CoCtx.empty, m, [])
   };
 }
-and multi =
-    (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Typ.constraints, Map.t) =>
+and multi = (~ctx, ~ancestors, m, tms) =>
   List.fold_left(
     ((co_ctxs, acc_constraints, m), any) => {
       let (co_ctx, m, constraints) =
@@ -308,14 +317,19 @@ and uexp_to_info_map =
       m,
     );
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
-  | Ap(fn, arg) =>
+  | Ap(fn, arg)
+  | Pipeline(arg, fn) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let ((ty_in, ty_out), constraints) =
       Typ.matched_arrow(ctx, UExp.rep_id(uexp), fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
+    let self: Self.t =
+      Id.is_nullary_ap_flag(arg.term.ids)
+      && !Typ.is_consistent(ctx, ty_in, Prod([]))
+        ? BadTrivAp(ty_in) : Just(ty_out);
     add(
-      ~self=Just(ty_out),
+      ~self,
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
       ~constraints,
       m,
@@ -323,21 +337,42 @@ and uexp_to_info_map =
   | Fun(p, e) =>
     let ((mode_pat, mode_body), constraints) =
       Mode.of_arrow(ctx, mode, UExp.rep_id(uexp));
-    let (p, m) = go_pat(~is_synswitch=false, ~mode=mode_pat, p, m);
-    let (e, m) = go'(~ctx=p.ctx, ~mode=mode_body, e, m);
+    let (p', _) =
+      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
+    let (e, m) = go'(~ctx=p'.ctx, ~mode=mode_body, e, m);
+    /* add co_ctx to pattern */
+    let (p, m) =
+      go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
-      ~constraints,
+      ~constraints=constraints @ e.constraints @ p.constraints,
       m,
     );
   | Let(p, def, body) =>
-    let (p_syn, _m) = go_pat(~is_synswitch=true, ~mode=Syn, p, m);
+    let (p_syn, _) =
+      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) = go_pat(~is_synswitch=false, ~mode=Ana(def.ty), p, m);
-    let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
+    let (p_ana', _) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Ana(def.ty),
+        p,
+        m,
+      );
+    let (body, m) = go'(~ctx=p_ana'.ctx, ~mode, body, m);
+    /* add co_ctx to pattern */
+    let (p_ana, m) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=body.co_ctx,
+        ~mode=Ana(def.ty),
+        p,
+        m,
+      );
     add(
       ~self=Just(body.ty),
       ~co_ctx=
@@ -360,10 +395,18 @@ and uexp_to_info_map =
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
-    let (ps, m) =
-      map_m(go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty)), ps, m);
-    let p_ctxs = List.map(Info.pat_ctx, ps);
-    let p_constraints = ListUtil.flat_map(Info.pat_constraints, ps);
+    let (ps', _) =
+      map_m(
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~mode=Mode.Ana(scrut.ty),
+        ),
+        ps,
+        m,
+      );
+    let p_ctxs = List.map(Info.pat_ctx, ps');
+    let p_constraints = ListUtil.flat_map(Info.pat_constraints, ps');
     let (es, m) =
       List.fold_left2(
         ((es, m), e, ctx) =>
@@ -376,6 +419,14 @@ and uexp_to_info_map =
     let e_constraints = ListUtil.flat_map(Info.exp_constraints, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+    /* Add co-ctxs to patterns */
+    let (_, m) =
+      map_m(
+        ((p, co_ctx)) =>
+          go_pat(~is_synswitch=false, ~co_ctx, ~mode=Mode.Ana(scrut.ty), p),
+        List.combine(ps, e_co_ctxs),
+        m,
+      );
     add(
       ~constraints=scrut.constraints @ e_constraints @ p_constraints,
       ~self=Self.match(ctx, e_tys, branch_ids),
@@ -442,6 +493,7 @@ and upat_to_info_map =
     (
       ~is_synswitch,
       ~ctx,
+      ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
       {ids, term} as upat: UPat.t,
@@ -460,6 +512,7 @@ and upat_to_info_map =
       Info.derived_pat(
         ~upat,
         ~ctx,
+        ~co_ctx,
         ~mode,
         ~ancestors,
         ~constraints=constraints @ joined_constraints,
@@ -480,8 +533,8 @@ and upat_to_info_map =
       ~constraints=subsumption_constraints(mode, final_typ),
     );
   };
-  let ancestors = [id] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors);
+  let ancestors = [UPat.rep_id(upat)] @ ancestors;
+  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch(id) : NoProvenance);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
@@ -715,4 +768,12 @@ let mk_map_and_inference_solutions =
 
       (map, ctx);
     },
+  );
+
+let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
+  Id.Map.fold(
+    (id, info: Info.t, acc) =>
+      Option.to_list(Info.error_of(info) |> Option.map(x => (id, x))) @ acc,
+    map,
+    [],
   );

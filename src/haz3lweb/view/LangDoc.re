@@ -210,7 +210,7 @@ let mk_explanation =
 let deco =
     (
       ~doc: LangDocMessages.t,
-      ~settings,
+      ~settings: Settings.t,
       ~colorings,
       ~expandable: option(Id.t),
       ~unselected,
@@ -229,7 +229,7 @@ let deco =
       let global_inference_info = global_inference_info;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
-      let info_map = Statics.mk_map(term);
+      let info_map = Interface.Statics.mk_map(settings.core, term);
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
@@ -439,9 +439,22 @@ let example_view =
                 ~settings,
               );
             let (uhexp, _) = MakeTerm.go(term);
-            let info_map = Statics.mk_map(uhexp);
+            let info_map =
+              Interface.Statics.mk_map_ctx(
+                settings.core,
+                Builtins.ctx_init,
+                uhexp,
+              );
             let result_view =
-              switch (Interface.evaluation_result(info_map, uhexp)) {
+              switch (
+                Some(
+                  Interface.eval_u2d(
+                    ~settings=settings.core,
+                    info_map,
+                    uhexp,
+                  ),
+                )
+              ) {
               | None => []
               | Some(dhexp) => [
                   DHCode.view(
@@ -510,7 +523,7 @@ type message_mode =
   | MessageContent(
       Update.t => Virtual_dom.Vdom.Effect.t(unit),
       FontMetrics.t,
-      ModelSettings.t,
+      Settings.t,
     )
   | Colorings;
 
@@ -1934,6 +1947,25 @@ let get_doc =
             LangDocMessages.funapp_exp_coloring_ids,
           );
         };
+      | Pipeline(arg, fn) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.pipeline_exp_group,
+            docs,
+          );
+        let arg_id = List.nth(arg.ids, 0);
+        let fn_id = List.nth(fn.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.pipeline_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            arg_id |> Id.to_string,
+            fn_id |> Id.to_string,
+          ),
+          LangDocMessages.pipeline_exp_coloring_ids(~arg_id, ~fn_id),
+        );
       | If(cond, then_, else_) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -2150,6 +2182,7 @@ let get_doc =
               LangDocMessages.float_gte_group,
               LangDocMessages.float_gte_exp_coloring_ids,
             )
+
           | Float(Equals) => (
               LangDocMessages.float_eq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
@@ -2863,6 +2896,29 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 let get_color_map =
     (
       ~global_inference_info,
+      ~settings: Settings.t,
+      ~doc: LangDocMessages.t,
+      zipper: Zipper.t,
+    ) => {
+  let info: option(Statics.Info.t) =
+    switch (Indicated.index(zipper)) {
+    | Some(index) =>
+      let info_map =
+        MakeTerm.from_zip_for_view(zipper)
+        |> fst
+        |> Interface.Statics.mk_map_ctx(settings.core, Builtins.ctx_init);
+      Id.Map.find_opt(index, info_map);
+    | None => None
+    };
+  let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);
+  color_map;
+};
+
+let view =
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      ~settings: Settings.t,
       ~doc: LangDocMessages.t,
       index': option(Id.t),
       info_map: Statics.Map.t,

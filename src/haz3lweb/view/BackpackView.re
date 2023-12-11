@@ -10,7 +10,7 @@ let backpack_sel_view =
       y_off: float,
       scale: float,
       opacity: float,
-      {focus: _, content}: Selection.t,
+      {focus: _, content, _}: Selection.t,
     ) => {
   module Text =
     Code.Text({
@@ -34,7 +34,14 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(true, Any, font_metrics, global_inference_info, content)
+    Text.of_segment(
+      [],
+      true,
+      Any,
+      font_metrics,
+      global_inference_info,
+      content,
+    )
     @ [text(Unicode.zwsp)],
   );
 };

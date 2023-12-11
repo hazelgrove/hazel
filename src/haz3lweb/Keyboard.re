@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Util;
 
-let is_printable = s => Re.Str.(string_match(regexp("^[ -~]$"), s, 0));
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
@@ -18,42 +17,22 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let restricted = Backpack.restricted(zipper.backpack);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
-  let print = str => str |> print_endline |> (_ => None);
   switch (k) {
   | {key: U(key), _} =>
-    /* NOTE: Remember that since there is a keyup for every
+    /* Keu-UPpEvents:
+       NOTE: Remember that since there is a keyup for every
        keydown, making an update here may trigger an entire
-       redraw, contingent on model.cutoff */
+       extra redraw, contingent on model.cutoff */
     switch (key) {
-    | "Alt" => Some(SetShowBackpackTargets(false))
+    | "Alt" => Some(SetMeta(ShowBackpackTargets(false)))
     | _ => None
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
-    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     switch (key) {
-    | "F1" => zipper |> Zipper.show |> print
-    | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
-    | "F3" => zipper |> get_term |> TermBase.UExp.show |> print
-    | "F4" => zipper |> get_term |> Statics.mk_map |> Statics.Map.show |> print
-    | "F5" =>
-      let term = zipper |> get_term;
-      let map = term |> Statics.mk_map;
-      Interface.get_result(map, term) |> ProgramResult.show |> print;
-    | "F6" =>
-      let index = Indicated.index(zipper);
-      let map = zipper |> get_term |> Statics.mk_map;
-      switch (index) {
-      | Some(index) =>
-        switch (Haz3lcore.Id.Map.find_opt(index, map)) {
-        | Some(ci) => print(Info.show(ci))
-        | _ => print("DEBUG: No CI found for index")
-        }
-      | _ => print("DEBUG: No indicated index")
-      };
     | "F7" => Some(Benchmark(Start))
-    | _ => None
-    };
+    | _ => Some(DebugConsole(key))
+    }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))
@@ -64,10 +43,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Up, "End") => now(Move(Extreme(Right(ByToken))))
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
-    | (Up, "Escape") => now(Unselect)
-    | (Up, "Tab") =>
-      Zipper.can_put_down(zipper)
-        ? Some(PerformAction(Put_down)) : Some(MoveToNextHole(Right))
+    | (Up, "Escape") => now(Unselect(None))
+    | (Up, "Tab") => Some(DoTheThing)
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
@@ -134,6 +111,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
     | "k" => Some(ReparseCurrentEditor)
+    | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
@@ -148,6 +126,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
     | "k" => Some(ReparseCurrentEditor)
+    | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
@@ -163,13 +142,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     }
   | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (sys, key) {
-    | (_, "ArrowLeft") when restricted =>
-      now(MoveToBackpackTarget(Left(ByToken)))
-    | (_, "ArrowRight") when restricted =>
-      now(MoveToBackpackTarget(Right(ByToken)))
-    | (Mac, "ArrowLeft") => now(Move(Local(Left(ByToken))))
-    | (Mac, "ArrowRight") => now(Move(Local(Right(ByToken))))
-    | (_, "Alt") => Some(SetShowBackpackTargets(true))
+    | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
+    | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
+    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
     | _ => None

@@ -31,6 +31,12 @@ module Make = (M: Editor.Meta.S) => {
     range(Piece.id(l), Piece.id(r), z);
   };
 
+  let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+    let* z = Move.jump_to_id(z, id);
+    let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
+    Move.do_towards(primary, last, z);
+  };
+
   let go = (d: Action.move, z: Zipper.t) =>
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
