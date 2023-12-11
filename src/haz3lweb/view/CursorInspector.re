@@ -106,11 +106,11 @@ let view_of_global_inference_info =
                    [
                      Widgets.hoverable_button(
                        [Type.view(~font_metrics, typ)],
-                       _mouse_event => {
+                       _off_hover => {
                          State.set_considering_suggestion(false);
                          inject(Update.Mouseup);
                        },
-                       _mouse_event => {
+                       _on_hover => {
                          State.set_considering_suggestion(true);
                          if (!State.get_suggestion_pasted()) {
                            State.set_suggestion_pasted(true);
@@ -123,7 +123,7 @@ let view_of_global_inference_info =
                            inject(Update.Mouseup);
                          };
                        },
-                       _mouse_event =>
+                       _on_click =>
                          if (State.get_considering_suggestion()) {
                            State.set_suggestion_pasted(false);
                            State.set_considering_suggestion(false);
