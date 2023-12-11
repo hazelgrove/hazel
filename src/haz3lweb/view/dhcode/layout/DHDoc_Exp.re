@@ -184,7 +184,7 @@ let rec mk =
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ModuleVal(e) =>
         let envlist =
-          Environment.to_listk(e)
+          ClosureEnvironment.to_list(e)
           |> List.map(((name, v)) =>
                [text("  " ++ name ++ " = "), mk_cast(go'(v)), text(";\n")]
              )

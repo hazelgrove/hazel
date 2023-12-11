@@ -682,7 +682,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | Module(dp, d1, d2) =>
-      let empty_env = Environment.empty;
+      let empty_env = ClosureEnvironment.empty;
       let* r1 = module_evaluate(env, empty_env, d1);
       switch (r1) {
       | BoxedValue(d1)
@@ -700,7 +700,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(ModuleVal(inner_env)) =>
-        let inner_env = inner_env |> ClosureEnvironment.of_environment;
         let* r2 = evaluate(inner_env, d2);
         switch (r2) {
         | BoxedValue(_) => r2 |> return
@@ -1329,7 +1328,8 @@ and evaluate_test_eq =
   (arg_show, arg_result) |> return;
 }
 and module_evaluate:
-  (ClosureEnvironment.t, Environment.t, DHExp.t) => m(EvaluatorResult.t) =
+  (ClosureEnvironment.t, ClosureEnvironment.t, DHExp.t) =>
+  m(EvaluatorResult.t) =
   (env, env_in, d) => {
     switch (d) {
     | Let(dp, d1, d2) =>
@@ -1342,15 +1342,12 @@ and module_evaluate:
         | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
         | Matches(env') =>
           let env = evaluate_extend_env(env', env);
-          let env_in =
-            Environment.union(env', env_in)
-            |> ClosureEnvironment.of_environment;
-          let env_in = ClosureEnvironment.map_of(env_in);
+          let env_in = evaluate_extend_env(env', env_in);
           module_evaluate(env, env_in, d2);
         }
       };
     | Module(dp, d1, d2) =>
-      let empty_env = Environment.empty;
+      let empty_env = ClosureEnvironment.empty;
       let* r1 = module_evaluate(env, empty_env, d1);
       switch (r1) {
       | BoxedValue(d1)
@@ -1360,10 +1357,7 @@ and module_evaluate:
         | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2))) |> return
         | Matches(env') =>
           let env = evaluate_extend_env(env', env);
-          let env_in =
-            Environment.union(env', env_in)
-            |> ClosureEnvironment.of_environment;
-          let env_in = ClosureEnvironment.map_of(env_in);
+          let env_in = evaluate_extend_env(env', env_in);
           module_evaluate(env, env_in, d2);
         }
       };
