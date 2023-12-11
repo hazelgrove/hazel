@@ -41,11 +41,11 @@ let info_str = (info: Info.t): string =>
   | InfoTPat(tpat) => info_tpat_str(tpat)
   };
 
-let query_reply = (query: t, editor: Editor.t) => {
+let query_reply = (~settings: Settings.t, query: t, editor: Editor.t) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
+  let info_map = Interface.Statics.mk_map(settings.core, term);
   switch (query) {
   | CursorPos =>
     let index = Indicated.index(zipper);

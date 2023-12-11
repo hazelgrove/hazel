@@ -139,8 +139,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
-  | DoTheThing => false
   | PerformQuery(_)
+  | DoTheThing => false
   | ExportPersistentData
   | DebugConsole(_) => false
   | Benchmark(_)
@@ -223,7 +223,8 @@ let should_scroll_to_caret =
   | DebugAction(_)
   | ExportPersistentData
   | DebugConsole(_)
-  | Benchmark(_) => false;
+  | Benchmark(_)
+  | PerformQuery(_) => false;
 
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
@@ -435,6 +436,24 @@ let rec apply =
       | x => x
       };
     | PerformAction(a) => perform_action(model, a)
+    | PerformQuery(query) =>
+      //TODO
+      print_endline(
+        Query.query_reply(
+          ~settings=model.settings,
+          Query.CursorMove,
+          Editors.get_editor(model.editors),
+        ),
+      );
+      print_endline(Query.to_string(query));
+      print_endline(
+        Query.query_reply(
+          ~settings=model.settings,
+          query,
+          Editors.get_editor(model.editors),
+        ),
+      );
+      Ok(model);
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
@@ -482,38 +501,15 @@ let rec apply =
         Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(d) =>
-      let p: Piece.t => bool = (
-        fun
-        | Grout(_) => true
-        | _ => false
-      );
-      perform_action(model, Move(Goal(Piece(p, d))));
-    | UpdateLangDocMessages(u) =>
-      let langDocMessages =
-        LangDocMessages.set_update(model.langDocMessages, u);
-      Model.save_and_return({...model, langDocMessages});
-    | UpdateResult(key, res) =>
-      /* If error, print a message. */
-      switch (res) {
-      | ResultFail(Program_EvalError(reason)) =>
-        let serialized =
-          reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-        print_endline(
-          "[Program.EvalError(EvaluatorError.Exception(" ++ serialized ++ "))]",
-        );
-      | ResultFail(Program_DoesNotElaborate) =>
-        print_endline("[Program.DoesNotElaborate]")
-      | _ => ()
-      };
-      let r =
-        model.results
-        |> ModelResults.find(key)
-        |> ModelResult.update_current(res);
-      let results = model.results |> ModelResults.add(key, r);
-      Ok({...model, results});
-    | DebugAction(a) =>
-      DebugAction.perform(a);
-      Ok(model);
+      perform_action(model, Move(Goal(Piece(Grout, d))))
+    | Assistant(action) =>
+      UpdateAssistant.apply(
+        model,
+        action,
+        ~schedule_action,
+        ~state,
+        ~main=apply,
+      )
     | Benchmark(Start) =>
       List.iter(schedule_action, Benchmark.actions_1);
       Benchmark.start();
@@ -522,6 +518,58 @@ let rec apply =
       Benchmark.finish();
       Ok(model);
     };
-  reevaluate_post_update(update)
+  reevaluate_post_update(model.settings, update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
+}
+and meta_update =
+    (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
+  switch (update) {
+  | Mousedown => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        mousedown: true,
+      },
+    }
+  | Mouseup => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        mousedown: false,
+      },
+    }
+  | ShowBackpackTargets(b) => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        show_backpack_targets: b,
+      },
+    }
+  | FontMetrics(font_metrics) => {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        font_metrics,
+      },
+    }
+  | Result(key, res) =>
+    /* If error, print a message. */
+    switch (res) {
+    | ResultFail(Program_EvalError(reason)) =>
+      let serialized =
+        reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+      print_endline(
+        "[Program.EvalError(EvaluatorError.Exception(" ++ serialized ++ "))]",
+      );
+    | ResultFail(Program_DoesNotElaborate) =>
+      print_endline("[Program.DoesNotElaborate]")
+    | _ => ()
+    };
+    let r =
+      model.meta.results
+      |> ModelResults.find(key)
+      |> ModelResult.update_current(res);
+    let results = model.meta.results |> ModelResults.add(key, r);
+    {...model.meta, results};
+  };
 };
