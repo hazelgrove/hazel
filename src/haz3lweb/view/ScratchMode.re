@@ -111,11 +111,11 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
     switch (Id.Map.find_opt(id, info_map)) {
     | None => [div([text("")])]
     | Some(ci) =>
-      let view_fun = (name, ids, _) => [
+      let view_silbings = (name, ids, _) => [
         div(
           ~attr=
             Attr.many([
-              clss(["breadcrumb_bar_function"]),
+              clss(["breadcrumb_bar_silbing"]),
               Attr.on_click(_ =>
                 inject(
                   UpdateAction.PerformAction(Jump(TileId(List.hd(ids)))),
@@ -127,9 +127,10 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
       ];
       let rec tag_term = (term: TermBase.UExp.t, level: int) => {
         switch (term.term) {
-        | Let({term: Var(name), _}, {term: Fun(_, fbody), _}, body) =>
+        | Let({term: Var(name), _}, def_body, body) =>
+          //| Let({term: Var(name), _}, {term: Fun(_, fbody), _}, body) =>
           let l1 = tag_term(body, level);
-          let l2 = tag_term(fbody, level + 1);
+          let l2 = tag_term(def_body, level + 1);
           List.cons((level, (name, term.ids)), l1) @ l2;
         | Module(
             {term: TypeAnn({term: Constructor(name), _}, _), _},
@@ -140,6 +141,7 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
           let l1 = tag_term(t2, level);
           let l2 = tag_term(t1, level + 1);
           List.cons((level, (name, term.ids)), l1) @ l2;
+        | Module(_) => tag_term(term, level + 1)
         | UnOp(_, t1)
         | Fun(_, t1)
         | TyAlias(_, _, t1)
@@ -150,6 +152,8 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
         | Seq(t1, t2)
         | Cons(t1, t2)
         | ListConcat(t1, t2)
+        | Dot(t1, t2)
+        | Pipeline(t1, t2)
         | BinOp(_, t1, t2) =>
           let l1 = tag_term(t1, level);
           let l2 = tag_term(t2, level);
@@ -163,7 +167,16 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
           let l2 =
             List.concat(List.map(t1 => tag_term(snd(t1), level), t));
           l1 @ l2;
-        | _ => []
+        | Constructor(_)
+        | Var(_)
+        | Int(_)
+        | String(_)
+        | Bool(_)
+        | EmptyHole
+        | Triv
+        | Invalid(_)
+        | Float(_)
+        | MultiHole(_) => []
         };
       };
       let combineList = (lst: list((int, (string, list(Uuidm.t))))) => {
@@ -178,64 +191,55 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
       };
       let tagged = tag_term(term, 1);
       let lst = combineList(tagged);
+      List.iter(
+        a => {
+          Printf.printf("level: %d\n", fst(a));
+          List.iter(
+            b => {
+              Printf.printf("name: %s\n", fst(b));
+              List.iter(
+                c => {Printf.printf("id: %s\n", Uuidm.to_string(c))},
+                snd(b),
+              );
+            },
+            snd(a),
+          );
+        },
+        lst,
+      );
       let ancestors = Info.ancestors_of(ci);
       let rec filter_ancestors = (ancestors_lst: Info.ancestors, level: int) =>
         if (List.length(ancestors_lst) == 0) {
           [];
         } else {
           switch (Id.Map.find_opt(List.hd(ancestors_lst), info_map)) {
-          | Some(v) =>
-            switch (v) {
-            | Info.InfoExp({term, ancestors, _}) =>
-              switch (term.term) {
-              | Fun(_) =>
-                if (List.length(ancestors) >= 1) {
+          | Some(Info.InfoExp({term, ancestors, _}))
+              when List.length(ancestors) >= 1 =>
+            switch (term.term) {
+            //| Fun(_) => [
+            //    List.hd(ancestors),
+            //    ...filter_ancestors(List.tl(ancestors_lst), level - 1),
+            //  ]
+            | Let({term: Var(name), _}, _, _)
+            | Module({term: Constructor(name), _}, _, _) =>
+              let lv = List.find_opt(a => fst(snd(a)) == name, tagged);
+              switch (lv) {
+              | Some(lv) =>
+                if (fst(lv) < level) {
+                  filter_ancestors(ancestors_lst, level - 1);
+                } else if (fst(lv) == level) {
                   [
-                    List.hd(ancestors),
+                    List.hd(ancestors_lst),
                     ...filter_ancestors(List.tl(ancestors_lst), level - 1),
                   ];
                 } else {
-                  [
-                    Uuidm.nil,
-                    ...filter_ancestors(List.tl(ancestors_lst), level),
-                  ];
+                  filter_ancestors(List.tl(ancestors_lst), level);
                 }
-              | Module({term: Constructor(name), _}, _, _) =>
-                let lv = List.find_opt(a => fst(snd(a)) == name, tagged);
-                switch (lv) {
-                | Some(lv) =>
-                  if (fst(lv) < level) {
-                    filter_ancestors(ancestors_lst, level - 1);
-                  } else if (fst(lv) == level) {
-                    [
-                      List.hd(ancestors_lst),
-                      ...filter_ancestors(List.tl(ancestors_lst), level - 1),
-                    ];
-                  } else {
-                    [
-                      Uuidm.nil,
-                      ...filter_ancestors(List.tl(ancestors_lst), level),
-                    ];
-                  }
-                | None => [
-                    Uuidm.nil,
-                    ...filter_ancestors(List.tl(ancestors_lst), level),
-                  ]
-                };
-              | _ => [
-                  Uuidm.nil,
-                  ...filter_ancestors(List.tl(ancestors_lst), level),
-                ]
-              }
-            | _ => [
-                Uuidm.nil,
-                ...filter_ancestors(List.tl(ancestors_lst), level),
-              ]
+              | None => filter_ancestors(List.tl(ancestors_lst), level)
+              };
+            | _ => filter_ancestors(List.tl(ancestors_lst), level)
             }
-          | None => [
-              Uuidm.nil,
-              ...filter_ancestors(List.tl(ancestors_lst), level),
-            ]
+          | _ => filter_ancestors(List.tl(ancestors_lst), level)
           };
         };
       let ancestors = filter_ancestors(ancestors, List.length(lst));
@@ -245,29 +249,29 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
         } else if (List.find_opt(a => fst(a) == level, lst) == None) {
           breadcrumb_funs(level - 1, res);
         } else {
-          let current_level =
-            List.map(
-              t =>
-                if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
-                  snd(t);
-                } else {
-                  [];
-                },
-              List.rev(snd(List.find(a => fst(a) == level, lst))),
-            );
-          let current_level = List.concat(current_level);
+          //let current_level =
+          //  List.map(
+          //    t =>
+          //      if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
+          //        snd(t);
+          //      } else {
+          //        [];
+          //      },
+          //    List.rev(snd(List.find(a => fst(a) == level, lst))),
+          //  );
+          //let current_level = List.concat(current_level);
           let siblings_div =
             List.map(
               t =>
                 if (List.exists(a => a == List.hd(snd(t)), ancestors)) {
                   option(
                     ~attr=Attr.many([Attr.create("selected", "selected")]),
-                    view_fun(fst(t), snd(t), level),
+                    view_silbings(fst(t), snd(t), level),
                   );
                 } else {
                   option(
                     ~attr=Attr.many([]),
-                    view_fun(fst(t), snd(t), level),
+                    view_silbings(fst(t), snd(t), level),
                   );
                 },
               List.rev(snd(List.find(a => fst(a) == level, lst))),
@@ -302,13 +306,20 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
             } else {
               ret @ [text("->")] @ res;
             };
-          if (current_level == []) {
-            breadcrumb_funs(level - 1, res);
-          } else {
-            breadcrumb_funs(level - 1, ret);
-          };
+          breadcrumb_funs(level - 1, ret);
+          //if (current_level == []) {
+          //  breadcrumb_funs(level - 1, res);
+          //} else {
+          //  breadcrumb_funs(level - 1, ret);
+          //};
         };
-      breadcrumb_funs(List.length(lst), []);
+      Printf.printf("length: %d\n", List.length(lst));
+      let res = breadcrumb_funs(List.length(ancestors) + 1, []);
+      if (res == []) {
+        [div([text(".")])];
+      } else {
+        res;
+      };
     }
   };
 };
