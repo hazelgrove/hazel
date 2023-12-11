@@ -36,6 +36,6 @@ let query_reply = (query: t, editor: Editor.t) => {
       ++ "."
     | None => "Error occurs when querying cursor position."
     };
-  | Expression => "TODO"
+  | Expression => "TODO" //return the expression the cursor is on
   };
 };
