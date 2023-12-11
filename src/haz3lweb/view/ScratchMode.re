@@ -104,12 +104,20 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
+  let empty = [
+    select([
+      option(
+        ~attr=Attr.many([Attr.create("selected", "selected")]),
+        [text(".")],
+      ),
+    ]),
+  ];
   switch (zipper.backpack, Indicated.index(zipper)) {
-  | ([_, ..._], _) => [div([text("")])]
-  | (_, None) => [div([text("")])]
+  | ([_, ..._], _) => empty
+  | (_, None) => empty
   | (_, Some(id)) =>
     switch (Id.Map.find_opt(id, info_map)) {
-    | None => [div([text("")])]
+    | None => empty
     | Some(ci) =>
       let view_silbings = (name, ids, _) => [
         div(
@@ -190,22 +198,6 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
       };
       let tagged = tag_term(term, 1);
       let lst = combineList(tagged);
-      List.iter(
-        a => {
-          Printf.printf("level: %d\n", fst(a));
-          List.iter(
-            b => {
-              Printf.printf("name: %s\n", fst(b));
-              List.iter(
-                c => {Printf.printf("id: %s\n", Uuidm.to_string(c))},
-                snd(b),
-              );
-            },
-            snd(a),
-          );
-        },
-        lst,
-      );
       let ancestors = Info.ancestors_of(ci);
       let rec filter_ancestors = (ancestors_lst: Info.ancestors, level: int) =>
         if (List.length(ancestors_lst) == 0) {
@@ -260,42 +252,45 @@ let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
                 },
               List.rev(snd(List.find(a => fst(a) == level, lst))),
             );
-          let toggle_div = {
-            [
-              select(
-                ~attr=
-                  Attr.on_change((_, name) => {
-                    let all_siblings =
-                      snd(List.find(a => fst(a) == level, lst));
-                    let selected_siblings =
-                      List.hd(
-                        List.filter(a => fst(a) == name, all_siblings),
+          if (siblings_div == []) {
+            breadcrumb_funs(level - 1, res);
+          } else {
+            let toggle_div = {
+              [
+                select(
+                  ~attr=
+                    Attr.on_change((_, name) => {
+                      let all_siblings =
+                        snd(List.find(a => fst(a) == level, lst));
+                      let selected_siblings =
+                        List.hd(
+                          List.filter(a => fst(a) == name, all_siblings),
+                        );
+                      inject(
+                        UpdateAction.PerformAction(
+                          Jump(TileId(List.hd(snd(selected_siblings)))),
+                        ),
                       );
-                    inject(
-                      UpdateAction.PerformAction(
-                        Jump(TileId(List.hd(snd(selected_siblings)))),
-                      ),
-                    );
-                  }),
-                siblings_div,
-              ),
-            ];
-          };
-          let ret = toggle_div;
-          let ret =
-            if (res == []) {
-              ret;
-            } else if (siblings_div == []) {
-              ret;
-            } else {
-              ret @ [text("->")] @ res;
+                    }),
+                  siblings_div,
+                ),
+              ];
             };
-          breadcrumb_funs(level - 1, ret);
+            let ret = toggle_div;
+            let ret =
+              if (res == []) {
+                ret;
+              } else if (siblings_div == []) {
+                ret;
+              } else {
+                ret @ [text("->")] @ res;
+              };
+            breadcrumb_funs(level - 1, ret);
+          };
         };
-      Printf.printf("length: %d\n", List.length(lst));
       let res = breadcrumb_funs(List.length(ancestors) + 1, []);
       if (res == []) {
-        [div([text(".")])];
+        empty;
       } else {
         res;
       };
