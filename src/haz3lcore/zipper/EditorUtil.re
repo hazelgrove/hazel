@@ -41,17 +41,6 @@ let editors_of_strings = (~read_only=false, xs: list(string)) => {
   (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
-let info_map = (editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) =
-    Util.TimeUtil.measure_time("EditorUtil.info_map => MakeTerm.go", true, () =>
-      MakeTerm.go(unselected)
-    );
-  let info_map = Statics.mk_map(term);
-  info_map;
-};
-
 let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
   | EmptyHole
@@ -99,13 +88,9 @@ let stitch = (editors: list(Editor.t)) => {
           "terms",
           true,
           () => {
-            let seg =
-              Util.TimeUtil.measure_time("unselectin", true, () =>
-                Zipper.unselect_and_zip(ed.state.zipper)
-              );
             let (term, _) =
-              Util.TimeUtil.measure_time("makin terms", true, () =>
-                MakeTerm.go(seg)
+              Util.TimeUtil.measure_time("Time: MakeTerm.from_zip:", true, () =>
+                MakeTerm.from_zip_for_view(ed.state.zipper)
               );
             term;
           },
