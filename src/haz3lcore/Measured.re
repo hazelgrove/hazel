@@ -271,7 +271,7 @@ let of_segment =
     (
       ~old: t=empty,
       ~touched=Touched.empty,
-      ~global_inference_info=InferenceResult.empty_info(),
+      ~_global_inference_info=InferenceResult.empty_info(),
       seg: Segment.t,
     )
     : t => {
@@ -363,19 +363,7 @@ let of_segment =
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            let annotation_offset =
-              switch (
-                InferenceResult.get_suggestion_text_for_id(
-                  g.id,
-                  global_inference_info,
-                )
-              ) {
-              | Solvable(suggestion_string)
-              | NestedInconsistency(suggestion_string) =>
-                String.length(suggestion_string)
-              | NoSuggestion(_) => 1
-              };
-
+            let annotation_offset = 1;
             let last = {...origin, col: origin.col + annotation_offset};
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);

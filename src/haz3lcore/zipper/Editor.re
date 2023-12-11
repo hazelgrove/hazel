@@ -59,7 +59,7 @@ module Meta = {
       Measured.of_segment(
         ~touched,
         ~old=measured,
-        ~global_inference_info=
+        ~_global_inference_info=
           InferenceResult.mk_global_inference_info(inference_enabled, ctx),
         unselected,
       );

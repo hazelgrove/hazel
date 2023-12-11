@@ -46,9 +46,9 @@ let of_grout =
   | NoSuggestion(SuggestionsDisabled)
   | NoSuggestion(NonTypeHoleId)
   | NoSuggestion(OnlyHoleSolutions) => [Node.text(Unicode.nbsp)]
-  | Solvable(suggestion_node)
-  | NestedInconsistency(suggestion_node) => [
-      [suggestion_node] |> span_c("solved-annotation"),
+  | Solvable(_suggestion_node)
+  | NestedInconsistency(_suggestion_node) => [
+      [Node.text("@")] |> span_c("solved-annotation"),
     ]
   | NoSuggestion(InconsistentSet) => [
       [Node.text("!")] |> span_c("unsolved-annotation"),
