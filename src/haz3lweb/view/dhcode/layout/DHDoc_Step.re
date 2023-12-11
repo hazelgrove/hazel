@@ -125,7 +125,30 @@ let mk =
          the time the result is partial evaluated and those conditions
          cannot be met. */
       | Closure(env', d') => go'(d', Closure, ~env=env')
-      | Filter(_, d') => go'(d', Filter)
+      | Filter({pat, act}, d') =>
+        if (settings.show_filters) {
+          let keyword =
+            switch (act) {
+            | Step => "step"
+            | Eval => "skip"
+            };
+          let flt_doc = go_formattable(pat, FilterPattern);
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk(keyword),
+              flt_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
+            ]),
+            go'(d', Filter),
+          ]);
+        } else {
+          go'(d', Filter);
+        }
+
       /* Hole expressions must appear within a closure in
          the postprocessed result */
       | EmptyHole(u, i) =>
@@ -169,12 +192,11 @@ let mk =
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(
-            DHDoc_common.precedence_Ap,
-            (d1, Ap1),
-            (d2, Ap2),
-          );
+        let (doc1, doc2) = (
+          go_formattable(d1, Ap1)
+          |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
+          go'(d2, Ap2),
+        );
         DHDoc_common.mk_Ap(doc1, doc2);
       | ApBuiltin(ident, args) =>
         switch (args) {

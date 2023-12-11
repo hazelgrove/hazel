@@ -46,6 +46,7 @@ module EvalCtx = {
   type cls =
     | Mark
     | Closure
+    | FilterPattern
     | Filter
     | Sequence1
     | Sequence2
@@ -88,7 +89,7 @@ module EvalCtx = {
   type t =
     | Mark
     | Closure(ClosureEnvironment.t, t)
-    | Filter(DHExp.FilterEnvironment.t, t)
+    | Filter(Filter.t, t)
     | Sequence1(t, DHExp.t)
     | Sequence2(DHExp.t, t)
     | Let1(DHPat.t, t, DHExp.t)

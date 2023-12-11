@@ -1,34 +1,6 @@
 open Sexplib.Std;
 
 module rec DHExp: {
-  module FilterAction: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = TermBase.UExp.filter_action;
-  };
-
-  module Filter: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = {
-      pat: DHExp.t,
-      act: FilterAction.t,
-    };
-
-    let mk: (DHExp.t, FilterAction.t) => t;
-
-    let map: (DHExp.t => DHExp.t, t) => t;
-
-    let matches: (DHExp.t, t) => option(FilterAction.t);
-  };
-
-  module FilterEnvironment: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = list(Filter.t);
-
-    let matches: (DHExp.t, FilterAction.t, t) => FilterAction.t;
-
-    let extends: (t, t) => t;
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -38,7 +10,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(FilterEnvironment.t, t)
+    | Filter(Filter.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -81,303 +53,6 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 } = {
-  module FilterAction = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = TermBase.UExp.filter_action;
-  };
-
-  module Filter = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = {
-      pat: DHExp.t,
-      act: FilterAction.t,
-    };
-
-    let mk = (pat: DHExp.t, act: FilterAction.t): t => {pat, act};
-
-    let map = (f: DHExp.t => DHExp.t, filter: t): t => {
-      ...filter,
-      pat: f(filter.pat),
-    };
-
-    let rec matches_exp = (d: DHExp.t, f: DHExp.t): bool => {
-      switch (d, f) {
-      | (Ap(Constructor("$Expr"), _), _) =>
-        failwith("$Expr in matched expression")
-      | (Ap(Constructor("$Value"), _), _) =>
-        failwith("$Value in matched expression")
-
-      | (Closure(_, d), _) => matches_exp(d, f)
-      | (_, Closure(_, f)) => matches_exp(d, f)
-
-      | (Filter(_, d1), _) => matches_exp(d1, f)
-
-      | (Cast(d, _, _), _) => matches_exp(d, f)
-      | (_, Cast(f, _, _)) => matches_exp(d, f)
-      | (FailedCast(d, _, _), _) => matches_exp(d, f)
-      | (_, FailedCast(f, _, _)) => matches_exp(d, f)
-
-      | (_, Ap(Constructor("$Expr"), Tuple([]))) => true
-      | (_, EmptyHole(_)) => true
-      | (EmptyHole(_), _) => false
-
-      | (
-          BoolLit(_) | IntLit(_) | FloatLit(_) | StringLit(_),
-          Ap(Constructor("$Value"), Tuple([])),
-        ) =>
-        true
-
-      | (BoolLit(dv), BoolLit(fv)) => dv == fv
-      | (_, BoolLit(_))
-      | (BoolLit(_), _) => false
-
-      | (IntLit(dv), IntLit(fv)) => dv == fv
-      | (_, IntLit(_))
-      | (IntLit(_), _) => false
-
-      | (FloatLit(dv), FloatLit(fv)) => dv == fv
-      | (_, FloatLit(_))
-      | (FloatLit(_), _) => false
-
-      | (StringLit(dv), StringLit(fv)) => dv == fv
-      | (_, StringLit(_))
-      | (StringLit(_), _) => false
-
-      | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
-      | (Constructor(dt), Constructor(ft)) => dt == ft
-      | (_, Constructor(_))
-      | (Constructor(_), _) => false
-
-      | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
-        matches_pat(dp1, fp1)
-        && dty1 == fty1
-        && matches_exp(d1, f1)
-        && dname1 == fname1
-      | (_, Fun(_))
-      | (Fun(_), _) => false
-
-      | (BoundVar(dx), BoundVar(fx))
-      | (BoundVar(dx), FreeVar(_, _, fx))
-      | (FreeVar(_, _, dx), BoundVar(fx))
-      | (FreeVar(_, _, dx), FreeVar(_, _, fx)) => dx == fx
-      | (BoundVar(_), _)
-      | (_, BoundVar(_))
-      | (FreeVar(_), _)
-      | (_, FreeVar(_)) => false
-
-      | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
-        matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Let(_), _)
-      | (_, Let(_)) => false
-
-      | (Ap(d1, d2), Ap(f1, f2)) =>
-        matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Ap(_), _)
-      | (_, Ap(_)) => false
-
-      | (Sequence(d1, d2), Sequence(f1, f2)) =>
-        matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Sequence(_), _)
-      | (_, Sequence(_)) => false
-
-      | (Test(id1, d2), Test(id2, f2)) => id1 == id2 && matches_exp(d2, f2)
-      | (Test(_), _)
-      | (_, Test(_)) => false
-
-      | (Cons(d1, d2), Cons(f1, f2)) =>
-        matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (Cons(_), _)
-      | (_, Cons(_)) => false
-
-      | (ListLit(_, _, dt, dv), ListLit(_, _, ft, fv)) =>
-        dt == ft
-        && List.fold_left2(
-             (acc, d, f) => acc && matches_exp(d, f),
-             true,
-             dv,
-             fv,
-           )
-      | (ListLit(_), _)
-      | (_, ListLit(_)) => false
-
-      | (Tuple(dv), Tuple(fv)) =>
-        List.fold_left2(
-          (acc, d, f) => acc && matches_exp(d, f),
-          true,
-          dv,
-          fv,
-        )
-      | (Tuple(_), _)
-      | (_, Tuple(_)) => false
-
-      | (BinBoolOp(d_op_bin, d1, d2), BinBoolOp(f_op_bin, f1, f2)) =>
-        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-
-      | (BinBoolOp(_), _)
-      | (_, BinBoolOp(_)) => false
-
-      | (BinIntOp(d_op_bin, d1, d2), BinIntOp(f_op_bin, f1, f2)) =>
-        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (BinIntOp(_), _)
-      | (_, BinIntOp(_)) => false
-
-      | (BinFloatOp(d_op_bin, d1, d2), BinFloatOp(f_op_bin, f1, f2)) =>
-        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (BinFloatOp(_), _)
-      | (_, BinFloatOp(_)) => false
-
-      | (BinStringOp(d_op_bin, d1, d2), BinStringOp(f_op_bin, f1, f2)) =>
-        d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
-      | (BinStringOp(_), _)
-      | (_, BinStringOp(_)) => false
-
-      | (ListConcat(_), _) => false
-
-      | (
-          ConsistentCase(Case(dscrut, drule, _)),
-          ConsistentCase(Case(fscrut, frule, _)),
-        )
-      | (
-          InconsistentBranches(_, _, Case(dscrut, drule, _)),
-          InconsistentBranches(_, _, Case(fscrut, frule, _)),
-        ) =>
-        matches_exp(dscrut, fscrut)
-        && (
-          switch (
-            List.fold_left2(
-              (res, drule, frule) => res && matches_rul(drule, frule),
-              true,
-              drule,
-              frule,
-            )
-          ) {
-          | exception (Invalid_argument(_)) => false
-          | res => res
-          }
-        )
-      | (ConsistentCase(_), _)
-      | (_, ConsistentCase(_))
-      | (InconsistentBranches(_), _)
-      | (_, InconsistentBranches(_)) => false
-
-      | (NonEmptyHole(_), _) => false
-      | (ExpandingKeyword(_), _) => false
-      | (InvalidText(_), _) => false
-      | (InvalidOperation(_), _) => false
-
-      | (FixF(dv, dt, dc), FixF(fv, ft, fc)) =>
-        dv == fv && dt == ft && matches_exp(dc, fc)
-      | (FixF(_), _)
-      | (_, FixF(_)) => false
-
-      | (ApBuiltin(dname, dargs), ApBuiltin(fname, fargs)) =>
-        dname == fname
-        && List.fold_left2(
-             (acc, d, f) => {acc && matches_exp(d, f)},
-             true,
-             dargs,
-             fargs,
-           )
-      | (ApBuiltin(_), _)
-      | (_, ApBuiltin(_)) => false
-
-      | (Prj(dv, di), Prj(fv, fi)) => matches_exp(dv, fv) && di == fi
-      | (Prj(_), _) => false
-      };
-    }
-    and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
-      switch (d, f) {
-      | (_, EmptyHole(_)) => true
-      | (Wild, Wild) => true
-      | (IntLit(dv), IntLit(fv)) => dv == fv
-      | (FloatLit(dv), FloatLit(fv)) => dv == fv
-      | (BoolLit(dv), BoolLit(fv)) => dv == fv
-      | (StringLit(dv), StringLit(fv)) => dv == fv
-      | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
-        switch (
-          List.fold_left2(
-            (res, d, f) => res && matches_pat(d, f),
-            true,
-            dl,
-            fl,
-          )
-        ) {
-        | exception (Invalid_argument(_)) => false
-        | res => matches_typ(dty1, fty1) && res
-        }
-      | (Constructor(dt), Constructor(ft)) => dt == ft
-      | (Var(dx), Var(fx)) => dx == fx
-      | (Tuple(dl), Tuple(fl)) =>
-        switch (
-          List.fold_left2(
-            (res, d, f) => res && matches_pat(d, f),
-            true,
-            dl,
-            fl,
-          )
-        ) {
-        | exception (Invalid_argument(_)) => false
-        | res => res
-        }
-      | (Ap(d1, d2), Ap(f1, f2)) =>
-        matches_pat(d1, f1) && matches_pat(d2, f2)
-      | (_, _) => false
-      };
-    }
-    and matches_typ = (d: Typ.t, f: Typ.t) => {
-      switch (d, f) {
-      | (_, _) => false
-      };
-    }
-    and matches_rul = (_d: DHExp.rule, _f: DHExp.rule) => {
-      false;
-    };
-
-    let matches = (d: DHExp.t, f: t): option(FilterAction.t) =>
-      if (matches_exp(d, f.pat)) {
-        Some(f.act);
-      } else {
-        None;
-      };
-
-    let fast_equal = (f1: t, f2: t): bool => {
-      DHExp.fast_equal(f1.pat, f2.pat) && f1.act == f2.act;
-    };
-
-    let strip_casts = (f: t): t => {...f, pat: f.pat |> DHExp.strip_casts};
-  };
-
-  module FilterEnvironment = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = list(Filter.t);
-
-    let fast_equal = (f1: t, f2: t): bool =>
-      List.fold_left2(
-        (r, f1, f2) => r && Filter.fast_equal(f1, f2),
-        true,
-        f1,
-        f2,
-      );
-
-    let strip_casts = (fenv: t): t => fenv |> List.map(Filter.strip_casts);
-
-    let matches = (d, act, env): FilterAction.t => {
-      let rec matches' = (d, env, act: FilterAction.t) => {
-        switch (env) {
-        | [] => act
-        | [hd, ...tl] =>
-          switch (Filter.matches(d, hd)) {
-          | Some(act) => act
-          | None => matches'(d, tl, act)
-          }
-        };
-      };
-      matches'(d, env, act);
-    };
-
-    let extends = (env', env) => env' @ env;
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -389,7 +64,7 @@ module rec DHExp: {
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
     | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(FilterEnvironment.t, t)
+    | Filter(Filter.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -488,8 +163,7 @@ module rec DHExp: {
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
-    | Filter(fenv, b) =>
-      Filter(FilterEnvironment.strip_casts(fenv), strip_casts(b))
+    | Filter(f, b) => Filter(Filter.strip_casts(f), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
@@ -540,8 +214,8 @@ module rec DHExp: {
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (Filter(fenv1, d1), Filter(fenv2, d2)) =>
-      FilterEnvironment.fast_equal(fenv1, fenv2) && fast_equal(d1, d2)
+    | (Filter(f1, d1), Filter(f2, d2)) =>
+      Filter.fast_equal(f1, f2) && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
@@ -765,4 +439,59 @@ and ClosureEnvironment: {
   let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
 
   let without_keys = keys => update(Environment.without_keys(keys));
+}
+
+and FilterAction: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = TermBase.UExp.filter_action;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = TermBase.UExp.filter_action;
+}
+
+and Filter: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    pat: DHExp.t,
+    act: FilterAction.t,
+  };
+
+  let mk: (DHExp.t, FilterAction.t) => t;
+
+  let map: (DHExp.t => DHExp.t, t) => t;
+
+  let strip_casts: t => t;
+
+  let fast_equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    pat: DHExp.t,
+    act: FilterAction.t,
+  };
+
+  let mk = (pat: DHExp.t, act: FilterAction.t): t => {pat, act};
+
+  let map = (f: DHExp.t => DHExp.t, filter: t): t => {
+    ...filter,
+    pat: f(filter.pat),
+  };
+
+  let fast_equal = (f1: t, f2: t): bool => {
+    DHExp.fast_equal(f1.pat, f2.pat) && f1.act == f2.act;
+  };
+
+  let strip_casts = (f: t): t => {...f, pat: f.pat |> DHExp.strip_casts};
+}
+
+and FilterEnvironment: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(Filter.t);
+
+  let extends: (Filter.t, t) => t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(Filter.t);
+
+  let extends = (flt, env) => [flt, ...env];
 };
