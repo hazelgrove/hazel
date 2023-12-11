@@ -108,7 +108,7 @@ let view_of_global_inference_info =
                        [Type.view(~font_metrics, typ)],
                        _off_hover => {
                          State.set_considering_suggestion(false);
-                         inject(Update.Mouseup);
+                         inject(Update.SetMeta(Mouseup));
                        },
                        _on_hover => {
                          State.set_considering_suggestion(true);
@@ -120,7 +120,7 @@ let view_of_global_inference_info =
                              ),
                            );
                          } else {
-                           inject(Update.Mouseup);
+                           inject(Update.SetMeta(Mouseup));
                          };
                        },
                        _on_click =>
@@ -129,7 +129,7 @@ let view_of_global_inference_info =
                            State.set_considering_suggestion(false);
                            inject(Update.Undo);
                          } else {
-                           inject(Update.Mouseup);
+                           inject(Update.SetMeta(Mouseup));
                          },
                      ),
                    ],

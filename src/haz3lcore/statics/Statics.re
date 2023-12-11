@@ -130,8 +130,7 @@ let rec any_to_info_map =
         ~ctx,
         p,
         m,
-      )
-      |> snd;
+      );
     (CoCtx.empty, m, constraints);
   | TPat(tp) => (
       CoCtx.empty,
@@ -502,10 +501,18 @@ and upat_to_info_map =
     : (Info.pat, Map.t) => {
   let id = UPat.rep_id(upat);
   let add = (~self, ~ctx, ~constraints, m) => {
+    let wrap_fn = (wrap: Self.join_type) =>
+      switch (wrap) {
+      | Id => (x => x)
+      | List => (x => Typ.List(x))
+      };
     let joined_constraints =
       switch ((self: Self.t)) {
-      | NoJoin(wrap, sources) =>
-        sources |> Typ.of_source |> List.map(wrap) |> join_constraints
+      | NoJoin(wrap_ty, sources) =>
+        sources
+        |> Typ.of_source
+        |> List.map(wrap_fn(wrap_ty))
+        |> join_constraints
       | _ => []
       };
     let info =

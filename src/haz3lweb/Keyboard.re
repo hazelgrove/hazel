@@ -5,7 +5,7 @@ let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
 let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
-  let zipper = Editors.get_zipper(model.editors);
+  let zipper = Editors.active_zipper(model.editors);
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
   let (_, ctx) = Statics.mk_map_and_inference_solutions(term);

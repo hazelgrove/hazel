@@ -36,6 +36,12 @@ let ty_of = (ctx: Ctx.t, t: t, id: Id.t): (Typ.t, Typ.constraints) =>
     (Arrow(ty_l, ty_r), constraints);
   };
 
+let assistant_ty_of: t => Typ.t =
+  fun
+  | Ana(ty) => ty
+  | Syn => Unknown(NoProvenance)
+  | SynFun => Arrow(Unknown(NoProvenance), Unknown(NoProvenance));
+
 let of_arrow =
     (ctx: Ctx.t, mode: t, termId: Id.t): ((t, t), Typ.constraints) =>
   switch (mode) {

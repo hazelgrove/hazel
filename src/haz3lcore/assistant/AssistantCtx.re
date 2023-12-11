@@ -92,14 +92,30 @@ let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
   | InfoExp({mode, _}) =>
-    bound_variables(Mode.ty_of(mode), ctx)
-    @ bound_aps(Mode.ty_of(mode), ctx)
-    @ bound_constructors(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
-    @ bound_constructor_aps(x => Exp(Common(x)), Mode.ty_of(mode), ctx)
+    bound_variables(Mode.assistant_ty_of(mode), ctx)
+    @ bound_aps(Mode.assistant_ty_of(mode), ctx)
+    @ bound_constructors(
+        x => Exp(Common(x)),
+        Mode.assistant_ty_of(mode),
+        ctx,
+      )
+    @ bound_constructor_aps(
+        x => Exp(Common(x)),
+        Mode.assistant_ty_of(mode),
+        ctx,
+      )
   | InfoPat({mode, co_ctx, _}) =>
-    free_variables(Mode.ty_of(mode), ctx, co_ctx)
-    @ bound_constructors(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
-    @ bound_constructor_aps(x => Pat(Common(x)), Mode.ty_of(mode), ctx)
+    free_variables(Mode.assistant_ty_of(mode), ctx, co_ctx)
+    @ bound_constructors(
+        x => Pat(Common(x)),
+        Mode.assistant_ty_of(mode),
+        ctx,
+      )
+    @ bound_constructor_aps(
+        x => Pat(Common(x)),
+        Mode.assistant_ty_of(mode),
+        ctx,
+      )
   | InfoTyp(_) => typ_context_entries(ctx)
   | _ => []
   };
@@ -141,7 +157,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
     let exp_aps = ty =>
       bound_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode)) {
+    switch (Mode.assistant_ty_of(mode)) {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
@@ -165,7 +181,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       free_variables(ty, ctx, co_ctx)
       @ bound_constructors(x => Pat(Common(x)), ty, ctx);
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
-    switch (Mode.ty_of(mode)) {
+    switch (Mode.assistant_ty_of(mode)) {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))

@@ -101,7 +101,7 @@ let piece_hash:
       Sort.t,
       Piece.t,
       int,
-      ModelSettings.t,
+      Settings.t,
       FontMetrics.t,
       InferenceResult.global_inference_info,
     ),
@@ -278,7 +278,7 @@ let simple_view =
       ~map,
       ~font_metrics,
       ~global_inference_info,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
     )
     : Node.t => {
   module Text =
@@ -331,7 +331,7 @@ let view =
       unselected,
     );
   let holes =
-    holes(~font_metrics, ~global_inference_info, map = measured, segment);
+    holes(~font_metrics, ~global_inference_info, ~map=measured, segment);
   div(
     ~attr=Attr.class_("code"),
     [span_c("code-text", unselected), ...holes],
