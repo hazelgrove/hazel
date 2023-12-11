@@ -108,7 +108,7 @@ let go = (d: Direction.t, z: t): option(t) => {
     /* Below regrouting important for parens/ap positioning */
     |> Zipper.regrout(Right)
     |> Option.some
-  | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
+  | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
     merge((l, r), z)
   | _ => Some(z)
   };
