@@ -101,8 +101,6 @@ let init = (~read_only=false, z) => {
 };
 let empty = id => init(~read_only=false, Zipper.init(id));
 
-let get_seg = (ed: t) => Zipper.unselect_and_zip(ed.state.zipper);
-
 let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
   ...ed,
   state: {
