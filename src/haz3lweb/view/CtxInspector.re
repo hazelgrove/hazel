@@ -2,83 +2,61 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["context-entry"]),
-        Attr.on_click(_ =>
-          inject(
-            UpdateAction.PerformAction(
-              Jump(TileId(Haz3lcore.Ctx.get_id(entry))),
-            ),
-          )
-        ),
-      ]),
-    switch (entry) {
-    | VarEntry({name, typ, _}) => [text(name), text(":"), Type.view(typ)]
-    | TVarEntry({name, kind, _}) => [
-        text("type "),
-        text(name),
-        text("::"),
+let jump_to = entry =>
+  UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
+
+let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
+  let div_name =
+    div(
+      ~attr=
+        Attr.many([
+          clss(["name"]),
+          Attr.on_click(_ => inject(jump_to(entry))),
+        ]),
+    );
+  switch (entry) {
+  | VarEntry({name, typ, _})
+  | ConstructorEntry({name, typ, _}) =>
+    div_c(
+      "context-entry",
+      [
+        div_name([text(name)]),
+        div(~attr=clss(["seperator"]), [text(":")]),
+        Type.view(typ),
+      ],
+    )
+  | TVarEntry({name, kind, _}) =>
+    div_c(
+      "context-entry",
+      [
+        div_name([Type.alias_view(name)]),
+        div(~attr=clss(["seperator"]), [text("::")]),
         Kind.view(kind),
-      ]
-    },
-  );
-
-let ctxc = "context-entries";
-
-let exp_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
-  let ctx = ctx |> Haz3lcore.Ctx.filter_duplicates;
-  div(
-    ~attr=clss([ctxc, "exp"]),
-    List.map(context_entry_view(~inject), List.rev(ctx)),
-  );
-};
-
-let pat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
-  let ctx = ctx |> Haz3lcore.Ctx.filter_duplicates;
-  div(
-    ~attr=clss([ctxc, "pat"]),
-    List.map(context_entry_view(~inject), List.rev(ctx)),
-  );
-};
-
-let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
-  switch (ci) {
-  | Invalid(_) => div(~attr=clss([ctxc, "invalid"]), [text("")])
-  | InfoExp({ctx, _}) => exp_ctx_view(~inject, ctx)
-  | InfoPat({ctx, _}) => pat_ctx_view(~inject, ctx)
-  | InfoTyp(_) => div(~attr=clss([ctxc, "typ"]), [])
-  | InfoRul(_) => div(~attr=clss([ctxc, "rul"]), [])
+      ],
+    )
   };
 };
 
-let inspector_view =
-    (~inject, ~settings: ModelSettings.t, _id: int, ci: Haz3lcore.Statics.t)
-    : Node.t => {
+let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+  div(
+    ~attr=clss(["context-entries"]),
+    List.map(
+      context_entry_view(~inject),
+      ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
+    ),
+  );
+
+let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
+  Haz3lcore.Info.ctx_of(ci)
+  |> Haz3lcore.Ctx.filter_duplicates
+  |> List.rev
+  |> List.map(context_entry_view(~inject));
+
+let view =
+    (~inject, ~settings: Settings.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
   let clss =
     clss(
       ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
     );
-  div(~attr=clss, [ctx_sorts_view(~inject, ci)]);
-};
-
-let view =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      index': option(int),
-      info_map: Haz3lcore.Statics.map,
-    ) => {
-  let (index, ci) =
-    switch (index') {
-    | Some(index) => (index, Haz3lcore.Id.Map.find_opt(index, info_map))
-    | None => ((-1), None)
-    };
-  switch (ci) {
-  | None =>
-    div(~attr=clss(["context-inspector"]), [text("No Static Data")])
-  | Some(ci) => inspector_view(~inject, ~settings, index, ci)
-  };
+  div(~attr=clss, ctx_sorts_view(~inject, ci));
 };

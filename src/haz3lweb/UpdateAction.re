@@ -7,42 +7,69 @@ type settings_action =
   | Captions
   | SecondaryIcons
   | Statics
+  | Assist
+  | Elaborate
   | Dynamics
   | Benchmark
   | ContextInspector
   | InstructorMode
-  | Mode(Editors.mode);
+  | Mode(Settings.mode);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agent =
+  | TyDi;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agent_action =
+  | Prompt(agent)
+  | AcceptSuggestion;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type set_meta =
+  | Mousedown
+  | Mouseup
+  | ShowBackpackTargets(bool)
+  | FontMetrics(FontMetrics.t)
+  | Result(ModelResults.Key.t, ModelResult.current);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type benchmark_action =
+  | Start
+  | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  /* meta */
+  | Reset
   | Set(settings_action)
-  | UpdateDoubleTap(option(float))
-  | Mousedown
-  | Mouseup
+  | SetMeta(set_meta)
+  | UpdateLangDocMessages(LangDocMessages.update)
+  | DebugAction(DebugAction.t)
+  | ExportPersistentData
+  | DebugConsole(string)
+  /* editors */
+  | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
+  | SwitchEditor(Exercise.pos) //exercisemode only
+  | SwitchExampleSlide(string) //examplemode only
+  // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
-  | ResetSlide
+  | SwitchScratchSlide(int)
+  /* editor */
+  | DoTheThing
   | Save
-  | ToggleMode
-  | SwitchSlide(int)
-  | SwitchEditor(SchoolExercise.pos)
-  | SetFontMetrics(FontMetrics.t)
-  | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
-  | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
-  | ResetCurrentEditor
+  | ReparseCurrentEditor
   | Cut
   | Copy
   | Paste(string)
   | Undo
   | Redo
-  | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
-  | UpdateResult(ModelResults.Key.t, ModelResult.current)
-  | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t);
+  | Benchmark(benchmark_action)
+  | Assistant(agent_action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -51,9 +78,9 @@ module Failure = {
     | CantRedo
     | CantPaste
     | CantReset
+    | CantSuggest
     | FailedToLoad
     | FailedToSwitch
-    | UnrecognizedInput(FailedInput.reason)
     | FailedToPerform(Action.Failure.t)
     | Exception(string);
 };
@@ -62,3 +89,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Cut
+  | Undo
+  | Redo => true
+  | PerformAction(a) => Action.is_edit(a)
+  | _ => false;

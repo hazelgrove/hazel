@@ -5,7 +5,7 @@
 *)
 
 let exercise =
-  SchoolExercise.blank_spec ~title:"Recursive Fibonacci"
+  Exercise.blank_spec ~title:"Recursive Fibonacci"
     ~module_name:"Ex_RecursiveFibonacci"
       (* make sure your file is named <module_name>.ml *)
     ~point_distribution:

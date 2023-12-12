@@ -183,8 +183,8 @@ let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
   let shards = Id.Map.find(t.id, map.tiles);
-  let first = List.assoc(Tile.l_shard(t), shards);
-  let last = List.assoc(Tile.r_shard(t), shards);
+  let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
+  let last = ListUtil.assoc_err(Tile.r_shard(t), shards, "find_t");
   {origin: first.origin, last: last.last};
 };
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
@@ -206,37 +206,22 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
     | None =>
       switch (Id.Map.find_opt(id, map.tiles)) {
       | Some(shards) =>
-        let first = List.assoc(List.hd(shards) |> fst, shards);
-        let last = List.assoc(ListUtil.last(shards) |> fst, shards);
+        let first =
+          ListUtil.assoc_err(List.hd(shards) |> fst, shards, "find_by_id");
+        let last =
+          ListUtil.assoc_err(
+            ListUtil.last(shards) |> fst,
+            shards,
+            "find_by_id",
+          );
         Some({origin: first.origin, last: last.last});
       | None =>
-        Printf.printf("Measured.WARNING: id %d not found", id);
+        Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
         None;
       }
     }
   };
 };
-
-let union2 = (map: t, map': t) => {
-  tiles:
-    Id.Map.union((_, ms, ms') => Some(ms @ ms'), map.tiles, map'.tiles),
-  grout: Id.Map.union((_, m, _) => Some(m), map.grout, map'.grout),
-  secondary:
-    Id.Map.union((_, m, _) => Some(m), map.secondary, map'.secondary),
-  rows:
-    Rows.union(
-      (_, s: Rows.shape, s': Rows.shape) =>
-        Some({
-          indent: min(s.indent, s'.indent),
-          max_col: max(s.max_col, s'.max_col),
-        }),
-      map.rows,
-      map'.rows,
-    ),
-  linebreaks:
-    Id.Map.union((_, i, _) => Some(i), map.linebreaks, map'.linebreaks),
-};
-let union = List.fold_left(union2, empty);
 
 let post_tile_indent = (t: Tile.t) => {
   // hack for indent following fun/if tiles.

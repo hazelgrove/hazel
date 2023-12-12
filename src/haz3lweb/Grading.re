@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 
-include Haz3lschool.Grading.F(SchoolExercise.ExerciseEnv);
+include Haz3lschool.Grading.F(Exercise.ExerciseEnv);
 
 let score_view = ((earned: points, max: points)) => {
   div(
@@ -11,6 +11,17 @@ let score_view = ((earned: points, max: points)) => {
         Float.equal(earned, max) ? "all-pass" : "some-fail",
       ]),
     [text(Printf.sprintf("%.1f / %.1f pts", earned, max))],
+  );
+};
+
+let percentage_view = (p: percentage) => {
+  div(
+    ~attr=
+      Attr.classes([
+        "test-percent",
+        Float.equal(p, 1.) ? "all-pass" : "some-fail",
+      ]),
+    [text(Printf.sprintf("%.0f%%", 100. *. p))],
   );
 };
 
@@ -86,7 +97,8 @@ module MutationTestingReport = {
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
                 Attr.on_click(
-                  TestView.jump_to_test(~inject, HiddenBugs(id), id),
+                  //TODO: wire up test ids
+                  TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
                 ),
               ]),
             [],
@@ -126,7 +138,10 @@ module MutationTestingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, HiddenBugs(id), id)),
+          //TODO: wire up test ids
+          Attr.on_click(
+            TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+          ),
         ]),
       [
         div(
@@ -236,6 +251,71 @@ module MutationTestingReport = {
     };
 };
 
+module SyntaxReport = {
+  include SyntaxReport;
+  let individual_report = (i: int, hint: string, status: bool) => {
+    let result_string = status ? "Pass" : "Indet";
+
+    div(
+      ~attr=Attr.classes(["test-report"]),
+      [
+        div(
+          ~attr=Attr.classes(["test-id", "Test" ++ result_string]),
+          [text(string_of_int(i + 1))],
+        ),
+      ]
+      @ [
+        div(
+          ~attr=Attr.classes(["test-hint", "test-instance", result_string]),
+          [text(hint)],
+        ),
+      ],
+    );
+  };
+
+  let individual_reports = (hinted_results: list((bool, string))) => {
+    div(
+      hinted_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, hint, status)
+         ),
+    );
+  };
+
+  let view = (syntax_report: t) => {
+    Cell.panel(
+      ~classes=["test-panel"],
+      [
+        Cell.bolded_caption(
+          "Syntax Validation",
+          ~rest=
+            ": Does your implementation satisfy the syntactic requirements?",
+        ),
+        individual_reports(syntax_report.hinted_results),
+      ],
+      ~footer=
+        Some(
+          Cell.report_footer_view([
+            div(
+              ~attr=Attr.classes(["test-summary"]),
+              [
+                div(
+                  ~attr=Attr.class_("test-text"),
+                  [
+                    percentage_view(syntax_report.percentage),
+                    text(
+                      " of the Implementation Validation points will be earned",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ]),
+        ),
+    );
+  };
+};
+
 module ImplGradingReport = {
   open Haz3lcore;
   include ImplGradingReport;
@@ -309,7 +389,12 @@ module ImplGradingReport = {
 
   let individual_reports = (~inject, ~report) => {
     switch (report.test_results) {
-    | Some(test_results) =>
+    | Some(test_results)
+        when
+          List.length(test_results.test_map)
+          == List.length(report.hinted_results) =>
+      /* NOTE: This condition will be false when evaluation crashes,
+       * for example due to a stack overflow, which may occur in normal operation  */
       div(
         report.hinted_results
         |> List.mapi((i, (status, hint)) =>
@@ -322,11 +407,12 @@ module ImplGradingReport = {
              )
            ),
       )
-    | None => div([])
+    | _ => div([])
     };
   };
 
-  let view = (~inject, ~report: t, ~max_points: int) => {
+  let view =
+      (~inject, ~report: t, ~syntax_report: SyntaxReport.t, ~max_points: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -346,7 +432,10 @@ module ImplGradingReport = {
                   ~attr=Attr.class_("test-text"),
                   [
                     score_view(
-                      score_of_percent(percentage(report), max_points),
+                      score_of_percent(
+                        percentage(report, syntax_report),
+                        max_points,
+                      ),
                     ),
                   ]
                   @ textual_summary(report),

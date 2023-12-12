@@ -93,6 +93,16 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
+  let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
+    let Measured.Point.{row, col} = caret_point(z);
+    switch (Zipper.move(d, z)) {
+    | None => true
+    | Some(z) =>
+      let Measured.Point.{row: rowp, col: colp} = caret_point(z);
+      row != rowp || col == colp;
+    };
+  };
+
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
@@ -105,7 +115,6 @@ module Make = (M: Editor.Meta.S) => {
     let d =
       goal.row < init.row || goal.row == init.row && goal.col < init.col
         ? Direction.Left : Right;
-
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
       switch (
@@ -123,10 +132,21 @@ module Make = (M: Editor.Meta.S) => {
       | (Over, Exact) =>
         switch (anchor) {
         | None =>
-          let d_curr = abs(curr_p.col - goal.col);
-          let d_prev = abs(caret_point(prev).col - goal.col);
-          // default to going over when equal
-          d_prev < d_curr ? prev : curr;
+          /* Special case for when you're (eg) you're trying
+             to move down, but you're at the right end of a row
+             and the first position of the next row is further
+             right than the current row's end. In this case we
+             want to progress regardless of whether the new
+             position would be closer or futher from the
+             goal col */
+          is_at_side_of_row(Direction.toggle(d), curr)
+            ? curr
+            : {
+              let d_curr = abs(curr_p.col - goal.col);
+              let d_prev = abs(caret_point(prev).col - goal.col);
+              // default to going over when equal
+              d_prev < d_curr ? prev : curr;
+            }
         | Some(anchor) =>
           let anchor_d =
             goal.row < anchor.row
@@ -137,12 +157,10 @@ module Make = (M: Editor.Meta.S) => {
         }
       };
     };
-
     let res = go(z, z);
     Measured.Point.equals(caret_point(res), caret_point(z))
       ? None : Some(res);
   };
-
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
     /* Here f should be a function which results in strict d-wards
@@ -171,6 +189,43 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let to_start = do_extreme(primary(ByToken), Up);
+  let to_end = do_extreme(primary(ByToken), Down);
+
+  let to_edge: (Direction.t, t) => option(t) =
+    fun
+    | Left => to_start
+    | Right => to_end;
+
+  /* Do move_action until the indicated piece is such that piece_p is true.
+     If no such piece is found, don't move. */
+  let rec do_until =
+          (
+            ~move_first=true,
+            move_action: t => option(t),
+            piece_p: Piece.t => bool,
+            z: t,
+          )
+          : option(t) => {
+    let* z = move_first ? move_action(z) : Some(z);
+    let* (piece, _, _) = Indicated.piece'(~no_ws=false, ~ign=_ => false, z);
+    if (piece_p(piece)) {
+      Some(z);
+    } else {
+      let* z = move_first ? Some(z) : move_action(z);
+      do_until(~move_first, move_action, piece_p, z);
+    };
+  };
+
+  /* Do move_action until the indicated piece is such that piece_p is true,
+     restarting from the beginning/end if not found in forward direction.
+     If no such piece is found, don't move. */
+  let do_until_wrap = (p, d, z) =>
+    switch (do_until(primary(ByToken, d), p, z)) {
+    | None =>
+      let* z = to_edge(Direction.toggle(d), z);
+      do_until(primary(ByToken, d), p, z);
+    | Some(z) => Some(z)
+    };
 
   let jump_to_id = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
@@ -263,7 +318,8 @@ module Make = (M: Editor.Meta.S) => {
 
   let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(goal) =>
+    | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
+    | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
       do_towards(primary(ByChar), goal, z);
     | Extreme(d) => do_extreme(primary(ByToken), d, z)

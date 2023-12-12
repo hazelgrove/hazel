@@ -8,14 +8,14 @@ let precedence = (dp: DHPat.t) =>
   | Wild
   | ExpandingKeyword(_)
   | InvalidText(_)
+  | BadConstructor(_)
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
-  | Inj(_)
   | ListLit(_)
-  | Tag(_) => DHDoc_common.precedence_const
+  | Constructor(_) => DHDoc_common.precedence_const
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
@@ -40,18 +40,14 @@ let rec mk =
     | ExpandingKeyword(u, i, k) =>
       DHDoc_common.mk_ExpandingKeyword((u, i), k)
     | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+    | BadConstructor(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
-    | Tag(name) => DHDoc_common.mk_TagLit(name)
+    | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-    | StringLit(s) => DHDoc_common.mk_StringLit("\"" ++ s ++ "\"")
-    | Inj(inj_side, dp) =>
-      DHDoc_common.mk_Inj(
-        inj_side,
-        mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
-      )
+    | StringLit(s) => DHDoc_common.mk_StringLit(s)
     | ListLit(_, d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);

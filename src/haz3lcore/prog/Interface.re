@@ -1,21 +1,64 @@
+module Statics = {
+  let mk_map =
+    Core.Memo.general(~cache_size_bound=1000, e => {
+      Statics.uexp_to_info_map(
+        ~ctx=Builtins.ctx_init,
+        ~ancestors=[],
+        e,
+        Id.Map.empty,
+      )
+      |> snd
+    });
+  let mk_map = (core: CoreSettings.t, exp) =>
+    core.statics ? mk_map(exp) : Id.Map.empty;
+
+  let mk_map_and_info_ctx =
+    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
+    });
+  let mk_map_and_info_ctx = (core: CoreSettings.t, ctx, exp) =>
+    core.statics
+      ? {
+        let (info, map) = mk_map_and_info_ctx(ctx, exp);
+        (Some(info), map);
+      }
+      : (None, Id.Map.empty);
+
+  let mk_map_ctx =
+    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
+    });
+  let mk_map_ctx = (core: CoreSettings.t, ctx, exp) =>
+    core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
+};
+
+let dh_err = (error: string): DHExp.t =>
+  InvalidText(Id.invalid, -666, error);
+
+let elaborate =
+  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+
 exception DoesNotElaborate;
-let elaborate = (map, term): DHExp.t =>
-  switch (Elaborator.uexp_elab(map, term)) {
-  | DoesNotElaborate =>
-    print_endline("Interface.elaborate EXCEPTION");
-    //HACK(andrew): supress exceptions for release
-    //raise(DoesNotElaborate)
-    InvalidText(0, 0, "EXCEPTION");
-  | Elaborates(d, _, _) => d
+let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
+  switch (settings.statics) {
+  | false => dh_err("Statics disabled: No elaboration")
+  | true =>
+    switch (elaborate(map, term)) {
+    | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
+    | Elaborates(d, _, _) => d
+    }
   };
+
+let elaborate_editor =
+    (~settings: CoreSettings.t, ~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
+  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
+  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
+  elaborate(~settings, info_map, term);
+};
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let evaluate =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    Evaluator.evaluate(Environment.empty),
-  );
+
 // let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 //   let ((d, hii), es) =
 //     es
@@ -55,52 +98,57 @@ let evaluate =
 //   ((d, hii), EvaluatorState.put_tests(tests, es));
 // };
 
-let evaluate = (d: DHExp.t): ProgramResult.t => {
-  let result = evaluate(d);
-
+let evaluate =
+    (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
+    : ProgramResult.t => {
+  let err_wrap = (error): (EvaluatorState.t, EvaluatorResult.t) => (
+    EvaluatorState.init,
+    Indet(dh_err(error)),
+  );
+  let result =
+    switch () {
+    | _ when !settings.statics =>
+      err_wrap("Statics disabled: No elaboration or evaluation")
+    | _ when !settings.dynamics =>
+      err_wrap("Dynamics disabled: No evaluation")
+    | _ =>
+      try(Evaluator.evaluate(env, d)) {
+      | EvaluatorError.Exception(reason) =>
+        err_wrap("Internal exception: " ++ EvaluatorError.show(reason))
+      | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
+      }
+    };
   // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
-  | (es, BoxedValue(_) as r) =>
+  | (es, BoxedValue(_) as r)
+  | (es, Indet(_) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
     (r, es, HoleInstanceInfo.empty)
-  | (es, Indet(_d) as r) =>
-    // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
-  | exception (EvaluatorError.Exception(_reason)) =>
-    //HACK(andrew): supress exceptions for release
-    print_endline("Interface.evaluate EXCEPTION:");
-    print_endline(
-      Sexplib.Sexp.to_string_hum(EvaluatorError.sexp_of_t(_reason)),
-    );
-    (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
-  | exception exn =>
-    print_endline("Other evaluation exception raised (stack overflow?)");
-    Printexc.to_string(exn) |> print_endline;
-    (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
   };
 };
 
-let get_result = (map, term): ProgramResult.t =>
-  term |> elaborate(map) |> evaluate;
+let eval_z =
+    (
+      ~settings: CoreSettings.t,
+      ~ctx_init: Ctx.t,
+      ~env_init: Environment.t,
+      z: Zipper.t,
+    )
+    : ProgramResult.t => {
+  let (term, _) = MakeTerm.from_zip_for_sem(z);
+  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
+  let d = elaborate(~settings, info_map, term);
+  evaluate(~settings, ~env=env_init, d);
+};
 
-let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (get_result(map, term)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
+let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
+  //NOTE: assumes empty init ctx, env
+  switch (evaluate(~settings, d)) {
+  | (result, _, _) => EvaluatorResult.unbox(result)
   };
+
+let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
+  //NOTE: assumes empty init ctx, env
+  term |> elaborate(~settings, map) |> eval_d2d(~settings);
 
 include TestResults;
-
-let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (get_result(map, term)) {
-  | (_, state, _) =>
-    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
-  };
-};

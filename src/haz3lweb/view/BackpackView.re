@@ -8,12 +8,12 @@ let backpack_sel_view =
       y_off: float,
       scale: float,
       opacity: float,
-      {focus: _, content}: Selection.t,
+      {focus: _, content, _}: Selection.t,
     ) => {
   module Text =
     Code.Text({
       let map = Measured.of_segment(content);
-      let settings = ModelSettings.init;
+      let settings = Init.startup.settings;
     });
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
@@ -32,7 +32,7 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(~no_sorts=true, content) @ [text(Unicode.zwsp)],
+    Text.of_segment([], true, Any, content) @ [text(Unicode.zwsp)],
   );
 };
 
