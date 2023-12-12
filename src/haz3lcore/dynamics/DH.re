@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Hazel_menhir.AST;
 
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -307,6 +308,25 @@ module rec DHExp: {
        )
     && i1 == i2;
   };
+
+  let rec of_menhir_ast = (exp: Hazel_menhir.AST.exp) : t => {
+    switch (exp) {
+        | Int(i) => IntLit(i)
+        | Float(f) => FloatLit(f)
+        | String(s) => StringLit(s)
+        | Bool(b) => BoolLit(b)
+        | Var(x) => BoundVar(x)
+        | ArrayExp(l) => ListLit(Id.mk(), 0, Unknown(SynSwitch), List.map(of_menhir_ast, l))
+        | TupleExp(t) => Tuple(List.map(of_menhir_ast, t))
+        | Let(p, e1, e2) => Let(DHPat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_as(e2))
+        | Fun(p, e) => Fun(DHPat.of_menhir_ast(p), Unknown(SynSwitch), of_menhir_ast(e), None)
+        | Unit => EmptyHole(Id.mk(), 0)
+        | ApExp(e1, e2) => Ap(of_menhir_ast(e1), of_menhir_ast(e2))
+        | BinExp(e1, op, e2) => raise(Invalid_argument("Menhir binexps -> DHExp not yet implemented"));
+        | If(e1, e2, e3) => raise(Invalid_argument("Menhir ifs -> DHExp not yet implemented"));//need to turn it into a case
+        | CaseExp(e, l) => //TODO: add in the slightly irritating translation of the list from the AST form to the DHExp form ConsistentCase(case(of_menhir_ast(e), , 0))
+    }
+  }
 }
 
 and Environment: {

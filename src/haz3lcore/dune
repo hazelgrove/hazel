@@ -2,7 +2,7 @@
 
 (library
  (name haz3lcore)
- (libraries util re sexplib unionFind uuidm)
+ (libraries util re sexplib unionFind uuidm hazel_menhir)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
