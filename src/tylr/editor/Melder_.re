@@ -29,18 +29,22 @@ module Token = {
 }
 
 module Wald = {
-  let lt = (l: Bound.t(EWald.t), ~cell=ECell.empty, r: EWald.t) => {
-    let hd_l = Bound.map(EWald.hd, l);
-    let (hd_r, tl_r) = EWald.split_hd(r);
-    EToken.lt(hd_l, ~cell, hd_r)
-    |> Option.map(ETerr.R.prepend(tl_r));
+  let lt = (l: Bound.t(EWald.t), ~cell=ECell.empty, r: EWald.t): option(ESlope.Dn.t) => {
+    let hd_l = l |> Bound.map(EWald.hd) |> Bound.map(EToken.mtrl_);
+    let hd_r = EWald.hd(r).mtrl;
+    EWalk.walk(R, Node(Mold(hd_l)))
+    |> EWalk.Set.neq(Mold(hd_r))
+    |> List.filter_map(ESlope.Dn.bake(~cell, ~face=r))
+    |> Oblig.Delta.pick;
   };
 
-  let gt = (l: EWald.t, ~cell=ECell.empty, r: Bound.t(EWald.t)) => {
-    let hd_r = Bound.map(EWald.hd, r);
-    let (hd_l, tl_l) = EWald.split_hd(l);
-    EToken.gt(hd_l, ~cell, hd_r)
-    |> Option.map(ETerr.L.prepend(tl_l));
+  let gt = (l: EWald.t, ~cell=ECell.empty, r: Bound.t(EWald.t)): option(ESlope.Up.t) => {
+    let hd_l = EWald.hd(l).mtrl;
+    let hd_r = r |> Bound.map(EWald.hd) |> Bound.map(EToken.mtrl_);
+    EWalk.walk(L, Node(Mold(hd_r)))
+    |> EWalk.Set.neq(Mold(hd_l))
+    |> List.filter_map(ESlope.Up.bake(~cell, ~face=l))
+    |> Oblig.Delta.pick;
   };
 
   let rec eq = (

@@ -27,6 +27,12 @@ module Delta = {
       all,
       0,
     );
+
+  let pick = (xs: list(('x, t))): option('x) =>
+    xs
+    |> List.sort(((_, l), (_, r)) => compare(l, r))
+    |> ListUtil.hd_opt
+    |> Option.map(fst)
 };
 
 module Result = {
