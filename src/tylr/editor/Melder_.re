@@ -57,6 +57,14 @@ module Wald = {
     open OptUtil.Syntax;
     let (hd_l, tl_l) = EWald.split_hd(l);
     let (hd_r, tl_r) = EWald.split_hd(r);
+    // try zipping
+    let/ () = {
+      let+ zipped = EToken.zip(hd_l, hd_r);
+      EWald.unit(zipped)
+      |> Fun.flip(EWald.append, tl_foot)
+      |> EWald.prepend(tl_face);
+    };
+    // try passing
     let/ () =
       switch (onto, tl_l, tl_r) {
       | (L, ([c, ...cs], ts), _) when EToken.passes(onto, hd_l, hd_r) =>
@@ -67,42 +75,14 @@ module Wald = {
         eq(~merge, ~onto, l, ~cell=merge(cell, c), r);
       | _ => None
       };
-    EToken.eq(~onto, hd_l, ~cell, hd_r)
-    |> Option.map(EWald.append(tl_onto))
-    |> Option.map(EWald.prepend(tl_from));
+    // try walking
+    let (src, dst) = Dir.choose(onto, hd_l, hd_r);
+    let (w_src, w_dst) = Dir.choose(onto, l, r);
+    EWalk.walk(Dir.toggle(onto), Node(Mold(src.mtrl)))
+    |> EWalk.Set.eq(Mold(dst.mtrl))
+    |> List.filter_map(EWald.bake(~face=w_dst, ~cell, ~foot=w_src))
+    |> Oblig.Delta.pick;
   };
-
-  // let rec eq =
-  //   (
-  //     ~merge,
-  //     ~side: Dir.t,
-  //     t: EToken.t,
-  //     ~cell=ECell.empty,
-  //     w: EWald.t,
-  //   ): option(EWald.t) => {
-  //   let detach = EWald.detach_hd(~side);
-  //   let attach = EWald.attach_tl(~side=Dir.toggle(side));
-  //   let (hd, tl) = detach(w);
-  //   open OptUtil.Syntax;
-  //   let/ () = {
-  //     let (l, r) = Dir.choose(side, (t, hd), (hd, t));
-  //     let+ zipped = EToken.zips(l, r);
-  //     assert(ECell.is_empty(cell));
-  //     attach(tl, EWald.unit(zipped));
-  //   };
-  //   let/ () = {
-  //     let+ () = OptUtil.of_bool(EToken.replaces(t, hd));
-  //     switch (tl) {
-  //     | ([], _) => EWald.unit(t)
-  //     | ([c, ...cs], ts) =>
-  //       let (l, r) = Dir.choose(side, (cell, c), (c, cell));
-  //       let tl = ([merge(l, r), ...cs], ts);
-  //       attach(tl, EWald.unit(t));
-  //     };
-  //   };
-  //   EToken.eq(t, ~cell, r)
-  //   |> Option.map(attach(tl));
-  // };
 };
 
 module Slope = {
