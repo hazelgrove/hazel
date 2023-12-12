@@ -159,7 +159,7 @@ let rec matches_exp =
     && (
       switch (
         List.fold_left2(
-          (res, drule, frule) => res && matches_rul(drule, frule),
+          (res, drule, frule) => res && matches_rul(env, drule, frule),
           true,
           drule,
           frule,
@@ -222,8 +222,11 @@ and matches_typ = (d: Typ.t, f: Typ.t) => {
   | (_, _) => false
   };
 }
-and matches_rul = (_d: DHExp.rule, _f: DHExp.rule) => {
-  false;
+and matches_rul = (env, d: DHExp.rule, f: DHExp.rule) => {
+  switch (d, f) {
+  | (Rule(dp, d), Rule(fp, f)) =>
+    matches_pat(dp, fp) && matches_exp(env, d, f)
+  };
 };
 
 let matches =
