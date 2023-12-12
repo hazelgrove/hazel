@@ -54,4 +54,5 @@ type exp =
   | Fun(pat, exp)
   | CaseExp(exp, list((pat, exp)))
   | ApExp(exp, exp)
+  | Bool(bool)
   | If(exp, exp, exp);

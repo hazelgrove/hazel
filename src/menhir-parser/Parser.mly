@@ -134,3 +134,5 @@ exp:
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
     | FUN; t = patTuple; DASH_ARROW; e1 = exp; { Fun (t, e1) }
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) }
+    | TRUE { Bool true }
+    | FALSE { Bool false }
