@@ -96,13 +96,7 @@ module EvalObj = {
     | (tag, Filter(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Cast, _) => Some(obj)
     | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
-    | (tag, ctx) =>
-      print_endline(
-        Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_cls(tag))
-        ++ " does not match with "
-        ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
-      );
-      raise(EvaluatorError.Exception(StepDoesNotMatch));
+    | (_, _) => None
     };
   };
 
