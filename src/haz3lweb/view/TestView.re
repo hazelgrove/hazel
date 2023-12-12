@@ -13,7 +13,7 @@ let test_instance_view =
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
     [
-      DHCode.view_tylr(
+      DHCode.view(
         ~settings=Settings.Evaluation.init,
         ~selected_hole_instance=None,
         ~font_metrics,
@@ -150,7 +150,8 @@ let view_of_main_title_bar = (title_text: string) =>
   );
 
 let inspector_view =
-    (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
+    (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: Haz3lcore.Id.t)
+    : option(t) => {
   switch (TestMap.lookup(id, test_map)) {
   | Some(instances) when TestMap.joint_status(instances) != Indet =>
     Some(

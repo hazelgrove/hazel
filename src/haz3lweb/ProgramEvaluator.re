@@ -39,7 +39,10 @@ module Sync: M with type response = response = {
 
   let get_response = ((): t, (key, d): request) => {
     let lwt = {
-      let+ r = Lwt.wrap(() => d |> Interface.evaluate);
+      /* NOTE(andrew): I'm not sure how to properly route settings
+         through the abstractions here; this should be done if this is renabled */
+      let+ r =
+        Lwt.wrap(() => d |> Interface.evaluate(~settings=CoreSettings.on));
       let res =
         switch (r) {
         | r => EvaluationOk(r)
@@ -114,7 +117,12 @@ module WorkerPool: M with type response = (key, option(eval_result)) = {
 
   type t = Pool.t;
 
-  let max = 10;
+  /* NOTE(andrew): I set this from 10 to 0 since these guys
+   * aren't doing anything atm. Plus the indexedDB library
+   * shits up the console trying to access window on threads
+   * which don't have one. */
+  let max = 0;
+
   let timeout = 2000; /* ms */
 
   let init = () => {

@@ -1,31 +1,19 @@
 module PpMonad = {
   include Util.StateMonad.Make({
     [@deriving sexp]
-    type t = (
-      EnvironmentIdMap.t(ClosureEnvironment.t),
-      HoleInstanceInfo_.t,
-      EnvironmentIdGen.t,
-    );
+    type t = (EnvironmentIdMap.t(ClosureEnvironment.t), HoleInstanceInfo_.t);
   });
 
   open Syntax;
 
-  let get_pe = get >>| (((pe, _, _)) => pe);
+  let get_pe = get >>| (((pe, _)) => pe);
   let pe_add = (ei, env) =>
-    modify(((pe, hii, eig)) =>
-      (pe |> EnvironmentIdMap.add(ei, env), hii, eig)
-    );
+    modify(((pe, hii)) => (pe |> EnvironmentIdMap.add(ei, env), hii));
 
   let hii_add_instance = (u, env) =>
-    modify'(((pe, hii, eig)) => {
+    modify'(((pe, hii)) => {
       let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-      (i, (pe, hii, eig));
-    });
-
-  let with_eig = f =>
-    modify'(((pe, hii, eig)) => {
-      let (x, eig) = f(eig);
-      (x, (pe, hii, eig));
+      (i, (pe, hii));
     });
 };
 
@@ -53,12 +41,12 @@ exception Exception(error);
 let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
-  | TestLit(_)
+  | Test(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -99,7 +87,12 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Cons(d1', d2') |> return;
 
-  | ListLit(a, b, c, d, ds) =>
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    ListConcat(d1', d2') |> return;
+
+  | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
       |> List.fold_left(
@@ -110,11 +103,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, d, ds);
-
-  | Inj(ty, side, d') =>
-    let* d'' = pp_eval(d');
-    Inj(ty, side, d'') |> return;
+    ListLit(a, b, c, ds);
 
   | Tuple(ds) =>
     let+ ds =
@@ -241,7 +230,7 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
                  FixF(f, ty, d1);
                | d => pp_eval(d)
                };
-             with_eig(ClosureEnvironment.extend(env', (x, d')));
+             ClosureEnvironment.extend(env', (x, d')) |> return;
            },
            Environment.empty |> ClosureEnvironment.wrap(ei) |> return,
          );
@@ -266,12 +255,15 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     }
 
   /* Non-hole expressions: expand recursively */
-  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d |> return
+  | Constructor(_) => d |> return
+
+  | Test(id, d1) =>
+    let+ d1' = pp_uneval(env, d1);
+    Test(id, d1');
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -324,7 +316,12 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Cons(d1', d2') |> return;
 
-  | ListLit(a, b, c, d, ds) =>
+  | ListConcat(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    ListConcat(d1', d2') |> return;
+
+  | ListLit(a, b, c, ds) =>
     let+ ds =
       ds
       |> List.fold_left(
@@ -335,11 +332,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, d, ds);
-
-  | Inj(ty, side, d') =>
-    let* d'' = pp_uneval(env, d');
-    Inj(ty, side, d'') |> return;
+    ListLit(a, b, c, ds);
 
   | Tuple(ds) =>
     let+ ds =
@@ -438,16 +431,15 @@ let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
   switch (d) {
-  | Tag(_)
-  | TestLit(_)
+  | Constructor(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
   | BoundVar(_) => hii
+  | Test(_, d)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
-  | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
@@ -462,8 +454,11 @@ let rec track_children_of_hole =
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
+  | ListConcat(d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
 
-  | ListLit(_, _, _, _, ds) =>
+  | ListLit(_, _, _, ds) =>
     List.fold_right(
       (d, hii) => track_children_of_hole(hii, parent, d),
       ds,
@@ -547,13 +542,11 @@ let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
     hii,
   );
 
-let postprocess =
-    (d: DHExp.t, eig: EnvironmentIdGen.t)
-    : ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t) => {
+let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
-  let ((_, hii, eig), d) =
+  let ((_, hii), d) =
     Util.TimeUtil.measure_time("pp_eval", true, () =>
-      pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig))
+      pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty))
     );
 
   /* Build hole instance info. */
@@ -587,5 +580,5 @@ let postprocess =
     );
 
   /* Perform hole parent tracking. */
-  ((hii, d), eig);
+  (hii, d);
 };

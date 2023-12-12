@@ -85,10 +85,9 @@ let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 let reassemble = TupleUtil.map2(Segment.reassemble);
 
 let regrout = ((pre, suf): t) => {
-  open IdGen.Syntax;
   let s = Nib.Shape.concave();
-  let* suf = Segment.regrout_affix(Right, suf, s);
-  let+ (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
+  let suf = Segment.regrout_affix(Right, suf, s);
+  let (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
   ((pre, s_l, trim_l), suf);
 };
 
@@ -104,6 +103,11 @@ let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Left, r_sibs),
 );
 
+let trim_grout = ((l_sibs, r_sibs): t) => (
+  Segment.trim_grout(Right, l_sibs),
+  Segment.trim_grout(Left, r_sibs),
+);
+
 let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary_and_grout(Right, l_sibs),
   Segment.trim_secondary_and_grout(Left, r_sibs),
@@ -114,6 +118,12 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   switch (Segment.edge_direction_of(Left, r)) {
   | None => Segment.edge_direction_of(Right, l)
   | d => d
+  };
+
+let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
+  switch (direction_between(sibs)) {
+  | Some(d) => Mold.chevron(sort, p, d)
+  | None => Mold.mk_op(sort, [])
   };
 
 let sorted_children = TupleUtil.map2(Segment.sorted_children);
