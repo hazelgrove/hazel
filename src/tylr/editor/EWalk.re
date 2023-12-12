@@ -141,9 +141,10 @@ let enter = (from: Dir.t, s: Bound.t(EMtrl.Sorted.t)): Step.Set.t =>
     |> Set.of_g;
   };
 
-let walk = (d: Dir.t, src: Step.t): Set.t => {
+let walk = (d: Dir.t, src: Bound.t(Step.t)): Set.t => {
   let seen = Hashtbl.create(100);
-  let rec go = walked => {
+  let rec go = (~src, walked) => {
+    let go = go(~src);
     let s = Option.value(dst(walked), ~default=src);
     switch (Hashtbl.find_opt(seen, s)) {
     | Some() => walked
@@ -166,6 +167,10 @@ let walk = (d: Dir.t, src: Step.t): Set.t => {
       };
     };
   };
-  go(empty);
+  switch (src) {
+  | Node(src) => go(~src, empty)
+  | Root =>
+    let* entered = Set.of_steps(enter(Dir.toggle(d), Root));
+    go(~src=dst(entered), Walk.mk([[], []]));
+  };
 };
-
