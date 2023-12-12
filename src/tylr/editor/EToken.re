@@ -39,52 +39,6 @@ let to_labeled = (p: t): Labeled.t => {
   };
 };
 
-module Eff = {
-  type Effect.t(_) +=
-    | Insert(Molded.t): Effect.t(unit)
-    | Remove(Molded.t): Effect.t(unit);
-
-  module Set = {
-    include Id.Map;
-    type t = Id.Map.t((Molded.t, bool));
-    let insert = t => add(t.id, (t, true));
-    let remove = t => add(t.id, (t, false));
-  };
-
-  // execute and record effects emitted by applying f to x.
-  // useful for choosing between numerous effectful paths
-  // and choosing one based on their results.
-  let record = (f, x) => {
-    open Effect.Deep;
-    let recorded = ref(Set.empty);
-    let effc: 'a. Effect.t('a) => option(continuation('a, _) => _) =
-      (type a, eff: Effect.t(a)) =>
-          switch (eff) {
-          | Insert(t) =>
-            recorded := Set.insert(t, recorded^);
-            Some((k: continuation(a,_)) => continue(k, ()));
-          | Remove(t) =>
-            recorded := Set.remove(t, recorded^);
-            Some((k: continuation(a,_)) => continue(k, ()))
-          | _ => None
-          };
-    let result = Effect.Deep.try_with(f, x, {effc: effc});
-    (result, recorded^);
-  };
-
-  let perform_all = set =>
-    to_list(set)
-    |> List.iter(((_, eff)) => Effect.perform(eff));
-
-  let perform_if = (o, eff: t) =>
-    switch (o) {
-    | None => None
-    | Some(x) =>
-      Effect.perform(eff);
-      Some(x);
-    };
-};
-
 // let relabel = (p: t): (Material.Labeled)
 
 // well-labeled invariant: for piece p

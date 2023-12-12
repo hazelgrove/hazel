@@ -34,8 +34,7 @@ module Wald = {
     let hd_r = EWald.hd(r).mtrl;
     EWalk.walk(R, Node(Mold(hd_l)))
     |> EWalk.Set.neq(Mold(hd_r))
-    |> List.filter_map(ESlope.Dn.bake(~cell, ~face=r))
-    |> Oblig.Delta.pick;
+    |> Oblig.Delta.minimize(ESlope.Dn.bake(~cell, ~face=r));
   };
 
   let gt = (l: EWald.t, ~cell=ECell.empty, r: Bound.t(EWald.t)): option(ESlope.Up.t) => {
@@ -43,8 +42,7 @@ module Wald = {
     let hd_r = r |> Bound.map(EWald.hd) |> Bound.map(EToken.mtrl_);
     EWalk.walk(L, Node(Mold(hd_r)))
     |> EWalk.Set.neq(Mold(hd_l))
-    |> List.filter_map(ESlope.Up.bake(~cell, ~face=l))
-    |> Oblig.Delta.pick;
+    |> Oblig.Delta.minimize(ESlope.Up.bake(~cell, ~face=l));
   };
 
   let rec eq = (
@@ -57,6 +55,8 @@ module Wald = {
     open OptUtil.Syntax;
     let (hd_l, tl_l) = EWald.split_hd(l);
     let (hd_r, tl_r) = EWald.split_hd(r);
+    let (hd_onto, hd_from) = Dir.choose(onto, hd_l, hd_r);
+    let (w_onto, w_from) = Dir.choose(onto, l, r);
     // try zipping
     let/ () = {
       let+ zipped = EToken.zip(hd_l, hd_r);
@@ -69,19 +69,20 @@ module Wald = {
       switch (onto, tl_l, tl_r) {
       | (L, ([c, ...cs], ts), _) when EToken.passes(onto, hd_l, hd_r) =>
         let l = EWald.mk(ts, cs);
-        eq(~merge, ~onto, l, ~cell=merge(c, cell), r);
+        let cell = merge(c, cell);
+        eq(~merge, ~onto, l, ~cell, r)
+        |> Effects.perform_if(Remove(hd_onto));
       | (R, _, ([c, ...cs], ts)) when EToken.passes(onto, hd_l, hd_r) =>
         let r = EWald.mk(ts, cs);
-        eq(~merge, ~onto, l, ~cell=merge(cell, c), r);
+        let cell = merge(cell, c);
+        eq(~merge, ~onto, l, ~cell, r)
+        |> Effects.perform_if(Remove(hd_onto));
       | _ => None
       };
     // try walking
-    let (src, dst) = Dir.choose(onto, hd_l, hd_r);
-    let (w_src, w_dst) = Dir.choose(onto, l, r);
-    EWalk.walk(Dir.toggle(onto), Node(Mold(src.mtrl)))
-    |> EWalk.Set.eq(Mold(dst.mtrl))
-    |> List.filter_map(EWald.bake(~face=w_dst, ~cell, ~foot=w_src))
-    |> Oblig.Delta.pick;
+    EWalk.walk(Dir.toggle(onto), Node(Mold(hd_onto.mtrl)))
+    |> EWalk.Set.eq(Mold(hd_from.mtrl))
+    |> Oblig.Delta.minimize(EWald.bake(~face=w_from, ~cell, ~foot=w_onto));
   };
 };
 
@@ -126,7 +127,7 @@ module Slope = {
     let push =
         (~top=Bound.Root, dn, ~cell=ECell.empty, t) =>
       push_wald(~top, dn, ~cell, EWald.unit(t));
-  }
+  };
 };
 
 module Ctx = {
@@ -138,21 +139,19 @@ module Ctx = {
     ~cell=ECell.empty,
     ctx: ECtx.t,
   )
-  : option((ECtx.t, Oblig.Delta.t)) =>
+  : option(ECtx.t) =>
     switch (onto, ECtx.unlink(ctx)) {
     | (L, Error((dn, up))) =>
-      let+ (dn, delta) = Slope.Dn.push(dn, ~slot, w);
-      (ECtx.unit((dn, up)), delta);
+      let+ dn = Slope.Dn.push(dn, ~slot, w);
+      ECtx.unit((dn, up));
     | (L, Ok(((dn, up), (l, r), ctx))) =>
       switch (Slope.Dn.push(~top=Node(l.wald), dn, ~cell, w)) {
-      | Some((dn, delta)) => Some((ECtx.unit((dn, up)), delta))
+      | Some(dn) => Some(ECtx.unit((dn, up)))
       | None =>
-        let+ (w, delta) = Wald.eq(l.wald, ~cell=ESlope.Dn.roll(dn), w);
-        let dn = [{...l, wald: w}];
-        let up = [r, ...up];
-        let ctx = ECtx.map_fst(EFrame.Open.cat((dn, up)), ctx);
-        (ctx, delta);
+        let+ w = Wald.eq(l.wald, ~cell=ESlope.Dn.roll(dn), w);
+        let (dn, up) = ([{...l, wald: w}], [r, ...up]);
+        ECtx.map_fst(EFrame.Open.cat((dn, up)), ctx);
       }
-    | (R, _) => failwith("todo")
+    | (R, _) => failwith("todo: symmetric to L")
     };
 };

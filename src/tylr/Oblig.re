@@ -28,11 +28,33 @@ module Delta = {
       0,
     );
 
-  let pick = (xs: list(('x, t))): option('x) =>
-    xs
-    |> List.sort(((_, l), (_, r)) => compare(l, r))
-    |> ListUtil.hd_opt
-    |> Option.map(fst)
+  let add_effect = (R(eff): Effects.recorded) =>
+    switch (eff) {
+    | Insert(t) =>
+      switch (of_token(t)) {
+      | None => Fun.id
+      | Some(o) => incr(o)
+      }
+    | Remove(t) =>
+      switch (of_token(t)) {
+      | None => Fun.id
+      | Some(o) => decr(o)
+      }
+    | _ => Fun.id
+    };
+  let of_effects = List.fold_left(Fun.flip(add_effect), zero);
+
+  let minimize = (f, xs) => {
+    open OptUtil.Syntax;
+    let+ (y, effs, _) =
+      xs
+      |> List.map(Effects.record(f))
+      |> List.map(((y, effs)) => (y, effs, of_effects(effs)))
+      |> List.sort(((_, _, l), (_, _, r)) => compare(l, r))
+      |> ListUtil.hd_opt;
+    Effects.commit(effs);
+    y;
+  };
 };
 
 module Result = {
