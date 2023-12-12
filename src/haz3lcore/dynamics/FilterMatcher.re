@@ -240,16 +240,18 @@ let matches =
 
 let matches =
     (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~act: FilterAction.t, flt_env)
-    : FilterAction.t => {
-  let rec matches' = (~env, ~exp, flt_env, ~act: FilterAction.t) => {
+    : (FilterAction.t, int) => {
+  let len = List.length(flt_env);
+  let rec matches' = (~env, ~exp, ~act, flt_env, idx) => {
     switch (flt_env) {
-    | [] => act
+    | [] => (act, idx)
     | [hd, ...tl] =>
       switch (matches(~env, ~exp, ~flt=hd)) {
-      | Some(act) => act
-      | None => matches'(~env, ~exp, ~act, tl)
+      | Some(act) => (act, idx)
+      | None => matches'(~env, ~exp, ~act, tl, idx + 1)
       }
     };
   };
-  matches'(~env, ~exp, ~act, flt_env);
+  let (act, idx) = matches'(~env, ~exp, ~act, flt_env, 0);
+  (act, len - idx);
 };

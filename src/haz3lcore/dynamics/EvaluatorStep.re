@@ -407,16 +407,18 @@ module Stepper = {
             ctx: EvalCtx.t,
             exp: DHExp.t,
             act: FilterAction.t,
+            idx: int,
           )
           : FilterAction.t => {
     let composed = compose(ctx, exp);
-    let act = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
+    let (act', idx') = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
+    let (act, idx) = idx' > idx ? (act', idx') : (act, idx);
     switch (ctx) {
     | Mark => act
-    | Closure(env, ctx) => matches(env, flt, ctx, exp, act)
+    | Closure(env, ctx) => matches(env, flt, ctx, exp, act, idx)
     | Filter(flt', ctx) =>
       let flt = flt |> FilterEnvironment.extends(flt');
-      matches(env, flt, ctx, exp, act);
+      matches(env, flt, ctx, exp, act, idx);
     | Sequence1(ctx, _)
     | Sequence2(_, ctx)
     | Let1(_, ctx, _)
@@ -450,13 +452,13 @@ module Stepper = {
     | ConsistentCaseRule(_, _, ctx, _, _)
     | InconsistentBranches(_, _, Case(ctx, _, _))
     | InconsistentBranchesRule(_, _, _, _, ctx, _, _) =>
-      matches(env, flt, ctx, exp, act)
+      matches(env, flt, ctx, exp, act, idx)
     };
   };
 
   let should_hide_step = (~settings, x: EvalObj.t) => {
     should_hide_step(~settings, x.knd)
-    || matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step) == Eval;
+    || matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step, 0) == Eval;
   };
 
   let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
