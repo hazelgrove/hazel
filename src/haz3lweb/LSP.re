@@ -2,6 +2,73 @@ open Js_of_ocaml;
 open Util;
 open Haz3lcore;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type constrain =
+  | Grammar
+  | Context
+  | Types;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type settings = {
+  debug: bool,
+  constrain,
+};
+
+let getDefaultSettings = () => {
+  {debug: false, constrain: Types};
+};
+
+let show_settings = (s: settings): string =>
+  Printf.sprintf(
+    "Debug: %b, Constrain: %s",
+    s.debug,
+    switch (s.constrain) {
+    | Grammar => "Grammar"
+    | Context => "Context"
+    | Types => "Types"
+    },
+  );
+
+let args = {
+  ignore(Js.Unsafe.js_expr("require('process')"));
+  //let num_args =
+  //  Js.Unsafe.js_expr("process.argv.length") |> Js.parseInt |> string_of_int;
+  //print_endline("num_args: " ++ num_args);
+  switch (Js.Unsafe.js_expr("process.argv") |> Js.to_array) {
+  | [||] => None
+  | argv => Some(Array.to_list(Array.map(Js.to_string, argv)))
+  };
+};
+
+let rec processArgs = (args, currentSettings) =>
+  switch (args) {
+  | [] => currentSettings
+  | ["--debug", "false", ...rest] =>
+    processArgs(rest, {...currentSettings, debug: false})
+  | ["--debug", "true", ...rest] =>
+    processArgs(rest, {...currentSettings, debug: true})
+  | ["--constrain", "grammar", ...rest] =>
+    processArgs(rest, {...currentSettings, constrain: Grammar})
+  | ["--constrain", "context", ...rest] =>
+    processArgs(rest, {...currentSettings, constrain: Context})
+  | ["--constrain", "types", ...rest] =>
+    processArgs(rest, {...currentSettings, constrain: Types})
+  | [_arg, ...rest] => processArgs(rest, currentSettings) // Ignore unrecognized args
+  };
+
+let getLastArg = args =>
+  switch (args) {
+  | None
+  | Some([]) => "" // Return empty string if no arguments
+  | Some(listArgs) => List.hd(List.rev(listArgs)) // Extract the last element
+  };
+
+let getSettings = args =>
+  switch (args) {
+  | Some(realArgs) => processArgs(List.tl(realArgs), getDefaultSettings())
+  | None => getDefaultSettings()
+  };
+
 type tileness =
   | Monotile(Id.t, string)
   | Polytile(Id.t);
@@ -278,6 +345,7 @@ let suggest_comma = (bidi_ctx_ci: Info.t) => {
 
 let generate =
     (
+      ~settings: settings,
       ~db,
       ~shape: Nib.Shape.t,
       ~completion: option(string),
@@ -285,21 +353,22 @@ let generate =
       id: Id.t,
     )
     : list(string) => {
-  let settings = CoreSettings.on;
   let ctx_init = []; //Builtins.ctx_init;
   let ci =
     OptUtil.get_or_fail(
       "LSP: Gen: EXN: Couldn't find CI for id " ++ Id.to_string(id),
-      lsp_z_to_ci(~settings, ~ctx=ctx_init, id, z),
+      lsp_z_to_ci(~settings=CoreSettings.on, ~ctx=ctx_init, id, z),
     );
 
+  //TODO: only make backpack sug if bidictx is NotInHole
+  // or maybe doesn't have any errors at all?
   let backpack_sug = AssistantBackpack.suggest(z);
   /*let convex_const_mono_sugs = AssistantForms.suggest_const_mono(ci);
     let convex_abstract_mono_sugs = AssistantForms.suggest_abstract_mono(ci);
     let prefix_mono_sugs = AssistantForms.suggest_prefix_mono(ci);
     let prefix_poly_sugs = AssistantForms.suggest_prefix_leading(ci);*/
   let n_ary_sugs: list(Suggestion.t) = {
-    print_endline("bidi ctx id:" ++ Id.to_string(get_bidi_id(z, id)));
+    //print_endline("bidi ctx id:" ++ Id.to_string(get_bidi_id(z, id)));
     let bidi_ci =
       lsp_z_to_ci(
         ~settings=CoreSettings.on,
@@ -327,46 +396,81 @@ let generate =
     AssistantCtx.suggest_free_var(ty, ctx, co_ctx)
     @ AssistantCtx.suggest_bound_pat(ty, ctx)
     @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
+  let unk = Typ.Unknown(Internal);
   let convex_var_sugs =
-    switch (ci) {
-    | InfoExp({mode, ctx, _}) => suggest_exp(ctx, Mode.ty_of(mode))
-    | InfoPat({mode, ctx, co_ctx, _}) =>
-      suggest_pat(ctx, co_ctx, Mode.ty_of(mode))
-    | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
-    | _ => []
+    switch (settings.constrain) {
+    | Types =>
+      switch (ci) {
+      | InfoExp({mode, ctx, _}) => suggest_exp(ctx, Mode.ty_of(mode))
+      | InfoPat({mode, ctx, co_ctx, _}) =>
+        suggest_pat(ctx, co_ctx, Mode.ty_of(mode))
+      | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+      | _ => []
+      }
+    | Context =>
+      switch (ci) {
+      | InfoExp({ctx, _}) => suggest_exp(ctx, unk)
+      | InfoPat({ctx, co_ctx, _}) => suggest_pat(ctx, co_ctx, unk)
+      | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+      | _ => []
+      }
+    | Grammar =>
+      switch (ci) {
+      | InfoExp(_) =>
+        [Suggestion.{content: "~PATVAR~", strategy: Default}]
+        @ [Suggestion.{content: "~CONSTRUCTOR~", strategy: Default}]
+        @ suggest_exp([], unk)
+      | InfoPat(_) =>
+        [Suggestion.{content: "~CONSTRUCTOR~", strategy: Default}]
+        @ suggest_pat([], [], unk)
+      | InfoTyp(_) => []
+      | _ => []
+      }
     };
+
   let nu_convex_lookahead_var_sugs =
-    switch (ci) {
-    | InfoExp({mode, ctx, _}) =>
-      let ty_paths = AssistantCtx.get_lookahead_tys_exp(Mode.ty_of(mode));
-      db(
-        "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
-      );
-      let tys =
-        List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
-      db(
-        "  LSP: Convex: Target types: "
-        ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
-      );
-      List.map(suggest_exp(ctx), tys) |> List.flatten;
-    | InfoPat({mode, ctx, co_ctx, _}) =>
-      let tys = AssistantCtx.get_lookahead_tys_pat(Mode.ty_of(mode));
-      List.map(suggest_pat(ctx, co_ctx), tys) |> List.flatten;
-    | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
-    | _ => []
+    switch (settings.constrain) {
+    | Context
+    | Grammar => []
+    | Types =>
+      switch (ci) {
+      | InfoExp({mode, ctx, _}) =>
+        let ty_paths = AssistantCtx.get_lookahead_tys_exp(Mode.ty_of(mode));
+        db(
+          "  LSP: Convex: Ty paths:\n "
+          ++ AssistantCtx.show_type_path(ty_paths),
+        );
+        let tys =
+          List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
+        db(
+          "  LSP: Convex: Target types: "
+          ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
+        );
+        List.map(suggest_exp(ctx), tys) |> List.flatten;
+      | InfoPat({mode, ctx, co_ctx, _}) =>
+        let tys = AssistantCtx.get_lookahead_tys_pat(Mode.ty_of(mode));
+        List.map(suggest_pat(ctx, co_ctx), tys) |> List.flatten;
+      | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+      | _ => []
+      }
     };
   let convex_lookahead_var_sugs =
-    switch (ci) {
-    | InfoExp({mode, ctx, _}) =>
-      let ty = Mode.ty_of(mode);
-      AssistantCtx.suggest_lookahead_variable_exp(ty, ctx)
-      @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
-    | InfoPat({mode, ctx, co_ctx, _}) =>
-      let ty = Mode.ty_of(mode);
-      AssistantCtx.suggest_lookahead_variable_pat(ty, ctx, co_ctx)
-      @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
-    | InfoTyp(_) => []
-    | _ => []
+    switch (settings.constrain) {
+    | Context
+    | Grammar => []
+    | Types =>
+      switch (ci) {
+      | InfoExp({mode, ctx, _}) =>
+        let ty = Mode.ty_of(mode);
+        AssistantCtx.suggest_lookahead_variable_exp(ty, ctx)
+        @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
+      | InfoPat({mode, ctx, co_ctx, _}) =>
+        let ty = Mode.ty_of(mode);
+        AssistantCtx.suggest_lookahead_variable_pat(ty, ctx, co_ctx)
+        @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
+      | InfoTyp(_) => []
+      | _ => []
+      }
     };
   let infix_mono_sugs = AssistantForms.suggest_infix_mono(ci);
   let postfix_poly_sugs = AssistantForms.suggest_postfix_leading(ci);
@@ -399,6 +503,12 @@ let generate =
   db("  LSP: Base: Mono Infix: " ++ of_sugs(infix_mono_sugs));
   db("  LSP: Base: Poly Postfix: " ++ of_sugs(postfix_poly_sugs));
   db("  LSP: Base: N-ary: " ++ of_sugs(n_ary_sugs));
+
+  //TODO(andrew): only suggest "|" if immediate parent is case?
+  //TODO(andrew): restriction postfix fn application somehow
+  //TODO(andrew): get rid ? of wild underscore in exp
+  //TODO(andrew): make sure turning off types/ctx doesnt fuck up comma sugs
+  //TODO(andrew): test type definitions esp ADTs
 
   //TODO(andrew): check tydi handling of synthetic pos, unknown type
   //TODO(andrew): completing fns apps incl empty ap
@@ -460,14 +570,15 @@ let generate =
   };
 };
 
-let dispatch_generation = (~db, s: string): list(string) => {
-  print_endline("LSP: Init: Recieved string: " ++ s);
+let dispatch_generation = (~settings: settings, ~db, s: string): list(string) => {
+  let generate = generate(~settings, ~db);
+  db("LSP: Init: Recieved string: " ++ s);
   let z =
     OptUtil.get_or_fail(
       "LSP: Init: EXN: Couldn't parse string",
       Printer.zipper_of_string(s),
     );
-  print_endline("LSP: Init: String parsed successfully");
+  db("LSP: Init: String parsed successfully");
   let seg_before = z.relatives.siblings |> fst |> List.rev;
   let seg_after = z.relatives.siblings |> snd;
   if (z.caret != Outer) {
@@ -485,7 +596,7 @@ let dispatch_generation = (~db, s: string): list(string) => {
   | NewRightConvex(id) =>
     db("  LSP: Syntax: Can insert new right-convex");
     let sugs =
-      generate(~db, ~shape=Convex, ~completion=None, z, id)
+      generate(~shape=Convex, ~completion=None, z, id)
       |> List.sort_uniq(String.compare);
     db(
       "LSP: Final: (1/1) New right-convex Suggestions: "
@@ -494,7 +605,7 @@ let dispatch_generation = (~db, s: string): list(string) => {
     sugs;
   | NewRightConcave(id) =>
     let sugs =
-      generate(~db, ~shape=Concave(0), ~completion=None, z, id)
+      generate(~shape=Concave(0), ~completion=None, z, id)
       |> List.sort_uniq(String.compare);
     db(
       "LSP: Final: (1/1) New right-concave Suggestions: "
@@ -504,10 +615,10 @@ let dispatch_generation = (~db, s: string): list(string) => {
   | CompletionOrNewRightConvex(id_l, string, id_new) =>
     db("  LSP: Syntax: Can insert new right-convex or complete left");
     let s1 =
-      generate(~db, ~shape=Convex, ~completion=None, z, id_new)
+      generate(~shape=Convex, ~completion=None, z, id_new)
       |> List.sort_uniq(String.compare);
     let s2 =
-      generate(~db, ~shape=Concave(0), ~completion=Some(string), z, id_l)
+      generate(~shape=Concave(0), ~completion=Some(string), z, id_l)
       |> List.sort_uniq(String.compare);
     db(
       "LSP: Final: (1/2) New Token Suggestions: " ++ String.concat(" ", s1),
@@ -520,10 +631,10 @@ let dispatch_generation = (~db, s: string): list(string) => {
     db("  LSP: Syntax: Can insert new right-concave or complete left");
     db("  LSP: Syntax: Can insert new right-concave");
     let s1 =
-      generate(~db, ~shape=Concave(0), ~completion=None, z, id_new)
+      generate(~shape=Concave(0), ~completion=None, z, id_new)
       |> List.sort_uniq(String.compare);
     let s2 =
-      generate(~db, ~shape=Convex, ~completion=Some(string), z, id_l)
+      generate(~shape=Convex, ~completion=Some(string), z, id_l)
       |> List.sort_uniq(String.compare);
     db("LSP: (1/2) New Token Suggestions: " ++ String.concat(" ", s1));
     db("LSP: (2/2) Completion Suggestions: " ++ String.concat(" ", s2));
@@ -539,6 +650,7 @@ floatlit ::= [0-9]+ "." [0-9]+
 stringlit ::= "\"" [^"]* "\""
 patvar ::= [a-zA-Z_][a-zA-Z0-9_]*
 typvar ::= [A-Z][a-zA-Z0-9_]*
+constructor ::= [A-Z][a-zA-Z0-9_]*
 whitespace ::= [ \n]+
 
 root ::= whitespace | |};
@@ -552,6 +664,7 @@ let mk_grammar = (toks: list(string)): string =>
       | "~STRINGLIT~" => "stringlit"
       | "~PATVAR~" => "patvar"
       | "~TYPVAR~" => "typvar"
+      | "~CONSTRUCTOR~" => "constructor"
       | "\\/" => {|"\\/"|}
       | tok => "\"" ++ tok ++ "\""
       },
@@ -560,40 +673,12 @@ let mk_grammar = (toks: list(string)): string =>
   |> String.concat(" | ")
   |> (toks => grammar_prefix ++ toks);
 
-let main = (s: string) => {
-  let debug = true;
-  let db = s => debug ? print_endline(s) : ();
-  let sugs = dispatch_generation(~db, s);
-  print_endline("LSP: Grammar:\n " ++ mk_grammar(sugs));
+let main = (settings: settings, s: string) => {
+  let db = s => settings.debug ? print_endline(s) : ();
+  db(show_settings(settings));
+  let sugs = dispatch_generation(~settings, ~db, s);
+  db("LSP: Grammar:\n ");
+  print_endline(mk_grammar(sugs));
 };
 
-Js.Unsafe.js_expr("require('process')");
-Js.Unsafe.js_expr("process.argv[2]") |> Js.to_string |> main;
-
-/*
- suggest comma:
- when bidictx has type inconsistency
- where expected type is (A,B,C ...)
- and bidictx analyzes against A or (A,B) or (A,B,C) or ...
-
- call Segment.skel
-
-  let in_bidi_id =
-     |> Segment.skel
-     |> Skel.root
-     |> Aba.map_a(List.nth(seg))
-     |> Aba.first_a
-     |> Piece.id;
- let bidi_expected_ty =
-    in_bidi_id
-     |> Id.Map.find_opt
-     |> Option.map(Info.ty_of)
-     |> Option.map(Mode.ty_of);
- let bidi_self_ty =
-     in_bidi_id
-     |> Id.Map.find_opt
-     |> Option.map(Info.ty_of)
-     |> Option.map(Self.ty_of);
-     or just get error status
-
-  */
+main(getSettings(args), getLastArg(args));
