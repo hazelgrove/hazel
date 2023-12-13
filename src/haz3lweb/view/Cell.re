@@ -234,6 +234,12 @@ let stepper_footer_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
+          ~previous_step=
+            previous
+            |> List.nth_opt(_, 0)
+            |> Option.map((x: EvaluatorStep.Stepper.step_with_previous) =>
+                 x.step.step
+               ),
           ~next_steps=stepper.next,
           ~hidden_steps=
             List.map((x: EvaluatorStep.Stepper.step) => x.step, hidden),
@@ -242,7 +248,7 @@ let stepper_footer_view =
       ],
     );
   let dh_code_previous =
-      (step_with_hidden: EvaluatorStep.Stepper.step_with_hidden) =>
+      (step_with_previous: EvaluatorStep.Stepper.step_with_previous) =>
     div(
       ~attr=Attr.classes(["result"]),
       [
@@ -252,13 +258,18 @@ let stepper_footer_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
-          ~chosen_step=Some(step_with_hidden.step.step),
+          ~previous_step=
+            Option.map(
+              (x: EvaluatorStep.Stepper.step) => x.step,
+              step_with_previous.previous,
+            ),
+          ~chosen_step=Some(step_with_previous.step.step),
           ~hidden_steps=
             List.map(
               (x: EvaluatorStep.Stepper.step) => x.step,
-              step_with_hidden.hidden,
+              step_with_previous.hidden,
             ),
-          step_with_hidden.step.d,
+          step_with_previous.step.d,
         ),
       ],
     );
@@ -276,7 +287,7 @@ let stepper_footer_view =
         show_history,
       ],
     );
-  let previous_step = (step: EvaluatorStep.Stepper.step_with_hidden) => {
+  let previous_step = (step: EvaluatorStep.Stepper.step_with_previous) => {
     div(
       ~attr=Attr.classes(["cell-result"]),
       [

@@ -1984,3 +1984,8 @@ svg.expandable path {
   background-color:#ddcda3;
   margin: -1px;
 }
+
+.substituted {
+  text-decoration: line-through;
+  color: #AC985E;
+}
