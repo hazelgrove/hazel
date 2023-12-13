@@ -19,7 +19,7 @@ module rec DHExp: {
     | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
-    | TestLit(KeywordID.t)
+    | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -53,6 +53,8 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
+
+  let ty_subst: (Typ.t, TypVar.t, t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -75,7 +77,7 @@ module rec DHExp: {
     | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
-    | TestLit(KeywordID.t)
+    | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -116,7 +118,7 @@ module rec DHExp: {
     | Ap(_, _) => "Ap"
     | TypAp(_) => "TypAp"
     | ApBuiltin(_, _) => "ApBuiltin"
-    | TestLit(_) => "TestLit"
+    | Test(_) => "Test"
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
@@ -172,6 +174,7 @@ module rec DHExp: {
     | TypFun(a, b) => TypFun(a, strip_casts(b))
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
     | TypAp(a, b) => TypAp(strip_casts(a), b)
+    | Test(id, a) => Test(id, strip_casts(a))
     | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
@@ -193,7 +196,6 @@ module rec DHExp: {
     | FreeVar(_) as d
     | InvalidText(_) as d
     | BoundVar(_) as d
-    | TestLit(_) as d
     | BoolLit(_) as d
     | IntLit(_) as d
     | FloatLit(_) as d
@@ -207,7 +209,6 @@ module rec DHExp: {
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
     /* TODO: Not sure if this is right... */
-    | (TestLit(_), _)
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
@@ -216,6 +217,7 @@ module rec DHExp: {
     | (StringLit(_), _) => false
 
     /* Non-hole forms: recurse */
+    | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
@@ -263,6 +265,7 @@ module rec DHExp: {
     | (FixF(_), _)
     | (Fun(_), _)
     | (TypFun(_), _)
+    | (Test(_), _)
     | (Ap(_), _)
     | (TypAp(_), _)
     | (ApBuiltin(_), _)
@@ -320,6 +323,68 @@ module rec DHExp: {
        )
     && i1 == i2;
   };
+
+  let rec ty_subst = (s: Typ.t, x: TypVar.t, exp): t => {
+    let re = e2 => ty_subst(s, x, e2);
+    let t_re = ty => Typ.subst(s, x, ty);
+    switch (exp) {
+    | Cast(t, t1, t2) => Cast(re(t), t_re(t1), t_re(t2))
+    | FixF(arg, ty, body) => FixF(arg, t_re(ty), re(body))
+    | Fun(arg, ty, body, var) => Fun(arg, t_re(ty), re(body), var)
+    | TypAp(tfun, ty) => TypAp(re(tfun), t_re(ty))
+    | ListLit(mv, mvi, t, lst) =>
+      ListLit(mv, mvi, t_re(t), List.map(re, lst))
+    | TypFun(utpat, body) =>
+      switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+      | Some(x') when x == x' => exp
+      | _ =>
+        /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
+        TypFun(utpat, re(body))
+      }
+    | NonEmptyHole(errstat, mv, hid, t) =>
+      NonEmptyHole(errstat, mv, hid, re(t))
+    | Test(id, t) => Test(id, re(t))
+    | InconsistentBranches(mv, hid, case) =>
+      InconsistentBranches(mv, hid, ty_subst_case(s, x, case))
+    | Closure(ce, t) => Closure(ce, re(t))
+    | Sequence(t1, t2) => Sequence(re(t1), re(t2))
+    | Let(dhpat, t1, t2) => Let(dhpat, re(t1), re(t2))
+    | Ap(t1, t2) => Ap(re(t1), re(t2))
+    | ApBuiltin(s, args) => ApBuiltin(s, List.map(re, args))
+    | BinBoolOp(op, t1, t2) => BinBoolOp(op, re(t1), re(t2))
+    | BinIntOp(op, t1, t2) => BinIntOp(op, re(t1), re(t2))
+    | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
+    | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
+    | Cons(t1, t2) => Cons(re(t1), re(t2))
+    | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
+    | Tuple(args) => Tuple(List.map(re, args))
+    | Prj(t, n) => Prj(re(t), n)
+    | ConsistentCase(case) => ConsistentCase(ty_subst_case(s, x, case))
+    | InvalidOperation(t, err) => InvalidOperation(re(t), err)
+
+    | EmptyHole(_)
+    | ExpandingKeyword(_, _, _)
+    | FreeVar(_, _, _)
+    | InvalidText(_, _, _)
+    | Constructor(_)
+    | BoundVar(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
+    | FailedCast(_, _, _) => exp
+    };
+  }
+  and ty_subst_case = (s, x, Case(t, rules, n)) =>
+    Case(
+      ty_subst(s, x, t),
+      List.map(
+        (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(s, x, t)),
+        rules,
+      ),
+      n,
+    );
+  //TODO: Inconsistent cases: need to check again for inconsistency?
 }
 
 and Environment: {
@@ -347,33 +412,25 @@ and ClosureEnvironment: {
 
   let to_list: t => list((Var.t, DHExp.t));
 
-  let of_environment:
-    (Environment.t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let of_environment: Environment.t => t;
 
   let id_equal: (t, t) => bool;
 
-  let empty: EnvironmentIdGen.t => (t, EnvironmentIdGen.t);
+  let empty: t;
   let is_empty: t => bool;
   let length: t => int;
 
   let lookup: (t, Var.t) => option(DHExp.t);
   let contains: (t, Var.t) => bool;
-  let update:
-    (Environment.t => Environment.t, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let update: (Environment.t => Environment.t, t) => t;
   let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend:
-    (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let extend: (t, (Var.t, DHExp.t)) => t;
   let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
-  let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let union: (t, t) => t;
   let union_keep_id: (t, t) => t;
-  let map:
-    (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let map: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
   let map_keep_id: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
-  let filter:
-    (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let filter: (((Var.t, DHExp.t)) => bool, t) => t;
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
   let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
@@ -400,9 +457,9 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = (map, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    (wrap(ei, map), eig);
+  let of_environment = map => {
+    let ei = Id.mk();
+    wrap(ei, map);
   };
 
   /* Equals only needs to check environment id's (faster than structural equality
