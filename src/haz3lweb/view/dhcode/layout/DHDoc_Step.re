@@ -31,13 +31,6 @@ let mk =
           ) // The options for the next step, if they haven't been chosen yet
           : DHDoc.t => {
     open Doc;
-    let _ =
-      print_endline(
-        Option.value(
-          Option.map(EvalObj.show, previous_step),
-          ~default="None",
-        ),
-      );
     let recent_subst =
       switch (previous_step) {
       | Some(ps) when EvalObj.get_ctx(ps) == Mark =>
@@ -75,26 +68,34 @@ let mk =
           ~env=env,
           ~enforce_inline=enforce_inline,
           ~recent_subst=recent_subst,
+          ~clean_steps=false,
           d,
           ctx,
-        ) =>
+        ) => {
+      let csl = x => if (clean_steps) {[]} else {x};
+      let cso = x => if (clean_steps) {None} else {x};
       go(
         d,
         env,
         enforce_inline,
-        Option.join(Option.map(EvalObj.unwrap(_, ctx), previous_step)),
-        List.filter_map(EvalObj.unwrap(_, ctx), hidden_steps),
-        Option.join(Option.map(EvalObj.unwrap(_, ctx), chosen_step)),
-        List.filter_map(
-          ((x, y)) =>
-            switch (EvalObj.unwrap(x, ctx)) {
-            | None => None
-            | Some(x') => Some((x', y))
-            },
-          next_steps,
+        cso(
+          Option.join(Option.map(EvalObj.unwrap(_, ctx), previous_step)),
+        ),
+        csl(List.filter_map(EvalObj.unwrap(_, ctx), hidden_steps)),
+        cso(Option.join(Option.map(EvalObj.unwrap(_, ctx), chosen_step))),
+        csl(
+          List.filter_map(
+            ((x, y)) =>
+              switch (EvalObj.unwrap(x, ctx)) {
+              | None => None
+              | Some(x') => Some((x', y))
+              },
+            next_steps,
+          ),
         ),
         recent_subst,
       );
+    };
     let parenthesize = (b, doc) =>
       if (b) {
         hcats([
@@ -462,13 +463,19 @@ let mk =
       hidden_steps
       |> List.find_opt(step =>
            EvalObj.get_kind(step) == VarLookup
-           && EvalObj.get_ctx(step) == Mark
+           // HACK[Matt]: to prevent substitutions hiding inside casts
+           && EvalCtx.fuzzy_mark(EvalObj.get_ctx(step))
          );
     let doc =
       switch (substitution) {
       | Some({undo: BoundVar(v), _}) when List.mem(v, recent_subst) =>
         hcats([
-          go'(~env=ClosureEnvironment.empty, BoundVar(v), BoundVar)
+          go'(
+            ~env=ClosureEnvironment.empty,
+            ~clean_steps=true,
+            BoundVar(v),
+            BoundVar,
+          )
           |> annot(DHAnnot.Substituted),
           doc,
         ])

@@ -27,7 +27,7 @@ module Evaluation = {
     postprocess: true,
     show_record: false,
     show_case_clauses: true,
-    show_fn_bodies: false,
+    show_fn_bodies: true,
     show_casts: false,
     show_unevaluated_elaboration: false,
     show_filters: false,

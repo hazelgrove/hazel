@@ -309,14 +309,14 @@ let stepper_footer_view =
 };
 
 let eval_result_footer_view =
-    (~inject, ~font_metrics, ~elab, simple: TestResults.simple) => {
+    (~inject, ~font_metrics, ~elab, ~settings, simple: TestResults.simple) => {
   let d_view =
     switch (simple) {
     | None => [
         Node.text("No result available. Elaboration follows:"),
         DHCode.view(
           ~inject,
-          ~settings=Settings.Evaluation.init,
+          ~settings,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -326,7 +326,7 @@ let eval_result_footer_view =
     | Some({eval_result, _}) => [
         DHCode.view(
           ~inject,
-          ~settings=Settings.Evaluation.init,
+          ~settings,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -442,7 +442,13 @@ let editor_with_result_view =
   let eval_result_footer =
     switch (Option.bind(result, (x: ModelResult.t) => x.stepper)) {
     | None => [
-        eval_result_footer_view(~inject, ~font_metrics, ~elab, simple),
+        eval_result_footer_view(
+          ~inject,
+          ~font_metrics,
+          ~elab,
+          ~settings=settings.dynamics,
+          simple,
+        ),
       ]
     | Some(s) =>
       stepper_footer_view(
