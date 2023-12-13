@@ -266,6 +266,7 @@ let view =
             ~inject,
             ~font_metrics,
             ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
+            ~settings=settings.dynamics,
             user_impl.simple_result,
           ),
         ],

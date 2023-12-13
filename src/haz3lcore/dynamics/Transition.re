@@ -146,6 +146,45 @@ module EvalCtx = {
   and case =
     | Case(t, list(rule), int)
   and rule = DHExp.rule;
+
+  let rec fuzzy_mark =
+    fun
+    | Mark => true
+    | Closure(_, x)
+    | Test(_, x)
+    | Cast(x, _, _)
+    | FailedCast(x, _, _)
+    | Filter(_, x) => fuzzy_mark(x)
+    | Sequence1(_)
+    | Sequence2(_)
+    | Let1(_)
+    | Let2(_)
+    | Fun(_)
+    | FixF(_)
+    | Ap1(_)
+    | Ap2(_)
+    | BinBoolOp1(_)
+    | BinBoolOp2(_)
+    | BinIntOp1(_)
+    | BinIntOp2(_)
+    | BinFloatOp1(_)
+    | BinFloatOp2(_)
+    | BinStringOp1(_)
+    | BinStringOp2(_)
+    | Tuple(_)
+    | ApBuiltin(_)
+    | ListLit(_)
+    | Cons1(_)
+    | Cons2(_)
+    | ListConcat1(_)
+    | ListConcat2(_)
+    | Prj(_)
+    | NonEmptyHole(_)
+    | InvalidOperation(_)
+    | ConsistentCase(_)
+    | ConsistentCaseRule(_)
+    | InconsistentBranches(_)
+    | InconsistentBranchesRule(_) => false;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
