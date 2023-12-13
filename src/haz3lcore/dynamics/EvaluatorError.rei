@@ -4,6 +4,7 @@ type t =
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
+  | InvalidBoxedTypFun(DHExp.t)
   | InvalidBoxedFun(DHExp.t)
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)
@@ -12,7 +13,8 @@ type t =
   | InvalidBoxedStringLit(DHExp.t)
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
-  | BadBuiltinAp(string, list(DHExp.t));
+  | BadBuiltinAp(string, list(DHExp.t))
+  | InvalidProjection(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(t);

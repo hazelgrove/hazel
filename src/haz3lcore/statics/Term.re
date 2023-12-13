@@ -497,6 +497,7 @@ module UExp = {
     | TyAlias
     | Ap
     | TypAp
+    | Pipeline
     | If
     | Seq
     | Test
@@ -538,6 +539,7 @@ module UExp = {
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
     | TypAp(_) => TypAp
+    | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -626,6 +628,7 @@ module UExp = {
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | TypAp => "Type application"
+    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -658,6 +661,7 @@ module UExp = {
     | TyAlias(_)
     | Ap(_)
     | TypAp(_)
+    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -692,6 +696,7 @@ module UExp = {
       | TyAlias(_)
       | Ap(_)
       | TypAp(_)
+      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
