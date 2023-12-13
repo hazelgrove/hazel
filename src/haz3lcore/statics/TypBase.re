@@ -277,17 +277,19 @@ module rec Typ: {
     | (Rec(x1, ty1), Rec(x2, ty2)) =>
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
-        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
+        join(~resolve, ~fix, ctx, subst(Var(x2), x1, ty1), ty2);
       Rec(x1, ty_body);
     | (Forall(x1, ty1), Forall(x2, ty2)) =>
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
-        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
+        join(~resolve, ~fix, ctx, subst(Var(x2), x1, ty1), ty2);
       Forall(x1, ty_body);
     /* Note for above: there is no danger of free variable capture as
        subst itself performs capture avoiding substitution. However this
        may generate internal type variable names that in corner cases can
-       be exposed to the user. */
+       be exposed to the user. We preserve the variable name of the
+       second type to preserve synthesized type variable names, which
+       come from user annotations. */
     | (Rec(_), _) => None
     | (Forall(_), _) => None
     | (Int, Int) => Some(Int)
