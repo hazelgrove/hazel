@@ -29,8 +29,9 @@ module Stepper: {
     step: EvalObj.t,
   };
 
-  type step_with_hidden = {
+  type step_with_previous = {
     step,
+    previous: option(step),
     hidden: list(step),
   };
 
@@ -44,6 +45,6 @@ module Stepper: {
   let step_forward: (EvalObj.t, t) => t;
   let step_backward: t => t;
   let update_expr: (DHExp.t, t) => t;
-  let get_history: t => (list(step), list(step_with_hidden));
+  let get_history: t => (list(step), list(step_with_previous));
   let get_justification: step_kind => string;
 };

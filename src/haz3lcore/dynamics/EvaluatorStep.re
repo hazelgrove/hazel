@@ -76,6 +76,8 @@ module EvalObj = {
     | (FailedCast, FailedCast(c, _, _)) => Some({...obj, ctx: c})
     | (Ap1, Ap2(_, _))
     | (Ap2, Ap1(_, _))
+    | (Let1, Let2(_))
+    | (Let2, Let1(_))
     | (BinBoolOp1, BinBoolOp2(_))
     | (BinBoolOp2, BinBoolOp1(_))
     | (BinIntOp1, BinIntOp2(_))
@@ -449,8 +451,9 @@ module Stepper = {
     step: EvalObj.t,
   };
 
-  type step_with_hidden = {
+  type step_with_previous = {
     step,
+    previous: option(step),
     hidden: list(step),
   };
 
@@ -529,7 +532,7 @@ module Stepper = {
 
   let get_history = stepper => {
     let rec get_history':
-      list(step) => (list(step), list(step_with_hidden)) =
+      list(step) => (list(step), list(step_with_previous)) =
       fun
       | [] => ([], [])
       | [step, ...steps] => {
@@ -537,7 +540,21 @@ module Stepper = {
           if (should_hide_step(step.step.knd)) {
             ([step, ...hidden], ss);
           } else {
-            ([], [{step, hidden}, ...ss]);
+            (
+              [],
+              [
+                {
+                  step,
+                  previous:
+                    Option.map(
+                      (x: step_with_previous) => x.step,
+                      List.nth_opt(ss, 0),
+                    ),
+                  hidden,
+                },
+                ...ss,
+              ],
+            );
           };
         };
     stepper.previous |> get_history';

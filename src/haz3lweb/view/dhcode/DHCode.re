@@ -44,6 +44,15 @@ let view_of_layout =
                  ds,
                )
              | Step(_)
+             | Substituted => (
+                 [
+                   Node.span(
+                     ~attr=Attr.many([Attr.class_("substituted")]),
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
              | Term => (txt, ds)
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)

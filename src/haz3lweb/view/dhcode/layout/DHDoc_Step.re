@@ -27,10 +27,57 @@ let mk =
             hidden_steps: list(EvalObj.t), // The hidden steps between the above and the current one
             chosen_step: option(EvalObj.t), // The step that will be taken next
             next_steps: list((EvalObj.t, EvalObj.t)),
+            recent_subst: list(Var.t),
           ) // The options for the next step, if they haven't been chosen yet
           : DHDoc.t => {
     open Doc;
-    let go' = (~env=env, ~enforce_inline=enforce_inline, d, ctx) =>
+    let _ =
+      print_endline(
+        Option.value(
+          Option.map(EvalObj.show, previous_step),
+          ~default="None",
+        ),
+      );
+    let recent_subst =
+      switch (previous_step) {
+      | Some(ps) when EvalObj.get_ctx(ps) == Mark =>
+        switch (ps.knd, ps.undo) {
+        | (FunAp, Ap(Fun(p, _, _, _), _)) => DHPat.bound_vars(p)
+        | (FunAp, _) => []
+        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
+        | (LetBind, _) => []
+        | (FixUnwrap, _) // TODO[Matt]: Could do something here?
+        | (InvalidStep, _)
+        | (VarLookup, _)
+        | (Sequence, _)
+        | (FunClosure, _)
+        | (UpdateTest, _)
+        | (CastAp, _)
+        | (Builtin(_), _)
+        | (BinBoolOp(_), _)
+        | (BinIntOp(_), _)
+        | (BinFloatOp(_), _)
+        | (BinStringOp(_), _)
+        | (Projection, _)
+        | (ListCons, _)
+        | (ListConcat, _)
+        | (CaseApply, _)
+        | (CaseNext, _)
+        | (CompleteClosure, _)
+        | (CompleteFilter, _)
+        | (Cast, _)
+        | (Skip, _) => []
+        }
+      | _ => recent_subst
+      };
+    let go' =
+        (
+          ~env=env,
+          ~enforce_inline=enforce_inline,
+          ~recent_subst=recent_subst,
+          d,
+          ctx,
+        ) =>
       go(
         d,
         env,
@@ -46,6 +93,7 @@ let mk =
             },
           next_steps,
         ),
+        recent_subst,
       );
     let parenthesize = (b, doc) =>
       if (b) {
@@ -174,7 +222,16 @@ let mk =
         if (settings.substitution) {
           switch (ClosureEnvironment.lookup(env, x)) {
           | None => text(x)
-          | Some(d') => go'(~env=ClosureEnvironment.empty, d', BoundVar)
+          | Some(d') =>
+            if (List.mem(x, recent_subst)) {
+              hcats([
+                go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
+                |> annot(DHAnnot.Substituted),
+                go'(~env=ClosureEnvironment.empty, d', BoundVar),
+              ]);
+            } else {
+              go'(~env=ClosureEnvironment.empty, d', BoundVar);
+            }
           };
         } else {
           text(x);
@@ -286,10 +343,13 @@ let mk =
         if (enforce_inline) {
           fail();
         } else {
+          let bindings = DHPat.bound_vars(dp);
           let def_doc =
             go_formattable(
               ~env=
                 ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
               ddef,
               Let1,
             );
@@ -337,11 +397,14 @@ let mk =
 
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
+          let bindings = DHPat.bound_vars(dp);
           let body_doc =
             go_formattable(
               dbody,
               ~env=
                 ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
               Fun,
             );
           hcats([
@@ -403,12 +466,13 @@ let mk =
          );
     let doc =
       switch (substitution) {
-      | Some(eo) =>
+      | Some({undo: BoundVar(v), _}) when List.mem(v, recent_subst) =>
         hcats([
-          go'(~env=ClosureEnvironment.empty, eo.undo, BoundVar)
-          |> annot(DHAnnot.Stepped),
+          go'(~env=ClosureEnvironment.empty, BoundVar(v), BoundVar)
+          |> annot(DHAnnot.Substituted),
           doc,
         ])
+      | Some(_)
       | None => doc
       };
     let doc =
@@ -430,5 +494,6 @@ let mk =
     hidden_steps,
     chosen_step,
     List.map(x => (x, x), next_steps),
+    [],
   );
 };
