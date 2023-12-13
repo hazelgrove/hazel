@@ -57,6 +57,7 @@ type strategy_typ =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy =
+  | Default
   | Any(strategy_all)
   | Exp(strategy_exp)
   | Pat(strategy_pat)

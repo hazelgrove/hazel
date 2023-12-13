@@ -144,6 +144,20 @@ let show_type_path = (paths: type_path): string =>
 
 let rec get_lookahead_tys_exp = (ty_expected: Typ.t): list(list(Typ.t)) => {
   let to_arr = t => Typ.Arrow(Unknown(Internal), t);
+  //TODO(andrew): also ?->(?->t), etc.
+  /* Interesting that this doesn't blow up due to anonymous functions due
+     to precedence: can't start an opseq with a fun expecting later to apply it.
+     (but if you drop a parens then it blows up).
+     so gotta prohibit anon funs in fun pos, or maybe more generally beta
+     reducible things.
+     (need to make sure logic also prohibits eg "(((fun x -> x)))(1)")
+     If we do this, then i think blowup of error case is limited by
+     the most right-nested arrow type in the context, or maybe more
+     straightforwardly, if we abstracte arr out of this fun, it would
+     suffice to search ctx for things of one of these types, or arrow types
+     which eventually left-terminate at one of these types.
+     actually maybe anon funs are fine here, they dont screw things up until
+     you actually use one, unlike for reverse. */
   [[ty_expected, to_arr(ty_expected)]]
   @ (
     switch (ty_expected) {

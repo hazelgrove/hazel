@@ -171,6 +171,111 @@ let show_info = (db, ci: Info.t, z: Zipper.t) => {
   db("  LSP: Info: Backpack stack: " ++ String.concat(" ", backpack_tokens));
 };
 
+let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
+  //let indicated_id = Indicated.index(z) |> Option.get;
+  let orig_segment =
+    Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+  let map = Measured.path_map(orig_segment);
+  let old_path = Id.Map.find(indicated_id, map); //TODO: catch or opt
+  let new_z = Zipper.zip_to_path(orig_segment, old_path, Outer);
+  let seg: Segment.t = new_z.relatives.siblings |> Siblings.zip;
+  seg
+  |> Segment.skel
+  |> Skel.root
+  |> Aba.map_a(List.nth(seg))
+  |> Aba.first_a  //TODO(andrew): is this right?
+  |> Piece.id;
+};
+
+let suggest_comma = (bidi_ctx_ci: Info.t) => {
+  /*print_endline("suggest comma starting");
+    print_endline("suggest comma. bidi_ctx_ci is " ++ Info.show(bidi_ctx_ci));
+    switch (bidi_ctx_ci) {
+    | InfoExp({term, _}) =>
+      print_endline("suggest comma. term is " ++ Term.UExp.show(term))
+    | InfoPat({term, _}) =>
+      print_endline("suggest comma. term is " ++ Term.UPat.show(term))
+    | InfoTyp({term, _}) =>
+      print_endline("suggest comma. term is " ++ Term.UTyp.show(term))
+    | _ => ()
+    };*/
+  switch (bidi_ctx_ci) {
+  | InfoExp({mode: Syn, _})
+  | InfoPat({mode: Syn, _}) => true
+  | InfoExp({
+      ctx,
+      status:
+        InHole(
+          Common(
+            Inconsistent(
+              Expectation({ana: Prod(p_ana), syn: Prod(p_syn)}),
+            ),
+          ),
+        ),
+      _,
+    })
+  | InfoPat({
+      ctx,
+      status:
+        InHole(
+          Common(
+            Inconsistent(
+              Expectation({ana: Prod(p_ana), syn: Prod(p_syn)}),
+            ),
+          ),
+        ),
+      _,
+    }) =>
+    // true if syn type p_syn is a prefix of the list expected_type p_ana
+    // or more specifically, each type in p_syn should be consistent with it's
+    // corresponding type in p_ana, up to the length of p_syn
+    print_endline(
+      "suggest comma case. p_ana is "
+      ++ String.concat(" ", List.map(Typ.show, p_ana)),
+    );
+    print_endline(
+      "suggest comma case. p_syn is "
+      ++ String.concat(" ", List.map(Typ.show, p_syn)),
+    );
+    let rec is_strict_prefix = (p_syn, p_ana) =>
+      switch (p_syn, p_ana) {
+      | (_, []) => false
+      | ([], _) => true
+      | ([ty_syn, ...p_syn], [ty_ana, ...p_ana]) =>
+        Typ.is_consistent(ctx, ty_syn, ty_ana)
+        && is_strict_prefix(p_syn, p_ana)
+      };
+    is_strict_prefix(p_syn, p_ana);
+  | InfoExp({
+      ctx,
+      status:
+        InHole(
+          Common(
+            Inconsistent(
+              Expectation({ana: Prod([t1_ana, ..._]), syn: t_syn}),
+            ),
+          ),
+        ),
+      _,
+    })
+  | InfoPat({
+      ctx,
+      status:
+        InHole(
+          Common(
+            Inconsistent(
+              Expectation({ana: Prod([t1_ana, ..._]), syn: t_syn}),
+            ),
+          ),
+        ),
+      _,
+    }) =>
+    Typ.is_consistent(ctx, t1_ana, t_syn)
+  | InfoTyp(_) => true
+  | _ => false
+  };
+};
+
 let generate =
     (
       ~db,
@@ -193,6 +298,28 @@ let generate =
     let convex_abstract_mono_sugs = AssistantForms.suggest_abstract_mono(ci);
     let prefix_mono_sugs = AssistantForms.suggest_prefix_mono(ci);
     let prefix_poly_sugs = AssistantForms.suggest_prefix_leading(ci);*/
+  let n_ary_sugs: list(Suggestion.t) = {
+    print_endline("bidi ctx id:" ++ Id.to_string(get_bidi_id(z, id)));
+    let bidi_ci =
+      lsp_z_to_ci(
+        ~settings=CoreSettings.on,
+        ~ctx=Builtins.ctx_init,
+        get_bidi_id(z, id),
+        z,
+      );
+    let blah = bidi_ci |> Option.map(suggest_comma);
+    switch (blah) {
+    | Some(true) =>
+      db("  LSP: Syntax: Suggesting comma");
+      [Suggestion.{content: ",", strategy: Default}];
+    | Some(false) =>
+      db("  LSP: Syntax: Not Suggesting comma");
+      [];
+    | _ =>
+      db("  LSP: Syntax: Error: Id not found");
+      [];
+    };
+  };
   let suggest_exp = (ctx, ty) =>
     AssistantCtx.suggest_bound_exp(ty, ctx)
     @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
@@ -271,6 +398,7 @@ let generate =
     db("  LSP: Base: Poly Prefix: " ++ of_sugs(prefix_poly_sugs));*/
   db("  LSP: Base: Mono Infix: " ++ of_sugs(infix_mono_sugs));
   db("  LSP: Base: Poly Postfix: " ++ of_sugs(postfix_poly_sugs));
+  db("  LSP: Base: N-ary: " ++ of_sugs(n_ary_sugs));
 
   //TODO(andrew): check tydi handling of synthetic pos, unknown type
   //TODO(andrew): completing fns apps incl empty ap
@@ -284,7 +412,7 @@ let generate =
 
   //TODO(andrew): if on type inconsistency error, suggest everything for now
   // (but not if on unbound error)
-  
+
   // from kevin:
   //TODO(andrew): logic for completing free forms regexps
   // if expected type consistent with tuple, suggest ,
@@ -303,7 +431,10 @@ let generate =
     |> List.sort(Suggestion.compare);
 
   let suggestions_concave =
-    infix_mono_sugs @ postfix_poly_sugs |> List.sort(Suggestion.compare);
+    n_ary_sugs
+    @ infix_mono_sugs
+    @ postfix_poly_sugs
+    |> List.sort(Suggestion.compare);
 
   switch (completion) {
   | None =>
@@ -362,7 +493,6 @@ let dispatch_generation = (~db, s: string): list(string) => {
     );
     sugs;
   | NewRightConcave(id) =>
-    db("  LSP: Syntax: Can insert new right-concave");
     let sugs =
       generate(~db, ~shape=Concave(0), ~completion=None, z, id)
       |> List.sort_uniq(String.compare);
@@ -388,6 +518,7 @@ let dispatch_generation = (~db, s: string): list(string) => {
     s1 @ s2;
   | CompletionOrNewRightConcave(id_l, string, id_new) =>
     db("  LSP: Syntax: Can insert new right-concave or complete left");
+    db("  LSP: Syntax: Can insert new right-concave");
     let s1 =
       generate(~db, ~shape=Concave(0), ~completion=None, z, id_new)
       |> List.sort_uniq(String.compare);
@@ -438,3 +569,31 @@ let main = (s: string) => {
 
 Js.Unsafe.js_expr("require('process')");
 Js.Unsafe.js_expr("process.argv[2]") |> Js.to_string |> main;
+
+/*
+ suggest comma:
+ when bidictx has type inconsistency
+ where expected type is (A,B,C ...)
+ and bidictx analyzes against A or (A,B) or (A,B,C) or ...
+
+ call Segment.skel
+
+  let in_bidi_id =
+     |> Segment.skel
+     |> Skel.root
+     |> Aba.map_a(List.nth(seg))
+     |> Aba.first_a
+     |> Piece.id;
+ let bidi_expected_ty =
+    in_bidi_id
+     |> Id.Map.find_opt
+     |> Option.map(Info.ty_of)
+     |> Option.map(Mode.ty_of);
+ let bidi_self_ty =
+     in_bidi_id
+     |> Id.Map.find_opt
+     |> Option.map(Info.ty_of)
+     |> Option.map(Self.ty_of);
+     or just get error status
+
+  */

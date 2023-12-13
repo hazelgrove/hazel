@@ -41,12 +41,13 @@ module Typ = {
   ];
 
   let of_postfix_leading_delim: list((Token.t, Typ.t)) = [
-    ("(", unk), // hack? ap case. can do better for type logic?
+    ("(", unk), // TODO(andrew): do better. hack ap case, suggests too freely
     ("|", unk) //TODO(andrew): hack, for lsp case rules...
   ];
 
   let of_infix_delim: list((Token.t, Typ.t)) = [
-    (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
+    //(",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
+    //TODO(andrew): with LSP commas now handled separately, see LSP
     ("::", List(unk)),
     (":", List(unk)), //TODO(andrew): hacky, for LSP
     ("@", List(unk)),
