@@ -1,4 +1,6 @@
 open Haz3lcore;
+open EvaluatorStep;
+open Transition;
 module Doc = Pretty.Doc;
 
 let precedence_bin_bool_op = (op: TermBase.UExp.op_bin_bool) =>
@@ -94,71 +96,195 @@ let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
 let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
   Doc.text(TermBase.UExp.string_op_to_string(op));
 
-let rec mk =
-        (
-          ~settings: CoreSettings.Evaluation.t,
-          ~parenthesize=false,
-          ~enforce_inline: bool,
-          ~selected_hole_instance: option(HoleInstance.t),
-          d: DHExp.t,
-        )
-        : DHDoc.t => {
+let mk =
+    (
+      ~settings: CoreSettings.Evaluation.t,
+      ~enforce_inline: bool,
+      ~selected_hole_instance: option(HoleInstance.t),
+      // The next four are used when drawing the stepper to track where we can annotate changes
+      ~previous_step: option(EvalObj.t), // The step that will be displayed above this one
+      ~hidden_steps: list(EvalObj.t), // The hidden steps between the above and the current one
+      ~chosen_step: option(EvalObj.t), // The step that will be taken next
+      ~next_steps: list(EvalObj.t), // The options for the next step, if it hasn't been chosen yet
+      ~env: ClosureEnvironment.t,
+      d: DHExp.t,
+    )
+    : DHDoc.t => {
   let precedence = precedence(~show_casts=settings.show_casts);
-  let mk_cast = ((doc: DHDoc.t, ty: option(Typ.t))): DHDoc.t =>
-    switch (ty) {
-    | Some(ty) when settings.show_casts =>
-      Doc.(
-        hcat(
-          doc,
-          annot(
-            DHAnnot.CastDecoration,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-          ),
-        )
-      )
-    | _ => doc
-    };
   let rec go =
-          (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc.t, option(Typ.t)) => {
+          (
+            d: DHExp.t,
+            env: ClosureEnvironment.t,
+            enforce_inline: bool,
+            previous_step: option(EvalObj.t),
+            hidden_steps: list(EvalObj.t),
+            chosen_step: option(EvalObj.t),
+            next_steps: list((EvalObj.t, EvalObj.t)),
+            recent_subst: list(Var.t),
+          )
+          : DHDoc.t => {
     open Doc;
-    let go' = go(~enforce_inline);
-    let go_case = (dscrut, drs) =>
+    let recent_subst =
+      switch (previous_step) {
+      | Some(ps) when EvalObj.get_ctx(ps) == Mark =>
+        switch (ps.knd, ps.undo) {
+        | (FunAp, Ap(Fun(p, _, _, _), _)) => DHPat.bound_vars(p)
+        | (FunAp, _) => []
+        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
+        | (LetBind, _) => []
+        | (FixUnwrap, _) // TODO[Matt]: Could do something here?
+        | (InvalidStep, _)
+        | (VarLookup, _)
+        | (Sequence, _)
+        | (FunClosure, _)
+        | (UpdateTest, _)
+        | (CastAp, _)
+        | (Builtin(_), _)
+        | (BinBoolOp(_), _)
+        | (BinIntOp(_), _)
+        | (BinFloatOp(_), _)
+        | (BinStringOp(_), _)
+        | (Projection, _)
+        | (ListCons, _)
+        | (ListConcat, _)
+        | (CaseApply, _)
+        | (CaseNext, _)
+        | (CompleteClosure, _)
+        | (CompleteFilter, _)
+        | (Cast, _)
+        | (Skip, _) => []
+        }
+      | _ => recent_subst
+      };
+    let go' =
+        (
+          ~env=env,
+          ~enforce_inline=enforce_inline,
+          ~recent_subst=recent_subst,
+          d,
+          ctx,
+        ) => {
+      go(
+        d,
+        env,
+        enforce_inline,
+        Option.join(Option.map(EvalObj.unwrap(_, ctx), previous_step)),
+        List.filter_map(EvalObj.unwrap(_, ctx), hidden_steps),
+        Option.join(Option.map(EvalObj.unwrap(_, ctx), chosen_step)),
+        List.filter_map(
+          ((x, y)) =>
+            switch (EvalObj.unwrap(x, ctx)) {
+            | None => None
+            | Some(x') => Some((x', y))
+            },
+          next_steps,
+        ),
+        recent_subst,
+      );
+    };
+    let go_clean = (~env=env, ~enforce_inline=enforce_inline, d) =>
+      go(d, env, enforce_inline, None, [], None, [], []);
+    let parenthesize = (b, doc) =>
+      if (b) {
+        hcats([
+          DHDoc_common.Delim.open_Parenthesized,
+          doc |> DHDoc_common.pad_child(~enforce_inline),
+          DHDoc_common.Delim.close_Parenthesized,
+        ]);
+      } else {
+        doc(~enforce_inline);
+      };
+    let go_case_rule =
+        (consistent: bool, rule_idx: int, Rule(dp, dclause): DHExp.rule)
+        : DHDoc.t => {
+      let kind: EvalCtx.cls =
+        if (consistent) {
+          ConsistentCaseRule(rule_idx);
+        } else {
+          InconsistentBranchesRule(rule_idx);
+        };
+      let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
+      let clause_doc =
+        settings.show_case_clauses
+          ? choices([
+              hcats([space(), go'(~enforce_inline=true, dclause, kind)]),
+              hcats([
+                linebreak(),
+                indent_and_align(go'(~enforce_inline=false, dclause, kind)),
+              ]),
+            ])
+          : hcat(space(), hidden_clause);
+      hcats([
+        DHDoc_common.Delim.bar_Rule,
+        DHDoc_Pat.mk(dp)
+        |> DHDoc_common.pad_child(
+             ~inline_padding=(space(), space()),
+             ~enforce_inline=false,
+           ),
+        DHDoc_common.Delim.arrow_Rule,
+        clause_doc,
+      ]);
+    };
+    let go_case = (dscrut, drs, consistent) =>
       if (enforce_inline) {
         fail();
       } else {
+        let kind: EvalCtx.cls =
+          if (consistent) {ConsistentCase} else {InconsistentBranches};
         let scrut_doc =
           choices([
-            hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
+            hcats([space(), go'(~enforce_inline=true, dscrut, kind)]),
             hcats([
               linebreak(),
-              indent_and_align(mk_cast(go(~enforce_inline=false, dscrut))),
+              indent_and_align(go'(~enforce_inline=false, dscrut, kind)),
             ]),
           ]);
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_hole_instance)),
+            drs |> List.mapi(go_case_rule(consistent)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
       };
-    let mk_left_associative_operands = (precedence_op, d1, d2) => (
-      go'(~parenthesize=precedence(d1) > precedence_op, d1),
-      go'(~parenthesize=precedence(d2) >= precedence_op, d2),
+    let go_formattable = (~enforce_inline) => go'(~enforce_inline);
+    let mk_left_associative_operands = (precedence_op, (d1, l), (d2, r)) => (
+      go_formattable(d1, l) |> parenthesize(precedence(d1) > precedence_op),
+      go_formattable(d2, r) |> parenthesize(precedence(d2) >= precedence_op),
     );
-    let mk_right_associative_operands = (precedence_op, d1, d2) => (
-      go'(~parenthesize=precedence(d1) >= precedence_op, d1),
-      go'(~parenthesize=precedence(d2) > precedence_op, d2),
+    let mk_right_associative_operands = (precedence_op, (d1, l), (d2, r)) => (
+      go_formattable(d1, l) |> parenthesize(precedence(d1) >= precedence_op),
+      go_formattable(d2, r) |> parenthesize(precedence(d2) > precedence_op),
     );
-    let cast =
+    let doc = {
       switch (d) {
-      | Cast(_, _, ty) => Some(ty)
-      | _ => None
-      };
-    let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
-      switch (d) {
-      | Closure(_, d') => fdoc(~enforce_inline, ~d=d')
+      | Closure(env', d') => go'(d', Closure, ~env=env')
+      | Filter({pat, act}, d') =>
+        if (settings.show_stepper_filters) {
+          let keyword =
+            switch (act) {
+            | Step => "step"
+            | Eval => "skip"
+            };
+          let flt_doc = go_formattable(pat, FilterPattern);
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk(keyword),
+              flt_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
+            ]),
+            go'(d', Filter),
+          ]);
+        } else {
+          go'(d', Filter);
+        }
+
+      /* Hole expressions must appear within a closure in
+         the postprocessed result */
       | EmptyHole(u, i) =>
         let selected =
           switch (selected_hole_instance) {
@@ -167,36 +293,54 @@ let rec mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, d') =>
-        go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+        go'(d', NonEmptyHole)
+        |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | ExpandingKeyword(u, i, k) =>
         DHDoc_common.mk_ExpandingKeyword((u, i), k)
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
+        go_case(dscrut, drs, false)
+        |> annot(DHAnnot.InconsistentBranches((u, i)))
 
-      | Filter(_, d') => fdoc(~enforce_inline, ~d=d')
-
-      | BoundVar(x) => text(x)
+      | BoundVar(x) =>
+        if (!settings.show_lookup_steps) {
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | None => text(x)
+          | Some(d') =>
+            if (List.mem(x, recent_subst)) {
+              hcats([
+                go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
+                |> annot(DHAnnot.Substituted),
+                go'(~env=ClosureEnvironment.empty, d', BoundVar),
+              ]);
+            } else {
+              go'(~env=ClosureEnvironment.empty, d', BoundVar);
+            }
+          };
+        } else {
+          text(x);
+        }
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | Test(_, d) => DHDoc_common.mk_Test(mk_cast(go'(d)))
+      | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
-        let (doc1, doc2) = (go'(d1), go'(d2));
-        DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
+        let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));
+        DHDoc_common.mk_Sequence(doc1, doc2);
       | ListLit(_, _, _, d_list) =>
-        let ol = d_list |> List.map(go') |> List.map(mk_cast);
+        let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
-          go'(~parenthesize=precedence(d1) > DHDoc_common.precedence_Ap, d1),
-          go'(~parenthesize=false, d2),
+          go_formattable(d1, Ap1)
+          |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
+          go'(d2, Ap2),
         );
-        DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+        DHDoc_common.mk_Ap(doc1, doc2);
       | ApBuiltin(ident, args) =>
         switch (args) {
         | [hd, ...tl] =>
@@ -204,70 +348,118 @@ let rec mk =
           let (doc1, doc2) =
             mk_left_associative_operands(
               DHDoc_common.precedence_Ap,
-              BoundVar(ident),
-              d',
+              (BoundVar(ident), Ap1),
+              (d', Ap2),
             );
-          DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+          DHDoc_common.mk_Ap(doc1, doc2);
         | [] => text(ident)
         }
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_int_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
+          mk_left_associative_operands(
+            precedence_bin_int_op(op),
+            (d1, BinIntOp1),
+            (d2, BinIntOp2),
+          );
+        hseps([doc1, mk_bin_int_op(op), doc2]);
       | BinFloatOp(op, d1, d2) =>
         // TODO assumes all bin float ops are left associative
         let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
+          mk_left_associative_operands(
+            precedence_bin_float_op(op),
+            (d1, BinFloatOp1),
+            (d2, BinFloatOp2),
+          );
+        hseps([doc1, mk_bin_float_op(op), doc2]);
       | BinStringOp(op, d1, d2) =>
         // TODO assumes all bin string ops are left associative
         let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_string_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_string_op(op), mk_cast(doc2)]);
+          mk_left_associative_operands(
+            precedence_bin_string_op(op),
+            (d1, BinStringOp1),
+            (d2, BinStringOp2),
+          );
+        hseps([doc1, mk_bin_string_op(op), doc2]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
-          mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
-        DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
+          mk_right_associative_operands(
+            DHDoc_common.precedence_Cons,
+            (d1, Cons1),
+            (d2, Cons2),
+          );
+        DHDoc_common.mk_Cons(doc1, doc2);
       | ListConcat(d1, d2) =>
         let (doc1, doc2) =
-          mk_right_associative_operands(DHDoc_common.precedence_Plus, d1, d2);
-        DHDoc_common.mk_ListConcat(mk_cast(doc1), mk_cast(doc2));
+          mk_right_associative_operands(
+            DHDoc_common.precedence_Plus,
+            (d1, ListConcat1),
+            (d2, ListConcat2),
+          );
+        DHDoc_common.mk_ListConcat(doc1, doc2);
       | BinBoolOp(op, d1, d2) =>
         let (doc1, doc2) =
-          mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
-        hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
+          mk_right_associative_operands(
+            precedence_bin_bool_op(op),
+            (d1, BinBoolOp1),
+            (d2, BinBoolOp2),
+          );
+        hseps([doc1, mk_bin_bool_op(op), doc2]);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
-        DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
-      | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+        DHDoc_common.mk_Tuple(ds |> List.mapi((i, d) => go'(d, Tuple(i))))
+      | Prj(d, n) => DHDoc_common.mk_Prj(go'(d, Prj), n)
+      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs, true)
+      | Cast(d, _, ty) when settings.show_casts =>
+        // TODO[Matt]: Roll multiple casts into one cast
+        let doc = go'(d, Cast);
+        Doc.(
+          hcat(
+            doc,
+            annot(
+              DHAnnot.CastDecoration,
+              DHDoc_Typ.mk(~enforce_inline=true, ty),
+            ),
+          )
+        );
       | Cast(d, _, _) =>
-        let (doc, _) = go'(d);
+        let doc = go'(d, Cast);
         doc;
       | Let(dp, ddef, dbody) =>
-        let def_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, ddef));
-        vseps([
-          hcats([
-            DHDoc_common.Delim.mk("let"),
-            DHDoc_Pat.mk(dp)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline,
-               ),
-            DHDoc_common.Delim.mk("="),
-            def_doc
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline=false,
-               ),
-            DHDoc_common.Delim.mk("in"),
-          ]),
-          mk_cast(go(~enforce_inline=false, dbody)),
-        ]);
+        if (enforce_inline) {
+          fail();
+        } else {
+          let bindings = DHPat.bound_vars(dp);
+          let def_doc =
+            go_formattable(
+              ~env=
+                ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
+              ddef,
+              Let1,
+            );
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk("let"),
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+              DHDoc_common.Delim.mk("="),
+              def_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
+            ]),
+            go'(~enforce_inline=false, dbody, Let2),
+          ]);
+        }
       | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
-        let (d_doc, _) = go'(d);
+        let d_doc = go'(d, FailedCastCast);
         let cast_decoration =
           hcats([
             DHDoc_common.Delim.open_FailedCast,
@@ -283,44 +475,24 @@ let rec mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        let (d_doc, _) = go'(d);
+        let d_doc = go'(d, InvalidOperation);
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
-      /* | InvalidOperation(d, err) => */
-      /*   switch (err) { */
-      /*   | DivideByZero => */
-      /*     let (d_doc, _) = go'(d); */
-      /*     let decoration = */
-      /*       Doc.text(InvalidOperationError.err_msg(err)) */
-      /*       |> annot(DHAnnot.DivideByZero); */
-      /*     hcats([d_doc, decoration]); */
-      /*   } */
-      /*
-       let (d_doc, d_cast) as dcast_doc = go'(d);
-       let cast_decoration =
-         hcats([
-           DHDoc_common.Delim.open_FailedCast,
-           hseps([
-             DHDoc_Typ.mk(~enforce_inline=true, ty1),
-             DHDoc_common.Delim.arrow_FailedCast,
-             DHDoc_Typ.mk(~enforce_inline=true, ty2),
-           ]),
-           DHDoc_common.Delim.close_FailedCast,
-         ])
-         |> annot(DHAnnot.FailedCastDecoration);
-       switch (d_cast) {
-       | Some(ty1') when Typ.eq(ty1, ty1') =>
-         hcats([d_doc, cast_decoration])
-       | _ => hcats([mk_cast(dcast_doc), cast_decoration])
-       };
-       */
 
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
-          let body_doc = (~enforce_inline) =>
-            mk_cast(go(~enforce_inline, dbody));
+          let bindings = DHPat.bound_vars(dp);
+          let body_doc =
+            go_formattable(
+              dbody,
+              ~env=
+                ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
+              Fun,
+            );
           hcats([
             DHDoc_common.Delim.sym_Fun,
             DHDoc_Pat.mk(dp)
@@ -344,8 +516,12 @@ let rec mk =
         }
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
-          let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
+          let doc_body =
+            go_formattable(
+              dbody,
+              ~env=ClosureEnvironment.without_keys([x], env),
+              FixF,
+            );
           hcats([
             DHDoc_common.Delim.fix_FixF,
             space(),
@@ -360,42 +536,47 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       };
+    };
+    let steppable =
+      next_steps
+      |> List.find_opt(((step, _)) => EvalObj.get_ctx(step) == Mark);
+    let stepped =
+      chosen_step
+      |> Option.map(x => EvalObj.get_ctx(x) == Mark)
+      |> Option.value(~default=false);
+    let substitution =
+      hidden_steps
+      |> List.find_opt(step =>
+           EvalObj.get_kind(step) == VarLookup
+           // HACK[Matt]: to prevent substitutions hiding inside casts
+           && EvalCtx.fuzzy_mark(EvalObj.get_ctx(step))
+         );
     let doc =
-      parenthesize
-        ? hcats([
-            DHDoc_common.Delim.open_Parenthesized,
-            fdoc(~d) |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Parenthesized,
-          ])
-        : fdoc(~enforce_inline, ~d);
-    (doc, cast);
+      switch (substitution) {
+      | Some({undo: BoundVar(v), _}) when List.mem(v, recent_subst) =>
+        hcats([go_clean(BoundVar(v)) |> annot(DHAnnot.Substituted), doc])
+      | Some(_)
+      | None => doc
+      };
+    let doc =
+      if (stepped) {
+        annot(DHAnnot.Stepped, doc);
+      } else {
+        switch (steppable) {
+        | Some((_, full)) => annot(DHAnnot.Steppable(full), doc)
+        | None => doc
+        };
+      };
+    doc;
   };
-  mk_cast(go(~parenthesize, ~enforce_inline, d));
-}
-and mk_rule =
-    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
-    : DHDoc.t => {
-  open Doc;
-  let mk' = mk(~settings, ~selected_hole_instance);
-  let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
-  let clause_doc =
-    settings.show_case_clauses
-      ? choices([
-          hcats([space(), mk'(~enforce_inline=true, dclause)]),
-          hcats([
-            linebreak(),
-            indent_and_align(mk'(~enforce_inline=false, dclause)),
-          ]),
-        ])
-      : hcat(space(), hidden_clause);
-  hcats([
-    DHDoc_common.Delim.bar_Rule,
-    DHDoc_Pat.mk(dp)
-    |> DHDoc_common.pad_child(
-         ~inline_padding=(space(), space()),
-         ~enforce_inline=false,
-       ),
-    DHDoc_common.Delim.arrow_Rule,
-    clause_doc,
-  ]);
+  go(
+    d,
+    env,
+    enforce_inline,
+    previous_step,
+    hidden_steps,
+    chosen_step,
+    List.map(x => (x, x), next_steps),
+    [],
+  );
 };
