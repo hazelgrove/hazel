@@ -19,8 +19,7 @@ let mode_of_string = (s: string): mode =>
 type t = {
   captions: bool,
   secondary_icons: bool,
-  statics: bool,
-  dynamics: Settings.Evaluation.t,
+  core: Haz3lcore.CoreSettings.t,
   async_evaluation: bool,
   context_inspector: bool,
   instructor_mode: bool,

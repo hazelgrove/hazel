@@ -98,10 +98,6 @@ let view_of_layout =
                  [with_cls("OperationError", txt)],
                  ds,
                )
-             | OperationError(InvalidProjection) => (
-                 [with_cls("OperationError", txt)],
-                 ds,
-               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | Invalid((_, (-666))) =>
                /* Evaluation and Elaboration exceptions */
@@ -133,7 +129,7 @@ let view_of_layout =
 let view =
     (
       ~inject,
-      ~settings: Settings.Evaluation.t,
+      ~settings: CoreSettings.Evaluation.t,
       ~selected_hole_instance: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
@@ -145,19 +141,17 @@ let view =
       d: DHExp.t,
     )
     : Node.t => {
-  let maker =
-    settings.postprocess
-      ? DHDoc_Exp.mk(~parenthesize=false)
-      : DHDoc_Step.mk(
-          ~previous_step,
-          ~hidden_steps,
-          ~chosen_step,
-          ~next_steps,
-          ~env=ClosureEnvironment.empty,
-        );
-  let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
-  d
-  |> c
+  DHDoc_Step.mk(
+    ~previous_step,
+    ~hidden_steps,
+    ~chosen_step,
+    ~next_steps,
+    ~env=ClosureEnvironment.empty,
+    ~settings,
+    ~enforce_inline=false,
+    ~selected_hole_instance,
+    d,
+  )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")

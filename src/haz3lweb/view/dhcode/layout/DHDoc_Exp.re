@@ -96,7 +96,7 @@ let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
 
 let rec mk =
         (
-          ~settings: Settings.Evaluation.t,
+          ~settings: CoreSettings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_hole_instance: option(HoleInstance.t),

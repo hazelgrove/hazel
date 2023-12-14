@@ -20,7 +20,7 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
       Attr.many(
         Attr.[
           id("mousedown-overlay"),
-          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
             inject(
@@ -33,19 +33,37 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
   );
 
 let mousedown_handler =
-    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
-  let goal = get_goal(~font_metrics, ~target_id, e);
-  Virtual_dom.Vdom.Effect.Many(
-    List.map(
-      inject,
-      Update.(
-        [Mousedown]
-        @ additional_updates
-        @ [PerformAction(Move(Goal(Point(goal))))]
+    (
+      ~inject: UpdateAction.t => 'a,
+      ~font_metrics,
+      ~target_id,
+      ~mousedown_updates,
+      evt,
+    ) =>
+  switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
+  | (true, _) =>
+    let goal = get_goal(~font_metrics, ~target_id, evt);
+
+    let events = [
+      inject(PerformAction(Move(Goal(Point(goal))))),
+      inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+    ];
+    Virtual_dom.Vdom.Effect.Many(events);
+  | (false, 1) =>
+    let goal = get_goal(~font_metrics, ~target_id, evt);
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(
+        inject,
+        Update.(
+          [SetMeta(Mousedown)]
+          @ mousedown_updates
+          @ [PerformAction(Move(Goal(Point(goal))))]
+        ),
       ),
-    ),
-  );
-};
+    );
+  | (false, 2) => inject(PerformAction(Select(Tile(Current))))
+  | (false, 3 | _) => inject(PerformAction(Select(Smart)))
+  };
 
 let narrative_cell = (content: Node.t) =>
   Node.div(
@@ -100,29 +118,13 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(evt =>
-              switch (JsUtil.ctrl_held(evt), JsUtil.is_double_click(evt)) {
-              | (true, _) =>
-                let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
-
-                let events = [
-                  inject(PerformAction(Move(Goal(Point(goal))))),
-                  inject(
-                    Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
-                  ),
-                ];
-                Virtual_dom.Vdom.Effect.Many(events);
-              | (false, false) =>
-                mousedown_handler(
-                  ~inject,
-                  ~font_metrics,
-                  ~target_id=code_id,
-                  ~additional_updates=mousedown_updates,
-                  evt,
-                )
-              | (false, true) =>
-                inject(Update.PerformAction(Select(Term(Current))))
-              }
+            Attr.on_mousedown(
+              mousedown_handler(
+                ~inject,
+                ~font_metrics,
+                ~target_id=code_id,
+                ~mousedown_updates,
+              ),
             ),
           ]),
         Option.to_list(caption) @ code,
@@ -151,7 +153,7 @@ let test_result_layer =
     (
       ~font_metrics,
       ~measured: Measured.t,
-      test_results: Interface.test_results,
+      test_results: TestResults.test_results,
     )
     : list(Node.t) => {
   //print_endline(Interface.show_test_results(test_results));
@@ -176,7 +178,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   module Deco =
@@ -206,7 +208,7 @@ let deco =
 let stepper_footer_view =
     (
       ~inject,
-      ~settings: Settings.Evaluation.t,
+      ~settings: CoreSettings.Evaluation.t,
       ~font_metrics,
       stepper: EvaluatorStep.Stepper.t,
     ) => {
@@ -219,7 +221,7 @@ let stepper_footer_view =
       ~tooltip="Step Backwards",
     );
   let (hidden, previous) =
-    if (settings.show_record) {
+    if (settings.stepper_history) {
       EvaluatorStep.Stepper.get_history(stepper);
     } else {
       ([], []);
@@ -230,7 +232,7 @@ let stepper_footer_view =
       [
         DHCode.view(
           ~inject,
-          ~settings={...settings, postprocess: false},
+          ~settings,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -254,7 +256,7 @@ let stepper_footer_view =
       [
         DHCode.view(
           ~inject,
-          ~settings={...settings, postprocess: false},
+          ~settings,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -274,8 +276,8 @@ let stepper_footer_view =
       ],
     );
   let show_history =
-    Widgets.toggle(~tooltip="Show History", "h", settings.show_record, _ =>
-      inject(Set(Dynamics(Toggle_show_record)))
+    Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
+      inject(Set(Evaluation(ShowRecord)))
     );
   let current =
     div(
@@ -309,14 +311,20 @@ let stepper_footer_view =
 };
 
 let eval_result_footer_view =
-    (~inject, ~font_metrics, ~elab, ~settings, simple: TestResults.simple) => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~elab,
+      ~settings: Settings.t,
+      simple: TestResults.simple,
+    ) => {
   let d_view =
     switch (simple) {
     | None => [
         Node.text("No result available. Elaboration follows:"),
         DHCode.view(
           ~inject,
-          ~settings,
+          ~settings=settings.core.evaluation,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -326,7 +334,7 @@ let eval_result_footer_view =
     | Some({eval_result, _}) => [
         DHCode.view(
           ~inject,
-          ~settings,
+          ~settings=settings.core.evaluation,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -353,27 +361,34 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
       ~footer: list(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
       editor: Editor.t,
     ) => {
-  //~eval_result: option(option(DHExp.t))
-
   let zipper = editor.state.zipper;
   let term_ranges = editor.state.meta.term_ranges;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
+  let buffer_ids: list(Uuidm.t) = {
+    /* Collect ids of tokens in buffer for styling purposes. This is
+     * currently necessary as the selection is not persisted through
+     * unzipping for display */
+    let buffer =
+      Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
+    Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
+  };
   let code_base_view =
     Code.view(
       ~sort=Sort.root,
       ~font_metrics,
+      ~buffer_ids,
       ~segment,
       ~unselected,
       ~measured,
@@ -412,13 +427,6 @@ let editor_view =
   );
 };
 
-let get_elab = (editor: Editor.t): DHExp.t => {
-  let seg = Editor.get_seg(editor);
-  let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
-  Interface.elaborate(info_map, term);
-};
-
 let editor_with_result_view =
     (
       ~inject,
@@ -426,37 +434,47 @@ let editor_with_result_view =
       ~show_backpack_targets,
       ~clss=[],
       ~mousedown: bool,
-      ~mousedown_updates: list(Update.t)=[],
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
+      ~term,
       ~result: option(ModelResult.t),
       editor: Editor.t,
     ) => {
   let simple = ModelResult.get_simple(result);
   let test_results = TestResults.unwrap_test_results(simple);
-  let elab = get_elab(editor);
   let eval_result_footer =
-    switch (Option.bind(result, (x: ModelResult.t) => x.stepper)) {
-    | None => [
-        eval_result_footer_view(
+    if (settings.core.statics) {
+      switch (Option.bind(result, result => result.stepper)) {
+      | None => [
+          eval_result_footer_view(
+            ~inject,
+            ~font_metrics,
+            ~elab=
+              settings.core.elaborate
+                ? Interface.elaborate(
+                    ~settings=settings.core,
+                    info_map,
+                    term,
+                  )
+                : Interface.dh_err("Elaboration disabled"),
+            ~settings,
+            simple,
+          ),
+        ]
+      | Some(s) =>
+        stepper_footer_view(
           ~inject,
+          ~settings=settings.core.evaluation,
           ~font_metrics,
-          ~elab,
-          ~settings=settings.dynamics,
-          simple,
-        ),
-      ]
-    | Some(s) =>
-      stepper_footer_view(
-        ~inject,
-        ~settings=settings.dynamics,
-        ~font_metrics,
-        s,
-      )
+          s,
+        )
+      };
+    } else {
+      [];
     };
   editor_view(
     ~inject,
@@ -464,7 +482,7 @@ let editor_with_result_view =
     ~show_backpack_targets,
     ~clss,
     ~mousedown,
-    ~mousedown_updates,
+    ~mousedown_updates=[],
     ~settings,
     ~selected,
     ~caption?,
@@ -479,10 +497,11 @@ let editor_with_result_view =
 
 let test_view =
     (
+      ~settings,
       ~title,
       ~inject,
       ~font_metrics,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
     )
     : Node.t =>
   Node.(
@@ -490,7 +509,12 @@ let test_view =
       ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
       [
         TestView.view_of_main_title_bar(title),
-        TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+        TestView.test_reports_view(
+          ~settings,
+          ~inject,
+          ~font_metrics,
+          ~test_results,
+        ),
         TestView.test_summary(~inject, ~test_results),
       ],
     )
@@ -501,7 +525,7 @@ let report_footer_view = content => {
 };
 
 let test_report_footer_view =
-    (~inject, ~test_results: option(Interface.test_results)) => {
+    (~inject, ~test_results: option(TestResults.test_results)) => {
   report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 

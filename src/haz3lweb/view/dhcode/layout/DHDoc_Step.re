@@ -6,7 +6,7 @@ module Doc = Pretty.Doc;
 
 let mk =
     (
-      ~settings: Settings.Evaluation.t,
+      ~settings: CoreSettings.Evaluation.t,
       ~enforce_inline: bool,
       ~selected_hole_instance: option(HoleInstance.t),
       ~previous_step: option(EvalObj.t), // The step that will be displayed above this one
@@ -175,7 +175,7 @@ let mk =
          cannot be met. */
       | Closure(env', d') => go'(d', Closure, ~env=env')
       | Filter({pat, act}, d') =>
-        if (settings.show_filters) {
+        if (settings.show_stepper_filters) {
           let keyword =
             switch (act) {
             | Step => "step"
@@ -220,7 +220,7 @@ let mk =
         |> annot(DHAnnot.InconsistentBranches((u, i)))
 
       | BoundVar(x) =>
-        if (settings.substitution) {
+        if (!settings.show_lookup_steps) {
           switch (ClosureEnvironment.lookup(env, x)) {
           | None => text(x)
           | Some(d') =>
