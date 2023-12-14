@@ -23,18 +23,20 @@ let init = (~settings: CoreSettings.t, d) => {
   d,
   current: ResultPending,
   previous: Interface.evaluate(~settings, d),
-  stepper: settings.evaluation.stepper ? Some(Stepper.mk(d)) : None,
+  stepper:
+    settings.evaluation.stepper
+      ? Some(Stepper.mk(~settings=settings.evaluation, d)) : None,
 };
 
-let step_forward = (x: EvalObj.t, mr: t) =>
+let step_forward = (~settings, x: EvalObj.t, mr: t) =>
   switch (mr.stepper) {
-  | Some(s) => {...mr, stepper: Some(Stepper.step_forward(x, s))}
+  | Some(s) => {...mr, stepper: Some(Stepper.step_forward(~settings, x, s))}
   | None => mr
   };
 
-let step_backward = (mr: t) =>
+let step_backward = (~settings, mr: t) =>
   switch (mr.stepper) {
-  | Some(s) => {...mr, stepper: Some(Stepper.step_backward(s))}
+  | Some(s) => {...mr, stepper: Some(Stepper.step_backward(~settings, s))}
   | None => mr
   };
 
@@ -62,7 +64,10 @@ let update_result = (r: current, mr: t): t => {
 
 let stepper_off = (mr): t => {...mr, stepper: None};
 
-let stepper_on = (mr): t => {...mr, stepper: Some(Stepper.mk(mr.d))};
+let stepper_on = (~settings, mr): t => {
+  ...mr,
+  stepper: Some(Stepper.mk(~settings, mr.d)),
+};
 
 let get_simple = (mr: t): TestResults.simple_data => {
   let p_result =

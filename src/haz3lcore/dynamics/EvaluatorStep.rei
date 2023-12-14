@@ -41,11 +41,15 @@ module Stepper: {
     previous: list(step),
     next: list(EvalObj.t),
   };
-  let mk: DHExp.t => t;
-  let step_forward: (EvalObj.t, t) => t;
-  let step_backward: t => t;
+  let mk: (~settings: CoreSettings.Evaluation.t, DHExp.t) => t;
+  let step_forward: (~settings: CoreSettings.Evaluation.t, EvalObj.t, t) => t;
+  let step_backward: (~settings: CoreSettings.Evaluation.t, t) => t;
   let update_expr: (DHExp.t, t) => t;
-  let get_history: t => (list(step), list(step_with_previous));
+  let get_history:
+    (~settings: CoreSettings.Evaluation.t, t) =>
+    (list(step), list(step_with_previous));
   let get_justification: step_kind => string;
-  let undo_point: list(step) => option((step, list(step)));
+  let undo_point:
+    (~settings: CoreSettings.Evaluation.t, list(step)) =>
+    option((step, list(step)));
 };

@@ -464,35 +464,43 @@ module Stepper = {
     next: list(EvalObj.t),
   };
 
-  let rec step_forward = (e: EvalObj.t, s: t) => {
+  let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
     let current = compose(e.ctx, e.apply());
-    skip_steps({
-      current,
-      previous: [{d: s.current, step: e}, ...s.previous],
-      next: decompose(current),
-    });
+    skip_steps(
+      ~settings,
+      {
+        current,
+        previous: [{d: s.current, step: e}, ...s.previous],
+        next: decompose(current),
+      },
+    );
   }
-  and skip_steps = s => {
+  and skip_steps = (~settings, s) => {
     switch (
-      List.find_opt((x: EvalObj.t) => should_hide_step(x.knd), s.next)
+      List.find_opt(
+        (x: EvalObj.t) => should_hide_step(~settings, x.knd),
+        s.next,
+      )
     ) {
     | None => s
-    | Some(e) => step_forward(e, s)
+    | Some(e) => step_forward(~settings, e, s)
     };
   };
 
-  let mk = d => {
-    skip_steps({current: d, previous: [], next: decompose(d)});
+  let mk = (~settings, d) => {
+    skip_steps(~settings, {current: d, previous: [], next: decompose(d)});
   };
 
-  let rec undo_point: list(step) => option((step, list(step))) =
+  let rec undo_point =
+          (~settings): (list(step) => option((step, list(step)))) =>
     fun
     | [] => None
-    | [x, ...xs] when should_hide_step(x.step.knd) => undo_point(xs)
+    | [x, ...xs] when should_hide_step(~settings, x.step.knd) =>
+      undo_point(~settings, xs)
     | [x, ...xs] => Some((x, xs));
 
-  let step_backward = (s: t) =>
-    switch (undo_point(s.previous)) {
+  let step_backward = (~settings, s: t) =>
+    switch (undo_point(~settings, s.previous)) {
     | None => failwith("cannot step backwards")
     | Some((x, xs)) => {current: x.d, previous: xs, next: decompose(x.d)}
     };
@@ -536,14 +544,14 @@ module Stepper = {
     | FunClosure => "unidentified step"
     | Skip => "skipped steps";
 
-  let get_history = stepper => {
+  let get_history = (~settings, stepper) => {
     let rec get_history':
       list(step) => (list(step), list(step_with_previous)) =
       fun
       | [] => ([], [])
       | [step, ...steps] => {
           let (hidden, ss) = get_history'(steps);
-          if (should_hide_step(step.step.knd)) {
+          if (should_hide_step(~settings, step.step.knd)) {
             ([step, ...hidden], ss);
           } else {
             (

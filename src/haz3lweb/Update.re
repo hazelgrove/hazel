@@ -543,7 +543,10 @@ let rec apply =
       let r =
         model.meta.results
         |> ModelResults.find(ScratchSlide.scratch_key)
-        |> ModelResult.step_forward(obj);
+        |> ModelResult.step_forward(
+             ~settings=model.settings.core.evaluation,
+             obj,
+           );
       Ok({
         ...model,
         meta: {
@@ -557,7 +560,7 @@ let rec apply =
       let r =
         model.meta.results
         |> ModelResults.find(ScratchSlide.scratch_key)
-        |> ModelResult.step_backward;
+        |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
       Ok({
         ...model,
         meta: {

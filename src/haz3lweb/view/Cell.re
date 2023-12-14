@@ -217,12 +217,13 @@ let stepper_footer_view =
     Widgets.button_d(
       Icons.undo,
       inject(UpdateAction.StepBackward),
-      ~disabled=EvaluatorStep.Stepper.undo_point(stepper.previous) == None,
+      ~disabled=
+        EvaluatorStep.Stepper.undo_point(~settings, stepper.previous) == None,
       ~tooltip="Step Backwards",
     );
   let (hidden, previous) =
     if (settings.stepper_history) {
-      EvaluatorStep.Stepper.get_history(stepper);
+      EvaluatorStep.Stepper.get_history(~settings, stepper);
     } else {
       ([], []);
     };
