@@ -1,1 +1,4 @@
-include DH.FilterAction;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | Step
+  | Eval;

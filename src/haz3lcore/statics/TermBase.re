@@ -103,9 +103,7 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type filter_action =
-    | Step
-    | Eval;
+  type filter_action = FilterAction.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -239,9 +237,7 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type filter_action =
-    | Step
-    | Eval;
+  type filter_action = FilterAction.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =

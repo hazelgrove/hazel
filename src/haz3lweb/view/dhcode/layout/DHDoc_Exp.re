@@ -261,26 +261,30 @@ let mk =
     let doc = {
       switch (d) {
       | Closure(env', d') => go'(d', Closure, ~env=env')
-      | Filter({pat, act}, d') =>
+      | Filter(pat, act, d') =>
         if (settings.show_stepper_filters) {
           let keyword =
             switch (act) {
             | Step => "step"
             | Eval => "skip"
             };
-          let flt_doc = go_formattable(pat, FilterPattern);
-          vseps([
-            hcats([
-              DHDoc_common.Delim.mk(keyword),
-              flt_doc
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline=false,
-                 ),
-              DHDoc_common.Delim.mk("in"),
-            ]),
-            go'(d', Filter),
-          ]);
+          switch (pat) {
+          | Some(pat) =>
+            let flt_doc = go_formattable(pat, FilterPattern);
+            vseps([
+              hcats([
+                DHDoc_common.Delim.mk(keyword),
+                flt_doc
+                |> DHDoc_common.pad_child(
+                     ~inline_padding=(space(), space()),
+                     ~enforce_inline=false,
+                   ),
+                DHDoc_common.Delim.mk("in"),
+              ]),
+              go'(d', Filter),
+            ]);
+          | None => vseps([DHDoc_common.Delim.mk(keyword), go'(d', Filter)])
+          };
         } else {
           go'(d', Filter);
         }

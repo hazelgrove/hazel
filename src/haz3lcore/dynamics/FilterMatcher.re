@@ -42,11 +42,10 @@ let rec matches_exp =
 
   | (EmptyHole(_), _) => false
 
-  | (
-      Filter({pat: dpat, act: dact}, dd),
-      Filter({pat: fpat, act: fact}, fd),
-    ) =>
-    dact == fact && DHExp.fast_equal(dpat, fpat) && matches_exp(env, dd, fd)
+  | (Filter(dpat, dact, dd), Filter(fpat, fact, fd)) =>
+    dact == fact
+    && Option.equal(DHExp.fast_equal, dpat, fpat)
+    && matches_exp(env, dd, fd)
   | (Filter(_), _) => false
 
   | (BoolLit(dv), BoolLit(fv)) => dv == fv
