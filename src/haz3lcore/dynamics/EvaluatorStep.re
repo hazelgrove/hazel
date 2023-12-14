@@ -28,7 +28,7 @@ module EvalObj = {
     | (BoundVar, c)
     | (NonEmptyHole, NonEmptyHole(_, _, _, c))
     | (Closure, Closure(_, c))
-    | (Filter, Filter(_, c))
+    | (Filter, Filter(_, _, c))
     | (Sequence1, Sequence1(c, _))
     | (Sequence2, Sequence2(_, c))
     | (Let1, Let1(_, c, _))
@@ -93,7 +93,7 @@ module EvalObj = {
     | (Closure, _) => Some(obj)
     | (tag, Closure(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Filter, _) => Some(obj)
-    | (tag, Filter(_, c)) => unwrap({...obj, ctx: c}, tag)
+    | (tag, Filter(_, _, c)) => unwrap({...obj, ctx: c}, tag)
     | (Cast, _) => Some(obj)
     | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
     | (_, _) => None
@@ -218,22 +218,22 @@ module Decompose = {
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (flt_env, state, env, exp) => {
+  let rec decompose = (state, env, exp) => {
     switch (exp) {
-    | DHExp.Filter(flt, d1) =>
+    | DHExp.Filter(pat, act, d1) =>
       DecomposeEVMode.(
         {
-          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
+          let. _ = otherwise(env, (d1) => (Filter(pat, act, d1): DHExp.t))
           and. d1 =
             req_final(
-              decompose(FilterEnvironment.extends(flt, flt_env), state, env),
-              d1 => Filter(flt, d1),
+              decompose(state, env),
+              d1 => Filter(pat, act, d1),
               d1,
             );
           Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
       )
-    | _ => Decomp.transition(decompose(flt_env), state, env, exp)
+    | _ => Decomp.transition(decompose, state, env, exp)
     };
   };
 };
@@ -253,9 +253,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Closure(env, ctx) =>
       let d = compose(ctx, d);
       Closure(env, d);
-    | Filter(flt_env, ctx) =>
+    | Filter(pat, act, ctx) =>
       let d = compose(ctx, d);
-      Filter(flt_env, d);
+      Filter(pat, act, d);
     | Sequence1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Sequence(d1, d2);
@@ -368,7 +368,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
 let decompose = (d: DHExp.t) => {
   let es = EvaluatorState.init;
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  let rs = Decompose.decompose([], ref(es), env, d);
+  let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
 
@@ -416,9 +416,10 @@ module Stepper = {
     switch (ctx) {
     | Mark => act
     | Closure(env, ctx) => matches(env, flt, ctx, exp, act, idx)
-    | Filter(flt', ctx) =>
-      let flt = flt |> FilterEnvironment.extends(flt');
+    | Filter(Some(pat'), act', ctx) =>
+      let flt = flt |> FilterEnvironment.extends(Filter.mk(pat', act'));
       matches(env, flt, ctx, exp, act, idx);
+    | Filter(None, _, ctx)
     | Sequence1(ctx, _)
     | Sequence2(_, ctx)
     | Let1(_, ctx, _)
@@ -457,8 +458,8 @@ module Stepper = {
   };
 
   let should_hide_step = (~settings, x: EvalObj.t) => {
-    should_hide_step(~settings, x.knd)
-    || matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step, 0) == Eval;
+    let act = matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step, 0);
+    should_hide_step(~settings, x.knd) || act == Eval;
   };
 
   let rec step_forward = (~settings, e: EvalObj.t, s: t) => {

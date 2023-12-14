@@ -10,7 +10,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(Filter.t, t)
+    | Filter(option(t), FilterAction.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -65,7 +65,7 @@ module rec DHExp: {
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
     | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(Filter.t, t)
+    | Filter(option(t), FilterAction.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -108,7 +108,7 @@ module rec DHExp: {
     | InvalidText(_) => "InvalidText"
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
-    | Filter(_, _) => "Filter"
+    | Filter(_, _, _) => "Filter"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
@@ -166,7 +166,9 @@ module rec DHExp: {
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
-    | Filter(f, b) => Filter(Filter.strip_casts(f), strip_casts(b))
+    | Filter(Some(p), a, b) =>
+      Filter(Some(strip_casts(p)), a, strip_casts(b))
+    | Filter(None, a, b) => Filter(None, a, strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
@@ -218,8 +220,8 @@ module rec DHExp: {
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (Filter(f1, d1), Filter(f2, d2)) =>
-      Filter.fast_equal(f1, f2) && fast_equal(d1, d2)
+    | (Filter(p1, a1, d1), Filter(p2, a2, d2)) =>
+      Option.equal(fast_equal, p1, p2) && a1 == a2 && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
