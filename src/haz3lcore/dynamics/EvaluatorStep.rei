@@ -47,4 +47,5 @@ module Stepper: {
   let update_expr: (DHExp.t, t) => t;
   let get_history: t => (list(step), list(step_with_previous));
   let get_justification: step_kind => string;
+  let undo_point: list(step) => option((step, list(step)));
 };

@@ -485,10 +485,16 @@ module Stepper = {
     skip_steps({current: d, previous: [], next: decompose(d)});
   };
 
+  let rec undo_point: list(step) => option((step, list(step))) =
+    fun
+    | [] => None
+    | [x, ...xs] when should_hide_step(x.step.knd) => undo_point(xs)
+    | [x, ...xs] => Some((x, xs));
+
   let step_backward = (s: t) =>
-    switch (s.previous) {
-    | [] => failwith("cannot step backwards")
-    | [x, ...xs] => {current: x.d, previous: xs, next: decompose(x.d)}
+    switch (undo_point(s.previous)) {
+    | None => failwith("cannot step backwards")
+    | Some((x, xs)) => {current: x.d, previous: xs, next: decompose(x.d)}
     };
 
   let update_expr = (d: DHExp.t, _: t) => {
