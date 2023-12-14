@@ -141,7 +141,7 @@ let view =
       d: DHExp.t,
     )
     : Node.t => {
-  DHDoc_Step.mk(
+  DHDoc_Exp.mk(
     ~previous_step,
     ~hidden_steps,
     ~chosen_step,
