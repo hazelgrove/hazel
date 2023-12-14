@@ -1,0 +1,52 @@
+open Sexplib.Std;
+
+module Evaluation = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    show_case_clauses: bool,
+    show_fn_bodies: bool,
+    show_casts: bool,
+    show_lookup_steps: bool,
+    show_stepper_filters: bool,
+    // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
+    stepper: bool,
+    stepper_history: bool,
+  };
+
+  let init = {
+    show_case_clauses: true,
+    show_fn_bodies: true,
+    show_casts: true,
+    show_lookup_steps: true,
+    show_stepper_filters: true,
+    stepper: false,
+    stepper_history: false,
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  statics: bool,
+  elaborate: bool,
+  assist: bool,
+  dynamics: bool,
+  evaluation: Evaluation.t,
+};
+
+let off: t = {
+  statics: false,
+  elaborate: false,
+  assist: false,
+  dynamics: false,
+  evaluation: {
+    ...Evaluation.init,
+    stepper: false,
+  },
+};
+let on: t = {
+  statics: true,
+  elaborate: true,
+  assist: true,
+  dynamics: true,
+  evaluation: Evaluation.init,
+};

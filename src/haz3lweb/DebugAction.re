@@ -9,9 +9,9 @@ let perform = action => {
     let settings = Store.Settings.load();
     Store.Settings.save({
       ...settings,
-      dynamics: {
-        ...settings.dynamics,
-        evaluate: false,
+      core: {
+        ...settings.core,
+        dynamics: false,
       },
     });
   | ClearStore => JsUtil.clear_localstore()

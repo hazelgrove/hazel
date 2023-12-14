@@ -22,21 +22,21 @@ module Settings = {
   let default = Init.startup.settings;
 
   let serialize = settings =>
-    settings |> ModelSettings.sexp_of_t |> Sexplib.Sexp.to_string;
+    settings |> Settings.sexp_of_t |> Sexplib.Sexp.to_string;
 
   let deserialize = data =>
     try(
       data
       |> Sexplib.Sexp.of_string
-      |> ModelSettings.t_of_sexp
-      |> ModelSettings.fix_instructor_mode
+      |> Settings.t_of_sexp
+      |> Settings.fix_instructor_mode
     ) {
     | _ =>
       print_endline("Could not deserialize settings.");
       default;
     };
 
-  let save = (settings: ModelSettings.t): unit =>
+  let save = (settings: Settings.t): unit =>
     JsUtil.set_localstore(save_settings_key, serialize(settings));
 
   let init = () => {
@@ -44,7 +44,7 @@ module Settings = {
     default;
   };
 
-  let load = (): ModelSettings.t =>
+  let load = (): Settings.t =>
     switch (JsUtil.get_localstore(save_settings_key)) {
     | None => init()
     | Some(data) => deserialize(data)

@@ -169,7 +169,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], []) when t != " " => ret(Invalid(t))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -199,7 +200,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["()"], []) =>
+        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
       | _ => ret(hole(tm))
       }
@@ -278,7 +280,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
@@ -340,7 +343,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -394,7 +398,8 @@ and tpat_term: unsorted => UTPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -484,4 +489,21 @@ let go =
       let e = exp(unsorted(Segment.skel(seg), seg));
       (e, map^);
     },
+  );
+
+let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  go(seg);
+};
+
+let from_zip_for_view =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=false, ~erase_buffer=true),
+  );
+
+let from_zip_for_sem =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=true, ~erase_buffer=true),
   );

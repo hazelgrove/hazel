@@ -19,11 +19,11 @@ type t = {
   stepper: option(Stepper.t),
 };
 
-let init = (d, is_stepped) => {
+let init = (~settings: CoreSettings.t, d) => {
   d,
   current: ResultPending,
-  previous: Interface.evaluate(d),
-  stepper: is_stepped ? Some(Stepper.mk(d)) : None,
+  previous: Interface.evaluate(~settings, d),
+  stepper: settings.evaluation.stepper ? Some(Stepper.mk(d)) : None,
 };
 
 let step_forward = (x: EvalObj.t, mr: t) =>
@@ -78,7 +78,7 @@ let get_simple = (mr: t): TestResults.simple_data => {
       p_result
       |> ProgramResult.get_state
       |> EvaluatorState.get_tests
-      |> Interface.mk_results,
+      |> TestResults.mk_results,
   };
 };
 

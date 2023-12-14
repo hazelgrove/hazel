@@ -13,7 +13,8 @@ type t =
   | InvalidBoxedStringLit(DHExp.t)
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
-  | BadBuiltinAp(string, list(DHExp.t));
+  | BadBuiltinAp(string, list(DHExp.t))
+  | InvalidProjection(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(t);

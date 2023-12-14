@@ -111,13 +111,6 @@ let monotile: t => option(Token.t) =
     Some(Secondary.get_string(w.content))
   | _ => None;
 
-let is_length_one_monotile: t => bool =
-  p =>
-    switch (monotile(p)) {
-    | Some(t) => String.length(t) == 1
-    | None => false
-    };
-
 let has_ends = get(_ => true, _ => true, Tile.has_ends);
 
 let is_complete: t => bool =
