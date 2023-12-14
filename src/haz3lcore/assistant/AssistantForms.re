@@ -25,7 +25,7 @@ module Typ = {
     ("[]", List(unk)), /*NOTE: would need to refactor buffer for this to show up */
     ("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
     //("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
-    ("_", unk) //TODO: this shouldn't show up for exp?
+    ("_", unk),
   ];
 
   let of_prefix_leading_delim: list((Token.t, Typ.t)) = [

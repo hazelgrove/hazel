@@ -147,8 +147,8 @@ let piece_to_left = (~db, z: Zipper.t): thing_to_left =>
       failwith(
         "  LSP: Syntax: EXN: Rightwards segment after trimming secondaries",
       )
-    | [lht, ..._] =>
-      switch (lht) {
+    | [lht', ..._] =>
+      switch (lht') {
       | Tile({label: [], _}) => failwith("LSP: EXN: Tile with empty label")
       | Tile({label: [tok_to_left], id, _} as t) =>
         db("  LSP: Syntax: Leftward piece is Monotile: " ++ tile_str(t));
@@ -224,7 +224,7 @@ let error_str = ci =>
   | None => "None"
   };
 
-let show_info = (db, ci: Info.t, z: Zipper.t) => {
+let show_info = (db, ci: Info.t, _bidi_ci, z: Zipper.t) => {
   let sort = Info.sort_of(ci);
   let cls = Info.cls_of(ci);
   let ctx = Info.ctx_of(ci);
@@ -271,76 +271,122 @@ let suggest_comma = (bidi_ctx_ci: Info.t) => {
   | InfoPat({mode: Syn, _}) => true
   | InfoExp({
       ctx,
-      status:
-        InHole(
-          Common(
-            Inconsistent(
-              Expectation({ana: Prod(p_ana), syn: Prod(p_syn)}),
-            ),
-          ),
-        ),
+      status: InHole(Common(Inconsistent(Expectation({ana, syn})))),
       _,
     })
   | InfoPat({
       ctx,
-      status:
-        InHole(
-          Common(
-            Inconsistent(
-              Expectation({ana: Prod(p_ana), syn: Prod(p_syn)}),
-            ),
-          ),
-        ),
+      status: InHole(Common(Inconsistent(Expectation({ana, syn})))),
       _,
     }) =>
-    // true if syn type p_syn is a prefix of the list expected_type p_ana
-    // or more specifically, each type in p_syn should be consistent with it's
-    // corresponding type in p_ana, up to the length of p_syn
-    print_endline(
-      "suggest comma case. p_ana is "
-      ++ String.concat(" ", List.map(Typ.show, p_ana)),
-    );
-    print_endline(
-      "suggest comma case. p_syn is "
-      ++ String.concat(" ", List.map(Typ.show, p_syn)),
-    );
-    let rec is_strict_prefix = (p_syn, p_ana) =>
-      switch (p_syn, p_ana) {
-      | (_, []) => false
-      | ([], _) => true
-      | ([ty_syn, ...p_syn], [ty_ana, ...p_ana]) =>
-        Typ.is_consistent(ctx, ty_syn, ty_ana)
-        && is_strict_prefix(p_syn, p_ana)
-      };
-    is_strict_prefix(p_syn, p_ana);
-  | InfoExp({
-      ctx,
-      status:
-        InHole(
-          Common(
-            Inconsistent(
-              Expectation({ana: Prod([t1_ana, ..._]), syn: t_syn}),
-            ),
-          ),
-        ),
-      _,
-    })
-  | InfoPat({
-      ctx,
-      status:
-        InHole(
-          Common(
-            Inconsistent(
-              Expectation({ana: Prod([t1_ana, ..._]), syn: t_syn}),
-            ),
-          ),
-        ),
-      _,
-    }) =>
-    Typ.is_consistent(ctx, t1_ana, t_syn)
+    switch (ana, syn) {
+    | (Prod(p_ana), Prod(p_syn)) =>
+      // true if syn type p_syn is a prefix of the list expected_type p_ana
+      // or more specifically, each type in p_syn should be consistent with it's
+      // corresponding type in p_ana, up to the length of p_syn
+      print_endline(
+        "suggest comma case. p_ana is "
+        ++ String.concat(" ", List.map(Typ.show, p_ana)),
+      );
+      print_endline(
+        "suggest comma case. p_syn is "
+        ++ String.concat(" ", List.map(Typ.show, p_syn)),
+      );
+      let rec is_strict_prefix = (p_syn, p_ana) =>
+        switch (p_syn, p_ana) {
+        | (_, []) => false
+        | ([], _) => true
+        | ([ty_syn, ...p_syn], [ty_ana, ...p_ana]) =>
+          Typ.is_consistent(ctx, ty_syn, ty_ana)
+          && is_strict_prefix(p_syn, p_ana)
+        };
+      is_strict_prefix(p_syn, p_ana);
+    | (Prod([t1_ana, ..._]), t_syn) => Typ.is_consistent(ctx, t1_ana, t_syn)
+    | _ => false
+    }
   | InfoTyp(_) => true
   | _ => false
   };
+};
+
+let dedup = List.sort_uniq(compare);
+
+let unk = Typ.Unknown(Internal);
+
+let suggest_exp = (ctx: Ctx.t, ty): Suggestion.s =>
+  AssistantCtx.suggest_bound_exp(ty, ctx)
+  @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
+
+let suggest_pat = (ctx: Ctx.t, co_ctx, ty): Suggestion.s =>
+  AssistantCtx.suggest_free_var(ty, ctx, co_ctx)
+  @ AssistantCtx.suggest_bound_pat(ty, ctx)
+  @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
+
+let suggest_typ = (ctx: Ctx.t): Suggestion.s =>
+  AssistantCtx.suggest_bound_typ(ctx)
+  @ AssistantForms.suggest_all_ty_convex(Typ, ctx, unk);
+
+let convex_sugs = (~settings, ci: Info.t) =>
+  switch (settings.constrain) {
+  | Types =>
+    switch (ci) {
+    | InfoExp({mode, ctx, _}) => suggest_exp(ctx, Mode.ty_of(mode))
+    | InfoPat({mode, ctx, co_ctx, _}) =>
+      suggest_pat(ctx, co_ctx, Mode.ty_of(mode))
+    | InfoTyp({ctx, _}) => suggest_typ(ctx)
+    | _ => []
+    }
+  | Context =>
+    switch (ci) {
+    | InfoExp({ctx, _}) => suggest_exp(ctx, unk)
+    | InfoPat({ctx, co_ctx, _}) => suggest_pat(ctx, co_ctx, unk)
+    | InfoTyp({ctx, _}) => suggest_typ(ctx)
+    | _ => []
+    }
+  | Grammar =>
+    switch (ci) {
+    | InfoExp(_) =>
+      [Suggestion.mk("~PATVAR~")]
+      @ [Suggestion.mk("~CONSTRUCTOR~")]
+      @ suggest_exp([], unk)
+    | InfoPat(_) =>
+      [Suggestion.mk("~CONSTRUCTOR~")] @ suggest_pat([], [], unk)
+    | InfoTyp(_) => [Suggestion.mk("~TYPVAR~")]
+    | _ => []
+    }
+  };
+
+let convex_lookahead_sugs = (~settings, ~db, ci: Info.t) => {
+  switch (settings.constrain) {
+  | Context
+  | Grammar => []
+  | Types =>
+    switch (ci) {
+    | InfoExp({mode, ctx, _}) =>
+      let ty_paths = AssistantCtx.get_lookahead_tys_exp(Mode.ty_of(mode));
+      db(
+        "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
+      );
+      let tys =
+        List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
+      db(
+        "  LSP: Convex: Target types: "
+        ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
+      );
+      List.map(suggest_exp(ctx), tys) |> List.flatten;
+    | InfoPat({mode, ctx, co_ctx, _}) =>
+      let tys = AssistantCtx.get_lookahead_tys_pat(Mode.ty_of(mode));
+      List.map(suggest_pat(ctx, co_ctx), tys) |> List.flatten;
+    | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+    | _ => []
+    }
+  };
+};
+
+let concave_sugs = (ci: Info.t): Suggestion.s => {
+  let infix_mono_sugs = AssistantForms.suggest_infix_mono(ci);
+  let postfix_poly_sugs = AssistantForms.suggest_postfix_leading(ci);
+  infix_mono_sugs @ postfix_poly_sugs;
 };
 
 let generate =
@@ -353,127 +399,49 @@ let generate =
       id: Id.t,
     )
     : list(string) => {
-  let ctx_init = []; //Builtins.ctx_init;
+  let get_info = id =>
+    lsp_z_to_ci(
+      ~settings=CoreSettings.on,
+      ~ctx=[], //Builtins.ctx_init,
+      id,
+      z,
+    );
   let ci =
     OptUtil.get_or_fail(
       "LSP: Gen: EXN: Couldn't find CI for id " ++ Id.to_string(id),
-      lsp_z_to_ci(~settings=CoreSettings.on, ~ctx=ctx_init, id, z),
+      get_info(id),
     );
+  //TODO: de-option below
+  let bidi_ci = get_info(get_bidi_id(z, id));
 
-  //TODO: only make backpack sug if bidictx is NotInHole
-  // or maybe doesn't have any errors at all?
-  let backpack_sug = AssistantBackpack.suggest(z);
-  /*let convex_const_mono_sugs = AssistantForms.suggest_const_mono(ci);
-    let convex_abstract_mono_sugs = AssistantForms.suggest_abstract_mono(ci);
-    let prefix_mono_sugs = AssistantForms.suggest_prefix_mono(ci);
-    let prefix_poly_sugs = AssistantForms.suggest_prefix_leading(ci);*/
   let n_ary_sugs: list(Suggestion.t) = {
-    //print_endline("bidi ctx id:" ++ Id.to_string(get_bidi_id(z, id)));
-    let bidi_ci =
-      lsp_z_to_ci(
-        ~settings=CoreSettings.on,
-        ~ctx=Builtins.ctx_init,
-        get_bidi_id(z, id),
-        z,
-      );
-    let blah = bidi_ci |> Option.map(suggest_comma);
-    switch (blah) {
-    | Some(true) =>
-      db("  LSP: Syntax: Suggesting comma");
-      [Suggestion.{content: ",", strategy: Default}];
-    | Some(false) =>
-      db("  LSP: Syntax: Not Suggesting comma");
-      [];
-    | _ =>
-      db("  LSP: Syntax: Error: Id not found");
-      [];
+    let comma_sug = Suggestion.mk(",");
+    switch (settings.constrain) {
+    | Types =>
+      switch (Option.map(suggest_comma, bidi_ci)) {
+      | Some(true) =>
+        db("  LSP: Syntax: Suggesting comma");
+        [comma_sug];
+      | Some(false) =>
+        db("  LSP: Syntax: Not Suggesting comma");
+        [];
+      | _ =>
+        db("  LSP: Syntax: Error: Bidictx id not found");
+        [];
+      }
+    | Context
+    | Grammar => [comma_sug]
     };
   };
-  let suggest_exp = (ctx, ty) =>
-    AssistantCtx.suggest_bound_exp(ty, ctx)
-    @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
-  let suggest_pat = (ctx, co_ctx, ty) =>
-    AssistantCtx.suggest_free_var(ty, ctx, co_ctx)
-    @ AssistantCtx.suggest_bound_pat(ty, ctx)
-    @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
-  let unk = Typ.Unknown(Internal);
-  let convex_var_sugs =
-    switch (settings.constrain) {
-    | Types =>
-      switch (ci) {
-      | InfoExp({mode, ctx, _}) => suggest_exp(ctx, Mode.ty_of(mode))
-      | InfoPat({mode, ctx, co_ctx, _}) =>
-        suggest_pat(ctx, co_ctx, Mode.ty_of(mode))
-      | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
-      | _ => []
-      }
-    | Context =>
-      switch (ci) {
-      | InfoExp({ctx, _}) => suggest_exp(ctx, unk)
-      | InfoPat({ctx, co_ctx, _}) => suggest_pat(ctx, co_ctx, unk)
-      | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
-      | _ => []
-      }
-    | Grammar =>
-      switch (ci) {
-      | InfoExp(_) =>
-        [Suggestion.{content: "~PATVAR~", strategy: Default}]
-        @ [Suggestion.{content: "~CONSTRUCTOR~", strategy: Default}]
-        @ suggest_exp([], unk)
-      | InfoPat(_) =>
-        [Suggestion.{content: "~CONSTRUCTOR~", strategy: Default}]
-        @ suggest_pat([], [], unk)
-      | InfoTyp(_) => []
-      | _ => []
-      }
-    };
+  let backpack_sugs = AssistantBackpack.suggest(z);
+  let convex_backpack_sugs =
+    List.filter_map(AssistantBackpack.is_convex, backpack_sugs);
+  let concave_backpack_sugs =
+    List.filter_map(AssistantBackpack.is_concave, backpack_sugs);
+  let convex_sugs = convex_sugs(~settings, ci);
+  let convex_lookahead_sugs = convex_lookahead_sugs(~settings, ~db, ci);
+  let concave_sugs = concave_sugs(ci);
 
-  let nu_convex_lookahead_var_sugs =
-    switch (settings.constrain) {
-    | Context
-    | Grammar => []
-    | Types =>
-      switch (ci) {
-      | InfoExp({mode, ctx, _}) =>
-        let ty_paths = AssistantCtx.get_lookahead_tys_exp(Mode.ty_of(mode));
-        db(
-          "  LSP: Convex: Ty paths:\n "
-          ++ AssistantCtx.show_type_path(ty_paths),
-        );
-        let tys =
-          List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
-        db(
-          "  LSP: Convex: Target types: "
-          ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
-        );
-        List.map(suggest_exp(ctx), tys) |> List.flatten;
-      | InfoPat({mode, ctx, co_ctx, _}) =>
-        let tys = AssistantCtx.get_lookahead_tys_pat(Mode.ty_of(mode));
-        List.map(suggest_pat(ctx, co_ctx), tys) |> List.flatten;
-      | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
-      | _ => []
-      }
-    };
-  let convex_lookahead_var_sugs =
-    switch (settings.constrain) {
-    | Context
-    | Grammar => []
-    | Types =>
-      switch (ci) {
-      | InfoExp({mode, ctx, _}) =>
-        let ty = Mode.ty_of(mode);
-        AssistantCtx.suggest_lookahead_variable_exp(ty, ctx)
-        @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
-      | InfoPat({mode, ctx, co_ctx, _}) =>
-        let ty = Mode.ty_of(mode);
-        AssistantCtx.suggest_lookahead_variable_pat(ty, ctx, co_ctx)
-        @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
-      | InfoTyp(_) => []
-      | _ => []
-      }
-    };
-  let infix_mono_sugs = AssistantForms.suggest_infix_mono(ci);
-  let postfix_poly_sugs = AssistantForms.suggest_postfix_leading(ci);
   db(
     "LSP: Gen: Generating "
     ++ (
@@ -482,80 +450,64 @@ let generate =
     )
     ++ " Suggestions",
   );
-  show_info(db, ci, z);
-  db("  LSP: Base: Backpack suggestion: " ++ of_sugs(backpack_sug));
-  db("  LSP: Base: Mono Convex Vars: " ++ of_sugs(convex_var_sugs));
-  db(
-    "  LSP: Base: Mono Convex Lookahead Vars: "
-    ++ of_sugs(convex_lookahead_var_sugs),
-  );
-  db(
-    "  LSP: Base: NU Mono Convex Lookahead Vars: "
-    ++ of_sugs(nu_convex_lookahead_var_sugs),
-  );
-  /*db("  LSP: Base: Mono Convex Const: " ++ of_sugs(convex_const_mono_sugs));
+
+  show_info(db, ci, bidi_ci, z);
+
+  switch (shape) {
+  | Convex =>
+    db("  LSP: Base: Convex: Backpack: " ++ of_sugs(convex_backpack_sugs));
+    db("  LSP: Base: Convex: " ++ of_sugs(convex_sugs));
     db(
-      "  LSP: Base: Mono Convex Abstract: "
-      ++ of_sugs(convex_abstract_mono_sugs),
+      "  LSP: Base: Convex: Lookahead: "
+      ++ of_sugs(convex_lookahead_sugs |> dedup),
     );
-    db("  LSP: Base: Mono Prefix: " ++ of_sugs(prefix_mono_sugs));
-    db("  LSP: Base: Poly Prefix: " ++ of_sugs(prefix_poly_sugs));*/
-  db("  LSP: Base: Mono Infix: " ++ of_sugs(infix_mono_sugs));
-  db("  LSP: Base: Poly Postfix: " ++ of_sugs(postfix_poly_sugs));
-  db("  LSP: Base: N-ary: " ++ of_sugs(n_ary_sugs));
+  | Concave(_) =>
+    db("  LSP: Base: Concave: Backpack: " ++ of_sugs(concave_backpack_sugs));
+    db("  LSP: Base: Concave: N-ary: " ++ of_sugs(n_ary_sugs));
+    db("  LSP: Base: Concave: " ++ of_sugs(concave_sugs));
+  };
 
-  //TODO(andrew): only suggest "|" if immediate parent is case?
-  //TODO(andrew): restriction postfix fn application somehow
-  //TODO(andrew): get rid ? of wild underscore in exp
-  //TODO(andrew): make sure turning off types/ctx doesnt fuck up comma sugs
-  //TODO(andrew): test type definitions esp ADTs
+  //CHECK(andrew): make sure turning off types/ctx doesnt fuck up comma sugs
+  //CHECK(andrew): check tydi handling of synthetic mode, ana unknown mode
+  //CHECK(andrew): test type definitions esp ADTs
+  //CHECK(andrew): consider reducing generation of duplicate lookahead suggestions
 
-  //TODO(andrew): check tydi handling of synthetic pos, unknown type
-  //TODO(andrew): completing fns apps incl empty ap
-  //TODO(andrew): case rules suggested everywhere in expr
-  //TODO(andrew): not all leading necessarily convex... handle principled
-  //TODO(andrew): completing ( and [ into () and []
-  //TODO(andrew): things with unknown type get duplicated lookahead sugs?
-  //TODO(andrew): lookahead case: technically "let a:Int = (f" should suggest fun
-  //TODO(andrew): if unbound error and exist completions, maybe dont sug ws or other new tok
-  //TODO(andrew): cases of being halfway through int/float/stringlits or pat/tyvars
+  //BUG: Completions of regexp literals just returns same regexp
+  //BUG: postfix fn app suggested too liberally (in all exp contexts)
+  //BUG: given "(", ")" not suggested.
+  //BUG: given "f(", ")" not suggested (empty app never suggested)
+  //BUG: given "[]", "]" not suggested.
 
-  //TODO(andrew): if on type inconsistency error, suggest everything for now
-  // (but not if on unbound error)
+  //BUG: "|" suggested too liberally (in all exp contexts)
+  //FIX: only suggest if bidictx parent is case?
 
-  // from kevin:
-  //TODO(andrew): logic for completing free forms regexps
-  // if expected type consistent with tuple, suggest ,
-  // if expecte type consistent with tuple, suggest first type
-  // (in effect we get no type guidance for remaining members of tuple)
-  // cut off lookaheads at space
+  /* TODO: Restict new tokens and whitespace logic:
+      1. if prev token is a free variable/constructor which is not equal to a keyword,
+      then prohibit new tokens + whitespace
+      (if all according to keikaku, should always be a completion in this case;
+      could for now liberalize and only prohibit if there are also completions)
+      2. only make backpack suggestion if bidictx contains no errors
+      3. only make comma suggestion if bidictx analyzes against prefix of expected tuple
+     */
 
   let suggestions_convex =
-    /*convex_const_mono_sugs
-      @ convex_abstract_mono_sugs
-      @ prefix_mono_sugs
-      @ prefix_poly_sugs
-      @ */ convex_var_sugs
-    @ convex_lookahead_var_sugs
-    @ nu_convex_lookahead_var_sugs
-    |> List.sort(Suggestion.compare);
+    convex_backpack_sugs
+    @ convex_sugs
+    @ convex_lookahead_sugs
+    |> List.sort_uniq(Suggestion.compare);
 
   let suggestions_concave =
-    n_ary_sugs
-    @ infix_mono_sugs
-    @ postfix_poly_sugs
-    |> List.sort(Suggestion.compare);
+    concave_backpack_sugs
+    @ n_ary_sugs
+    @ concave_sugs
+    |> List.sort_uniq(Suggestion.compare);
 
   switch (completion) {
   | None =>
     let base_suggestions =
       switch (shape) {
-      | Convex =>
-        suggestions_convex
-        @ List.filter_map(AssistantBackpack.is_convex, backpack_sug)
-      | Concave(_) =>
-        suggestions_concave
-        @ List.filter_map(AssistantBackpack.is_concave, backpack_sug)
+      | Convex => suggestions_convex
+      | Concave(_) => suggestions_concave
       };
     List.map(Suggestion.content_of, base_suggestions);
   | Some(tok_to_left) =>
@@ -563,10 +515,37 @@ let generate =
        on shape expectation, because the tile might get remolded */
     suggestions_concave
     @ suggestions_convex
-    @ backpack_sug
+    @ backpack_sugs
     |> List.map(Suggestion.content_of)
-    |> List.filter(String.starts_with(~prefix=tok_to_left))
-    |> List.filter_map(x => TyDi.suffix_of(x, tok_to_left))
+    |> List.filter_map(x =>
+         if (String.starts_with(~prefix=tok_to_left, x)) {
+           TyDi.suffix_of(x, tok_to_left);
+         } else {
+           /* TODO:
+              1.This logic isn't quite right. Need to test whether tok_to_left
+               is a valid prefix of thing, not just thing. Current broken cases
+               include strings (basically all) and maybe some floats?
+               2. Also partial intlits could also be floats; handled this but maybe
+               more cases like this.
+               3. I guess in general this should use regexps that check if tok_to_left
+               is a prefix of a thing, and it so, return a suffix regexp.
+               4. So basically need to write a prefix and suffix regexp for each
+               5. technically above doesn't quite work since in general
+               some prefixes might only have some valid suffixes
+              */
+           switch (x) {
+           | "~INTLIT~" when Form.is_int(tok_to_left) => Some(x)
+           | "~FLOATLIT~"
+               when Form.is_float(tok_to_left) || Form.is_int(tok_to_left) =>
+             Some(x)
+           | "~STRINGLIT~" when Form.is_string(tok_to_left) => Some(x)
+           | "~PATVAR~" when Form.is_var(tok_to_left) => Some(x)
+           | "~TYPVAR~" when Form.is_typ_var(tok_to_left) => Some(x)
+           | "~CONSTRUCTOR~" when Form.is_ctr(tok_to_left) => Some(x)
+           | _ => None
+           };
+         }
+       )
   };
 };
 

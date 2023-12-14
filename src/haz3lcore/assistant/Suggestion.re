@@ -69,8 +69,13 @@ type t = {
   strategy,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type s = list(t);
+
 let content_of = s => s.content;
 
 let compare = (s1: t, s2: t): int => {
   String.compare(s1.content, s2.content);
 };
+
+let mk = (~strategy=Default, content): t => {strategy, content};
