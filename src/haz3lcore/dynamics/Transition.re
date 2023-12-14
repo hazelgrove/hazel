@@ -752,7 +752,7 @@ module Transition = (EV: EV_MODE) => {
     };
 };
 
-let should_hide_step = (~env=true, ~casts=true) =>
+let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
   | Sequence
@@ -766,13 +766,13 @@ let should_hide_step = (~env=true, ~casts=true) =>
   | ListCons
   | ListConcat
   | CaseApply
-  | CaseNext
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Skip
   | InvalidStep => false
-  | VarLookup => env
+  | VarLookup => !settings.show_lookup_steps
   | CastAp
-  | Cast => casts
+  | Cast => !settings.show_casts
+  | CaseNext
   | CompleteClosure
   | CompleteFilter
   | FixUnwrap
