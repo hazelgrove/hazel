@@ -69,20 +69,27 @@ let getSettings = args =>
   | None => getDefaultSettings()
   };
 
-type tileness =
-  | Monotile(Id.t, string)
-  | Polytile(Id.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type completability =
+  | Completeable(Id.t, string)
+  | Inert(Id.t);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type shapyness =
-  | LeftConvex(tileness)
-  | LeftConcave(tileness);
+  | LeftConvex
+  | LeftConcave;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type thing_to_left =
-  | Nothing
-  | Just(shapyness)
-  | SpacesThen(shapyness);
+  | Just
+  | SpacePadded;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type neighbor_info = (thing_to_left, shapyness, completability);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 //TODO: better handling of concaves
+[@deriving (show({with_path: false}), sexp, yojson)]
 type generation_options =
   | NewRightConvex(Id.t)
   | CompletionOrNewRightConvex(Id.t, string, Id.t)
@@ -130,47 +137,47 @@ let hole_to_right = (~db, z: Zipper.t): option(Id.t) =>
     );
   };
 
-let piece_to_left = (~db, z: Zipper.t): thing_to_left =>
+let is_completable = (t: Tile.t) =>
+  switch (t.shards |> List.map(List.nth(t.label))) {
+  | _ when List.length(t.label) == 1 =>
+    /* Monotiles are completable */
+    Completeable(t.id, List.hd(t.label))
+  | [("(" | "[") as tok_to_left] =>
+    /* SPECIAL CASE: Instant-expanding leading polytiles
+       that also have a monotile completion */
+    Completeable(t.id, tok_to_left)
+  | _ =>
+    /* Other polytiles are not completable */
+    Inert(t.id)
+  };
+
+let piece_to_left = (~db, z: Zipper.t): option(neighbor_info) =>
   /*
    Returning Left means we're looking for either a new thing
     that starts with a left-facing chevron, or a completion of the
     thing to the left, which has a left-side right-facing chevron.
     */
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [] => Nothing
+  | [] => None
   | [lht, ..._] as seg =>
     if (Piece.is_secondary(lht)) {
-      db("  LSP: Syntax Inspector: Leftward piece is Secondary; trimming");
+      db("  LSP: Syntax: Leftward is Secondary: trimming");
     };
     switch (Segment.trim_secondary(Left, seg)) {
-    | [] =>
-      failwith(
-        "  LSP: Syntax: EXN: Rightwards segment after trimming secondaries",
-      )
+    | [] => failwith("  LSP: Syntax: EXN: Rightwards seg empty after trim")
     | [lht', ..._] =>
       switch (lht') {
-      | Tile({label: [], _}) => failwith("LSP: EXN: Tile with empty label")
-      | Tile({label: [tok_to_left], id, _} as t) =>
-        db("  LSP: Syntax: Leftward piece is Monotile: " ++ tile_str(t));
-        let g =
-          switch (right_nib_dir(t)) {
-          | Right => LeftConvex(Monotile(id, tok_to_left))
-          | Left => LeftConcave(Monotile(id, tok_to_left))
-          };
-        Piece.is_secondary(lht) ? SpacesThen(g) : Just(g);
       | Tile(t) =>
         db(
-          "  LSP: Syntax: Leftward piece is "
+          "  LSP: Syntax: Leftward is "
           ++ (Tile.is_complete(t) ? "Complete" : "Incomplete")
-          ++ " Polytile: "
+          ++ " Tile: "
           ++ tile_str(t),
         );
-        let g =
-          switch (right_nib_dir(t)) {
-          | Right => LeftConvex(Polytile(t.id))
-          | Left => LeftConcave(Polytile(t.id))
-          };
-        Piece.is_secondary(lht) ? SpacesThen(g) : Just(g);
+        let c = is_completable(t);
+        let d = right_nib_dir(t) == Right ? LeftConvex : LeftConcave;
+        let p = Piece.is_secondary(lht) ? SpacePadded : Just;
+        Some((p, d, c));
       | Grout({id: _, shape, _}) =>
         failwith(
           "  LSP: Syntax: EXN: Leftward Grout " ++ Grout.show_shape(shape),
@@ -183,25 +190,32 @@ let piece_to_left = (~db, z: Zipper.t): thing_to_left =>
 
 let generation_options = (~db, z: Zipper.t) => {
   switch (piece_to_left(~db, z), hole_to_right(~db, z)) {
-  | (Nothing, None) => failwith("LSP: EXN: Nothing to left or right")
-  | (Just(LeftConcave(_)) | SpacesThen(LeftConcave(_)), None) =>
-    failwith("LSP: EXN: Concave to left and nothing to right")
-  | (Just(LeftConvex(_)) | SpacesThen(LeftConvex(_)), Some(_)) =>
-    failwith("LSP: EXN: Convex to left and right")
-  | (Nothing | Just(LeftConcave(Polytile(_))) | SpacesThen(_), Some(id)) =>
-    NewRightConvex(id)
-  | (Just(LeftConcave(Monotile(id, left_token))), Some(id_to_right)) =>
-    CompletionOrNewRightConvex(id, left_token, id_to_right)
-  | (
-      Just(LeftConvex(Polytile(id))) |
-      SpacesThen(LeftConvex(Polytile(id) | Monotile(id, _))),
-      None,
-    ) =>
-    //TODO: id here is weird
-    NewRightConcave(id)
-  | (Just(LeftConvex(Monotile(id, left_token))), None) =>
-    //TODO: id here is weird
-    CompletionOrNewRightConcave(id, left_token, id)
+  | (None, None) => failwith("LSP: EXN: Nothing to left or right")
+  | (Some((to_left, shape, compl)), None) =>
+    switch (shape) {
+    | LeftConcave =>
+      failwith("LSP: EXN: Concave to left and nothing to right")
+    | LeftConvex =>
+      switch (to_left, compl) {
+      | (Just, Inert(id))
+      | (SpacePadded, Completeable(id, _) | Inert(id)) =>
+        NewRightConcave(id)
+      | (Just, Completeable(id, left_token)) =>
+        CompletionOrNewRightConcave(id, left_token, id)
+      }
+    }
+  | (None, Some(id)) => NewRightConvex(id)
+  | (Some((to_left, shape, compl)), Some(id_r)) =>
+    switch (shape) {
+    | LeftConvex => failwith("LSP: EXN: Convex to left and right")
+    | LeftConcave =>
+      switch (to_left, compl) {
+      | (Just, Inert(_))
+      | (SpacePadded, _) => NewRightConvex(id_r)
+      | (Just, Completeable(id, left_tok)) =>
+        CompletionOrNewRightConvex(id, left_tok, id_r)
+      }
+    }
   };
 };
 
@@ -474,9 +488,6 @@ let generate =
 
   //BUG: Completions of regexp literals just returns same regexp
   //BUG: postfix fn app suggested too liberally (in all exp contexts)
-  //BUG: given "(", ")" not suggested.
-  //BUG: given "f(", ")" not suggested (empty app never suggested)
-  //BUG: given "[]", "]" not suggested.
 
   //BUG: "|" suggested too liberally (in all exp contexts)
   //FIX: only suggest if bidictx parent is case?
