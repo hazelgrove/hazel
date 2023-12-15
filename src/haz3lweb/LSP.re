@@ -327,13 +327,13 @@ let dedup = List.sort_uniq(compare);
 
 let unk = Typ.Unknown(Internal);
 
-let suggest_exp = (ctx: Ctx.t, ty): Suggestion.s =>
-  AssistantCtx.suggest_bound_exp(ty, ctx)
+let suggest_exp = (~fns, ctx: Ctx.t, ty): Suggestion.s =>
+  AssistantCtx.suggest_bound_exp(~fns, ty, ctx)
   @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
 
-let suggest_pat = (ctx: Ctx.t, co_ctx, ty): Suggestion.s =>
+let suggest_pat = (~fns, ctx: Ctx.t, co_ctx, ty): Suggestion.s =>
   AssistantCtx.suggest_free_var(ty, ctx, co_ctx)
-  @ AssistantCtx.suggest_bound_pat(ty, ctx)
+  @ AssistantCtx.suggest_bound_pat(~fns, ty, ctx)
   @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty);
 
 let suggest_typ = (ctx: Ctx.t): Suggestion.s =>
@@ -344,16 +344,17 @@ let convex_sugs = (~settings, ci: Info.t) =>
   switch (settings.constrain) {
   | Types =>
     switch (ci) {
-    | InfoExp({mode, ctx, _}) => suggest_exp(ctx, Mode.ty_of(mode))
+    | InfoExp({mode, ctx, _}) =>
+      suggest_exp(~fns=false, ctx, Mode.ty_of(mode))
     | InfoPat({mode, ctx, co_ctx, _}) =>
-      suggest_pat(ctx, co_ctx, Mode.ty_of(mode))
+      suggest_pat(~fns=false, ctx, co_ctx, Mode.ty_of(mode))
     | InfoTyp({ctx, _}) => suggest_typ(ctx)
     | _ => []
     }
   | Context =>
     switch (ci) {
-    | InfoExp({ctx, _}) => suggest_exp(ctx, unk)
-    | InfoPat({ctx, co_ctx, _}) => suggest_pat(ctx, co_ctx, unk)
+    | InfoExp({ctx, _}) => suggest_exp(~fns=false, ctx, unk)
+    | InfoPat({ctx, co_ctx, _}) => suggest_pat(~fns=false, ctx, co_ctx, unk)
     | InfoTyp({ctx, _}) => suggest_typ(ctx)
     | _ => []
     }
@@ -362,9 +363,10 @@ let convex_sugs = (~settings, ci: Info.t) =>
     | InfoExp(_) =>
       [Suggestion.mk("~PATVAR~")]
       @ [Suggestion.mk("~CONSTRUCTOR~")]
-      @ suggest_exp([], unk)
+      @ suggest_exp(~fns=false, [], unk)
     | InfoPat(_) =>
-      [Suggestion.mk("~CONSTRUCTOR~")] @ suggest_pat([], [], unk)
+      [Suggestion.mk("~CONSTRUCTOR~")]
+      @ suggest_pat(~fns=false, [], [], unk)
     | InfoTyp(_) => [Suggestion.mk("~TYPVAR~")]
     | _ => []
     }
@@ -377,21 +379,27 @@ let convex_lookahead_sugs = (~settings, ~db, ci: Info.t) => {
   | Types =>
     switch (ci) {
     | InfoExp({mode, ctx, _}) =>
-      let ty_paths = AssistantCtx.get_lookahead_tys_exp(Mode.ty_of(mode));
+      let ty = Mode.ty_of(mode);
+      let ty_paths = AssistantCtx.get_lookahead_tys_exp(ty);
       db(
         "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
       );
       let tys =
         List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
+      // Filter out the current type
+      //let tys = List.filter((!=)(ty), tys);
       db(
         "  LSP: Convex: Target types: "
         ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
       );
-      List.map(suggest_exp(ctx), tys) |> List.flatten;
+      suggest_exp(~fns=true, ctx, ty)
+      @ (List.map(suggest_exp(~fns=true, ctx), tys) |> List.flatten);
     | InfoPat({mode, ctx, co_ctx, _}) =>
-      let tys = AssistantCtx.get_lookahead_tys_pat(Mode.ty_of(mode));
-      List.map(suggest_pat(ctx, co_ctx), tys) |> List.flatten;
-    | InfoTyp({ctx, _}) => AssistantCtx.suggest_bound_typ(ctx)
+      let ty = Mode.ty_of(mode);
+      let tys = AssistantCtx.get_lookahead_tys_pat(ty);
+      suggest_pat(~fns=true, ctx, co_ctx, ty)
+      @ (List.map(suggest_pat(~fns=true, ctx, co_ctx), tys) |> List.flatten);
+    | InfoTyp(_) => []
     | _ => []
     }
   };
@@ -485,10 +493,14 @@ let generate =
   //CHECK(andrew): check tydi handling of synthetic mode, ana unknown mode
   //CHECK(andrew): test type definitions esp ADTs
   //CHECK(andrew): consider reducing generation of duplicate lookahead suggestions
+  //CHECK(andrew): find actually wrong type operator cases
 
+  /* Too picky: */
   //BUG: Completions of regexp literals just returns same regexp
-  //BUG: postfix fn app suggested too liberally (in all exp contexts)
 
+  /* Too liberal: */
+  //BUG: postfix fn app suggested too liberally (in all exp contexts)
+  //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
   //BUG: "|" suggested too liberally (in all exp contexts)
   //FIX: only suggest if bidictx parent is case?
 

@@ -20,25 +20,41 @@ let suggest_free_var =
   );
 };
 
+let rec deep_consistent = (ctx: Ctx.t, ty_target, ty: Typ.t) =>
+  /* if ty is Arrow(_, Arrow(_, ... ty_target)) return true
+   */
+  switch (ty) {
+  | _ when Typ.is_consistent(ctx, ty, ty_target) => true
+  | Arrow(_, ty_out) => deep_consistent(ctx, ty_target, ty_out)
+  | _ => false
+  };
+
 /* For suggestsions in expressions, suggest variables from the ctx */
-let suggest_bound_var = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
+let suggest_bound_var =
+    (~fns: bool, ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.VarEntry({typ, name, _})
         when Typ.is_consistent(ctx, ty_expect, typ) =>
+      Some({content: name, strategy: Exp(Common(FromCtx(typ)))})
+    | Ctx.VarEntry({typ: Arrow(_) as typ, name, _})
+        when fns && deep_consistent(ctx, ty_expect, typ) =>
       Some({content: name, strategy: Exp(Common(FromCtx(typ)))})
     | _ => None,
     ctx,
   );
 
 let suggest_bound_ctr =
-    (wrap: strategy_common => strategy, ty: Typ.t, ctx: Ctx.t)
+    (~fns: bool, wrap: strategy_common => strategy, ty: Typ.t, ctx: Ctx.t)
     : list(Suggestion.t) =>
   /* get names of all constructor entries consistent with ty */
   List.filter_map(
     fun
     | Ctx.ConstructorEntry({typ, name, _})
         when Typ.is_consistent(ctx, ty, typ) =>
+      Some({content: name, strategy: wrap(FromCtx(typ))})
+    | Ctx.ConstructorEntry({typ: Arrow(_) as typ, name, _})
+        when fns && deep_consistent(ctx, ty, typ) =>
       Some({content: name, strategy: wrap(FromCtx(typ))})
     | _ => None,
     ctx,
@@ -83,13 +99,13 @@ let suggest_bound_typ = (ctx: Ctx.t): list(Suggestion.t) =>
     ctx,
   );
 
-let suggest_bound_exp = (ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) => {
-  suggest_bound_var(ty, ctx)
-  @ suggest_bound_ctr(x => Exp(Common(x)), ty, ctx);
+let suggest_bound_exp = (~fns, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) => {
+  suggest_bound_var(~fns, ty, ctx)
+  @ suggest_bound_ctr(~fns, x => Exp(Common(x)), ty, ctx);
 };
 
-let suggest_bound_pat = (ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) => {
-  suggest_bound_ctr(x => Pat(Common(x)), ty, ctx);
+let suggest_bound_pat = (~fns, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) => {
+  suggest_bound_ctr(~fns, x => Pat(Common(x)), ty, ctx);
 };
 
 /* Suggest lookahead tokens:
@@ -143,7 +159,7 @@ let show_type_path = (paths: type_path): string =>
   |> String.concat("\n");
 
 let rec get_lookahead_tys_exp = (ty_expected: Typ.t): list(list(Typ.t)) => {
-  let to_arr = t => Typ.Arrow(Unknown(Internal), t);
+  //let to_arr = t => Typ.Arrow(Unknown(Internal), t);
   //TODO(andrew): also ?->(?->t), etc.
   /* Interesting that this doesn't blow up due to anonymous functions due
      to precedence: can't start an opseq with a fun expecting later to apply it.
@@ -158,17 +174,16 @@ let rec get_lookahead_tys_exp = (ty_expected: Typ.t): list(list(Typ.t)) => {
      which eventually left-terminate at one of these types.
      actually maybe anon funs are fine here, they dont screw things up until
      you actually use one, unlike for reverse. */
-  [[ty_expected, to_arr(ty_expected)]]
+  [[ty_expected]]  //, to_arr(ty_expected)]]
   @ (
     switch (ty_expected) {
     | List(ty)
     | Prod([ty, ..._]) =>
       [[ty_expected, ty]]
-      @ [[ty_expected, ty, to_arr(ty)]]
+      //@ [[ty_expected, ty, to_arr(ty)]]
       @ List.map(tys => [ty_expected, ...tys], get_lookahead_tys_exp(ty))
     | Bool =>
-      let from_bool = t =>
-        [[ty_expected, t]] @ [[ty_expected, t, to_arr(t)]];
+      let from_bool = t => [[ty_expected, t]]; // @ [[ty_expected, to_arr(t)]];
       from_bool(Int) @ from_bool(Float) @ from_bool(String);
     | _ => []
     }
@@ -179,7 +194,7 @@ let suggest_lookahead_variable_pat =
     (ty_expected: Typ.t, ctx: Ctx.t, co_ctx: CoCtx.t): list(Suggestion.t) => {
   let pat_refs = ty =>
     suggest_free_var(ty, ctx, co_ctx)
-    @ suggest_bound_ctr(x => Pat(Common(x)), ty, ctx);
+    @ suggest_bound_ctr(~fns=true, x => Pat(Common(x)), ty, ctx);
   let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
   let from_current_type = pat_aps(ty_expected);
   let from_specific_type =
@@ -208,8 +223,8 @@ let suggest_lookahead_variable_pat =
 let suggest_lookahead_variable_exp =
     (ty_expected: Typ.t, ctx: Ctx.t): list(Suggestion.t) => {
   let exp_refs = ty =>
-    suggest_bound_pat(ty, ctx)
-    @ suggest_bound_ctr(x => Exp(Common(x)), ty, ctx);
+    suggest_bound_pat(~fns=true, ty, ctx)
+    @ suggest_bound_ctr(~fns=true, x => Exp(Common(x)), ty, ctx);
   let exp_aps = ty =>
     bound_aps(ty, ctx)
     @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
@@ -247,10 +262,12 @@ let suggest_lookahead_variable_exp =
 
 let suggest_variable = (ci: Info.t): list(Suggestion.t) =>
   switch (ci) {
-  | InfoExp({mode, ctx, _}) => suggest_bound_exp(Mode.ty_of(mode), ctx)
+  | InfoExp({mode, ctx, _}) =>
+    suggest_bound_exp(~fns=false, Mode.ty_of(mode), ctx)
   | InfoPat({mode, ctx, co_ctx, _}) =>
     let ty = Mode.ty_of(mode);
-    suggest_free_var(ty, ctx, co_ctx) @ suggest_bound_pat(ty, ctx);
+    suggest_free_var(ty, ctx, co_ctx)
+    @ suggest_bound_pat(~fns=false, ty, ctx);
   | InfoTyp({ctx, _}) => suggest_bound_typ(ctx)
   | _ => []
   };
