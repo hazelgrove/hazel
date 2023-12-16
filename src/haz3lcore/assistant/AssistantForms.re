@@ -51,9 +51,7 @@ module Typ = {
     ("::", List(unk)),
     (":", List(unk)), //TODO(andrew): hacky, for LSP
     ("@", List(unk)),
-    ("|>", unk), //TODO: not actually in Forms
-    ("||", Bool), //TODO: add to Forms
-    //(";", unk), //TODO: do we want this?
+    (";", unk), //TODO: do we want this?
     ("&&", Bool),
     ("\\/", Bool),
     ("$==", Bool),
@@ -293,8 +291,6 @@ let suggest_postfix_leading: Info.t => list(Suggestion.t) =
 let suggest_all_ty_convex = (s: Sort.t, c: Ctx.t, ty): list(Suggestion.t) => {
   sug'(Typ.of_const_mono_delim, Delims.const_convex_mono, s, c, ty)
   @ sug'(Typ.of_abstract_mono_delim, Delims.abstract_convex_mono, s, c, ty)
-  //@ sug'(Typ.of_infix_delim, Delims.infix_mono, s, c, ty)
   @ sug'(Typ.of_prefix_delim, Delims.prefix_mono, s, c, ty)
   @ sug'(Typ.of_prefix_leading_delim, Delims.left_convex_poly, s, c, ty);
-                                                                    //@ sug'(Typ.of_postfix_leading_delim, Delims.left_concave_poly, s, c, ty);
 };

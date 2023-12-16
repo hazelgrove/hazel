@@ -2,6 +2,8 @@ open Js_of_ocaml;
 open Util;
 open Haz3lcore;
 
+let unk = Typ.Unknown(Internal);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type constrain =
   | Grammar
@@ -94,7 +96,7 @@ type generation_options =
   | NewRightConvex(Id.t)
   | CompletionOrNewRightConvex(Id.t, string, Id.t)
   | NewRightConcave(Id.t) //id here is iffy
-  | CompletionOrNewRightConcave(Id.t, string, Id.t); //snd id here is iffy
+  | CompletionOrNewRightConcave(Id.t, string); //snd id here is iffy
 
 /* Assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
@@ -197,11 +199,11 @@ let generation_options = (~db, z: Zipper.t) => {
       failwith("LSP: EXN: Concave to left and nothing to right")
     | LeftConvex =>
       switch (to_left, compl) {
-      | (Just, Inert(id))
-      | (SpacePadded, Completeable(id, _) | Inert(id)) =>
-        NewRightConcave(id)
-      | (Just, Completeable(id, left_token)) =>
-        CompletionOrNewRightConcave(id, left_token, id)
+      | (Just, Inert(id_l))
+      | (SpacePadded, Completeable(id_l, _) | Inert(id_l)) =>
+        NewRightConcave(id_l)
+      | (Just, Completeable(id_l, left_token)) =>
+        CompletionOrNewRightConcave(id_l, left_token)
       }
     }
   | (None, Some(id)) => NewRightConvex(id)
@@ -212,8 +214,8 @@ let generation_options = (~db, z: Zipper.t) => {
       switch (to_left, compl) {
       | (Just, Inert(_))
       | (SpacePadded, _) => NewRightConvex(id_r)
-      | (Just, Completeable(id, left_tok)) =>
-        CompletionOrNewRightConvex(id, left_tok, id_r)
+      | (Just, Completeable(id_l, left_tok)) =>
+        CompletionOrNewRightConvex(id_l, left_tok, id_r)
       }
     }
   };
@@ -238,13 +240,23 @@ let error_str = ci =>
   | None => "None"
   };
 
-let show_info = (db, ci: Info.t, _bidi_ci, z: Zipper.t) => {
+let show_info = (db, ci: Info.t, bidi_ci, bidi_parent_ci, z: Zipper.t) => {
   let sort = Info.sort_of(ci);
   let cls = Info.cls_of(ci);
   let ctx = Info.ctx_of(ci);
   let expected_ty = AssistantForms.Typ.expected(ci);
   let backpack_tokens = AssistantBackpack.to_token_list(z.backpack);
   db("  LSP: Info: cls: " ++ Term.Cls.show(cls));
+  switch (bidi_ci) {
+  | Some(ci) =>
+    db("  LSP: Info: bidi_cls: " ++ Term.Cls.show(Info.cls_of(ci)))
+  | None => db("  LSP: Info: No Bidi")
+  };
+  switch (bidi_parent_ci) {
+  | Some(ci) =>
+    db("  LSP: Info: bidi_parent_cls: " ++ Term.Cls.show(Info.cls_of(ci)))
+  | None => db("  LSP: Info: bidi_parent: No Bidi Parent")
+  };
   db("  LSP: Info: sort: " ++ Sort.to_string(sort));
   db("  LSP: Info: ctx: " ++ Ctx.to_string(ctx));
   db("  LSP: Info: Expected type: " ++ Typ.to_string(expected_ty));
@@ -325,8 +337,6 @@ let suggest_comma = (bidi_ctx_ci: Info.t) => {
 
 let dedup = List.sort_uniq(compare);
 
-let unk = Typ.Unknown(Internal);
-
 let suggest_exp = (~fns, ctx: Ctx.t, ty): Suggestion.s =>
   AssistantCtx.suggest_bound_exp(~fns, ty, ctx)
   @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty);
@@ -405,10 +415,254 @@ let convex_lookahead_sugs = (~settings, ~db, ci: Info.t) => {
   };
 };
 
-let concave_sugs = (ci: Info.t): Suggestion.s => {
+let postfix_sugs =
+    (
+      ~settings,
+      ~db as _,
+      ci: Info.t,
+      bidi_ci: option(Info.t),
+      bidi_parent_ci: option(Info.t),
+    )
+    : Suggestion.s => {
+  let case_rule_sug = {
+    let cls1 = bidi_parent_ci |> Option.map(Info.cls_of);
+    let cls2 = bidi_ci |> Option.map(Info.cls_of);
+    /* NOTE: We have to check both the bidictx and the parent here
+       because the way case is implemented, rule tiles get the ci for
+       the whole case, so if we're on a rule tile, the bidictx will be
+       the whole case. (TODO: This is confusing, clarify) */
+    cls1 == Some(Exp(Match)) || cls2 == Some(Exp(Match))
+      ? [Suggestion.mk("|")] : [];
+  };
+  let postfix_ap_sug = (ctx, self_ty) =>
+    /* Could alternatively make this more restrictive and require
+       that actually arrow type not merely consistent. This would
+       enforce use with appropriate constructor in patterns,
+       but would screw up current impl of grammar/context-only generation */
+    switch (
+      self_ty
+      |> Option.map(self_ty =>
+           Typ.is_consistent(ctx, self_ty, Arrow(unk, unk))
+         )
+    ) {
+    | Some(true) => [Suggestion.mk("(")]
+    | _ => []
+    };
+  switch (settings.constrain) {
+  | Grammar =>
+    switch (ci) {
+    | InfoExp(_) => postfix_ap_sug([], Some(unk)) @ case_rule_sug
+    | InfoPat(_) => postfix_ap_sug([], Some(unk))
+    | InfoTyp(_) =>
+      //TODO: make more ap more restrictive?
+      [Suggestion.mk("(")]
+    | _ => []
+    }
+  | Context =>
+    let ctx = Info.ctx_of(ci);
+    switch (ci) {
+    | InfoExp(_) => postfix_ap_sug(ctx, Some(unk)) @ case_rule_sug
+    | InfoPat(_) => postfix_ap_sug(ctx, Some(unk))
+    | InfoTyp(_) =>
+      //TODO: make more ap more restrictive?
+      [Suggestion.mk("(")]
+    | _ => []
+    };
+  | Types =>
+    switch (ci) {
+    | InfoExp({ctx, self, _}) =>
+      let self_ty = Self.typ_of_exp(Info.ctx_of(ci), self);
+      postfix_ap_sug(ctx, self_ty) @ case_rule_sug;
+    | InfoPat({ctx, self, _}) =>
+      let self_ty = Self.typ_of_pat(Info.ctx_of(ci), self);
+      postfix_ap_sug(ctx, self_ty);
+    | InfoTyp(_) =>
+      //TODO: make more ap more restrictive?
+      [Suggestion.mk("(")]
+    | _ => []
+    }
+  };
+};
+
+let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
+  let b =
+    if (Typ.is_consistent(ctx, expected_ty, Bool)) {
+      let b1 =
+        Typ.is_consistent(ctx, l_child_ty, Bool)
+          ? [Suggestion.mk("&&"), Suggestion.mk("\\/")] : [];
+      let b2 =
+        Typ.is_consistent(ctx, l_child_ty, String)
+          ? [Suggestion.mk("$==")] : [];
+      let b3 =
+        Typ.is_consistent(ctx, l_child_ty, Int)
+          ? [
+            Suggestion.mk("=="),
+            Suggestion.mk("!="),
+            Suggestion.mk("<="),
+            Suggestion.mk(">="),
+            Suggestion.mk("<"),
+            Suggestion.mk(">"),
+          ]
+          : [];
+      let b4 =
+        Typ.is_consistent(ctx, l_child_ty, Float)
+          ? [
+            Suggestion.mk("==."),
+            Suggestion.mk("!=."),
+            Suggestion.mk("<=."),
+            Suggestion.mk(">=."),
+            Suggestion.mk("<."),
+            Suggestion.mk(">."),
+          ]
+          : [];
+      b1 @ b2 @ b3 @ b4;
+    } else {
+      [];
+    };
+  let i =
+    if (Typ.is_consistent(ctx, expected_ty, Int)
+        && Typ.is_consistent(ctx, l_child_ty, Int)) {
+      [
+        Suggestion.mk("+"),
+        Suggestion.mk("-"),
+        Suggestion.mk("*"),
+        Suggestion.mk("/"),
+        Suggestion.mk("**"),
+      ];
+    } else {
+      [];
+    };
+  let f =
+    if (Typ.is_consistent(ctx, expected_ty, Float)
+        && Typ.is_consistent(ctx, l_child_ty, Float)) {
+      [
+        Suggestion.mk("+."),
+        Suggestion.mk("-."),
+        Suggestion.mk("*."),
+        Suggestion.mk("/."),
+        Suggestion.mk("**."),
+      ];
+    } else {
+      [];
+    };
+  let s =
+    if (Typ.is_consistent(ctx, expected_ty, String)
+        && Typ.is_consistent(ctx, l_child_ty, String)) {
+      [Suggestion.mk("++")];
+    } else {
+      [];
+    };
+  let l =
+    if (Typ.is_consistent(ctx, expected_ty, List(unk))) {
+      let l1 =
+        Typ.is_consistent(
+          ctx,
+          l_child_ty,
+          Typ.matched_list(ctx, expected_ty),
+        )
+          ? [Suggestion.mk("::")] : [];
+      /*Note: Using List below because don't want this
+        check to pass if expected is unknown but
+        l_child is e.g. Int */
+      let l2 =
+        Typ.is_consistent(
+          ctx,
+          l_child_ty,
+          List(Typ.matched_list(ctx, expected_ty)),
+        )
+          ? [Suggestion.mk("@")] : [];
+      l1 @ l2;
+    } else {
+      [];
+    };
+  b @ i @ f @ s @ l;
+};
+
+let infix_sugs =
+    (~settings, ~db, ci: Info.t, bidi_ci: option(Info.t)): Suggestion.s => {
   let infix_mono_sugs = AssistantForms.suggest_infix_mono(ci);
-  let postfix_poly_sugs = AssistantForms.suggest_postfix_leading(ci);
-  infix_mono_sugs @ postfix_poly_sugs;
+  switch (settings.constrain) {
+  | Grammar =>
+    switch (ci) {
+    | InfoExp(_) => sug_exp_infix([], unk, unk)
+    | InfoPat(_)
+    | InfoTyp(_) => infix_mono_sugs
+    | _ => []
+    }
+  | Context =>
+    switch (ci) {
+    | InfoExp({ctx, _}) => sug_exp_infix(ctx, unk, unk)
+    | InfoPat(_)
+    | InfoTyp(_) => infix_mono_sugs
+    | _ => []
+    }
+  | Types =>
+    switch (ci) {
+    | InfoExp({ctx, mode, self, _}) =>
+      /* 1. Calc skel of lseg and thread it here.
+            2. recurse on skel, looking for infix operators
+           3. if infix op lower precedence, rec on its left child.
+             if left child is not lower precdence, cur will be parent of new op,
+             and left child will be child of new op.
+         4. in other words, want find furthest-down infix with lower precedence.
+         5. then can generated expected_tys for type paths to the parent expected type
+         6. and child_ty from child
+         7. so basic fn will take precdence and seg, and return ids of prospective parent, child
+          */
+      //TODO: lookahead expected_tys should take precedence into account as well
+      let expected_ty = Mode.ty_of(mode);
+      let self_ty =
+        switch (Self.typ_of_exp(ctx, self)) {
+        | Some(ty) => ty
+        | None => unk
+        };
+      db(
+        "  LSP: Concave: Infix: Left child Self type: "
+        ++ Typ.to_string(self_ty),
+      );
+      let base = sug_exp_infix(ctx, self_ty, expected_ty);
+      db("  LSP: Concave: Infix: Base: " ++ of_sugs(base));
+      let bidi_ctx_expected_ty =
+        switch (bidi_ci) {
+        | Some(InfoExp({mode, _}))
+        | Some(InfoPat({mode, _})) => Mode.ty_of(mode)
+        | _ => expected_ty
+        };
+      let ty_paths = AssistantCtx.get_lookahead_tys_exp(bidi_ctx_expected_ty);
+      let tys =
+        List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
+      db(
+        "  LSP: Concave: Infix: Lookahead types: "
+        ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
+      );
+      let lookahead =
+        List.map(sug_exp_infix(ctx, self_ty), tys) |> List.flatten;
+      db(
+        "  LSP: Concave: Infix: Lookahead: " ++ of_sugs(lookahead |> dedup),
+      );
+      base @ lookahead;
+    //TODO: get self_ty of actual prospective child, on a per-operator basis
+    | InfoPat(_)
+    | InfoTyp(_) => infix_mono_sugs
+    | _ => []
+    }
+  };
+};
+
+let concave_sugs =
+    (
+      ~settings,
+      ~db,
+      ci: Info.t,
+      bidi_ci: option(Info.t),
+      bidi_parent_ci: option(Info.t),
+    )
+    : Suggestion.s => {
+  let infix_sugs = infix_sugs(~settings, ~db, ci, bidi_ci);
+  let postfix_sugs =
+    postfix_sugs(~settings, ~db, ci, bidi_ci, bidi_parent_ci);
+  db("  LSP: Concave: Postfix: " ++ of_sugs(postfix_sugs));
+  infix_sugs @ postfix_sugs;
 };
 
 let generate =
@@ -435,6 +689,11 @@ let generate =
     );
   //TODO: de-option below
   let bidi_ci = get_info(get_bidi_id(z, id));
+  let bidi_parent_ci =
+    bidi_ci
+    |> Option.map(Info.ancestors_of)
+    |> OptUtil.and_then(ListUtil.hd_opt)
+    |> OptUtil.and_then(get_info);
 
   let n_ary_sugs: list(Suggestion.t) = {
     let comma_sug = Suggestion.mk(",");
@@ -462,7 +721,8 @@ let generate =
     List.filter_map(AssistantBackpack.is_concave, backpack_sugs);
   let convex_sugs = convex_sugs(~settings, ci);
   let convex_lookahead_sugs = convex_lookahead_sugs(~settings, ~db, ci);
-  let concave_sugs = concave_sugs(ci);
+  let concave_sugs =
+    concave_sugs(~settings, ~db, ci, bidi_ci, bidi_parent_ci);
 
   db(
     "LSP: Gen: Generating "
@@ -473,7 +733,7 @@ let generate =
     ++ " Suggestions",
   );
 
-  show_info(db, ci, bidi_ci, z);
+  show_info(db, ci, bidi_ci, bidi_parent_ci, z);
 
   switch (shape) {
   | Convex =>
@@ -495,14 +755,14 @@ let generate =
   //CHECK(andrew): consider reducing generation of duplicate lookahead suggestions
   //CHECK(andrew): find actually wrong type operator cases
 
-  /* Too picky: */
+  /* Unhandled (Fatal): */
+  //BUG: "let s:String = \"" (crashes bc caret=Inner)
+
+  /* Type too picky: */
   //BUG: Completions of regexp literals just returns same regexp
 
-  /* Too liberal: */
-  //BUG: postfix fn app suggested too liberally (in all exp contexts)
+  /* Type too liberal: */
   //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
-  //BUG: "|" suggested too liberally (in all exp contexts)
-  //FIX: only suggest if bidictx parent is case?
 
   /* TODO: Restict new tokens and whitespace logic:
       1. if prev token is a free variable/constructor which is not equal to a keyword,
@@ -629,11 +889,11 @@ let dispatch_generation = (~settings: settings, ~db, s: string): list(string) =>
       "LSP: Final: (2/2) Completion Suggestions: " ++ String.concat(" ", s2),
     );
     s1 @ s2;
-  | CompletionOrNewRightConcave(id_l, string, id_new) =>
+  | CompletionOrNewRightConcave(id_l, string) =>
     db("  LSP: Syntax: Can insert new right-concave or complete left");
     db("  LSP: Syntax: Can insert new right-concave");
     let s1 =
-      generate(~shape=Concave(0), ~completion=None, z, id_new)
+      generate(~shape=Concave(0), ~completion=None, z, id_l)
       |> List.sort_uniq(String.compare);
     let s2 =
       generate(~shape=Convex, ~completion=Some(string), z, id_l)
