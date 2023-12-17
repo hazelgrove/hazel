@@ -137,8 +137,8 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t), arg: t): t =>
         // }
         let (nth_opt, _) =
           List.fold_left(
-            ((_, index), (ctr, _)): (option(int), int) =>
-              (ctr == name ? Some(index) : None, index + 1),
+            ((nth_opt, index), (ctr, _)): (option(int), int) =>
+              (ctr == name ? Some(index) : nth_opt, index + 1),
             (None, 0),
             map_sorted,
           );
