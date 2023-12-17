@@ -409,58 +409,144 @@ module Stepper = {
             act: FilterAction.t,
             idx: int,
           )
-          : FilterAction.t => {
+          : (FilterAction.t, int, EvalCtx.t) => {
     let composed = compose(ctx, exp);
-    let (act', idx') = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
-    let (act, idx) = idx' > idx ? (act', idx') : (act, idx);
-    switch (ctx) {
-    | Mark => act
-    | Closure(env, ctx) => matches(env, flt, ctx, exp, act, idx)
-    | Filter(Some(pat'), act', ctx) =>
-      let flt = flt |> FilterEnvironment.extends(Filter.mk(pat', act'));
-      matches(env, flt, ctx, exp, act, idx);
-    | Filter(None, _, ctx)
-    | Sequence1(ctx, _)
-    | Sequence2(_, ctx)
-    | Let1(_, ctx, _)
-    | Let2(_, _, ctx)
-    | Fun(_, _, ctx, _)
-    | FixF(_, _, ctx)
-    | Ap1(ctx, _)
-    | Ap2(_, ctx)
-    | BinBoolOp1(_, ctx, _)
-    | BinBoolOp2(_, _, ctx)
-    | BinIntOp1(_, ctx, _)
-    | BinIntOp2(_, _, ctx)
-    | BinFloatOp1(_, ctx, _)
-    | BinFloatOp2(_, _, ctx)
-    | BinStringOp1(_, ctx, _)
-    | BinStringOp2(_, _, ctx)
-    | Tuple(ctx, _)
-    | ApBuiltin(_, ctx, _)
-    | Test(_, ctx)
-    | ListLit(_, _, _, ctx, _)
-    | Cons1(ctx, _)
-    | Cons2(_, ctx)
-    | ListConcat1(ctx, _)
-    | ListConcat2(_, ctx)
-    | Prj(ctx, _)
-    | NonEmptyHole(_, _, _, ctx)
-    | Cast(ctx, _, _)
-    | FailedCast(ctx, _, _)
-    | InvalidOperation(ctx, _)
-    | ConsistentCase(Case(ctx, _, _))
-    | ConsistentCaseRule(_, _, ctx, _, _)
-    | InconsistentBranches(_, _, Case(ctx, _, _))
-    | InconsistentBranchesRule(_, _, _, _, ctx, _, _) =>
-      matches(env, flt, ctx, exp, act, idx)
+    let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
+    let (act, idx) = midx > idx ? (mact, midx) : (act, idx);
+    let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
+      (a, i, f(c));
+    };
+    let (let+) = map;
+    let (ract, ridx, rctx) =
+      switch (ctx) {
+      | Mark => (act, idx, EvalCtx.Mark)
+      | Closure(env, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Closure(env, ctx);
+      | Filter(Some(pat'), act', ctx) =>
+        let flt = flt |> FilterEnvironment.extends(Filter.mk(pat', act'));
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Some(pat'), act', ctx);
+      | Filter(None, act, ctx) => matches(env, flt, ctx, exp, act, 0)
+      | Sequence1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Sequence1(ctx, d2);
+      | Sequence2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Sequence2(d1, ctx);
+      | Let1(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let1(d1, ctx, d3);
+      | Let2(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let2(d1, d2, ctx);
+      | Fun(dp, ty, ctx, name) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Fun(dp, ty, ctx, name);
+      | FixF(name, ty, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FixF(name, ty, ctx);
+      | Ap1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap1(ctx, d2);
+      | Ap2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap2(d1, ctx);
+      | BinBoolOp1(op, ctx, d1) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinBoolOp1(op, ctx, d1);
+      | BinBoolOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinBoolOp2(op, d1, ctx);
+      | BinIntOp1(op, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinIntOp1(op, ctx, d2);
+      | BinIntOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinIntOp2(op, d1, ctx);
+      | BinFloatOp1(op, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinFloatOp1(op, ctx, d2);
+      | BinFloatOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinFloatOp2(op, d1, ctx);
+      | BinStringOp1(op, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinStringOp1(op, ctx, d2);
+      | BinStringOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinStringOp2(op, d1, ctx);
+      | Tuple(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Tuple(ctx, ds);
+      | ApBuiltin(name, ctx, args) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ApBuiltin(name, ctx, args);
+      | Test(id, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Test(id, ctx);
+      | ListLit(u, i, ty, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListLit(u, i, ty, ctx, ds);
+      | Cons1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons1(ctx, d2);
+      | Cons2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons2(d1, ctx);
+      | ListConcat1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat1(ctx, d2);
+      | ListConcat2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat2(d1, ctx);
+      | Prj(ctx, n) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Prj(ctx, n);
+      | NonEmptyHole(e, u, i, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        NonEmptyHole(e, u, i, ctx);
+      | Cast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cast(ctx, ty, ty');
+      | FailedCast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FailedCast(ctx, ty, ty');
+      | InvalidOperation(ctx, error) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InvalidOperation(ctx, error);
+      | ConsistentCase(Case(ctx, rs, i)) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ConsistentCase(Case(ctx, rs, i));
+      | ConsistentCaseRule(dexp, dpat, ctx, rs, i) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ConsistentCaseRule(dexp, dpat, ctx, rs, i);
+      | InconsistentBranches(u, i, Case(ctx, rs, ri)) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InconsistentBranches(u, i, Case(ctx, rs, ri));
+      | InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
+      };
+    if (midx == ridx) {
+      (ract, ridx, Filter(None, mact, rctx));
+    } else {
+      (ract, ridx, rctx);
     };
   };
 
-  let should_hide_step = (~settings, x: EvalObj.t) => {
-    let act = matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step, 0);
-    should_hide_step(~settings, x.knd) || act == Eval;
-  };
+  let should_hide_step = (~settings, x: EvalObj.t) =>
+    if (should_hide_step(~settings, x.knd)) {
+      Some(x);
+    } else {
+      let (act, _, ctx) =
+        matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step, 0);
+      if (act == Eval) {
+        Some({...x, ctx});
+      } else {
+        None;
+      };
+    };
 
   let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
     let current = compose(e.ctx, e.apply());
@@ -474,7 +560,7 @@ module Stepper = {
     );
   }
   and skip_steps = (~settings, s) => {
-    switch (List.find_opt(should_hide_step(~settings), s.next)) {
+    switch (List.find_map(should_hide_step(~settings), s.next)) {
     | None => s
     | Some(e) => step_forward(~settings, e, s)
     };
@@ -488,7 +574,7 @@ module Stepper = {
           (~settings): (list(step) => option((step, list(step)))) =>
     fun
     | [] => None
-    | [x, ...xs] when should_hide_step(~settings, x.step) =>
+    | [x, ...xs] when should_hide_step(~settings, x.step) != None =>
       undo_point(~settings, xs)
     | [x, ...xs] => Some((x, xs));
 
@@ -545,10 +631,9 @@ module Stepper = {
       | [] => ([], [])
       | [step, ...steps] => {
           let (hidden, ss) = get_history'(steps);
-          if (should_hide_step(~settings, step.step)) {
-            ([step, ...hidden], ss);
-          } else {
-            (
+          switch (should_hide_step(~settings, step.step)) {
+          | Some(_) => ([step, ...hidden], ss)
+          | None => (
               [],
               [
                 {
@@ -562,7 +647,7 @@ module Stepper = {
                 },
                 ...ss,
               ],
-            );
+            )
           };
         };
     stepper.previous |> get_history';
