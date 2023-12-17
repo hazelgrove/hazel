@@ -261,15 +261,11 @@ let mk =
     let doc = {
       switch (d) {
       | Closure(env', d') => go'(d', Closure, ~env=env')
-      | Filter(pat, act, d') =>
+      | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
-          let keyword =
-            switch (act) {
-            | Step => "step"
-            | Eval => "skip"
-            };
-          switch (pat) {
-          | Some(pat) =>
+          switch (flt) {
+          | Filter({pat, act}) =>
+            let keyword = FilterAction.string_of_t(act);
             let flt_doc = go_formattable(pat, FilterPattern);
             vseps([
               hcats([
@@ -283,10 +279,15 @@ let mk =
               ]),
               go'(d', Filter),
             ]);
-          | None => vseps([DHDoc_common.Delim.mk(keyword), go'(d', Filter)])
+          | Residue(_, act) =>
+            let keyword = FilterAction.string_of_t(act);
+            vseps([DHDoc_common.Delim.mk(keyword), go_clean(d')]);
           };
         } else {
-          go'(d', Filter);
+          switch (flt) {
+          | Residue(_) => go_clean(d')
+          | Filter(_) => go'(d', Filter)
+          };
         }
 
       /* Hole expressions must appear within a closure in

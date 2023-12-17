@@ -91,8 +91,8 @@ module EvalCtx = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Mark
-    | Closure(ClosureEnvironment.t, t)
-    | Filter(option(DHExp.t), FilterAction.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
+    | Filter(DH.DHFilter.t, t)
     | Sequence1(t, DHExp.t)
     | Sequence2(DHExp.t, t)
     | Let1(DHPat.t, t, DHExp.t)
@@ -157,7 +157,7 @@ module EvalCtx = {
     | Test(_, x)
     | Cast(x, _, _)
     | FailedCast(x, _, _)
-    | Filter(_, _, x) => fuzzy_mark(x)
+    | Filter(_, x) => fuzzy_mark(x)
     | Sequence1(_)
     | Sequence2(_)
     | Let1(_)
@@ -755,9 +755,9 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2))
       and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
       Indet;
-    | Filter(p1, a1, d1) =>
-      let. _ = otherwise(env, d1 => Filter(p1, a1, d1))
-      and. d1 = req_final(req(state, env), d1 => Filter(p1, a1, d1), d1);
+    | Filter(f1, d1) =>
+      let. _ = otherwise(env, d1 => Filter(f1, d1))
+      and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
       Step({apply: () => d1, kind: CompleteFilter, value: true});
     };
 };
