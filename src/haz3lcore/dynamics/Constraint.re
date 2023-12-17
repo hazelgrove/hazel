@@ -119,15 +119,39 @@ let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
     xi => InjR(xi |> ctr_of_nth_variant(num_variants - 1, nth - 1));
   };
 
-let of_ap = (ctx, ctr: option(Constructor.t), arg: t): t =>
+let of_ap = (mode, ctr: option(Constructor.t), arg: t): t =>
   switch (ctr) {
   | Some(name) =>
-    switch (Ctx.lookup_ctr(ctx, name)) {
-    | None => Falsity // TODO: review
-    | Some({num_variants, nth, _}) =>
-      arg |> ctr_of_nth_variant(num_variants, nth)
+    switch (mode) {
+    | Mode.Ana(Sum(map)) =>
+      let num_variants = List.length(map);
+      let map_sorted =
+        List.sort(
+          ((ctr1, _), (ctr2, _)) => String.compare(ctr1, ctr2),
+          map,
+        );
+      // available for OCaml 5.1
+      // switch (List.find_index((ctr, _) => ctr == name, map_sorted)) {
+      // }
+      let (nth_opt, _) =
+        List.fold_left(
+          ((_, index), (ctr, _)): (option(int), int) =>
+            (ctr == name ? Some(index) : None, index + 1),
+          (None, 0),
+          map_sorted,
+        );
+      switch (nth_opt) {
+      | Some(nth) => arg |> ctr_of_nth_variant(num_variants, nth)
+      | None => Falsity // TODO: review
+      };
+    | _ => Falsity // TODO: review
     }
+  // switch (Ctx.lookup_ctr(ctx, name)) {
+  // | None => Falsity // TODO: review
+  // | Some({num_variants, nth, _}) =>
+  //   arg |> ctr_of_nth_variant(num_variants, nth)
+  // }
   | None => Falsity // TODO: review
   };
 
-let of_ctr = (ctx, name) => of_ap(ctx, Some(name), Truth);
+let of_ctr = (mode, name) => of_ap(mode, Some(name), Truth);
