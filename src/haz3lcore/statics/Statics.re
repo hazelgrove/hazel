@@ -475,7 +475,7 @@ and upat_to_info_map =
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr) =>
-    atomic(Self.of_ctr(ctx, ctr), Constraint.of_ctr(ctx, ctr))
+    atomic(Self.of_ctr(ctx, ctr), Constraint.of_ctr(ctx, mode, ctr))
   | Ap(fn, arg) =>
     let ctr = UPat.ctr_name(fn);
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
@@ -485,7 +485,7 @@ and upat_to_info_map =
     add(
       ~self=Just(ty_out),
       ~ctx=arg.ctx,
-      ~constraint_=Constraint.of_ap(ctx, ctr, arg.constraint_),
+      ~constraint_=Constraint.of_ap(ctx, mode, ctr, arg.constraint_),
       m,
     );
   | TypeAnn(p, ann) =>
