@@ -126,23 +126,8 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t), arg: t): t =>
     | Mode.Ana(ty) =>
       switch (Typ.weak_head_normalize(ctx, ty)) {
       | Sum(map) =>
-        let num_variants = List.length(map);
-        let map_sorted =
-          List.sort(
-            ((ctr1, _), (ctr2, _)) => String.compare(ctr1, ctr2),
-            map,
-          );
-        // available for OCaml 5.1
-        // switch (List.find_index((ctr, _) => ctr == name, map_sorted)) {
-        // }
-        let (nth_opt, _) =
-          List.fold_left(
-            ((nth_opt, index), (ctr, _)): (option(int), int) =>
-              (ctr == name ? Some(index) : nth_opt, index + 1),
-            (None, 0),
-            map_sorted,
-          );
-        switch (nth_opt) {
+        let num_variants = ConstructorMap.cardinal(map);
+        switch (ConstructorMap.nth(name, map)) {
         | Some(nth) => arg |> ctr_of_nth_variant(num_variants, nth)
         | None => Falsity // TODO: review
         };
