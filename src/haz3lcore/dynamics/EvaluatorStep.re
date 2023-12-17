@@ -12,7 +12,12 @@ module EvalObj = {
 
   let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
 
-  let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
+  let get_ctx = (obj: t): EvalCtx.t => {
+    switch (obj.ctx) {
+    | Filter(Residue(_), c) => c
+    | c => c
+    };
+  };
   let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
 
@@ -28,7 +33,7 @@ module EvalObj = {
     | (BoundVar, c)
     | (NonEmptyHole, NonEmptyHole(_, _, _, c))
     | (Closure, Closure(_, c))
-    | (Filter, Filter(_, _, c))
+    | (Filter, Filter(_, c))
     | (Sequence1, Sequence1(c, _))
     | (Sequence2, Sequence2(_, c))
     | (Let1, Let1(_, c, _))
@@ -93,7 +98,7 @@ module EvalObj = {
     | (Closure, _) => Some(obj)
     | (tag, Closure(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Filter, _) => Some(obj)
-    | (tag, Filter(_, _, c)) => unwrap({...obj, ctx: c}, tag)
+    | (tag, Filter(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Cast, _) => Some(obj)
     | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
     | (_, _) => None
@@ -220,16 +225,12 @@ module Decompose = {
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (state, env, exp) => {
     switch (exp) {
-    | DHExp.Filter(pat, act, d1) =>
+    | DHExp.Filter(flt, d1) =>
       DecomposeEVMode.(
         {
-          let. _ = otherwise(env, (d1) => (Filter(pat, act, d1): DHExp.t))
+          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
           and. d1 =
-            req_final(
-              decompose(state, env),
-              d1 => Filter(pat, act, d1),
-              d1,
-            );
+            req_final(decompose(state, env), d1 => Filter(flt, d1), d1);
           Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
       )
@@ -253,9 +254,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Closure(env, ctx) =>
       let d = compose(ctx, d);
       Closure(env, d);
-    | Filter(pat, act, ctx) =>
+    | Filter(flt, ctx) =>
       let d = compose(ctx, d);
-      Filter(pat, act, d);
+      Filter(flt, d);
     | Sequence1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Sequence(d1, d2);
@@ -423,11 +424,12 @@ module Stepper = {
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx);
-      | Filter(Some(pat'), act', ctx) =>
-        let flt = flt |> FilterEnvironment.extends(Filter.mk(pat', act'));
+      | Filter(Filter(flt'), ctx) =>
+        let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Some(pat'), act', ctx);
-      | Filter(None, act, ctx) => matches(env, flt, ctx, exp, act, 0)
+        Filter(Filter(flt'), ctx);
+      | Filter(Residue(idx, act), ctx) =>
+        matches(env, flt, ctx, exp, act, idx)
       | Sequence1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Sequence1(ctx, d2);
@@ -529,22 +531,27 @@ module Stepper = {
         InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
       };
     if (midx == ridx) {
-      (ract, ridx, Filter(None, mact, rctx));
+      let (_, mcnt) = mact;
+      if (mcnt == All) {
+        (ract, ridx, Filter(Residue(midx, mact), rctx));
+      } else {
+        (ract, ridx, rctx);
+      };
     } else {
       (ract, ridx, rctx);
     };
   };
 
-  let should_hide_step = (~settings, x: EvalObj.t) =>
+  let should_hide_step =
+      (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
     if (should_hide_step(~settings, x.knd)) {
-      Some(x);
+      (Eval, x);
     } else {
       let (act, _, ctx) =
-        matches(ClosureEnvironment.empty, [], x.ctx, x.undo, Step, 0);
-      if (act == Eval) {
-        Some({...x, ctx});
-      } else {
-        None;
+        matches(ClosureEnvironment.empty, [], x.ctx, x.undo, (Step, One), 0);
+      switch (act) {
+      | (Eval, _) => (Eval, {...x, ctx})
+      | (Step, _) => (Step, {...x, ctx})
       };
     };
 
@@ -560,9 +567,12 @@ module Stepper = {
     );
   }
   and skip_steps = (~settings, s) => {
-    switch (List.find_map(should_hide_step(~settings), s.next)) {
+    let next' = s.next |> List.map(should_hide_step(~settings));
+    let (_, next'') = next' |> List.split;
+    let s = {...s, next: next''};
+    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
     | None => s
-    | Some(e) => step_forward(~settings, e, s)
+    | Some((_, e)) => step_forward(~settings, e, s)
     };
   };
 
@@ -574,7 +584,7 @@ module Stepper = {
           (~settings): (list(step) => option((step, list(step)))) =>
     fun
     | [] => None
-    | [x, ...xs] when should_hide_step(~settings, x.step) != None =>
+    | [x, ...xs] when should_hide_step(~settings, x.step) |> fst == Eval =>
       undo_point(~settings, xs)
     | [x, ...xs] => Some((x, xs));
 
@@ -631,9 +641,9 @@ module Stepper = {
       | [] => ([], [])
       | [step, ...steps] => {
           let (hidden, ss) = get_history'(steps);
-          switch (should_hide_step(~settings, step.step)) {
-          | Some(_) => ([step, ...hidden], ss)
-          | None => (
+          switch (step.step |> should_hide_step(~settings) |> fst) {
+          | Eval => ([step, ...hidden], ss)
+          | Step => (
               [],
               [
                 {

@@ -53,9 +53,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_eval(d2);
     Sequence(d1', d2');
 
-  | Filter(p, a, dbody) =>
+  | Filter(f, dbody) =>
     let+ dbody' = pp_eval(dbody);
-    Filter(p, a, dbody');
+    Filter(f, dbody');
 
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -276,9 +276,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_uneval(env, d2);
     Sequence(d1', d2');
 
-  | Filter(pat, act, dbody) =>
+  | Filter(flt, dbody) =>
     let+ dbody' = pp_uneval(env, dbody);
-    Filter(pat, act, dbody');
+    Filter(flt, dbody');
   | Let(dp, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
@@ -511,7 +511,7 @@ let rec track_children_of_hole =
   /* The only thing that should exist in closures at this point
      are holes. Ignore the hole environment, not necessary for
      parent tracking. */
-  | Filter(_, _, d)
+  | Filter(_, d)
   | Closure(_, d) => track_children_of_hole(hii, parent, d)
   }
 
