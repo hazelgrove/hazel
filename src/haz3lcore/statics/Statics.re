@@ -99,15 +99,35 @@ let get_unmatched_int = (xs: list(Constraint.t)): int => {
     };
   let max_int =
     List.fold_left(
-      (x, y: Constraint.t) =>
+      (x, y) =>
         switch (y) {
-        | NotInt(z) => x < z ? z : x
+        | Constraint.NotInt(z) => x < z ? z : x
         | _ => x
         },
       first_int,
       List.tl(xs),
     );
   max_int + 1;
+};
+
+// The input contains only NotFloat(_) by default
+let get_unmatched_float = (xs: list(Constraint.t)): float => {
+  let first_float =
+    switch (List.hd(xs)) {
+    | NotFloat(y) => y
+    | _ => 0.0
+    };
+  let max_float =
+    List.fold_left(
+      (x, y) =>
+        switch (y) {
+        | Constraint.NotFloat(z) => x < z ? z : x
+        | _ => x
+        },
+      first_float,
+      List.tl(xs),
+    );
+  max_float +. 1.0;
 };
 
 let rec any_to_info_map =
@@ -368,6 +388,16 @@ and uexp_to_info_map =
             );
           let unmatched = get_unmatched_int(ns);
           print_endline(string_of_int(unmatched));
+        | NotFloat(_) =>
+          let (ns, _) =
+            List.partition(
+              fun
+              | Constraint.NotFloat(_) => true
+              | _ => false,
+              dual_constraints,
+            );
+          let unmatched = get_unmatched_float(ns);
+          print_endline(string_of_float(unmatched));
         | _ => () // TODO
         }
       };
