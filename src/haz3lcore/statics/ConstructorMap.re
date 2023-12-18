@@ -101,7 +101,7 @@ let rec is_ground = (is_ground_value: 'a => bool, map: t('a)): bool =>
   };
 
 let nth = (ctr: Constructor.t, map: t('a)): option(int) => {
-  // TODO: used List.find_index instead, which is available for OCaml 5.1
+  // TODO: use List.find_index instead, which is available for OCaml 5.1
   let ctrs_sorted = map |> sort |> ctrs_of;
   List.find_opt(
     nth => List.nth(ctrs_sorted, nth) == ctr,
