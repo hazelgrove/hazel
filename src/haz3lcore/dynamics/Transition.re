@@ -487,6 +487,7 @@ module Transition = (EV: EV_MODE) => {
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
+    | Undefined
     | InvalidOperation(_)
     | ExpandingKeyword(_) =>
       let. _ = otherwise(d);
