@@ -232,7 +232,7 @@ module rec DHExp: {
            ((ap, ad), (bp, bd)) =>
              switch (ap, bp) {
              | (Some(ap), Some(bp)) =>
-               compare(ap, bp) == 0 && fast_equal(ad, bd)
+               LabeledTuple.compare(ap, bp) == 0 && fast_equal(ad, bd)
              | (None, None) => fast_equal(ad, bd)
              | (_, _) => false
              },

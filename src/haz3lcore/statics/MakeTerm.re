@@ -69,7 +69,7 @@ let make_labeled_tuple_exp_helper =
           List.fold_left(
             (b, opt) =>
               switch (opt) {
-              | (Some(st), _) when b => compare(st, s) != 0
+              | (Some(st), _) when b => LabeledTuple.compare(st, s) != 0
               | _ => b
               },
             true,
@@ -105,7 +105,7 @@ let make_labeled_tuple_pat_helper =
           List.fold_left(
             (b, opt) =>
               switch (opt) {
-              | (Some(st), _) when b => compare(st, s) != 0
+              | (Some(st), _) when b => LabeledTuple.compare(st, s) != 0
               | _ => b
               },
             true,
@@ -141,7 +141,7 @@ let make_labeled_tuple_typ_helper =
           List.fold_left(
             (b, opt) =>
               switch (opt) {
-              | (Some(st), _) when b => compare(st, s) != 0
+              | (Some(st), _) when b => LabeledTuple.compare(st, s) != 0
               | _ => b
               },
             true,

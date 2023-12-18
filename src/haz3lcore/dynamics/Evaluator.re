@@ -204,38 +204,112 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
+      // List.fold_left2(
+      //   (result, (pp, dp), (p, d)) =>
+      //     switch (result) {
+      //     | DoesNotMatch => DoesNotMatch
+      //     | IndetMatch => IndetMatch
+      //     | Matches(env) =>
+      //       // TODO: Need a function to reorganize lists to match up vars
+      //       // TODO: check if this logic is right
+      //       switch (pp, p) {
+      //       | (Some(sp), Some(s)) =>
+      //         if (LabeledTuple.compare(sp, s) == 0) {
+      //           switch (matches(dp, d)) {
+      //           | DoesNotMatch => DoesNotMatch
+      //           | IndetMatch => IndetMatch
+      //           | Matches(env') => Matches(Environment.union(env, env'))
+      //           };
+      //         } else {
+      //           DoesNotMatch;
+      //         }
+      //       | (None, None) =>
+      //         switch (matches(dp, d)) {
+      //         | DoesNotMatch => DoesNotMatch
+      //         | IndetMatch => IndetMatch
+      //         | Matches(env') => Matches(Environment.union(env, env'))
+      //         }
+      //       | (_, _) => DoesNotMatch
+      //       }
+      //     },
+      //   Matches(Environment.empty),
+      //   dps,
+      //   ds,
+      // );
+      // Check labels
+      // let f = (result, dp, d) => {
+      //   switch (result) {
+      //   | DoesNotMatch => DoesNotMatch
+      //   | IndetMatch => IndetMatch
+      //   | Matches(env) =>
+      //     switch (matches(dp, d)) {
+      //     | DoesNotMatch => DoesNotMatch
+      //     | IndetMatch => IndetMatch
+      //     | Matches(env') => Matches(Environment.union(env, env'))
+      //     }
+      //   }
+      // }
+      let (_, result) =
+        List.fold_left(
+          ((dps, result), (p, d)) =>
+            switch (result) {
+            | DoesNotMatch => (dps, DoesNotMatch)
+            | IndetMatch => (dps, IndetMatch)
+            | Matches(env) =>
+              // TODO: Need a function to reorganize lists to match up vars
+              // TODO: check if this logic is right
+              switch (p) {
+              | None => (dps, result)
+              | _ =>
+                let dp_opt =
+                  List.find_opt(
+                    dp => {
+                      switch (dp, (p, d)) {
+                      | ((Some(sp), _), (Some(s), _)) =>
+                        LabeledTuple.compare(sp, s) == 0
+                      | ((None, _), (None, _)) => true
+                      | (_, _) => false
+                      }
+                    },
+                    dps,
+                  );
+                switch (dp_opt) {
+                | Some((_, dp)) =>
+                  switch (matches(dp, d)) {
+                  | DoesNotMatch => (dps, DoesNotMatch)
+                  | IndetMatch => (dps, IndetMatch)
+                  | Matches(env') => (
+                      dps,
+                      Matches(Environment.union(env, env')),
+                    )
+                  }
+                | None => (dps, DoesNotMatch)
+                };
+              }
+            },
+          (dps, Matches(Environment.empty)),
+          ds,
+        );
+      // Now check Nones
+      let dps_nones = List.filter(((p, _)) => p == None, dps);
+      let ds_nones = List.filter(((p, _)) => p == None, ds);
       List.fold_left2(
-        (result, (pp, dp), (p, d)) =>
+        (result, (_, dp), (_, d)) =>
           switch (result) {
           | DoesNotMatch => DoesNotMatch
           | IndetMatch => IndetMatch
           | Matches(env) =>
-            // TODO: Need a function to reorganize lists to match up vars
-            // TODO: check if this logic is right
-            switch (pp, p) {
-            | (Some(sp), Some(s)) =>
-              if (compare(sp, s) == 0) {
-                switch (matches(dp, d)) {
-                | DoesNotMatch => DoesNotMatch
-                | IndetMatch => IndetMatch
-                | Matches(env') => Matches(Environment.union(env, env'))
-                };
-              } else {
-                DoesNotMatch;
-              }
-            | (None, None) =>
-              switch (matches(dp, d)) {
-              | DoesNotMatch => DoesNotMatch
-              | IndetMatch => IndetMatch
-              | Matches(env') => Matches(Environment.union(env, env'))
-              }
-            | (_, _) => DoesNotMatch
+            switch (matches(dp, d)) {
+            | DoesNotMatch => DoesNotMatch
+            | IndetMatch => IndetMatch
+            | Matches(env') => Matches(Environment.union(env, env'))
             }
           },
-        Matches(Environment.empty),
-        dps,
-        ds,
+        result,
+        dps_nones,
+        ds_nones,
       );
+      //LabeledTuple.ana_tuple(f, Matches(Environment.empty), DoesNotMatch, dps, ds)
     }
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
     assert(List.length(tys) == List.length(tys'));
@@ -391,7 +465,7 @@ and matches_cast_Tuple =
           | Matches(env) =>
             switch (pp, p) {
             | (Some(sp), Some(s)) =>
-              if (compare(sp, s) == 0) {
+              if (LabeledTuple.compare(sp, s) == 0) {
                 switch (matches(dp, DHExp.apply_casts(d, casts))) {
                 | DoesNotMatch => DoesNotMatch
                 | IndetMatch => IndetMatch

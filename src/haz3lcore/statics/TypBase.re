@@ -179,16 +179,64 @@ module rec Typ: {
     | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Arrow(_), _) => false
     | (Prod(tys1), Prod(tys2)) =>
-      List.equal(
-        ((p1, t1), (p2, t2)) =>
-          switch (p1, p2) {
-          | (Some(ap), Some(bp)) => compare(ap, bp) == 0 && eq(t1, t2)
-          | (None, None) => eq(t1, t2)
-          | (_, _) => false
-          },
-        tys1,
-        tys2,
-      )
+      // List.equal(
+      //   ((p1, t1), (p2, t2)) =>
+      //     switch (p1, p2) {
+      //     | (Some(ap), Some(bp)) =>
+      //       LabeledTuple.compare(ap, bp) == 0 && eq(t1, t2)
+      //     | (None, None) => eq(t1, t2)
+      //     | (_, _) => false
+      //     },
+      //   tys1,
+      //   tys2,
+      // )
+      let (_, b) =
+        List.fold_left(
+          ((tys1, b), ty2) =>
+            if (b) {
+              switch (ty2) {
+              | (None, _) => (tys1, b)
+              | _ =>
+                let ty1_opt =
+                  List.find_opt(
+                    ty1 => {
+                      switch (ty1, ty2) {
+                      | ((Some(s1), _), (Some(s2), _)) =>
+                        LabeledTuple.compare(s1, s2) == 0
+                      | ((None, _), (None, _)) => true
+                      | (_, _) => false
+                      }
+                    },
+                    tys1,
+                  );
+                switch (ty1_opt, ty2) {
+                | (Some((_, t1)), (_, t2)) => (tys1, eq(t1, t2))
+                | (None, _) => (tys1, false)
+                };
+              };
+            } else {
+              (tys1, false);
+            },
+          (tys1, true),
+          tys2,
+        );
+      if (b) {
+        // check Nones
+        let tys1_nones = List.filter(((p, _)) => p == None, tys1);
+        let tys2_nones = List.filter(((p, _)) => p == None, tys2);
+        List.fold_left2(
+          (b, (_, t1), (_, t2)) =>
+            switch (b) {
+            | false => false
+            | true => eq(t1, t2)
+            },
+          b,
+          tys1_nones,
+          tys2_nones,
+        );
+      } else {
+        b;
+      };
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
     | (List(_), _) => false
@@ -288,7 +336,7 @@ module rec Typ: {
           ((p1, t1), (p2, t2)) =>
             switch (p1, p2) {
             | (Some(ap), Some(bp)) =>
-              if (compare(ap, bp) == 0) {
+              if (LabeledTuple.compare(ap, bp) == 0) {
                 join'(t1, t2);
               } else {
                 None;
@@ -401,24 +449,34 @@ module rec Typ: {
           when
             List.length(tys) == List.length(es)
             && List.fold_right(
-                 ((ty, e), b) => {
+                 (ty, b) => {
                    b
-                     ? switch (ty, e) {
-                       | (Some(tstr), Some(estr)) => tstr == estr
-                       | (None, None) => true
-                       | (_, _) => false
-                       }
+                     ? {
+                       let e_opt =
+                         List.find_opt(
+                           e => {
+                             switch (e, ty) {
+                             | ((Some(sp), _), (Some(s), _)) =>
+                               LabeledTuple.compare(sp, s) == 0
+                             | ((None, _), (None, _)) => true
+                             | (_, _) => false
+                             }
+                           },
+                           es,
+                         );
+                       switch (e_opt) {
+                       | None => false
+                       | _ => true
+                       };
+                     }
                      : {
                        false;
                      }
                  },
-                 List.combine(
-                   tys |> List.map(((a, _)) => a),
-                   es |> List.map(((a, _)) => a),
-                 ),
+                 tys,
                  true,
                ) =>
-        tys |> List.map(((_, b)) => b)
+        tys |> List.map(((_, ty)) => ty)
       | Unknown(SynSwitch) =>
         List.init(List.length(es), _ => Unknown(SynSwitch))
       | _ => List.init(List.length(es), _ => Unknown(Internal))
