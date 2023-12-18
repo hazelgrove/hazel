@@ -3,7 +3,7 @@ open Incr_dom;
 open Haz3lweb;
 open Virtual_dom.Vdom;
 
-let action_applied = ref(true);
+let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
 let last_edit_action = ref(JsUtil.timestamp());
 
@@ -38,10 +38,12 @@ let restart_caret_animation = () =>
 
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
-  action_applied := true;
   if (UpdateAction.is_edit(action)) {
     last_edit_action := JsUtil.timestamp();
     edit_action_applied := true;
+  };
+  if (Update.should_scroll_to_caret(action)) {
+    scroll_to_caret := true;
   };
   last_edit_action := JsUtil.timestamp();
   switch (
@@ -73,24 +75,22 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
 let update_handler =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~model: Model.t,
       ~dir: Key.dir,
       evt: Js.t(Dom_html.keyboardEvent),
     )
     : Effect.t(unit) =>
   Effect.(
-    switch (Keyboard.handle_key_event(Key.mk(dir, evt), ~model)) {
+    switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
     | None => Ignore
     | Some(action) =>
       Many([Prevent_default, Stop_propagation, inject(action)])
     }
   );
 
-let handlers =
-    (~inject: UpdateAction.t => Ui_effect.t(unit), ~model: Model.t) => [
+let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit)) => [
   Attr.on_keypress(_ => Effect.Prevent_default),
-  Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
-  Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
+  Attr.on_keyup(update_handler(~inject, ~dir=KeyUp)),
+  Attr.on_keydown(update_handler(~inject, ~dir=KeyDown)),
 ];
 
 module App = {
@@ -158,8 +158,8 @@ module App = {
           print_endline("Saving...");
           schedule_action(Update.Save);
         };
-        if (action_applied.contents) {
-          action_applied := false;
+        if (scroll_to_caret.contents) {
+          scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };
       },

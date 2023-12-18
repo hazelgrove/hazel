@@ -89,7 +89,7 @@ let get_spliced_elabs =
           ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
         [(key, d)];
       | Exercise(_, _, exercise) =>
-        Exercise.spliced_elabs(~settings=settings.core, exercise)
+        Exercise.spliced_elabs(settings.core, exercise)
       };
     }
     : [];

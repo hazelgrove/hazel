@@ -193,7 +193,7 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(mode);
+    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -235,10 +235,11 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
-  | Ap(fn, arg) =>
+  | Ap(fn, arg)
+  | Pipeline(arg, fn) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
       Id.is_nullary_ap_flag(arg.term.ids)
@@ -352,7 +353,10 @@ and uexp_to_info_map =
         let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
         switch (utyp.term) {
         | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
-          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          /* NOTE: When debugging type system issues it may be beneficial to
+             use a different name than the alias for the recursive parameter */
+          //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ty_rec = Typ.Rec(name, ty_pre);
           let ctx_def =
             Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -458,7 +462,7 @@ and upat_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let (ty_in, ty_out) = Typ.matched_arrow(fn.ty);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>

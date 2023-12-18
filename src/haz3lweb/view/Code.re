@@ -7,7 +7,7 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((is_in_buffer, sort, is_consistent, is_complete, label, i)) => {
+    ((label, is_in_buffer, sort, is_consistent, is_complete, i)) => {
       let cls =
         switch (label) {
         | _ when is_in_buffer => "in-buffer"
@@ -18,6 +18,7 @@ let of_delim' =
         | _ => "default"
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
+      let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       [
         span(
           ~attr=
@@ -30,11 +31,11 @@ let of_delim' =
 let of_delim =
     (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
+    t.label,
     is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
-    t.label,
     i,
   ));
 
@@ -42,7 +43,7 @@ let of_grout = [Node.text(Unicode.nbsp)];
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=10000, ((secondary_icons, indent, content)) =>
+    ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? Form.linebreak : "";
       [
@@ -59,22 +60,6 @@ let of_secondary =
       [span_c("secondary", [Node.text(Secondary.get_string(content))])];
     }
   );
-
-/* PERF: Tile memoization makes a >2X difference. I've left
-   the memoization in place for delims and secondary above as it still
-   seems like a marginal positive (5-10% difference).
-
-   WARNING: Note that this the table is stored outside the Text functor.
-   This means that if there are data dependencies on the functor argument
-   values, they will need to be explictly encoded in the key.
-
-   TODO: Consider setting a limit for the hashtbl size  */
-let piece_hash:
-  Hashtbl.t(
-    (Piece.t, list(Uuidm.t), Id.Map.t(int), Sort.t, bool),
-    list(t),
-  ) =
-  Hashtbl.create(10000);
 
 module Text = (M: {
                  let map: Measured.t;
@@ -107,42 +92,14 @@ module Text = (M: {
          of_piece(indent_level, buffer_ids, sort_of_p_idx(i), p)
        );
   }
-  and of_piece' =
-      (
-        (
-          p: Piece.t,
-          buffer_ids,
-          indent_level: Id.Map.t(int),
-          expected_sort: Sort.t,
-          secondary_icons: bool,
-        ),
-      )
+  and of_piece =
+      (indent_level, buffer_ids, expected_sort: Sort.t, p: Piece.t)
       : list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(indent_level, buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
-    | Secondary({content, _} as w) when Secondary.is_linebreak(w) =>
-      let indent =
-        switch (Id.Map.find_opt(Piece.id(p), indent_level)) {
-        | None =>
-          print_endline("WARNING: indent level not found");
-          m(p).last.col;
-        | Some(i) => i
-        };
-      of_secondary((secondary_icons, indent, content));
-    | Secondary({content, _}) => of_secondary((secondary_icons, 0, content))
-    };
-  }
-  and of_piece =
-      (indent_level, buffer_ids, expected_sort: Sort.t, p: Piece.t)
-      : list(Node.t) => {
-    let secondary_icons = M.settings.secondary_icons;
-    let arg = (p, buffer_ids, indent_level, expected_sort, secondary_icons);
-    try(Hashtbl.find(piece_hash, arg)) {
-    | _ =>
-      let res = of_piece'(arg);
-      Hashtbl.add(piece_hash, arg, res);
-      res;
+    | Secondary({content, _}) =>
+      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     };
   }
   and of_tile =
@@ -213,20 +170,10 @@ let view =
       let settings = settings;
     });
   let unselected =
-    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~indent_level, unselected, buffer_ids, false, sort)
-    );
-  let holes =
-    TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~map=measured, ~font_metrics, segment)
-    );
+    Text.of_segment(unselected, ~indent_level, buffer_ids, false, sort);
+  let holes = holes(~map=measured, ~font_metrics, segment);
   div(
     ~attr=Attr.class_("code"),
-    [
-      span_c("code-text", unselected),
-      // TODO restore (already regressed so no loss in commenting atm)
-      // span_c("code-text-shards", Text.of_segment(segment)),
-      ...holes,
-    ],
+    [span_c("code-text", unselected), ...holes],
   );
 };

@@ -140,7 +140,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | UpdateLangDocMessages(_)
   | DebugAction(_)
   | DoTheThing => false
-  | ExportPersistentData => false
+  | ExportPersistentData
+  | DebugConsole(_) => false
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
@@ -158,6 +159,70 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | Undo
   | Redo
   | Reset => true;
+
+let should_scroll_to_caret =
+  fun
+  | Set(s_action) =>
+    switch (s_action) {
+    | Mode(_) => true
+    | Captions
+    | SecondaryIcons
+    | Statics
+    | Assist
+    | Elaborate
+    | Dynamics
+    | Benchmark
+    | ContextInspector
+    | InstructorMode => false
+    }
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | FontMetrics(_) => true
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_)
+    | Result(_) => false
+    }
+  | Assistant(Prompt(_)) => false
+  | Assistant(AcceptSuggestion) => true
+  | FinishImportScratchpad(_)
+  | FinishImportAll(_)
+  | ResetCurrentEditor
+  | SwitchEditor(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
+  | ReparseCurrentEditor
+  | Reset
+  | Copy
+  | Paste(_)
+  | Cut
+  | Undo
+  | Redo
+  | MoveToNextHole(_)
+  | DoTheThing => true
+  | PerformAction(a) =>
+    switch (a) {
+    | Move(_)
+    | MoveToNextHole(_)
+    | Jump(_)
+    | Select(Resize(_) | Term(_) | Smart | Tile(_))
+    | Destruct(_)
+    | Insert(_)
+    | Pick_up
+    | Put_down
+    | RotateBackpack
+    | MoveToBackpackTarget(_) => true
+    | Unselect(_)
+    | Select(All) => false
+    }
+  | Save
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
+  | UpdateLangDocMessages(_)
+  | DebugAction(_)
+  | ExportPersistentData
+  | DebugConsole(_)
+  | Benchmark(_) => false;
 
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
@@ -241,7 +306,8 @@ let switch_exercise_editor =
   | Scratch(_) => None
   | Exercise(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    Store.Exercise.save_exercise(exercise, ~instructor_mode);
+    //Note: now saving after each edit (delayed by 1 second) so no need to save here
+    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
     Some(Exercise(m, specs, exercise));
   };
 
@@ -290,6 +356,9 @@ let rec apply =
     | DebugAction(a) =>
       DebugAction.perform(a);
       Ok(model);
+    | DebugConsole(key) =>
+      DebugConsole.print(model, key);
+      Ok(model);
     | Save => Model.save_and_return(model)
     | InitImportAll(file) =>
       JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
@@ -331,7 +400,7 @@ let rec apply =
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Model.save_and_return({...model, editors})
+      | Some(editors) => Ok({...model, editors})
       };
     | DoTheThing =>
       /* Attempt to act intelligently when TAB is pressed.

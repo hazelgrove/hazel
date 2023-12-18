@@ -4,6 +4,8 @@ open OptUtil.Syntax;
 /* This module generates TyDi suggestions which depend
  * neither on the typing context or the backpack */
 
+let leading_expander = " " ++ AssistantExpander.c;
+
 /* Specifies type information for syntactic forms. Could in principle be
  * derived by generating segments from Forms, parsing them to terms, and
  * running Statics, but for now, new forms e.g. operators must be added
@@ -21,21 +23,23 @@ module Typ = {
   ];
 
   let of_leading_delim: list((Token.t, Typ.t)) = [
-    ("case ", unk),
-    ("fun ", Arrow(unk, unk)),
-    ("if ", unk),
-    ("let ", unk),
-    ("test ", Prod([])),
-    ("type ", unk),
+    ("case" ++ leading_expander, unk),
+    ("fun" ++ leading_expander, Arrow(unk, unk)),
+    ("if" ++ leading_expander, unk),
+    ("let" ++ leading_expander, unk),
+    ("test" ++ leading_expander, Prod([])),
+    ("type" ++ leading_expander, unk),
   ];
 
   let of_infix_delim: list((Token.t, Typ.t)) = [
+    ("|>", unk), /* */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
     ("::", List(unk)),
     ("@", List(unk)),
     (";", unk),
     ("&&", Bool),
     ("\\/", Bool),
+    ("||", Bool),
     ("$==", Bool),
     ("==.", Bool),
     ("==", Bool),
@@ -97,7 +101,7 @@ module Delims = {
          List.filter_map(
            (m: Mold.t) =>
              List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
-               ? Some(token ++ " ") : None,
+               ? Some(token ++ leading_expander) : None,
            Molds.get(lbl),
          );
        })

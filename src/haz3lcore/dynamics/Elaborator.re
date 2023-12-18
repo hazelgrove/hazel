@@ -50,8 +50,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Fun(_) =>
       /* See regression tests in Examples/Dynamics */
-      let (_, ana_out) = Typ.matched_arrow(ana_ty);
-      let (self_in, _) = Typ.matched_arrow(self_ty);
+      let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
+      let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
@@ -97,7 +97,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -138,7 +138,7 @@ let rec dhexp_of_uexp =
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
-        let ty = Typ.matched_list(ty);
+        let ty = Typ.matched_list(ctx, ty);
         DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
@@ -184,7 +184,7 @@ let rec dhexp_of_uexp =
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Ap(TestLit(id), dtest);
+        DHExp.Test(id, dtest);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -206,14 +206,14 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let+ ty_body = fixed_exp_typ(m, body);
+        let+ ty = fixed_pat_typ(m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
+          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -235,9 +235,10 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
+          Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
-      | Ap(fn, arg) =>
+      | Ap(fn, arg)
+      | Pipeline(arg, fn) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
@@ -308,7 +309,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       let* ty = fixed_pat_typ(m, upat);
-      wrap(ListLit(Typ.matched_list(ty), ds));
+      wrap(ListLit(Typ.matched_list(ctx, ty), ds));
     | Constructor(name) =>
       switch (err_status) {
       | InHole(Common(NoType(FreeConstructor(_)))) =>

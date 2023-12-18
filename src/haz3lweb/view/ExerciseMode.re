@@ -22,7 +22,7 @@ let mk =
   let Exercise.{eds, _} = exercise;
   let stitched_dynamics =
     Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      Exercise.stitch_dynamic(~settings=settings.core, exercise, results)
+      Exercise.stitch_dynamic(settings.core, exercise, results)
     );
 
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);

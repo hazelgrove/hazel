@@ -166,7 +166,15 @@ let go_z =
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
     Ok(z);
-  | MoveToBackpackTarget(d) =>
+  | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
+    if (Backpack.restricted(z.backpack)) {
+      Move.to_backpack_target(d, z)
+      |> Result.of_option(~error=Action.Failure.Cant_move);
+    } else {
+      Move.go(Local(d), z)
+      |> Result.of_option(~error=Action.Failure.Cant_move);
+    }
+  | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };

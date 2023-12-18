@@ -51,10 +51,9 @@ module rec Typ: {
   let of_source: list(source) => list(t);
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
-  let matched_arrow: t => (t, t);
-  let matched_prod: (int, t) => list(t);
-  let matched_cons: t => (t, t);
-  let matched_list: t => t;
+  let matched_arrow: (Ctx.t, t) => (t, t);
+  let matched_prod: (Ctx.t, int, t) => list(t);
+  let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
@@ -121,31 +120,6 @@ module rec Typ: {
     | (_, Internal | Free(_)) => Internal
     | (SynSwitch, SynSwitch) => SynSwitch
     };
-
-  let matched_arrow: t => (t, t) =
-    fun
-    | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
-    | _ => (Unknown(Internal), Unknown(Internal));
-
-  let matched_prod: (int, t) => list(t) =
-    length =>
-      fun
-      | Prod(tys) when List.length(tys) == length => tys
-      | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-      | _ => List.init(length, _ => Unknown(Internal));
-
-  let matched_cons: t => (t, t) =
-    fun
-    | List(ty) => (ty, List(ty))
-    | Unknown(SynSwitch) => (Unknown(SynSwitch), List(Unknown(SynSwitch)))
-    | _ => (Unknown(Internal), List(Unknown(SynSwitch)));
-
-  let matched_list: t => t =
-    fun
-    | List(ty) => ty
-    | Unknown(SynSwitch) => Unknown(SynSwitch)
-    | _ => Unknown(Internal);
 
   let precedence = (ty: t): int =>
     switch (ty) {
@@ -384,6 +358,27 @@ module rec Typ: {
     };
   };
 
+  let matched_arrow = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Arrow(ty_in, ty_out) => (ty_in, ty_out)
+    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
+    | _ => (Unknown(Internal), Unknown(Internal))
+    };
+
+  let matched_prod = (ctx, length, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Prod(tys) when List.length(tys) == length => tys
+    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
+    | _ => List.init(length, _ => Unknown(Internal))
+    };
+
+  let matched_list = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | List(ty) => ty
+    | Unknown(SynSwitch) => Unknown(SynSwitch)
+    | _ => Unknown(Internal)
+    };
+
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
     List.find_map(
       fun
@@ -398,11 +393,28 @@ module rec Typ: {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
-         otherwise the rec parameter will leak */
-      switch (unroll(ty)) {
+         otherwise the rec parameter will leak. However, seeing
+         as substitution is too expensive to be used here, we
+         currently making the optimization that, since all
+         recursive types are type alises which use the alias name
+         as the recursive parameter, and type aliases cannot be
+         shadowed, it is safe to simply remove the Rec constructor,
+         provided we haven't escaped the context in which the alias
+         is bound. If either of the above assumptions become invalid,
+         the below code will be incorrect! */
+      let ty =
+        switch (ty) {
+        | Rec(x, ty_body) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | None => unroll(ty)
+          | Some(_) => ty_body
+          }
+        | _ => ty
+        };
+      switch (ty) {
       | Sum(sm) => Some(sm)
       | _ => None
-      }
+      };
     | _ => None
     };
   };
