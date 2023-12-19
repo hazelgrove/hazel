@@ -23,10 +23,10 @@ let view =
     ) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let (info_map, ctx) = Statics.mk_map_and_inference_solutions(term);
-  //let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term); // TODO anand and raef: do we need to use this instead?
+  let _ctx_init = ctx_init;
+  //let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term); // TODO anand and raef: we need to use this instead; figure out how
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,

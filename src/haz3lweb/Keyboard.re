@@ -14,7 +14,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       model.langDocMessages.annotations,
       ctx,
     );
-  let restricted = Backpack.restricted(zipper.backpack);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
   switch (k) {
@@ -75,10 +74,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
         Some(UpdateAction.Paste(no_hole_marks));
       | _ => now(Insert(Form.linebreak))
       };
-    | _ when Form.is_valid_char(key) && String.length(key) == 1 =>
-      /* TODO(andrew): length==1 is hack to prevent things
-         like F5 which are now valid tokens and also weird
-         unicode shit which is multichar i guess */
+    | _ when String.length(key) == 1 =>
+      /* Note: length==1 prevent specials like
+       * SHIFT from being captured here */
       now(Insert(key))
     | _ => None
     }
