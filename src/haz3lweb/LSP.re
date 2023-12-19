@@ -65,7 +65,7 @@ type pre_grammar = {
   new_tokens: list(string),
 };
 
-let getDefaultSettings = () => {
+let default_settings = {
   {debug: false, constrain: Types, program: ""};
 };
 
@@ -967,7 +967,7 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
 };
 
 let main = args => {
-  let settings = parse_args(args, getDefaultSettings());
+  let settings = parse_args(args, default_settings);
   let s = settings.program;
   let db = s => settings.debug ? print_endline(s) : ();
   db(show_settings(settings));
