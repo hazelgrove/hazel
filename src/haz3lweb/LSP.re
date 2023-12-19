@@ -15,6 +15,7 @@ type arguments = {
   debug: bool,
   constrain,
   program: string,
+  ctx: Ctx.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -66,7 +67,7 @@ type pre_grammar = {
 };
 
 let default_settings = {
-  {debug: false, constrain: Types, program: ""};
+  {debug: false, constrain: Types, program: "", ctx: []};
 };
 
 let show_settings = (s: arguments): string =>
@@ -80,25 +81,85 @@ let show_settings = (s: arguments): string =>
     },
   );
 
-let args = {
-  ignore(Js.Unsafe.js_expr("require('process')"));
-  //let num_args =
-  //  Js.Unsafe.js_expr("process.argv.length") |> Js.parseInt |> string_of_int;
-  //print_endline("num_args: " ++ num_args);
-  switch (Js.Unsafe.js_expr("process.argv") |> Js.to_array) {
-  | [||] => failwith("LSP: EXN: No args")
-  | argv =>
-    switch (Array.to_list(Array.map(Js.to_string, argv))) {
+let get_info_map = (~init_ctx=[], z: Zipper.t) =>
+  z
+  |> MakeTerm.from_zip_for_sem
+  |> fst
+  |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
+
+let _is_file = (path: string): bool => {
+  Js.Unsafe.(
+    [|inject(Js.string(path))|]
+    |> fun_call(get(js_expr("require('fs')"), "existsSync"))
+    |> Js.to_bool
+  );
+};
+
+let string_of_file = (~encoding: string="utf8", path: string): string => {
+  Js.Unsafe.(
+    Array.map(inject, [|Js.string(path), Js.string(encoding)|])
+    |> fun_call(get(js_expr("require('fs')"), "readFileSync"))
+    |> Js.to_string
+  );
+};
+
+let get_args = (): list(string) => {
+  Js.Unsafe.(
+    switch (
+      get(js_expr("require('process')"), "argv")
+      |> Js.to_array
+      |> Array.map(Js.to_string)
+      |> Array.to_list
+    ) {
     | [_, _, ...args] => args
     | _ => failwith("LSP: EXN: Args malformed")
     }
+  );
+};
+
+let get_ctx_thing = (map: Statics.Map.t): option(Ctx.t) =>
+  Id.Map.fold(
+    (_, info: Info.t, acc) => {
+      switch (info) {
+      | InfoExp({ctx, term: {term: Int(666), _}, _}) => Some(ctx)
+      | _ => acc
+      }
+    },
+    map,
+    None,
+  );
+let process_prelude = (~db=print_endline, ~init_ctx, str: string): Ctx.t => {
+  db("LSP: Prelude: Recieved string: " ++ str);
+  let z =
+    OptUtil.get_or_fail(
+      "LSP: Prelude: EXN: Couldn't parse string",
+      Printer.zipper_of_string(str),
+    );
+  db("LSP: Prelude: String parsed successfully");
+  let info_map = get_info_map(~init_ctx, z);
+  db("LSP: Prelude: Info map generated successfully");
+  switch (get_ctx_thing(info_map)) {
+  | Some(ctx) => ctx
+  | None => failwith("LSP: Prelude: EXN: Couldn't find 666")
   };
 };
 
 let usage_debug = "[--debug <true|false>]";
 let usage_constrain = "[--constrain <grammar|context|types>]";
+let usage_ctx = "[--ctx <empty|init>]";
+let usage_prelude = "[--prelude <path>]";
 let usage_str =
-  String.concat(" ", ["lsp", usage_debug, usage_constrain, "<program>"]);
+  String.concat(
+    " ",
+    [
+      "lsp",
+      usage_debug,
+      usage_constrain,
+      usage_ctx,
+      usage_prelude,
+      "<program>",
+    ],
+  );
 
 let rec parse_args = (args, currentSettings) =>
   switch (args) {
@@ -114,7 +175,21 @@ let rec parse_args = (args, currentSettings) =>
     parse_args(rest, {...currentSettings, constrain: Context})
   | ["--constrain", "types", ...rest] =>
     parse_args(rest, {...currentSettings, constrain: Types})
-  | ["--constrain", ..._] => failwith("LSP: EXN: Usage:" ++ usage_constrain)
+  | ["--constrain", ..._] => failwith("LSP: EXN: Usage: " ++ usage_constrain)
+  | ["--ctx", "empty", ...rest] =>
+    parse_args(rest, {...currentSettings, ctx: []})
+  | ["--ctx", "init", ...rest] =>
+    parse_args(rest, {...currentSettings, ctx: Builtins.ctx_init})
+  | ["--ctx", ..._] => failwith("LSP: EXN: Usage: " ++ usage_ctx)
+  | ["--prelude", maybe_path, ...rest] =>
+    switch (string_of_file(maybe_path)) {
+    | exception _ =>
+      failwith("LSP: EXN: Could not load prelude from path: " ++ maybe_path)
+    | str =>
+      let ctx = process_prelude(str, ~init_ctx=currentSettings.ctx);
+      parse_args(rest, {...currentSettings, ctx});
+    }
+  | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
   | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
     failwith("LSP: EXN: Unrecognized argument: " ++ arg)
   | [program] => {...currentSettings, program}
@@ -316,13 +391,9 @@ let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
   |> Piece.id;
 };
 
-let collate_info =
-    (~init_ctx=[] /*Builtins.ctx_init*/, ~db, z: Zipper.t, id: Id.t): infodump => {
-  let info_map =
-    z
-    |> MakeTerm.from_zip_for_sem
-    |> fst
-    |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
+let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
+  let init_ctx = settings.ctx;
+  let info_map = get_info_map(~init_ctx, z);
   let get_info = id => Id.Map.find_opt(id, info_map);
   let ci =
     OptUtil.get_or_fail(
@@ -353,8 +424,8 @@ let collate_info =
   };
 };
 
-let generation_options = (~db, z: Zipper.t) => {
-  let get_info = collate_info(~db, z);
+let generation_options = (~db, ~settings, z: Zipper.t) => {
+  let get_info = collate_info(~db, ~settings, z);
   switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
   | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
   | (Some((to_left, shape, compl)), Nothing) =>
@@ -883,7 +954,7 @@ let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar =>
   if (seg_before == [] && seg_after == []) {
     failwith("LSP: EXN: Empty segment");
   };
-  let gen_options = generation_options(~db, z);
+  let gen_options = generation_options(~settings, ~db, z);
   print_gen_option(~db, gen_options);
   let generate_completions = generate_completions(~settings, ~db, z);
   let generate_left_convex = generate_new_left_convex(~settings, ~db, z);
@@ -976,16 +1047,15 @@ let main = args => {
   print_endline(grammar);
 };
 
-main(args);
+main(get_args());
 
 //MAYBE: consider reducing generation of duplicate lookahead suggestions
 //MAYBE: abstract out default forms of any type eg case if let etc.
+//MAYBE: Serialize prelude for speed
 
 //TODO: Make sure synthetic mode is handled appropriately
 //TODO: Type defintions are basically untested
 //TODO: Type annotations and patterns are only lightly tested
-
-//TODO: Take context as input
 
 //TODO(andrew): find cases where operator types go wrong
 //BUG: "let _:String =\"yo\"+" only looks for ints so doesn't sug completion to "++"
