@@ -23,11 +23,11 @@ let find_opt: ('a => bool, list('a)) => option('a) = List.find_opt;
 // Checks remaining None pairs in order and performs f on each pair
 let ana_tuple:
   (
-    ('a, 'c, 'c) => 'a,
+    ('a, 'c, 'd) => 'a,
     'a,
     'a,
     list((option('b), 'c)),
-    list((option('b), 'c))
+    list((option('b), 'd))
   ) =>
   'a =
   (f, accu, accu_fail, l1, l2) => {

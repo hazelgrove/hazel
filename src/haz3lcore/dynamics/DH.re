@@ -227,18 +227,15 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (TupLabel(_, e1), TupLabel(_, e2)) => fast_equal(e1, e2) // TODO: Not right?
     | (Tuple(ds1), Tuple(ds2)) =>
+      // is the full comparison necessary for fast_equal?
+      let f = (b, ds1_val, ds2_val) => {
+        switch (b) {
+        | false => false
+        | true => fast_equal(ds1_val, ds2_val)
+        };
+      };
       List.length(ds1) == List.length(ds2)
-      && List.for_all2(
-           ((ap, ad), (bp, bd)) =>
-             switch (ap, bp) {
-             | (Some(ap), Some(bp)) =>
-               LabeledTuple.compare(ap, bp) == 0 && fast_equal(ad, bd)
-             | (None, None) => fast_equal(ad, bd)
-             | (_, _) => false
-             },
-           ds1,
-           ds2,
-         )
+      && LabeledTuple.ana_tuple(f, true, false, ds1, ds2);
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)
