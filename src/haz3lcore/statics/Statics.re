@@ -263,7 +263,10 @@ and uexp_to_info_map =
     add(
       ~self,
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
-      ~constraints=mode_cs @ ListUtil.flat_map(Info.exp_constraints, es) @ subsumption_constraints(self),
+      ~constraints=
+        mode_cs
+        @ ListUtil.flat_map(Info.exp_constraints, es)
+        @ subsumption_constraints(self),
       m,
     );
   | Cons(hd, tl) =>
@@ -293,12 +296,13 @@ and uexp_to_info_map =
   | Var(name) =>
     let (self: Self.exp, subsumption_constraints) =
       switch (Ctx.lookup_var(ctx, name)) {
-      | None => 
-        let boundary_hole: Self.t = Just(Unknown(AstNode(UExp.rep_id(uexp))));
-        (Free(name), subsumption_constraints(boundary_hole))
-      | Some(var) => 
+      | None =>
+        let boundary_hole: Self.t =
+          Just(Unknown(AstNode(UExp.rep_id(uexp))));
+        (Free(name), subsumption_constraints(boundary_hole));
+      | Some(var) =>
         let self: Self.t = Just(var.typ);
-        (Common(self), subsumption_constraints(self))
+        (Common(self), subsumption_constraints(self));
       };
     let (mode_ty, mode_cs) = Mode.ty_of(ctx, mode, UExp.rep_id(uexp));
     add'(
@@ -313,7 +317,12 @@ and uexp_to_info_map =
   | UnOp(op, e) =>
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (e, m) = go(~mode=Ana(ty_in), e, m);
-    add(~self=Just(ty_out), ~co_ctx=e.co_ctx, ~constraints=e.constraints @ subsumption_constraints(Just(ty_out)), m);
+    add(
+      ~self=Just(ty_out),
+      ~co_ctx=e.co_ctx,
+      ~constraints=e.constraints @ subsumption_constraints(Just(ty_out)),
+      m,
+    );
   | BinOp(op, e1, e2) =>
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
@@ -321,7 +330,10 @@ and uexp_to_info_map =
     add(
       ~self=Just(ty_out),
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-      ~constraints=e1.constraints @ e2.constraints @ subsumption_constraints(Just(ty_out)),
+      ~constraints=
+        e1.constraints
+        @ e2.constraints
+        @ subsumption_constraints(Just(ty_out)),
       m,
     );
   | Tuple(es) =>
@@ -342,7 +354,8 @@ and uexp_to_info_map =
       ~constraints=e.constraints,
       m,
     );
-  | Seq(e1, e2) => // TODO: whats Seq?
+  | Seq(e1, e2) =>
+    // TODO: whats Seq?
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -366,7 +379,11 @@ and uexp_to_info_map =
     add(
       ~self,
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-      ~constraints = match_constraints @ fn.constraints @ arg.constraints @ subsumption_constraints(self),
+      ~constraints=
+        match_constraints
+        @ fn.constraints
+        @ arg.constraints
+        @ subsumption_constraints(self),
       m,
     );
   | Fun(p, e) =>
@@ -412,7 +429,12 @@ and uexp_to_info_map =
       ~self=Just(body.ty),
       ~co_ctx=
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
-      ~constraints=p_syn.constraints @ p_ana'.constraints @ p_ana.constraints @ def.constraints @ body.constraints,
+      ~constraints=
+        p_syn.constraints
+        @ p_ana'.constraints
+        @ p_ana.constraints
+        @ def.constraints
+        @ body.constraints,
       m,
     );
   | If(e0, e1, e2) =>
@@ -509,7 +531,13 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       //TODO anand: typ aliases- should they generate new constraints too?
-      add(~self=Just(ty_escape), ~constraints=constraints_body @ subsumption_constraints(Just(ty_escape)), ~co_ctx, m);
+      add(
+        ~self=Just(ty_escape),
+        ~constraints=
+          constraints_body @ subsumption_constraints(Just(ty_escape)),
+        ~co_ctx,
+        m,
+      );
     | Var(_)
     | Invalid(_)
     | EmptyHole
@@ -520,7 +548,13 @@ and uexp_to_info_map =
       ) =
         go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-      add(~self=Just(ty_body), ~constraints=constraints_body @ subsumption_constraints(Just(ty_body)), ~co_ctx, m);
+      add(
+        ~self=Just(ty_body),
+        ~constraints=
+          constraints_body @ subsumption_constraints(Just(ty_body)),
+        ~co_ctx,
+        m,
+      );
     };
   };
 }
@@ -549,18 +583,10 @@ and upat_to_info_map =
       );
     (info, add_info(ids, InfoPat(info), m));
   };
+  let subsumption_constraints = self =>
+    subsumption_constraints(Pat(upat), ctx, mode, self);
   let atomic = self => {
-    let final_typ =
-      switch (Self.typ_of(ctx, self)) {
-      | Some(typ) => typ
-      | None => Unknown(AstNode(UPat.rep_id(upat)))
-      };
-    add(
-      ~self,
-      ~ctx,
-      m,
-      ~constraints=subsumption_constraints(mode, final_typ),
-    );
+    add(~self, ~ctx, m, ~constraints=subsumption_constraints(self));
   };
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
@@ -581,7 +607,12 @@ and upat_to_info_map =
   switch (term) {
   | MultiHole(tms) =>
     let (_, constraints, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~ctx, ~constraints, m);
+    add(
+      ~self=IsMulti,
+      ~ctx,
+      ~constraints=constraints @ subsumption_constraints(IsMulti),
+      m,
+    );
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(unknown))
   | Int(_) => atomic(Just(Int))
@@ -626,7 +657,7 @@ and upat_to_info_map =
     add(
       ~self=Just(unknown),
       ~ctx=Ctx.extend(ctx, entry),
-      ~constraints=subsumption_constraints(mode, ctx_typ),
+      ~constraints=subsumption_constraints(Just(unknown)),
       m,
     );
   | Tuple(ps) =>
@@ -641,13 +672,13 @@ and upat_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UPat.ctr_name(fn));
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
-    let ((ty_in, ty_out), matched_constraints) =
+    let ((ty_in, ty_out), match_constraints) =
       Typ.matched_arrow(ctx, id, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     add(
       ~self=Just(ty_out),
       ~ctx=arg.ctx,
-      ~constraints=fn.constraints @ arg.constraints @ matched_constraints,
+      ~constraints=fn.constraints @ arg.constraints @ match_constraints,
       m,
     );
   | TypeAnn(p, ann) =>
