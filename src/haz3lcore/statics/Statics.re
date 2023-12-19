@@ -91,17 +91,27 @@ let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
-let join_constraints = (tys: list(Typ.t)): Typ.constraints => {
-  // find first elt containing hole and constrain it to every other elt
-  let elts_with_hole = List.filter(Typ.contains_hole, tys);
-  switch (elts_with_hole) {
-  | [] => []
-  | [hd, ..._] =>
-    let constrain_rep_to_elt =
-        (acc: Typ.constraints, curr: Typ.t): Typ.constraints => {
-      [(hd, curr), ...acc];
+let join_constraints = (self: Self.t): Typ.constraints => {
+  let thread_constraints = (tys: list(Typ.t)): Typ.constraints => {
+    // find first element containing hole and constrain it to every other elt
+    let elts_with_hole = List.filter(Typ.contains_hole, tys);
+    switch (elts_with_hole) {
+    | [] => []
+    | [hd, ..._] =>
+      let constrain_rep_to_elt =
+          (acc: Typ.constraints, curr: Typ.t): Typ.constraints => {
+        [(hd, curr), ...acc];
+      };
+      List.fold_left(constrain_rep_to_elt, [], tys);
     };
-    List.fold_left(constrain_rep_to_elt, [], tys);
+  };
+  switch ((self: Self.t)) {
+  | NoJoin(wrap_ty, sources) =>
+    sources
+    |> Typ.of_source
+    |> List.map(Self.join_of(wrap_ty))
+    |> thread_constraints
+  | _ => []
   };
 };
 
@@ -115,7 +125,6 @@ let subsumption_constraints = (mode: Mode.t, final_typ: Typ.t) => {
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t)
         : (CoCtx.t, Map.t, Typ.constraints) => {
-  print_endline("ECHOOOOO");
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, constraints, _}: Info.exp, m) =
@@ -173,7 +182,12 @@ and uexp_to_info_map =
     | Ana(Unknown(SynSwitch(_))) => Mode.Syn
     | _ => mode
     };
-  let add' = (~self, ~co_ctx, ~constraints, m) => {
+  let add' = (~self: Self.exp, ~co_ctx, ~constraints, m) => {
+    let joined_constraints =
+      switch (self) {
+      | Common(t) => join_constraints(t)
+      | _ => []
+      };
     let info =
       Info.derived_exp(
         ~uexp,
@@ -182,11 +196,11 @@ and uexp_to_info_map =
         ~ancestors,
         ~self,
         ~co_ctx,
-        ~constraints,
+        ~constraints=constraints @ joined_constraints,
       );
     (info, add_info(ids, InfoExp(info), m));
   };
-  let add = (~self, ~constraints, ~co_ctx, m) =>
+  let add = (~self: Self.t, ~constraints, ~co_ctx, m) =>
     add'(~self=Common(self), ~constraints, ~co_ctx, m);
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
   let go' = uexp_to_info_map(~ancestors);
@@ -501,20 +515,6 @@ and upat_to_info_map =
     : (Info.pat, Map.t) => {
   let id = UPat.rep_id(upat);
   let add = (~self, ~ctx, ~constraints, m) => {
-    let wrap_fn = (wrap: Self.join_type) =>
-      switch (wrap) {
-      | Id => (x => x)
-      | List => (x => Typ.List(x))
-      };
-    let joined_constraints =
-      switch ((self: Self.t)) {
-      | NoJoin(wrap_ty, sources) =>
-        sources
-        |> Typ.of_source
-        |> List.map(wrap_fn(wrap_ty))
-        |> join_constraints
-      | _ => []
-      };
     let info =
       Info.derived_pat(
         ~upat,
@@ -522,7 +522,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~mode,
         ~ancestors,
-        ~constraints=constraints @ joined_constraints,
+        ~constraints=constraints @ join_constraints(self),
         ~self=Common(self),
       );
     (info, add_info(ids, InfoPat(info), m));
