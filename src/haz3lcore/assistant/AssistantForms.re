@@ -29,15 +29,14 @@ module Typ = {
   ];
 
   let of_prefix_leading_delim: list((Token.t, Typ.t)) = [
+    ("(", unk),
     ("case ", unk),
-    ("fun ", Arrow(unk, unk)),
     ("if ", unk),
     ("let ", unk),
-    ("test ", Prod([])),
     ("type ", unk),
-    ("(", unk), //TODO(andrew): note this one has two possible left tips (parens vs app)
     ("[", List(unk)),
-    ("|", unk) //TODO(andrew): hack, for lsp case rules...
+    ("test ", Prod([])),
+    ("fun ", Arrow(unk, unk)),
   ];
 
   let of_postfix_leading_delim: list((Token.t, Typ.t)) = [
@@ -51,7 +50,7 @@ module Typ = {
     ("::", List(unk)),
     (":", List(unk)), //TODO(andrew): hacky, for LSP
     ("@", List(unk)),
-    (";", unk), //TODO: do we want this?
+    (";", unk),
     ("&&", Bool),
     ("\\/", Bool),
     ("$==", Bool),

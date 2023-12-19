@@ -16,6 +16,39 @@ type settings = {
   constrain,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type completability =
+  | Completeable(Id.t, string)
+  | Inert(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type shapyness =
+  | LeftConvex
+  | LeftConcave;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type thing_to_left =
+  | Just
+  | SpacePadded;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type neighbor_info = (thing_to_left, shapyness, completability);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type thing_to_right =
+  | Nothing
+  | ConvexHole(Id.t)
+  | StringLit(string);
+
+//TODO: better handling of concaves
+[@deriving (show({with_path: false}), sexp, yojson)]
+type generation_options =
+  | OnlyCompletion(string)
+  | NewRightConvex(Id.t)
+  | CompletionOrNewRightConvex(Id.t, string, Id.t)
+  | NewRightConcave(Id.t) //id here is iffy
+  | CompletionOrNewRightConcave(Id.t, string); //snd id here is iffy
+
 let getDefaultSettings = () => {
   {debug: false, constrain: Types};
 };
@@ -71,33 +104,6 @@ let getSettings = args =>
   | None => getDefaultSettings()
   };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type completability =
-  | Completeable(Id.t, string)
-  | Inert(Id.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type shapyness =
-  | LeftConvex
-  | LeftConcave;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type thing_to_left =
-  | Just
-  | SpacePadded;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type neighbor_info = (thing_to_left, shapyness, completability);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-//TODO: better handling of concaves
-[@deriving (show({with_path: false}), sexp, yojson)]
-type generation_options =
-  | NewRightConvex(Id.t)
-  | CompletionOrNewRightConvex(Id.t, string, Id.t)
-  | NewRightConcave(Id.t) //id here is iffy
-  | CompletionOrNewRightConcave(Id.t, string); //snd id here is iffy
-
 /* Assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
    completeness, we can just use the left nibs */
@@ -120,7 +126,7 @@ let tile_str = (t: Tile.t): string => {
   left_nib_str(t) ++ label_str ++ right_nib_str(t);
 };
 
-let hole_to_right = (~db, z: Zipper.t): option(Id.t) =>
+let thing_to_right = (~db, z: Zipper.t): thing_to_right =>
   /* If we're doing pure left to right entry, there should be nothing to
      the right except for maybe a convex hole inserted by the grouter.
      If there is a such a hole, its CI should be used to inform new
@@ -128,14 +134,26 @@ let hole_to_right = (~db, z: Zipper.t): option(Id.t) =>
   switch (z.relatives.siblings |> snd) {
   | [] =>
     db("  LSP: Syntax: No rightwards piece");
-    None;
+    Nothing;
   | [Grout({id, shape: Convex, _})] =>
+    /* If the leftward neighbor has a rightwards concave nib,
+       a convex grout will be inserted to the right of the caret.
+       We record its ID as its CI can be used to inform
+       new token insertions */
     db("  LSP: Syntax: Rightwards piece is Convex Grout");
-    Some(id);
+    ConvexHole(id);
+  | [Tile({label: [str], _})] when Form.is_string(str) =>
+    /* Special case: When we insert a quote, another quote is inserted
+       to the right of the caret. This allow string literals, which are
+       implemented as a single token, to 'emulate' the ghost mechanics,
+       even though quotes are not proper delimiters. This case is the
+       only known situation where the caret position may be Inner during
+       pure left-to-right entry */
+    StringLit(str)
   | [_, ..._] as rhs =>
     db("  LSP: Syntax: Rightwards segment is: " ++ Segment.show(rhs));
     failwith(
-      "  LSP: Syntax: EXN: Nonempty Rightwards segment not single Convex Grout",
+      "  LSP: Syntax: EXN: Nonempty Rightwards segment not single Convex Grout or String literal",
     );
   };
 
@@ -191,9 +209,9 @@ let piece_to_left = (~db, z: Zipper.t): option(neighbor_info) =>
   };
 
 let generation_options = (~db, z: Zipper.t) => {
-  switch (piece_to_left(~db, z), hole_to_right(~db, z)) {
-  | (None, None) => failwith("LSP: EXN: Nothing to left or right")
-  | (Some((to_left, shape, compl)), None) =>
+  switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
+  | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
+  | (Some((to_left, shape, compl)), Nothing) =>
     switch (shape) {
     | LeftConcave =>
       failwith("LSP: EXN: Concave to left and nothing to right")
@@ -206,8 +224,8 @@ let generation_options = (~db, z: Zipper.t) => {
         CompletionOrNewRightConcave(id_l, left_token)
       }
     }
-  | (None, Some(id)) => NewRightConvex(id)
-  | (Some((to_left, shape, compl)), Some(id_r)) =>
+  | (None, ConvexHole(id)) => NewRightConvex(id)
+  | (Some((to_left, shape, compl)), ConvexHole(id_r)) =>
     switch (shape) {
     | LeftConvex => failwith("LSP: EXN: Convex to left and right")
     | LeftConcave =>
@@ -218,6 +236,7 @@ let generation_options = (~db, z: Zipper.t) => {
         CompletionOrNewRightConvex(id_l, left_tok, id_r)
       }
     }
+  | (_, StringLit(id)) => OnlyCompletion(id)
   };
 };
 
@@ -276,7 +295,7 @@ let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
   |> Segment.skel
   |> Skel.root
   |> Aba.map_a(List.nth(seg))
-  |> Aba.first_a  //TODO(andrew): is this right?
+  |> Aba.first_a
   |> Piece.id;
 };
 
@@ -665,6 +684,52 @@ let concave_sugs =
   infix_sugs @ postfix_sugs;
 };
 
+let completion_filter =
+    (caret: Zipper.Caret.t, tok_to_left: string, sug: string) => {
+  /*  For fixed tokens, a suggestion is a valid completion if
+      the token to the left of the caret is a proper prefix of the
+      suggestion. If the suggestion is a regexp form like atomic
+      literals or binding variable names, if the token to the left
+      is a prefix of something matching the regexp, we want to
+      suggest a regexp which represents possible ways of extending
+      the token such that it remains a prefix of something matching
+      the regexp.
+
+       I assume this can be done generally for at least basic
+      regular expressions, but for now each form is special-cased */
+  let is_prefix_of_intlit = Form.is_int;
+  let is_prefix_of_floatlit = t => Form.is_float(t) || Form.is_int(t);
+  let is_prefix_if_stringlit = Form.is_string;
+  let is_prefix_of_var = Form.is_var;
+  let is_prefix_of_typvar = Form.is_typ_var;
+  let is_prefix_of_ctr = Form.is_ctr;
+  if (String.starts_with(~prefix=tok_to_left, sug)) {
+    TyDi.suffix_of(sug, tok_to_left);
+  } else {
+    switch (sug) {
+    | "~INTLIT~" when is_prefix_of_intlit(tok_to_left) =>
+      /* TODO: limit length? */
+      Some("~EXTEND-INTLIT~")
+    | "~FLOATLIT~" when is_prefix_of_floatlit(tok_to_left) =>
+      /* TODO: figure out general case incl NaN, length limit, etc. */
+      Some("~EXTEND-FLOATLIT~")
+    | "~STRINGLIT~" when is_prefix_if_stringlit(tok_to_left) =>
+      /* HACK: This only actually covers the case of a finished stringlit
+         (caret is Outer). The in-progress stringlit case is captured above
+         (the StringLit case for thing_to_right. However we retain the
+         currently-unreachable Some case below defenfsively. */
+      caret == Outer ? None : Some("~EXTEND-STRINGLIT~")
+    | "~PATVAR~" when is_prefix_of_var(tok_to_left) =>
+      Some("~EXTEND-PATVAR~")
+    | "~TYPVAR~" when is_prefix_of_typvar(tok_to_left) =>
+      Some("~EXTEND-TYPVAR~")
+    | "~CONSTRUCTOR~" when is_prefix_of_ctr(tok_to_left) =>
+      Some("~EXTEND-CONSTRUCTOR~")
+    | _ => None
+    };
+  };
+};
+
 let generate =
     (
       ~settings: settings,
@@ -749,28 +814,65 @@ let generate =
     db("  LSP: Base: Concave: " ++ of_sugs(concave_sugs));
   };
 
-  //CHECK(andrew): make sure turning off types/ctx doesnt fuck up comma sugs
-  //CHECK(andrew): check tydi handling of synthetic mode, ana unknown mode
-  //CHECK(andrew): test type definitions esp ADTs
-  //CHECK(andrew): consider reducing generation of duplicate lookahead suggestions
-  //CHECK(andrew): find actually wrong type operator cases
+  //MAYBE: consider reducing generation of duplicate lookahead suggestions
+  //MAYBE: abstract out default forms of any type eg case if let etc.
 
-  /* Unhandled (Fatal): */
-  //BUG: "let s:String = \"" (crashes bc caret=Inner)
+  //TODO: Make sure synthetic mode is handled appropriately
+  //TODO: Type defintions are basically untested
+  //TODO: Type annotations and patterns are only lightly tested
 
-  /* Type too picky: */
-  //BUG: Completions of regexp literals just returns same regexp
+  //TODO(andrew): find cases where operator types go wrong
 
-  /* Type too liberal: */
   //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
 
-  /* TODO: Restict new tokens and whitespace logic:
-      1. if prev token is a free variable/constructor which is not equal to a keyword,
-      then prohibit new tokens + whitespace
-      (if all according to keikaku, should always be a completion in this case;
-      could for now liberalize and only prohibit if there are also completions)
-      2. only make backpack suggestion if bidictx contains no errors
-      3. only make comma suggestion if bidictx analyzes against prefix of expected tuple
+  /* TODO: Restict new tokens and whitespace logic.
+     Let 'NEW' below refer to both new tokens and whitespace.
+     We gate NEW tokens on the following:
+      1. if tile-to-left has a Free or Invalid Error AND not equal to keyword
+         a. if in Types or Context mode, prohibit NEW tokens + whitespace.
+         b. if in Grammar mode, do this only fo Invalid Tokens
+         c. We should also ASSERT that there are actually completions in such cases
+         d. think harder about the keyword case.
+      2. GATE backpack suggestion ON bidictx term ci has no errors
+      3. GATE comma suggestion ON bidictx term ci has no _internal_ errors AND
+         the bidictx analyzes against prefix of expected tuple */
+
+  /* TODO: More sophisticated logic for operand/operator insertion
+        1. Operand Insertion
+           0. Note that inserting an operand can't fix any errors, and
+              neither can it bury ie render unfixable any existing errors (i think)
+           a. If the operand analyzes against the type its parent expects for
+              its right child, then we can insert it.
+           b. Otherwise, we want to know if there exists an operator which could become its parent.
+           c. That is, is there an infix or postfix operator, which binds tighter than the operator
+              to the left of the operand (if any; if none, any infix or postfix operator will do),
+              whose right child slot accept's the operand's type, and that itself will be consistent
+              with the expectation of some possible chain of ancestors (infix and postfix operators)
+              which can be inserted 'between' the operand and its parent.
+           d. Operationally we approximate that last condition of c by asking getting the type chains
+              for the current parent's right child, and seeing if any of them lead to the operand's type.
+           e. If we extend the type chains with precdence information, then I think we can make this
+              subsume (a) as well. We get the typechains (including the trivial one) for the operand's
+             parent's right child type, see if any of them lead to the operand's type, and if so,
+             then <INSERT SOME COMPLICATED PRECEDENCE LOGIC HERE>.
+           f. Actually modulo the precedence logic, this is effectively the current logic i think.
+       2. Operator Insertion:
+          1. This can cause up to 2 errors, and fix up to 1 error. It can also cause errors to be
+             buried, i.e. become unfixable.
+          2. Assume for the moment that there are no errors to start.
+          3. The for each prospective _infix_ operator, we can use its precedence to query the skel,
+             and get its prospective parent and prospective child. the prospective left child
+             must agree exactly as it cannot be re-parented. we then want their to be
+             a typechain from prospective parent's right child slot to the new operator.
+             <INSERT MAYBE MORE COMPLICATED PRECEDENCE LOGIC HERE>.
+         4. (An Attempt): Something like... the prospectice parent is the nearest leftwards
+            infix operator whose precdedence is looser than the new operator. for another operator
+            to come between the two in the skel, it must have a looser precence that the new operator,
+            but tighter than the prospective parent. so if we're considering inserting a sequence of
+            operators to make the new operator agree with the parent, they all have to have prededences
+            between the two (if they're infix, posffix are always fine i think?), and they have to be able
+            to form a typechain. but i'm not sure if the typechain order has the same order so as to
+            reduce this to predence monotonicty.
      */
 
   let suggestions_convex =
@@ -796,39 +898,12 @@ let generate =
   | Some(tok_to_left) =>
     /* Note that for completion suggestions, we don't want to case
        on shape expectation, because the tile might get remolded */
+    db("  LSP: Completion: tok_to_left: " ++ tok_to_left);
     suggestions_concave
     @ suggestions_convex
     @ backpack_sugs
     |> List.map(Suggestion.content_of)
-    |> List.filter_map(x =>
-         if (String.starts_with(~prefix=tok_to_left, x)) {
-           TyDi.suffix_of(x, tok_to_left);
-         } else {
-           /* TODO:
-              1.This logic isn't quite right. Need to test whether tok_to_left
-               is a valid prefix of thing, not just thing. Current broken cases
-               include strings (basically all) and maybe some floats?
-               2. Also partial intlits could also be floats; handled this but maybe
-               more cases like this.
-               3. I guess in general this should use regexps that check if tok_to_left
-               is a prefix of a thing, and it so, return a suffix regexp.
-               4. So basically need to write a prefix and suffix regexp for each
-               5. technically above doesn't quite work since in general
-               some prefixes might only have some valid suffixes
-              */
-           switch (x) {
-           | "~INTLIT~" when Form.is_int(tok_to_left) => Some(x)
-           | "~FLOATLIT~"
-               when Form.is_float(tok_to_left) || Form.is_int(tok_to_left) =>
-             Some(x)
-           | "~STRINGLIT~" when Form.is_string(tok_to_left) => Some(x)
-           | "~PATVAR~" when Form.is_var(tok_to_left) => Some(x)
-           | "~TYPVAR~" when Form.is_typ_var(tok_to_left) => Some(x)
-           | "~CONSTRUCTOR~" when Form.is_ctr(tok_to_left) => Some(x)
-           | _ => None
-           };
-         }
-       )
+    |> List.filter_map(completion_filter(z.caret, tok_to_left));
   };
 };
 
@@ -843,14 +918,6 @@ let dispatch_generation = (~settings: settings, ~db, s: string): list(string) =>
   db("LSP: Init: String parsed successfully");
   let seg_before = z.relatives.siblings |> fst |> List.rev;
   let seg_after = z.relatives.siblings |> snd;
-  if (z.caret != Outer) {
-    failwith(
-      "LSP: EXN: Caret position is inner: Segment before: "
-      ++ Segment.show(seg_before)
-      ++ "Segment after: "
-      ++ Segment.show(seg_after),
-    );
-  };
   if (seg_before == [] && seg_after == []) {
     failwith("LSP: EXN: Empty segment");
   };
@@ -901,18 +968,26 @@ let dispatch_generation = (~settings: settings, ~db, s: string): list(string) =>
     db("LSP: (1/2) New Token Suggestions: " ++ String.concat(" ", s1));
     db("LSP: (2/2) Completion Suggestions: " ++ String.concat(" ", s2));
     s1 @ s2;
+  | OnlyCompletion(_stringlit) => [
+      Suggestion.mk("~EXTEND-STRINGLIT~") |> Suggestion.content_of,
+    ]
   };
 };
 
-//TODO: get kevin to check these
-//TODO: make whitespace conditional on something
 let grammar_prefix = {|
 intlit ::= [0-9]+
+extend-intlit ::= [0-9]+
 floatlit ::= [0-9]+ "." [0-9]+
+extend-floatlit ::= [0-9]* "." [0-9]+
 stringlit ::= "\"" [^"]* "\""
-patvar ::= [a-zA-Z_][a-zA-Z0-9_]*
+extend-stringlit ::= [^"]* "\""
+patvar ::= [a-z][a-zA-Z0-9_]*
+extend-patvar ::= [a-zA-Z0-9_]*
 typvar ::= [A-Z][a-zA-Z0-9_]*
+extend-typvar ::= [a-zA-Z0-9_]*
 constructor ::= [A-Z][a-zA-Z0-9_]*
+extend-constructor ::= [a-zA-Z0-9_]*
+
 whitespace ::= [ \n]+
 
 root ::= whitespace | |};
@@ -922,11 +997,17 @@ let mk_grammar = (toks: list(string)): string =>
     tok =>
       switch (tok) {
       | "~INTLIT~" => "intlit"
+      | "~EXTEND-INTLIT~" => "extend-intlit"
       | "~FLOATLIT~" => "floatlit"
+      | "~EXTEND-FLOATLIT~" => "extend-floatlit"
       | "~STRINGLIT~" => "stringlit"
+      | "~EXTEND-STRINGLIT~" => "extend-stringlit"
       | "~PATVAR~" => "patvar"
+      | "~EXTEND-PATVAR~" => "extend-patvar"
       | "~TYPVAR~" => "typvar"
+      | "~EXTEND-TYPVAR~" => "extend-typvar"
       | "~CONSTRUCTOR~" => "constructor"
+      | "~EXTEND-CONSTRUCTOR~" => "extend-constructor"
       | "\\/" => {|"\\/"|}
       | tok => "\"" ++ tok ++ "\""
       },
