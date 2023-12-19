@@ -11,16 +11,17 @@ type constrain =
   | Types;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type settings = {
+type arguments = {
   debug: bool,
   constrain,
+  program: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infodump = {
   ci: Info.t,
-  bidi_ci: option(Info.t),
-  bidi_ctx_cls: option(Term.Cls.t),
+  bidi_ci: Info.t,
+  bidi_ctx_cls: Term.Cls.t,
   bidi_ctx_expected_ty: Typ.t,
   bidi_parent_ci: option(Info.t),
   bidi_parent_ctx_cls: option(Term.Cls.t),
@@ -32,32 +33,31 @@ type completability =
   | Inert(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type shapyness =
+type left_shape =
   | LeftConvex
   | LeftConcave;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type thing_to_left =
+type maybe_padded =
   | Just
   | SpacePadded;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type neighbor_info = (thing_to_left, shapyness, completability);
+type left_neighbor_info = (maybe_padded, left_shape, completability);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type thing_to_right =
+type right_neighbor_info =
   | Nothing
   | ConvexHole(Id.t)
   | StringLit(string);
 
-//TODO: better handling of concaves
 [@deriving (show({with_path: false}), sexp, yojson)]
 type generation_options =
   | OnlyCompletion(string)
-  | NewRightConvex(Id.t)
-  | CompletionOrNewRightConvex(Id.t, string, Id.t)
-  | NewRightConcave(Id.t) //id here is iffy
-  | CompletionOrNewRightConcave(Id.t, string); //snd id here is iffy
+  | NewRightConvex(infodump)
+  | CompletionOrNewRightConvex(infodump, string, infodump) //TODO: betterize
+  | NewRightConcave(infodump)
+  | CompletionOrNewRightConcave(infodump, string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pre_grammar = {
@@ -66,10 +66,10 @@ type pre_grammar = {
 };
 
 let getDefaultSettings = () => {
-  {debug: false, constrain: Types};
+  {debug: false, constrain: Types, program: ""};
 };
 
-let show_settings = (s: settings): string =>
+let show_settings = (s: arguments): string =>
   Printf.sprintf(
     "Debug: %b, Constrain: %s",
     s.debug,
@@ -86,38 +86,40 @@ let args = {
   //  Js.Unsafe.js_expr("process.argv.length") |> Js.parseInt |> string_of_int;
   //print_endline("num_args: " ++ num_args);
   switch (Js.Unsafe.js_expr("process.argv") |> Js.to_array) {
-  | [||] => None
-  | argv => Some(Array.to_list(Array.map(Js.to_string, argv)))
+  | [||] => failwith("LSP: EXN: No args")
+  | argv =>
+    switch (Array.to_list(Array.map(Js.to_string, argv))) {
+    | [_, _, ...args] => args
+    | _ => failwith("LSP: EXN: Args malformed")
+    }
   };
 };
 
-let rec processArgs = (args, currentSettings) =>
+let usage_debug = "[--debug <true|false>]";
+let usage_constrain = "[--constrain <grammar|context|types>]";
+let usage_str =
+  String.concat(" ", ["lsp", usage_debug, usage_constrain, "<program>"]);
+
+let rec parse_args = (args, currentSettings) =>
   switch (args) {
-  | [] => currentSettings
+  | [] => failwith("LSP: EXN: No program specified. Usage: " ++ usage_str)
   | ["--debug", "false", ...rest] =>
-    processArgs(rest, {...currentSettings, debug: false})
+    parse_args(rest, {...currentSettings, debug: false})
   | ["--debug", "true", ...rest] =>
-    processArgs(rest, {...currentSettings, debug: true})
+    parse_args(rest, {...currentSettings, debug: true})
+  | ["--debug", ..._] => failwith("LSP: EXN: Usage: " ++ usage_debug)
   | ["--constrain", "grammar", ...rest] =>
-    processArgs(rest, {...currentSettings, constrain: Grammar})
+    parse_args(rest, {...currentSettings, constrain: Grammar})
   | ["--constrain", "context", ...rest] =>
-    processArgs(rest, {...currentSettings, constrain: Context})
+    parse_args(rest, {...currentSettings, constrain: Context})
   | ["--constrain", "types", ...rest] =>
-    processArgs(rest, {...currentSettings, constrain: Types})
-  | [_arg, ...rest] => processArgs(rest, currentSettings) // Ignore unrecognized args
-  };
-
-let getLastArg = args =>
-  switch (args) {
-  | None
-  | Some([]) => "" // Return empty string if no arguments
-  | Some(listArgs) => List.hd(List.rev(listArgs)) // Extract the last element
-  };
-
-let getSettings = args =>
-  switch (args) {
-  | Some(realArgs) => processArgs(List.tl(realArgs), getDefaultSettings())
-  | None => getDefaultSettings()
+    parse_args(rest, {...currentSettings, constrain: Types})
+  | ["--constrain", ..._] => failwith("LSP: EXN: Usage:" ++ usage_constrain)
+  | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
+    failwith("LSP: EXN: Unrecognized argument: " ++ arg)
+  | [program] => {...currentSettings, program}
+  | [_, ..._] =>
+    failwith("LSP: EXN: Multiple unnamed arguments. Usage: " ++ usage_str)
   };
 
 /* Assume for now left-to-right entry, so the present shards are
@@ -142,7 +144,7 @@ let tile_str = (t: Tile.t): string => {
   left_nib_str(t) ++ label_str ++ right_nib_str(t);
 };
 
-let thing_to_right = (~db, z: Zipper.t): thing_to_right =>
+let thing_to_right = (~db, z: Zipper.t): right_neighbor_info =>
   /* If we're doing pure left to right entry, there should be nothing to
      the right except for maybe a convex hole inserted by the grouter.
      If there is a such a hole, its CI should be used to inform new
@@ -187,7 +189,7 @@ let is_completable = (t: Tile.t) =>
     Inert(t.id)
   };
 
-let piece_to_left = (~db, z: Zipper.t): option(neighbor_info) =>
+let piece_to_left = (~db, z: Zipper.t): option(left_neighbor_info) =>
   /*
    Returning Left means we're looking for either a new thing
     that starts with a left-facing chevron, or a completion of the
@@ -224,38 +226,6 @@ let piece_to_left = (~db, z: Zipper.t): option(neighbor_info) =>
     };
   };
 
-let generation_options = (~db, z: Zipper.t) => {
-  switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
-  | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
-  | (Some((to_left, shape, compl)), Nothing) =>
-    switch (shape) {
-    | LeftConcave =>
-      failwith("LSP: EXN: Concave to left and nothing to right")
-    | LeftConvex =>
-      switch (to_left, compl) {
-      | (Just, Inert(id_l))
-      | (SpacePadded, Completeable(id_l, _) | Inert(id_l)) =>
-        NewRightConcave(id_l)
-      | (Just, Completeable(id_l, left_token)) =>
-        CompletionOrNewRightConcave(id_l, left_token)
-      }
-    }
-  | (None, ConvexHole(id)) => NewRightConvex(id)
-  | (Some((to_left, shape, compl)), ConvexHole(id_r)) =>
-    switch (shape) {
-    | LeftConvex => failwith("LSP: EXN: Convex to left and right")
-    | LeftConcave =>
-      switch (to_left, compl) {
-      | (Just, Inert(_))
-      | (SpacePadded, _) => NewRightConvex(id_r)
-      | (Just, Completeable(id_l, left_tok)) =>
-        CompletionOrNewRightConvex(id_l, left_tok, id_r)
-      }
-    }
-  | (_, StringLit(id)) => OnlyCompletion(id)
-  };
-};
-
 let of_sugs: list(Suggestion.t) => string =
   s => s |> List.map((s: Suggestion.t) => s.content) |> String.concat(" ");
 
@@ -280,6 +250,13 @@ let self_ty = (ci: Info.t): Typ.t =>
   | _ => unk
   };
 
+let expected_ty = (ci: Info.t): Typ.t =>
+  switch (ci) {
+  | InfoExp({mode, _})
+  | InfoPat({mode, _}) => Mode.ty_of(mode)
+  | _ => unk
+  };
+
 let show_info =
     (db, info_map, ci: Info.t, bidi_ci, bidi_parent_ci, z: Zipper.t) => {
   let sort = Info.sort_of(ci);
@@ -301,15 +278,9 @@ let show_info =
       |> String.concat("    \n")
     ),
   );
-  switch (bidi_ci) {
-  | Some(ci) =>
-    let expected_ty = AssistantForms.Typ.expected(ci);
-    db("  LSP: Info: BidiCtx: Cls: " ++ Term.Cls.show(Info.cls_of(ci)));
-    db(
-      "  LSP: Info: BidiCtx: Expected type: " ++ Typ.to_string(expected_ty),
-    );
-  | None => db("  LSP: Info: Bidelimited Ctx(Error)")
-  };
+  let expected_ty = AssistantForms.Typ.expected(bidi_ci);
+  db("  LSP: Info: BidiCtx: Cls: " ++ Term.Cls.show(Info.cls_of(bidi_ci)));
+  db("  LSP: Info: BidiCtx: Expected type: " ++ Typ.to_string(expected_ty));
   switch (bidi_parent_ci) {
   | Some(ci) =>
     db("  LSP: Info: Bidi Parent Cls: " ++ Term.Cls.show(Info.cls_of(ci)))
@@ -358,21 +329,19 @@ let collate_info =
       "LSP: Gen: EXN: Couldn't find CI for id " ++ Id.to_string(id),
       get_info(id),
     );
-  //TODO: de-option below
-  let bidi_ci = get_info(get_bidi_id(z, id));
+  let bidi_ci =
+    OptUtil.get_or_fail(
+      "LSP: Gen: EXN: Couldn't find Bidi CI for id " ++ Id.to_string(id),
+      get_info(get_bidi_id(z, id)),
+    );
   let bidi_parent_ci =
     bidi_ci
-    |> Option.map(Info.ancestors_of)
-    |> OptUtil.and_then(ListUtil.hd_opt)
+    |> Info.ancestors_of
+    |> ListUtil.hd_opt
     |> OptUtil.and_then(get_info);
   let bidi_parent_ctx_cls = bidi_parent_ci |> Option.map(Info.cls_of);
-  let bidi_ctx_cls = bidi_ci |> Option.map(Info.cls_of);
-  let bidi_ctx_expected_ty =
-    switch (bidi_ci) {
-    | Some(InfoExp({mode, _}))
-    | Some(InfoPat({mode, _})) => Mode.ty_of(mode)
-    | _ => unk
-    };
+  let bidi_ctx_cls = bidi_ci |> Info.cls_of;
+  let bidi_ctx_expected_ty = expected_ty(bidi_ci);
   show_info(db, info_map, ci, bidi_ci, bidi_parent_ci, z);
   {
     ci,
@@ -381,6 +350,39 @@ let collate_info =
     bidi_ctx_expected_ty,
     bidi_parent_ci,
     bidi_parent_ctx_cls,
+  };
+};
+
+let generation_options = (~db, z: Zipper.t) => {
+  let get_info = collate_info(~db, z);
+  switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
+  | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
+  | (Some((to_left, shape, compl)), Nothing) =>
+    switch (shape) {
+    | LeftConcave =>
+      failwith("LSP: EXN: Concave to left and nothing to right")
+    | LeftConvex =>
+      switch (to_left, compl) {
+      | (Just, Inert(id_l))
+      | (SpacePadded, Completeable(id_l, _) | Inert(id_l)) =>
+        NewRightConcave(get_info(id_l))
+      | (Just, Completeable(id_l, left_token)) =>
+        CompletionOrNewRightConcave(get_info(id_l), left_token)
+      }
+    }
+  | (None, ConvexHole(id)) => NewRightConvex(get_info(id))
+  | (Some((to_left, shape, compl)), ConvexHole(id_r)) =>
+    switch (shape) {
+    | LeftConvex => failwith("LSP: EXN: Convex to left and right")
+    | LeftConcave =>
+      switch (to_left, compl) {
+      | (Just, Inert(_))
+      | (SpacePadded, _) => NewRightConvex(get_info(id_r))
+      | (Just, Completeable(id_l, left_tok)) =>
+        CompletionOrNewRightConvex(get_info(id_l), left_tok, get_info(id_r))
+      }
+    }
+  | (_, StringLit(id)) => OnlyCompletion(id)
   };
 };
 
@@ -437,12 +439,7 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
 let n_ary_sugs = (~settings, ~db as _, bidi_ci): Suggestion.s => {
   let comma_sug = Suggestion.mk(",");
   switch (settings.constrain) {
-  | Types =>
-    switch (Option.map(suggest_comma, bidi_ci)) {
-    | Some(true) => [comma_sug]
-    | Some(false) => []
-    | None => [comma_sug]
-    }
+  | Types => suggest_comma(bidi_ci) ? [comma_sug] : []
   | Context
   | Grammar => [comma_sug]
   };
@@ -533,7 +530,7 @@ let postfix_sugs =
       ~settings,
       ~db as _,
       ci: Info.t,
-      bidi_ctx_cls: option(Term.Cls.t),
+      bidi_ctx_cls: Term.Cls.t,
       bidi_parent_ctx_cls: option(Term.Cls.t),
     )
     : Suggestion.s => {
@@ -542,8 +539,7 @@ let postfix_sugs =
      the whole case, so if we're on a rule tile, the bidictx will be
      the whole case. (TODO: This is confusing, clarify) */
   let case_rule_sug =
-    bidi_parent_ctx_cls == Some(Exp(Match))
-    || bidi_ctx_cls == Some(Exp(Match))
+    bidi_parent_ctx_cls == Some(Exp(Match)) || bidi_ctx_cls == Exp(Match)
       ? [Suggestion.mk("|")] : [];
   let postfix_ap_sug = (ctx, self_ty) =>
     /* Could alternatively make this more restrictive and require
@@ -847,7 +843,7 @@ let left_concave_sugs = (~info_dump, ~completion, ~settings, ~db, z) => {
 };
 
 let generate_completions =
-    (~settings: settings, ~db, ~tok_to_left: string, z: Zipper.t, info_dump)
+    (~settings: arguments, ~db, ~tok_to_left: string, z: Zipper.t, info_dump)
     : list(string) => {
   /* Note that for completion suggestions, we ignore shape expectations,
      as the left tile might get keyword-completed or remolded */
@@ -859,7 +855,7 @@ let generate_completions =
 };
 
 let generate_new_left_convex =
-    (~settings: settings, ~db, z: Zipper.t, info_dump): list(string) => {
+    (~settings: arguments, ~db, z: Zipper.t, info_dump): list(string) => {
   db("LSP: Generating new left convex tokens");
   left_convex_sugs(~settings, ~info_dump, ~db, z)
   |> List.map(Suggestion.content_of)
@@ -867,14 +863,14 @@ let generate_new_left_convex =
 };
 
 let generate_new_left_concave =
-    (~settings: settings, ~db, z: Zipper.t, info_dump): list(string) => {
+    (~settings: arguments, ~db, z: Zipper.t, info_dump): list(string) => {
   db("LSP: Generating new left concave tokens");
   left_concave_sugs(~completion=false, ~settings, ~db, ~info_dump, z)
   |> List.map(Suggestion.content_of)
   |> List.sort_uniq(String.compare);
 };
 
-let dispatch_generation = (~settings: settings, ~db, s: string): pre_grammar => {
+let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar => {
   db("LSP: Init: Recieved string: " ++ s);
   let z =
     OptUtil.get_or_fail(
@@ -893,25 +889,22 @@ let dispatch_generation = (~settings: settings, ~db, s: string): pre_grammar => 
   let generate_left_convex = generate_new_left_convex(~settings, ~db, z);
   let generate_left_concave = generate_new_left_concave(~settings, ~db, z);
   switch (gen_options) {
-  | NewRightConvex(id) =>
-    let info_dump = collate_info(~db, z, id);
-    {new_tokens: generate_left_convex(info_dump), completions: []};
-  | NewRightConcave(id) =>
-    let info_dump = collate_info(~db, z, id);
-    {new_tokens: generate_left_concave(info_dump), completions: []};
-  | CompletionOrNewRightConvex(id_l, tok_to_left, id_new) =>
-    let info_dump_l = collate_info(~db, z, id_l);
-    let info_dump_new = collate_info(~db, z, id_new);
-    {
+  | NewRightConvex(info_dump) => {
+      new_tokens: generate_left_convex(info_dump),
+      completions: [],
+    }
+  | NewRightConcave(info_dump) => {
+      new_tokens: generate_left_concave(info_dump),
+      completions: [],
+    }
+  | CompletionOrNewRightConvex(info_dump_l, tok_to_left, info_dump_new) => {
       new_tokens: generate_left_convex(info_dump_l),
       completions: generate_completions(~tok_to_left, info_dump_new),
-    };
-  | CompletionOrNewRightConcave(id_l, tok_to_left) =>
-    let info_dump = collate_info(~db, z, id_l);
-    {
+    }
+  | CompletionOrNewRightConcave(info_dump, tok_to_left) => {
       new_tokens: generate_left_concave(info_dump),
       completions: generate_completions(~tok_to_left, info_dump),
-    };
+    }
   | OnlyCompletion(_) => {
       new_tokens: [],
       completions: ["~EXTEND-STRINGLIT~"],
@@ -973,7 +966,9 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   |> (grammar => grammar ++ "\nroot ::= " ++ grammar_suffix);
 };
 
-let main = (settings: settings, s: string) => {
+let main = args => {
+  let settings = parse_args(args, getDefaultSettings());
+  let s = settings.program;
   let db = s => settings.debug ? print_endline(s) : ();
   db(show_settings(settings));
   let grammar = s |> dispatch_generation(~settings, ~db) |> mk_grammar;
@@ -981,7 +976,7 @@ let main = (settings: settings, s: string) => {
   print_endline(grammar);
 };
 
-main(getSettings(args), getLastArg(args));
+main(args);
 
 //MAYBE: consider reducing generation of duplicate lookahead suggestions
 //MAYBE: abstract out default forms of any type eg case if let etc.
