@@ -107,6 +107,8 @@ let of_list_lit =
   (typs, constraints);
 };
 
+// TODO: anand and raef; discuss if the mode ctr fns below need constraints
+
 let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
   /* If a ctr is being analyzed against (an arrow type returning)
      a sum type having that ctr as a variant, we consider the

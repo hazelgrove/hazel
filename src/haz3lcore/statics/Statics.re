@@ -115,12 +115,28 @@ let join_constraints = (self: Self.t): Typ.constraints => {
   };
 };
 
-let subsumption_constraints = (mode: Mode.t, final_typ: Typ.t) => {
+let subsumption_constraints =
+    (any: any, ctx: Ctx.t, mode: Mode.t, self: Self.t) => {
+  let rep_id = Term.rep_id(any);
+  let final_typ =
+    switch (Self.typ_of(ctx, self)) {
+    | Some(typ) => typ
+    | None => Unknown(AstNode(rep_id))
+    };
   switch (mode) {
   | Ana(expected_typ) => [(final_typ, expected_typ)]
   | _ => []
   };
 };
+
+let rec is_synswitch_rooted = (prov: Typ.type_provenance) =>
+  switch (prov) {
+  | NoProvenance
+  | AstNode(_)
+  | Free(_) => false
+  | SynSwitch(_) => true
+  | Matched(_, prov) => is_synswitch_rooted(prov)
+  };
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t)
@@ -160,7 +176,6 @@ and multi = (~ctx, ~ancestors, m, tms) =>
   List.fold_left(
     ((co_ctxs, acc_constraints, m), any) => {
       let (co_ctx, m, constraints) =
-        //TODO: anand and raef is this underscore reasonable (might go away)
         any_to_info_map(~ctx, ~ancestors, any, m);
       (co_ctxs @ [co_ctx], acc_constraints @ constraints, m);
     },
@@ -179,7 +194,7 @@ and uexp_to_info_map =
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
-    | Ana(Unknown(SynSwitch(_))) => Mode.Syn
+    | Ana(Unknown(prov)) when is_synswitch_rooted(prov) => Mode.Syn
     | _ => mode
     };
   let add' = (~self: Self.exp, ~co_ctx, ~constraints, m) => {
@@ -205,6 +220,8 @@ and uexp_to_info_map =
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
+  let subsumption_constraints = self =>
+    subsumption_constraints(Exp(uexp), ctx, mode, self);
   let map_m_go = m =>
     List.fold_left2(
       ((es, m), mode, e) =>
@@ -213,24 +230,24 @@ and uexp_to_info_map =
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => {
-    let final_typ =
-      switch (Self.typ_of(ctx, self)) {
-      | Some(typ) => typ
-      | None => Unknown(AstNode(UExp.rep_id(uexp)))
-      };
     add(
       ~self,
       ~co_ctx=CoCtx.empty,
       m,
-      ~constraints=subsumption_constraints(mode, final_typ),
+      ~constraints=subsumption_constraints(self),
     );
   };
   switch (term) {
   | MultiHole(tms) =>
     let (co_ctxs, constraints, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m, ~constraints);
+    add(
+      ~self=IsMulti,
+      ~co_ctx=CoCtx.union(co_ctxs),
+      m,
+      ~constraints=constraints @ subsumption_constraints(IsMulti),
+    );
   | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(Unknown(AstNode(UExp.rep_id(uexp)))))
+  | EmptyHole => atomic(Just(Unknown(AstNode(UExp.rep_id(uexp))))) // TODO: replace with ExpHole prov
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -242,10 +259,11 @@ and uexp_to_info_map =
       Mode.of_list_lit(ctx, List.length(es), UExp.rep_id(uexp), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
+    let self = Self.listlit(~empty=Unknown(NoProvenance), ctx, tys, ids);
     add(
-      ~self=Self.listlit(~empty=Unknown(NoProvenance), ctx, tys, ids),
+      ~self,
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
-      ~constraints=mode_cs @ ListUtil.flat_map(Info.exp_constraints, es),
+      ~constraints=mode_cs @ ListUtil.flat_map(Info.exp_constraints, es) @ subsumption_constraints(self),
       m,
     );
   | Cons(hd, tl) =>
@@ -273,17 +291,21 @@ and uexp_to_info_map =
       m,
     );
   | Var(name) =>
-    let (self: Self.exp, final_typ: Typ.t) =
+    let (self: Self.exp, subsumption_constraints) =
       switch (Ctx.lookup_var(ctx, name)) {
-      | None => (Free(name), Unknown(AstNode(UExp.rep_id(uexp))))
-      | Some(var) => (Common(Just(var.typ)), var.typ)
+      | None => 
+        let boundary_hole: Self.t = Just(Unknown(AstNode(UExp.rep_id(uexp))));
+        (Free(name), subsumption_constraints(boundary_hole))
+      | Some(var) => 
+        let self: Self.t = Just(var.typ);
+        (Common(self), subsumption_constraints(self))
       };
     let (mode_ty, mode_cs) = Mode.ty_of(ctx, mode, UExp.rep_id(uexp));
     add'(
       ~self,
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), mode_ty),
       m,
-      ~constraints=subsumption_constraints(mode, final_typ) @ mode_cs,
+      ~constraints=subsumption_constraints @ mode_cs,
     );
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
@@ -291,7 +313,7 @@ and uexp_to_info_map =
   | UnOp(op, e) =>
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (e, m) = go(~mode=Ana(ty_in), e, m);
-    add(~self=Just(ty_out), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
+    add(~self=Just(ty_out), ~co_ctx=e.co_ctx, ~constraints=e.constraints @ subsumption_constraints(Just(ty_out)), m);
   | BinOp(op, e1, e2) =>
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
@@ -299,7 +321,7 @@ and uexp_to_info_map =
     add(
       ~self=Just(ty_out),
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-      ~constraints=e1.constraints @ e2.constraints,
+      ~constraints=e1.constraints @ e2.constraints @ subsumption_constraints(Just(ty_out)),
       m,
     );
   | Tuple(es) =>
@@ -320,7 +342,7 @@ and uexp_to_info_map =
       ~constraints=e.constraints,
       m,
     );
-  | Seq(e1, e2) =>
+  | Seq(e1, e2) => // TODO: whats Seq?
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -334,7 +356,7 @@ and uexp_to_info_map =
   | Pipeline(arg, fn) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
-    let ((ty_in, ty_out), constraints) =
+    let ((ty_in, ty_out), match_constraints) =
       Typ.matched_arrow(ctx, UExp.rep_id(uexp), fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
@@ -344,11 +366,11 @@ and uexp_to_info_map =
     add(
       ~self,
       ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-      ~constraints,
+      ~constraints = match_constraints @ fn.constraints @ arg.constraints @ subsumption_constraints(self),
       m,
     );
   | Fun(p, e) =>
-    let ((mode_pat, mode_body), constraints) =
+    let ((mode_pat, mode_body), match_constraints) =
       Mode.of_arrow(ctx, mode, UExp.rep_id(uexp));
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
@@ -359,7 +381,7 @@ and uexp_to_info_map =
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
-      ~constraints=constraints @ e.constraints @ p.constraints,
+      ~constraints=match_constraints @ e.constraints @ p.constraints,
       m,
     );
   | Let(p, def, body) =>
@@ -390,7 +412,7 @@ and uexp_to_info_map =
       ~self=Just(body.ty),
       ~co_ctx=
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
-      ~constraints=p_ana.constraints @ def.constraints @ body.constraints,
+      ~constraints=p_syn.constraints @ p_ana'.constraints @ p_ana.constraints @ def.constraints @ body.constraints,
       m,
     );
   | If(e0, e1, e2) =>
@@ -487,7 +509,7 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       //TODO anand: typ aliases- should they generate new constraints too?
-      add(~self=Just(ty_escape), ~constraints=constraints_body, ~co_ctx, m);
+      add(~self=Just(ty_escape), ~constraints=constraints_body @ subsumption_constraints(Just(ty_escape)), ~co_ctx, m);
     | Var(_)
     | Invalid(_)
     | EmptyHole
@@ -498,7 +520,7 @@ and uexp_to_info_map =
       ) =
         go'(~ctx, ~mode, body, m);
       let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-      add(~self=Just(ty_body), ~constraints=constraints_body, ~co_ctx, m);
+      add(~self=Just(ty_body), ~constraints=constraints_body @ subsumption_constraints(Just(ty_body)), ~co_ctx, m);
     };
   };
 }
