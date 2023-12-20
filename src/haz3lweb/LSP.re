@@ -535,6 +535,9 @@ let suggest_typ = (ctx: Ctx.t): Suggestion.s =>
   AssistantCtx.suggest_bound_typ(ctx)
   @ AssistantForms.suggest_all_ty_convex(Typ, ctx, unk);
 
+let suggest_tpat = (ctx: Ctx.t): Suggestion.s =>
+  AssistantForms.suggest_all_ty_convex(TPat, ctx, unk);
+
 let convex_sugs = (~settings, ci: Info.t) =>
   switch (settings.constrain) {
   | Types =>
@@ -544,14 +547,14 @@ let convex_sugs = (~settings, ci: Info.t) =>
     | InfoPat({mode, ctx, co_ctx, _}) =>
       suggest_pat(~fns=false, ctx, co_ctx, Mode.ty_of(mode))
     | InfoTyp({ctx, _}) => suggest_typ(ctx)
-    | _ => []
+    | InfoTPat({ctx, _}) => suggest_tpat(ctx)
     }
   | Context =>
     switch (ci) {
     | InfoExp({ctx, _}) => suggest_exp(~fns=false, ctx, unk)
     | InfoPat({ctx, co_ctx, _}) => suggest_pat(~fns=false, ctx, co_ctx, unk)
     | InfoTyp({ctx, _}) => suggest_typ(ctx)
-    | _ => []
+    | InfoTPat({ctx, _}) => suggest_tpat(ctx)
     }
   | Grammar =>
     switch (ci) {
@@ -563,7 +566,7 @@ let convex_sugs = (~settings, ci: Info.t) =>
       [Suggestion.mk("~CONSTRUCTOR~")]
       @ suggest_pat(~fns=false, [], [], unk)
     | InfoTyp(_) => [Suggestion.mk("~TYPVAR~")]
-    | _ => []
+    | InfoTPat(_) => suggest_tpat([])
     }
   };
 
@@ -1065,7 +1068,6 @@ main(get_args());
 //BUG: "let _:String =\"yo\"+" only looks for ints so doesn't sug completion to "++"
 //BUG: "\"yo\"+" only looks for ints so doesn't sug completion to "+."
 //(above are monkeypatched to be too liberal for now)
-//BUG: "1+" suggests all lits, not just ints
 
 //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
 

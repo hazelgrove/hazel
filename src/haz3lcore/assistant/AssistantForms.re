@@ -17,6 +17,7 @@ module Typ = {
     ("~STRINGLIT~", String),
     ("~PATVAR~", unk),
     ("~TYPVAR~", unk),
+    ("~CONSTRUCTOR~", unk) // for type definitions
   ];
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
@@ -230,7 +231,7 @@ module Delims = {
     switch (sort) {
     | Exp => ["~INTLIT~", "~FLOATLIT~", "~STRINGLIT~"]
     | Pat => ["~PATVAR~", "~INTLIT~", "~FLOATLIT~", "~STRINGLIT~"]
-    | Typ => []
+    | Typ => ["~CONSTRUCTOR~"]
     | TPat => ["~TYPVAR~"]
     | _ => []
     };
