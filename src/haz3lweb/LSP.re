@@ -117,18 +117,21 @@ let get_args = (): list(string) => {
   );
 };
 
-let get_ctx_thing = (map: Statics.Map.t): option(Ctx.t) =>
-  Id.Map.fold(
-    (_, info: Info.t, acc) => {
-      switch (info) {
-      | InfoExp({ctx, term: {term: Int(666), _}, _}) => Some(ctx)
-      | _ => acc
-      }
-    },
-    map,
-    None,
-  );
 let process_prelude = (~db=print_endline, ~init_ctx, str: string): Ctx.t => {
+  let sym = 666;
+  let str = str ++ "\n" ++ string_of_int(sym);
+  let get_ctx_thing = (map: Statics.Map.t): option(Ctx.t) =>
+    Id.Map.fold(
+      (_, info: Info.t, acc) => {
+        switch (info) {
+        | InfoExp({ctx, term: {term: Int(n), _}, _}) when n == sym =>
+          Some(ctx)
+        | _ => acc
+        }
+      },
+      map,
+      None,
+    );
   db("LSP: Prelude: Recieved string: " ++ str);
   let z =
     OptUtil.get_or_fail(
@@ -140,7 +143,8 @@ let process_prelude = (~db=print_endline, ~init_ctx, str: string): Ctx.t => {
   db("LSP: Prelude: Info map generated successfully");
   switch (get_ctx_thing(info_map)) {
   | Some(ctx) => ctx
-  | None => failwith("LSP: Prelude: EXN: Couldn't find 666")
+  | None =>
+    failwith("LSP: Prelude: EXN: Couldn't find sym:" ++ string_of_int(sym))
   };
 };
 
@@ -961,24 +965,24 @@ let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar =>
   let generate_left_concave = generate_new_left_concave(~settings, ~db, z);
   switch (gen_options) {
   | NewRightConvex(info_dump) => {
-      new_tokens: generate_left_convex(info_dump),
       completions: [],
+      new_tokens: generate_left_convex(info_dump),
     }
   | NewRightConcave(info_dump) => {
-      new_tokens: generate_left_concave(info_dump),
       completions: [],
+      new_tokens: generate_left_concave(info_dump),
     }
   | CompletionOrNewRightConvex(info_dump_l, tok_to_left, info_dump_new) => {
-      new_tokens: generate_left_convex(info_dump_l),
-      completions: generate_completions(~tok_to_left, info_dump_new),
+      completions: generate_completions(~tok_to_left, info_dump_l),
+      new_tokens: generate_left_convex(info_dump_new),
     }
   | CompletionOrNewRightConcave(info_dump, tok_to_left) => {
-      new_tokens: generate_left_concave(info_dump),
       completions: generate_completions(~tok_to_left, info_dump),
+      new_tokens: generate_left_concave(info_dump),
     }
   | OnlyCompletion(_) => {
-      new_tokens: [],
       completions: ["~EXTEND-STRINGLIT~"],
+      new_tokens: [],
     }
   };
 };
@@ -1061,6 +1065,7 @@ main(get_args());
 //BUG: "let _:String =\"yo\"+" only looks for ints so doesn't sug completion to "++"
 //BUG: "\"yo\"+" only looks for ints so doesn't sug completion to "+."
 //(above are monkeypatched to be too liberal for now)
+//BUG: "1+" suggests all lits, not just ints
 
 //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
 
