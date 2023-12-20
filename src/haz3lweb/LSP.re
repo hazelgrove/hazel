@@ -20,6 +20,7 @@ type arguments = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infodump = {
+  are_any_errors: bool,
   ci: Info.t,
   bidi_ci: Info.t,
   bidi_ctx_cls: Term.Cls.t,
@@ -53,8 +54,15 @@ type right_neighbor_info =
   | StringLit(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type incompleteness =
+  | Grammatical
+  | Contextual
+  | Fine;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type generation_options =
-  | OnlyCompletion(string)
+  | OnlyCompletion(infodump, string)
+  | OnlyCompletionString(string)
   | NewRightConvex(infodump)
   | CompletionOrNewRightConvex(infodump, string, infodump) //TODO: betterize
   | NewRightConcave(infodump)
@@ -117,21 +125,16 @@ let get_args = (): list(string) => {
   );
 };
 
-let process_prelude = (~db=print_endline, ~init_ctx, str: string): Ctx.t => {
+let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   let sym = 666;
   let str = str ++ "\n" ++ string_of_int(sym);
+  let ctx_if_sym = (_, info: Info.t, acc) =>
+    switch (info) {
+    | InfoExp({ctx, term: {term: Int(n), _}, _}) when n == sym => Some(ctx)
+    | _ => acc
+    };
   let get_ctx_thing = (map: Statics.Map.t): option(Ctx.t) =>
-    Id.Map.fold(
-      (_, info: Info.t, acc) => {
-        switch (info) {
-        | InfoExp({ctx, term: {term: Int(n), _}, _}) when n == sym =>
-          Some(ctx)
-        | _ => acc
-        }
-      },
-      map,
-      None,
-    );
+    Id.Map.fold(ctx_if_sym, map, None);
   db("LSP: Prelude: Recieved string: " ++ str);
   let z =
     OptUtil.get_or_fail(
@@ -140,7 +143,6 @@ let process_prelude = (~db=print_endline, ~init_ctx, str: string): Ctx.t => {
     );
   db("LSP: Prelude: String parsed successfully");
   let info_map = get_info_map(~init_ctx, z);
-  db("LSP: Prelude: Info map generated successfully");
   switch (get_ctx_thing(info_map)) {
   | Some(ctx) => ctx
   | None =>
@@ -336,6 +338,30 @@ let expected_ty = (ci: Info.t): Typ.t =>
   | _ => unk
   };
 
+let is_incomplete = (ci: Info.t): incompleteness =>
+  /* Is the term (which should be a monotile) something that
+     is invalid on its own, but might become valid by extension?
+     NOTE: keyword expansion isn't explictly taken into account
+     here, since keywords are suggested with trailing spaces,
+     so they'll always have a completion suggestion even when
+     the keyword is fully written. If this is changed, this will
+     need to change as well. */
+  switch (ci) {
+  | InfoExp({status: InHole(Common(NoType(BadToken(_) | MultiError))), _})
+  | InfoPat({status: InHole(Common(NoType(BadToken(_) | MultiError))), _})
+  /* Note: an example of the multierror case is "1:" in an expression context */
+  | InfoTyp({status: InHole(BadToken(_)), _}) => Grammatical
+  | InfoExp({status: InHole(FreeVariable(_)), _})
+  | InfoExp({status: InHole(Common(NoType(FreeConstructor(_)))), _})
+  | InfoPat({status: InHole(Common(NoType(FreeConstructor(_)))), _})
+  | InfoTyp({status: InHole(FreeTypeVariable(_)), _}) => Contextual
+  | InfoTyp({status: InHole(DuplicateConstructor(_)), _})
+  | InfoTPat({status: InHole(ShadowsType(_)), _}) =>
+    /* Kind of an abuse but whatever */
+    Contextual
+  | _ => Fine
+  };
+
 let show_info =
     (db, info_map, ci: Info.t, bidi_ci, bidi_parent_ci, z: Zipper.t) => {
   let sort = Info.sort_of(ci);
@@ -343,6 +369,7 @@ let show_info =
   let ctx = Info.ctx_of(ci);
   let expected_ty = AssistantForms.Typ.expected(ci);
   let backpack_tokens = AssistantBackpack.to_token_list(z.backpack);
+  let errors = Haz3lcore.ErrorPrint.collect_static(info_map);
   db("  LSP: Info: Cls: " ++ Term.Cls.show(cls));
   db("  LSP: Info: Sort: " ++ Sort.to_string(sort));
   db("  LSP: Info: Expected type: " ++ Typ.to_string(expected_ty));
@@ -350,13 +377,9 @@ let show_info =
   db("  LSP: Info: Error Status: " ++ error_str(ci));
   db("  LSP: Info: Typing Context: " ++ Ctx.to_string(ctx));
   db("  LSP: Info: Backpack stack: " ++ String.concat(" ", backpack_tokens));
-  db(
-    "  LSP: Info: ALL errors:"
-    ++ (
-      Haz3lcore.ErrorPrint.collect_static(info_map)
-      |> String.concat("    \n")
-    ),
-  );
+  if (errors != []) {
+    db("  LSP: Info: ALL errors:\n" ++ String.concat("  \n", errors));
+  };
   let expected_ty = AssistantForms.Typ.expected(bidi_ci);
   db("  LSP: Info: BidiCtx: Cls: " ++ Term.Cls.show(Info.cls_of(bidi_ci)));
   db("  LSP: Info: BidiCtx: Expected type: " ++ Typ.to_string(expected_ty));
@@ -375,12 +398,13 @@ let print_gen_option = (~db, gen_options: generation_options): unit =>
     db("  LSP: Syntax: Can insert left-convex or complete: " ++ tok_to_left)
   | CompletionOrNewRightConcave(_id_l, tok_to_left) =>
     db("  LSP: Syntax: Can insert left-concave or complete: " ++ tok_to_left)
-  | OnlyCompletion(stringlit) =>
-    db("LSP: Can extend/complete stringlit: " ++ stringlit)
+  | OnlyCompletionString(stringlit) =>
+    db("LSP: Must extend/complete stringlit: " ++ stringlit)
+  | OnlyCompletion(_id, tok_to_left) =>
+    db("  LSP: Syntax: Must complete: " ++ tok_to_left)
   };
 
 let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
-  //let indicated_id = Indicated.index(z) |> Option.get;
   let orig_segment =
     Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
   let map = Measured.path_map(orig_segment);
@@ -417,8 +441,42 @@ let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
   let bidi_parent_ctx_cls = bidi_parent_ci |> Option.map(Info.cls_of);
   let bidi_ctx_cls = bidi_ci |> Info.cls_of;
   let bidi_ctx_expected_ty = expected_ty(bidi_ci);
+  /* TODO: Disabled this at the moment as I think it's too restrictive.
+      For example, given "let x:Bool = (1" we want to suggest ")".
+     Closer is gating on errors in bidelimited ctx, but even that
+     doesn't work in above, as error is on the 1. Parens may be
+     special case here.
+
+     Must be no errors to drop:
+     "let = in" (inner types independent of expectation)
+     "type = in" (inner things independent)
+     "fun ->" (inner type independent)
+     "| =>" (inner type independent of expectation)
+     "test end" (since inner type independent of expected type)
+
+     Errors might be ok:
+     "()" (parens) e.g. given "let a:Bool = (1" could do ") < 1"
+     "case end" e.g. given "let a:Bool = case 1 | 1 => 1" could do "end < 1"
+
+     UNSURE:
+     "<???>(<???>)" (fn ap; might be okay since binds v tight)
+     "[<???>]"
+     "if <fine> then <???> else"
+
+     Logic is maybe something like:
+     Can drop, if resultant operand after dropping only has errors
+     due to expectation for which there is a resolvant type path.
+
+     Or maybe: it shouldnt be about checking for errors per se, but
+     instead analyzing the contents of the bidelimited context against
+     a type with a typepath to /its/ bidelimited ctx
+
+     */
+  let are_any_errors = false;
+  //Haz3lcore.Statics.collect_errors(info_map) != [];
   show_info(db, info_map, ci, bidi_ci, bidi_parent_ci, z);
   {
+    are_any_errors,
     ci,
     bidi_ci,
     bidi_ctx_cls,
@@ -442,7 +500,17 @@ let generation_options = (~db, ~settings, z: Zipper.t) => {
       | (SpacePadded, Completeable(id_l, _) | Inert(id_l)) =>
         NewRightConcave(get_info(id_l))
       | (Just, Completeable(id_l, left_token)) =>
-        CompletionOrNewRightConcave(get_info(id_l), left_token)
+        let left_info = get_info(id_l);
+        switch (is_incomplete(left_info.ci)) {
+        | Grammatical =>
+          db("  LSP: Syntax: Bad token; only completion");
+          OnlyCompletion(left_info, left_token);
+        | Contextual
+            when settings.constrain == Types || settings.constrain == Context =>
+          db("  LSP: Syntax: Free token; only completion");
+          OnlyCompletion(left_info, left_token);
+        | _ => CompletionOrNewRightConcave(left_info, left_token)
+        };
       }
     }
   | (None, ConvexHole(id)) => NewRightConvex(get_info(id))
@@ -454,10 +522,21 @@ let generation_options = (~db, ~settings, z: Zipper.t) => {
       | (Just, Inert(_))
       | (SpacePadded, _) => NewRightConvex(get_info(id_r))
       | (Just, Completeable(id_l, left_tok)) =>
-        CompletionOrNewRightConvex(get_info(id_l), left_tok, get_info(id_r))
+        let left_info = get_info(id_l);
+        switch (is_incomplete(get_info(id_l).ci)) {
+        | Grammatical =>
+          db("  LSP: Syntax: Bad token; only completion");
+          OnlyCompletion(left_info, left_tok);
+        | Contextual
+            when settings.constrain == Types || settings.constrain == Context =>
+          db("  LSP: Syntax: Free token; only completion");
+          OnlyCompletion(left_info, left_tok);
+        | _ =>
+          CompletionOrNewRightConvex(left_info, left_tok, get_info(id_r))
+        };
       }
     }
-  | (_, StringLit(id)) => OnlyCompletion(id)
+  | (_, StringLit(id)) => OnlyCompletionString(id)
   };
 };
 
@@ -626,8 +705,11 @@ let postfix_sugs =
        that actually arrow type not merely consistent. This would
        enforce use with appropriate constructor in patterns,
        but would screw up current impl of grammar/context-only generation */
-    Typ.is_consistent(ctx, self_ty, Arrow(unk, unk))
-      ? [Suggestion.mk("(")] : [];
+    if (Typ.is_consistent(ctx, self_ty, Arrow(unk, unk))) {
+      [Suggestion.mk("(")];
+    } else {
+      [];
+    };
   switch (settings.constrain) {
   | Grammar =>
     switch (ci) {
@@ -660,98 +742,29 @@ let postfix_sugs =
   };
 };
 
+let of_ops = (ctx, expected_ty: Typ.t, child_ty: Typ.t, ty1, ty2, ops) =>
+  if (Typ.is_consistent(ctx, expected_ty, ty1)
+      && Typ.is_consistent(ctx, child_ty, ty2)) {
+    List.map(Suggestion.mk, ops);
+  } else {
+    [];
+  };
+
 let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
-  let b =
-    if (Typ.is_consistent(ctx, expected_ty, Bool)) {
-      let b1 =
-        Typ.is_consistent(ctx, l_child_ty, Bool)
-          ? [Suggestion.mk("&&"), Suggestion.mk("\\/")] : [];
-      let b2 =
-        Typ.is_consistent(ctx, l_child_ty, String)
-          ? [Suggestion.mk("$==")] : [];
-      let b3 =
-        Typ.is_consistent(ctx, l_child_ty, Int)
-          ? [
-            Suggestion.mk("=="),
-            Suggestion.mk("!="),
-            Suggestion.mk("<="),
-            Suggestion.mk(">="),
-            Suggestion.mk("<"),
-            Suggestion.mk(">"),
-          ]
-          : [];
-      let b4 =
-        Typ.is_consistent(ctx, l_child_ty, Float)
-          ? [
-            Suggestion.mk("==."),
-            Suggestion.mk("!=."),
-            Suggestion.mk("<=."),
-            Suggestion.mk(">=."),
-            Suggestion.mk("<."),
-            Suggestion.mk(">."),
-          ]
-          : [];
-      b1 @ b2 @ b3 @ b4;
-    } else {
-      [];
-    };
-  let i =
-    if (Typ.is_consistent(ctx, expected_ty, Int)
-        && Typ.is_consistent(ctx, l_child_ty, Int)) {
-      [
-        Suggestion.mk("+"),
-        Suggestion.mk("-"),
-        Suggestion.mk("*"),
-        Suggestion.mk("/"),
-        Suggestion.mk("**"),
-      ];
-    } else {
-      [];
-    };
-  let f =
-    if (Typ.is_consistent(ctx, expected_ty, Float)
-        && Typ.is_consistent(ctx, l_child_ty, Float)) {
-      [
-        Suggestion.mk("+."),
-        Suggestion.mk("-."),
-        Suggestion.mk("*."),
-        Suggestion.mk("/."),
-        Suggestion.mk("**."),
-      ];
-    } else {
-      [];
-    };
-  let s =
-    if (Typ.is_consistent(ctx, expected_ty, String)
-        && Typ.is_consistent(ctx, l_child_ty, String)) {
-      [Suggestion.mk("++")];
-    } else {
-      [];
-    };
-  let l =
-    if (Typ.is_consistent(ctx, expected_ty, List(unk))) {
-      let l1 =
-        Typ.is_consistent(
-          ctx,
-          l_child_ty,
-          Typ.matched_list(ctx, expected_ty),
-        )
-          ? [Suggestion.mk("::")] : [];
-      /*Note: Using List below because don't want this
-        check to pass if expected is unknown but
-        l_child is e.g. Int */
-      let l2 =
-        Typ.is_consistent(
-          ctx,
-          l_child_ty,
-          List(Typ.matched_list(ctx, expected_ty)),
-        )
-          ? [Suggestion.mk("@")] : [];
-      l1 @ l2;
-    } else {
-      [];
-    };
-  b @ i @ f @ s @ l;
+  let blah = of_ops(ctx, expected_ty, l_child_ty);
+  let bb = blah(Bool, Bool, ["&&", "\\|/"]);
+  let bs = blah(Bool, String, ["$=="]);
+  let bi = blah(Bool, Int, ["==", "!=", "<=", ">=", "<", ">"]);
+  let bf = blah(Bool, Float, ["==.", "!=.", "<=.", ">=.", "<.", ">."]);
+  let i = blah(Int, Int, ["+", "-", "*", "/", "**"]);
+  let f = blah(Float, Float, ["+.", "-.", "*.", "/.", "**."]);
+  let s = blah(String, String, ["++"]);
+  let l1 = blah(List(unk), Typ.matched_list(ctx, expected_ty), ["::"]);
+  /*Note: Using List(matched) in 2nd arg below because don't want this
+    check to pass if expected is unknown but l_child is e.g. Int */
+  let l2 =
+    blah(List(unk), List(Typ.matched_list(ctx, expected_ty)), ["@"]);
+  bb @ bs @ bi @ bf @ i @ f @ s @ l1 @ l2;
 };
 
 let infix_sugs =
@@ -879,8 +892,9 @@ let completion_filter =
 };
 
 let left_convex_sugs = (~settings, ~info_dump, ~db, z) => {
-  let {ci, _} = info_dump;
-  let left_convex_backpack_sugs = get_backpack_sugs(~convex=true, z);
+  let {ci, are_any_errors, _} = info_dump;
+  let left_convex_backpack_sugs =
+    are_any_errors ? [] : get_backpack_sugs(~convex=true, z);
   let convex_sugs = convex_sugs(~settings, ci);
   let convex_lookahead_sugs = convex_lookahead_sugs(~settings, ~db, ci);
   //TODO: should prefix be factored out here somewhere?
@@ -902,9 +916,15 @@ let left_concave_sugs = (~info_dump, ~completion, ~settings, ~db, z) => {
     bidi_parent_ctx_cls,
     bidi_ctx_cls,
     bidi_ctx_expected_ty,
+    are_any_errors,
     _,
   } = info_dump;
-  let left_concave_backpack_sugs = get_backpack_sugs(~convex=false, z);
+  /* NOTE below that if we're doing a completion, we still want to drop
+     from the backpack if there's an error, as if we're e.g. completing
+     an 'in' then an existing 'i' might be in error. We can probably be
+     more restrictive here */
+  let left_concave_backpack_sugs =
+    are_any_errors && !completion ? [] : get_backpack_sugs(~convex=false, z);
   let infix_sugs =
     infix_sugs(~completion, ~settings, ~db, ci, bidi_ctx_expected_ty)
     |> List.sort_uniq(Suggestion.compare);
@@ -985,27 +1005,16 @@ let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar =>
       completions: generate_completions(~tok_to_left, info_dump),
       new_tokens: generate_left_concave(info_dump),
     }
-  | OnlyCompletion(_) => {
+  | OnlyCompletion(info_dump, tok_to_left) => {
+      completions: generate_completions(~tok_to_left, info_dump),
+      new_tokens: [],
+    }
+  | OnlyCompletionString(_) => {
       completions: ["~EXTEND-STRINGLIT~"],
       new_tokens: [],
     }
   };
 };
-
-let grammar_prefix = {|whitespace ::= [ \n]+
-intlit ::= [0-9]+
-extend-intlit ::= [0-9]+
-floatlit ::= [0-9]+ "." [0-9]+
-extend-floatlit ::= [0-9]* "." [0-9]+
-stringlit ::= "\"" [^"]* "\""
-extend-stringlit ::= [^"]* "\""
-patvar ::= [a-z][a-zA-Z0-9_]*
-extend-patvar ::= [a-zA-Z0-9_]*
-typvar ::= [A-Z][a-zA-Z0-9_]*
-extend-typvar ::= [a-zA-Z0-9_]*
-constructor ::= [A-Z][a-zA-Z0-9_]*
-extend-constructor ::= [a-zA-Z0-9_]*
-|};
 
 let normalize_token = tok =>
   switch (tok) {
@@ -1025,26 +1034,49 @@ let normalize_token = tok =>
   | tok => "\"" ++ tok ++ "\""
   };
 
+let base_sorts = {|whitespace ::= [ \n]+
+intlit ::= [0-9]+
+extend-intlit ::= [0-9]+
+floatlit ::= [0-9]+ "." [0-9]+
+extend-floatlit ::= [0-9]* "." [0-9]+
+stringlit ::= "\"" [^"]* "\""
+extend-stringlit ::= [^"]* "\""
+patvar ::= [a-z][a-zA-Z0-9_]*
+extend-patvar ::= [a-zA-Z0-9_]*
+typvar ::= [A-Z][a-zA-Z0-9_]*
+extend-typvar ::= [a-zA-Z0-9_]*
+constructor ::= [A-Z][a-zA-Z0-9_]*
+extend-constructor ::= [a-zA-Z0-9_]*
+|};
+
 let mk_grammar = (pre_grammar: pre_grammar): string => {
-  if (pre_grammar.completions == [] && pre_grammar.new_tokens == []) {
-    failwith("LSP: EXN: No completions or new tokens");
+  let sort_completions = {
+    let completions =
+      pre_grammar.completions
+      |> List.map(normalize_token)
+      |> String.concat(" | ");
+    pre_grammar.completions == [] ? "" : "\ncompletions ::= " ++ completions;
   };
-  let completions =
-    List.map(normalize_token, pre_grammar.completions)
-    |> String.concat(" | ");
-  let new_tokens =
-    List.map(normalize_token, pre_grammar.new_tokens) |> String.concat(" | ");
-  let grammar_suffix =
-    completions == "" ? "new_tokens" : "completions | new_tokens";
-  let new_tokens =
-    new_tokens == "" ? "whitespace" : "whitespace | " ++ new_tokens;
-  grammar_prefix
-  |> (
-    grammar =>
-      grammar ++ (completions == "" ? "" : "\ncompletions ::= " ++ completions)
-  )
-  |> (grammar => grammar ++ "\nnew_tokens ::= " ++ new_tokens)
-  |> (grammar => grammar ++ "\nroot ::= " ++ grammar_suffix);
+  // Note addition of whitespace token
+  let sort_new_tokens = {
+    let new_tokens =
+      ["whitespace", ...pre_grammar.new_tokens]
+      |> List.map(normalize_token)
+      |> String.concat(" | ");
+    pre_grammar.new_tokens == [] ? "" : "\nnew_tokens ::= " ++ new_tokens;
+  };
+  let sort_root =
+    switch (pre_grammar.completions, pre_grammar.new_tokens) {
+    | ([], []) => failwith("LSP: EXN: No completions or new tokens")
+    | ([], _) => "new_tokens"
+    | (_, []) => "completions"
+    | _ => "completions | new_tokens"
+    };
+  base_sorts
+  ++ sort_completions
+  ++ sort_new_tokens
+  ++ "\nroot ::= "
+  ++ sort_root;
 };
 
 let main = args => {
@@ -1062,6 +1094,7 @@ main(get_args());
 //MAYBE: consider reducing generation of duplicate lookahead suggestions
 //MAYBE: abstract out default forms of any type eg case if let etc.
 //MAYBE: Serialize prelude for speed
+//MAYBE: make sure stopping completions doesn't prohibit completing unit (+ unit ap)
 
 //TODO: Make sure synthetic mode is handled appropriately
 //TODO: Type defintions are basically untested
@@ -1075,16 +1108,10 @@ main(get_args());
 //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
 
 /* TODO: Restict new tokens and whitespace logic.
-   Let 'NEW' below refer to both new tokens and whitespace.
-   We gate NEW tokens on the following:
-    1. if tile-to-left has a Free or Invalid Error AND not equal to keyword
-       a. if in Types or Context mode, prohibit NEW tokens + whitespace.
-       b. if in Grammar mode, do this only fo Invalid Tokens
-       c. We should also ASSERT that there are actually completions in such cases
-       d. think harder about the keyword case.
-    2. GATE backpack suggestion ON bidictx term ci has no errors
-    3. GATE comma suggestion ON bidictx term ci has no _internal_ errors AND
-       the bidictx analyzes against prefix of expected tuple */
+   1. (DONE)
+   2. GATE backpack suggestion ON bidictx term ci has no errors
+   3. GATE comma suggestion ON bidictx term ci has no _internal_ errors AND
+      the bidictx analyzes against prefix of expected tuple */
 
 /* TODO: More sophisticated logic for operand/operator insertion
       1. Operand Insertion
