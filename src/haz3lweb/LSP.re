@@ -507,8 +507,10 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
     | (Prod([t1_ana, ..._]), t_syn) => Typ.is_consistent(ctx, t1_ana, t_syn)
     | _ => false
     }
+  | InfoExp(_)
+  | InfoPat(_) => false
   | InfoTyp(_) => true
-  | _ => false
+  | InfoTPat(_) => false
   };
 
 let n_ary_sugs = (~settings, ~db as _, bidi_ci): Suggestion.s => {
@@ -598,7 +600,7 @@ let convex_lookahead_sugs = (~settings, ~db, ci: Info.t) => {
       suggest_pat(~fns=true, ctx, co_ctx, ty)
       @ (List.map(suggest_pat(~fns=true, ctx, co_ctx), tys) |> List.flatten);
     | InfoTyp(_) => []
-    | _ => []
+    | InfoTPat(_) => []
     }
   };
 };
@@ -634,7 +636,7 @@ let postfix_sugs =
     | InfoTyp(_) =>
       //TODO: make more ap more restrictive?
       [Suggestion.mk("(")]
-    | _ => []
+    | InfoTPat(_) => []
     }
   | Context =>
     let ctx = Info.ctx_of(ci);
@@ -644,7 +646,7 @@ let postfix_sugs =
     | InfoTyp(_) =>
       //TODO: make more ap more restrictive?
       [Suggestion.mk("(")]
-    | _ => []
+    | InfoTPat(_) => []
     };
   | Types =>
     switch (ci) {
@@ -653,7 +655,7 @@ let postfix_sugs =
     | InfoTyp(_) =>
       //TODO: make more ap more restrictive?
       [Suggestion.mk("(")]
-    | _ => []
+    | InfoTPat(_) => []
     }
   };
 };
@@ -767,15 +769,15 @@ let infix_sugs =
     switch (ci) {
     | InfoExp(_) => sug_exp_infix([], unk, unk)
     | InfoPat(_)
-    | InfoTyp(_) => infix_mono_sugs
-    | _ => []
+    | InfoTyp(_)
+    | InfoTPat(_) => infix_mono_sugs
     }
   | Context =>
     switch (ci) {
     | InfoExp({ctx, _}) => sug_exp_infix(ctx, unk, unk)
     | InfoPat(_)
-    | InfoTyp(_) => infix_mono_sugs
-    | _ => []
+    | InfoTyp(_)
+    | InfoTPat(_) => infix_mono_sugs
     }
   | Types =>
     switch (ci) {
@@ -823,8 +825,8 @@ let infix_sugs =
       base @ lookahead;
     //TODO: get self_ty of actual prospective child, on a per-operator basis
     | InfoPat(_)
-    | InfoTyp(_) => infix_mono_sugs
-    | _ => []
+    | InfoTyp(_)
+    | InfoTPat(_) => infix_mono_sugs
     }
   };
 };
@@ -990,7 +992,7 @@ let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar =>
   };
 };
 
-let grammar_prefix = {|
+let grammar_prefix = {|whitespace ::= [ \n]+
 intlit ::= [0-9]+
 extend-intlit ::= [0-9]+
 floatlit ::= [0-9]+ "." [0-9]+
@@ -1003,8 +1005,6 @@ typvar ::= [A-Z][a-zA-Z0-9_]*
 extend-typvar ::= [a-zA-Z0-9_]*
 constructor ::= [A-Z][a-zA-Z0-9_]*
 extend-constructor ::= [a-zA-Z0-9_]*
-
-whitespace ::= [ \n]+
 |};
 
 let normalize_token = tok =>
@@ -1039,7 +1039,10 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   let new_tokens =
     new_tokens == "" ? "whitespace" : "whitespace | " ++ new_tokens;
   grammar_prefix
-  |> (grammar => grammar ++ "\ncompletions ::= " ++ completions)
+  |> (
+    grammar =>
+      grammar ++ (completions == "" ? "" : "\ncompletions ::= " ++ completions)
+  )
   |> (grammar => grammar ++ "\nnew_tokens ::= " ++ new_tokens)
   |> (grammar => grammar ++ "\nroot ::= " ++ grammar_suffix);
 };
@@ -1050,7 +1053,7 @@ let main = args => {
   let db = s => settings.debug ? print_endline(s) : ();
   db(show_settings(settings));
   let grammar = s |> dispatch_generation(~settings, ~db) |> mk_grammar;
-  db("LSP: Grammar:\n ");
+  db("LSP: Grammar:");
   print_endline(grammar);
 };
 
