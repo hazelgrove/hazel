@@ -751,19 +751,19 @@ let of_ops = (ctx, expected_ty: Typ.t, child_ty: Typ.t, ty1, ty2, ops) =>
   };
 
 let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
-  let blah = of_ops(ctx, expected_ty, l_child_ty);
-  let bb = blah(Bool, Bool, ["&&", "\\|/"]);
-  let bs = blah(Bool, String, ["$=="]);
-  let bi = blah(Bool, Int, ["==", "!=", "<=", ">=", "<", ">"]);
-  let bf = blah(Bool, Float, ["==.", "!=.", "<=.", ">=.", "<.", ">."]);
-  let i = blah(Int, Int, ["+", "-", "*", "/", "**"]);
-  let f = blah(Float, Float, ["+.", "-.", "*.", "/.", "**."]);
-  let s = blah(String, String, ["++"]);
-  let l1 = blah(List(unk), Typ.matched_list(ctx, expected_ty), ["::"]);
+  let of_ops = of_ops(ctx, expected_ty, l_child_ty);
+  let bb = of_ops(Bool, Bool, ["&&", "\\|/"]);
+  let bs = of_ops(Bool, String, ["$=="]);
+  let bi = of_ops(Bool, Int, ["==", "!=", "<=", ">=", "<", ">"]);
+  let bf = of_ops(Bool, Float, ["==.", "!=.", "<=.", ">=.", "<.", ">."]);
+  let i = of_ops(Int, Int, ["+", "-", "*", "/", "**"]);
+  let f = of_ops(Float, Float, ["+.", "-.", "*.", "/.", "**."]);
+  let s = of_ops(String, String, ["++"]);
+  let l1 = of_ops(List(unk), Typ.matched_list(ctx, expected_ty), ["::"]);
   /*Note: Using List(matched) in 2nd arg below because don't want this
     check to pass if expected is unknown but l_child is e.g. Int */
   let l2 =
-    blah(List(unk), List(Typ.matched_list(ctx, expected_ty)), ["@"]);
+    of_ops(List(unk), List(Typ.matched_list(ctx, expected_ty)), ["@"]);
   bb @ bs @ bi @ bf @ i @ f @ s @ l1 @ l2;
 };
 
