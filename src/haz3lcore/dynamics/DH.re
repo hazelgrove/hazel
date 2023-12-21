@@ -93,7 +93,7 @@ module rec DHExp: {
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
   and case =
-    | Case(t, list(rule), int)
+    | Case(t, list(rule), int) // TODO
   and rule =
     | Rule(DHPat.t, t);
 
