@@ -50,7 +50,6 @@ type incompleteness =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infodump = {
-  are_any_errors: bool,
   ci: Info.t,
   bidi_ci: Info.t,
   bidi_ctx_cls: Term.Cls.t,
@@ -471,7 +470,6 @@ let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
      */
   show_info(db, info_map, ci, bidi_ci, bidi_parent_ci, z);
   {
-    are_any_errors: false, //Haz3lcore.Statics.collect_errors(info_map) != [],
     ci,
     bidi_ci,
     bidi_ctx_cls: Info.cls_of(bidi_ci),
@@ -887,9 +885,8 @@ let completion_filter =
 };
 
 let left_convex_sugs = (~settings, ~info_dump, ~db, z) => {
-  let {ci, are_any_errors, _} = info_dump;
-  let left_convex_backpack_sugs =
-    are_any_errors ? [] : get_backpack_sugs(~convex=true, z);
+  let {ci, _} = info_dump;
+  let left_convex_backpack_sugs = get_backpack_sugs(~convex=true, z);
   let convex_sugs = convex_sugs(~settings, ci);
   let convex_lookahead_sugs = convex_lookahead_sugs(~settings, ~db, ci);
   //TODO: should prefix be factored out here somewhere?
@@ -911,15 +908,9 @@ let left_concave_sugs = (~info_dump, ~completion, ~settings, ~db, z) => {
     bidi_parent_ctx_cls,
     bidi_ctx_cls,
     bidi_ctx_expected_ty,
-    are_any_errors,
     _,
   } = info_dump;
-  /* NOTE below that if we're doing a completion, we still want to drop
-     from the backpack if there's an error, as if we're e.g. completing
-     an 'in' then an existing 'i' might be in error. We can probably be
-     more restrictive here */
-  let left_concave_backpack_sugs =
-    are_any_errors && !completion ? [] : get_backpack_sugs(~convex=false, z);
+  let left_concave_backpack_sugs = get_backpack_sugs(~convex=false, z);
   let infix_sugs =
     infix_sugs(~completion, ~settings, ~db, ci, bidi_ctx_expected_ty)
     |> List.sort_uniq(Suggestion.compare);
@@ -1063,9 +1054,9 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   let sort_root =
     switch (pre_grammar.completions, pre_grammar.new_tokens) {
     | ([], []) => failwith("LSP: EXN: No completions or new tokens")
-    | ([], _) => "new_tokens"
+    | ([], _) => "new-tokens"
     | (_, []) => "completions"
-    | _ => "completions | new_tokens"
+    | _ => "completions | new-tokens"
     };
   base_sorts
   ++ sort_completions
