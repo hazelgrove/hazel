@@ -8,7 +8,7 @@ module rec DHExp: {
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case) // TODO: merge
     | Closure([@opaque] ClosureEnvironment.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -32,13 +32,13 @@ module rec DHExp: {
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
-    | ConsistentCase(case)
-    | InexhaustiveCase(MetaVar.t, HoleInstanceId.t, case)
+    | ConsistentCase(case) // TODO: merge
+    | InexhaustiveCase(MetaVar.t, HoleInstanceId.t, case) // TODO: merge
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
   and case =
-    | Case(t, list(rule), int)
+    | Case(t, list(rule), int) // TODO: merge
   and rule =
     | Rule(DHPat.t, t);
 
@@ -127,9 +127,9 @@ module rec DHExp: {
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
-    | ConsistentCase(_) => "ConsistentCase"
-    | InexhaustiveCase(_, _, _) => "InexhaustiveCase"
-    | InconsistentBranches(_, _, _) => "InconsistentBranches"
+    | ConsistentCase(_) => "ConsistentCase" // TODO: merge
+    | InexhaustiveCase(_, _, _) => "InexhaustiveCase" // TODO: merge
+    | InconsistentBranches(_, _, _) => "InconsistentBranches" // TODO: merge
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
