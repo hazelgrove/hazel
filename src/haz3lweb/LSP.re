@@ -19,17 +19,6 @@ type arguments = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type infodump = {
-  are_any_errors: bool,
-  ci: Info.t,
-  bidi_ci: Info.t,
-  bidi_ctx_cls: Term.Cls.t,
-  bidi_ctx_expected_ty: Typ.t,
-  bidi_parent_ci: option(Info.t),
-  bidi_parent_ctx_cls: option(Term.Cls.t),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type completability =
   | Completeable(Id.t, string)
   | Inert(Id.t);
@@ -45,7 +34,7 @@ type maybe_padded =
   | SpacePadded;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type left_neighbor_info = (maybe_padded, left_shape, completability);
+type left_neighbor_info = option((maybe_padded, left_shape, completability));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type right_neighbor_info =
@@ -58,6 +47,17 @@ type incompleteness =
   | Grammatical
   | Contextual
   | Fine;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type infodump = {
+  are_any_errors: bool,
+  ci: Info.t,
+  bidi_ci: Info.t,
+  bidi_ctx_cls: Term.Cls.t,
+  bidi_ctx_expected_ty: Typ.t,
+  bidi_parent_ci: option(Info.t),
+  bidi_parent_ctx_cls: option(Term.Cls.t),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type generation_options =
@@ -270,7 +270,7 @@ let is_completable = (t: Tile.t) =>
     Inert(t.id)
   };
 
-let piece_to_left = (~db, z: Zipper.t): option(left_neighbor_info) =>
+let piece_to_left = (~db, z: Zipper.t): left_neighbor_info =>
   /*
    Returning Left means we're looking for either a new thing
     that starts with a left-facing chevron, or a completion of the
@@ -438,10 +438,7 @@ let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
     |> Info.ancestors_of
     |> ListUtil.hd_opt
     |> OptUtil.and_then(get_info);
-  let bidi_parent_ctx_cls = bidi_parent_ci |> Option.map(Info.cls_of);
-  let bidi_ctx_cls = bidi_ci |> Info.cls_of;
-  let bidi_ctx_expected_ty = expected_ty(bidi_ci);
-  /* TODO: Disabled this at the moment as I think it's too restrictive.
+  /* TODO: Disabled any_errors at the moment as I think it's too restrictive.
       For example, given "let x:Bool = (1" we want to suggest ")".
      Closer is gating on errors in bidelimited ctx, but even that
      doesn't work in above, as error is on the 1. Parens may be
@@ -472,17 +469,15 @@ let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
      a type with a typepath to /its/ bidelimited ctx
 
      */
-  let are_any_errors = false;
-  //Haz3lcore.Statics.collect_errors(info_map) != [];
   show_info(db, info_map, ci, bidi_ci, bidi_parent_ci, z);
   {
-    are_any_errors,
+    are_any_errors: false, //Haz3lcore.Statics.collect_errors(info_map) != [],
     ci,
     bidi_ci,
-    bidi_ctx_cls,
-    bidi_ctx_expected_ty,
+    bidi_ctx_cls: Info.cls_of(bidi_ci),
+    bidi_ctx_expected_ty: expected_ty(bidi_ci),
     bidi_parent_ci,
-    bidi_parent_ctx_cls,
+    bidi_parent_ctx_cls: Option.map(Info.cls_of, bidi_parent_ci),
   };
 };
 
@@ -646,7 +641,7 @@ let convex_sugs = (~settings, ci: Info.t) =>
     | InfoPat(_) =>
       [Suggestion.mk("~CONSTRUCTOR~")]
       @ suggest_pat(~fns=false, [], [], unk)
-    | InfoTyp(_) => [Suggestion.mk("~TYPVAR~")]
+    | InfoTyp(_) => [Suggestion.mk("~TYPVAR~")] @ suggest_typ([])
     | InfoTPat(_) => suggest_tpat([])
     }
   };
@@ -942,7 +937,7 @@ let left_concave_sugs = (~info_dump, ~completion, ~settings, ~db, z) => {
   |> List.sort_uniq(Suggestion.compare);
 };
 
-let generate_completions =
+let mk_completions =
     (~settings: arguments, ~db, ~tok_to_left: string, z: Zipper.t, info_dump)
     : list(string) => {
   /* Note that for completion suggestions, we ignore shape expectations,
@@ -954,7 +949,7 @@ let generate_completions =
   |> List.sort_uniq(String.compare);
 };
 
-let generate_new_left_convex =
+let mk_new_left_convex =
     (~settings: arguments, ~db, z: Zipper.t, info_dump): list(string) => {
   db("LSP: Generating new left convex tokens");
   left_convex_sugs(~settings, ~info_dump, ~db, z)
@@ -962,7 +957,7 @@ let generate_new_left_convex =
   |> List.sort_uniq(String.compare);
 };
 
-let generate_new_left_concave =
+let mk_new_left_concave =
     (~settings: arguments, ~db, z: Zipper.t, info_dump): list(string) => {
   db("LSP: Generating new left concave tokens");
   left_concave_sugs(~completion=false, ~settings, ~db, ~info_dump, z)
@@ -985,28 +980,28 @@ let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar =>
   };
   let gen_options = generation_options(~settings, ~db, z);
   print_gen_option(~db, gen_options);
-  let generate_completions = generate_completions(~settings, ~db, z);
-  let generate_left_convex = generate_new_left_convex(~settings, ~db, z);
-  let generate_left_concave = generate_new_left_concave(~settings, ~db, z);
+  let mk_completions = mk_completions(~settings, ~db, z);
+  let mk_left_convex = mk_new_left_convex(~settings, ~db, z);
+  let mk_left_concave = mk_new_left_concave(~settings, ~db, z);
   switch (gen_options) {
   | NewRightConvex(info_dump) => {
       completions: [],
-      new_tokens: generate_left_convex(info_dump),
+      new_tokens: mk_left_convex(info_dump),
     }
   | NewRightConcave(info_dump) => {
       completions: [],
-      new_tokens: generate_left_concave(info_dump),
+      new_tokens: mk_left_concave(info_dump),
     }
   | CompletionOrNewRightConvex(info_dump_l, tok_to_left, info_dump_new) => {
-      completions: generate_completions(~tok_to_left, info_dump_l),
-      new_tokens: generate_left_convex(info_dump_new),
+      completions: mk_completions(~tok_to_left, info_dump_l),
+      new_tokens: mk_left_convex(info_dump_new),
     }
   | CompletionOrNewRightConcave(info_dump, tok_to_left) => {
-      completions: generate_completions(~tok_to_left, info_dump),
-      new_tokens: generate_left_concave(info_dump),
+      completions: mk_completions(~tok_to_left, info_dump),
+      new_tokens: mk_left_concave(info_dump),
     }
   | OnlyCompletion(info_dump, tok_to_left) => {
-      completions: generate_completions(~tok_to_left, info_dump),
+      completions: mk_completions(~tok_to_left, info_dump),
       new_tokens: [],
     }
   | OnlyCompletionString(_) => {
