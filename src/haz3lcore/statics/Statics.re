@@ -247,6 +247,7 @@ and uexp_to_info_map =
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
   | Fun(p, e) =>
+    let p'' = p;
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
@@ -254,6 +255,17 @@ and uexp_to_info_map =
     /* add co_ctx to pattern */
     let (p, m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
+    // need to support things with multiple args here, product types
+    let name =
+      switch (p''.term) {
+      | Var(name) => name
+      | _ => "not a var"
+      };
+    print_endline("name " ++ name);
+    switch (VarMap.lookup(e.co_ctx, name)) {
+    | Some(_) => print_endline(name ++ " found in co_ctx")
+    | None => print_endline(name ++ " not in co_ctx")
+    };
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
@@ -283,12 +295,22 @@ and uexp_to_info_map =
         p,
         m,
       );
-    add(
-      ~self=Just(body.ty),
-      ~co_ctx=
-        CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
-      m,
-    );
+    let co_ctx_union =
+      CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]);
+    // if it is not in the co-context, then it is an unused variable
+    // let _ = print_endline("co_ctx_union " ++ CoCtx.show(co_ctx_union));
+    // let _ = print_endline("body co_ctx " ++ CoCtx.show(body.co_ctx));
+    switch (p.term) {
+    | Var(name) =>
+      switch (VarMap.lookup(body.co_ctx, name)) {
+      | Some(_) => print_endline(name ++ " found in co_ctx")
+      | None => print_endline(name ++ " not in co_ctx")
+      }
+    | Invalid(s) => print_endline("invalid " ++ s)
+    | EmptyHole => print_endline("empty hole")
+    | _ => print_endline("not a var") // issue: product types, list types, etc, any variable under 1 or more layers
+    };
+    add(~self=Just(body.ty), ~co_ctx=co_ctx_union, m);
   | If(e0, e1, e2) =>
     let branch_ids = List.map(UExp.rep_id, [e1, e2]);
     let (cond, m) = go(~mode=Ana(Bool), e0, m);
@@ -376,7 +398,11 @@ and uexp_to_info_map =
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
-    | Var(_)
+    | Var(_) =>
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx, ~mode, body, m);
+      let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_body), ~co_ctx, m);
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) =>
