@@ -259,8 +259,13 @@ module rec Typ: {
       ++ prov_to_string(type_provenance)
       ++ "}"
     | ExpHole(Free(var), _) => var
-    | TypeHole(id)
-    | ExpHole(_, id) => Id.to_string(id)
+    | TypeHole(id) => "TypeHole(" ++ Id.to_string(id) ++ ")"
+    | ExpHole(reason, id) =>
+      "ExpHole("
+      ++ reason_to_string(reason)
+      ++ ", "
+      ++ Id.to_string(id)
+      ++ ")"
     };
   }
   and matched_prov_to_string = (mprov: matched_provenance): string => {
@@ -270,6 +275,9 @@ module rec Typ: {
     | Matched_Prod_N(n) => "M*#" ++ string_of_int(n)
     | Matched_List => "M[]"
     };
+  }
+  and reason_to_string = (reason: hole_reason): string => {
+    reason |> sexp_of_hole_reason |> string_of_sexp;
   };
 
   let rec typ_to_string = (ty: t, debug): string => {
