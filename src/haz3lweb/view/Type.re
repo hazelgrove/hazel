@@ -114,11 +114,112 @@ and ctr_view = (~font_metrics, ~with_cls, (ctr, typ)) =>
     ]
   };
 
-let view =
+let rec view =
+        (
+          ~font_metrics: option(FontMetrics.t)=None,
+          ~with_cls: bool=true,
+          ty: Typ.t,
+        )
+        : Node.t =>
+  div_c("typ-wrapper", [view_ty(~font_metrics, ~with_cls, ty)])
+and view_of_potential_typ_set =
     (
-      ~font_metrics: option(FontMetrics.t)=None,
-      ~with_cls: bool=true,
-      ty: Typ.t,
+      ~font_metrics,
+      ~with_cls,
+      outermost,
+      potential_typ_set: PotentialTypeSet.t,
     )
-    : Node.t =>
-  div_c("typ-wrapper", [view_ty(~font_metrics, ~with_cls, ty)]);
+    : Node.t => {
+  let div = (~attr, nodes) => with_cls ? div(~attr, nodes) : span(nodes);
+  switch (potential_typ_set) {
+  | [] =>
+    view(
+      ~font_metrics=Some(font_metrics),
+      ~with_cls,
+      Typ.Unknown(NoProvenance, false),
+    )
+  | [hd] => view_of_potential_typ(~font_metrics, ~with_cls, outermost, hd)
+  | _ =>
+    div(
+      ~attr=clss(["typ-view", "atom", "unknown"]),
+      [
+        EmptyHoleDec.relative_view(
+          ~font_metrics,
+          true,
+          Haz3lcore.InferenceResult.hole_mold,
+        ),
+      ],
+    )
+  };
+}
+and view_of_potential_typ =
+    (
+      ~font_metrics,
+      ~with_cls: bool,
+      is_left_child: bool,
+      potential_typ: PotentialTypeSet.potential_typ,
+    )
+    : Node.t => {
+  let div = (~attr, nodes) => with_cls ? div(~attr, nodes) : span(nodes);
+  switch (potential_typ) {
+  | Base(btyp) => view_of_base_typ(~font_metrics, ~with_cls, btyp)
+  | Binary(ctor, potential_typ_set_lt, potential_typ_set_rt) =>
+    let (ctor_start, ctor_string, ctor_end, cls) =
+      switch (ctor) {
+      | CArrow =>
+        is_left_child
+          ? ("(", " -> ", ")", ["typ-view", "Arrow"])
+          : ("", " -> ", "", ["typ-view", "Arrow"])
+      | CProd => ("(", ", ", ")", ["typ-view", "Sum"])
+      | CSum =>
+        is_left_child
+          ? ("(", " + ", ")", ["typ-view", "Sum"])
+          : ("", " + ", "", ["typ-view", "Sum"])
+      };
+    div(
+      ~attr=clss(cls),
+      [
+        text(ctor_start),
+        view_of_potential_typ_set(
+          ~font_metrics,
+          ~with_cls,
+          false,
+          potential_typ_set_lt,
+        ),
+        text(ctor_string),
+        view_of_potential_typ_set(
+          ~font_metrics,
+          ~with_cls,
+          false,
+          potential_typ_set_rt,
+        ),
+        text(ctor_end),
+      ],
+    );
+  | Unary(ctor, potential_typ_set) =>
+    let (start_text, end_text, cls) =
+      switch (ctor) {
+      | CList => ("[", "]", ["typ-view", "atom", "List"])
+      };
+    div(
+      ~attr=clss(cls),
+      [
+        text(start_text),
+        view_of_potential_typ_set(
+          ~font_metrics,
+          ~with_cls,
+          false,
+          potential_typ_set,
+        ),
+        text(end_text),
+      ],
+    );
+  };
+}
+and view_of_base_typ =
+    (~font_metrics, ~with_cls, btyp: PotentialTypeSet.base_typ): Node.t => {
+  btyp
+  |> PotentialTypeSet.base_typ_to_ityp
+  |> ITyp.ityp_to_typ
+  |> view(~font_metrics=Some(font_metrics), ~with_cls);
+};

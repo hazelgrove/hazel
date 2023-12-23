@@ -20,19 +20,33 @@ and constraints = list(equivalence);
 
 let rec typ_to_ityp: Typ.t => t =
   fun
-  | Unknown(prov) => Unknown(prov)
+  | Unknown(prov, _) => Unknown(prov)
   | Int => Int
   | Float => Float
   | Bool => Bool
   | String => String
   | List(tys) => List(typ_to_ityp(tys))
   | Arrow(t1, t2) => Arrow(typ_to_ityp(t1), typ_to_ityp(t2))
-  | Sum(t1, t2) => Sum(typ_to_ityp(t1), typ_to_ityp(t2))
   | Prod([single]) => typ_to_ityp(single)
+  | Sum(sum_entries) => {
+      let (hd_ityp, tl_entries) = unroll_constructor_map(sum_entries);
+      Sum(hd_ityp, typ_to_ityp(Sum(tl_entries)));
+    }
   | Prod([hd_ty, ...tl_tys]) =>
     Prod(typ_to_ityp(hd_ty), typ_to_ityp(Prod(tl_tys)))
   | Prod([]) => Unit
-  | Var(_) => Unknown(Anonymous);
+  | Rec(_, _)
+  | Var(_) => Unknown(NoProvenance)
+and unroll_constructor_map = (sum_map: ConstructorMap.t(option(Typ.t))) => {
+  switch (sum_map) {
+  | [] => (Unknown(NoProvenance), [])
+  | [sum_entry] => (constructor_binding_to_ityp(sum_entry), [])
+  | [hd_entry, ...tl] => (constructor_binding_to_ityp(hd_entry), tl)
+  };
+}
+and constructor_binding_to_ityp = sum_entry => {
+  sum_entry |> snd |> Util.OptUtil.get(() => Typ.Prod([])) |> typ_to_ityp;
+};
 
 let unwrap_if_prod = (typ: Typ.t): list(Typ.t) => {
   switch (typ) {
@@ -43,14 +57,15 @@ let unwrap_if_prod = (typ: Typ.t): list(Typ.t) => {
 
 let rec ityp_to_typ: t => Typ.t =
   fun
-  | Unknown(prov) => Unknown(prov)
+  | Unknown(prov) => Unknown(prov, false)
   | Int => Int
   | Float => Float
   | Bool => Bool
   | String => String
   | List(ity) => List(ityp_to_typ(ity))
   | Arrow(t1, t2) => Arrow(ityp_to_typ(t1), ityp_to_typ(t2))
-  | Sum(t1, t2) => Sum(ityp_to_typ(t1), ityp_to_typ(t2))
+  | Sum(t1, t2) =>
+    Sum([("", Some(ityp_to_typ(t1))), ("", Some(ityp_to_typ(t2)))])
   | Unit => Prod([])
   | Prod(t1, t2) =>
     Prod([ityp_to_typ(t1)] @ (t2 |> ityp_to_typ |> unwrap_if_prod));
@@ -58,7 +73,8 @@ let rec ityp_to_typ: t => Typ.t =
 let to_ityp_constraints = (constraints: Typ.constraints): constraints => {
   constraints
   |> List.filter(((t1, t2)) =>
-       t1 != Typ.Unknown(Anonymous) && t2 != Typ.Unknown(Anonymous)
+       t1 != Typ.Unknown(NoProvenance, false)
+       && t2 != Typ.Unknown(NoProvenance, false)
      )
   |> List.map(((t1, t2)) => (typ_to_ityp(t1), typ_to_ityp(t2)));
 };

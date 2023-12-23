@@ -811,16 +811,9 @@ let mk_map_and_inference_solutions =
       print_endline("~~~Printing constraints:");
       info.constraints |> Typ.constraints_to_string |> print_endline;
 
-      // rewrite is here
-      let ctx = Infer.Ctx.create();
-      let _ =
-        List.iter(
-          c => {
-            let (typ1, typ2) = c;
-            Infer.constrain(ctx, typ1, typ2);
-          },
-          info.constraints,
-        );
+      let inference_results =
+        Inference.unify_and_report_status(info.constraints);
+      let ctx = InferenceResult.get_desired_solutions(inference_results);
 
       (map, ctx);
     },

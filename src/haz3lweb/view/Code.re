@@ -41,13 +41,13 @@ let of_delim =
 
 let of_grout =
     (
-      font_metrics: FontMetrics.t,
-      global_inference_info: InferenceResult.global_inference_info,
+      ~font_metrics,
+      ~global_inference_info: InferenceResult.global_inference_info,
       id: Id.t,
     ) => {
   let suggestion: InferenceResult.suggestion(Node.t) =
     InferenceView.get_suggestion_ui_for_id(
-      ~font_metrics=Some(font_metrics),
+      ~font_metrics,
       id,
       global_inference_info,
       false,
@@ -56,9 +56,9 @@ let of_grout =
   | NoSuggestion(SuggestionsDisabled)
   | NoSuggestion(NonTypeHoleId)
   | NoSuggestion(OnlyHoleSolutions) => [Node.text(Unicode.nbsp)]
-  | Solvable(_suggestion_node)
-  | NestedInconsistency(_suggestion_node) => [
-      [Node.text("@")] |> span_c("solved-annotation"),
+  | Solvable(suggestion_node)
+  | NestedInconsistency(suggestion_node) => [
+      [suggestion_node] |> span_c("solved-annotation"),
     ]
   | NoSuggestion(InconsistentSet) => [
       [Node.text("!")] |> span_c("unsolved-annotation"),
@@ -165,7 +165,7 @@ module Text = (M: {
         expected_sort,
         t,
       )
-    | Grout(g) => of_grout(font_metrics, global_inference_info, g.id)
+    | Grout(g) => of_grout(~font_metrics, ~global_inference_info, g.id)
     | Secondary({content, _}) =>
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     };

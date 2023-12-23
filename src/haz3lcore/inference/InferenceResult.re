@@ -30,7 +30,8 @@ let get_suggestion_text_for_id =
     switch (status_opt) {
     | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
     | Some(Solved(ityp)) =>
-      Solvable(ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string)
+      let typ_to_string = x => Typ.typ_to_string(x, false);
+      Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
     | Some(Unsolved([potential_typ])) =>
       NestedInconsistency(
         PotentialTypeSet.string_of_potential_typ(false, potential_typ),
@@ -98,23 +99,22 @@ let condense =
   };
 };
 
-let rec prov_to_priority = (prov: Typ.type_provenance): int => {
+let rec prov_to_priority = (prov: Typ.type_provenance): string => {
   switch (prov) {
-  | Anonymous => (-1)
-  | SynSwitch(id)
-  | TypeHole(id)
-  | Internal(id) => id
-  | Inference(_, prov) => prov_to_priority(prov)
+  | NoProvenance => ""
+  | ExpHole(_, id)
+  | TypeHole(id) => Id.to_string(id)
+  | Matched(_, prov) => prov_to_priority(prov)
   };
 };
 
-let rec convert_leftmost_to_priority = (typ: ITyp.t): int => {
+let rec convert_leftmost_to_priority = (typ: ITyp.t): string => {
   switch (typ) {
   | Int
   | Unit
   | Float
   | String
-  | Bool => (-1)
+  | Bool => ""
   | Unknown(prov) => prov_to_priority(prov)
   | List(elt_typ) => convert_leftmost_to_priority(elt_typ)
   | Arrow(typ_lhs, typ_rhs)
@@ -123,8 +123,8 @@ let rec convert_leftmost_to_priority = (typ: ITyp.t): int => {
     let lhs = convert_leftmost_to_priority(typ_lhs);
     let rhs = convert_leftmost_to_priority(typ_rhs);
     switch (lhs, rhs) {
-    | ((-1), (-1)) => (-1)
-    | ((-1), _) => rhs
+    | ("", "") => ""
+    | ("", _) => rhs
     | _ => lhs
     };
   };

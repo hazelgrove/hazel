@@ -423,24 +423,23 @@ let rec filtered_potential_typ_set_to_typ: t => option(ITyp.t) =
 
 let comp_potential_typ =
     (potential_typ1: potential_typ, potential_typ2: potential_typ): int => {
-  let strip_id_from_prov: Typ.type_provenance => float =
+  let rec strip_id: Typ.type_provenance => string =
     fun
-    | SynSwitch(id)
-    | TypeHole(id)
-    | Internal(id) =>
-      id == 0 ? (-2.0) : Float.sub(0.0, Float.div(1.0, float_of_int(id)))
-    | _ => 0.0;
+    | NoProvenance => ""
+    | ExpHole(_, id)
+    | TypeHole(id) => Id.to_string(id)
+    | Matched(_, prov) => strip_id(prov);
 
-  let potential_typ_to_float: potential_typ => float =
+  let potential_typ_to_float: potential_typ => string =
     fun
     | Base(BInt)
     | Base(BUnit)
     | Base(BFloat)
     | Base(BString)
-    | Base(BBool) => 1.0
-    | Base(BUnknown(prov)) => strip_id_from_prov(prov)
-    | Binary(_) => 2.0
-    | Unary(_) => 3.0;
+    | Base(BBool) => "A"
+    | Base(BUnknown(prov)) => strip_id(prov)
+    | Binary(_) => "B"
+    | Unary(_) => "C";
 
   Stdlib.compare(
     potential_typ_to_float(potential_typ1),
@@ -474,13 +473,14 @@ and sort_potential_typ_set_explore = (potential_typ_set: t): t => {
 };
 
 let string_of_btyp = (btyp: base_typ): string => {
-  btyp |> base_typ_to_ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
+  let typ_to_string = arg => Typ.typ_to_string(arg, false);
+  btyp |> base_typ_to_ityp |> ITyp.ityp_to_typ |> typ_to_string;
 };
 
 let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
   switch (pts) {
   // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
-  | [] => [ITyp.Unknown(Internal(id))]
+  | [] => [ITyp.Unknown(ExpHole(Internal, id))]
   | [hd] => [potential_typ_to_ityp(id, hd)]
   | _ => List.map(potential_typ_to_ityp(id), pts)
   };
@@ -488,9 +488,9 @@ let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
 and potential_typ_set_to_ityp_no_unroll = (id: Id.t, pts: t): ITyp.t => {
   switch (pts) {
   // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
-  | [] => ITyp.Unknown(Anonymous)
+  | [] => ITyp.Unknown(NoProvenance)
   | [hd] => potential_typ_to_ityp(id, hd)
-  | _ => ITyp.Unknown(Anonymous)
+  | _ => ITyp.Unknown(ExpHole(Error, id))
   };
 }
 and potential_typ_to_ityp = (id: Id.t, ptyp: potential_typ): ITyp.t => {
