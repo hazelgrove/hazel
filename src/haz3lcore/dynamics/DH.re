@@ -140,7 +140,7 @@ module rec DHExp: {
 
   let is_any_synswitch: Typ.t => bool =
     fun
-    | Unknown(SynSwitch(_)) => true
+    | Unknown(_, s) => s
     | _ => false;
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>

@@ -303,7 +303,7 @@ let rec status_common =
     switch (
       Typ.join_fix(
         ctx,
-        Arrow(Unknown(NoProvenance), Unknown(NoProvenance)),
+        Arrow(Unknown(NoProvenance, false), Unknown(NoProvenance, false)),
         syn,
       )
     ) {
@@ -322,9 +322,9 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(NoProvenance)))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(NoProvenance, false)))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(NoProvenance));
+    let syn: Typ.t = Self.join_of(wrap, Unknown(NoProvenance, false));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -463,13 +463,13 @@ let fixed_typ_ok: ok_pat => Typ.t =
 
 let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat, termId: Id.t): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(AstNode(termId))
+  | InHole(_) => Unknown(ExpHole(Error, termId), false)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp, termId: Id.t): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(AstNode(termId))
+  | InHole(_) => Unknown(ExpHole(Error, termId), false)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 

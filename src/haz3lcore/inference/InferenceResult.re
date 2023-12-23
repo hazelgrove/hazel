@@ -17,13 +17,15 @@ let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
     : suggestion(string) =>
   if (global_inference_info.enabled) {
-    let status = Infer.get_status(global_inference_info.ctx, id);
+    let status = Infer.get_suggestion(global_inference_info.ctx, id);
     switch (status) {
-    | Solved(Unknown(_)) => NoSuggestion(OnlyHoleSolutions)
-    | Solved(typ) => Solvable(Typ.typ_to_string(typ, false))
-    | Unsolved([]) => NoSuggestion(NonTypeHoleId)
-    | Unsolved([typ]) => NestedInconsistency(Typ.typ_to_string(typ, false))
-    | Unsolved(_) => NoSuggestion(InconsistentSet)
+    | Some(Solved(Unknown(_)))
+    | Some(Unsolved([])) => NoSuggestion(OnlyHoleSolutions)
+    | Some(Solved(typ)) => Solvable(Typ.typ_to_string(typ, false))
+    | Some(Unsolved([typ])) =>
+      NestedInconsistency(Typ.typ_to_string(typ, false))
+    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+    | None => NoSuggestion(NonTypeHoleId)
     };
   } else {
     NoSuggestion(SuggestionsDisabled);

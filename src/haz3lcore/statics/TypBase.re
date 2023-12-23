@@ -8,42 +8,43 @@ let precedence_Sum = 3;
 let precedence_Const = 4;
 
 module rec Typ: {
-  /* TYPE_PROVENANCE: From whence does an unknown type originate?
+  /*  TYPE_PROVENANCE:
+          From whence does an unknown type originate?
+          Note: An unknown's provenance should be sufficient to uniquely identify it.
+          If the unknown is one for which global inference results aren't useful, it can be safely treated as NoProvenance.
 
-     Forms associated with a unique Id.t linking them to some UExp/UPat
-     ------------------------------------------------------------
-       SynSwitch:  Generated from an unannotated pattern variable
-       AstNode:   Generated from an expression/pattern/type in the source code
+          We identify three cases:
+              NoProvenance:   This unknown is either not unique to any specific term in the program, or it is not derived any such term.
+                              Unknowns created outside of the Statics.re often have this provenance.
+                              Eg: Any unknown in Evaluator.re or the unknown type associated with a wildcard.
 
-     Forms without a unique Id.t of their own
-     ----------------------------------------
-       Matched:  Always derived from some other provenance for use in global inference.
-                   Composed of a 'matched_provenenace' indicating how it was derived,
-                   and the provenance it was derived from.
-                   Generally, will always link to some form with its own unique Id.t
-                   Currently supports matched list, arrow, and prod.
+              Term:           This unknown represents a specific term in the program (generally a UPat or UExp).
+                              Such provenances are further distinguished by the kind of term they arise from (and potentially why).
 
-       NoProvenance:  Generated for unknown types with no provenance. They did not originate from
-                     any expression/pattern/type in the source program, directly or indirectly.
-                     Consequently, NoProvenance unknown types do not accumulate constraints
-                     or receive inference results.*/
+              Matched:        This unknown is derived from a specific term in the program through some Matched function.
+                              Eg: The unknowns resulting from an invocation of matched_arrow on another unknown
+      */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | NoProvenance
-    | SynSwitch(Id.t)
-    | AstNode(Id.t)
-    | Free(TypVar.t)
+    | TypeHole(Id.t)
+    | ExpHole(hole_reason, Id.t)
     | Matched(matched_provenance, type_provenance)
   and matched_provenance =
     | Matched_Arrow_Left
     | Matched_Arrow_Right
     | Matched_Prod_N(int)
-    | Matched_List;
+    | Matched_List
+  and hole_reason =
+    | EmptyHole
+    | Internal
+    | Error
+    | Free(TypVar.t);
 
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Unknown(type_provenance)
+    | Unknown(type_provenance, is_synswitch)
     | Int
     | Float
     | Bool
@@ -54,7 +55,8 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
-  and sum_map = ConstructorMap.t(option(t));
+  and sum_map = ConstructorMap.t(option(t))
+  and is_synswitch = bool;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = ConstructorMap.binding(option(t));
@@ -102,24 +104,30 @@ module rec Typ: {
   let equivalence_to_string: equivalence => string;
   let prov_to_string: type_provenance => string;
   let matched_prov_to_string: matched_provenance => string;
+  let unknown_synswitch: Id.t => t;
 } = {
+  // We retain provenances to uniquely identify different unknowns during inference and to retain information on their sources.
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | NoProvenance
-    | SynSwitch(Id.t)
-    | AstNode(Id.t)
-    | Free(TypVar.t)
+    | TypeHole(Id.t)
+    | ExpHole(hole_reason, Id.t)
     | Matched(matched_provenance, type_provenance)
   and matched_provenance =
     | Matched_Arrow_Left
     | Matched_Arrow_Right
     | Matched_Prod_N(int)
-    | Matched_List;
+    | Matched_List
+  and hole_reason =
+    | EmptyHole
+    | Internal
+    | Error
+    | Free(TypVar.t);
 
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Unknown(type_provenance)
+    | Unknown(type_provenance, is_synswitch)
     | Int
     | Float
     | Bool
@@ -130,7 +138,8 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
-  and sum_map = ConstructorMap.t(option(t));
+  and sum_map = ConstructorMap.t(option(t))
+  and is_synswitch = bool;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = ConstructorMap.binding(option(t));
@@ -148,54 +157,30 @@ module rec Typ: {
   /* Strip location information from a list of sources */
   let of_source = List.map((source: source) => source.ty);
 
-  /* How type provenance information should be collated when
-     joining unknown types. This probably requires more thought,
-     but right now TypeHole strictly predominates over Internal
-     which strictly predominates over SynSwitch. */
-  // let join_type_provenance =
-  //     (p1: type_provenance, p2: type_provenance): type_provenance =>
-  //   switch (p1, p2) {
-  //   | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
-  //   | (TypeHole, TypeHole | SynSwitch)
-  //   | (SynSwitch, TypeHole) => TypeHole
-  //   | (SynSwitch, Internal)
-  //   | (Internal, SynSwitch) => SynSwitch
-  //   | (Internal | Free(_), _)
-  //   | (_, Internal | Free(_)) => Internal
-  //   | (SynSwitch, SynSwitch) => SynSwitch
-  //   };
+  /*  How type provenance information should be collated when joining unknown types.
+          TypeHole(id) > ExpHole(reason, id) > Matched(_, prov) > NoProvenance
 
-  // TODO anand: ask andrew about this...
-  /*
-   I THINK THIS MIGHT BE THE PROBLEM: WHY IS INFERENCE < SYNSWITCH?
-   NVM LOL
-
-   How type provenance information should be collated when
-    joining unknown types. This probably requires more thought,
-    but right now TypeHole strictly predominates over Internal
-    which strictly predominates over SynSwitch, which
-    strictly predominates over NoProvenance.
-    If two provenances have different Ids, either can be taken as a
-    representative of the other in later computations regarding the
-    type as a whole.
-    Similarly, if two Internal provenances have different matched provenance
-    strucutres, either structure can be taken. Precedence:
-    TypeHole > Internal > SynSwitch > Matched > NoProvenance*/
+          Generally, we break ties by first favoring provenances more valuable in inference, and then favoring more informative provenances.
+          - TypeHoles are favored over all other provenances. They can directly own displayable inference suggestions
+            and are thus favored over others.
+          - ExpHoles can be displayable suggestions only if they are constrained to some TypeHole and are thus next in precedence.
+          - Matched provenances have precedence over NoProvenance, as NoProvenance unknowns are entirely ignored in inference.
+      */
   let join_type_provenance =
       (p1: type_provenance, p2: type_provenance): type_provenance =>
     switch (p1, p2) {
-    | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
-    | (AstNode(_) as t, Matched(_) | AstNode(_) | SynSwitch(_) | NoProvenance)
-    | (Matched(_) | SynSwitch(_) | NoProvenance, AstNode(_) as t) => t
-    | (SynSwitch(_) as s, Matched(_) | SynSwitch(_) | NoProvenance)
-    | (Matched(_) | NoProvenance, SynSwitch(_) as s) => s
-    | (Matched(_) as inf, NoProvenance | Matched(_))
-    | (NoProvenance, Matched(_) as inf) => inf
-    | (NoProvenance, NoProvenance) => NoProvenance
-    | _ =>
-      print_endline("TODO anand: get rid of fallthrough");
-      NoProvenance;
+    | (TypeHole(_) as p, _)
+    | (_, TypeHole(_) as p) => p
+    | (ExpHole(Free(tv1), _), ExpHole(Free(tv2), _))
+        when TypVar.eq(tv1, tv2) => p1
+    | (ExpHole(_, _) as p, _)
+    | (_, ExpHole(_, _) as p) => p
+    | (Matched(_, _) as p, _)
+    | (_, Matched(_, _) as p) => p
+    | (NoProvenance, NoProvenance) => p1
     };
+
+  let unknown_synswitch = id => Unknown(ExpHole(Internal, id), true);
 
   let precedence = (ty: t): int =>
     switch (ty) {
@@ -218,7 +203,7 @@ module rec Typ: {
     | Float => Float
     | Bool => Bool
     | String => String
-    | Unknown(prov) => Unknown(prov)
+    | Unknown(prov, flags) => Unknown(prov, flags)
     | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
     | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
@@ -268,19 +253,22 @@ module rec Typ: {
   let rec prov_to_string = (prov: type_provenance): string => {
     switch (prov) {
     | NoProvenance => ""
-    | SynSwitch(id) => Id.to_string(id)
-    | AstNode(id) => Id.to_string(id)
-    | Free(var) => var
     | Matched(mprov, type_provenance) =>
-      matched_prov_to_string(mprov) ++ prov_to_string(type_provenance)
+      matched_prov_to_string(mprov)
+      ++ "{"
+      ++ prov_to_string(type_provenance)
+      ++ "}"
+    | ExpHole(Free(var), _) => var
+    | TypeHole(id)
+    | ExpHole(_, id) => Id.to_string(id)
     };
   }
   and matched_prov_to_string = (mprov: matched_provenance): string => {
     switch (mprov) {
-    | Matched_Arrow_Left => "M->L @"
-    | Matched_Arrow_Right => "M->R @"
-    | Matched_Prod_N(n) => "M* " ++ string_of_int(n)
-    | Matched_List => "M[] @"
+    | Matched_Arrow_Left => "M->L"
+    | Matched_Arrow_Right => "M->R"
+    | Matched_Prod_N(n) => "M*#" ++ string_of_int(n)
+    | Matched_List => "M[]"
     };
   };
 
@@ -291,7 +279,7 @@ module rec Typ: {
     //TODO: parens on ops when ambiguous
     let parenthesize_if_left_child = s => is_left_child ? "(" ++ s ++ ")" : s;
     switch (ty) {
-    | Unknown(prov) => "?" ++ (debug ? prov_to_string(prov) : "")
+    | Unknown(prov, _) => "?" ++ (debug ? prov_to_string(prov) : "")
     | Int => "Int"
     | Float => "Float"
     | String => "String"
@@ -365,15 +353,15 @@ module rec Typ: {
           (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
-    | (_, Unknown(AstNode(_) | Free(_)) as ty) when fix =>
+    | (_, Unknown(ExpHole(Free(_), _) | TypeHole(_), _) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
          casts. Examples/Dynamics has regression tests */
       Some(ty)
-    | (Unknown(p1), Unknown(p2)) =>
-      Some(Unknown(join_type_provenance(p1, p2)))
+    | (Unknown(p1, s1), Unknown(p2, s2)) =>
+      Some(Unknown(join_type_provenance(p1, p2), s1 && s2))
     | (Unknown(_), ty)
-    | (ty, Unknown(NoProvenance | SynSwitch(_))) => Some(ty)
+    | (ty, Unknown(_)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));
@@ -514,60 +502,52 @@ module rec Typ: {
     };
   };
 
-  // Todo: anand and raef: everywhere behavior is conditioned meaningfully on synswitch instead needs to make
-  // a recursive check in the case of match to see if it is rooted at synswitch
-
   let matched_arrow =
       (ctx: Ctx.t, termId: Id.t, ty: t): ((t, t), Typ.constraints) => {
-    let matched_arrow_of_prov = prov => {
+    let matched_arrow_of_prov = (prov, flags) => {
       let (arrow_lhs, arrow_rhs) = (
-        Unknown(Matched(Matched_Arrow_Left, prov)),
-        Unknown(Matched(Matched_Arrow_Right, prov)),
+        Unknown(Matched(Matched_Arrow_Left, prov), flags),
+        Unknown(Matched(Matched_Arrow_Right, prov), flags),
       );
       (
         (arrow_lhs, arrow_rhs),
-        [(Unknown(prov), Arrow(arrow_lhs, arrow_rhs))],
+        [(Unknown(prov, flags), Arrow(arrow_lhs, arrow_rhs))],
       );
     };
     switch (weak_head_normalize(ctx, ty)) {
     | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
-    | Unknown(prov) => matched_arrow_of_prov(prov)
-    | _ => matched_arrow_of_prov(AstNode(termId))
+    | Unknown(prov, flags) => matched_arrow_of_prov(prov, flags)
+    | _ => matched_arrow_of_prov(ExpHole(Error, termId), false)
     };
   };
 
   let matched_prod = (ctx: Ctx.t, length, termId: Id.t, ty: t) => {
-    // let matched_prod_of_prov = prov => {
-    //   let (prod_lhs, prod_rhs) = (
-    //     Unknown(Matched(Matched_Prod_Left, prov)),
-    //     Unknown(Matched(Matched_Prod_Right, prov)),
-    //   );
-    //   (
-    //     (prod_lhs, prod_rhs),
-    //     [(Unknown(prov), Prod([prod_lhs, prod_rhs]))] // TODO anand: this is not right.
-    //   );
-    // };
-    let matched_prod_of_prov = prov => {
+    let matched_prod_of_prov = (prov, flags) => {
       let matched_prod_typs =
-        List.init(length, n => Unknown(Matched(Matched_Prod_N(n), prov)));
-      (matched_prod_typs, [(Unknown(prov), Prod(matched_prod_typs))]);
+        List.init(length, n =>
+          Unknown(Matched(Matched_Prod_N(n), prov), flags)
+        );
+      (
+        matched_prod_typs,
+        [(Unknown(prov, flags), Prod(matched_prod_typs))],
+      );
     };
     switch (weak_head_normalize(ctx, ty)) {
     | Prod(tys) when List.length(tys) == length => (tys, [])
-    | Unknown(prov) => matched_prod_of_prov(prov)
-    | _ => matched_prod_of_prov(AstNode(termId))
+    | Unknown(prov, flags) => matched_prod_of_prov(prov, flags)
+    | _ => matched_prod_of_prov(ExpHole(Error, termId), false)
     };
   };
 
   let matched_list = (_ctx: Ctx.t, termId: Id.t, ty: t) => {
-    let matched_list_of_prov = prov => {
-      let list_elts_typ = Unknown(Matched(Matched_List, prov));
-      (list_elts_typ, [(Unknown(prov), List(list_elts_typ))]);
+    let matched_list_of_prov = (prov, flags) => {
+      let list_elts_typ = Unknown(Matched(Matched_List, prov), flags);
+      (list_elts_typ, [(Unknown(prov, flags), List(list_elts_typ))]);
     };
     switch (ty) {
     | List(ty) => (ty, [])
-    | Unknown(prov) => matched_list_of_prov(prov)
-    | _ => matched_list_of_prov(AstNode(termId))
+    | Unknown(prov, flags) => matched_list_of_prov(prov, flags)
+    | _ => matched_list_of_prov(ExpHole(Error, termId), false)
     };
   };
 

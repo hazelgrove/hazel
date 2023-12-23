@@ -6,7 +6,7 @@ type ptyp =
   | Var(string)
   | List(pts)
   | Arrow(pts, pts)
-  | Sum(list(pts)) // TODO anand and raef: fill this in
+  | Sum(list(pts))
   | Prod(list(pts))
 and pts = UnionFind.elem(list(ptyp));
 
@@ -15,14 +15,9 @@ module Ctx = {
 
   let create = (): t => Hashtbl.create(100);
 
+  let lookup = Hashtbl.find_opt;
+
   let lookup_or_create = (ctx: t, p: Typ.type_provenance): pts => {
-    // get rid of SynSwitch
-    let rec prov_to_iprov: Typ.type_provenance => Typ.type_provenance =
-      fun
-      | SynSwitch(u) => AstNode(u)
-      | Matched(mprov, prov) => Matched(mprov, prov_to_iprov(prov))
-      | _ as prov => prov;
-    let p = prov_to_iprov(p);
     let lookup = Hashtbl.find_opt(ctx, p);
     switch (lookup) {
     | Some(pts) => pts
@@ -36,7 +31,7 @@ module Ctx = {
 
 let rec pts_of_typ = (ctx: Ctx.t, t: Typ.t): pts => {
   switch (t) {
-  | Typ.Unknown(p) => Ctx.lookup_or_create(ctx, p)
+  | Typ.Unknown(p, _) => Ctx.lookup_or_create(ctx, p)
   | _ =>
     let ptyp = ptyp_of_typ(ctx, t);
     UnionFind.make([ptyp]);
@@ -54,7 +49,7 @@ and ptyp_of_typ = (ctx: Ctx.t, t: Typ.t): ptyp => {
   | Sum(_) => Sum([]) // TODO anand and raef: unimplemented
   | Rec(_) => Sum([]) // TODO anand and raef: unimplemented
   | Prod(ts) => Prod(List.map(pts_of_typ(ctx), ts))
-  | Typ.Unknown(_p) => failwith("unreachable")
+  | Typ.Unknown(_p, _) => failwith("unreachable")
   };
 };
 
@@ -132,14 +127,6 @@ and combine_if_similar =
     let pts1 = merge(ctx, pts1, pts3);
     let pts2 = merge(ctx, pts2, pts4);
     Some(Arrow(pts1, pts2));
-  // for nary types, we're taking the approach of 'if the arity doesn't match, they are inconsistent
-  // this isn't true (eg ? * ? ~ ? * ? * ?) but proceeding as it they are consistent may just expose
-  // the programmer to more linked unknowns that they never really intended to be the same, leading to confusing suggestions.
-  // If they truly intend for them to be consistent, eventually they may change the program so that the arities match
-  // which would lead to further suggestions.
-  // A notable exception to this would be in currying- for arrow types, we DEFINITELY dont want this behavior
-  // but for products and sums, where the associativity is already often vague, it doesn't necessarily make sense to enforce one
-  // and derive constraints accordingly (not that it would be incorrect, but simply that it may not be the frame of reference the user is taking either)
   | (Sum(tys1), Sum(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
@@ -174,12 +161,14 @@ type status =
 let unwrap_solution = (s: status): Typ.t => {
   switch (s) {
   | Solved(ty) => ty
-  | Unsolved([]) => Unknown(NoProvenance) // underdetermined
-  | Unsolved([ty]) => ty // children are unsolved
-  | Unsolved([_, ..._]) => Unknown(NoProvenance) // overdetermined
+  | Unsolved([]) => Unknown(NoProvenance, false) // underdetermined
+  | Unsolved([ty]) => ty // recursively contains something unsolved; return suggestion that will contain an unsolved hole
+  | Unsolved([_, ..._]) => Unknown(NoProvenance, false) // overdetermined
   };
 };
 
+// Since inference has completed, we return all suggestions sans provenance
+// If accepted, these will change to TypeHole provenances naturally
 let rec get_status_pts = (ctx: Ctx.t, pts: pts): status => {
   let tys = UnionFind.get(pts);
   switch (tys) {
@@ -201,17 +190,19 @@ and get_status_ptyp = (ctx: Ctx.t, ptyp: ptyp): status => {
   | List(pts) =>
     switch (get_status_pts(ctx, pts)) {
     | Solved(ty) => Solved(List(ty))
-    | Unsolved(_) => Unsolved([List(Unknown(NoProvenance))])
+    | Unsolved(_) => Unsolved([List(Unknown(NoProvenance, false))])
     }
   | Arrow(pts1, pts2) =>
     switch (get_status_pts(ctx, pts1), get_status_pts(ctx, pts2)) {
     | (Solved(ty1), Solved(ty2)) => Solved(Arrow(ty1, ty2))
     | (Solved(ty1), Unsolved(_)) =>
-      Unsolved([Arrow(ty1, Unknown(NoProvenance))])
+      Unsolved([Arrow(ty1, Unknown(NoProvenance, false))])
     | (Unsolved(_), Solved(ty2)) =>
-      Unsolved([Arrow(Unknown(NoProvenance), ty2)])
+      Unsolved([Arrow(Unknown(NoProvenance, false), ty2)])
     | (Unsolved(_), Unsolved(_)) =>
-      Unsolved([Arrow(Unknown(NoProvenance), Unknown(NoProvenance))])
+      Unsolved([
+        Arrow(Unknown(NoProvenance, false), Unknown(NoProvenance, false)),
+      ])
     }
   | Sum(tys_inner) =>
     let is_solved = (s: status): bool => {
@@ -264,7 +255,12 @@ and get_status_ptyp = (ctx: Ctx.t, ptyp: ptyp): status => {
   };
 };
 
-let get_status = (ctx: Ctx.t, id: Id.t): status => {
-  let pts = Ctx.lookup_or_create(ctx, Typ.AstNode(id));
+// Get suggestion will return the solution associated with the provided id
+// if it exists as a typehole for which suggestions are present
+// TODO: Add logic for indirect suggestions via ExpHoles constrained to TypeHoles
+//       eg: scan for ExpHole or Emp
+let get_suggestion = (ctx: Ctx.t, id: Id.t): option(status) => {
+  open Util.OptUtil.Syntax;
+  let+ pts = Ctx.lookup(ctx, Typ.TypeHole(id));
   get_status_pts(ctx, pts);
 };

@@ -121,22 +121,13 @@ let subsumption_constraints =
   let final_typ =
     switch (Self.typ_of(ctx, self)) {
     | Some(typ) => typ
-    | None => Unknown(AstNode(rep_id))
+    | None => Unknown(ExpHole(Error, rep_id), false)
     };
   switch (mode) {
   | Ana(expected_typ) => [(final_typ, expected_typ)]
   | _ => []
   };
 };
-
-let rec is_synswitch_rooted = (prov: Typ.type_provenance) =>
-  switch (prov) {
-  | NoProvenance
-  | AstNode(_)
-  | Free(_) => false
-  | SynSwitch(_) => true
-  | Matched(_, prov) => is_synswitch_rooted(prov)
-  };
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t)
@@ -194,7 +185,7 @@ and uexp_to_info_map =
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
-    | Ana(Unknown(prov)) when is_synswitch_rooted(prov) => Mode.Syn
+    | Ana(Unknown(_, true)) => Mode.Syn
     | _ => mode
     };
   let add' = (~self: Self.exp, ~co_ctx, ~constraints, m) => {
@@ -247,7 +238,8 @@ and uexp_to_info_map =
       ~constraints=constraints @ subsumption_constraints(IsMulti),
     );
   | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(Unknown(AstNode(UExp.rep_id(uexp))))) // TODO: replace with ExpHole prov
+  | EmptyHole =>
+    atomic(Just(Unknown(ExpHole(EmptyHole, UExp.rep_id(uexp)), false)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -259,7 +251,8 @@ and uexp_to_info_map =
       Mode.of_list_lit(ctx, List.length(es), UExp.rep_id(uexp), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
-    let self = Self.listlit(~empty=Unknown(NoProvenance), ctx, tys, ids);
+    let self =
+      Self.listlit(~empty=Unknown(NoProvenance, false), ctx, tys, ids);
     add(
       ~self,
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
@@ -298,7 +291,7 @@ and uexp_to_info_map =
       switch (Ctx.lookup_var(ctx, name)) {
       | None =>
         let boundary_hole: Self.t =
-          Just(Unknown(AstNode(UExp.rep_id(uexp))));
+          Just(Unknown(ExpHole(Error, UExp.rep_id(uexp)), false));
         (Free(name), subsumption_constraints(boundary_hole));
       | Some(var) =>
         let self: Self.t = Just(var.typ);
@@ -590,7 +583,7 @@ and upat_to_info_map =
   };
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
-  let unknown = Typ.Unknown(is_synswitch ? SynSwitch(id) : NoProvenance);
+  let unknown = Typ.Unknown(ExpHole(Internal, id), is_synswitch);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
       (((ctx, cs), tys, m), e, mode) =>
@@ -645,12 +638,12 @@ and upat_to_info_map =
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
-       Unknown(Internal) is used in this case */
+       Internal is used in this case */
     let ctx_typ =
       Info.fixed_typ_pat(
         ctx,
         mode,
-        Common(Just(Unknown(AstNode(id)))),
+        Common(Just(Unknown(ExpHole(Internal, id), false))),
         id,
       );
     let entry = Ctx.VarEntry({name, id, typ: ctx_typ});
@@ -734,7 +727,10 @@ and utyp_to_info_map =
       | VariantExpected(m, sum_ty) =>
         ConstructorExpected(m, Arrow(ty_in, sum_ty))
       | _ =>
-        ConstructorExpected(Unique, Arrow(ty_in, Unknown(NoProvenance)))
+        ConstructorExpected(
+          Unique,
+          Arrow(ty_in, Unknown(NoProvenance, false)),
+        )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;

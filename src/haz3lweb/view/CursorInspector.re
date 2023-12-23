@@ -91,10 +91,11 @@ let view_of_global_inference_info =
     ) => {
   let font_metrics = Some(font_metrics);
   if (global_inference_info.enabled) {
-    let status = Haz3lcore.Infer.get_status(global_inference_info.ctx, id);
+    let status =
+      Haz3lcore.Infer.get_suggestion(global_inference_info.ctx, id);
     switch (status) {
-    | Solved(ty) => div([Type.view(~font_metrics, ty)])
-    | Unsolved(conflicting_typs) =>
+    | Some(Solved(ty)) => div([Type.view(~font_metrics, ty)])
+    | Some(Unsolved(conflicting_typs)) =>
       div(
         ~attr=clss([infoc, "typ"]),
         [
@@ -138,6 +139,7 @@ let view_of_global_inference_info =
              ),
         ],
       )
+    | None => div([])
     };
   } else {
     div([]);

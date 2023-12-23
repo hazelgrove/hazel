@@ -113,7 +113,7 @@ module UTyp = {
       switch (utyp.term) {
       | Invalid(_)
       | MultiHole(_)
-      | EmptyHole => Unknown(AstNode(rep_id(utyp)))
+      | EmptyHole => Unknown(TypeHole(rep_id(utyp)), false)
       | Bool => Bool
       | Int => Int
       | Float => Float
@@ -121,7 +121,7 @@ module UTyp = {
       | Var(name) =>
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
-        | None => Unknown(Free(name))
+        | None => Unknown(ExpHole(Free(name), rep_id(utyp)), false)
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
@@ -130,7 +130,7 @@ module UTyp = {
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
       | Constructor(_)
-      | Ap(_) => Unknown(AstNode(rep_id(utyp)))
+      | Ap(_) => Unknown(ExpHole(Internal, rep_id(utyp)), false)
       }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =

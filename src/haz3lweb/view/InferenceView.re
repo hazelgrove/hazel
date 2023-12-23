@@ -45,14 +45,15 @@ let get_suggestion_ui_for_id =
     )
     : InferenceResult.suggestion(Node.t) =>
   if (global_inference_info.enabled) {
-    let status = Infer.get_status(global_inference_info.ctx, id);
+    let status = Infer.get_suggestion(global_inference_info.ctx, id);
     switch (status) {
-    | Solved(typ) =>
+    | Some(Solved(typ)) =>
       Solvable(typ |> Type.view(~font_metrics, ~with_cls=false))
-    | Unsolved([]) => NoSuggestion(NonTypeHoleId)
-    | Unsolved([typ]) =>
+    | Some(Unsolved([])) => NoSuggestion(OnlyHoleSolutions)
+    | Some(Unsolved([typ])) =>
       NestedInconsistency(Type.view(~font_metrics, ~with_cls=false, typ))
-    | Unsolved(_tys) => NoSuggestion(InconsistentSet) // TODO anand: use tys
+    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+    | None => NoSuggestion(NonTypeHoleId)
     };
   } else {
     NoSuggestion(SuggestionsDisabled);
@@ -100,10 +101,11 @@ let get_cursor_inspect_result =
     (~global_inference_info: InferenceResult.global_inference_info, id: Id.t)
     : option((bool, list(Typ.t))) =>
   if (global_inference_info.enabled) {
-    let status = Infer.get_status(global_inference_info.ctx, id);
+    let status = Infer.get_suggestion(global_inference_info.ctx, id);
     switch (status) {
-    | Unsolved(_tys) => Some((false, [])) // TODO anand use tys
-    | Solved(typ) => Some((true, [typ]))
+    | Some(Unsolved(tys)) => Some((false, tys)) // TODO anand use tys
+    | Some(Solved(typ)) => Some((true, [typ]))
+    | None => None
     };
   } else {
     None;

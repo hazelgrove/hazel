@@ -32,8 +32,12 @@ let cast = (ctx: Ctx.t, id: Id.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   | Syn => d
   | SynFun =>
     switch (self_ty) {
-    | Unknown(prov) =>
-      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+    | Unknown(prov, s) =>
+      DHExp.cast(
+        d,
+        Unknown(prov, s),
+        Arrow(Unknown(prov, s), Unknown(prov, s)),
+      )
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -45,7 +49,8 @@ let cast = (ctx: Ctx.t, id: Id.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | ListConcat(_)
     | Cons(_) =>
       switch (ana_ty) {
-      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
+      | Unknown(prov, s) =>
+        DHExp.cast(d, List(Unknown(prov, s)), Unknown(prov, s))
       | _ => d
       }
     | Fun(_) =>
@@ -55,16 +60,17 @@ let cast = (ctx: Ctx.t, id: Id.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
-      | Unknown(prov) =>
-        let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DHExp.cast(d, Prod(us), Unknown(prov));
+      | Unknown(prov, s) =>
+        let us = List.init(List.length(ds), _ => Typ.Unknown(prov, s));
+        DHExp.cast(d, Prod(us), Unknown(prov, s));
       | _ => d
       }
     | Ap(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
-      | (Unknown(prov), Rec(_, Sum(_)))
-      | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
+      | (Unknown(prov, s), Rec(_, Sum(_)))
+      | (Unknown(prov, s), Sum(_)) =>
+        DHExp.cast(d, self_ty, Unknown(prov, s))
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -109,7 +115,7 @@ let wrap = (ctx: Ctx.t, id: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
     let self_ty =
       switch (Self.typ_of_exp(ctx, self)) {
       | Some(self_ty) => Typ.normalize(ctx, self_ty)
-      | None => Unknown(NoProvenance)
+      | None => Unknown(NoProvenance, false)
       };
     cast(ctx, id, mode, self_ty, d);
   | InHole(_) => NonEmptyHole(TypeInconsistent, id, 0, d)
@@ -349,7 +355,7 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
-      | None => Typ.Unknown(NoProvenance)
+      | None => Typ.Unknown(NoProvenance, false)
       };
     Elaborates(d, ty, Delta.empty);
   };

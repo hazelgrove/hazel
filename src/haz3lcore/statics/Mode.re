@@ -29,18 +29,19 @@ let ana: Typ.t => t = ty => Ana(ty);
 let ty_of = (ctx: Ctx.t, t: t, id: Id.t): (Typ.t, Typ.constraints) =>
   switch (t) {
   | Ana(ty) => (ty, [])
-  | Syn => (Unknown(SynSwitch(id)), [])
+  | Syn => (Typ.unknown_synswitch(id), [])
   | SynFun =>
     let ((ty_l, ty_r), constraints) =
-      Typ.matched_arrow(ctx, id, Unknown(SynSwitch(id)));
+      Typ.matched_arrow(ctx, id, Typ.unknown_synswitch(id));
     (Arrow(ty_l, ty_r), constraints);
   };
 
 let assistant_ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
-  | Syn => Unknown(NoProvenance)
-  | SynFun => Arrow(Unknown(NoProvenance), Unknown(NoProvenance));
+  | Syn => Unknown(NoProvenance, false)
+  | SynFun =>
+    Arrow(Unknown(NoProvenance, false), Unknown(NoProvenance, false));
 
 let of_arrow =
     (ctx: Ctx.t, mode: t, termId: Id.t): ((t, t), Typ.constraints) =>
@@ -93,7 +94,7 @@ let of_list = (ctx: Ctx.t, mode: t, termId: Id.t): (t, Typ.constraints) =>
 let of_list_concat = (ctx: Ctx.t, id, mode: t): (t, Typ.constraints) =>
   switch (mode) {
   | Syn
-  | SynFun => (Ana(List(Unknown(SynSwitch(id)))), [])
+  | SynFun => (Ana(List(Typ.unknown_synswitch(id))), [])
   | Ana(ty) =>
     let (matched_typ, constraints) = Typ.matched_list(ctx, id, ty);
     (Ana(List(matched_typ)), constraints);
@@ -135,7 +136,7 @@ let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
        is nullary but used as unary; we reflect this by analyzing
        against an arrow type. Since we can't guess at what the
        parameter type might have be, we use Unknown. */
-    Some(Ana(Arrow(Unknown(NoProvenance), ty_ana)))
+    Some(Ana(Arrow(Unknown(NoProvenance, false), ty_ana)))
   | None => None
   };
 
