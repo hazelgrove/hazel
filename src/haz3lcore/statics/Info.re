@@ -64,7 +64,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_exp))
+  | InexhaustiveMatch(option(error_common))
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -327,7 +327,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (InexhaustiveMatch(self), _) =>
     let additional_err =
       switch (status_exp(ctx, mode, self)) {
-      | InHole(Common(Inconsistent(Internal(_))) as inconsistent_err) =>
+      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
