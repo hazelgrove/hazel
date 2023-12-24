@@ -305,7 +305,15 @@ and uexp_to_info_map =
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
       let (ps', m) =
-        map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=Mode.Ana(scrut.ty)), ps, m);
+        map_m(
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Mode.Ana(scrut.ty),
+          ),
+          ps,
+          m,
+        );
       let p_constraints = List.map(Info.pat_constraint, ps');
       let p_ctxs = List.map(Info.pat_ctx, ps');
       let (es, m) =
@@ -316,9 +324,24 @@ and uexp_to_info_map =
           es,
           p_ctxs,
         );
+      let e_co_ctxs =
+        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+      /* Add co-ctxs to patterns */
+      let (_, m) =
+        map_m(
+          ((p, co_ctx)) =>
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx,
+              ~mode=Mode.Ana(scrut.ty),
+              p,
+            ),
+          List.combine(ps, e_co_ctxs),
+          m,
+        );
       (
         es,
-        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es)),
+        e_co_ctxs,
         branch_ids,
         Constraint.or_constraints(p_constraints),
         m,
@@ -327,26 +350,12 @@ and uexp_to_info_map =
     let (es, e_co_ctxs, branch_ids, final_constraint, m) =
       rules_to_info_map(rules, m);
     let e_tys = List.map(Info.exp_ty, es);
-    let e_co_ctxs =
-      List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
-    /* Add co-ctxs to patterns */
-    let (_, m) =
-      map_m(
-        ((p, co_ctx)) =>
-          go_pat(~is_synswitch=false, ~co_ctx, ~mode=Mode.Ana(scrut.ty), p),
-        List.combine(ps, e_co_ctxs),
-        m,
-      );
     let unwrapped_self: Self.exp =
       Common(Self.match(ctx, e_tys, branch_ids));
     let is_exhaustive = Incon.is_exhaustive(final_constraint);
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-    add'(
-      ~self,
-      ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
-      m,
-    );
+    add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {

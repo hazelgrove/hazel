@@ -497,12 +497,24 @@ let derived_exp =
 
 /* Add derivable attributes for pattern terms */
 let derived_pat =
-    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self, ~constraint_): pat => {
+    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self, ~constraint_)
+    : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
   let constraint_ = fixed_constraint_pat(ctx, mode, self, constraint_);
-  {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat, constraint_};
+  {
+    cls,
+    self,
+    mode,
+    ty,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    term: upat,
+    constraint_,
+  };
 };
 
 /* Add derivable attributes for types */
