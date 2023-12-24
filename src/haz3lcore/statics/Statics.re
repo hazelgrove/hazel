@@ -302,10 +302,6 @@ and uexp_to_info_map =
     let is_exhaustive = Incon.is_exhaustive(final_constraint);
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-    if (!is_exhaustive) {
-      let dual_constraint = Constraint.dual(final_constraint);
-      // TODO
-    }
 
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
