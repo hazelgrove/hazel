@@ -8,22 +8,27 @@ type t = {
   backpack: list(list(string)),
 };
 
-let rec of_segment = (seg: Segment.t): string =>
-  seg |> List.map(of_piece) |> String.concat("")
-and of_piece: Piece.t => string =
-  fun
-  | Tile(t) => of_tile(t)
-  | Grout(_) => " "
+let seg_of_zip = Zipper.seg_without_buffer;
+
+let rec of_segment = (~holes, seg: Segment.t): string =>
+  seg |> List.map(of_piece(~holes)) |> String.concat("")
+and of_piece = (~holes, p: Piece.t): string =>
+  switch (p) {
+  | Tile(t) => of_tile(~holes, t)
+  | Grout({shape: Concave, _}) => " "
+  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
+  | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-and of_tile = (t: Tile.t): string =>
+  }
+and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment)
+  |> Aba.join(of_delim(t), of_segment(~holes))
   |> String.concat("")
 and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 
 let to_string_basic = (z: Zipper.t): string => {
-  z |> Zipper.unselect_and_zip |> of_segment;
+  z |> seg_of_zip |> of_segment(~holes=None);
 };
 
 let lines_to_list = String.split_on_char('\n');
@@ -32,6 +37,7 @@ let caret_str = "░";
 
 let to_rows =
     (
+      ~holes: option(string),
       ~measured: Measured.t,
       ~caret: option(Measured.Point.t),
       ~indent: string,
@@ -40,7 +46,8 @@ let to_rows =
     : list(string) => {
   let indent_of = i => Measured.Rows.find(i, measured.rows).indent;
   let mk_indent = (i, r) => StringUtil.repeat(indent_of(i), indent) ++ r;
-  let rows = segment |> of_segment |> lines_to_list |> List.mapi(mk_indent);
+  let rows =
+    segment |> of_segment(~holes) |> lines_to_list |> List.mapi(mk_indent);
   switch (caret) {
   | Some({row, col}) =>
     switch (ListUtil.split_nth_opt(row, rows)) {
@@ -55,19 +62,22 @@ let to_rows =
 
 let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
   to_rows(
+    ~holes=None,
     ~measured,
     ~caret=None,
     ~indent=" ",
-    ~segment=Zipper.unselect_and_zip(z),
+    ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
-let to_string_editor = (editor: Editor.t): string =>
+let to_string_editor =
+    (~holes: option(string)=None, editor: Editor.t): string =>
   to_rows(
+    ~holes,
     ~measured=editor.state.meta.measured,
     ~caret=None,
     ~indent=" ",
-    ~segment=Zipper.unselect_and_zip(editor.state.zipper),
+    ~segment=seg_of_zip(editor.state.zipper),
   )
   |> String.concat("\n");
 
@@ -76,6 +86,7 @@ let to_string_selection = (editor: Editor.t): string =>
     ~measured=editor.state.meta.measured,
     ~caret=None,
     ~indent=" ",
+    ~holes=None,
     ~segment=editor.state.zipper.selection.content,
   )
   |> String.concat("\n");
@@ -83,15 +94,17 @@ let to_string_selection = (editor: Editor.t): string =>
 let to_log = (~measured: Measured.t, z: Zipper.t): t => {
   code:
     to_rows(
+      ~holes=None,
       ~measured,
       ~caret=Some(Zipper.caret_point(measured, z)),
       ~indent=" ",
-      ~segment=Zipper.unselect_and_zip(z),
+      ~segment=seg_of_zip(z),
     ),
-  selection: z.selection.content |> of_segment |> lines_to_list,
+  selection: z.selection.content |> of_segment(~holes=None) |> lines_to_list,
   backpack:
     List.map(
-      (s: Selection.t) => s.content |> of_segment |> lines_to_list,
+      (s: Selection.t) =>
+        s.content |> of_segment(~holes=None) |> lines_to_list,
       z.backpack,
     ),
 };
@@ -121,4 +134,21 @@ let zipper_of_string =
     };
   };
   str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
+};
+
+let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
+  /* HACK(andrew): These two perform calls are a hack to
+     deal with the fact that pasting something like "let a = b in"
+     won't trigger the barfing of the "in"; to trigger this, we
+     insert a space, and then we immediately delete it. */
+  let settings = CoreSettings.off;
+  let* z = zipper_of_string(~zipper_init=z, str);
+  switch (Perform.go_z(~settings, Insert(" "), z)) {
+  | Error(_) => None
+  | Ok(z) =>
+    switch (Perform.go_z(~settings, Destruct(Left), z)) {
+    | Error(_) => None
+    | Ok(z) => Some(z)
+    }
+  };
 };
