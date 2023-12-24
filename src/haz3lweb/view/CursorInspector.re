@@ -41,7 +41,7 @@ let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
     [text("Γ")],
   );
 
-let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
+let term_view = (~inject, ~settings: Settings.t, ~show_lang_doc, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
@@ -70,6 +70,12 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     | BadInt => [text("Integer is too large or too small")]
     | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
     }
+  | NoType(BadTrivAp(ty)) => [
+      text("Function argument type"),
+      Type.view(ty),
+      text("inconsistent with"),
+      Type.view(Prod([])),
+    ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
@@ -241,7 +247,7 @@ let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
 let view =
     (
       ~inject,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~show_lang_doc: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,
@@ -255,7 +261,9 @@ let view =
       ),
     ]);
   switch (zipper.backpack, Indicated.index(zipper)) {
-  | ([_, ..._], _) => err_view("No information while backpack in use")
+  | _ when !settings.core.statics => div_empty
+  | _ when Id.Map.is_empty(info_map) =>
+    err_view("No Static information available")
   | (_, None) => err_view("No cursor in program")
   | (_, Some(id)) =>
     switch (Id.Map.find_opt(id, info_map)) {
