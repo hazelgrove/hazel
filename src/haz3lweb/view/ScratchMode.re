@@ -86,12 +86,12 @@ let download_slide_state = state => {
   let json_data = ScratchSlide.export(state);
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
-let breadcrumb_bar = (~inject, ~model as {editors, _}: Model.t) => {
+let breadcrumb_bar = (~inject, ~model as {editors, settings, _}: Model.t) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
+  let (term, _) = MakeTerm.from_zip_for_sem(zipper);
+  let ctx_init = Editors.get_ctx_init(~settings, editors);
+  let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
   let empty = [
     select([
       option(

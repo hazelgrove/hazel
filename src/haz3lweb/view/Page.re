@@ -171,7 +171,7 @@ let slide_view = (~inject, ~model, ~ctx_init, slide_state) => {
   let toolbar_buttons = ScratchMode.toolbar_buttons(~inject, slide_state);
   let breadcrumb_bar = ScratchMode.breadcrumb_bar(~inject, ~model);
   [top_bar_view(~inject, ~toolbar_buttons, ~breadcrumb_bar, ~model)]
-  @ ScratchMode.view(~inject, ~model);
+  @ ScratchMode.view(~inject, ~ctx_init, ~model);
 };
 
 let editors_view = (~inject, model: Model.t) => {

@@ -242,13 +242,6 @@ type t =
   | InfoPat(pat)
   | InfoTyp(typ)
   | InfoTPat(tpat);
-let ancestors_of: t => ancestors =
-  fun
-  | InfoExp({ancestors, _})
-  | InfoPat({ancestors, _})
-  | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => ancestors;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | Exp(error_exp)
