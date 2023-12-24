@@ -23,25 +23,36 @@ and reason_for_silence =
 
 let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
-    : suggestion(string) =>
+    : suggestion(string) => {
+  print_endline("in get suggestion text for id " ++ Id.to_string(id));
   if (global_inference_info.enabled) {
     let status_opt =
       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
     switch (status_opt) {
-    | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
+    | Some(Solved(Unknown(_))) =>
+      print_endline("No Suggestion only holes");
+      NoSuggestion(OnlyHoleSolutions);
     | Some(Solved(ityp)) =>
+      print_endline("suggestion solved as a single type");
       let typ_to_string = x => Typ.typ_to_string(x, false);
       Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
     | Some(Unsolved([potential_typ])) =>
+      print_endline("Suggestion unsolved as a single type");
       NestedInconsistency(
         PotentialTypeSet.string_of_potential_typ(false, potential_typ),
-      )
-    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
-    | None => NoSuggestion(NonTypeHoleId)
+      );
+    | Some(Unsolved(_)) =>
+      print_endline("No suggestion unsolved as many");
+      NoSuggestion(InconsistentSet);
+    | None =>
+      print_endline("No Suggestion non type hole id");
+      NoSuggestion(NonTypeHoleId);
     };
   } else {
+    print_endline("No suggestion disabled");
     NoSuggestion(SuggestionsDisabled);
   };
+};
 
 let hole_nib: Nib.t = {shape: Convex, sort: Any};
 let hole_mold: Mold.t = {out: Any, in_: [], nibs: (hole_nib, hole_nib)};

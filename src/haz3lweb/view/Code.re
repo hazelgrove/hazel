@@ -55,14 +55,24 @@ let of_grout =
   switch (suggestion) {
   | NoSuggestion(SuggestionsDisabled)
   | NoSuggestion(NonTypeHoleId)
-  | NoSuggestion(OnlyHoleSolutions) => [Node.text(Unicode.nbsp)]
+  | NoSuggestion(OnlyHoleSolutions) =>
+    print_endline(
+      "of grout code.re for id " ++ Id.to_string(id) ++ " is blank",
+    );
+    [Node.text(Unicode.nbsp)];
   | Solvable(suggestion_node)
-  | NestedInconsistency(suggestion_node) => [
-      [suggestion_node] |> span_c("solved-annotation"),
-    ]
-  | NoSuggestion(InconsistentSet) => [
-      [Node.text("!")] |> span_c("unsolved-annotation"),
-    ]
+  | NestedInconsistency(suggestion_node) =>
+    print_endline(
+      "of grout code.re for id "
+      ++ Id.to_string(id)
+      ++ " is with a suggestion",
+    );
+    [[suggestion_node] |> span_c("solved-annotation")];
+  | NoSuggestion(InconsistentSet) =>
+    print_endline(
+      "of grout code.re for id " ++ Id.to_string(id) ++ " is with a unsolved",
+    );
+    [[Node.text("!")] |> span_c("unsolved-annotation")];
   };
 };
 

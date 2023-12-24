@@ -339,7 +339,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     };
 
-  let editor_of_serialization = zipper => Editor.init(zipper);
+  let editor_of_serialization = zipper => Editor.init(zipper, false);
   let eds_of_spec: spec => eds =
     (
       {
@@ -501,13 +501,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~inference_enabled: bool,
       )
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
-        Editor.init(zipper);
+        Editor.init(zipper, inference_enabled);
       } else {
         editor_of_serialization(default);
       };

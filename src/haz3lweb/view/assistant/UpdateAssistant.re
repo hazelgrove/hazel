@@ -17,7 +17,9 @@ let reset_buffer = (model: Model.t) => {
   let z = ed.state.zipper;
   switch (z.selection.mode) {
   | Buffer(_) =>
-    switch (Perform.go_z(~settings=model.settings.core, Destruct(Left), z)) {
+    switch (
+      Perform.go_z(~settings=model.settings.core, Destruct(Left), z, false)
+    ) {
     | Error(_) => model
     | Ok(z) =>
       let ed = Editor.new_state(Destruct(Left), z, ed, false);

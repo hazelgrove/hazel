@@ -53,6 +53,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
     | (_, "Enter") =>
+      print_endline("Calling get suggestion text from keyboard");
       let suggestion_opt = {
         open Util.OptUtil.Syntax;
         let+ (p, _) = Zipper.representative_piece(zipper);

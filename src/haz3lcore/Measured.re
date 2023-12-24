@@ -271,12 +271,12 @@ let of_segment =
     (
       ~old: t=empty,
       ~touched=Touched.empty,
-      ~_global_inference_info=InferenceResult.empty_info(),
+      ~global_inference_info=InferenceResult.empty_info(),
       seg: Segment.t,
     )
     : t => {
   let is_indented = is_indented_map(seg);
-
+  print_endline("In of_segment");
   // recursive across seg's bidelimited containers
   let rec go_nested =
           (
@@ -315,6 +315,7 @@ let of_segment =
             : (Point.t, t) =>
       switch (seg) {
       | [] =>
+        print_endline("in go_seq def []");
         let map =
           map
           |> add_row(
@@ -326,9 +327,13 @@ let of_segment =
              );
         (origin, map);
       | [hd, ...tl] =>
+        print_endline("in go_seq def [elts]");
         let (contained_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
+            print_endline(
+              "in go_seq def secondary linebreak id " ++ Id.to_string(w.id),
+            );
             let row_indent = container_indent + contained_indent;
             let indent =
               if (Segment.sameline_secondary(tl)) {
@@ -357,17 +362,38 @@ let of_segment =
               |> add_lb(w.id, indent);
             (indent, last, map);
           | Secondary(w) =>
+            print_endline(
+              "in go_seq def secondary non linebreak " ++ Id.to_string(w.id),
+            );
             let wspace_length =
               Unicode.length(Secondary.get_string(w.content));
             let last = {...origin, col: origin.col + wspace_length};
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            let annotation_offset = 1;
+            print_endline("in grout def " ++ Id.to_string(g.id));
+            let annotation_offset =
+              switch (
+                InferenceResult.get_suggestion_text_for_id(
+                  g.id,
+                  global_inference_info,
+                )
+              ) {
+              | Solvable(suggestion_string)
+              | NestedInconsistency(suggestion_string) =>
+                print_endline(
+                  "Offset: "
+                  ++ (String.length(suggestion_string) |> string_of_int),
+                );
+                String.length(suggestion_string);
+              | NoSuggestion(_) => 1
+              };
+
             let last = {...origin, col: origin.col + annotation_offset};
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
+            print_endline("in tile def " ++ Id.to_string(t.id));
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
               let last =

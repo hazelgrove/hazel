@@ -6,7 +6,12 @@ let editor_of_code = (~read_only=false, code: CodeString.t) => {
 };
 
 let editors_for =
-    (~read_only=false, xs: list('a), f: 'a => option(string))
+    (
+      ~read_only=false,
+      xs: list('a),
+      f: 'a => option(string),
+      inference_enabled,
+    )
     : (int, list(('a, option(Editor.t)))) => {
   let zs =
     List.fold_left(
@@ -28,7 +33,10 @@ let editors_for =
     List.map(
       ((a, sz)) =>
         switch (sz) {
-        | Some(z) => (a, Some(Editor.init(z, ~read_only)))
+        | Some(z) => (
+            a,
+            Some(Editor.init(z, ~read_only, inference_enabled)),
+          )
         | None => (a, None)
         },
       zs,
@@ -36,8 +44,10 @@ let editors_for =
   );
 };
 
-let editors_of_strings = (~read_only=false, xs: list(string)) => {
-  let (i, aes) = editors_for(xs, x => Some(x), ~read_only);
+let editors_of_strings =
+    (~read_only=false, xs: list(string), inference_enabled) => {
+  let (i, aes) =
+    editors_for(xs, x => Some(x), ~read_only, inference_enabled);
   (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 

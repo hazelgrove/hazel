@@ -165,7 +165,7 @@ module Examples = {
 
   let unpersist = ((name, zipper)) => {
     let zipper = PersistentZipper.unpersist(zipper);
-    (name, Editor.init(zipper, ~read_only=false));
+    (name, Editor.init(zipper, ~read_only=false, false));
   };
 
   let to_persistent = ((string, slides)): persistent => (
@@ -250,7 +250,14 @@ module Exercise = {
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(Exercise.deserialize_exercise(data, ~spec, ~instructor_mode)) {
+        try(
+          Exercise.deserialize_exercise(
+            data,
+            ~spec,
+            ~instructor_mode,
+            ~inference_enabled=false,
+          )
+        ) {
         | _ => init_exercise(spec, ~instructor_mode)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -288,7 +295,14 @@ module Exercise = {
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
           let exercise =
-            try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
+            try(
+              deserialize_exercise(
+                data,
+                ~spec,
+                ~instructor_mode,
+                ~inference_enabled=false,
+              )
+            ) {
             | _ => init_exercise(spec, ~instructor_mode)
             };
           (n, specs, exercise);
@@ -351,6 +365,7 @@ module Exercise = {
                persistent_state,
                ~spec,
                ~instructor_mode,
+               ~inference_enabled=false,
              ),
              ~instructor_mode,
            )

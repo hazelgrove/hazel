@@ -116,6 +116,7 @@ module Main = {
                  persistent_state,
                  ~spec,
                  ~instructor_mode=true,
+                 ~inference_enabled=false,
                );
              let report = exercise |> gen_grading_report;
              {name, report};

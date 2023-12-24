@@ -242,6 +242,7 @@ let typ_ok_view =
     ) =>
   switch (ok) {
   | Type(ty) =>
+    print_endline("calling get suggestion text from CI");
     switch (
       Haz3lcore.InferenceResult.get_suggestion_text_for_id(
         id,
@@ -259,7 +260,7 @@ let typ_ok_view =
           id,
         ),
       ]
-    }
+    };
   //TODO(andrew): restore this message?
   //| Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   //| Type(ty) => [Type.view(ty)]

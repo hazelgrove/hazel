@@ -23,12 +23,13 @@ let go_z =
       ~settings: CoreSettings.t,
       a: Action.t,
       z: Zipper.t,
+      inference_enabled,
     )
     : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
-    | None => Editor.Meta.init(z)
+    | None => Editor.Meta.init(z, inference_enabled)
     };
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
@@ -189,6 +190,6 @@ let go =
     open Result.Syntax;
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
-    let+ z = go_z(~settings, ~meta, a, zipper);
+    let+ z = go_z(~settings, ~meta, a, zipper, inference_enabled);
     Editor.new_state(~effects=Effect.s^, a, z, ed, inference_enabled);
   };

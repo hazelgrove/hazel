@@ -754,7 +754,7 @@ select {
 /* INFERENCE ANNOTATIONS */
 
 .solved-annotation {
-  color: rgb(23, 208, 23);
+  color: rgb(174, 175, 180)
 }
 
 .unsolved-annotation {
