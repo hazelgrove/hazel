@@ -4,8 +4,7 @@ type t =
   | IndexOutOfBounds
   | DivideByZero
   | NegativeExponent
-  | OutOfFuel
-  | InvalidProjection;
+  | OutOfFuel;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -14,5 +13,4 @@ let err_msg = (err: t): string =>
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"
-  | InvalidProjection => "Error: Invalid Projection"
   };
