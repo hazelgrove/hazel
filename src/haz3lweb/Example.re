@@ -48,13 +48,10 @@ let ancestors: Ancestors.t = [
   (mk_let_ancestor(([[pat("foo")]], [])), ([], [int("2")])),
 ];
 
-let backpack: Backpack.t = [{focus: Left, content: [exp("foo")]}];
+let backpack: Backpack.t = [Selection.mk([exp("foo")])];
 
 let zipper: Zipper.t = {
-  selection: {
-    focus: Left,
-    content,
-  },
+  selection: Selection.mk(content),
   backpack,
   relatives: {
     siblings: (l_sibling, r_sibling),
