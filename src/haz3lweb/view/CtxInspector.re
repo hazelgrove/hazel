@@ -53,8 +53,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
   |> List.map(context_entry_view(~inject));
 
 let view =
-    (~inject, ~settings: ModelSettings.t, ci: Haz3lcore.Statics.Info.t)
-    : Node.t => {
+    (~inject, ~settings: Settings.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
   let clss =
     clss(
       ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
