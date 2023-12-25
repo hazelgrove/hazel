@@ -120,4 +120,10 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   | d => d
   };
 
+let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
+  switch (direction_between(sibs)) {
+  | Some(d) => Mold.chevron(sort, p, d)
+  | None => Mold.mk_op(sort, [])
+  };
+
 let sorted_children = TupleUtil.map2(Segment.sorted_children);

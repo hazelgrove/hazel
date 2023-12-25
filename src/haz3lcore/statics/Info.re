@@ -50,6 +50,8 @@ type error_inconsistent =
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  /* Empty application of function with inconsistent type */
+  | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
 
@@ -197,6 +199,7 @@ type pat = {
   term: UPat.t,
   ancestors,
   ctx: Ctx.t,
+  co_ctx: CoCtx.t,
   mode: Mode.t,
   self: Self.pat,
   cls: Term.Cls.t,
@@ -233,6 +236,13 @@ type t =
   | InfoTyp(typ)
   | InfoTPat(tpat);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error =
+  | Exp(error_exp)
+  | Pat(error_pat)
+  | Typ(error_typ)
+  | TPat(error_tpat);
+
 let sort_of: t => Sort.t =
   fun
   | InfoExp(_) => Exp
@@ -253,6 +263,24 @@ let ctx_of: t => Ctx.t =
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _}) => ctx;
+
+let ancestors_of: t => ancestors =
+  fun
+  | InfoExp({ancestors, _})
+  | InfoPat({ancestors, _})
+  | InfoTyp({ancestors, _})
+  | InfoTPat({ancestors, _}) => ancestors;
+
+let error_of: t => option(error) =
+  fun
+  | InfoExp({status: NotInHole(_), _})
+  | InfoPat({status: NotInHole(_), _})
+  | InfoTyp({status: NotInHole(_), _})
+  | InfoTPat({status: NotInHole(_), _}) => None
+  | InfoExp({status: InHole(err), _}) => Some(Exp(err))
+  | InfoPat({status: InHole(err), _}) => Some(Pat(err))
+  | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
+  | InfoTPat({status: InHole(err), _}) => Some(TPat(err));
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
@@ -287,9 +315,10 @@ let rec status_common =
     | _ => InHole(NoType(FreeConstructor(name)))
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
+  | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = wrap(Unknown(Internal));
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
