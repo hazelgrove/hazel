@@ -643,7 +643,7 @@ and upat_to_info_map =
       Info.fixed_typ_pat(
         ctx,
         mode,
-        Common(Just(Unknown(ExpHole(Internal, id), false))),
+        Common(Just(Unknown(ExpHole(PatternVar, id), false))),
         id,
       );
     let entry = Ctx.VarEntry({name, id, typ: ctx_typ});

@@ -38,6 +38,7 @@ module rec Typ: {
   and hole_reason =
     | EmptyHole
     | Internal
+    | PatternVar
     | Error
     | Free(TypVar.t);
 
@@ -121,6 +122,7 @@ module rec Typ: {
   and hole_reason =
     | EmptyHole
     | Internal
+    | PatternVar
     | Error
     | Free(TypVar.t);
 

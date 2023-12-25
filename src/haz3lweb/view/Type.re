@@ -121,7 +121,9 @@ let rec view =
           ty: Typ.t,
         )
         : Node.t =>
-  div_c("typ-wrapper", [view_ty(~font_metrics, ~with_cls, ty)])
+  with_cls
+    ? div_c("typ-wrapper", [view_ty(~font_metrics, ~with_cls, ty)])
+    : view_ty(~font_metrics, ~with_cls, ty)
 and view_of_potential_typ_set =
     (
       ~font_metrics,

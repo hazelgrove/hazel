@@ -23,8 +23,7 @@ and reason_for_silence =
 
 let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
-    : suggestion(string) => {
-  print_endline("in get suggestion text for id " ++ Id.to_string(id));
+    : suggestion(string) =>
   if (global_inference_info.enabled) {
     let status_opt =
       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
@@ -52,7 +51,6 @@ let get_suggestion_text_for_id =
     print_endline("No suggestion disabled");
     NoSuggestion(SuggestionsDisabled);
   };
-};
 
 let hole_nib: Nib.t = {shape: Convex, sort: Any};
 let hole_mold: Mold.t = {out: Any, in_: [], nibs: (hole_nib, hole_nib)};
