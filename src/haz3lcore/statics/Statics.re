@@ -308,7 +308,13 @@ and uexp_to_info_map =
         List.fold_left(
           ((ps', m, acc_constraint), p) => {
             let (p, m) =
-              go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=Mode.Ana(scrut.ty), p, m);
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx=CoCtx.empty,
+                ~mode=Mode.Ana(scrut.ty),
+                p,
+                m,
+              );
             let p_constraint = Info.pat_constraint(p);
             if (!Incon.is_redundant(p_constraint, acc_constraint)) {
               (ps' @ [p], m, Constraint.Or(p_constraint, acc_constraint));
@@ -317,6 +323,7 @@ and uexp_to_info_map =
                 Info.derived_pat(
                   ~upat=p.term,
                   ~ctx=p.ctx,
+                  ~co_ctx=p.co_ctx,
                   ~mode=p.mode,
                   ~ancestors=p.ancestors,
                   ~self=Redundant(p.self),
@@ -359,13 +366,7 @@ and uexp_to_info_map =
           List.combine(ps, e_co_ctxs),
           m,
         );
-      (
-        es,
-        e_co_ctxs,
-        branch_ids,
-        final_constraint,
-        m,
-      );
+      (es, e_co_ctxs, branch_ids, final_constraint, m);
     };
     let (es, e_co_ctxs, branch_ids, final_constraint, m) =
       rules_to_info_map(rules, m);
