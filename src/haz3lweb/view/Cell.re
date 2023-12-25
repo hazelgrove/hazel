@@ -287,7 +287,6 @@ let editor_view =
      * unzipping for display */
     let buffer =
       Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
-    print_endline("Cell");
     Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
   };
   let code_base_view =

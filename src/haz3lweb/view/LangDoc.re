@@ -262,7 +262,6 @@ let deco =
                 ]
               | _ => []
               };
-            print_endline("langdoc1");
             let specificity_menu =
               Node.div(
                 ~attr=
@@ -385,7 +384,6 @@ let syntactic_form_view =
       ~form_id,
       ~global_inference_info,
     ) => {
-  print_endline("langdoc2");
   let map = Measured.of_segment(unselected);
   let code_view =
     Code.simple_view(
@@ -431,7 +429,6 @@ let example_view =
       ? [text("No examples available")]
       : List.map(
           ({term, message, _} as example: LangDocMessages.example) => {
-            print_endline("langdoc3");
             let map_code = Measured.of_segment(term);
             let code_view =
               Code.simple_view(

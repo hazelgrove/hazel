@@ -28,27 +28,18 @@ let get_suggestion_text_for_id =
     let status_opt =
       Hashtbl.find_opt(global_inference_info.solution_statuses, id);
     switch (status_opt) {
-    | Some(Solved(Unknown(_))) =>
-      print_endline("No Suggestion only holes");
-      NoSuggestion(OnlyHoleSolutions);
+    | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
     | Some(Solved(ityp)) =>
-      print_endline("suggestion solved as a single type");
       let typ_to_string = x => Typ.typ_to_string(x, false);
       Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
     | Some(Unsolved([potential_typ])) =>
-      print_endline("Suggestion unsolved as a single type");
       NestedInconsistency(
         PotentialTypeSet.string_of_potential_typ(false, potential_typ),
-      );
-    | Some(Unsolved(_)) =>
-      print_endline("No suggestion unsolved as many");
-      NoSuggestion(InconsistentSet);
-    | None =>
-      print_endline("No Suggestion non type hole id");
-      NoSuggestion(NonTypeHoleId);
+      )
+    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+    | None => NoSuggestion(NonTypeHoleId)
     };
   } else {
-    print_endline("No suggestion disabled");
     NoSuggestion(SuggestionsDisabled);
   };
 
