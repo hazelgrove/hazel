@@ -25,7 +25,7 @@ module Labeled = {
 module Molded = {
   include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(EMtrl.Molded.t);
+  type t = Base.t(EMold.t);
 };
 include Molded;
 

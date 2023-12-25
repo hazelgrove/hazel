@@ -3,7 +3,7 @@ include Cell;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Cell.t(EMeld.Marked.t);
 
-let bake = (s: EMtrl.Sorted.t) =>
+let bake = (s: ESort.t) =>
   switch (s) {
   | Space => Empty
   | Grout() | Tile(_) =>
@@ -12,7 +12,7 @@ let bake = (s: EMtrl.Sorted.t) =>
 
 // returns a cell carrying the input meld repaired for sort consistency,
 // provided that such repair is possible. otherwise return empty cell.
-let try_fill = (m: EMeld.Marked.t, s: EMtrl.Sorted.t) =>
+let try_fill = (m: EMeld.Marked.t, s: ESort.t) =>
   switch (EMeld.sorted(snd(m)), s) {
   | (Space, _) => Full(m)
   | (_, Space) => Empty

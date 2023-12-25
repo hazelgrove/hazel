@@ -4,7 +4,7 @@ include Meld;
 
 module Cell = {
   type t('a) = {
-    sort: Bound.t(EMtrl.Sorted.t),
+    sort: Bound.t(ESort.t),
     fill: option('a),
   };
   let mk = (~sort=Bound.Root, ~fill=?, ()) =>
