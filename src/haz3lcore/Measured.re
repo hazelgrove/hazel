@@ -371,7 +371,10 @@ let of_segment =
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            print_endline("in grout def " ++ Id.to_string(g.id));
+            print_endline(
+              "calling get suggestion text from measured grout def "
+              ++ Id.to_string(g.id),
+            );
             let annotation_offset =
               switch (
                 InferenceResult.get_suggestion_text_for_id(

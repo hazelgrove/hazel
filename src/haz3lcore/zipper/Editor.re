@@ -9,17 +9,11 @@ module Meta = {
     col_target: int,
   };
 
-  let init = (z: Zipper.t, inference_enabled: bool) => {
+  let init = (z: Zipper.t, _inference_enabled: bool) => {
     let unselected = Zipper.unselect_and_zip(z);
-    print_endline("init");
-    let (term, _) = MakeTerm.go(unselected);
-    // TODO Raef: add in flow for the enabled flag
-    let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
-    let global_inference_info =
-      InferenceResult.mk_global_inference_info(inference_enabled, ctx);
     {
       touched: Touched.empty,
-      measured: Measured.of_segment(~global_inference_info, unselected),
+      measured: Measured.of_segment(unselected),
       term_ranges: TermRanges.mk(unselected),
       col_target: 0,
     };
