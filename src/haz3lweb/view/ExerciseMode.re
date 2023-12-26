@@ -82,7 +82,7 @@ let view =
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       langDocMessages.annotations,
-      global_inference_info.solution_statuses,
+      global_inference_info.typehole_suggestions,
     );
   let (focal_zipper, focal_info_map) =
     Exercise.focus(exercise, stitched_dynamics);

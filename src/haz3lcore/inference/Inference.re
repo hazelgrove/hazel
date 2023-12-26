@@ -41,24 +41,11 @@ and unify_one = (pts_graph: PTSGraph.t, typs: (ITyp.t, ITyp.t)): unit => {
   };
 };
 
-let unify_and_report_status =
-    (constraints: Typ.constraints): list(InferenceResult.t) => {
+let solve_constraints = (constraints: Typ.constraints): PTSGraph.t => {
   let inference_pts_graph = PTSGraph.create();
   let constraints = ITyp.to_ityp_constraints(constraints);
 
   unify(inference_pts_graph, constraints);
 
-  let acc_results =
-      (
-        key: ITyp.t,
-        mut_potential_typ_set: MutablePotentialTypeSet.t,
-        acc: list(InferenceResult.t),
-      )
-      : list(InferenceResult.t) => {
-    [(key, InferenceResult.condense(mut_potential_typ_set, key)), ...acc];
-  };
-
-  let unsorted_results = Hashtbl.fold(acc_results, inference_pts_graph, []);
-
-  List.fast_sort(InferenceResult.comp_results, unsorted_results);
+  inference_pts_graph;
 };

@@ -12,7 +12,7 @@ let get_suggestion_ui_for_id =
     : InferenceResult.suggestion(Node.t) =>
   if (global_inference_info.enabled) {
     let status_opt =
-      Hashtbl.find_opt(global_inference_info.solution_statuses, id);
+      Hashtbl.find_opt(global_inference_info.typehole_suggestions, id);
     switch (status_opt) {
     | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
     | Some(Solved(ityp)) =>
@@ -60,7 +60,7 @@ let get_cursor_inspect_result =
     : option((bool, list(Typ.t))) =>
   if (global_inference_info.enabled) {
     let* status =
-      Hashtbl.find_opt(global_inference_info.solution_statuses, id);
+      Hashtbl.find_opt(global_inference_info.typehole_suggestions, id);
     switch (status) {
     | Unsolved(potential_typ_set) =>
       Some((

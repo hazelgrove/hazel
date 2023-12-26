@@ -6,9 +6,15 @@ type t = (ITyp.t, status);
 
 type type_hole_to_solution = Hashtbl.t(Id.t, status);
 
+type unannotated_patterns = list(Id.t);
+
+type exphole_to_sugg_loc_and_solution =
+  Hashtbl.t(Id.t, (unannotated_patterns, status));
+
 type global_inference_info = {
   enabled: bool,
-  solution_statuses: type_hole_to_solution,
+  typehole_suggestions: type_hole_to_solution,
+  exphole_suggestions: exphole_to_sugg_loc_and_solution,
 };
 
 type suggestion('a) =
@@ -26,7 +32,7 @@ let get_suggestion_text_for_id =
     : suggestion(string) =>
   if (global_inference_info.enabled) {
     let status_opt =
-      Hashtbl.find_opt(global_inference_info.solution_statuses, id);
+      Hashtbl.find_opt(global_inference_info.typehole_suggestions, id);
     switch (status_opt) {
     | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
     | Some(Solved(ityp)) =>
@@ -49,27 +55,29 @@ let hole_mold: Mold.t = {out: Any, in_: [], nibs: (hole_nib, hole_nib)};
 let empty_solutions = (): type_hole_to_solution => Hashtbl.create(20);
 
 let mk_global_inference_info = (enabled, annotations) => {
-  {enabled, solution_statuses: annotations};
+  {
+    enabled,
+    typehole_suggestions: annotations,
+    exphole_suggestions: Hashtbl.create(0),
+  };
 };
 
 let empty_info = (): global_inference_info =>
   mk_global_inference_info(true, empty_solutions());
 
-let get_desired_solutions =
-    (inference_results: list(t)): type_hole_to_solution => {
-  let id_and_status_if_type_hole = (result: t): option((Id.t, status)) => {
-    switch (result) {
-    | (Unknown(TypeHole(id)), status) => Some((id, status))
-    | _ => None
-    };
+let rec get_all_pattern_var_neighbors =
+        (potential_typ_set: PotentialTypeSet.t): list(Id.t) => {
+  switch (potential_typ_set) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Base(BUnknown(ExpHole(PatternVar, p_id))) => [
+        p_id,
+        ...get_all_pattern_var_neighbors(tl),
+      ]
+    | _ => get_all_pattern_var_neighbors(tl)
+    }
   };
-
-  let elts = List.filter_map(id_and_status_if_type_hole, inference_results);
-  let new_map = Hashtbl.create(List.length(elts));
-
-  List.iter(((id, annot)) => Hashtbl.add(new_map, id, annot), elts);
-
-  new_map;
 };
 
 let condense =
@@ -134,4 +142,79 @@ let comp_results = ((ty1, _): t, (ty2, _): t): int => {
   let priority1 = convert_leftmost_to_priority(ty1);
   let priority2 = convert_leftmost_to_priority(ty2);
   Stdlib.compare(priority1, priority2);
+};
+
+let build_type_hole_to_solution =
+    (unfiltered_inference_results: list(t)): type_hole_to_solution => {
+  let id_and_status_if_type_hole = (result: t): option((Id.t, status)) => {
+    switch (result) {
+    | (Unknown(TypeHole(id)), status) => Some((id, status))
+    | _ => None
+    };
+  };
+
+  let elts =
+    List.filter_map(id_and_status_if_type_hole, unfiltered_inference_results);
+  let new_map = Hashtbl.create(List.length(elts));
+
+  List.iter(((id, annot)) => Hashtbl.add(new_map, id, annot), elts);
+
+  new_map;
+};
+
+let build_exphole_to_sugg_loc_and_solution =
+    (inference_pts_graph: PTSGraph.t): exphole_to_sugg_loc_and_solution => {
+  let acc_results =
+      (
+        key: ITyp.t,
+        mut_potential_typ_set: MutablePotentialTypeSet.t,
+        acc: list((Id.t, (list(Id.t), status))),
+      )
+      : list((Id.t, (list(Id.t), status))) => {
+    switch (key) {
+    | Unknown(ExpHole(PatternVar, _)) => acc
+    | Unknown(ExpHole(_, id)) =>
+      let (potential_typ_set, _) =
+        MutablePotentialTypeSet.snapshot_class(mut_potential_typ_set, key);
+      switch (get_all_pattern_var_neighbors(potential_typ_set)) {
+      | [] => acc
+      | _ as suggestion_locations => [
+          (
+            id,
+            (suggestion_locations, condense(mut_potential_typ_set, key)),
+          ),
+          ...acc,
+        ]
+      };
+    | _ => acc
+    };
+  };
+
+  Hashtbl.fold(acc_results, inference_pts_graph, [])
+  |> List.to_seq
+  |> Hashtbl.of_seq;
+};
+
+let get_desired_solutions =
+    (inference_pts_graph: PTSGraph.t)
+    : (type_hole_to_solution, exphole_to_sugg_loc_and_solution) => {
+  let acc_results =
+      (
+        key: ITyp.t,
+        mut_potential_typ_set: MutablePotentialTypeSet.t,
+        acc: list(t),
+      )
+      : list(t) => {
+    [(key, condense(mut_potential_typ_set, key)), ...acc];
+  };
+
+  let unsorted_results = Hashtbl.fold(acc_results, inference_pts_graph, []);
+
+  let unfiltered_inference_results =
+    List.fast_sort(comp_results, unsorted_results);
+
+  (
+    build_type_hole_to_solution(unfiltered_inference_results),
+    build_exphole_to_sugg_loc_and_solution(inference_pts_graph),
+  );
 };

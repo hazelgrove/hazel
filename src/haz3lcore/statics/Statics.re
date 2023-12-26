@@ -91,27 +91,17 @@ let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
-let join_constraints = (self: Self.t): Typ.constraints => {
-  let thread_constraints = (tys: list(Typ.t)): Typ.constraints => {
-    // find first element containing hole and constrain it to every other elt
-    let elts_with_hole = List.filter(Typ.contains_hole, tys);
-    switch (elts_with_hole) {
-    | [] => []
-    | [hd, ..._] =>
-      let constrain_rep_to_elt =
-          (acc: Typ.constraints, curr: Typ.t): Typ.constraints => {
-        [(hd, curr), ...acc];
-      };
-      List.fold_left(constrain_rep_to_elt, [], tys);
+let constrain_branches = (branch_tys: list(Typ.t)): Typ.constraints => {
+  // find first element containing hole and constrain it to every other elt
+  let elts_with_hole = List.filter(Typ.contains_hole, branch_tys);
+  switch (elts_with_hole) {
+  | [] => []
+  | [hd, ..._] =>
+    let constrain_rep_to_elt =
+        (acc: Typ.constraints, curr: Typ.t): Typ.constraints => {
+      [(hd, curr), ...acc];
     };
-  };
-  switch ((self: Self.t)) {
-  | NoJoin(wrap_ty, sources) =>
-    sources
-    |> Typ.of_source
-    |> List.map(Self.join_of(wrap_ty))
-    |> thread_constraints
-  | _ => []
+    List.fold_left(constrain_rep_to_elt, [], branch_tys);
   };
 };
 
@@ -189,11 +179,6 @@ and uexp_to_info_map =
     | _ => mode
     };
   let add' = (~self: Self.exp, ~co_ctx, ~constraints, m) => {
-    let joined_constraints =
-      switch (self) {
-      | Common(t) => join_constraints(t)
-      | _ => []
-      };
     let info =
       Info.derived_exp(
         ~uexp,
@@ -202,7 +187,7 @@ and uexp_to_info_map =
         ~ancestors,
         ~self,
         ~co_ctx,
-        ~constraints=constraints @ joined_constraints,
+        ~constraints,
       );
     (info, add_info(ids, InfoExp(info), m));
   };
@@ -438,7 +423,11 @@ and uexp_to_info_map =
     add(
       ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
       ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
-      ~constraints=cond.constraints @ cons.constraints @ alt.constraints,
+      ~constraints=
+        cond.constraints
+        @ cons.constraints
+        @ alt.constraints
+        @ constrain_branches([cons.ty, alt.ty]),
       m,
     );
   | Match(scrut, rules) =>
@@ -457,6 +446,7 @@ and uexp_to_info_map =
       );
     let p_ctxs = List.map(Info.pat_ctx, ps');
     let p_constraints = ListUtil.flat_map(Info.pat_constraints, ps');
+    let p_typs = List.map(Info.pat_ty, ps');
     let (es, m) =
       List.fold_left2(
         ((es, m), e, ctx) =>
@@ -467,6 +457,7 @@ and uexp_to_info_map =
       );
     let e_tys = List.map(Info.exp_ty, es);
     let e_constraints = ListUtil.flat_map(Info.exp_constraints, es);
+    let e_typs = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     /* Add co-ctxs to patterns */
@@ -478,7 +469,12 @@ and uexp_to_info_map =
         m,
       );
     add(
-      ~constraints=scrut.constraints @ e_constraints @ p_constraints,
+      ~constraints=
+        scrut.constraints
+        @ e_constraints
+        @ p_constraints
+        @ constrain_branches(p_typs)
+        @ constrain_branches(e_typs),
       ~self=Self.match(ctx, e_tys, branch_ids),
       ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
       m,
@@ -571,7 +567,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~mode,
         ~ancestors,
-        ~constraints=constraints @ join_constraints(self),
+        ~constraints,
         ~self=Common(self),
       );
     (info, add_info(ids, InfoPat(info), m));
@@ -811,9 +807,8 @@ let mk_map_and_inference_solutions =
       print_endline("~~~Printing constraints:");
       info.constraints |> Typ.constraints_to_string |> print_endline;
 
-      let inference_results =
-        Inference.unify_and_report_status(info.constraints);
-      let ctx = InferenceResult.get_desired_solutions(inference_results);
+      let pts_graph = Inference.solve_constraints(info.constraints);
+      let (ctx, _) = InferenceResult.get_desired_solutions(pts_graph);
 
       (map, ctx);
     },
