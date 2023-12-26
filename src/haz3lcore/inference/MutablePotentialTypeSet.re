@@ -148,6 +148,7 @@ let rec preorder_key_traversal_typ = (ty: ITyp.t): list(ITyp.t) => {
   | Float
   | String
   | Bool
+  | Var(_)
   | Unknown(_) => [ty]
   | Arrow(ty_lhs, ty_rhs)
   | Prod(ty_lhs, ty_rhs)
@@ -171,7 +172,7 @@ let derive_nested_keys_and_potential_typ_sets =
     preorder_elem_traversal_mut_potential_typ_set(mut_potential_typ_set);
 
   List.combine(preorder_typs, preorder_elems)
-  |> List.filter(((k, _)) => ITyp.contains_hole(k))
+  |> List.filter(((k, _)) => ITyp.contains_node(k))
   |> List.split;
 };
 

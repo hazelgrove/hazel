@@ -20,20 +20,22 @@ and unify_one = (pts_graph: PTSGraph.t, typs: (ITyp.t, ITyp.t)): unit => {
   | (Prod(ty1_lhs, ty1_rhs), Prod(ty2_lhs, ty2_rhs))
   | (Sum(ty1_lhs, ty1_rhs), Sum(ty2_lhs, ty2_rhs)) =>
     unify(pts_graph, [(ty1_lhs, ty2_lhs), (ty1_rhs, ty2_rhs)])
-  | (Unknown(_) as hole, t)
-  | (t, Unknown(_) as hole) =>
-    PTSGraph.add_typ_as_node(pts_graph, hole);
+  | (Unknown(_) as node, t)
+  | (Var(_) as node, t)
+  | (t, Unknown(_) as node)
+  | (t, Var(_) as node) =>
+    PTSGraph.add_typ_as_node(pts_graph, node);
 
-    if (ITyp.contains_hole(t)) {
+    if (ITyp.contains_node(t)) {
       // if the type it is being constrained to is a potential node, add it then connect the two nodes
       PTSGraph.add_typ_as_node(pts_graph, t);
-      PTSGraph.make_occurs_check(pts_graph, t, hole);
-      PTSGraph.create_traversable_edge(pts_graph, t, hole);
+      PTSGraph.make_occurs_check(pts_graph, t, node);
+      PTSGraph.create_traversable_edge(pts_graph, t, node);
     } else {
       // otherwise, simply add t to hole's PotentialTypeSet without making a new node
       PTSGraph.create_solution_edge(
         pts_graph,
-        hole,
+        node,
         t,
       );
     };

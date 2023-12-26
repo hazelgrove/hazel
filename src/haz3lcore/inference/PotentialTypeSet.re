@@ -19,6 +19,7 @@ type base_typ =
   | BFloat
   | BBool
   | BString
+  | BVar(string)
   | BUnknown(Typ.type_provenance);
 
 [@deriving (show({with_path: false}), sexp)]
@@ -55,6 +56,7 @@ let mk_as_unary_ctor = (ctor: unary_ctor, ty: ITyp.t): ITyp.t => {
 let rec ityp_to_potential_typ: ITyp.t => potential_typ =
   fun
   | Unknown(prov) => Base(BUnknown(prov))
+  | Var(name) => Base(BVar(name))
   | Int => Base(BInt)
   | Unit => Base(BUnit)
   | Float => Base(BFloat)
@@ -92,7 +94,8 @@ let base_typ_to_ityp: base_typ => ITyp.t =
   | BBool => Bool
   | BString => String
   | BUnit => Unit
-  | BUnknown(prov) => Unknown(prov);
+  | BUnknown(prov) => Unknown(prov)
+  | BVar(name) => Var(name);
 
 let rec extend_with_potential_typ_set =
         (target: t, potential_typ_set_extension: t) => {
@@ -430,7 +433,7 @@ let comp_potential_typ =
     | TypeHole(id) => Id.to_string(id)
     | Matched(_, prov) => strip_id(prov);
 
-  let potential_typ_to_float: potential_typ => string =
+  let potential_typ_to_string: potential_typ => string =
     fun
     | Base(BInt)
     | Base(BUnit)
@@ -438,12 +441,13 @@ let comp_potential_typ =
     | Base(BString)
     | Base(BBool) => "A"
     | Base(BUnknown(prov)) => strip_id(prov)
+    | Base(BVar(name)) => name
     | Binary(_) => "B"
     | Unary(_) => "C";
 
   Stdlib.compare(
-    potential_typ_to_float(potential_typ1),
-    potential_typ_to_float(potential_typ2),
+    potential_typ_to_string(potential_typ1),
+    potential_typ_to_string(potential_typ2),
   );
 };
 

@@ -9,6 +9,7 @@ type t =
   | Float
   | Bool
   | String
+  | Var(string)
   | List(t)
   | Arrow(t, t)
   | Sum(t, t)
@@ -35,8 +36,8 @@ let rec typ_to_ityp: Typ.t => t =
   | Prod([hd_ty, ...tl_tys]) =>
     Prod(typ_to_ityp(hd_ty), typ_to_ityp(Prod(tl_tys)))
   | Prod([]) => Unit
-  | Rec(_, _)
-  | Var(_) => Unknown(NoProvenance)
+  | Rec(_, ty_body) => typ_to_ityp(ty_body)
+  | Var(name) => Var(name)
 and unroll_constructor_map = (sum_map: ConstructorMap.t(option(Typ.t))) => {
   switch (sum_map) {
   | [] => (Unknown(NoProvenance), [])
@@ -55,6 +56,15 @@ let unwrap_if_prod = (typ: Typ.t): list(Typ.t) => {
   };
 };
 
+let rec_type_constraints = (typs: list(Typ.t)): constraints => {
+  let is_rec_type = (ty: Typ.t): option(equivalence) =>
+    switch (ty) {
+    | Rec(var, body) => Some((Var(var), typ_to_ityp(body)))
+    | _ => None
+    };
+  List.filter_map(is_rec_type, typs);
+};
+
 let rec ityp_to_typ: t => Typ.t =
   fun
   | Unknown(prov) => Unknown(prov, false)
@@ -67,24 +77,34 @@ let rec ityp_to_typ: t => Typ.t =
   | Sum(t1, t2) =>
     Sum([("", Some(ityp_to_typ(t1))), ("", Some(ityp_to_typ(t2)))])
   | Unit => Prod([])
+  | Var(name) => Var(name)
   | Prod(t1, t2) =>
     Prod([ityp_to_typ(t1)] @ (t2 |> ityp_to_typ |> unwrap_if_prod));
 
 let to_ityp_constraints = (constraints: Typ.constraints): constraints => {
-  constraints
-  |> List.filter(((t1, t2)) =>
-       t1 != Typ.Unknown(NoProvenance, false)
-       && t2 != Typ.Unknown(NoProvenance, false)
-     )
-  |> List.map(((t1, t2)) => (typ_to_ityp(t1), typ_to_ityp(t2)));
+  let statics_constraints =
+    constraints
+    |> List.filter(((t1, t2)) =>
+         t1 != Typ.Unknown(NoProvenance, false)
+         && t2 != Typ.Unknown(NoProvenance, false)
+       )
+    |> List.map(((t1, t2)) => (typ_to_ityp(t1), typ_to_ityp(t2)));
+
+  let rec_constraints =
+    List.map(((a, b)) => [a, b], constraints)
+    |> List.flatten
+    |> rec_type_constraints;
+
+  statics_constraints @ rec_constraints;
 };
 
-let rec contains_hole = (ty: t): bool =>
+let rec contains_node = (ty: t): bool =>
   switch (ty) {
-  | Unknown(_) => true
+  | Unknown(_)
+  | Var(_) => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2)
-  | Prod(ty1, ty2) => contains_hole(ty1) || contains_hole(ty2)
-  | List(l_ty) => contains_hole(l_ty)
+  | Prod(ty1, ty2) => contains_node(ty1) || contains_node(ty2)
+  | List(l_ty) => contains_node(l_ty)
   | _ => false
   };

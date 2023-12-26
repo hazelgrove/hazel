@@ -123,6 +123,7 @@ let rec convert_leftmost_to_priority = (typ: ITyp.t): string => {
   | Float
   | String
   | Bool => ""
+  | Var(name) => name
   | Unknown(prov) => prov_to_priority(prov)
   | List(elt_typ) => convert_leftmost_to_priority(elt_typ)
   | Arrow(typ_lhs, typ_rhs)
