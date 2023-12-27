@@ -156,7 +156,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-      // if then else follows Fun
+    // if then else follows Fun
     let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
       switch (d) {
       | Closure(_, d') => fdoc(~enforce_inline, ~d=d')
@@ -315,25 +315,30 @@ let rec mk =
        };
        */
 
-      | IfThenElse(cond, b1,b2) =>
-        let def_doc = (~enforce_inline) =>
-          hcats([
-            DHDoc_common.Delim.mk("if"),
-            DHDoc_Pat.mk(cond)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline,
-               ),
-            DHDoc_common.Delim.mk("then"),
-            DHDoc_Pat.mk(cond)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline=false,
-               ),
-            DHDoc_common.Delim.mk("else"),
-            DHDoc_Pat.mk(cond)
-          ]),
-          mk_cast(go(~enforce_inline=false, dbody)),
+      | IfThenElse(p, d1, d2) =>
+        let p_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, p));
+        let d1_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d1));
+        let d2_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d2));
+        hcats([
+          DHDoc_common.Delim.mk("if"),
+          p_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline,
+             ),
+          DHDoc_common.Delim.mk("then"),
+          d1_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline=false,
+             ),
+          DHDoc_common.Delim.mk("else"),
+          d2_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline=false,
+             ),
+        ]);
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
