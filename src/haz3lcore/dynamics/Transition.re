@@ -58,6 +58,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
+  | Predicate
   | Projection
   | ListCons
   | ListConcat
@@ -279,6 +280,21 @@ module Transition = (EV: EV_MODE) => {
     | Constructor(_) =>
       let. _ = otherwise(d);
       Constructor;
+    // TODO: Not sure if this is right. This exists to satisfy the compiler
+    | IfThenElse(p, d1, d2) =>
+      let. _ = otherwise((d1, d2) => IfThenElse(p, d1, d2))
+      and. d1' = req_value(req(state, env), 0, d1)
+      and. d2' = req_value(req(state, env), 1, d2);
+      Step({
+        apply: () =>
+          switch (p) {
+          | BoolLit(true) => d1'
+          | BoolLit(false) => d2'
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(p)))
+          },
+        kind: Predicate,
+        value: true,
+      });
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))
       // TODO(Matt): Make "And" able to evaluate when the left-hand side is not fully evaluated
