@@ -32,17 +32,15 @@ module Wald = {
   let lt = (l: Bound.t(EWald.t), ~cell=ECell.empty, r: EWald.t): option(ESlope.Dn.t) => {
     let hd_l = l |> Bound.map(EWald.hd) |> Bound.map(EToken.mtrl_);
     let hd_r = EWald.hd(r).mtrl;
-    EWalk.walk(R, Node(Mold(hd_l)))
-    |> EWalk.Set.neq(Mold(hd_r))
-    |> Oblig.Delta.minimize(ESlope.Dn.bake(~cell, ~face=r));
+    EWalk.lt(hd_l, hd_r)
+    |> Oblig.Delta.minimize(ESlope.Dn.bake(~face=r, ~fill=cell));
   };
 
   let gt = (l: EWald.t, ~cell=ECell.empty, r: Bound.t(EWald.t)): option(ESlope.Up.t) => {
     let hd_l = EWald.hd(l).mtrl;
     let hd_r = r |> Bound.map(EWald.hd) |> Bound.map(EToken.mtrl_);
-    EWalk.walk(L, Node(Mold(hd_r)))
-    |> EWalk.Set.neq(Mold(hd_l))
-    |> Oblig.Delta.minimize(ESlope.Up.bake(~cell, ~face=l));
+    EWalk.gt(hd_l, hd_r)
+    |> Oblig.Delta.minimize(ESlope.Up.bake(~face=l, ~fill=cell));
   };
 
   let rec eq = (
@@ -55,7 +53,6 @@ module Wald = {
     open OptUtil.Syntax;
     let (hd_l, tl_l) = EWald.split_hd(l);
     let (hd_r, tl_r) = EWald.split_hd(r);
-    let (hd_onto, hd_from) = Dir.choose(onto, hd_l, hd_r);
     let (w_onto, w_from) = Dir.choose(onto, l, r);
     // try zipping
     let/ () = {
@@ -71,18 +68,17 @@ module Wald = {
         let l = EWald.mk(ts, cs);
         let cell = merge(c, cell);
         eq(~merge, ~onto, l, ~cell, r)
-        |> Effects.perform_if(Remove(hd_onto));
+        |> Effects.perform_if(Remove(hd_l));
       | (R, _, ([c, ...cs], ts)) when EToken.passes(onto, hd_l, hd_r) =>
         let r = EWald.mk(ts, cs);
         let cell = merge(cell, c);
         eq(~merge, ~onto, l, ~cell, r)
-        |> Effects.perform_if(Remove(hd_onto));
+        |> Effects.perform_if(Remove(hd_r));
       | _ => None
       };
     // try walking
-    EWalk.walk(Dir.toggle(onto), Node(Mold(hd_onto.mtrl)))
-    |> EWalk.Set.eq(Mold(hd_from.mtrl))
-    |> Oblig.Delta.minimize(EWald.bake(~face=w_from, ~cell, ~foot=w_onto));
+    EWalk.eq(~from=onto, hd_l.mtrl, hd_r.mtrl)
+    |> Oblig.Delta.minimize(EWald.bake(~face=w_from, ~fill=cell, ~foot=w_onto));
   };
 };
 

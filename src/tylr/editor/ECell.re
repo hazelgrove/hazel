@@ -51,13 +51,13 @@ let has_no_tiles =
   | Full(m) => EMeld.has_no_tiles(m);
 
 module Sorted = {
-  type t = Slot.t(EMaterial.Sorted.t);
+  type t = Slot.t(ESort.t);
 
   let consistent = (e: t, g: GSlot.Sorted.t) =>
     switch (e, g) {
     | (Empty, _) => true
     | (Full(_), Empty) => false
-    | (Full(e), Full(g)) => EMaterial.Sorted.consistent(e, g)
+    | (Full(e), Full(g)) => ESort.consistent(e, g)
     };
 };
 

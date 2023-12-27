@@ -137,3 +137,22 @@ let walk = (d: Dir.t, src: Bound.t(EStep.t)): Set.t => {
     go(~src=dst(entered), mk([[], []]));
   };
 };
+
+let lt = (l: Bound.t(EMold.t), r: EMold.t) =>
+  l
+  |> Bound.map(EStep.mold)
+  |> walk(R)
+  |> Set.neq(Mold(r));
+
+let gt = (l: EMold.t, r: Bound.t(EMold.t)) =>
+  r
+  |> Bound.map(EStep.mold)
+  |> walk(L)
+  |> Set.neq(Mold(l));
+
+let eq = (~from=Dir.L, l: EMold.t, r: EMold.t) => {
+  let (from, onto) = Dir.choose(from, l, r);
+  Bound.Node(EStep.Mold(from))
+  |> walk(Dir.toggle(from))
+  |> Set.eq(Mold(onto));
+};
