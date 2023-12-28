@@ -29,6 +29,7 @@ let rec typ_to_ityp: Typ.t => t =
   | List(tys) => List(typ_to_ityp(tys))
   | Arrow(t1, t2) => Arrow(typ_to_ityp(t1), typ_to_ityp(t2))
   | Prod([single]) => typ_to_ityp(single)
+  | Sum([sum_entry]) => constructor_binding_to_ityp(sum_entry)
   | Sum(sum_entries) => {
       let (hd_ityp, tl_entries) = unroll_constructor_map(sum_entries);
       Sum(hd_ityp, typ_to_ityp(Sum(tl_entries)));
@@ -41,8 +42,10 @@ let rec typ_to_ityp: Typ.t => t =
 and unroll_constructor_map = (sum_map: ConstructorMap.t(option(Typ.t))) => {
   switch (sum_map) {
   | [] => (Unknown(NoProvenance), [])
-  | [sum_entry] => (constructor_binding_to_ityp(sum_entry), [])
-  | [hd_entry, ...tl] => (constructor_binding_to_ityp(hd_entry), tl)
+  | [sum_entry] =>
+    (constructor_binding_to_ityp(sum_entry), []);
+  | [hd_entry, ...tl] =>
+    (constructor_binding_to_ityp(hd_entry), tl);
   };
 }
 and constructor_binding_to_ityp = sum_entry => {
@@ -82,20 +85,12 @@ let rec ityp_to_typ: t => Typ.t =
     Prod([ityp_to_typ(t1)] @ (t2 |> ityp_to_typ |> unwrap_if_prod));
 
 let to_ityp_constraints = (constraints: Typ.constraints): constraints => {
-  let statics_constraints =
-    constraints
-    |> List.filter(((t1, t2)) =>
-         t1 != Typ.Unknown(NoProvenance, false)
-         && t2 != Typ.Unknown(NoProvenance, false)
-       )
-    |> List.map(((t1, t2)) => (typ_to_ityp(t1), typ_to_ityp(t2)));
-
-  let rec_constraints =
-    List.map(((a, b)) => [a, b], constraints)
-    |> List.flatten
-    |> rec_type_constraints;
-
-  statics_constraints @ rec_constraints;
+  constraints
+  |> List.filter(((t1, t2)) =>
+       t1 != Typ.Unknown(NoProvenance, false)
+       && t2 != Typ.Unknown(NoProvenance, false)
+     )
+  |> List.map(((t1, t2)) => (typ_to_ityp(t1), typ_to_ityp(t2)));
 };
 
 let rec contains_node = (ty: t): bool =>

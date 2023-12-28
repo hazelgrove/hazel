@@ -76,8 +76,6 @@ module rec Typ: {
     ty: t,
   };
 
-  // TODO: anand and raef; change t, Id.t sigs to source (see above)
-  // TODO: anand and raef; figure out where the equivalent of matched sum is called and add constraints to it
   let of_source: list(source) => list(t);
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
@@ -311,8 +309,33 @@ module rec Typ: {
            ts,
          )
       ++ ")"
-    | Sum(_)
-    | _ => "DISPLAYING SUM and REC NOT IMPLEMEMNTED TODO anand. Ask Andrew where the code that already does this..."
+    | Sum(ctr_map) =>
+      switch (ctr_map) {
+      | [] => "Nullary Sum"
+      | [t0] => "+" ++ ctr_to_string(is_left_child, t0, debug)
+      | [t0, ...ts] =>
+        List.fold_left(
+          (acc, hd) =>
+            acc ++ " + " ++ ctr_to_string(is_left_child, hd, debug),
+          ctr_to_string(is_left_child, t0, debug),
+          ts,
+        )
+      }
+    | Rec(var, body) =>
+      "Rec "
+      ++ var
+      ++ ". "
+      ++ typ_to_string_with_parens(is_left_child, body, debug)
+    };
+  }
+  and ctr_to_string = (is_left_child, (ctr, typ), debug): string => {
+    switch (typ) {
+    | None => ctr
+    | Some(typ) =>
+      ctr
+      ++ "("
+      ++ typ_to_string_with_parens(is_left_child, typ, debug)
+      ++ ")"
     };
   };
 

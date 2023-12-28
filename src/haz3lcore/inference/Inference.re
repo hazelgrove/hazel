@@ -46,7 +46,6 @@ and unify_one = (pts_graph: PTSGraph.t, typs: (ITyp.t, ITyp.t)): unit => {
 let solve_constraints = (constraints: Typ.constraints): PTSGraph.t => {
   let inference_pts_graph = PTSGraph.create();
   let constraints = ITyp.to_ityp_constraints(constraints);
-
   unify(inference_pts_graph, constraints);
 
   inference_pts_graph;

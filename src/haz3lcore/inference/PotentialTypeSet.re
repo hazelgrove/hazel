@@ -483,7 +483,6 @@ let string_of_btyp = (btyp: base_typ): string => {
 
 let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
   switch (pts) {
-  // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
   | [] => [ITyp.Unknown(ExpHole(Internal, id))]
   | [hd] => [potential_typ_to_ityp(id, hd)]
   | _ => List.map(potential_typ_to_ityp(id), pts)
@@ -491,8 +490,7 @@ let rec potential_typ_set_to_ityp_unroll = (id: Id.t, pts: t): list(ITyp.t) => {
 }
 and potential_typ_set_to_ityp_no_unroll = (id: Id.t, pts: t): ITyp.t => {
   switch (pts) {
-  // TODO: raef and anand: fix this to distinguish between solved and unsolved holes
-  | [] => ITyp.Unknown(NoProvenance)
+  | [] => ITyp.Unknown(ExpHole(Internal, id))
   | [hd] => potential_typ_to_ityp(id, hd)
   | _ => ITyp.Unknown(ExpHole(Error, id))
   };

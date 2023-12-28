@@ -333,7 +333,6 @@ and uexp_to_info_map =
       m,
     );
   | Seq(e1, e2) =>
-    // TODO: whats Seq?
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -519,7 +518,6 @@ and uexp_to_info_map =
       /* Make sure types don't escape their scope */
       let ty_escape = Typ.subst(ty_def, name, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-      //TODO anand: typ aliases- should they generate new constraints too?
       add(
         ~self=Just(ty_escape),
         ~constraints=

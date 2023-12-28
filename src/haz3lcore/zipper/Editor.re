@@ -53,7 +53,6 @@ module Meta = {
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
     let (term, _) = MakeTerm.go(unselected);
-    // TODO Raef: add in flow for the enabled flag
     let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
     let measured =
       Measured.of_segment(
