@@ -412,38 +412,45 @@ let view =
       info_map: Statics.Map.t,
       global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
     ) => {
-  let bar_view = div(~attr=Attr.id("bottom-bar"));
-  let err_view = err =>
-    bar_view([
-      div(
-        ~attr=clss(["cursor-inspector", "no-info"]),
-        [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
-      ),
-    ]);
-  switch (zipper.backpack, Indicated.index(zipper)) {
-  | _ when !settings.core.statics => div_empty
-  | _ when Id.Map.is_empty(info_map) =>
-    err_view("No Static information available")
-  | (_, None) => err_view("No cursor in program")
-  | (_, Some(id)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view(
-          ~inject,
-          ~font_metrics,
-          ~global_inference_info,
-          ~settings,
-          ~show_lang_doc,
-          ~id,
-          ci,
-        ),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
-  };
+  let curr_view =
+    if (State.get_considering_suggestion()) {
+      State.get_last_inspector();
+    } else {
+      let bar_view = div(~attr=Attr.id("bottom-bar"));
+      let err_view = err =>
+        bar_view([
+          div(
+            ~attr=clss(["cursor-inspector", "no-info"]),
+            [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
+          ),
+        ]);
+      switch (zipper.backpack, Indicated.index(zipper)) {
+      | _ when !settings.core.statics => div_empty
+      | _ when Id.Map.is_empty(info_map) =>
+        err_view("No Static information available")
+      | (_, None) => err_view("No cursor in program")
+      | (_, Some(id)) =>
+        switch (Id.Map.find_opt(id, info_map)) {
+        | None => err_view("Whitespace or Comment")
+        | Some(ci) =>
+          bar_view([
+            inspector_view(
+              ~inject,
+              ~font_metrics,
+              ~global_inference_info,
+              ~settings,
+              ~show_lang_doc,
+              ~id,
+              ci,
+            ),
+            div(
+              ~attr=clss(["id"]),
+              [text(String.sub(Id.to_string(id), 0, 4))],
+            ),
+          ])
+        }
+      };
+    };
+  State.set_last_inspector(curr_view);
+  curr_view;
 };
