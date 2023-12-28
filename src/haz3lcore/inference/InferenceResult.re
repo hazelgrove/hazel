@@ -87,22 +87,25 @@ let condense =
   let sorted_potential_typ_set =
     PotentialTypeSet.sort_potential_typ_set(potential_typ_set);
 
-  let filtered_potential_typ_set =
+  let hole_filtered_potential_typ_set =
     PotentialTypeSet.filter_unneeded_holes(
       PotentialTypeSet.is_known,
       sorted_potential_typ_set,
     );
 
+  let redundant_var_filtered_potential_typ_set =
+    PotentialTypeSet.filter_vars(hole_filtered_potential_typ_set);
+
   switch (err) {
-  | Some(_) => Unsolved(filtered_potential_typ_set)
+  | Some(_) => Unsolved(redundant_var_filtered_potential_typ_set)
   | None =>
     let solved_opt =
       PotentialTypeSet.filtered_potential_typ_set_to_typ(
-        filtered_potential_typ_set,
+        redundant_var_filtered_potential_typ_set,
       );
     switch (solved_opt) {
     | Some(typ) => Solved(typ)
-    | None => Unsolved(filtered_potential_typ_set)
+    | None => Unsolved(redundant_var_filtered_potential_typ_set)
     };
   };
 };

@@ -42,10 +42,7 @@ let rec typ_to_ityp: Typ.t => t =
 and unroll_constructor_map = (sum_map: ConstructorMap.t(option(Typ.t))) => {
   switch (sum_map) {
   | [] => (Unknown(NoProvenance), [])
-  | [sum_entry] =>
-    (constructor_binding_to_ityp(sum_entry), []);
-  | [hd_entry, ...tl] =>
-    (constructor_binding_to_ityp(hd_entry), tl);
+  | [hd_entry, ...tl] => (constructor_binding_to_ityp(hd_entry), tl)
   };
 }
 and constructor_binding_to_ityp = sum_entry => {

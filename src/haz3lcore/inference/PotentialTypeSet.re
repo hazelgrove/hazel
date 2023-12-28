@@ -409,6 +409,31 @@ let filter_unneeded_holes =
   filter_unneeded_holes_class(comp, delete_holes, potential_typ_set);
 };
 
+let filter_vars = (potential_typ_set: t): t => {
+  let is_non_node =
+    fun
+    | Base(BVar(_))
+    | Base(BUnknown(_)) => false
+    | _ => true;
+
+  let is_not_var =
+    fun
+    | Base(BVar(_)) => false
+    | _ => true;
+
+  let num_literals =
+    potential_typ_set |> List.filter(is_non_node) |> List.length;
+
+  switch (num_literals) {
+  | n when n > 1 =>
+    // do not filter vars; already unsolved, allow selection between similar aliases
+    potential_typ_set
+  | _ =>
+    // must be solved. we arbitrarily filter out everything but the literal so it is assigned solved status
+    List.filter(is_not_var, potential_typ_set)
+  };
+};
+
 let rec filtered_potential_typ_set_to_typ: t => option(ITyp.t) =
   fun
   | [] => None
