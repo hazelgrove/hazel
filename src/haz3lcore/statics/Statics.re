@@ -344,19 +344,26 @@ and uexp_to_info_map =
     let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
-      let (ps, m, final_constraint) =
+      let (ps', m, final_constraint) =
         List.fold_left(
-          ((ps, m, acc_constraint), p) => {
+          ((ps', m, acc_constraint), p) => {
             let (p, m) =
-              go_pat(~is_synswitch=false, ~mode=Mode.Ana(scrut.ty), p, m);
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx=CoCtx.empty,
+                ~mode=Mode.Ana(scrut.ty),
+                p,
+                m,
+              );
             let p_constraint = Info.pat_constraint(p);
             if (!Incon.is_redundant(p_constraint, acc_constraint)) {
-              (ps @ [p], m, Constraint.Or(p_constraint, acc_constraint));
+              (ps' @ [p], m, Constraint.Or(p_constraint, acc_constraint));
             } else {
               let info =
                 Info.derived_pat(
                   ~upat=p.term,
                   ~ctx=p.ctx,
+                  ~co_ctx=p.co_ctx,
                   ~mode=p.mode,
                   ~ancestors=p.ancestors,
                   ~self=Redundant(p.self),
@@ -365,7 +372,7 @@ and uexp_to_info_map =
                   ~constraint_=p_constraint,
                 );
               (
-                ps @ [info],
+                ps' @ [info],
                 // Override the info for the single upat
                 add_info(p.term.ids, InfoPat(info), m),
                 acc_constraint // Redundant patterns are ignored
@@ -375,7 +382,7 @@ and uexp_to_info_map =
           ([], m, Constraint.Falsity),
           ps,
         );
-      let p_ctxs = List.map(Info.pat_ctx, ps);
+      let p_ctxs = List.map(Info.pat_ctx, ps');
       let (es, m) =
         List.fold_left2(
           ((es, m), e, ctx) =>
@@ -384,13 +391,22 @@ and uexp_to_info_map =
           es,
           p_ctxs,
         );
-      (
-        es,
-        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es)),
-        branch_ids,
-        final_constraint,
-        m,
-      );
+      let e_co_ctxs =
+        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+      /* Add co-ctxs to patterns */
+      let (_, m) =
+        map_m(
+          ((p, co_ctx)) =>
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx,
+              ~mode=Mode.Ana(scrut.ty),
+              p,
+            ),
+          List.combine(ps, e_co_ctxs),
+          m,
+        );
+      (es, e_co_ctxs, branch_ids, final_constraint, m);
     };
     let (es, e_co_ctxs, branch_ids, final_constraint, m) =
       rules_to_info_map(rules, m);
@@ -503,6 +519,7 @@ and upat_to_info_map =
       Info.derived_pat(
         ~upat,
         ~ctx,
+        ~co_ctx,
         ~mode,
         ~ancestors,
         ~self=Common(self),

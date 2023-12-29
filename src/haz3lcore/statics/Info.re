@@ -66,7 +66,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_exp))
+  | InexhaustiveMatch(option(error_common))
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -369,7 +369,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (InexhaustiveMatch(self), _) =>
     let additional_err =
       switch (status_exp(ctx, mode, self)) {
-      | InHole(Common(Inconsistent(Internal(_))) as inconsistent_err) =>
+      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
@@ -518,12 +518,24 @@ let derived_exp =
 
 /* Add derivable attributes for pattern terms */
 let derived_pat =
-    (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self, ~constraint_): pat => {
+    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self, ~constraint_)
+    : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
   let constraint_ = fixed_constraint_pat(ctx, mode, self, constraint_);
-  {cls, self, mode, ty, status, ctx, ancestors, term: upat, constraint_};
+  {
+    cls,
+    self,
+    mode,
+    ty,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    term: upat,
+    constraint_,
+  };
 };
 
 /* Add derivable attributes for types */

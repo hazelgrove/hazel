@@ -172,7 +172,7 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
     | None => div_err([text("Case expression is inexhaustive")])
     | Some(err) =>
       div_err([
-        exp_view(Exp(Match), InHole(err)),
+        exp_view(Exp(Match), InHole(Common(err))),
         text("; case expression is inexhaustive"),
       ])
     }
