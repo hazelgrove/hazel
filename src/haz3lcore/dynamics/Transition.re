@@ -290,7 +290,7 @@ module Transition = (EV: EV_MODE) => {
           switch (p) {
           | BoolLit(true) => d1'
           | BoolLit(false) => d2'
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(p)))
+          | _ => IfThenElse(p, d1, d2) // leave hole in representation
           },
         kind: Predicate,
         value: true,
