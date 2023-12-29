@@ -247,14 +247,15 @@ let rec dhexp_of_uexp =
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
-        let d_rules =
-          DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
-        let d = DHExp.Case(d_scrut, d_rules, 0);
-        switch (err_status) {
-        | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.InconsistentBranches(id, 0, d)
-        | _ => ConsistentCase(d)
-        };
+        DHExp.IfThenElse(d_scrut, d1, d2);
+      // let d_rules =
+      //   DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
+      // let d = DHExp.Case(d_scrut, d_rules, 0);
+      // switch (err_status) {
+      // | InHole(Common(Inconsistent(Internal(_)))) =>
+      //   DHExp.InconsistentBranches(id, 0, d)
+      // | _ => ConsistentCase(d)
+      // };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let+ d_rules =
