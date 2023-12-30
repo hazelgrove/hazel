@@ -2,12 +2,14 @@ open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t =
-  | Atom(Atom.t)
-  | Star(t)
-  | Seq(s)
-  | Alt(s)
-and s = list(t);
+type t('a) =
+  | Atom('a)
+  | Star(t('a))
+  | Seq(s('a))
+  | Alt(s('a))
+and s('a) = list(t('a));
+
+let atom = a => Atom(a);
 
 let seq = rs => Seq(rs);
 let alt = rs => Alt(rs);
@@ -31,12 +33,12 @@ let rec map = f =>
 
 let rec fold =
         (
-          ~atom: Atom.t => 'acc,
+          ~atom: 'a => 'acc,
           ~star: 'acc => 'acc,
           ~seq: list('acc) => 'acc,
           ~alt: list('acc) => 'acc,
         )
-        : (t => 'acc) => {
+        : (t('a) => 'acc) => {
   let fold = fold(~atom, ~star, ~seq, ~alt);
   fun
   | Atom(a) => atom(a)

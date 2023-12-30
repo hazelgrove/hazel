@@ -37,7 +37,8 @@ let lower_bounded = (~a=None, ~side: Dir.t, p, bound) =>
 
 module Table = {
   type t('v) = list((option(Dir.t), 'v));
-  let map = f => List.mapi((p, (a, v)) => f(p, a, v));
+  // let map = f => List.mapi((p, (a, v)) => f(p, a, v));
+  let mapi = f => List.mapi((p, (a, v)) => (a, f(p, v)));
   let filter = f => List.filteri((p, (a, v)) => f(p, a, v));
 };
 

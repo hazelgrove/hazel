@@ -81,28 +81,30 @@ let step = (d: Dir.t, step: EStep.t): EStep.Set.t =>
   | Mold(Space) => failwith("todo");
   };
 
-let enter = (from: Dir.t, s: Bound.t(ESort.t)): EStep.Set.t =>
-  switch (s) {
-  | Root =>
-    let tiles = Set.of_g(GWalk.enter(~from, Sort.root));
-    let grout = EStep.Set.entry_grout(from, Sort.root);
-    let _ = failwith("todo: figure out how space works here");
-    Set.union(tiles, grout);
-  | Node(Tile(gs)) =>
-    let tiles = Set.of_g(GWalk.enter_g(~from, gs));
-    let grout = EStep.Set.entry_grout(from, GSort.sort(s));
-    let _ = failwith("todo: figure out how space works here");
-    Set.union(tiles, grout);
-  | Node(Space) => Set.singleton(singleton(EStep.Mold(Space)))
-  | Node(Grout({l, s, r})) =>
-    let _ = failwith("todo: enter grout")
-    let (ls, rs) = GWalk.(sort_deps(L, s), sort_deps(R, s));
-    (l ? ls : []) @ (r ? rs : [])
-    |> ListUtil.dedup
-    |> List.map(GWalk.enter(~from))
-    |> GWalk.Set.union_all
-    |> Set.of_g;
-  };
+let enter = (from: Dir.t, s: Bound.t(ESort.t)): EStep.Set.t => {
+
+  let structure =
+    switch (sorted) {
+    | Root =>
+      let tiles = EStep.Set.of_g(GWalk.enter(~from, Sort.root));
+      let grout = EStep.Set.entry_grout(from, Sort.root);
+      EStep.Set.union_all([tiles, grout]);
+    | Node(Tile(s)) =>
+      let tiles = EStep.Set.of_g(GWalk.enter_g(~from, s));
+      let grout = EStep.Set.entry_grout(from, GSort.sort(s));
+      EStep.Set.union_all([tiles, grout]);
+    // not expecting this case to get hit in practice
+    | Node(Space) => EStep.Set.singleton(Mold(Space))
+    | Node(Grout(s)) =>
+      let _ = failwith("todo: enter grout");
+      GWalk.sort_deps(s)
+      |> List.map(GWalk.enter(~from))
+      |> List.map(Set.of_g)
+      |> List.cons()
+      |> GWalk.Set.union_all
+      |> Set.of_g;
+    };
+};
 
 let walk = (d: Dir.t, src: Bound.t(EStep.t)): Set.t => {
   let seen = Hashtbl.create(100);

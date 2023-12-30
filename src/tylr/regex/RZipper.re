@@ -59,3 +59,24 @@ let step = (d: Dir.t, (a, ctx): t('a, 'a)): list(t('a, 'a)) => {
     };
   go(Atom(a), ctx);
 };
+
+let map = (f: t('a, 'a) => 'b, rgx: Regex.t('a)): Regex.t('b) => {
+  let rec go = (rgx, ctx) =>
+    switch (rgx) {
+    | Atom(a) => Atom(f((a, ctx)))
+    | Star(r) => Star(go(r, [Star_, ...ctx]))
+    | Seq(rs) =>
+      framed_elems(rs)
+      |> List.map(((ls, r, rs)) =>
+        go(r, [Seq_(ls, rs), ...ctx])
+      )
+      |> Regex.seq
+    | Alt(rs) =>
+      framed_elems(rs)
+      |> List.map(((ls, r, rs)) =>
+        go(r, [Alt_(ls, rs), ...ctx])
+      )
+      |> Regex.alt
+    };
+  go(rgx, RCtx.empty);
+};
