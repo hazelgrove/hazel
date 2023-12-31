@@ -23,7 +23,7 @@ type suggestion('a) =
   | NoSuggestion(reason_for_silence)
 and reason_for_silence =
   | SuggestionsDisabled
-  | NonTypeHoleId
+  | NotSuggestableHoleId
   | OnlyHoleSolutions
   | InconsistentSet;
 
@@ -53,7 +53,7 @@ let get_suggestion_text_for_id =
     | None =>
       switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
       | Some((_, status)) => (status_to_suggestion(status), ExpHole)
-      | None => (NoSuggestion(NonTypeHoleId), None)
+      | None => (NoSuggestion(NotSuggestableHoleId), None)
       }
     };
   } else {

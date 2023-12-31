@@ -251,7 +251,7 @@ let common_ok_view =
     )
   ) {
   | (NoSuggestion(SuggestionsDisabled), _)
-  | (NoSuggestion(NonTypeHoleId), _)
+  | (NoSuggestion(NotSuggestableHoleId), _)
   | (NoSuggestion(OnlyHoleSolutions), _) =>
     switch (cls, ok) {
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
@@ -319,7 +319,7 @@ let typ_ok_view =
       )
     ) {
     | (NoSuggestion(SuggestionsDisabled), _)
-    | (NoSuggestion(NonTypeHoleId), _)
+    | (NoSuggestion(NotSuggestableHoleId), _)
     | (NoSuggestion(OnlyHoleSolutions), _) => [Type.view(ty)]
     | _ => [
         view_of_global_inference_info(

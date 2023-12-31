@@ -43,7 +43,7 @@ let get_suggestion_ui_for_id =
     | None =>
       switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
       | Some((_, status)) => (status_to_suggestion(status), ExpHole)
-      | None => (NoSuggestion(NonTypeHoleId), None)
+      | None => (NoSuggestion(NotSuggestableHoleId), None)
       }
     };
   } else {

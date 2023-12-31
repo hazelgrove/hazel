@@ -54,7 +54,7 @@ let of_grout =
     );
   switch (suggestion) {
   | (NoSuggestion(SuggestionsDisabled), _)
-  | (NoSuggestion(NonTypeHoleId), _)
+  | (NoSuggestion(NotSuggestableHoleId), _)
   | (NoSuggestion(OnlyHoleSolutions), _)
   | (_, None) => [Node.text(Unicode.nbsp)]
   | (Solvable(suggestion_node), TypHole)
