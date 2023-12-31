@@ -91,6 +91,11 @@ let view_of_global_inference_info =
     ) => {
   print_endline("CI view of GI for id " ++ Id.to_string(id));
   let font_metrics = Some(font_metrics);
+  let no_hole_marks = (typ_filling) =>
+    typ_filling
+    |> StringUtil.to_list
+    |> List.filter(s => s != "?" && s != "!")
+    |> String.concat("");
   let suggestion_button_of_typ = (~id: option(Id.t)=None, typ) => {
     div(
       ~attr=clss(["typ-view-conflict"]),
@@ -112,13 +117,13 @@ let view_of_global_inference_info =
                   ~f=_res =>
                   inject(
                     Update.Paste(
-                      " : " ++ Haz3lcore.Typ.typ_to_string(typ, false),
+                      " : " ++ no_hole_marks(Haz3lcore.Typ.typ_to_string(typ, false)),
                     ),
                   )
                 )
               | None =>
                 inject(
-                  Update.Paste(Haz3lcore.Typ.typ_to_string(typ, false)),
+                  Update.Paste(no_hole_marks(Haz3lcore.Typ.typ_to_string(typ, false))),
                 )
               };
             } else {
