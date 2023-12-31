@@ -91,7 +91,7 @@ let view_of_global_inference_info =
     ) => {
   print_endline("CI view of GI for id " ++ Id.to_string(id));
   let font_metrics = Some(font_metrics);
-  let no_hole_marks = (typ_filling) =>
+  let no_hole_marks = typ_filling =>
     typ_filling
     |> StringUtil.to_list
     |> List.filter(s => s != "?" && s != "!")
@@ -117,13 +117,18 @@ let view_of_global_inference_info =
                   ~f=_res =>
                   inject(
                     Update.Paste(
-                      " : " ++ no_hole_marks(Haz3lcore.Typ.typ_to_string(typ, false)),
+                      " : "
+                      ++ no_hole_marks(
+                           Haz3lcore.Typ.typ_to_string(typ, false),
+                         ),
                     ),
                   )
                 )
               | None =>
                 inject(
-                  Update.Paste(no_hole_marks(Haz3lcore.Typ.typ_to_string(typ, false))),
+                  Update.Paste(
+                    no_hole_marks(Haz3lcore.Typ.typ_to_string(typ, false)),
+                  ),
                 )
               };
             } else {
