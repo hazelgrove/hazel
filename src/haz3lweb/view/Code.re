@@ -45,7 +45,7 @@ let of_grout =
       ~global_inference_info: InferenceResult.global_inference_info,
       id: Id.t,
     ) => {
-  let suggestion: InferenceResult.suggestion(Node.t) =
+  let suggestion =
     InferenceView.get_suggestion_ui_for_id(
       ~font_metrics,
       id,
@@ -53,14 +53,19 @@ let of_grout =
       false,
     );
   switch (suggestion) {
-  | NoSuggestion(SuggestionsDisabled)
-  | NoSuggestion(NonTypeHoleId)
-  | NoSuggestion(OnlyHoleSolutions) => [Node.text(Unicode.nbsp)]
-  | Solvable(suggestion_node)
-  | NestedInconsistency(suggestion_node) => [
+  | (NoSuggestion(SuggestionsDisabled), _)
+  | (NoSuggestion(NonTypeHoleId), _)
+  | (NoSuggestion(OnlyHoleSolutions), _)
+  | (_, None) => [Node.text(Unicode.nbsp)]
+  | (Solvable(suggestion_node), TypHole)
+  | (NestedInconsistency(suggestion_node), TypHole) => [
       [suggestion_node] |> span_c("solved-annotation"),
     ]
-  | NoSuggestion(InconsistentSet) => [
+  | (Solvable(_), ExpHole)
+  | (NestedInconsistency(_), ExpHole) => [
+      [Node.text("?")] |> span_c("prompt-ci"),
+    ]
+  | (NoSuggestion(InconsistentSet), _) => [
       [Node.text("!")] |> span_c("unsolved-annotation"),
     ]
   };
@@ -255,20 +260,21 @@ let rec holes =
            t.children,
          )
        | Grout(g) => {
-           let (show_dec, is_unsolved) =
-             InferenceView.svg_display_settings(~global_inference_info, g.id);
-           show_dec
-             ? [
+           switch (
+             InferenceView.svg_display_settings(~global_inference_info, g.id)
+           ) {
+           | Some(svg_style) => [
                EmptyHoleDec.view(
                  ~font_metrics, // TODO(d) fix sort
-                 is_unsolved,
+                 svg_style,
                  {
                    measurement: Measured.find_g(g, map),
                    mold: Mold.of_grout(g, Any),
                  },
                ),
              ]
-             : [];
+           | None => []
+           };
          },
      );
 

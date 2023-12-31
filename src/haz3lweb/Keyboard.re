@@ -62,8 +62,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
         );
       };
       switch (suggestion_opt) {
-      | Some(Solvable(typ_filling))
-      | Some(NestedInconsistency(typ_filling)) =>
+      | Some((Solvable(typ_filling), TypHole))
+      | Some((NestedInconsistency(typ_filling), TypHole)) =>
         // question marks (holes) can't be inserted manually, so filter them out
         let join = List.fold_left((s, acc) => s ++ acc, "");
         let no_hole_marks =

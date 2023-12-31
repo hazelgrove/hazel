@@ -15,55 +15,64 @@ let get_suggestion_ui_for_id =
       global_inference_info: InferenceResult.global_inference_info,
       colored_ui: bool,
     )
-    : InferenceResult.suggestion(Node.t) =>
+    : (InferenceResult.suggestion(Node.t), InferenceResult.suggestion_source) =>
   if (global_inference_info.enabled) {
-    let status_opt =
-      Hashtbl.find_opt(global_inference_info.typehole_suggestions, id);
-    switch (status_opt) {
-    | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
-    | Some(Solved(ityp)) =>
-      Solvable(
-        ityp
-        |> ITyp.ityp_to_typ
-        |> Type.view(~font_metrics=Some(font_metrics), ~with_cls=false),
-      )
-    | Some(Unsolved([potential_typ])) =>
-      let ptyp_node =
-        Type.view_of_potential_typ(
-          ~font_metrics,
-          ~with_cls=colored_ui,
-          false,
-          potential_typ,
-        );
-      NestedInconsistency(ptyp_node);
-    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+    let status_to_suggestion =
+        (status: InferenceResult.status): InferenceResult.suggestion(Node.t) =>
+      switch (status) {
+      | Solved(Unknown(_)) => NoSuggestion(OnlyHoleSolutions)
+      | Solved(ityp) =>
+        Solvable(
+          ityp
+          |> ITyp.ityp_to_typ
+          |> Type.view(~font_metrics=Some(font_metrics), ~with_cls=false),
+        )
+      | Unsolved([potential_typ]) =>
+        let ptyp_node =
+          Type.view_of_potential_typ(
+            ~font_metrics,
+            ~with_cls=colored_ui,
+            false,
+            potential_typ,
+          );
+        NestedInconsistency(ptyp_node);
+      | Unsolved(_) => NoSuggestion(InconsistentSet)
+      };
+    switch (Hashtbl.find_opt(global_inference_info.typehole_suggestions, id)) {
+    | Some(status) => (status_to_suggestion(status), TypHole)
     | None =>
       switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
-      | Some((_, Unsolved(typs))) when List.length(typs) > 1 =>
-        NoSuggestion(InconsistentSet)
-      | _ => NoSuggestion(NonTypeHoleId)
+      | Some((_, status)) => (status_to_suggestion(status), ExpHole)
+      | None => (NoSuggestion(NonTypeHoleId), None)
       }
     };
   } else {
-    NoSuggestion(SuggestionsDisabled);
+    (NoSuggestion(SuggestionsDisabled), None);
   };
 
 let svg_display_settings =
     (~global_inference_info: InferenceResult.global_inference_info, id: Id.t)
-    : (bool, bool) => {
+    : option(EmptyHoleDec.hole_svg_style) => {
   // Determines if a hexagon (svg) should be used to represent a type hole, and if so, how it should look
-  let (show_svg, is_unsolved) =
-    switch (
-      InferenceResult.get_suggestion_text_for_id(id, global_inference_info)
-    ) {
-    | Solvable(_) => (false, false)
-    | NestedInconsistency(_) => (false, true)
-    | NoSuggestion(SuggestionsDisabled)
-    | NoSuggestion(OnlyHoleSolutions) => (true, false)
-    | NoSuggestion(NonTypeHoleId) => (true, false)
-    | NoSuggestion(InconsistentSet) => (true, true)
-    };
-  (show_svg, is_unsolved);
+  let (suggestion, source) =
+    InferenceResult.get_suggestion_text_for_id(id, global_inference_info);
+  switch (source) {
+  | ExpHole =>
+    switch (suggestion) {
+    | Solvable(_)
+    | NestedInconsistency(_) => Some(PromptHole)
+    | NoSuggestion(InconsistentSet) => Some(ErrorHole)
+    | NoSuggestion(_) => Some(StandardHole)
+    }
+  | None => Some(StandardHole)
+  | TypHole =>
+    switch (suggestion) {
+    | Solvable(_)
+    | NestedInconsistency(_) => None
+    | NoSuggestion(InconsistentSet) => Some(ErrorHole)
+    | NoSuggestion(_) => Some(StandardHole)
+    }
+  };
 };
 
 let get_cursor_inspect_result =

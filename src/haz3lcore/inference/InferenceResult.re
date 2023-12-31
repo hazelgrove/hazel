@@ -27,29 +27,37 @@ and reason_for_silence =
   | OnlyHoleSolutions
   | InconsistentSet;
 
+type suggestion_source =
+  | ExpHole
+  | TypHole
+  | None;
+
 let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
-    : suggestion(string) =>
+    : (suggestion(string), suggestion_source) =>
   if (global_inference_info.enabled) {
+    let status_to_suggestion = status =>
+      switch (status) {
+      | Solved(Unknown(_)) => NoSuggestion(OnlyHoleSolutions)
+      | Solved(ityp) =>
+        let typ_to_string = x => Typ.typ_to_string(x, false);
+        Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
+      | Unsolved([potential_typ]) =>
+        NestedInconsistency(
+          PotentialTypeSet.string_of_potential_typ(false, potential_typ),
+        )
+      | Unsolved(_) => NoSuggestion(InconsistentSet)
+      };
     switch (Hashtbl.find_opt(global_inference_info.typehole_suggestions, id)) {
-    | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
-    | Some(Solved(ityp)) =>
-      let typ_to_string = x => Typ.typ_to_string(x, false);
-      Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
-    | Some(Unsolved([potential_typ])) =>
-      NestedInconsistency(
-        PotentialTypeSet.string_of_potential_typ(false, potential_typ),
-      )
-    | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
+    | Some(status) => (status_to_suggestion(status), TypHole)
     | None =>
       switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
-      | Some((_, Unsolved(tys))) when List.length(tys) > 1 =>
-        NoSuggestion(InconsistentSet)
-      | _ => NoSuggestion(NonTypeHoleId)
+      | Some((_, status)) => (status_to_suggestion(status), ExpHole)
+      | None => (NoSuggestion(NonTypeHoleId), None)
       }
     };
   } else {
-    NoSuggestion(SuggestionsDisabled);
+    (NoSuggestion(SuggestionsDisabled), None);
   };
 
 let hole_nib: Nib.t = {shape: Convex, sort: Any};

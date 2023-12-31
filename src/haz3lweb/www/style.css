@@ -653,6 +653,13 @@ select {
   vector-effect: non-scaling-stroke;
 }
 
+.solved-empty-hole-with-ci-path {
+  fill: #f1e8cd;
+  stroke: #dbcca7;
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+}
+
 .selection {
   position: relative;
 }
@@ -755,6 +762,10 @@ select {
 
 .solved-annotation {
   color: rgb(174, 175, 180)
+}
+
+.prompt-ci {
+  color: rgb(174, 175, 180);
 }
 
 .unsolved-annotation {

@@ -89,62 +89,96 @@ let view_of_global_inference_info =
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
       id: Id.t,
     ) => {
+  print_endline("CI view of GI for id " ++ Id.to_string(id));
   let font_metrics = Some(font_metrics);
+  let suggestion_button_of_typ = (~id: option(Id.t)=None, typ) => {
+    div(
+      ~attr=clss(["typ-view-conflict"]),
+      [
+        Widgets.hoverable_button(
+          [Type.view(~font_metrics, typ)],
+          _mouse_event => {
+            State.set_considering_suggestion(false);
+            inject(Update.SetMeta(Mouseup));
+          },
+          _mouse_event => {
+            State.set_considering_suggestion(true);
+            if (!State.get_suggestion_pasted()) {
+              State.set_suggestion_pasted(true);
+              switch (id) {
+              | Some(id) =>
+                Ui_effect.bind(
+                  inject(Update.PerformAction(Jump(TileId(id), Right))),
+                  ~f=_res =>
+                  inject(
+                    Update.Paste(
+                      " : " ++ Haz3lcore.Typ.typ_to_string(typ, false),
+                    ),
+                  )
+                )
+              | None =>
+                inject(
+                  Update.Paste(Haz3lcore.Typ.typ_to_string(typ, false)),
+                )
+              };
+            } else {
+              inject(Update.SetMeta(Mouseup));
+            };
+          },
+          _mouse_event =>
+            if (State.get_considering_suggestion()) {
+              State.set_suggestion_pasted(false);
+              State.set_considering_suggestion(false);
+              switch (id) {
+              | Some(_) =>
+                Ui_effect.bind(inject(Update.Undo), ~f=_res =>
+                  inject(Update.Undo)
+                )
+              | None => inject(Update.Undo)
+              };
+            } else {
+              inject(Update.SetMeta(Mouseup));
+            },
+        ),
+      ],
+    );
+  };
   switch (InferenceView.get_cursor_inspect_result(~global_inference_info, id)) {
-  | SolvedTypeHole(solution)
-  | SolvedExpHole(_, solution) =>
+  | SolvedTypeHole(solution) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [text("consistent constraints"), Type.view(~font_metrics, solution)],
     )
-  | UnsolvedTypeHole([typ_with_nested_conflict])
-  | UnsolvedExpHole(_, [typ_with_nested_conflict]) =>
+
+  | SolvedExpHole(id, solution) =>
+    print_endline("Solved exphole");
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [
+        text("consistent constraints"),
+        suggestion_button_of_typ(~id=Some(id), solution),
+      ],
+    );
+  | UnsolvedTypeHole([typ_with_nested_conflict]) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [Type.view(~font_metrics, typ_with_nested_conflict)],
     )
+  | UnsolvedExpHole(_, [typ_with_nested_conflict]) =>
+    print_endline("Solved exphole nested inconsistency");
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [
+        text("conflicting constraints"),
+        suggestion_button_of_typ(typ_with_nested_conflict),
+      ],
+    );
   | UnsolvedTypeHole(conflicting_typs) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
         text("conflicting constraints"),
-        ...List.map(
-             typ =>
-               div(
-                 ~attr=clss(["typ-view-conflict"]),
-                 [
-                   Widgets.hoverable_button(
-                     [Type.view(~font_metrics, typ)],
-                     _mouse_event => {
-                       State.set_considering_suggestion(false);
-                       inject(Update.SetMeta(Mouseup));
-                     },
-                     _mouse_event => {
-                       State.set_considering_suggestion(true);
-                       if (!State.get_suggestion_pasted()) {
-                         State.set_suggestion_pasted(true);
-                         inject(
-                           Update.Paste(
-                             Haz3lcore.Typ.typ_to_string(typ, false),
-                           ),
-                         );
-                       } else {
-                         inject(Update.SetMeta(Mouseup));
-                       };
-                     },
-                     _mouse_event =>
-                       if (State.get_considering_suggestion()) {
-                         State.set_suggestion_pasted(false);
-                         State.set_considering_suggestion(false);
-                         inject(Update.Undo);
-                       } else {
-                         inject(Update.SetMeta(Mouseup));
-                       },
-                   ),
-                 ],
-               ),
-             conflicting_typs,
-           ),
+        ...List.map(suggestion_button_of_typ, conflicting_typs),
       ],
     )
   | UnsolvedExpHole(id, conflicting_typs) =>
@@ -153,50 +187,7 @@ let view_of_global_inference_info =
       [
         text("conflicting constraints"),
         ...List.map(
-             typ =>
-               div(
-                 ~attr=clss(["typ-view-conflict"]),
-                 [
-                   Widgets.hoverable_button(
-                     [Type.view(~font_metrics, typ)],
-                     _mouse_event => {
-                       State.set_considering_suggestion(false);
-                       inject(Update.SetMeta(Mouseup));
-                     },
-                     _mouse_event => {
-                       State.set_considering_suggestion(true);
-                       if (!State.get_suggestion_pasted()) {
-                         State.set_suggestion_pasted(true);
-
-                         Ui_effect.bind(
-                           inject(
-                             Update.PerformAction(Jump(TileId(id), Right)),
-                           ),
-                           ~f=_res =>
-                           inject(
-                             Update.Paste(
-                               " : "
-                               ++ Haz3lcore.Typ.typ_to_string(typ, false),
-                             ),
-                           )
-                         );
-                       } else {
-                         inject(Update.SetMeta(Mouseup));
-                       };
-                     },
-                     _mouse_event =>
-                       if (State.get_considering_suggestion()) {
-                         State.set_suggestion_pasted(false);
-                         State.set_considering_suggestion(false);
-                         Ui_effect.bind(inject(Update.Undo), ~f=_res =>
-                           inject(Update.Undo)
-                         );
-                       } else {
-                         inject(Update.SetMeta(Mouseup));
-                       },
-                   ),
-                 ],
-               ),
+             suggestion_button_of_typ(~id=Some(id)),
              conflicting_typs,
            ),
       ],
@@ -259,11 +250,9 @@ let common_ok_view =
       global_inference_info,
     )
   ) {
-  | Solvable(_) // currently no indirect suggestions for solvable holes TODO: Raef explore this
-  | NestedInconsistency(_) // currently no indirect suggestions for solvable holes
-  | NoSuggestion(SuggestionsDisabled)
-  | NoSuggestion(NonTypeHoleId)
-  | NoSuggestion(OnlyHoleSolutions) =>
+  | (NoSuggestion(SuggestionsDisabled), _)
+  | (NoSuggestion(NonTypeHoleId), _)
+  | (NoSuggestion(OnlyHoleSolutions), _) =>
     switch (cls, ok) {
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
@@ -329,9 +318,9 @@ let typ_ok_view =
         global_inference_info,
       )
     ) {
-    | NoSuggestion(SuggestionsDisabled)
-    | NoSuggestion(NonTypeHoleId)
-    | NoSuggestion(OnlyHoleSolutions) => [Type.view(ty)]
+    | (NoSuggestion(SuggestionsDisabled), _)
+    | (NoSuggestion(NonTypeHoleId), _)
+    | (NoSuggestion(OnlyHoleSolutions), _) => [Type.view(ty)]
     | _ => [
         view_of_global_inference_info(
           ~inject,

@@ -369,10 +369,12 @@ let of_segment =
                   global_inference_info,
                 )
               ) {
-              | Solvable(suggestion_string)
-              | NestedInconsistency(suggestion_string) =>
+              | (Solvable(suggestion_string), TypHole)
+              | (NestedInconsistency(suggestion_string), TypHole) =>
                 String.length(suggestion_string)
-              | NoSuggestion(_) => 1
+              | (_, ExpHole)
+              | (_, None)
+              | (NoSuggestion(_), _) => 1
               };
 
             let last = {...origin, col: origin.col + annotation_offset};

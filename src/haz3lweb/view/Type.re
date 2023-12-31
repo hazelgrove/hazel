@@ -43,7 +43,7 @@ let rec view_ty =
         [
           EmptyHoleDec.relative_view(
             ~font_metrics,
-            false,
+            StandardHole,
             InferenceResult.hole_mold,
           ),
         ],
@@ -147,7 +147,7 @@ and view_of_potential_typ_set =
       [
         EmptyHoleDec.relative_view(
           ~font_metrics,
-          true,
+          ErrorHole,
           Haz3lcore.InferenceResult.hole_mold,
         ),
       ],

@@ -8,6 +8,11 @@ module Profile = {
   };
 };
 
+type hole_svg_style =
+  | StandardHole
+  | ErrorHole
+  | PromptHole;
+
 let path = (tip_l, tip_r, offset, s: float) => {
   let x_dilate = 1.5;
   List.concat(
@@ -25,7 +30,7 @@ let path = (tip_l, tip_r, offset, s: float) => {
 };
 
 let view =
-    (~font_metrics, is_unsolved, {measurement, mold}: Profile.t): Node.t => {
+    (~font_metrics, hole_svg_style, {measurement, mold}: Profile.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
   let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
@@ -35,24 +40,36 @@ let view =
     {sort, shape: tip_r},
   );
 
-  is_unsolved
-    ? DecUtil.code_svg_sized(
-        ~font_metrics,
-        ~measurement,
-        ~base_cls=["empty-hole"],
-        ~path_cls=["unsolved-empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.6),
-      )
-    : DecUtil.code_svg_sized(
-        ~font_metrics,
-        ~measurement,
-        ~base_cls=["empty-hole"],
-        ~path_cls=["empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.28),
-      );
+  switch (hole_svg_style) {
+  | StandardHole =>
+    DecUtil.code_svg_sized(
+      ~font_metrics,
+      ~measurement,
+      ~base_cls=["empty-hole"],
+      ~path_cls=["empty-hole-path", c_cls],
+      path(tip_l, tip_r, 0., 0.28),
+    )
+  | ErrorHole =>
+    DecUtil.code_svg_sized(
+      ~font_metrics,
+      ~measurement,
+      ~base_cls=["empty-hole"],
+      ~path_cls=["unsolved-empty-hole-path", c_cls],
+      path(tip_l, tip_r, 0., 0.42),
+    )
+  | PromptHole =>
+    DecUtil.code_svg_sized(
+      ~font_metrics,
+      ~measurement,
+      ~base_cls=["empty-hole"],
+      ~path_cls=["solved-empty-hole-with-ci-path", c_cls],
+      path(tip_l, tip_r, 0., 0.42),
+    )
+  };
 };
 
-let relative_view = (~font_metrics, is_unsolved, mold: Mold.t): Node.t => {
+let relative_view =
+    (~font_metrics, hole_svg_style: hole_svg_style, mold: Mold.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
   let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
@@ -62,17 +79,27 @@ let relative_view = (~font_metrics, is_unsolved, mold: Mold.t): Node.t => {
     {sort, shape: tip_r},
   );
 
-  is_unsolved
-    ? DecUtil.code_svg_sized_relative(
-        ~font_metrics,
-        ~base_cls=["empty-hole"],
-        ~path_cls=["unsolved-empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.42),
-      )
-    : DecUtil.code_svg_sized_relative(
-        ~font_metrics,
-        ~base_cls=["empty-hole"],
-        ~path_cls=["empty-hole-path", c_cls],
-        path(tip_l, tip_r, 0., 0.28),
-      );
+  switch (hole_svg_style) {
+  | StandardHole =>
+    DecUtil.code_svg_sized_relative(
+      ~font_metrics,
+      ~base_cls=["empty-hole"],
+      ~path_cls=["empty-hole-path", c_cls],
+      path(tip_l, tip_r, 0., 0.28),
+    )
+  | ErrorHole =>
+    DecUtil.code_svg_sized_relative(
+      ~font_metrics,
+      ~base_cls=["empty-hole"],
+      ~path_cls=["unsolved-empty-hole-path", c_cls],
+      path(tip_l, tip_r, 0., 0.42),
+    )
+  | PromptHole =>
+    DecUtil.code_svg_sized_relative(
+      ~font_metrics,
+      ~base_cls=["empty-hole"],
+      ~path_cls=["solved-empty-hole-with-ci-path", c_cls],
+      path(tip_l, tip_r, 0., 0.42),
+    )
+  };
 };
