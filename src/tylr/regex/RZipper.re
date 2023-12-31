@@ -1,7 +1,8 @@
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t('focus, 'atom) = ('focus, RCtx.t('atom));
 
-let rec enter = (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a)) => {
+let rec enter =
+        (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a)) => {
   let go = enter(~from);
   switch (r) {
   | Atom(a) => [(a, ctx)]
@@ -9,8 +10,8 @@ let rec enter = (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a))
   | Alt(rs) =>
     ListUtil.elem_splits(rs)
     |> List.concat_map(((ls, r, rs)) =>
-          go(~ctx=[Alt_(ls, rs), ...ctx], r)
-        )
+         go(~ctx=[Alt_(ls, rs), ...ctx], r)
+       )
   | Seq(rs) =>
     switch (from) {
     | L =>
@@ -19,8 +20,7 @@ let rec enter = (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a))
       | [hd, ...tl] =>
         let go_hd = go(~ctx=Ctx.push_seq(~onto=R, tl, ctx), hd);
         let go_tl =
-          nullable(hd)
-            ? go(~ctx=Ctx.push(~onto=L, hd, ctx), Seq(tl)) : [];
+          nullable(hd) ? go(~ctx=Ctx.push(~onto=L, hd, ctx), Seq(tl)) : [];
         // prioritize tl in case hd nullable, assuming null by first choice.
         // may need to revisit this in case grammar author manually includes
         // epsilon but does not make it first element of disjunction.
@@ -32,8 +32,7 @@ let rec enter = (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a))
       | Some((tl, hd)) =>
         let go_hd = go(~ctx=Ctx.push_seq(~onto=L, tl, ctx), hd);
         let go_tl =
-          nullable(hd)
-            ? go(~ctx=Ctx.push(~onto=R, hd, ctx), Seq(tl)) : [];
+          nullable(hd) ? go(~ctx=Ctx.push(~onto=R, hd, ctx), Seq(tl)) : [];
         go_tl @ go_hd;
       }
     }
@@ -67,15 +66,11 @@ let map = (f: t('a, 'a) => 'b, rgx: Regex.t('a)): Regex.t('b) => {
     | Star(r) => Star(go(r, [Star_, ...ctx]))
     | Seq(rs) =>
       framed_elems(rs)
-      |> List.map(((ls, r, rs)) =>
-        go(r, [Seq_(ls, rs), ...ctx])
-      )
+      |> List.map(((ls, r, rs)) => go(r, [Seq_(ls, rs), ...ctx]))
       |> Regex.seq
     | Alt(rs) =>
       framed_elems(rs)
-      |> List.map(((ls, r, rs)) =>
-        go(r, [Alt_(ls, rs), ...ctx])
-      )
+      |> List.map(((ls, r, rs)) => go(r, [Alt_(ls, rs), ...ctx]))
       |> Regex.alt
     };
   go(rgx, RCtx.empty);

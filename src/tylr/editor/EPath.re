@@ -39,11 +39,11 @@ module Ghosts = {
   let uncons = (n, ghosts) =>
     to_list(ghosts)
     |> List.filter_map(((path, mold)) =>
-      switch (path.slots) {
-      | [m, ...slots] when m == n => Some(({...path, slots}, mold))
-      | _ => None
-      }
-    )
+         switch (path.slots) {
+         | [m, ...slots] when m == n => Some(({...path, slots}, mold))
+         | _ => None
+         }
+       )
     |> of_list;
 };
 module Marks = {
@@ -51,10 +51,14 @@ module Marks = {
     cursor: Cursor.t,
     ghosts: Ghosts.t,
   };
-  let cons = (n, {cursor, ghosts}) =>
-    {cursor: Cursor.cons(n, cursor), ghosts: Ghosts.cons(n, ghosts)};
-  let uncons = (n, {cursor, ghosts}) =>
-    {cursor: Cursor.uncons(n, cursor), ghosts: Ghosts.uncons(n, ghosts)};
+  let cons = (n, {cursor, ghosts}) => {
+    cursor: Cursor.cons(n, cursor),
+    ghosts: Ghosts.cons(n, ghosts),
+  };
+  let uncons = (n, {cursor, ghosts}) => {
+    cursor: Cursor.uncons(n, cursor),
+    ghosts: Ghosts.uncons(n, ghosts),
+  };
   let union = (l: t, r: t) => {
     cursor: Cursor.union(l.cursor, r.cursor),
     ghosts: Ghosts.union(l.ghosts, r.ghosts),

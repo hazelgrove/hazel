@@ -18,8 +18,7 @@ module Map = Map.Make(Ord);
 module Delta = {
   include Map;
   type t = Map.t(int);
-  let find = (o, map) =>
-    Option.value(find_opt(o, map), ~default=0);
+  let find = (o, map) => Option.value(find_opt(o, map), ~default=0);
 
   let compare = (l, r) =>
     List.fold_right(
@@ -69,6 +68,6 @@ module Result = {
   module Syntax = {
     let return = a => (a, Delta.zero);
     let (let+) = Fun.flip(map);
-    let (let*) = bind;
+    let ( let* ) = bind;
   };
 };

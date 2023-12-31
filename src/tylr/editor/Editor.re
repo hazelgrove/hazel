@@ -67,7 +67,7 @@ let select = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {
     |> Melder.Ctx.push(~onto=b, t)
     |> EZipper.mk(~close=true, ~foc)
     |> Option.some;
-  }
+  };
 };
 
 let save_cursor = Melder.Ctx.push_or_fail(~onto=L, Piece.mk_cursor());
@@ -91,7 +91,7 @@ let insert = (s: string, z: EZipper.t) => {
   |> save_cursor
   |> Molder.remold
   |> load_cursor
-  |> EZipper.mk
+  |> EZipper.mk;
 };
 
 let delete = (d: Dir.t, z: EZipper.t): option(EZipper.t) => {

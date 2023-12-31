@@ -1,10 +1,18 @@
 // precedence-extended BNF
-type t('atom) = Sort.Map.t(Prec.Table.t(Regex.t('atom)));
+type t('sym) = Sort.Map.t(Prec.Table.t(Regex.t('sym)));
 
-module Zipper = {
-  type t('focus, 'atom) = {
+module Mold = {
+  type t('atom) = {
     sort: Sort.t,
     prec: Prec.t,
-    zipper: Regex.Zipper.t('focus, 'atom),
+    rctx: RCtx.t('atom),
   };
 };
+
+// module Zipper = {
+//   type t('focus, 'atom) = {
+//     sort: Sort.t,
+//     prec: Prec.t,
+//     zipper: Regex.Zipper.t('focus, 'atom),
+//   };
+// };

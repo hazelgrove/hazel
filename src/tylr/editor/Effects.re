@@ -18,21 +18,21 @@ let record = (f, x): (_, list(recorded)) => {
   let recorded = ref([]);
   let effc: 'a. t('a) => option(continuation('a, _) => _) =
     (type a, eff: t(a)) =>
-        switch (eff) {
-        | Insert(t) =>
-          recorded := [R(eff), ...recorded^];
-          Some((k: continuation(a,_)) => continue(k, ()));
-        | Remove(t) =>
-          recorded := [R(eff), ...recorded^];
-          Some((k: continuation(a,_)) => continue(k, ()))
-        | _ => None
-        };
+      switch (eff) {
+      | Insert(t) =>
+        recorded := [R(eff), ...recorded^];
+        Some((k: continuation(a, _)) => continue(k, ()));
+      | Remove(t) =>
+        recorded := [R(eff), ...recorded^];
+        Some((k: continuation(a, _)) => continue(k, ()));
+      | _ => None
+      };
   let result = try_with(f, x, {effc: effc});
   (result, recorded^);
 };
 
 let commit = (effs: list(recorded)) =>
-  List.iter((R(eff)) => ignore(perform(eff)), effs)
+  List.iter((R(eff)) => ignore(perform(eff)), effs);
 
 // let perform_all = set =>
 //   to_list(set)
@@ -45,4 +45,3 @@ let perform_if = (o, eff: t(unit)) =>
     perform(eff);
     Some(x);
   };
-

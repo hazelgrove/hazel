@@ -2,8 +2,10 @@ include Terr;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = Terr.t(Piece.t, ECell.t);
 
-let bake = ({cell, wald}: GTerr.t) =>
-  {cell: ECell.bake(cell), wald: EWald.bake(wald)};
+let bake = ({cell, wald}: GTerr.t) => {
+  cell: ECell.bake(cell),
+  wald: EWald.bake(wald),
+};
 
 module L = {
   include L;
@@ -20,17 +22,17 @@ module R = {
       // space-only cells are padded into leftmost cell of given grammar walk
       let cells = List.map(ECell.bake, sorts);
       (pad(cell, combine(cells, pcs)), None);
-    | Grout() | Tile(_) =>
+    | Grout ()
+    | Tile(_) =>
       // non-space cells replace a sort-consistent cell of given grammar walk
       let (cells, fill) =
         sorts
         |> List.fold_left_map(
-          (cell, sort) =>
-            ECell.(!is_empty(cell) && consistent(cell, sort))
-            ? (cell, ECell.empty)
-            : (ECell.bake(sort), cell),
-          cell,
-        );
+             (cell, sort) =>
+               ECell.(!is_empty(cell) && consistent(cell, sort))
+                 ? (cell, ECell.empty) : (ECell.bake(sort), cell),
+             cell,
+           );
       (combine(cells, pcs), fill);
     };
   };

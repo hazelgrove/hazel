@@ -15,14 +15,12 @@ let max_op = max - 1;
 let lt = (~a=None, l: Bound.t(t), r) =>
   switch (l) {
   | Root => true
-  | Node(l) =>
-    compare(l, r) < 0 || compare(l, r) == 0 && a == Some(Dir.R)
+  | Node(l) => compare(l, r) < 0 || compare(l, r) == 0 && a == Some(Dir.R)
   };
 let gt = (~a=None, l, r: Bound.t(t)) =>
   switch (r) {
   | Root => true
-  | Node(r) =>
-    compare(l, r) > 0 || compare(l, r) == 0 && a == Some(Dir.L)
+  | Node(r) => compare(l, r) > 0 || compare(l, r) == 0 && a == Some(Dir.L)
   };
 let eq = (~a=None, l, r) => compare(l, r) == 0 && Option.is_none(a);
 

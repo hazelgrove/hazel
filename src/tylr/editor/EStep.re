@@ -14,21 +14,20 @@ module Set = {
   module Syntax = ListUtil.Syntax;
   let entry_grout = (side: Dir.t, s: Sort.t) =>
     switch (side) {
-    | L =>
-      [
+    | L => [
         Mold(Grout((Convex, Convex))),
         Mold(Grout((Convex, Concave))),
         Meld(Grout(Sort.root)),
       ]
-    | R =>
-      [
+    | R => [
         Mold(Grout((Convex, Convex))),
         Mold(Grout((Concave, Convex))),
         Meld(Grout(Sort.root)),
       ]
     };
 };
-module Map = Map.Make({
-  type nonrec t = t;
-  let compare = compare;
-});
+module Map =
+  Map.Make({
+    type nonrec t = t;
+    let compare = compare;
+  });

@@ -36,22 +36,22 @@ let step_enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): Step.Set.t => {
   Grammar.v
   |> Sort.Map.find(s)
   |> Prec.Table.map((p, a, rgx) => {
-    let entered_l =
-      RZipper.enter(~from=L, rgx)
-      |> List.filter(((atom, _)) =>
-        Grammar.Atom.is_mold(atom) || Prec.lt(~a, l, p)
-      )
-      |> List.map(GAtom.mk(~sort=s, ~prec=p));
-    let entered_r =
-      RZipper.enter(~from=R, rgx)
-      |> List.filter(((atom, _)) =>
-        Grammar.Atom.is_mold(atom) || Prec.gt(~a, p, r)
-      )
-      |> List.map(GAtom.mk(~sort=s, ~prec=p));
-    // need to check for legal entry from both sides
-    List.(is_empty(entered_l) || is_empty(entered_r))
-    ? [] : Dir.choose(from, entered_l, entered_r);
-  })
+       let entered_l =
+         RZipper.enter(~from=L, rgx)
+         |> List.filter(((atom, _)) =>
+              Grammar.Atom.is_mold(atom) || Prec.lt(~a, l, p)
+            )
+         |> List.map(GAtom.mk(~sort=s, ~prec=p));
+       let entered_r =
+         RZipper.enter(~from=R, rgx)
+         |> List.filter(((atom, _)) =>
+              Grammar.Atom.is_mold(atom) || Prec.gt(~a, p, r)
+            )
+         |> List.map(GAtom.mk(~sort=s, ~prec=p));
+       // need to check for legal entry from both sides
+       List.(is_empty(entered_l) || is_empty(entered_r))
+         ? [] : Dir.choose(from, entered_l, entered_r);
+     })
   |> List.concat;
 };
 

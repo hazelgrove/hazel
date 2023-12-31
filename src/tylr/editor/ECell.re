@@ -6,8 +6,8 @@ type t = Cell.t(EMeld.Marked.t);
 let bake = (s: ESort.t) =>
   switch (s) {
   | Space => Empty
-  | Grout() | Tile(_) =>
-    Full(EMeld.singleton(EToken.grout((Convex, Convex))));
+  | Grout ()
+  | Tile(_) => Full(EMeld.singleton(EToken.grout((Convex, Convex))))
   };
 
 // returns a cell carrying the input meld repaired for sort consistency,
@@ -20,23 +20,23 @@ let try_fill = (m: EMeld.Marked.t, s: ESort.t) =>
     // check to see if it's possible to unwrap grout
     // if m has single child of descendant sort of s', then unwrap
     // otherwise return empty
-    failwith("todo");
+    failwith("todo")
   | (Grout((s, (l, r))), Tile({sort, prec, zipper: (s', rctx)})) =>
     // may need to unwrap grout or adjust its sort
     // check if m has single child of exactly sort s', then unwrap
     // otherwise check if s leq s' and that neither side of rctx is nullable,
     // in which case then update s to s' and return full
     // otherwise return empty
-    failwith("todo");
+    failwith("todo")
   | (Tile((s, p, (l, r))), Grout(s')) =>
     // check that s is descendant of s', full if so
     // (relying here on assumption that m is integral)
-    failwith("todo");
+    failwith("todo")
   | (Tile((s, p, (l, r))), Tile({sort, prec, zipper: (s', rctx)})) =>
     // for each side
     // check if entering from that side into gcell arrives at end tile
     // otherwise, check if entering from pre/postfix grout of sort s' arrives at end tile
-    failwith("todo");
+    failwith("todo")
   };
 
 // let clear =

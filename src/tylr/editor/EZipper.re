@@ -16,7 +16,7 @@ module Focus = {
     fun
     | Pointing => []
     | Selecting(_, zigg) => EZigg.clear(zigg);
-}
+};
 module Context = {
   type t = Chain.t(EFrame.Open.t, EFrame.Closed.t);
 };
@@ -61,16 +61,16 @@ let rec unzip = (zipped: ESlot.Marked.t) => {
           EStepwell.cons_slopes(([l], [r]), ctx);
         | Error(side) =>
           // ignore prev unzip to piece, re-unzip to neighbor slot
-          let (l, slot, r) = EMeld.unzip_slot(side == L ? piece : piece + 1, m);
+          let (l, slot, r) =
+            EMeld.unzip_slot(side == L ? piece : piece + 1, m);
           ctx
           |> EStepwell.cons_unzipped((l, r))
           |> cons_slopes(
-            side == L
-            ? (ESlope.Dn.unroll(m), [])
-            : ([], ESlope.Up.unroll(m))
-          )
+               side == L
+                 ? (ESlope.Dn.unroll(m), []) : ([], ESlope.Up.unroll(m)),
+             );
         };
-      }
+      };
     };
   mk(go(zipped));
 };

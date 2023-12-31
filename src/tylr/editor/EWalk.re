@@ -27,9 +27,7 @@ module Set = {
     |> EStep.Map.of_list;
 
   let single_steps = (steps: EStep.Set.t) =>
-    steps
-    |> List.map(step => (step, []))
-    |> EStep.Map.of_list;
+    steps |> List.map(step => (step, [])) |> EStep.Map.of_list;
 
   let union = EStep.Map.union((_, l, r) => ListUtil.dedup(l @ r));
   let union_all = List.fold_left(union, empty);
@@ -43,13 +41,13 @@ module Set = {
         fun
         | None => [w]
         | Some(ws) => ListUtil.dedup([w, ...ws]),
-      );
+      )
     };
 
   let single = w =>
     switch (split_dst(w)) {
     | None => EStep.Map.empty
-    | Some((dst, w)) => EStep.Map.singleton(dst, [w]);
+    | Some((dst, w)) => EStep.Map.singleton(dst, [w])
     };
 
   // let map = (f: Base.t => Base.t, set) =>
@@ -57,18 +55,19 @@ module Set = {
   //   |> List.map(((dst, ws)) => (dst, List.map(f, ws)))
   //   |> EStep.Map.of_list;
 
-  let bind = (set, f: Base.t => t) => {
-    open ListUtil.Syntax;
-    let* (dst, ws) = EStep.Map.to_list(set);
-    let+ w = ws;
-    f(cons(dst, w));
-  }
-  |> union_all;
+  let bind = (set, f: Base.t => t) =>
+    {
+      open ListUtil.Syntax;
+      let* (dst, ws) = EStep.Map.to_list(set);
+      let+ w = ws;
+      f(cons(dst, w));
+    }
+    |> union_all;
 
   module Syntax = {
     let return = single;
     // let (let+) = Fun.flip(map);
-    let (let*) = bind;
+    let ( let* ) = bind;
     // let (let^) = (set, f) => {
     //   let* (dst, w) = set;
     //   f((dst, w)) |> add(dst, w);
@@ -78,11 +77,10 @@ module Set = {
 
 let step = (d: Dir.t, step: EStep.t): EStep.Set.t =>
   switch (step) {
-  | Mold(Space) => failwith("todo");
+  | Mold(Space) => failwith("todo")
   };
 
 let enter = (from: Dir.t, s: Bound.t(ESort.t)): EStep.Set.t => {
-
   let structure =
     switch (sorted) {
     | Root =>
@@ -104,6 +102,7 @@ let enter = (from: Dir.t, s: Bound.t(ESort.t)): EStep.Set.t => {
       |> GWalk.Set.union_all
       |> Set.of_g;
     };
+  ();
 };
 
 let walk = (d: Dir.t, src: Bound.t(EStep.t)): Set.t => {
@@ -112,7 +111,7 @@ let walk = (d: Dir.t, src: Bound.t(EStep.t)): Set.t => {
     let go = go(~src);
     let s = Option.value(dst(walked), ~default=src);
     switch (Hashtbl.find_opt(seen, s)) {
-    | Some() => walked
+    | Some () => walked
     | None =>
       Hashtbl.add(seen, s, ());
       switch (s) {
@@ -141,16 +140,10 @@ let walk = (d: Dir.t, src: Bound.t(EStep.t)): Set.t => {
 };
 
 let lt = (l: Bound.t(EMold.t), r: EMold.t) =>
-  l
-  |> Bound.map(EStep.mold)
-  |> walk(R)
-  |> Set.neq(Mold(r));
+  l |> Bound.map(EStep.mold) |> walk(R) |> Set.neq(Mold(r));
 
 let gt = (l: EMold.t, r: Bound.t(EMold.t)) =>
-  r
-  |> Bound.map(EStep.mold)
-  |> walk(L)
-  |> Set.neq(Mold(l));
+  r |> Bound.map(EStep.mold) |> walk(L) |> Set.neq(Mold(l));
 
 let eq = (~from=Dir.L, l: EMold.t, r: EMold.t) => {
   let (from, onto) = Dir.choose(from, l, r);

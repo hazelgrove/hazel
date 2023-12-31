@@ -1,13 +1,12 @@
 let rec step_to_mold =
         (~slot=GSlot.Empty, d: Dir.t, a: GZipper.t(Atom.t)): GWalk.Set.t =>
   switch (GMold.of_atom(a)) {
-  | Ok(m) =>
-    GWalk.Set.single(Eq(GTerr.singleton(~slot, Tile(Molded(m)))))
+  | Ok(m) => GWalk.Set.single(Eq(GTerr.singleton(~slot, Tile(Molded(m)))))
   | Error(s) =>
     Regex.step(d, a.zipper)
     |> List.map(zipper =>
-      step_to_mold(~slot=Full(Some(s)), d, {...a, zipper})
-    )
+         step_to_mold(~slot=Full(Some(s)), d, {...a, zipper})
+       )
     |> GWalk.Set.union_all
   };
 
@@ -37,18 +36,18 @@ let step_eq = (d: Dir.t, m: GMtrl.t): GWalk.Set.t =>
       let infix = GMtrl.Tile(Unmolded((Concave, Concave)));
       let affix =
         GMtrl.Tile(
-          Unmolded(Dir.choose(d, ((Convex, Concave), (Concave, Convex))))
+          Unmolded(Dir.choose(d, ((Convex, Concave), (Concave, Convex)))),
         );
       GWalk.Set.mk([
         Eq(GTerr.singleton(~slot, infix)),
         Eq(GTerr.singleton(~slot, affix)),
-      ])
+      ]);
     }
   | Tile(Molded(m)) =>
     GMold.to_atom(m)
     |> Regex.step(d)
     |> List.map(zipper => step_to_mold(d, {...a, zipper}))
-    |> GWalk.Set.union_all;
+    |> GWalk.Set.union_all
   };
 
 let walk_eq = (d: Dir.t, m: GMtrl.t): GWalk.Set.t => {
@@ -71,7 +70,8 @@ let walk_eq = (d: Dir.t, m: GMtrl.t): GWalk.Set.t => {
 
 // shallow precedence-bounded entry into given sort, stepping to
 // all possible atoms at the entered edge across alternatives
-let step_enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(GZipper.t(Atom.t)) =>
+let step_enter =
+    (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(GZipper.t(Atom.t)) =>
   Grammar.v
   |> Sort.Map.find(s)
   |> Prec.Table.map((p, a, rgx) => {
@@ -87,12 +87,11 @@ let step_enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(GZipper.t(Atom.t)) 
          | _ => true
          };
 
-       let (ls, rs) =
-         RZipper.(enter(~from=L, rgx), enter(~from=R, rgx));
+       let (ls, rs) = RZipper.(enter(~from=L, rgx), enter(~from=R, rgx));
        has_kid(ls) && !l_bounded || has_kid(rs) && !r_bounded
          ? []
          : Dir.choose(from, (ls, rs))
-           |> List.map(GZipper.mk(~sort=s, ~prec=p))
+           |> List.map(GZipper.mk(~sort=s, ~prec=p));
      })
   |> List.concat;
 
@@ -148,7 +147,9 @@ let step_neq = (d: Dir.t, bound: Bound.t(GMtrl.t)): GWalk.Set.t => {
     switch (Dir.choose(d, tips)) {
     | Convex => GWalk.Set.empty
     | Concave =>
-      Sort.all |> List.map(enter(~from=b, ~bound=Prec.top)) |> GWalk.Set.union_all
+      Sort.all
+      |> List.map(enter(~from=b, ~bound=Prec.top))
+      |> GWalk.Set.union_all
     }
   | Node(Tile(Molded(m))) =>
     GMold.to_atom(m).zipper
@@ -167,7 +168,7 @@ let step_neq = (d: Dir.t, bound: Bound.t(GMtrl.t)): GWalk.Set.t => {
            },
        )
     |> GWalk.Set.union_all
-  }
+  };
 };
 
 let walk_neq = (d: Dir.t, m: GMtrl.t): GWalk.Set.t => {

@@ -7,8 +7,7 @@ module Cell = {
     sort: Bound.t(ESort.t),
     fill: option('a),
   };
-  let mk = (~sort=Bound.Root, ~fill=?, ()) =>
-    {sort, fill};
+  let mk = (~sort=Bound.Root, ~fill=?, ()) => {sort, fill};
   let empty = mk();
 };
 
@@ -26,7 +25,8 @@ module Marked = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = EPath.Marked.t(Base.t);
 
-  let lift_marks = (n: int, slot: Slot.t(t)): (EPath.Marks.t, Slot.t(Base.t)) =>
+  let lift_marks =
+      (n: int, slot: Slot.t(t)): (EPath.Marks.t, Slot.t(Base.t)) =>
     switch (slot) {
     | Empty => (EPath.Marks.empty, slot)
     | Full((marks, m)) => (EPath.Marks.cons(n, marks), Full(m))
@@ -43,8 +43,5 @@ module Marked = {
   };
 
   let unmk = ((marks, m): t): Meld.t(t, Piece.t) =>
-    m
-    |> mapi_slots(i =>
-      Slot.map(m => (EPath.Marks.uncons(i, marks), m))
-    );
+    m |> mapi_slots(i => Slot.map(m => (EPath.Marks.uncons(i, marks), m)));
 };
