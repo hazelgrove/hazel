@@ -95,7 +95,7 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(Jump(TileId(id))))
+          inject(UpdateAction.PerformAction(Jump(TileId(id), Left)))
         ),
       ])
     | None => classes
@@ -155,7 +155,9 @@ let mk_translation =
                         clss(["clickable"]),
                         Attr.on_click(_ =>
                           inject(
-                            UpdateAction.PerformAction(Jump(TileId(id))),
+                            UpdateAction.PerformAction(
+                              Jump(TileId(id), Left),
+                            ),
                           )
                         ),
                       ]),

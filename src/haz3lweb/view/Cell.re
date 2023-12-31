@@ -46,7 +46,7 @@ let mousedown_handler =
 
     let events = [
       inject(PerformAction(Move(Goal(Point(goal))))),
-      inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+      inject(PerformAction(Jump(BindingSiteOfIndicatedVar, Left))),
     ];
     Virtual_dom.Vdom.Effect.Many(events);
   | (false, 1) =>

@@ -44,7 +44,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") => Some(DoTheThing)
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
+    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar, Left))
     | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))

@@ -1,5 +1,6 @@
 open Util;
 open Zipper;
+open Sexplib.Std;
 
 let is_write_action = (a: Action.t) => {
   switch (a) {
@@ -51,8 +52,12 @@ let go_z =
   | MoveToNextHole(d) =>
     Move.go(Goal(Piece(Grout, d)), z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Jump(jump_target) =>
+  | Jump(jump_target, direction) =>
     open OptUtil.Syntax;
+
+    print_endline(
+      "Direction: " ++ (direction |> Direction.sexp_of_t |> string_of_sexp),
+    );
 
     let idx = Indicated.index(z);
     let (term, _) =
@@ -67,8 +72,8 @@ let go_z =
         let* idx = idx;
         let* ci = Id.Map.find_opt(idx, statics);
         let* binding_id = Info.get_binding_site(ci);
-        Move.jump_to_id(z, binding_id);
-      | TileId(id) => Move.jump_to_id(z, id)
+        Move.jump_to_id(z, binding_id, Left);
+      | TileId(id) => Move.jump_to_id(z, id, direction)
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move);

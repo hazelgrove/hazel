@@ -3,7 +3,9 @@ open Node;
 open Util.Web;
 
 let jump_to = entry =>
-  UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
+  UpdateAction.PerformAction(
+    Jump(TileId(Haz3lcore.Ctx.get_id(entry)), Left),
+  );
 
 let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   let div_name =

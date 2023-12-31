@@ -20,7 +20,7 @@ module Make = (M: Editor.Meta.S) => {
     Move.do_vertical(primary, d, ed);
 
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* z = Move.jump_to_id(z, l);
+    let* z = Move.jump_to_id(z, l, Left);
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
     Move.do_towards(primary, last, z);
   };
@@ -32,7 +32,7 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* z = Move.jump_to_id(z, id);
+    let* z = Move.jump_to_id(z, id, Left);
     let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
     Move.do_towards(primary, last, z);
   };

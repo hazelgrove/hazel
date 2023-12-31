@@ -169,11 +169,14 @@ let view_of_global_inference_info =
                          State.set_suggestion_pasted(true);
 
                          Ui_effect.bind(
-                           inject(Update.PerformAction(Jump(TileId(id)))),
+                           inject(
+                             Update.PerformAction(Jump(TileId(id), Right)),
+                           ),
                            ~f=_res =>
                            inject(
                              Update.Paste(
-                               Haz3lcore.Typ.typ_to_string(typ, false),
+                               " : "
+                               ++ Haz3lcore.Typ.typ_to_string(typ, false),
                              ),
                            )
                          );
