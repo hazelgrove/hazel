@@ -13,6 +13,7 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_deriving.ord
+   ppx_deriving_hash
    ppx_yojson_conv
    sedlex.ppx)))
 
