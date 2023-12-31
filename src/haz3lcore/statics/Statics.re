@@ -628,7 +628,7 @@ and upat_to_info_map =
       ~constraints=hd.constraints @ tl.constraints @ mode_cs_hd @ mode_cs_tl,
       m,
     );
-  | Wild => atomic(Just(unknown))
+  | Wild => atomic(Just(Typ.Unknown(NoProvenance, is_synswitch)))
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
@@ -644,7 +644,10 @@ and upat_to_info_map =
     add(
       ~self=Just(unknown),
       ~ctx=Ctx.extend(ctx, entry),
-      ~constraints=subsumption_constraints(Just(unknown)),
+      ~constraints=
+        subsumption_constraints(
+          Just(Unknown(ExpHole(PatternVar, id), false)),
+        ),
       m,
     );
   | Tuple(ps) =>
@@ -806,9 +809,9 @@ let mk_map_and_inference_solutions =
       info.constraints |> Typ.constraints_to_string |> print_endline;
 
       let pts_graph = Inference.solve_constraints(info.constraints);
-      let (ctx, _) = InferenceResult.get_desired_solutions(pts_graph);
+      let solutions = InferenceResult.get_desired_solutions(pts_graph);
 
-      (map, ctx);
+      (map, solutions);
     },
   );
 

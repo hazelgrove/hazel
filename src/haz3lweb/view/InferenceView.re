@@ -1,6 +1,12 @@
-open Util.OptUtil.Syntax;
 open Virtual_dom.Vdom;
 open Haz3lcore;
+
+type cursor_inspector_suggestion =
+  | SolvedTypeHole(Typ.t)
+  | UnsolvedTypeHole(list(Typ.t))
+  | SolvedExpHole(Id.t, Typ.t)
+  | UnsolvedExpHole(Id.t, list(Typ.t))
+  | NoSuggestion;
 
 let get_suggestion_ui_for_id =
     (
@@ -31,7 +37,12 @@ let get_suggestion_ui_for_id =
         );
       NestedInconsistency(ptyp_node);
     | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
-    | None => NoSuggestion(NonTypeHoleId)
+    | None =>
+      switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
+      | Some((_, Unsolved(typs))) when List.length(typs) > 1 =>
+        NoSuggestion(InconsistentSet)
+      | _ => NoSuggestion(NonTypeHoleId)
+      }
     };
   } else {
     NoSuggestion(SuggestionsDisabled);
@@ -57,20 +68,35 @@ let svg_display_settings =
 
 let get_cursor_inspect_result =
     (~global_inference_info: InferenceResult.global_inference_info, id: Id.t)
-    : option((bool, list(Typ.t))) =>
+    : cursor_inspector_suggestion =>
   if (global_inference_info.enabled) {
-    let* status =
-      Hashtbl.find_opt(global_inference_info.typehole_suggestions, id);
-    switch (status) {
-    | Unsolved(potential_typ_set) =>
-      Some((
-        false,
-        potential_typ_set
-        |> PotentialTypeSet.potential_typ_set_to_ityp_unroll(id)
-        |> List.map(ITyp.ityp_to_typ),
-      ))
-    | Solved(ityp) => Some((true, [ityp |> ITyp.ityp_to_typ]))
+    switch (Hashtbl.find_opt(global_inference_info.typehole_suggestions, id)) {
+    | None =>
+      switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
+      | Some(([id, ..._], exp_hole_status)) =>
+        switch (exp_hole_status) {
+        | Unsolved(potential_typ_set) =>
+          UnsolvedExpHole(
+            id,
+            potential_typ_set
+            |> PotentialTypeSet.potential_typ_set_to_ityp_unroll(id)
+            |> List.map(ITyp.ityp_to_typ),
+          )
+        | Solved(ityp) => SolvedExpHole(id, ITyp.ityp_to_typ(ityp))
+        }
+      | _ => NoSuggestion
+      }
+    | Some(status) =>
+      switch (status) {
+      | Unsolved(potential_typ_set) =>
+        UnsolvedTypeHole(
+          potential_typ_set
+          |> PotentialTypeSet.potential_typ_set_to_ityp_unroll(id)
+          |> List.map(ITyp.ityp_to_typ),
+        )
+      | Solved(ityp) => SolvedTypeHole(ITyp.ityp_to_typ(ityp))
+      }
     };
   } else {
-    None;
+    NoSuggestion;
   };

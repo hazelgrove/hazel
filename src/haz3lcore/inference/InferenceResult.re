@@ -31,9 +31,7 @@ let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
     : suggestion(string) =>
   if (global_inference_info.enabled) {
-    let status_opt =
-      Hashtbl.find_opt(global_inference_info.typehole_suggestions, id);
-    switch (status_opt) {
+    switch (Hashtbl.find_opt(global_inference_info.typehole_suggestions, id)) {
     | Some(Solved(Unknown(_))) => NoSuggestion(OnlyHoleSolutions)
     | Some(Solved(ityp)) =>
       let typ_to_string = x => Typ.typ_to_string(x, false);
@@ -43,7 +41,12 @@ let get_suggestion_text_for_id =
         PotentialTypeSet.string_of_potential_typ(false, potential_typ),
       )
     | Some(Unsolved(_)) => NoSuggestion(InconsistentSet)
-    | None => NoSuggestion(NonTypeHoleId)
+    | None =>
+      switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
+      | Some((_, Unsolved(tys))) when List.length(tys) > 1 =>
+        NoSuggestion(InconsistentSet)
+      | _ => NoSuggestion(NonTypeHoleId)
+      }
     };
   } else {
     NoSuggestion(SuggestionsDisabled);
@@ -54,16 +57,18 @@ let hole_mold: Mold.t = {out: Any, in_: [], nibs: (hole_nib, hole_nib)};
 
 let empty_solutions = (): type_hole_to_solution => Hashtbl.create(20);
 
-let mk_global_inference_info = (enabled, annotations) => {
-  {
-    enabled,
-    typehole_suggestions: annotations,
-    exphole_suggestions: Hashtbl.create(0),
-  };
+let mk_global_inference_info =
+    (annotations_enabled, (typ_hole_sugg, exp_hole_sugg)) => {
+  enabled: annotations_enabled,
+  typehole_suggestions: typ_hole_sugg,
+  exphole_suggestions: exp_hole_sugg,
 };
 
-let empty_info = (): global_inference_info =>
-  mk_global_inference_info(true, empty_solutions());
+let empty_info = (): global_inference_info => {
+  enabled: true,
+  typehole_suggestions: Hashtbl.create(20),
+  exphole_suggestions: Hashtbl.create(20),
+};
 
 let rec get_all_pattern_var_neighbors =
         (potential_typ_set: PotentialTypeSet.t): list(Id.t) => {

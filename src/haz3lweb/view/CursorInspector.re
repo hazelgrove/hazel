@@ -91,20 +91,19 @@ let view_of_global_inference_info =
     ) => {
   let font_metrics = Some(font_metrics);
   switch (InferenceView.get_cursor_inspect_result(~global_inference_info, id)) {
-  | Some((true, solution)) =>
+  | SolvedTypeHole(solution)
+  | SolvedExpHole(_, solution) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [
-        text("consistent constraints"),
-        Type.view(~font_metrics, List.nth(solution, 0)),
-      ],
+      [text("consistent constraints"), Type.view(~font_metrics, solution)],
     )
-  | Some((false, [typ_with_nested_conflict])) =>
+  | UnsolvedTypeHole([typ_with_nested_conflict])
+  | UnsolvedExpHole(_, [typ_with_nested_conflict]) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [Type.view(~font_metrics, typ_with_nested_conflict)],
     )
-  | Some((false, conflicting_typs)) =>
+  | UnsolvedTypeHole(conflicting_typs) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
@@ -148,7 +147,58 @@ let view_of_global_inference_info =
            ),
       ],
     )
-  | None => div([])
+  | UnsolvedExpHole(id, conflicting_typs) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [
+        text("conflicting constraints"),
+        ...List.map(
+             typ =>
+               div(
+                 ~attr=clss(["typ-view-conflict"]),
+                 [
+                   Widgets.hoverable_button(
+                     [Type.view(~font_metrics, typ)],
+                     _mouse_event => {
+                       State.set_considering_suggestion(false);
+                       inject(Update.SetMeta(Mouseup));
+                     },
+                     _mouse_event => {
+                       State.set_considering_suggestion(true);
+                       if (!State.get_suggestion_pasted()) {
+                         State.set_suggestion_pasted(true);
+
+                         Ui_effect.bind(
+                           inject(Update.PerformAction(Jump(TileId(id)))),
+                           ~f=_res =>
+                           inject(
+                             Update.Paste(
+                               Haz3lcore.Typ.typ_to_string(typ, false),
+                             ),
+                           )
+                         );
+                       } else {
+                         inject(Update.SetMeta(Mouseup));
+                       };
+                     },
+                     _mouse_event =>
+                       if (State.get_considering_suggestion()) {
+                         State.set_suggestion_pasted(false);
+                         State.set_considering_suggestion(false);
+                         Ui_effect.bind(inject(Update.Undo), ~f=_res =>
+                           inject(Update.Undo)
+                         );
+                       } else {
+                         inject(Update.SetMeta(Mouseup));
+                       },
+                   ),
+                 ],
+               ),
+             conflicting_typs,
+           ),
+      ],
+    )
+  | NoSuggestion => div([])
   };
 };
 
@@ -191,43 +241,71 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     ]
   };
 
-let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
-  switch (cls, ok) {
-  | (Exp(MultiHole) | Pat(MultiHole), _) => [
-      text("Expecting operator or delimiter"),
+let common_ok_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~id,
+      cls: Term.Cls.t,
+      ok: Info.ok_pat,
+    ) => {
+  switch (
+    Haz3lcore.InferenceResult.get_suggestion_text_for_id(
+      id,
+      global_inference_info,
+    )
+  ) {
+  | Solvable(_) // currently no indirect suggestions for solvable holes TODO: Raef explore this
+  | NestedInconsistency(_) // currently no indirect suggestions for solvable holes
+  | NoSuggestion(SuggestionsDisabled)
+  | NoSuggestion(NonTypeHoleId)
+  | NoSuggestion(OnlyHoleSolutions) =>
+    switch (cls, ok) {
+    | (Exp(MultiHole) | Pat(MultiHole), _) => [
+        text("Expecting operator or delimiter"),
+      ]
+    | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
+    | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
+    | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+        text("Fillable by any expression of type"),
+        Type.view(ana),
+      ]
+    | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+        text("Fillable by any pattern of type"),
+        Type.view(ana),
+      ]
+    | (_, Syn(syn)) => [text(":"), Type.view(syn)]
+    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
+        text(":"),
+        Type.view(ana),
+      ]
+    | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
+        text(":"),
+        Type.view(syn),
+        text("equals expected type"),
+      ]
+    | (_, Ana(Consistent({ana, syn, _}))) => [
+        text(":"),
+        Type.view(syn),
+        text("consistent with expected type"),
+        Type.view(ana),
+      ]
+    | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
+      [
+        text(elements_noun(cls) ++ " have inconsistent types:"),
+        ...ListUtil.join(text(","), List.map(Type.view, tys)),
+      ]
+      @ [text("but consistent with expected"), Type.view(ana)]
+    }
+  | _ => [
+      view_of_global_inference_info(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        id,
+      ),
     ]
-  | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
-  | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
-  | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
-      text("Fillable by any expression of type"),
-      Type.view(ana),
-    ]
-  | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
-      text("Fillable by any pattern of type"),
-      Type.view(ana),
-    ]
-  | (_, Syn(syn)) => [text(":"), Type.view(syn)]
-  | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
-      text(":"),
-      Type.view(ana),
-    ]
-  | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
-      text(":"),
-      Type.view(syn),
-      text("equals expected type"),
-    ]
-  | (_, Ana(Consistent({ana, syn, _}))) => [
-      text(":"),
-      Type.view(syn),
-      text("consistent with expected type"),
-      Type.view(ana),
-    ]
-  | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
-    [
-      text(elements_noun(cls) ++ " have inconsistent types:"),
-      ...ListUtil.join(text(","), List.map(Type.view, tys)),
-    ]
-    @ [text("but consistent with expected"), Type.view(ana)]
   };
 };
 
@@ -242,7 +320,9 @@ let typ_ok_view =
     ) =>
   switch (ok) {
   | Type(ty) =>
-    print_endline("calling get suggestion text from CI");
+    print_endline(
+      "calling get suggestion text from CI for id " ++ Id.to_string(id),
+    );
     switch (
       Haz3lcore.InferenceResult.get_suggestion_text_for_id(
         id,
@@ -290,19 +370,55 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
+let exp_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~id,
+      cls: Term.Cls.t,
+      status: Info.status_exp,
+    ) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(ok) =>
+    div_ok(
+      common_ok_view(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~id,
+        cls,
+        ok,
+      ),
+    )
   };
 
-let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
+let pat_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~global_inference_info,
+      ~id,
+      cls: Term.Cls.t,
+      status: Info.status_pat,
+    ) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(ok) =>
+    div_ok(
+      common_ok_view(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~id,
+        cls,
+        ok,
+      ),
+    )
   };
 
 let typ_view =
@@ -359,8 +475,28 @@ let view_of_info =
       [term_view(~inject, ~settings, ~show_lang_doc, ci), status_view],
     );
   switch (ci) {
-  | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
-  | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
+  | InfoExp({cls, status, _}) =>
+    wrapper(
+      exp_view(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~id,
+        cls,
+        status,
+      ),
+    )
+  | InfoPat({cls, status, _}) =>
+    wrapper(
+      pat_view(
+        ~inject,
+        ~font_metrics,
+        ~global_inference_info,
+        ~id,
+        cls,
+        status,
+      ),
+    )
   | InfoTyp({cls, status, _}) =>
     wrapper(
       typ_view(

@@ -53,13 +53,16 @@ module Meta = {
     let touched = Touched.update(Time.tick(), effects, touched);
     let unselected = Zipper.unselect_and_zip(z);
     let (term, _) = MakeTerm.go(unselected);
-    let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
+    let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
     let measured =
       Measured.of_segment(
         ~touched,
         ~old=measured,
         ~global_inference_info=
-          InferenceResult.mk_global_inference_info(inference_enabled, ctx),
+          InferenceResult.mk_global_inference_info(
+            inference_enabled,
+            suggestions,
+          ),
         unselected,
       );
     let term_ranges = TermRanges.mk(unselected);

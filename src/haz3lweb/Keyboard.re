@@ -8,11 +8,11 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let zipper = Editors.active_zipper(model.editors);
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let (_, ctx) = Statics.mk_map_and_inference_solutions(term);
+  let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
       model.langDocMessages.annotations,
-      ctx,
+      suggestions,
     );
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
