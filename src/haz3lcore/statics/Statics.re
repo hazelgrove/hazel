@@ -552,6 +552,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
+      ~annot_pat=false,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -633,11 +634,12 @@ and upat_to_info_map =
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Internal is used in this case */
+    let hole_reason: Typ.hole_reason = annot_pat ? Internal : PatternVar;
     let ctx_typ =
       Info.fixed_typ_pat(
         ctx,
         mode,
-        Common(Just(Unknown(ExpHole(PatternVar, id), false))),
+        Common(Just(Unknown(ExpHole(hole_reason, id), false))),
         id,
       );
     let entry = Ctx.VarEntry({name, id, typ: ctx_typ});
@@ -646,7 +648,7 @@ and upat_to_info_map =
       ~ctx=Ctx.extend(ctx, entry),
       ~constraints=
         subsumption_constraints(
-          Just(Unknown(ExpHole(PatternVar, id), false)),
+          Just(Unknown(ExpHole(hole_reason, id), false)),
         ),
       m,
     );
@@ -673,7 +675,7 @@ and upat_to_info_map =
     );
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-    let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
+    let (p, m) = go(~ctx, ~mode=Ana(ann.ty), ~annot_pat=true, p, m);
     add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraints=p.constraints, m);
   };
 }
