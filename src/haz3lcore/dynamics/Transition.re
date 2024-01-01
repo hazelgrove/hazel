@@ -58,7 +58,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
-  | Predicate
+  | Conditional(DHExp.t)
   | Projection
   | ListCons
   | ListConcat
@@ -280,20 +280,19 @@ module Transition = (EV: EV_MODE) => {
     | Constructor(_) =>
       let. _ = otherwise(d);
       Constructor;
-    // TODO: Not sure if this is right. This exists to satisfy the compiler
-    | IfThenElse(p, d1, d2) =>
-      let. _ = otherwise((d1, d2) => IfThenElse(p, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+    | IfThenElse(c, d1, d2) =>
+      let. _ = otherwise(c => IfThenElse(c, d1, d2))
+      and. c' = req_value(req(state, env), 0, c);
       Step({
         apply: () =>
-          switch (p) {
-          | BoolLit(true) => d1'
-          | BoolLit(false) => d2'
-          | _ => IfThenElse(p, d1, d2) // leave hole in representation
+          switch (c') {
+          | BoolLit(true) => d1
+          | BoolLit(false) => d2
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')))
           },
-        kind: Predicate,
-        value: true,
+        // attach c' to indicate which branch taken
+        kind: Conditional(c'),
+        value: false,
       });
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))

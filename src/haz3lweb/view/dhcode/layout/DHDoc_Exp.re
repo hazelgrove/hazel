@@ -315,32 +315,28 @@ let rec mk =
        };
        */
 
-      | IfThenElse(p, d1, d2) =>
-        let p_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, p));
+      | IfThenElse(c, d1, d2) =>
+        let c_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, c));
         let d1_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d1));
         let d2_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d2));
         hcats([
+          DHDoc_common.Delim.mk("("),
           DHDoc_common.Delim.mk("if"),
-          DHDoc_common.Delim.mk(" ("),
-          p_doc
+          c_doc
           |> DHDoc_common.pad_child(
                ~inline_padding=(space(), space()),
                ~enforce_inline=false,
              ),
-          DHDoc_common.Delim.mk(") "),
           DHDoc_common.Delim.mk("then"),
-          DHDoc_common.Delim.mk(" ("),
           d1_doc
           |> DHDoc_common.pad_child(
                ~inline_padding=(space(), space()),
                ~enforce_inline=false,
              ),
-          DHDoc_common.Delim.mk(") "),
           DHDoc_common.Delim.mk("else"),
-          DHDoc_common.Delim.mk(" ("),
           d2_doc
           |> DHDoc_common.pad_child(
-               ~inline_padding=(space(), space()),
+               ~inline_padding=(space(), empty()),
                ~enforce_inline=false,
              ),
           DHDoc_common.Delim.mk(")"),
