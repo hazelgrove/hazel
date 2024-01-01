@@ -58,7 +58,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
-  | Conditional(DHExp.t)
+  | Conditional(bool)
   | Projection
   | ListCons
   | ListConcat
@@ -283,17 +283,26 @@ module Transition = (EV: EV_MODE) => {
     | IfThenElse(c, d1, d2) =>
       let. _ = otherwise(c => IfThenElse(c, d1, d2))
       and. c' = req_value(req(state, env), 0, c);
-      Step({
-        apply: () =>
-          switch (c') {
-          | BoolLit(true) => d1
-          | BoolLit(false) => d2
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')))
+      switch (c') {
+      | BoolLit(b) =>
+        Step({
+          apply: () => {
+            b ? d1 : d2;
           },
-        // attach c' to indicate which branch taken
-        kind: Conditional(c'),
-        value: false,
-      });
+          // Attach c' to indicate which branch taken.
+          kind: Conditional(b),
+          value: false,
+        })
+      // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
+      | _ =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      };
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))
       // TODO(Matt): Make "And" able to evaluate when the left-hand side is not fully evaluated
