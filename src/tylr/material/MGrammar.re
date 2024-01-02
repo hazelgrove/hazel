@@ -1,4 +1,4 @@
-type t = PBNF.t(Sym.t(Mtrl.t(Label.t), Mtrl.t(Sort.t)));
+type t = PBNF.t(MSym.t);
 
 let mtrlize_tiles: Grammar.t => t =
   Sort.Map.map(
@@ -53,3 +53,5 @@ let mtrlize = (g: Grammar.t): t =>
   // bc comment in mtrlize_grout
   |> mtrlize_space
   |> mtrlize_grout;
+
+let v = mtrlize(Grammar.v);

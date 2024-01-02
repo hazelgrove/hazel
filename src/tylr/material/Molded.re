@@ -1,1 +1,1 @@
-type t = Material.t(unit, L)
+type t('focus) = ('focus, Mold.t);

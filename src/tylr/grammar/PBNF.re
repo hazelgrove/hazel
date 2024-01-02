@@ -1,7 +1,7 @@
 // precedence-extended BNF
 type t('sym) = Sort.Map.t(Prec.Table.t(Regex.t('sym)));
 
-module Mold = {
+module Ctx = {
   type t('atom) = {
     sort: Sort.t,
     prec: Prec.t,
