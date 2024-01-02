@@ -32,10 +32,7 @@ type t = {
 
 let init: unit => t =
   () => {
-    selection: {
-      focus: Left,
-      content: [],
-    },
+    selection: Selection.mk([]),
     backpack: [],
     relatives: {
       siblings: ([], [Grout({id: Id.mk(), shape: Convex})]),
@@ -95,7 +92,7 @@ let zip = (z: t): Segment.t =>
 let sibs_with_sel =
     (
       {
-        selection: {content, focus},
+        selection: {content, focus, _},
         relatives: {siblings: (l_sibs, r_sibs), _},
         _,
       }: t,
@@ -131,15 +128,27 @@ let remold = (z: t): t => {
 
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
-let unselect = (z: t): t => {
+let clear_unparsed_buffer = (z: t) =>
+  switch (z.selection.mode) {
+  | Buffer(Unparsed) => {...z, selection: Selection.empty}
+  | _ => z
+  };
+
+let unselect = (~erase_buffer=false, z: t): t => {
+  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
+   * that is, the buffer style that just contains a single flat token.
+   * Erasing a buffer the contains arbitrary tiles would be more complex
+   * as we can't just empty the selection without regrouting */
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
     |> Relatives.reassemble;
-  let selection = Selection.clear(z.selection);
+  let selection = Selection.empty;
   {...z, selection, relatives};
 };
-let unselect_and_zip = (z: t): Segment.t => z |> unselect |> zip;
+let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
+  z |> unselect(~erase_buffer) |> zip;
 
 let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
   let old = z.selection;
@@ -355,3 +364,84 @@ let can_put_down = z =>
   | Some(_) => z.caret == Outer
   | None => false
   };
+
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
+  ...z,
+  selection: Selection.mk_buffer(mode, content),
+};
+
+let is_linebreak_to_right_of_caret =
+    ({relatives: {siblings: (_, r), _}, _}: t): bool => {
+  switch (r) {
+  | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
+  | _ => false
+  };
+};
+
+/* Try to complete the syntax to give better semantic feeback.
+ * This is a best-effort approach focussed on adding new definitions
+ * as opposed to restructuring; it does not complete the syntax in
+ * all cases.
+ *
+ * NOTE: Setting the caret to outer was necessary to 'get it past'
+ * string literals, i.e. offer live feeback when typing inside a
+ * string; not sure if this is a hack or not, it may be compensating
+ * for the put_down logic not working right with string lits. To test,
+ * try to look at live evaluation while typing inside a string lit with
+ * stuff left to drop in backpack with below set: Outer disabled. */
+let try_to_dump_backpack = (zipper: t) => {
+  switch (zipper.backpack) {
+  | [] => zipper
+  | _ =>
+    let zipper = {...zipper, caret: Outer};
+    let rec move_until_cant_put_down = (z_last, z: t) =>
+      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_cant_put_down(z, z_new)
+        };
+      } else {
+        z_last;
+      };
+    let rec move_until_can_put_down = (z: t) =>
+      if (!can_put_down(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_can_put_down(z_new)
+        };
+      } else {
+        z;
+      };
+    let rec go = (z: t): t =>
+      if (can_put_down(z)) {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
+      } else {
+        let z_can = move_until_can_put_down(z);
+        let z_can = move_until_cant_put_down(z_can, z_can);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
+      };
+    go(zipper);
+  };
+};
+
+let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
+  let z = dump_backpack ? try_to_dump_backpack(z) : z;
+  unselect_and_zip(~erase_buffer, z);
+};
+
+let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
+let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
+
+let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

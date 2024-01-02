@@ -436,6 +436,7 @@ module UExp = {
     | Let
     | TyAlias
     | Ap
+    | Pipeline
     | If
     | Seq
     | Test
@@ -475,6 +476,7 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -548,7 +550,7 @@ module UExp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | Triv => "Trivial litera"
+    | Triv => "Trivial literal"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -561,6 +563,7 @@ module UExp = {
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
@@ -589,6 +592,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -621,6 +625,7 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
