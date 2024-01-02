@@ -1,6 +1,6 @@
 module Step = {
-  include MSym.Molded;
-  type t = MSym.Molded.t;
+  include Molded.Sym;
+  type t = Molded.Sym.t;
 
   module Ord = {
     type nonrec t = t;
@@ -47,27 +47,23 @@ let step_enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(Step.t) => {
        // need to check for legal entry from both sides
        let entered_l =
          RZipper.enter(~from=L, rgx)
-         |> List.filter(((sym, _)) =>
-              MSym.is_t(sym) || Prec.lt(~a, l, p)
-            )
+         |> List.filter(((sym, _)) => MSym.is_t(sym) || Prec.lt(~a, l, p))
          |> List.map(((sym, rctx)) => Molded.(sym, {sort, prec, ctx}));
        let entered_r =
          RZipper.enter(~from=R, rgx)
-         |> List.filter(((sym, _)) =>
-              MSym.is_t(sym) || Prec.gt(~a, p, r)
-            )
+         |> List.filter(((sym, _)) => MSym.is_t(sym) || Prec.gt(~a, p, r))
          |> List.map(((sym, rctx)) => Molded.(sym, {sort, prec, ctx}));
        List.(is_empty(entered_l) || is_empty(entered_r))
          ? [] : Dir.choose(from, entered_l, entered_r);
      })
-  |> List.concat
+  |> List.concat;
 };
 
 let enter = (~from: Dir.t, ~l=?, ~r=?, sort: Sort.t) => {
   let seen = Hashtbl.create(10);
   let rec go = (s: Sort.t) =>
     switch (Hashtbl.find_opt(seen, s)) {
-    | Some() => Step.Set.empty
+    | Some () => Step.Set.empty
     | None =>
       Hashtbl.add(seen, s, ());
       open ListUtil.Syntax;
@@ -111,23 +107,4 @@ let walk = (d: Dir.t, src: Bound.t(Step.t)): Set.t => {
     let* entered = Set.of_steps(enter(Root));
     go(dst(entered), mk([[], []]));
   };
-};
-
-let lt = (l: Bound.t(MLabel.Molded.t), r: MLabel.Molded.t) => {
-  let (l, r) = (Bound.map(MSym.Molded.t, l), MSym.Molded.t(r));
-  l |> walk(R) |> Set.neq(r);
-};
-
-let gt = (l: MLabel.Molded.t, r: Bound.t(MLabel.Molded.t)) => {
-  let (l, r) = (MSym.Molded.t(l), Bound.map(MSym.Molded.t, r));
-  r |> walk(L) |> Set.neq(l);
-};
-
-// todo: tidy up from parameter
-let eq = (~from=Dir.L, l: MLabel.Molded.t, r: MLabel.Molded.t) => {
-  let (l, r) = MSym.Molded.(t(l), t(r));
-  let (m_from, m_onto) = Dir.choose(from, l, r);
-  Bound.Node(m_from)
-  |> walk(Dir.toggle(from))
-  |> Set.eq(m_onto);
 };

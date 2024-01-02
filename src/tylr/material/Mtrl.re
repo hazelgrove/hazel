@@ -7,6 +7,9 @@ module Base = {
 };
 include Base;
 
-// module Labeled = {
-//   type t = Base.t(Label.t);
-// };
+module Labeled = {
+  type t = Base.t(Label.t);
+};
+module Sorted = {
+  type t = Base.t(Sort.t);
+};
