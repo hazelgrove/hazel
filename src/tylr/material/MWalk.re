@@ -1,5 +1,6 @@
 module Step = {
-  type t = Molded.t(MSym.t);
+  include MSym.Molded;
+  type t = MSym.Molded.t;
 
   module Ord = {
     type nonrec t = t;
@@ -110,4 +111,23 @@ let walk = (d: Dir.t, src: Bound.t(Step.t)): Set.t => {
     let* entered = Set.of_steps(enter(Root));
     go(dst(entered), mk([[], []]));
   };
+};
+
+let lt = (l: Bound.t(MLabel.Molded.t), r: MLabel.Molded.t) => {
+  let (l, r) = (Bound.map(MSym.Molded.t, l), MSym.Molded.t(r));
+  l |> walk(R) |> Set.neq(r);
+};
+
+let gt = (l: MLabel.Molded.t, r: Bound.t(MLabel.Molded.t)) => {
+  let (l, r) = (MSym.Molded.t(l), Bound.map(MSym.Molded.t, r));
+  r |> walk(L) |> Set.neq(l);
+};
+
+// todo: tidy up from parameter
+let eq = (~from=Dir.L, l: MLabel.Molded.t, r: MLabel.Molded.t) => {
+  let (l, r) = MSym.Molded.(t(l), t(r));
+  let (m_from, m_onto) = Dir.choose(from, l, r);
+  Bound.Node(m_from)
+  |> walk(Dir.toggle(from))
+  |> Set.eq(m_onto);
 };

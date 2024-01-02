@@ -1,2 +1,14 @@
 include Sym;
-type t = Sym.t(Mtrl.Labeled.t, Mtrl.Sorted.t);
+
+module Base = {
+  type t = Sym.t(MLabel.t, MSort.t);
+};
+include Base;
+
+module Molded = {
+  include Molded;
+  type t = Molded.t(Base.t);
+
+  let t = ((mlbl, mold): t) => (Sym.T(mlbl), mold);
+  let nt = ((msrt, mold): t) => (Sym.NT(msrt), mold);
+};
