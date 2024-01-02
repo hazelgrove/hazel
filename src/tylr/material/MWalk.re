@@ -79,3 +79,35 @@ let enter = (~from: Dir.t, ~l=?, ~r=?, sort: Sort.t) => {
     };
   go(sort);
 };
+
+let walk = (d: Dir.t, src: Bound.t(Step.t)): Set.t => {
+  open Set.Syntax;
+  let enter = enter(~from=Dir.toggle(d));
+  let seen = Hashtbl.create(100);
+  let rec go = (src, walked) => {
+    let stp = Option.value(dst(walked), ~default=src);
+    switch (Hashtbl.find_opt(seen, stp)) {
+    | Some () => walked
+    | None =>
+      Hashtbl.add(seen, stp, ());
+      let stepped = {
+        let* stepped = Set.of_steps(step(d, stp));
+        go(src, cat_eq(stepped, walked));
+      };
+      let entered =
+        switch (stp) {
+        | T(_) => Set.empty
+        | NT(sort) =>
+          let* entered = Set.of_steps(enter(Node(sort)));
+          go(src, cat_neq(entered, walked));
+        };
+      Set.union(stepped, entered);
+    };
+  };
+  switch (src) {
+  | Node(src) => go(src, empty)
+  | Root =>
+    let* entered = Set.of_steps(enter(Root));
+    go(dst(entered), mk([[], []]));
+  };
+};
