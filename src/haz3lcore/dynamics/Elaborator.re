@@ -243,13 +243,16 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
-      | If(scrut, e1, e2) =>
-        // TODO: Inconsistent branches still evaluate to a value
-        //       Issue existed even in the old version using cases (before DHExp.IfThenElse)
-        let* d_scrut = dhexp_of_uexp(m, scrut);
+      | If(c, e1, e2) =>
+        let* c' = dhexp_of_uexp(m, c);
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
-        DHExp.IfThenElse(d_scrut, d1, d2);
+        // Use tag to mark inconsistent branches
+        switch (err_status) {
+        | InHole(Common(Inconsistent(Internal(_)))) =>
+          DHExp.IfThenElse(false, c', d1, d2)
+        | _ => DHExp.IfThenElse(true, c', d1, d2)
+        };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let+ d_rules =

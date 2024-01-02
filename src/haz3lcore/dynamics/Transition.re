@@ -280,11 +280,11 @@ module Transition = (EV: EV_MODE) => {
     | Constructor(_) =>
       let. _ = otherwise(d);
       Constructor;
-    | IfThenElse(c, d1, d2) =>
-      let. _ = otherwise(c => IfThenElse(c, d1, d2))
+    | IfThenElse(valid, c, d1, d2) =>
+      let. _ = otherwise(c => IfThenElse(valid, c, d1, d2))
       and. c' = req_value(req(state, env), 0, c);
-      switch (c') {
-      | BoolLit(b) =>
+      switch (valid, c') {
+      | (true, BoolLit(b)) =>
         Step({
           apply: () => {
             b ? d1 : d2;
@@ -293,8 +293,10 @@ module Transition = (EV: EV_MODE) => {
           kind: Conditional(b),
           value: false,
         })
+      // Inconsistent branches should be Indet
+      | (false, _) => Indet
       // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
-      | _ =>
+      | (true, _) =>
         Step({
           apply: () => {
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
