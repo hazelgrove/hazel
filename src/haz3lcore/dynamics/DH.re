@@ -36,7 +36,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | IfThenElse(t, t, t)
+    | IfThenElse(bool, t, t, t) // use bool tag to track if branches are consistent
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -91,7 +91,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | IfThenElse(t, t, t)
+    | IfThenElse(bool, t, t, t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -132,7 +132,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
-    | IfThenElse(_, _, _) => "IfThenElse"
+    | IfThenElse(_, _, _, _) => "IfThenElse"
     };
 
   let mk_tuple: list(t) => t =
@@ -195,8 +195,8 @@ module rec DHExp: {
     | StringLit(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
-    | IfThenElse(a, b, c) =>
-      IfThenElse(strip_casts(a), strip_casts(b), strip_casts(c))
+    | IfThenElse(valid, c, d1, d2) =>
+      IfThenElse(valid, strip_casts(c), strip_casts(d1), strip_casts(d2))
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
@@ -249,8 +249,11 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
-    | (IfThenElse(d11, d12, d13), IfThenElse(d21, d22, d23)) =>
-      fast_equal(d11, d21) && fast_equal(d12, d22) && fast_equal(d13, d23)
+    | (IfThenElse(d10, d11, d12, d13), IfThenElse(d20, d21, d22, d23)) =>
+      d10 == d20
+      && fast_equal(d11, d21)
+      && fast_equal(d12, d22)
+      && fast_equal(d13, d23)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)

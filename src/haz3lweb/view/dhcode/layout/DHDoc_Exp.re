@@ -315,7 +315,7 @@ let rec mk =
        };
        */
 
-      | IfThenElse(c, d1, d2) =>
+      | IfThenElse(_, c, d1, d2) =>
         let c_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, c));
         let d1_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d1));
         let d2_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d2));

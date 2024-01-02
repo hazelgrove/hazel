@@ -134,11 +134,11 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_eval(d');
     InvalidOperation(d'', reason) |> return;
 
-  | IfThenElse(c, d1, d2) =>
+  | IfThenElse(valid, c, d1, d2) =>
     let* c' = pp_eval(c);
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    IfThenElse(c', d1', d2') |> return;
+    IfThenElse(valid, c', d1', d2') |> return;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
@@ -317,11 +317,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     BinStringOp(op, d1', d2') |> return;
 
-  | IfThenElse(c, d1, d2) =>
+  | IfThenElse(valid, c, d1, d2) =>
     let* c' = pp_uneval(env, c);
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    IfThenElse(c', d1', d2') |> return;
+    IfThenElse(valid, c', d1', d2') |> return;
 
   | Cons(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -483,7 +483,7 @@ let rec track_children_of_hole =
       ds,
       hii,
     )
-  | IfThenElse(c, d1, d2) =>
+  | IfThenElse(_, c, d1, d2) =>
     let hii = track_children_of_hole(hii, parent, c);
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
