@@ -5,14 +5,10 @@ open Slope;
 // left-to-right: up top dn
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = {
-  up: Up.t('a),
+  up: Slope.Up.t('a),
   top: Wald.t('a),
-  dn: Dn.t('a),
+  dn: Slope.Dn.t('a),
 };
-[@deriving (show({with_path: false}), sexp, yojson)]
-type m = t(Material.Molded.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type p = t(Piece.t);
 
 let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};
 

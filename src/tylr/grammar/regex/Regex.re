@@ -65,9 +65,9 @@ let nullable = r =>
 // only (1) fundamentally necessary
 exception Ill_typed;
 
-let tok = (lbl: Label.t) => Atom(Atom.Tok(lbl));
-let tokc = (t: Token.t) => tok(Const(t));
-let kid = s => Atom(Atom.Kid(s));
+// let tok = (lbl: Label.t) => Atom(Atom.Tok(lbl));
+// let tokc = (t: Token.t) => tok(Const(t));
+// let kid = s => Atom(Atom.Kid(s));
 
 let kids = r =>
   r

@@ -4,7 +4,7 @@ open Util;
 // todo: add operator class
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t =
-  | Const(Token.t)
+  | Const(string)
   | Id_lower
   | Id_upper
   | Int_lit
@@ -30,12 +30,12 @@ let is_const =
 let length = _ => failwith("todo Label.length");
 
 // succeeds on and duplicates labels of empty and dynamic length
-let unzip = (n: int, lbl: t): Result.t((t, t), Dir.t) =>
-  switch (lbl) {
-  | Const(t) when Token.length(t) > 0 =>
-    Token.unzip(n, t) |> Result.map(~f=((l, r)) => (Const(l), Const(r)))
-  | _ => Ok((lbl, lbl))
-  };
+// let unzip = (n: int, lbl: t): Result.t((t, t), Dir.t) =>
+//   switch (lbl) {
+//   | Const(t) when Token.length(t) > 0 =>
+//     Token.unzip(n, t) |> Result.map(~f=((l, r)) => (Const(l), Const(r)))
+//   | _ => Ok((lbl, lbl))
+//   };
 
 let zip = (l: t, r: t): option(t) =>
   switch (l, r) {

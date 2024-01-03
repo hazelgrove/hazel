@@ -7,13 +7,13 @@ module Base = {
     [@hash.ignore]
     id: Id.t,
     mtrl: 'mtrl,
-    token: Token.t,
+    text: string,
   };
-  let mk = (~id=?, ~token=Token.empty, mtrl) => {
+  let mk = (~id=?, ~text="", mtrl) => {
     let id = Id.Gen.value(id);
-    {id, mtrl, token};
+    {id, mtrl, text};
   };
-  let is_empty = p => String.eq(p.token, "");
+  let is_empty = p => String.eq(p.text, "");
 };
 
 module Labeled = {
@@ -30,19 +30,19 @@ module Molded = {
 include Molded;
 
 let to_labeled = (p: t): Labeled.t => {
-  let mk = m => Labeled.mk(~id=p.id, ~token=p.token, m);
+  let mk = m => Labeled.mk(~id=p.id, ~text=p.text, m);
   switch (p.mtrl) {
   | Space => mk(Space)
   | Grout(tips) => mk(Grout(tips))
   | Tile(m) when is_empty(p) => mk(Tile([GMold.label(m)]))
-  | Tile(_) => mk(Tile(Labels.with_prefix(p.token)))
+  | Tile(_) => mk(Tile(Labels.with_prefix(p.text)))
   };
 };
 
 // let relabel = (p: t): (Material.Labeled)
 
 // well-labeled invariant: for piece p
-// !Label.is_empty(p.material.label) ==> is_prefix(p.token, p.material.label)
+// !Label.is_empty(p.material.label) ==> is_prefix(p.text, p.material.label)
 // exception Ill_labeled;
 
 let clear = (p: t) =>
@@ -52,7 +52,7 @@ let clear = (p: t) =>
   | Tile(_) => [{...p, token: Token.empty}]
   };
 
-let mk = (~id=?, ~token="", material) => {
+let mk = (~id=?, ~text="", material) => {
   let id =
     switch (id) {
     | None => Id.Gen.next()
@@ -74,7 +74,7 @@ let label_length = p =>
   | Grout () => None
   | Tile(lbl) => Label.length(lbl)
   };
-let token_length = p => Token.length(p.token);
+let token_length = p => Token.length(p.text);
 
 // todo: review uses and replace with one of above
 let length = _ => failwith("todo: Piece.length");
@@ -108,16 +108,16 @@ let is_finished = p =>
 //   | Some(0) =>
 //     assert(is_grout(p));
 //     true;
-//   | Some(n) => Token.length(p.token) == n
+//   | Some(n) => Token.length(p.text) == n
 //   };
 
-// let is_porous = p => Token.is_empty(p.token);
+// let is_porous = p => Token.is_empty(p.text);
 
 let unzip = (n: int, p: t): Result.t((t, t), Dir.t) => {
-  switch (label(p), Token.unzip(n, p.token)) {
+  switch (label(p), Token.unzip(n, p.text)) {
   | (Grout (), Error(L)) => Error(n < 1 ? L : R)
   | (Tile(_), Error(L)) => Error(L)
-  | (Tile(lbl), Error(R)) when n == Token.length(p.token) =>
+  | (Tile(lbl), Error(R)) when n == Token.length(p.text) =>
     switch (Label.unzip(n, lbl)) {
     | Error(side) =>
       assert(side == R);
