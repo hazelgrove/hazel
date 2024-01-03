@@ -6,7 +6,9 @@ module Base = {
     | M(cell, wald, cell)
   and wald =
     | W(Chain.t(Token.t, cell))
-  and cell = Cell.t((Path.Marks.t, t));
+  and cell =
+    | Empty
+    | Full(Path.Marks.t, t);
 };
 include Base;
 

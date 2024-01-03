@@ -4,10 +4,10 @@ open Slope;
 
 // left-to-right: up top dn
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = {
-  up: Slope.Up.t('a),
-  top: Wald.t('a),
-  dn: Slope.Dn.t('a),
+type t = {
+  up: Slope.Up.t,
+  top: Wald.t,
+  dn: Slope.Dn.t,
 };
 
 let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};

@@ -1,12 +1,12 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Missing_term // convex grout
+  | Missing_meld // convex grout
   | Missing_tile // ghost tile
-  | Incon_term // pre/postfix grout
-  | Extra_term; // infix grout
+  | Incon_meld // pre/postfix grout
+  | Extra_meld; // infix grout
 
 // low to high severity
-let all = [Missing_term, Missing_tile, Incon_term, Extra_term];
+let all = [Missing_meld, Missing_tile, Incon_meld, Extra_meld];
 let severity = o => Option.get(List.find_index((==)(o), all));
 
 module Ord = {
@@ -53,21 +53,5 @@ module Delta = {
       |> ListUtil.hd_opt;
     Effects.commit(effs);
     y;
-  };
-};
-
-module Result = {
-  type t('a) = ('a, Delta.t);
-
-  let map = (f, (a, d)) => (f(a), d);
-  let bind = ((a, d), f) => {
-    let (b, d') = f(a);
-    (b, Delta.add([d, d']));
-  };
-
-  module Syntax = {
-    let return = a => (a, Delta.zero);
-    let (let+) = Fun.flip(map);
-    let ( let* ) = bind;
   };
 };

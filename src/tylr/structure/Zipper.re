@@ -56,8 +56,8 @@ let rec unzip = (zipped: ESlot.Marked.t) => {
         let (pre, p, suf) = get(EMeld.unzip_piece(piece, m));
         switch (Piece.unzip(offset, p)) {
         | Ok((l, r)) =>
-          let l = Terrace.L.of_prefix(pre, l);
-          let r = Terrace.R.of_suffix(r, suf);
+          let l = Terr.L.of_prefix(pre, l);
+          let r = Terr.R.of_suffix(r, suf);
           EStepwell.cons_slopes(([l], [r]), ctx);
         | Error(side) =>
           // ignore prev unzip to piece, re-unzip to neighbor slot
