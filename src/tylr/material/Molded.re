@@ -4,13 +4,14 @@ module Base = {
 include Base;
 
 module Label = {
-  type t = Base.t(MLabel.t);
+  type t = Base.t(Mtrl.Labeled.t);
 };
 module Sort = {
-  type t = Base.t(MSort.t);
+  type t = Base.t(Mtrl.Sorted.t);
 };
+
 module Sym = {
-  type t = Base.t(MSym.t);
+  type t = Base.t(Mtrl.Sym.t);
   let t = ((mlbl, mold): t) => (Sym.T(mlbl), mold);
   let nt = ((msrt, mold): t) => (Sym.NT(msrt), mold);
 };

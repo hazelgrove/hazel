@@ -13,3 +13,7 @@ module Labeled = {
 module Sorted = {
   type t = Base.t(Sort.t);
 };
+
+module Sym = {
+  type t = Sym.t(Labeled.t, Sorted.t);
+};

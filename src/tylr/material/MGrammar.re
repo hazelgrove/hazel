@@ -23,6 +23,10 @@ let mtrlize_space: t => t =
     }),
   );
 
+// G ::= [Space] <> [Space]
+//       ...
+//       ([Space] <<)? _ (>< _)* (>> [Space])?
+
 let mtrlize_grout = (g: t): t =>
   Sort.Map.map(tbl => {
     open Regex;
@@ -31,6 +35,7 @@ let mtrlize_grout = (g: t): t =>
     // ideally would let space pass take care of this
     // but gets a lil more complicated with varying end delimiters
     let spc = atom(Sym.NT(Space));
+    // todo: add space
     [(None, g_t)]
     @ tbl
     @ [
