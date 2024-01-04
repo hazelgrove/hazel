@@ -8,17 +8,17 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let mode_menu = (~inject: Update.t => 'a, ~mode: ModelSettings.mode) =>
+let mode_menu = (~inject: Update.t => 'a, ~mode: Settings.mode) =>
   div(
     ~attr=Attr.many([Attr.class_("mode-name"), Attr.title("Toggle Mode")]),
     [
       select(
         ~attr=
           Attr.on_change((_, name) =>
-            inject(SetMode(ModelSettings.mode_of_string(name)))
+            inject(Set(Mode(Settings.mode_of_string(name))))
           ),
         List.map(
-          option_view(ModelSettings.show_mode(mode)),
+          option_view(Settings.show_mode(mode)),
           ["Scratch", "Examples", "Exercise"],
         ),
       ),
@@ -67,7 +67,7 @@ let view =
     (
       ~inject: Update.t => 'a,
       ~editors: Editors.t,
-      ~settings as {instructor_mode, _}: ModelSettings.t,
+      ~settings as {instructor_mode, _}: Settings.t,
     )
     : Node.t => {
   let contents =

@@ -3,9 +3,21 @@ open Sexplib.Std;
 open Zipper;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type piece_goal =
+  | Grout;
+
+let of_piece_goal =
+  fun
+  | Grout => (
+      fun
+      | Piece.Grout(_) => true
+      | _ => false
+    );
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type goal =
   | Point(Measured.Point.t)
-  | Piece(Piece.t => bool, Direction.t);
+  | Piece(piece_goal, Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type move =
@@ -19,7 +31,7 @@ type jump_target =
   | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type term =
+type rel =
   | Current
   | Id(Id.t);
 
@@ -27,7 +39,9 @@ type term =
 type select =
   | All
   | Resize(move)
-  | Term(term);
+  | Smart
+  | Tile(rel)
+  | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -35,7 +49,7 @@ type t =
   | MoveToNextHole(Direction.t)
   | Jump(jump_target)
   | Select(select)
-  | Unselect
+  | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
   | RotateBackpack
@@ -57,3 +71,11 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+let is_edit: t => bool =
+  fun
+  | Insert(_)
+  | Destruct(_)
+  | Pick_up
+  | Put_down => true
+  | _ => false;
