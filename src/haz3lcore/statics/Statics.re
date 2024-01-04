@@ -292,28 +292,28 @@ and uexp_to_info_map =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let (p_ana', _) =
-      go_pat(
-        ~is_synswitch=false,
-        ~co_ctx=CoCtx.empty,
-        ~mode=Ana(def.ty),
-        p,
-        m,
-      );
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(def.ty),
+            p,
+            m,
+          );
         (def, p_ana', m);
       } else {
-        let (def_base, _) = go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
+        let (def_base, _) =
+          go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
         /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana', _) =
-      go_pat(
-        ~is_synswitch=false,
-        ~co_ctx=CoCtx.empty,
-        ~mode=Ana(def_base.ty), 
-        p,
-        m,
-      );
-        let def_ctx = p_ana.ctx;
-        let (def_base2, _) =
-          go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(def_base.ty),
+            p,
+            m,
+          );
+        let def_ctx = p_ana'.ctx;
+        let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
         let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
           ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
             ? ty_fn1 : ty_p;
@@ -329,7 +329,7 @@ and uexp_to_info_map =
         let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
         (def, p_ana', m);
       };
-    let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
+    let (body, m) = go'(~ctx=p_ana'.ctx, ~mode, body, m);
     /* add co_ctx to pattern */
     let (p_ana, m) =
       go_pat(

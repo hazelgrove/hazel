@@ -640,6 +640,7 @@ module UExp = {
       | TyAlias(_)
       | Ap(_)
       | DeferredAp(_)
+      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
