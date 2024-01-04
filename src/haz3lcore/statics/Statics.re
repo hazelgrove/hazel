@@ -288,7 +288,7 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
-    let (def, p_ana', m, ty_p_ana) =
+    let (def, p_ana_ctx, m, ty_p_ana) =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def.ty;
@@ -300,7 +300,7 @@ and uexp_to_info_map =
             p,
             m,
           );
-        (def, p_ana', m, ty_p_ana);
+        (def, p_ana'.ctx, m, ty_p_ana);
       } else {
         let (def_base, _) =
           go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
@@ -329,9 +329,9 @@ and uexp_to_info_map =
           | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
           };
         let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
-        (def, p_ana', m, ty_p_ana);
+        (def, def_ctx, m, ty_p_ana);
       };
-    let (body, m) = go'(~ctx=p_ana'.ctx, ~mode, body, m);
+    let (body, m) = go'(~ctx=p_ana_ctx, ~mode, body, m);
     /* add co_ctx to pattern */
     let (p_ana, m) =
       go_pat(
