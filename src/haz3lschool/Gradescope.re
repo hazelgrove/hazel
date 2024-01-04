@@ -61,12 +61,15 @@ module Main = {
   let gen_grading_report = exercise => {
     let zipper_pp = zipper => {
       Printer.pretty_print(
-        ~measured=Measured.of_segment(Zipper.unselect_and_zip(zipper)),
+        ~measured=Measured.of_segment(Zipper.seg_without_buffer(zipper)),
         zipper,
       );
     };
-    let model_results = ModelResults.init(spliced_elabs(exercise));
-    let stitched_dynamics = stitch_dynamic(exercise, Some(model_results));
+    let settings = CoreSettings.on;
+    let model_results =
+      ModelResults.init(~settings, spliced_elabs(settings, exercise));
+    let stitched_dynamics =
+      stitch_dynamic(settings, exercise, Some(model_results));
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_dynamics);
     let details = grading_report;
     let point_distribution = details.point_distribution;

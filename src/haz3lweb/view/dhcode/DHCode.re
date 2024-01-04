@@ -67,10 +67,6 @@ let view_of_layout = (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
                  [with_cls("OperationError", txt)],
                  ds,
                )
-             | OperationError(InvalidProjection) => (
-                 [with_cls("OperationError", txt)],
-                 ds,
-               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | Invalid((_, (-666))) =>
                /* Evaluation and Elaboration exceptions */

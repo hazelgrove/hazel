@@ -401,11 +401,28 @@ module rec Typ: {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
-         otherwise the rec parameter will leak */
-      switch (unroll(ty)) {
+         otherwise the rec parameter will leak. However, seeing
+         as substitution is too expensive to be used here, we
+         currently making the optimization that, since all
+         recursive types are type alises which use the alias name
+         as the recursive parameter, and type aliases cannot be
+         shadowed, it is safe to simply remove the Rec constructor,
+         provided we haven't escaped the context in which the alias
+         is bound. If either of the above assumptions become invalid,
+         the below code will be incorrect! */
+      let ty =
+        switch (ty) {
+        | Rec(x, ty_body) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | None => unroll(ty)
+          | Some(_) => ty_body
+          }
+        | _ => ty
+        };
+      switch (ty) {
       | Sum(sm) => Some(sm)
       | _ => None
-      }
+      };
     | _ => None
     };
   };
