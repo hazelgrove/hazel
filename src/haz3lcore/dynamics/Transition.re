@@ -293,8 +293,6 @@ module Transition = (EV: EV_MODE) => {
           kind: Conditional(b),
           value: false,
         })
-      // Inconsistent branches should be Indet
-      | (false, _) => Indet
       // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
       | (true, _) =>
         Step({
@@ -304,6 +302,8 @@ module Transition = (EV: EV_MODE) => {
           kind: InvalidStep,
           value: true,
         })
+      // Inconsistent branches should be Indet
+      | (false, _) => Indet
       };
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))
