@@ -280,10 +280,10 @@ module Transition = (EV: EV_MODE) => {
     | Constructor(_) =>
       let. _ = otherwise(d);
       Constructor;
-    | IfThenElse(valid, c, d1, d2) =>
-      let. _ = otherwise(c => IfThenElse(valid, c, d1, d2))
+    | IfThenElse(consistent, c, d1, d2) =>
+      let. _ = otherwise(c => IfThenElse(consistent, c, d1, d2))
       and. c' = req_value(req(state, env), 0, c);
-      switch (valid, c') {
+      switch (consistent, c') {
       | (true, BoolLit(b)) =>
         Step({
           apply: () => {
