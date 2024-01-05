@@ -34,7 +34,11 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     switch (self_ty) {
     | Unknown(prov) =>
       switch (d) {
-      | Cast(_) => d
+      | Cast(
+          EmptyHole(_),
+          Unknown(Internal),
+          Arrow(Unknown(Internal), Unknown(Internal)),
+        ) => d
       | _ =>
         DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
       }
