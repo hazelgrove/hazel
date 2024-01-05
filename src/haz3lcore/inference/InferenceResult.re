@@ -101,13 +101,16 @@ let condense =
     PotentialTypeSet.sort_potential_typ_set(potential_typ_set);
 
   let hole_filtered_potential_typ_set =
-    PotentialTypeSet.filter_unneeded_holes(
-      PotentialTypeSet.is_known,
+    PotentialTypeSet.filter_unneeded_nodes(
+      PotentialTypeSet.is_unknown,
       sorted_potential_typ_set,
     );
 
   let redundant_var_filtered_potential_typ_set =
-    PotentialTypeSet.filter_vars(hole_filtered_potential_typ_set);
+    PotentialTypeSet.filter_unneeded_nodes(
+      PotentialTypeSet.is_var,
+      hole_filtered_potential_typ_set,
+    );
 
   switch (err) {
   | Some(_) => Unsolved(redundant_var_filtered_potential_typ_set)

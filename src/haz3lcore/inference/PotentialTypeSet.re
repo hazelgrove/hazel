@@ -346,92 +346,104 @@ and target_typ_in_domain_but_not_equal_typ =
   && target_typ_used_in_potential_typ(target_typ, potential_typ);
 };
 
-let is_known: potential_typ => bool =
+let is_unknown: potential_typ => bool =
   fun
-  | Base(BUnknown(_)) => false
-  | _ => true;
+  | Base(BUnknown(_)) => true
+  | _ => false;
 
-let rec filter_unneeded_holes_class =
-        (comp: potential_typ => bool, remove: bool, potential_typ_set: t): t => {
+let is_var: potential_typ => bool =
+  fun
+  | Base(BVar(_)) => true
+  | _ => false;
+
+let rec filter_unneeded_nodes_class =
+        (
+          is_removal_candidate: potential_typ => bool,
+          remove_candidates: bool,
+          potential_typ_set: t,
+        )
+        : t => {
   switch (potential_typ_set) {
   | [] => []
   | [hd, ...tl] =>
-    let (had_hole, filtered_hd_opt) =
-      filter_unneeded_holes_typ(comp, remove, hd);
-    let remove = had_hole || remove;
+    let (found_candidate, filtered_hd_opt) =
+      filter_unneeded_nodes_typ(is_removal_candidate, remove_candidates, hd);
+    let remove_candidates = found_candidate || remove_candidates;
     switch (filtered_hd_opt) {
-    | None => filter_unneeded_holes_class(comp, remove, tl)
+    | None =>
+      filter_unneeded_nodes_class(is_removal_candidate, remove_candidates, tl)
     | Some(filtered_hd) => [
         filtered_hd,
-        ...filter_unneeded_holes_class(comp, remove, tl),
+        ...filter_unneeded_nodes_class(
+             is_removal_candidate,
+             remove_candidates,
+             tl,
+           ),
       ]
     };
   };
 }
-and filter_unneeded_holes_typ =
-    (comp: potential_typ => bool, remove: bool, potential_typ: potential_typ)
+and filter_unneeded_nodes_typ =
+    (
+      is_removal_candidate: potential_typ => bool,
+      remove_candidates: bool,
+      potential_typ: potential_typ,
+    )
     : (bool, option(potential_typ)) => {
+  let is_not_removal_candidate = ptyp => !is_removal_candidate(ptyp);
   switch (potential_typ) {
-  | Base(btyp) =>
-    switch (btyp) {
-    | BUnknown(_) =>
-      let eq_tp_opt = remove ? None : Some(potential_typ);
-      (true, eq_tp_opt);
-    | _ => (false, Some(potential_typ))
+  | Base(_) =>
+    if (is_removal_candidate(potential_typ)) {
+      (
+        // only remove if previous candidates have already been found
+        true,
+        remove_candidates ? None : Some(potential_typ),
+      );
+    } else {
+      (false, Some(potential_typ));
     }
   | Unary(ctor, potential_typ_set) =>
-    let delete_holes = List.exists(comp, potential_typ_set);
+    let remove_candidates =
+      List.exists(is_not_removal_candidate, potential_typ_set);
     let potential_typ_set =
-      filter_unneeded_holes_class(comp, delete_holes, potential_typ_set);
+      filter_unneeded_nodes_class(
+        is_removal_candidate,
+        remove_candidates,
+        potential_typ_set,
+      );
     (false, Some(Unary(ctor, potential_typ_set)));
   | Binary(ctor, potential_typ_set_lt, potential_typ_set_rt) =>
-    let delete_holes_lt = List.exists(comp, potential_typ_set_lt);
-    let delete_holes_rt = List.exists(comp, potential_typ_set_rt);
+    let remove_candidates_lt =
+      List.exists(is_not_removal_candidate, potential_typ_set_lt);
+    let remove_candidates_rt =
+      List.exists(is_not_removal_candidate, potential_typ_set_rt);
     let potential_typ_set_lt =
-      filter_unneeded_holes_class(
-        comp,
-        delete_holes_lt,
+      filter_unneeded_nodes_class(
+        is_removal_candidate,
+        remove_candidates_lt,
         potential_typ_set_lt,
       );
     let potential_typ_set_rt =
-      filter_unneeded_holes_class(
-        comp,
-        delete_holes_rt,
+      filter_unneeded_nodes_class(
+        is_removal_candidate,
+        remove_candidates_rt,
         potential_typ_set_rt,
       );
     (false, Some(Binary(ctor, potential_typ_set_lt, potential_typ_set_rt)));
   };
 };
 
-let filter_unneeded_holes =
-    (comp: potential_typ => bool, potential_typ_set: t): t => {
-  let delete_holes = List.exists(comp, potential_typ_set);
-  filter_unneeded_holes_class(comp, delete_holes, potential_typ_set);
-};
-
-let filter_vars = (potential_typ_set: t): t => {
-  let is_non_node =
-    fun
-    | Base(BVar(_))
-    | Base(BUnknown(_)) => false
-    | _ => true;
-
-  let is_not_var =
-    fun
-    | Base(BVar(_)) => false
-    | _ => true;
-
-  let num_literals =
-    potential_typ_set |> List.filter(is_non_node) |> List.length;
-
-  switch (num_literals) {
-  | n when n > 1 =>
-    // do not filter vars; already unsolved, allow selection between similar aliases
-    potential_typ_set
-  | _ =>
-    // must be solved. we arbitrarily filter out everything but the literal so it is assigned solved status
-    List.filter(is_not_var, potential_typ_set)
-  };
+// removes all nodes for which is_removal_candidate is true unless no other options exist
+let filter_unneeded_nodes =
+    (is_removal_candidate: potential_typ => bool, potential_typ_set: t): t => {
+  let is_not_removal_candidate = ptyp => !is_removal_candidate(ptyp);
+  let remove_candidates =
+    List.exists(is_not_removal_candidate, potential_typ_set);
+  filter_unneeded_nodes_class(
+    is_removal_candidate,
+    remove_candidates,
+    potential_typ_set,
+  );
 };
 
 let rec filtered_potential_typ_set_to_typ: t => option(ITyp.t) =
