@@ -100,7 +100,7 @@ let rec is_ground = (is_ground_value: 'a => bool, map: t('a)): bool =>
     is_ground_value(head) && tail |> is_ground(is_ground_value)
   };
 
-let nth = (ctr: Constructor.t, map: t('a)): option(int) => {
+let nth = (map: t('a), ctr: Constructor.t): option(int) => {
   // TODO: use List.find_index instead, which is available for OCaml 5.1
   let ctrs_sorted = map |> sort |> ctrs_of;
   List.find_opt(
