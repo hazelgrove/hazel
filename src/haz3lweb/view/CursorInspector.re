@@ -89,7 +89,6 @@ let view_of_global_inference_info =
       ~global_inference_info: Haz3lcore.InferenceResult.global_inference_info,
       id: Id.t,
     ) => {
-  print_endline("CI view of GI for id " ++ Id.to_string(id));
   let font_metrics = Some(font_metrics);
   let no_hole_marks = typ_filling =>
     typ_filling

@@ -1362,7 +1362,7 @@ svg.tile-selected {
 
 .cursor-inspector .info {
   display: flex;
-  align-items: stretch;
+  align-items: inherit;
   gap: 0.5em;
   color: #8c795b;
 }
@@ -1378,6 +1378,7 @@ svg.tile-selected {
 .cursor-inspector .info .error {
   display: flex;
   align-items: center;
+  vertical-align: middle;
   gap: 0.5em;
   white-space: nowrap;
 }
