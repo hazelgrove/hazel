@@ -43,16 +43,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "Tab") => Some(DoTheThing)
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar, Left))
-    | (Down, "Tab") => Some(MoveToNextHole(Left))
-    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
-    | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
-    | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
-    | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
-    | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
-    | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
-    | (_, "Enter") =>
+    | (Up, "Tab") =>
       let suggestion_opt = {
         open Util.OptUtil.Syntax;
         let+ (p, _) = Zipper.representative_piece(zipper);
@@ -72,8 +63,17 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
           |> List.filter(s => s != "?" && s != "!")
           |> join;
         Some(UpdateAction.Paste(no_hole_marks));
-      | _ => now(Insert(Form.linebreak))
+      | _ => Some(DoTheThing)
       };
+    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar, Left))
+    | (Down, "Tab") => Some(MoveToNextHole(Left))
+    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
+    | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
+    | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
+    | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
+    | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
+    | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
+    | (_, "Enter") => now(Insert(Form.linebreak))
     | _ when String.length(key) == 1 =>
       /* Note: length==1 prevent specials like
        * SHIFT from being captured here */
