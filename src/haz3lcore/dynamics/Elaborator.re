@@ -97,7 +97,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -184,7 +184,7 @@ let rec dhexp_of_uexp =
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Ap(TestLit(id), dtest);
+        DHExp.Test(id, dtest);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -269,9 +269,7 @@ let rec dhexp_of_uexp =
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_))))
-        | InHole(
-            InexhaustiveMatch(Some(Common(Inconsistent(Internal(_))))),
-          ) =>
+        | InHole(InexhaustiveMatch(Some(Inconsistent(Internal(_))))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
