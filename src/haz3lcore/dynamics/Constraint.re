@@ -127,7 +127,7 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t), arg: t): t =>
       switch (Typ.weak_head_normalize(ctx, ty)) {
       | Sum(map) =>
         let num_variants = ConstructorMap.cardinal(map);
-        switch (ConstructorMap.nth(name, map)) {
+        switch (ConstructorMap.nth(map, name)) {
         | Some(nth) => arg |> ctr_of_nth_variant(num_variants, nth)
         | None => Falsity // TODO: review
         };
