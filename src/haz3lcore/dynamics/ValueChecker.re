@@ -59,11 +59,12 @@ module ValueCheckerEVMode: {
   let otherwise = (_, _) => ((), (Value, true));
 
   let (let.) = ((v, (r, b)), rule) =>
-    switch (b, rule(v)) {
-    | (_, Constructor) => r
-    | (_, Indet) => Indet
-    | (true, Step(_)) => Expr
-    | (false, Step(_)) => r
+    switch (b, r, rule(v)) {
+    | (_, _, Constructor) => r
+    | (_, Expr, Indet) => Expr
+    | (_, _, Indet) => Indet
+    | (true, _, Step(_)) => Expr
+    | (false, _, Step(_)) => r
     };
 
   let (and.) = ((v1, r1), (v2, r2)) => {
