@@ -2,8 +2,8 @@ open Effect;
 open Effect.Deep;
 
 type t(_) +=
-  | Insert(EToken.t): t(unit)
-  | Remove(EToken.t): t(unit);
+  | Insert(Token.t): t(unit)
+  | Remove(Token.t): t(unit);
 
 // necessary to wrap recorded effects in existential wrapper for reasons
 // I don't fully understand:
