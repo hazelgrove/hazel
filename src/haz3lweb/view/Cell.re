@@ -20,7 +20,7 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
       Attr.many(
         Attr.[
           id("mousedown-overlay"),
-          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
             inject(
@@ -33,19 +33,37 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
   );
 
 let mousedown_handler =
-    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
-  let goal = get_goal(~font_metrics, ~target_id, e);
-  Virtual_dom.Vdom.Effect.Many(
-    List.map(
-      inject,
-      Update.(
-        [Mousedown]
-        @ additional_updates
-        @ [PerformAction(Move(Goal(Point(goal))))]
+    (
+      ~inject: UpdateAction.t => 'a,
+      ~font_metrics,
+      ~target_id,
+      ~mousedown_updates,
+      evt,
+    ) =>
+  switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
+  | (true, _) =>
+    let goal = get_goal(~font_metrics, ~target_id, evt);
+
+    let events = [
+      inject(PerformAction(Move(Goal(Point(goal))))),
+      inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+    ];
+    Virtual_dom.Vdom.Effect.Many(events);
+  | (false, 1) =>
+    let goal = get_goal(~font_metrics, ~target_id, evt);
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(
+        inject,
+        Update.(
+          [SetMeta(Mousedown)]
+          @ mousedown_updates
+          @ [PerformAction(Move(Goal(Point(goal))))]
+        ),
       ),
-    ),
-  );
-};
+    );
+  | (false, 2) => inject(PerformAction(Select(Tile(Current))))
+  | (false, 3 | _) => inject(PerformAction(Select(Smart)))
+  };
 
 let narrative_cell = (content: Node.t) =>
   Node.div(
@@ -105,29 +123,13 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(evt =>
-              switch (JsUtil.ctrl_held(evt), JsUtil.is_double_click(evt)) {
-              | (true, _) =>
-                let goal = get_goal(~font_metrics, ~target_id=code_id, evt);
-
-                let events = [
-                  inject(PerformAction(Move(Goal(Point(goal))))),
-                  inject(
-                    Update.PerformAction(Jump(BindingSiteOfIndicatedVar)),
-                  ),
-                ];
-                Virtual_dom.Vdom.Effect.Many(events);
-              | (false, false) =>
-                mousedown_handler(
-                  ~inject,
-                  ~font_metrics,
-                  ~target_id=code_id,
-                  ~additional_updates=mousedown_updates,
-                  evt,
-                )
-              | (false, true) =>
-                inject(Update.PerformAction(Select(Term(Current))))
-              }
+            Attr.on_mousedown(
+              mousedown_handler(
+                ~inject,
+                ~font_metrics,
+                ~target_id=code_id,
+                ~mousedown_updates,
+              ),
             ),
           ]),
         Option.to_list(caption) @ code,
@@ -209,34 +211,30 @@ let deco =
 };
 
 let eval_result_footer_view =
-    (~font_metrics, ~elab, simple: ModelResult.simple) => {
+    (
+      ~settings as _: Settings.t,
+      ~inject as _,
+      ~font_metrics,
+      ~elab,
+      results: ModelResult.simple,
+    ) => {
+  let dhcode_view = (~show_casts) =>
+    DHCode.view(
+      ~settings={...Settings.Evaluation.init, show_casts},
+      ~selected_hole_instance=None,
+      ~font_metrics,
+      ~width=80,
+    );
   let d_view =
-    switch (simple) {
+    switch (results) {
     | None => [
-        Node.text("No result available. Elaboration follows:"),
-        DHCode.view(
-          ~settings={
-            evaluate: true,
-            show_case_clauses: true,
-            show_fn_bodies: true,
-            show_casts: true,
-            show_unevaluated_elaboration: false,
-          },
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
+        Node.text("Evaluation disabled. Elaboration follows:"),
+        dhcode_view(~show_casts=true, elab),
       ]
-    | Some({eval_result, _}) => [
-        DHCode.view(
-          ~settings=Settings.Evaluation.init,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          eval_result,
-        ),
-      ]
+    | Some({eval_result, _}) =>
+      /* Disabling casts in this case as large casts
+       * can blow up UI perf unexpectedly */
+      [dhcode_view(~show_casts=false, eval_result)]
     };
   Node.(
     div(
@@ -257,7 +255,7 @@ let editor_view =
       ~clss=[],
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -267,17 +265,24 @@ let editor_view =
       ~color_highlighting: option(ColorSteps.colorMap),
       editor: Editor.t,
     ) => {
-  //~eval_result: option(option(DHExp.t))
-
   let zipper = editor.state.zipper;
   let term_ranges = editor.state.meta.term_ranges;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
+  let buffer_ids: list(Uuidm.t) = {
+    /* Collect ids of tokens in buffer for styling purposes. This is
+     * currently necessary as the selection is not persisted through
+     * unzipping for display */
+    let buffer =
+      Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
+    Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
+  };
   let code_base_view =
     Code.view(
       ~sort=Sort.root,
       ~font_metrics,
+      ~buffer_ids,
       ~segment,
       ~unselected,
       ~measured,
@@ -316,13 +321,6 @@ let editor_view =
   );
 };
 
-let get_elab = (editor: Editor.t): DHExp.t => {
-  let seg = Editor.get_seg(editor);
-  let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
-  Interface.elaborate(info_map, term);
-};
-
 let editor_with_result_view =
     (
       ~inject,
@@ -330,27 +328,37 @@ let editor_with_result_view =
       ~show_backpack_targets,
       ~clss=[],
       ~mousedown: bool,
-      ~mousedown_updates: list(Update.t)=[],
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
+      ~term,
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let elab = get_elab(editor);
   let eval_result_footer =
-    eval_result_footer_view(~font_metrics, ~elab, result);
+    settings.core.statics
+      ? eval_result_footer_view(
+          ~settings,
+          ~inject,
+          ~font_metrics,
+          ~elab=
+            settings.core.elaborate
+              ? Interface.elaborate(~settings=settings.core, info_map, term)
+              : Interface.dh_err("Elaboration disabled"),
+          result,
+        )
+      : None;
   editor_view(
     ~inject,
     ~font_metrics,
     ~show_backpack_targets,
     ~clss,
     ~mousedown,
-    ~mousedown_updates,
+    ~mousedown_updates=[],
     ~settings,
     ~selected,
     ~caption?,
