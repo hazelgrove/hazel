@@ -367,11 +367,25 @@ and uexp_to_info_map =
     let ((mode_pat, mode_body), match_constraints) =
       Mode.of_arrow(ctx, mode, UExp.rep_id(uexp));
     let (p', _) =
-      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~mode=mode_pat,
+        ~parent_id=Some(UExp.rep_id(e)),
+        p,
+        m,
+      );
     let (e, m) = go'(~ctx=p'.ctx, ~mode=mode_body, e, m);
     /* add co_ctx to pattern */
     let (p, m) =
-      go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=e.co_ctx,
+        ~mode=mode_pat,
+        ~parent_id=Some(UExp.rep_id(e.term)),
+        p,
+        m,
+      );
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
@@ -380,7 +394,14 @@ and uexp_to_info_map =
     );
   | Let(p, def, body) =>
     let (p_syn, _) =
-      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+      go_pat(
+        ~is_synswitch=true,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Syn,
+        ~parent_id=Some(UExp.rep_id(def)),
+        p,
+        m,
+      );
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
     let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
@@ -389,6 +410,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~mode=Ana(def.ty),
+        ~parent_id=Some(UExp.rep_id(def.term)),
         p,
         m,
       );
@@ -399,6 +421,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=body.co_ctx,
         ~mode=Ana(def.ty),
+        ~parent_id=Some(UExp.rep_id(def.term)),
         p,
         m,
       );
@@ -553,6 +576,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
       ~annot_pat=false,
+      ~parent_id: option(Id.t)=None,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -577,7 +601,7 @@ and upat_to_info_map =
     add(~self, ~ctx, m, ~constraints=subsumption_constraints(self));
   };
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
+  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx, ~parent_id);
   let unknown = Typ.Unknown(ExpHole(Internal, id), is_synswitch);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
@@ -634,7 +658,11 @@ and upat_to_info_map =
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Internal is used in this case */
-    let hole_reason: Typ.hole_reason = annot_pat ? Internal : PatternVar;
+    let hole_reason: Typ.hole_reason =
+      switch (annot_pat, parent_id) {
+      | (false, Some(id)) => PatternVar(id)
+      | _ => Internal
+      };
     let ctx_typ =
       Info.fixed_typ_pat(
         ctx,

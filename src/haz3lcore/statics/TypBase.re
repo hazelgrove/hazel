@@ -38,7 +38,7 @@ module rec Typ: {
   and hole_reason =
     | EmptyHole
     | Internal
-    | PatternVar
+    | PatternVar(Id.t)
     | Error
     | Free(TypVar.t);
 
@@ -120,7 +120,7 @@ module rec Typ: {
   and hole_reason =
     | EmptyHole
     | Internal
-    | PatternVar
+    | PatternVar(Id.t)
     | Error
     | Free(TypVar.t);
 
@@ -277,7 +277,13 @@ module rec Typ: {
     };
   }
   and reason_to_string = (reason: hole_reason): string => {
-    reason |> sexp_of_hole_reason |> string_of_sexp;
+    switch (reason) {
+    | EmptyHole => "EmptyHole"
+    | Internal => "Internal"
+    | PatternVar(_) => "PatternVar"
+    | Error => "Error"
+    | Free(_) => "Free"
+    };
   };
 
   let rec typ_to_string = (ty: t, debug): string => {

@@ -79,16 +79,21 @@ let empty_info = (): global_inference_info => {
 };
 
 let rec get_all_pattern_var_neighbors =
-        (potential_typ_set: PotentialTypeSet.t): list(Id.t) => {
+        (
+          potential_typ_set: PotentialTypeSet.t,
+          desired_parent_exp_hole_id: Id.t,
+        )
+        : list(Id.t) => {
   switch (potential_typ_set) {
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
-    | Base(BUnknown(ExpHole(PatternVar, p_id))) => [
+    | Base(BUnknown(ExpHole(PatternVar(parent_id), p_id)))
+        when parent_id == desired_parent_exp_hole_id => [
         p_id,
-        ...get_all_pattern_var_neighbors(tl),
+        ...get_all_pattern_var_neighbors(tl, desired_parent_exp_hole_id),
       ]
-    | _ => get_all_pattern_var_neighbors(tl)
+    | _ => get_all_pattern_var_neighbors(tl, desired_parent_exp_hole_id)
     }
   };
 };
@@ -192,11 +197,11 @@ let build_exphole_to_sugg_loc_and_solution =
       )
       : list((Id.t, (list(Id.t), status))) => {
     switch (key) {
-    | Unknown(ExpHole(PatternVar, _)) => acc
+    | Unknown(ExpHole(PatternVar(_), _)) => acc
     | Unknown(ExpHole(_, id)) =>
       let (potential_typ_set, _) =
         MutablePotentialTypeSet.snapshot_class(mut_potential_typ_set, key);
-      switch (get_all_pattern_var_neighbors(potential_typ_set)) {
+      switch (get_all_pattern_var_neighbors(potential_typ_set, id)) {
       | [] => acc
       | _ as suggestion_locations => [
           (
