@@ -1,4 +1,5 @@
-type t = PBNF.t(MSym.t);
+type t = Mtrl.Sort.Map.t(Prec.Table.t(Regex.t(Mtrl.Sym.t)));
+// type t = PBNF.t(MSym.t);
 
 let mtrlize_tiles: Grammar.t => t =
   Sort.Map.map(
