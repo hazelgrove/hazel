@@ -412,8 +412,9 @@ module Stepper = {
           )
           : (FilterAction.t, int, EvalCtx.t) => {
     let composed = compose(ctx, exp);
+    let (pact, pidx) = (act, idx);
     let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
-    let (act, idx) = midx > idx ? (mact, midx) : (act, idx);
+    let (act, idx) = midx > idx ? (mact, midx) : (pact, pidx);
     let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
       (a, i, f(c));
     };
@@ -530,7 +531,7 @@ module Stepper = {
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
       };
-    if (midx == ridx) {
+    if (midx == ridx && midx > pidx) {
       let (_, mcnt) = mact;
       if (mcnt == All) {
         (ract, ridx, Filter(Residue(midx, mact), rctx));
