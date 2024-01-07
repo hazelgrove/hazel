@@ -79,9 +79,9 @@ let make_labeled_tuple_exp_helper =
         e,
       )
     | _ =>
-      // after fixing this, can turn all three into one function wwith 'a
-      let t: UExp.t = {ids: e.ids, term: Invalid("")};
-      (None, t);
+      // Should not ever occur
+      // let t: UExp.t = {ids: e.ids, term: Invalid("")};
+      (None, e)
     }
   | _ => (None, exp)
   };
@@ -116,8 +116,9 @@ let make_labeled_tuple_pat_helper =
         pt,
       )
     | _ =>
-      let t: UPat.t = {ids: pt.ids, term: Invalid("")};
-      (None, t);
+      // Should not ever occur
+      // let t: UPat.t = {ids: pt.ids, term: Invalid("")};
+      (None, pt)
     }
   | _ => (None, pat)
   };
@@ -152,8 +153,9 @@ let make_labeled_tuple_typ_helper =
         t,
       )
     | _ =>
-      let t: UTyp.t = {ids: t.ids, term: Invalid("")};
-      (None, t);
+      // Should not ever occur
+      // let t: UTyp.t = {ids: t.ids, term: Invalid("")};
+      (None, t)
     }
   | _ => (None, typ)
   };
@@ -327,7 +329,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | Bin(Pat(p), tiles, Exp(e)) as tm =>
     switch (tiles) {
-    | ([(_id, (["="], []))], []) => ret(TupLabel(p, e))
+    | ([(_id, (["="], []))], []) =>
+      switch (p.term) {
+      | Var(_) => ret(TupLabel(p, e))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -442,7 +448,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       ret(Tuple(make_labeled_tuple_pat([l] @ between_kids @ [r])))
     | None =>
       switch (tiles) {
-      | ([(_id, (["="], []))], []) => ret(TupLabel(l, r))
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(_) => ret(TupLabel(l, r))
+        | _ => ret(hole(tm))
+        }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -502,7 +512,11 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Bin(Pat(p), tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_id, (["="], []))], []) => ret(TupLabel(p, t))
+    | ([(_id, (["="], []))], []) =>
+      switch (p.term) {
+      | Var(_) => ret(TupLabel(p, t))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
