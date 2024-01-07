@@ -7,13 +7,13 @@ module Base = {
 };
 include Base;
 
-module Labeled = {
+module Label = {
   type t = Base.t(Label.t);
 };
-module Sorted = {
+module Sort = {
   type t = Base.t(Sort.t);
 };
 
 module Sym = {
-  type t = Sym.t(Labeled.t, Sorted.t);
+  type t = Sym.t(Label.t, Sort.t);
 };
