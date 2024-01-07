@@ -103,7 +103,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | TestLit(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -169,7 +169,7 @@ let rec dhexp_of_uexp =
           |> List.map(((_, d)) => dhexp_of_uexp(m, d))
           |> OptUtil.sequence;
         DHExp.Tuple(List.combine(dsp, ds));
-      //TODO: Fix this
+      //TODO: Fix this Tuple
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
@@ -206,7 +206,7 @@ let rec dhexp_of_uexp =
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Ap(TestLit(id), dtest);
+        DHExp.Test(id, dtest);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -345,7 +345,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
-    // TODO: Fix this
+    // TODO: Fix this Tuple stuff
     | TupLabel(_, p2) =>
       let* dp2 = dhpat_of_upat(m, p2);
       wrap(dp2);

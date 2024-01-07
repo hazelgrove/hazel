@@ -49,13 +49,13 @@ let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
 let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
 // TODO: Clean this up
+// TODO: Fix error handling
 // Tuplabel util functions
-// TODO: filter patternss so that result (option(Var.t), UExp.t)
 
 // let return_tuplabel = (p: UPat.t, t: 'a): (option(LabeledTuple.t), 'a) =>
 //   switch (p.term) {
 //   | Var(s) => (Some(s), t)
-//   | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TOOD: put the real error
+//   | _ => raise(EvaluatorError.Exception(BadBuiltinAp("", []))) // TODO: put the real error
 //   };
 
 let make_labeled_tuple_exp_helper =
@@ -79,6 +79,7 @@ let make_labeled_tuple_exp_helper =
         e,
       )
     | _ =>
+      // after fixing this, can turn all three into one function wwith 'a
       let t: UExp.t = {ids: e.ids, term: Invalid("")};
       (None, t);
     }
@@ -289,7 +290,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], []) when t != " " => ret(Invalid(t))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -316,7 +318,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["()"], []) =>
+        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
       | _ => ret(hole(tm))
       }
@@ -401,7 +404,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
@@ -467,7 +471,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -527,7 +532,8 @@ and tpat_term: unsorted => UTPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -617,4 +623,21 @@ let go =
       let e = exp(unsorted(Segment.skel(seg), seg));
       (e, map^);
     },
+  );
+
+let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  go(seg);
+};
+
+let from_zip_for_view =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=false, ~erase_buffer=true),
+  );
+
+let from_zip_for_sem =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=true, ~erase_buffer=true),
   );

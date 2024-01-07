@@ -57,7 +57,7 @@ let ana_tuple:
         accu,
         l2_lab,
       );
-    // TODO: Currently duplicating checks
+    // TODO: Currently duplicating checks, for both directions
     let accu =
       List.fold_left(
         (accu, l1_item) => {
