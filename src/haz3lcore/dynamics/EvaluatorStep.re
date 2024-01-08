@@ -414,7 +414,11 @@ module Stepper = {
     let composed = compose(ctx, exp);
     let (pact, pidx) = (act, idx);
     let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
-    let (act, idx) = midx > idx ? (mact, midx) : (pact, pidx);
+    let (act, idx) =
+      switch (ctx) {
+      | Filter(_, _) => (pact, pidx)
+      | _ => midx > idx ? (mact, midx) : (pact, pidx)
+      };
     let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
       (a, i, f(c));
     };
@@ -430,7 +434,12 @@ module Stepper = {
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Filter(Filter(flt'), ctx);
       | Filter(Residue(idx, act), ctx) =>
-        matches(env, flt, ctx, exp, act, idx)
+        let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
+        if (ridx == idx && ract |> snd == All) {
+          (ract, ridx, Filter(Residue(idx, act), rctx));
+        } else {
+          (ract, ridx, rctx);
+        };
       | Sequence1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Sequence1(ctx, d2);
@@ -531,15 +540,14 @@ module Stepper = {
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
       };
-    if (midx == ridx && midx > pidx) {
-      let (_, mcnt) = mact;
-      if (mcnt == All) {
-        (ract, ridx, Filter(Residue(midx, mact), rctx));
-      } else {
-        (ract, ridx, rctx);
-      };
-    } else {
-      (ract, ridx, rctx);
+    switch (ctx) {
+    | Filter(_) => (ract, ridx, rctx)
+    | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+        ract,
+        ridx,
+        Filter(Residue(midx, mact), rctx),
+      )
+    | _ => (ract, ridx, rctx)
     };
   };
 
