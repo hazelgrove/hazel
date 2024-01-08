@@ -33,11 +33,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
-      switch (d) {
-      | Cast(_) => d
-      | _ =>
-        DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
-      }
+      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
