@@ -4,26 +4,27 @@ open Util.Web;
 // open Util;
 // open Haz3lcore;
 
-let button_view = (~inject, query, name): Node.t => {
+let query_input_id = "query-input";
+
+let button_view = (~inject, name): Node.t => {
   Node.button(
     ~attr=
       Attr.many([
         Attr.classes(["button"]),
-        Attr.on_mousedown(_ => inject(Update.PerformQuery(query))),
+        Attr.on_mousedown(_ => inject(UpdateAction.QueryInput)),
       ]),
     [Node.text(name)],
   );
 };
 
+let input_view = (id): Node.t => {
+  Node.input(~attr=Attr.many([Attr.type_("text"), Attr.id(id)]), []);
+};
+
 let buttons_view = (~inject): Node.t => {
   Node.div(
-    ~attr=clss(["buttons"]),
-    [
-      button_view(~inject, Query.CursorPos, "cursor position"),
-      button_view(~inject, Query.CursorInfo, "cursor info"),
-      button_view(~inject, Query.CursorMove, "cursor move"),
-      button_view(~inject, Query.ContextInfo, "context info"),
-    ],
+    ~attr=clss(["query"]),
+    [input_view(query_input_id), button_view(~inject, "Submit")],
   );
 };
 

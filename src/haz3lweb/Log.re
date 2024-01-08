@@ -30,6 +30,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Paste(_)
   | Undo
   | Redo
+  | QueryInput
   | PerformQuery(_)
   | MoveToNextHole(_) => true;
 

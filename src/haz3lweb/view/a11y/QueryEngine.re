@@ -7,11 +7,6 @@ module ExecutionPlan = {
   type t = list(QueryCommand.t);
 };
 
-let query_parser = (command: string, editor: Editor.t): ExecutionPlan.t =>
-  switch (command, editor) {
-  | _ => [Query(DoNothing)]
-  };
-
 module QueryResult = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type textobject =
@@ -62,8 +57,7 @@ let execute_command = // TODO: change the input to zipper and info_map
     | (_, Some(id)) =>
       switch (Id.Map.find_opt(id, info_map)) {
       | None => QueryResult.error("Whitespace or Comment")
-      | Some(ci) =>
-        QueryResult.mk("info", Some(QueryResult.Info(ci))) //TODO: return the result instead of "info"
+      | Some(ci) => QueryResult.mk("info", Some(QueryResult.Info(ci))) //TODO: return the result instead of "info"
       }
     };
   | (Query(Type), _) =>

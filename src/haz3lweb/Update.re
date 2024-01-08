@@ -139,6 +139,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
   | DebugAction(_)
+  | QueryInput
   | PerformQuery(_)
   | DoTheThing => false
   | ExportPersistentData
@@ -224,6 +225,7 @@ let should_scroll_to_caret =
   | ExportPersistentData
   | DebugConsole(_)
   | Benchmark(_)
+  | QueryInput
   | PerformQuery(_) => false;
 
 let evaluate_and_schedule =
@@ -436,6 +438,9 @@ let rec apply =
       | x => x
       };
     | PerformAction(a) => perform_action(model, a)
+    | QueryInput =>
+      let _command = QueryParser.query_parser();
+      Ok(model);
     | PerformQuery(query) =>
       //TODO
       print_endline(

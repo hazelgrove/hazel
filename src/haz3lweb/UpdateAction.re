@@ -70,6 +70,7 @@ type t =
   | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
   | Assistant(agent_action)
+  | QueryInput
   | PerformQuery(Query.t);
 
 module Failure = {
