@@ -119,7 +119,8 @@ let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let is_potential_operator =
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)\\{\\}]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
