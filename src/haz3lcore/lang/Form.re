@@ -114,11 +114,15 @@ let is_reserved_keyword =
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand =
+    /* gensofubi: "." is used as a operator for module,
+       only recognized as potential operand if not appearing with letters */
+    x =>
+  regexp("^[a-zA-Z0-9_'?]+$", x) || regexp("^[0-9_'\\.?]+$", x);
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
+ *  delimiters: ()[]|{} */
 let is_potential_operator =
   regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)\\{\\}]+$");
 let is_potential_token = t =>
