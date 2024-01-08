@@ -445,6 +445,21 @@ and uexp_to_info_map =
             );
           let unmatched = get_unmatched_float(ns);
           print_endline(string_of_float(unmatched));
+        | Or(InjR(_), InjL(Truth))
+        | Or(InjL(_), InjR(Truth)) =>
+          // List or constructor, now only considering the first
+          // Or(InjL(_), InjR(Truth)) only corresponds to empty list
+          let (_, _) =
+            List.partition(
+              fun
+              | Constraint.Or(InjR(_), InjL(Truth))
+              | Or(InjL(_), InjR(Truth)) => true
+              | _ => false,
+              dual_constraints,
+            );
+          // The first element of the pair is useful here; there is too much nested or's and inj's,
+          // so I am unable to proceed -- Weijia
+          (); // TODO
         | _ => () // TODO
         }
       };
