@@ -318,8 +318,14 @@ and uexp_to_info_map =
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
+
+    let (def1, m1) = go(~mode=Syn, def, m);
     let (inner_ctx, def, m) =
-      go_module(~ctx=def_ctx, ~mode=Mode.Ana(p_syn.ty), def, m, []);
+      switch (def1.ty) {
+      /* if get module type, apply alias.*/
+      | Module(module_ctx) => (module_ctx, def1, m1)
+      | _ => go_module(~ctx=def_ctx, ~mode=Mode.Ana(p_syn.ty), def, m, [])
+      };
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana, m) =
       go_pat(
@@ -890,8 +896,13 @@ and uexp_to_module =
       | SynFun => p_syn.ty
       };
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
+    let (def1, m1) = go(~mode=Syn, def, m);
     let (inner_ctx, def, m) =
-      go_module(~ctx=def_ctx, ~mode=Mode.Ana(ty_pat), def, m, []);
+      switch (def1.ty) {
+      /* if get module type, apply alias.*/
+      | Module(module_ctx) => (module_ctx, def1, m1)
+      | _ => go_module(~ctx=def_ctx, ~mode=Mode.Ana(ty_pat), def, m, [])
+      };
     let typ_def: Typ.t = Module(inner_ctx);
     let ty_def =
       switch (mode_pat) {
