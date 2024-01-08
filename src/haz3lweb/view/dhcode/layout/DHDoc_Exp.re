@@ -281,11 +281,11 @@ let mk =
             ]);
           | Residue(_, act) =>
             let keyword = FilterAction.string_of_t(act);
-            vseps([DHDoc_common.Delim.mk(keyword), go_clean(d')]);
+            vseps([DHDoc_common.Delim.mk(keyword), go'(d', Filter)]);
           };
         } else {
           switch (flt) {
-          | Residue(_) => go_clean(d')
+          | Residue(_) => go'(d', Filter)
           | Filter(_) => go'(d', Filter)
           };
         }
