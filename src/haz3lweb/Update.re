@@ -226,26 +226,26 @@ let should_scroll_to_caret =
 
 let evaluate_and_schedule =
     (state: State.t, ~schedule_action, model: Model.t): Model.t => {
-  let model = {
-    ...model,
-    meta: {
-      ...model.meta,
-      results:
-        Util.TimeUtil.measure_time(
-          "ModelResults.init", model.settings.benchmark, ()
-          //ModelResults.init performs evaluation on the DHExp value.
-          =>
-            ModelResults.init(
-              ~settings=model.settings.core,
-              //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-              Editors.get_spliced_elabs(
-                ~settings=model.settings,
-                model.editors,
-              ),
-            )
-          ),
-    },
-  };
+  /*let model = {
+      ...model,
+      meta: {
+        ...model.meta,
+        results:
+          Util.TimeUtil.measure_time(
+            "ModelResults.init", model.settings.benchmark, ()
+            //ModelResults.init performs evaluation on the DHExp value.
+            =>
+              ModelResults.init(
+                ~settings=model.settings.core,
+                //Editors.get_spliced_elabs generates the DHExp.t of the editor.
+                Editors.get_spliced_elabs(
+                  ~settings=model.settings,
+                  model.editors,
+                ),
+              )
+            ),
+      },
+    };*/
 
   if (model.settings.core.dynamics) {
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
