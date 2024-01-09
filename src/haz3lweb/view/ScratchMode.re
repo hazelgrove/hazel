@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 open Util.Web;
+open Haz3l_roc_transpiler;
 
 type state = (Id.t, Editor.t);
 
@@ -87,6 +88,27 @@ let download_slide_state = state => {
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
+let download_roc = state => {
+  let zipper = ScratchSlide.editor_of_state(state).state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let info_map = Statics.mk_map(term);
+  let rocterm =
+    Util.TimeUtil.measure_time("Time to generate Roc AST", true, () =>
+      Translation.get_roc_exp(term, info_map)
+    );
+  let contents =
+    Util.TimeUtil.measure_time("Time to generate Roc code", true, () =>
+      MakeRoc.generate_code(rocterm, 0)
+    );
+  JsUtil.download_string_file(
+    ~filename="exported_ast.txt",
+    ~content_type="text/plain",
+    ~contents,
+  );
+  ();
+};
+
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
     Widgets.button(
@@ -96,6 +118,15 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
         Virtual_dom.Vdom.Effect.Ignore;
       },
       ~tooltip="Export Scratchpad",
+    );
+  let export_roc_button =
+    Widgets.button(
+      Icons.export,
+      _ => {
+        download_roc(state);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      ~tooltip="Export Roc code",
     );
   let import_button =
     Widgets.file_select_button(
@@ -126,5 +157,5 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       },
       ~tooltip="Reset Scratchpad",
     );
-  [export_button, import_button] @ [reset_button];
+  [export_button, import_button, export_roc_button] @ [reset_button];
 };
