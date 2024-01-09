@@ -69,7 +69,7 @@ module EvalCtx = {
     | BinStringOp2
     | Tuple(int)
     | ListLit(int)
-    | ApBuiltin(int)
+    | ApBuiltin
     | Test
     | Cons1
     | Cons2
@@ -110,7 +110,7 @@ module EvalCtx = {
     | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
     | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
     | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-    | ApBuiltin(string, t, (list(DHExp.t), list(DHExp.t)))
+    | ApBuiltin(string, t)
     | Test(KeywordID.t, t)
     | ListLit(
         MetaVar.t,
@@ -201,7 +201,8 @@ type step_kind =
   | UpdateTest
   | FunAp
   | CastAp
-  | Builtin(string)
+  | BuiltinWrap
+  | BuiltinAp(string)
   | BinBoolOp(TermBase.UExp.op_bin_bool)
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
@@ -415,6 +416,18 @@ module Transition = (EV: EV_MODE) => {
           kind: CastAp,
           value: false,
         })
+      | BuiltinFun(ident) =>
+        Step({
+          apply: () => {
+            //HACK[Matt]: This step is just so we can check that d2' is not indet
+            ApBuiltin(
+              ident,
+              d2',
+            );
+          },
+          kind: BuiltinWrap,
+          value: false // Not necessarily a value because of InvalidOperations
+        })
       | _ =>
         Step({
           apply: () => {
@@ -424,14 +437,10 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
-    | ApBuiltin(ident, args) =>
-      let. _ = otherwise(env, args => ApBuiltin(ident, args))
-      and. args' =
-        req_all_value(
-          req(state, env),
-          (d', ds) => ApBuiltin(ident, d', ds),
-          args,
-        );
+    | ApBuiltin(ident, arg) =>
+      let. _ = otherwise(env, arg => ApBuiltin(ident, arg))
+      and. arg' =
+        req_value(req(state, env), arg => ApBuiltin(ident, arg), arg);
       Step({
         apply: () => {
           let builtin =
@@ -439,16 +448,17 @@ module Transition = (EV: EV_MODE) => {
             |> OptUtil.get(() => {
                  raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
                });
-          builtin(args');
+          builtin(arg');
         },
-        kind: Builtin(ident),
+        kind: BuiltinAp(ident),
         value: false // Not necessarily a value because of InvalidOperations
       });
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_) =>
+    | Constructor(_)
+    | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
     | BinBoolOp(And, d1, d2) =>
@@ -758,7 +768,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Sequence
   | UpdateTest
   | FunAp
-  | Builtin(_)
+  | BuiltinAp(_)
   | BinBoolOp(_)
   | BinIntOp(_)
   | BinFloatOp(_)
@@ -776,4 +786,5 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | CompleteClosure
   | CompleteFilter
   | FixUnwrap
+  | BuiltinWrap
   | FunClosure => true;

@@ -332,9 +332,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Ap2(d1, ctx) =>
       let d2 = compose(ctx, d);
       Ap(d1, d2);
-    | ApBuiltin(s, ctx, (ds1, ds2)) =>
+    | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
-      ApBuiltin(s, rev_concat(ds1, [d', ...ds2]));
+      ApBuiltin(s, d');
     | Test(lit, ctx) =>
       let d1 = compose(ctx, d);
       Test(lit, d1);
@@ -518,7 +518,8 @@ module Stepper = {
     | FixUnwrap => "unroll fixpoint"
     | UpdateTest => "update test"
     | FunAp => "apply function"
-    | Builtin(s) => "evaluate " ++ s
+    | BuiltinWrap => "wrap builtin"
+    | BuiltinAp(s) => "evaluate " ++ s
     | BinIntOp(Plus | Minus | Times | Power | Divide)
     | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
     | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
