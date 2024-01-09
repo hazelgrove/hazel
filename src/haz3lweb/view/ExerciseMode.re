@@ -255,15 +255,15 @@ let view =
         ~info_map=user_impl.info_map,
         ~test_results=
           TestResults.unwrap_test_results(user_impl.simple_result),
-        ~footer=[
+        ~footer=
           Cell.eval_result_footer_view(
             ~settings,
             ~inject,
             ~font_metrics,
             ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
+            ~result_key="your-impl",
             user_impl.simple_result,
           ),
-        ],
         eds.your_impl,
       ),
     );

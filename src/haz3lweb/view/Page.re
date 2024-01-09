@@ -43,7 +43,7 @@ let nut_menu =
     (
       ~inject: Update.t => 'a,
       {
-        core: {statics, elaborate, assist, dynamics, evaluation},
+        core: {statics, elaborate, assist, dynamics, _},
         benchmark,
         instructor_mode,
         _,
@@ -67,9 +67,6 @@ let nut_menu =
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))
-      ),
-      toggle("s", ~tooltip="Toggle Stepping", evaluation.stepper, _ =>
-        inject(Set(Evaluation(Stepping)))
       ),
       button(
         Icons.export,
@@ -138,9 +135,9 @@ let exercises_view =
         editors,
         settings,
         langDocMessages,
+        results,
         meta: {
           ui_state: {font_metrics, show_backpack_targets, mousedown, _},
-          results,
           _,
         },
         _,
@@ -168,10 +165,10 @@ let exercises_view =
     );
 };
 
-let slide_view = (~inject, ~model, ~ctx_init, slide_state) => {
+let slide_view = (~inject, ~model, ~ctx_init, ~result_key, slide_state) => {
   let toolbar_buttons = ScratchMode.toolbar_buttons(~inject, slide_state);
   [top_bar_view(~inject, ~toolbar_buttons, ~model)]
-  @ ScratchMode.view(~inject, ~model, ~ctx_init);
+  @ ScratchMode.view(~inject, ~model, ~result_key, ~ctx_init);
 };
 
 let editors_view = (~inject, model: Model.t) => {
@@ -180,9 +177,21 @@ let editors_view = (~inject, model: Model.t) => {
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(slide_idx, slides) =>
-    slide_view(~inject, ~model, ~ctx_init, List.nth(slides, slide_idx))
+    slide_view(
+      ~inject,
+      ~model,
+      ~ctx_init,
+      ~result_key=ScratchSlide.scratch_key(string_of_int(slide_idx)),
+      List.nth(slides, slide_idx),
+    )
   | Examples(name, slides) =>
-    slide_view(~inject, ~model, ~ctx_init, List.assoc(name, slides))
+    slide_view(
+      ~inject,
+      ~model,
+      ~ctx_init,
+      ~result_key=ScratchSlide.scratch_key(name),
+      List.assoc(name, slides),
+    )
   | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
   };
 };

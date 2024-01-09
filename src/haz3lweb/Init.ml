@@ -17,7 +17,6 @@ let startup : PersistentData.t =
                 show_casts = true;
                 show_lookup_steps = true;
                 show_stepper_filters = true;
-                stepper = false;
                 stepper_history = false;
               };
           };
@@ -122,7 +121,8 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "     ";
           };
-        ] );
+        ],
+        [] );
     examples =
       ( "Introduction",
         [
@@ -13991,5 +13991,6 @@ let startup : PersistentData.t =
                  # Check out the research papers at hazel.org for more on #\n\
                  # how Hazel works. #";
             } );
-        ] );
+        ],
+        [] );
   }

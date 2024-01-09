@@ -749,7 +749,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       switch (results) {
       | None => None
       | Some(results) =>
-        ModelResult.get_simple(ModelResults.lookup(results, key))
+        ModelResult.get_simple(
+          ModelResults.lookup(results, key)
+          |> Option.value(~default=ModelResult.NoElab),
+        )
       };
 
     let test_validation =

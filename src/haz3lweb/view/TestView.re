@@ -19,6 +19,7 @@ let test_instance_view =
         ~selected_hole_instance=None,
         ~font_metrics,
         ~width=40,
+        ~result_key="",
         d,
       ),
     ],

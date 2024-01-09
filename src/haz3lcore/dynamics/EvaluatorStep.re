@@ -1,5 +1,15 @@
-open Sexplib.Std;
 open Transition;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type step = {
+  d: DHExp.t,
+  d_loc: DHExp.t, // the expression at the location given by ctx
+  ctx: EvalCtx.t,
+  knd: step_kind,
+};
+
+let unwrap = (step, sel: EvalCtx.cls) =>
+  EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
 
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -15,96 +25,6 @@ module EvalObj = {
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
   let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
-
-  let rec unwrap = (obj: t, sel: EvalCtx.cls): option(t) => {
-    switch (sel, obj.ctx) {
-    | (Mark, _) =>
-      print_endline(
-        "Mark does not match with "
-        ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(obj.ctx)),
-      );
-      raise(EvaluatorError.Exception(StepDoesNotMatch));
-    | (_, Mark) => None
-    | (BoundVar, c)
-    | (NonEmptyHole, NonEmptyHole(_, _, _, c))
-    | (Closure, Closure(_, c))
-    | (Filter, Filter(_, c))
-    | (Sequence1, Sequence1(c, _))
-    | (Sequence2, Sequence2(_, c))
-    | (Let1, Let1(_, c, _))
-    | (Let2, Let2(_, _, c))
-    | (Fun, Fun(_, _, c, _))
-    | (FixF, FixF(_, _, c))
-    | (Ap1, Ap1(c, _))
-    | (Ap2, Ap2(_, c))
-    | (BinBoolOp1, BinBoolOp1(_, c, _))
-    | (BinBoolOp2, BinBoolOp2(_, _, c))
-    | (BinIntOp1, BinIntOp1(_, c, _))
-    | (BinIntOp2, BinIntOp2(_, _, c))
-    | (BinFloatOp1, BinFloatOp1(_, c, _))
-    | (BinFloatOp2, BinFloatOp2(_, _, c))
-    | (BinStringOp1, BinStringOp1(_, c, _))
-    | (BinStringOp2, BinStringOp2(_, _, c))
-    | (Cons1, Cons1(c, _))
-    | (Cons2, Cons2(_, c))
-    | (ListConcat1, ListConcat1(c, _))
-    | (ListConcat2, ListConcat2(_, c))
-    | (Prj, Prj(c, _)) => Some({...obj, ctx: c})
-    | (ListLit(n), ListLit(_, _, _, c, (ld, _)))
-    | (Tuple(n), Tuple(c, (ld, _))) =>
-      if (List.length(ld) == n) {
-        Some({...obj, ctx: c});
-      } else {
-        None;
-      }
-    | (ConsistentCaseRule(n), ConsistentCaseRule(_, _, c, (ld, _), _))
-    | (
-        InconsistentBranchesRule(n),
-        InconsistentBranchesRule(_, _, _, _, c, (ld, _), _),
-      ) =>
-      if (List.length(ld) == n) {
-        Some({...obj, ctx: c});
-      } else {
-        None;
-      }
-    | (InconsistentBranches, InconsistentBranches(_, _, Case(scrut, _, _))) =>
-      Some({...obj, ctx: scrut})
-    | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) =>
-      Some({...obj, ctx: scrut})
-    | (Cast, Cast(c, _, _))
-    | (FailedCastCast, FailedCast(Cast(c, _, _), _, _))
-    | (FailedCast, FailedCast(c, _, _)) => Some({...obj, ctx: c})
-    | (Ap1, Ap2(_, _))
-    | (Ap2, Ap1(_, _))
-    | (Let1, Let2(_))
-    | (Let2, Let1(_))
-    | (BinBoolOp1, BinBoolOp2(_))
-    | (BinBoolOp2, BinBoolOp1(_))
-    | (BinIntOp1, BinIntOp2(_))
-    | (BinIntOp2, BinIntOp1(_))
-    | (BinFloatOp1, BinFloatOp2(_))
-    | (BinFloatOp2, BinFloatOp1(_))
-    | (BinStringOp1, BinStringOp2(_))
-    | (BinStringOp2, BinStringOp1(_))
-    | (Cons1, Cons2(_))
-    | (Cons2, Cons1(_))
-    | (ListConcat1, ListConcat2(_))
-    | (ListConcat2, ListConcat1(_)) => None
-    | (Closure, _) => Some(obj)
-    | (tag, Closure(_, c)) => unwrap({...obj, ctx: c}, tag)
-    | (Filter, _) => Some(obj)
-    | (tag, Filter(_, c)) => unwrap({...obj, ctx: c}, tag)
-    | (Cast, _) => Some(obj)
-    | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
-    | (tag, ctx) =>
-      print_endline(
-        Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_cls(tag))
-        ++ " does not match with "
-        ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
-      );
-      raise(EvaluatorError.Exception(StepDoesNotMatch));
-    };
-  };
 
   let wrap = (f: EvalCtx.t => EvalCtx.t, obj: t) => {
     ...obj,
@@ -443,134 +363,3 @@ let rec evaluate_with_history = d =>
     let next = compose(x.ctx, x.apply());
     [next, ...evaluate_with_history(next)];
   };
-
-module Stepper = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type step = {
-    d: DHExp.t,
-    step: EvalObj.t,
-  };
-
-  type step_with_previous = {
-    step,
-    previous: option(step),
-    hidden: list(step),
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    current: DHExp.t,
-    previous: list(step),
-    next: list(EvalObj.t),
-  };
-
-  let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
-    let current = compose(e.ctx, e.apply());
-    skip_steps(
-      ~settings,
-      {
-        current,
-        previous: [{d: s.current, step: e}, ...s.previous],
-        next: decompose(current),
-      },
-    );
-  }
-  and skip_steps = (~settings, s) => {
-    switch (
-      List.find_opt(
-        (x: EvalObj.t) => should_hide_step(~settings, x.knd),
-        s.next,
-      )
-    ) {
-    | None => s
-    | Some(e) => step_forward(~settings, e, s)
-    };
-  };
-
-  let mk = (~settings, d) => {
-    skip_steps(~settings, {current: d, previous: [], next: decompose(d)});
-  };
-
-  let rec undo_point =
-          (~settings): (list(step) => option((step, list(step)))) =>
-    fun
-    | [] => None
-    | [x, ...xs] when should_hide_step(~settings, x.step.knd) =>
-      undo_point(~settings, xs)
-    | [x, ...xs] => Some((x, xs));
-
-  let step_backward = (~settings, s: t) =>
-    switch (undo_point(~settings, s.previous)) {
-    | None => failwith("cannot step backwards")
-    | Some((x, xs)) => {current: x.d, previous: xs, next: decompose(x.d)}
-    };
-
-  let update_expr = (d: DHExp.t, _: t) => {
-    current: d,
-    previous: [],
-    next: decompose(d),
-  };
-
-  let get_justification: step_kind => string =
-    fun
-    | LetBind => "substitution"
-    | Sequence => "sequence"
-    | FixUnwrap => "unroll fixpoint"
-    | UpdateTest => "update test"
-    | FunAp => "apply function"
-    | Builtin(s) => "evaluate " ++ s
-    | BinIntOp(Plus | Minus | Times | Power | Divide)
-    | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
-    | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
-    | BinFloatOp(
-        LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual,
-      ) => "comparison"
-    | BinIntOp(Equals | NotEquals)
-    | BinFloatOp(Equals | NotEquals)
-    | BinStringOp(Equals) => "check equality"
-    | BinStringOp(Concat) => "string manipulation"
-    | BinBoolOp(_) => "boolean logic"
-    | ListCons => "list manipulation"
-    | ListConcat => "list manipulation"
-    | CaseApply => "case selection"
-    | CaseNext => "case discarding"
-    | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
-    | InvalidStep => "error"
-    | VarLookup => "variable lookup"
-    | CastAp
-    | Cast => "cast calculus"
-    | CompleteFilter => "unidentified step"
-    | CompleteClosure => "unidentified step"
-    | FunClosure => "unidentified step"
-    | Skip => "skipped steps";
-
-  let get_history = (~settings, stepper) => {
-    let rec get_history':
-      list(step) => (list(step), list(step_with_previous)) =
-      fun
-      | [] => ([], [])
-      | [step, ...steps] => {
-          let (hidden, ss) = get_history'(steps);
-          if (should_hide_step(~settings, step.step.knd)) {
-            ([step, ...hidden], ss);
-          } else {
-            (
-              [],
-              [
-                {
-                  step,
-                  previous:
-                    Option.map(
-                      (x: step_with_previous) => x.step,
-                      List.nth_opt(ss, 0),
-                    ),
-                  hidden,
-                },
-                ...ss,
-              ],
-            );
-          };
-        };
-    stepper.previous |> get_history';
-  };
-};
