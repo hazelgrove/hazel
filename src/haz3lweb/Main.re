@@ -116,9 +116,15 @@ module App = {
         ((key, r)) => {
           let cr: Haz3lcore.ModelResult.current =
             switch (r) {
-            | Some(EvaluationOk(r)) => ResultOk(r)
-            | Some(EvaluationFail(reason)) => ResultFail(reason)
-            | None => ResultTimeout
+            | Some(EvaluationOk(r)) =>
+              print_endline("66666 SetMeta(ResultOk)");
+              ResultOk(r);
+            | Some(EvaluationFail(reason)) =>
+              print_endline("66666 SetMeta(ResultFail)");
+              ResultFail(reason);
+            | None =>
+              print_endline("66666 SetMeta(ResultTimeout)");
+              ResultTimeout;
             };
           schedule_action(Update.SetMeta(Result(key, cr)));
         },

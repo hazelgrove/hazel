@@ -41,6 +41,7 @@ module Sync: M with type response = response = {
     let lwt = {
       /* NOTE(andrew): I'm not sure how to properly route settings
          through the abstractions here; this should be done if this is renabled */
+      print_endline("Evaluating program");
       let+ r =
         Lwt.wrap(() => d |> Interface.evaluate(~settings=CoreSettings.on));
       let res =
@@ -133,7 +134,9 @@ module WorkerPool: M with type response = (key, option(eval_result)) = {
 
   let get_response =
       (pool: t, (k, _) as req: request): (Lwt.t(response), t) => {
+    print_endline("66666 ProgramEvaluator.get_response");
     let res = Pool.request(pool, req);
+
     let _ = Pool.add(pool);
     (Lwt.map(r => (k, Option.map(snd, r)), res), pool);
   };

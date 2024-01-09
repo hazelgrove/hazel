@@ -137,6 +137,7 @@ module Make = (M: M) => {
 
     let register = (t: t) => {
       /* Mutable state. */
+      print_endline("666666 Registering worker");
       let t = ref(t);
       Js_of_ocaml.Worker.set_onmessage(req => t := on_request(t^, req));
     };
