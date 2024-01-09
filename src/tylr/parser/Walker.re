@@ -1,91 +1,106 @@
 module Step = Walk.Step;
 
-let step = (d, (msym, mold): Step.t): list(Step.t) =>
-  RZipper.step(d, (msym, mold.rctx))
-  |> List.map(((msym, rctx)) => (msym, {...mold, rctx}));
+// let step = (d, src: Step.t): list(Step.t) =>
+//   switch (src) {
+//   | T((mt, mold)) =>
+//     RZipper.step(d, (Sym.T(mt), mold.rctx))
+//     |> List.map(((msym, rctx)) => (msym, {...mold, rctx}));
+//   }
 
-let step_enter = (~from: Dir.t, ~l=?, ~r=?, s: Sort.t): list(Step.t) => {
+let step = (d, (msym, mold): Molded.Sym.t): Walk.Set.t =>
+  RZipper.step(d, (msym, mold.rctx))
+  |> List.map(((msym, rctx)) => (msym, {...mold, rctx}))
+  |> Walk.Set.init;
+
+let first_step = (~from: Dir.t, ~l=?, ~r=?, s: Mtrl.Sort.t): Walk.Set.t => {
   MGrammar.v
-  |> Sort.Map.find(s)
+  |> Mtrl.Sort.Map.find(s)
   |> Prec.Table.mapi(((p, a), rgx) => {
        // need to check for legal entry from both sides
+       let _ = failwith("todo: fix prec comparison using assoc");
+       // currently filtering without assuming single operator form for each prec level
+       // this may need to change
        let entered_l =
          RZipper.enter(~from=L, rgx)
-         |> List.filter(((sym, _)) => MSym.is_t(sym) || Prec.lt(~a, l, p))
+         |> List.filter(((sym, _)) => Mtrl.Sym.is_t(sym) || Prec.lt(~a, l, p))
          |> List.map(((sym, rctx)) => Molded.(sym, {sort, prec, ctx}));
        let entered_r =
          RZipper.enter(~from=R, rgx)
-         |> List.filter(((sym, _)) => MSym.is_t(sym) || Prec.gt(~a, p, r))
+         |> List.filter(((sym, _)) => Mtrl.Sym.is_t(sym) || Prec.gt(~a, p, r))
          |> List.map(((sym, rctx)) => Molded.(sym, {sort, prec, ctx}));
        List.(is_empty(entered_l) || is_empty(entered_r))
          ? [] : Dir.choose(from, entered_l, entered_r);
      })
-  |> List.concat;
+  |> List.concat
+  |> Walk.Set.init;
 };
 
-let enter = (~from: Dir.t, ~l=?, ~r=?, sort: Sort.t) => {
+let enter = (~from: Dir.t, sort: Molded.Sort.t): Walk.Set.t => {
   let seen = Hashtbl.create(10);
-  let rec go = (s: Sort.t) =>
-    switch (Hashtbl.find_opt(seen, s)) {
-    | Some () => Step.Set.empty
+  let rec go = (s: Molded.Sort.t, entered: Walk.t) =>
+    switch (Hashtbl.find_opt(seen, s.mtrl)) {
+    | Some () => Walk.Set.single(Molded.Sym.t(s), entered)
     | None =>
-      Hashtbl.add(seen, s, ());
-      open ListUtil.Syntax;
-      let (l, r) = Sort.eq(s, sort) ? (l, r) : (None, None);
-      let* (sym, _) = step_enter(~from, ~l?, ~r?, s);
-      switch (sym) {
-      | T(_) => return(step)
-      | NT(s) => [step, ...go(s)]
+      Hashtbl.add(seen, s.mtrl, ());
+      open Walk.Set.Syntax;
+      let (l, r) =
+        Mtrl.Sort.eq(s.mtrl, sort.mtrl)
+        ? Mold.prec_bounds(sort.mold)
+        : (None, None);
+      let* msym = first_step(~from, ~l?, ~r?, s.mtrl);
+      switch (Molded.Sym.is_sort(msym)) {
+      | None => Walk.Set.single(msym, entered)
+      | Some(s') =>
+        go(s', Walk.link(s, entered))
+        |> Walk.Set.add(msym, entered)
       };
     };
-  go(sort);
+  go(sort, Walk.empty);
 };
+// let enter_root = (~from: Dir.t) => {
+//   open Walk.Set.Syntax;
+//   let* (sym, _) = first_step(~from, Sort.root);
+//   switch (sym.mtrl) {
+//   | T(_) => Walk.Set.init([sym])
+//   | NT(s) => Walk.Set.(add(msym, Walk.empty, ))
+//   };
+// };
 
-let walk = (d: Dir.t, src: Bound.t(Step.t)): Walk.Set.t => {
-  open Walk.Set.Syntax;
-  let enter = enter(~from=Dir.toggle(d));
+let walk = (d: Dir.t, src: Step.t): Walk.Set.t => {
   let seen = Hashtbl.create(100);
-  let rec go = (src, walked) => {
-    let stp = Option.value(dst(walked), ~default=src);
-    switch (Hashtbl.find_opt(seen, stp)) {
-    | Some () => walked
-    | None =>
-      Hashtbl.add(seen, stp, ());
-      let stepped = {
-        let* stepped = Walk.Set.of_steps(step(d, stp));
-        go(src, cat_eq(stepped, walked));
-      };
-      let entered =
-        switch (stp) {
-        | T(_) => Walk.Set.empty
-        | NT(sort) =>
-          let* entered = Walk.Set.of_steps(enter(Node(sort)));
-          go(src, cat_neq(entered, walked));
+  let rec go = (dst, walked) =>
+    let rec go = (dst, walked) =>
+      switch (Hashtbl.find_opt(seen, dst)) {
+      | Some () => Walk.Set.single(dst, walked)
+      | None =>
+        Hashtbl.add(seen, dst, ());
+        open Walk.Set.Syntax;
+        let stepped = {
+          let* (stepped, _empty) = step(d, dst);
+          go(stepped, Walk.step(dst, walked));
         };
-      Walk.Set.union(stepped, entered);
-    };
-  };
-  switch (src) {
-  | Node(src) => go(src, empty)
-  | Root =>
-    let* entered = Walk.Set.of_steps(enter(Root));
-    go(dst(entered), mk([[], []]));
-  };
+        let entered =
+          switch (Molded.Sym.is_sort(dst)) {
+          | None => Walk.Set.empty
+          | Some(sort) =>
+            let* (dst', entered) = enter(~from=Dir.toggle(d), sort);
+            go(dst', Walk.cat(entered, walked));
+          }
+        Walk.Set.union(stepped, entered);
+      };
+  go(src, Walk.empty);
 };
 
-let lt = (l: Bound.t(Molded.Label.t), r: Molded.Label.t) => {
-  let (l, r) = Molded.Sym.(Bound.map(t, l), t(r));
-  l |> walk(R) |> Walk.Set.neq(r);
-};
-
-let gt = (l: Molded.Label.t, r: Bound.t(Molded.Label.t)) => {
-  let (l, r) = Molded.Sym.(t(l), Bound.map(t, r));
-  r |> walk(L) |> Walk.Set.neq(l);
-};
-
-// todo: tidy up from parameter
-let eq = (~from=Dir.L, l: Molded.Label.t, r: Molded.Label.t) => {
+let eq = (~src as d: Dir.t, l: Molded.Label.t, r: Molded.Label.t) => {
   let (l, r) = Molded.Sym.(t(l), t(r));
-  let (m_from, m_onto) = Dir.choose(from, l, r);
-  Bound.Node(m_from) |> walk(Dir.toggle(from)) |> Walk.Set.eq(m_onto);
+  let (src, dst) = Dir.choose(d, l, r);
+  src |> walk(Dir.toggle(d)) |> Walk.Set.eq(dst);
 };
+
+let neq = (~src as d: Dir.t, l: Molded.Label.t, r: Molded.Label.t) => {
+  let (l, r) = Molded.Sym.(t(l), t(r));
+  let (src, dst) = Dir.choose(d, l, r);
+  src |> walk(Dir.toggle(d)) |> Walk.Set.neq(dst);
+};
+let lt = neq(~src=L);
+let gt = neq(~src=R);
