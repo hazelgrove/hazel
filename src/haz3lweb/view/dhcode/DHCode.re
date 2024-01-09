@@ -7,7 +7,8 @@ open Haz3lcore;
 let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
 
 let view_of_layout =
-    (~inject, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
+    (~inject, ~font_metrics: FontMetrics.t, ~result_key, l: DHLayout.t)
+    : Node.t => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
@@ -29,7 +30,12 @@ let view_of_layout =
                        Attr.many([
                          Attr.class_("steppable"),
                          Attr.on_click(_ =>
-                           inject(UpdateAction.StepForward(obj))
+                           inject(
+                             UpdateAction.StepperAction(
+                               result_key,
+                               StepForward(obj),
+                             ),
+                           )
                          ),
                        ]),
                      txt,
@@ -134,10 +140,11 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
-      ~previous_step: option(EvaluatorStep.EvalObj.t)=None, // The step that will be displayed above this one
-      ~hidden_steps: list(EvaluatorStep.EvalObj.t)=[], // The hidden steps between the above and the current one
-      ~chosen_step: option(EvaluatorStep.EvalObj.t)=None, // The step that will be taken next
+      ~previous_step: option(EvaluatorStep.step)=None, // The step that will be displayed above this one
+      ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
+      ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
       ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~result_key: string,
       d: DHExp.t,
     )
     : Node.t => {
@@ -156,7 +163,7 @@ let view =
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
-  |> view_of_layout(~inject, ~font_metrics);
+  |> view_of_layout(~inject, ~font_metrics, ~result_key);
 };
 
 type font_metrics = FontMetrics.t;

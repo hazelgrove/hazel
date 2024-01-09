@@ -1,3 +1,4 @@
+open Haz3lcore;
 /**
   The program evaluator used in hazelweb. For more detailed information on the
   program evaluator itself, see {!ProgramEvaluator}.
@@ -48,8 +49,8 @@ module StateEvaluator = {
   /**
     [next evaluator d] makes an evaluation request for d.
    */
-  let next = ({next, _}: t, key: string, d: Haz3lcore.DHExp.t) => {
-    next((key, d));
+  let next = ({next, _}: t, key: string, mr: ModelResult.t, settings) => {
+    next((key, mr, settings));
   };
 
   /**

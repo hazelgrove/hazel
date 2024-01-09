@@ -434,6 +434,7 @@ let example_view =
                      ~selected_hole_instance=None,
                      ~font_metrics,
                      ~width=80,
+                     ~result_key="",
                      dhexp,
                    )
                  );

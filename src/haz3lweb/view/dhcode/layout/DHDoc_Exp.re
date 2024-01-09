@@ -102,9 +102,9 @@ let mk =
       ~enforce_inline: bool,
       ~selected_hole_instance: option(HoleInstance.t),
       // The next four are used when drawing the stepper to track where we can annotate changes
-      ~previous_step: option(EvalObj.t), // The step that will be displayed above this one
-      ~hidden_steps: list(EvalObj.t), // The hidden steps between the above and the current one
-      ~chosen_step: option(EvalObj.t), // The step that will be taken next
+      ~previous_step: option(step), // The step that will be displayed above this one
+      ~hidden_steps: list(step), // The hidden steps between the above and the current one
+      ~chosen_step: option(step), // The step that will be taken next
       ~next_steps: list(EvalObj.t), // The options for the next step, if it hasn't been chosen yet
       ~env: ClosureEnvironment.t,
       d: DHExp.t,
@@ -116,18 +116,18 @@ let mk =
             d: DHExp.t,
             env: ClosureEnvironment.t,
             enforce_inline: bool,
-            previous_step: option(EvalObj.t),
-            hidden_steps: list(EvalObj.t),
-            chosen_step: option(EvalObj.t),
-            next_steps: list((EvalObj.t, EvalObj.t)),
+            previous_step: option(step),
+            hidden_steps: list(step),
+            chosen_step: option(step),
+            next_steps: list((EvalCtx.t, EvalObj.t)),
             recent_subst: list(Var.t),
           )
           : DHDoc.t => {
     open Doc;
     let recent_subst =
       switch (previous_step) {
-      | Some(ps) when EvalObj.get_ctx(ps) == Mark =>
-        switch (ps.knd, ps.undo) {
+      | Some(ps) when ps.ctx == Mark =>
+        switch (ps.knd, ps.d_loc) {
         | (FunAp, Ap(Fun(p, _, _, _), _)) => DHPat.bound_vars(p)
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
@@ -168,12 +168,14 @@ let mk =
         d,
         env,
         enforce_inline,
-        Option.join(Option.map(EvalObj.unwrap(_, ctx), previous_step)),
-        List.filter_map(EvalObj.unwrap(_, ctx), hidden_steps),
-        Option.join(Option.map(EvalObj.unwrap(_, ctx), chosen_step)),
+        Option.join(
+          Option.map(EvaluatorStep.unwrap(_, ctx), previous_step),
+        ),
+        List.filter_map(EvaluatorStep.unwrap(_, ctx), hidden_steps),
+        Option.join(Option.map(EvaluatorStep.unwrap(_, ctx), chosen_step)),
         List.filter_map(
           ((x, y)) =>
-            switch (EvalObj.unwrap(x, ctx)) {
+            switch (EvalCtx.unwrap(x, ctx)) {
             | None => None
             | Some(x') => Some((x', y))
             },
@@ -538,22 +540,21 @@ let mk =
       };
     };
     let steppable =
-      next_steps
-      |> List.find_opt(((step, _)) => EvalObj.get_ctx(step) == Mark);
+      next_steps |> List.find_opt(((ctx, _)) => ctx == EvalCtx.Mark);
     let stepped =
       chosen_step
-      |> Option.map(x => EvalObj.get_ctx(x) == Mark)
+      |> Option.map(x => x.ctx == Mark)
       |> Option.value(~default=false);
     let substitution =
       hidden_steps
       |> List.find_opt(step =>
-           EvalObj.get_kind(step) == VarLookup
+           step.knd == VarLookup
            // HACK[Matt]: to prevent substitutions hiding inside casts
-           && EvalCtx.fuzzy_mark(EvalObj.get_ctx(step))
+           && EvalCtx.fuzzy_mark(step.ctx)
          );
     let doc =
       switch (substitution) {
-      | Some({undo: BoundVar(v), _}) when List.mem(v, recent_subst) =>
+      | Some({d_loc: BoundVar(v), _}) when List.mem(v, recent_subst) =>
         hcats([go_clean(BoundVar(v)) |> annot(DHAnnot.Substituted), doc])
       | Some(_)
       | None => doc
@@ -576,7 +577,7 @@ let mk =
     previous_step,
     hidden_steps,
     chosen_step,
-    List.map(x => (x, x), next_steps),
+    List.map((x: EvalObj.t) => (x.ctx, x), next_steps),
     [],
   );
 };

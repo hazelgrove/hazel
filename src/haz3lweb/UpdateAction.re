@@ -4,7 +4,6 @@ open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type evaluation_settings_action =
-  | Stepping
   | ShowRecord
   | ShowCaseClauses
   | ShowFnBodies
@@ -25,6 +24,11 @@ type settings_action =
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type stepper_action =
+  | StepForward(EvaluatorStep.EvalObj.t)
+  | StepBackward;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
   | TyDi;
 
@@ -38,8 +42,7 @@ type set_meta =
   | Mousedown
   | Mouseup
   | ShowBackpackTargets(bool)
-  | FontMetrics(FontMetrics.t)
-  | Result(ModelResults.Key.t, ModelResult.current);
+  | FontMetrics(FontMetrics.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type benchmark_action =
@@ -79,8 +82,9 @@ type t =
   | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
   | Assistant(agent_action)
-  | StepForward(EvaluatorStep.EvalObj.t)
-  | StepBackward;
+  | ToggleStepper(ModelResults.Key.t)
+  | StepperAction(ModelResults.Key.t, stepper_action)
+  | UpdateResult(ModelResults.Key.t, option(ModelResult.t));
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -105,6 +109,31 @@ let is_edit: t => bool =
   fun
   | Cut
   | Undo
-  | Redo => true
+  | Redo
+  | DoTheThing
+  | Set(_)
+  | Paste(_)
+  | SwitchScratchSlide(_)
+  | SwitchExampleSlide(_)
+  | ToggleStepper(_)
+  | StepperAction(_, _)
+  | UpdateResult(_, _) => true
   | PerformAction(a) => Action.is_edit(a)
-  | _ => false;
+  | SwitchEditor(_)
+  | Reset
+  | ExportPersistentData
+  | ResetCurrentEditor
+  | Save
+  | ReparseCurrentEditor
+  | Copy
+  | SetMeta(_)
+  | UpdateLangDocMessages(_)
+  | DebugAction(_)
+  | DebugConsole(_)
+  | InitImportAll(_)
+  | FinishImportAll(_)
+  | InitImportScratchpad(_)
+  | FinishImportScratchpad(_)
+  | MoveToNextHole(_)
+  | Benchmark(_)
+  | Assistant(_) => false;
