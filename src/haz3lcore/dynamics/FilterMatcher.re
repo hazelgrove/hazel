@@ -59,6 +59,9 @@ let rec matches_exp =
   | (Constructor(dt), Constructor(ft)) => dt == ft
   | (Constructor(_), _) => false
 
+  | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
+  | (BuiltinFun(_), _) => false
+
   | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
     matches_pat(dp1, fp1)
     && dty1 == fty1
@@ -172,14 +175,8 @@ let rec matches_exp =
     dv == fv && dt == ft && matches_exp(env, dc, fc)
   | (FixF(_), _) => false
 
-  | (ApBuiltin(dname, dargs), ApBuiltin(fname, fargs)) =>
-    dname == fname
-    && List.fold_left2(
-         (acc, d, f) => {acc && matches_exp(env, d, f)},
-         true,
-         dargs,
-         fargs,
-       )
+  | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
+    dname == fname && matches_exp(env, darg, farg)
   | (ApBuiltin(_), _) => false
 
   | (Prj(dv, di), Prj(fv, fi)) => matches_exp(env, dv, fv) && di == fi
