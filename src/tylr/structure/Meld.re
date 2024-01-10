@@ -1,6 +1,21 @@
 open Sexplib.Std;
 open Util;
 
+module Bounds = {
+  type t =
+    | Lt(Bound.t(Molded.Sort.t), option(Molded.Sort.t))
+    | Eq(Bound.t(Molded.Sort.t))
+    | Gt(option(Molded.Sort.t), Bound.t(Molded.Sort.t))
+};
+
+module Cell = {
+  type t('a) = {
+    marks: Path.Marks.t,
+    bounds: Bounds.t,
+    content: option('a),
+  };
+};
+
 module Base = {
   type t =
     | M(cell, wald, cell)
