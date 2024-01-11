@@ -230,6 +230,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
       ++ " does not match with "
       ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
     );
-    raise(EvaluatorError.Exception(StepDoesNotMatch));
+    None;
+  // raise(EvaluatorError.Exception(StepDoesNotMatch));
   };
 };
