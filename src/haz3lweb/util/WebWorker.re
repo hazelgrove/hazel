@@ -143,5 +143,3 @@ module Make = (M: M) => {
     };
   };
 };
-
-module Simple = {};
