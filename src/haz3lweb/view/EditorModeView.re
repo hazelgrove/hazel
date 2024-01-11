@@ -39,14 +39,58 @@ let scratch_view = (~inject, ~cur_slide, ~slides) =>
   [mode_menu(~inject, ~mode=Scratch)]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
-let examples_view = (~inject, ~name, ~editors) => [
-  mode_menu(~inject, ~mode=Examples),
-  select(
-    ~attr=
-      Attr.on_change((_, name) => inject(Update.SwitchExampleSlide(name))),
-    List.map(option_view(name), List.map(fst, editors)),
-  ),
-];
+let examples_view = (~inject, ~name, ~editors) => {
+  let editor_names = List.map(fst, editors);
+  let rec find_prev_next: list(string) => (option(string), option(string)) =
+    fun
+    | []
+    | [_] => (None, None)
+    | [x, y] when name == x => (None, Some(y))
+    | [x, y] when name == y => (Some(x), None)
+    | [_, _] => (None, None)
+    | [x, y, ..._] when name == x => (None, Some(y))
+    | [x, y, z, ..._] when name == y => (Some(x), Some(z))
+    | [_, ...ys] => find_prev_next(ys);
+  let (prev, next) = find_prev_next(editor_names);
+  let prev =
+    prev
+    |> Option.map(s =>
+         button(Icons.back, _ => inject(Update.SwitchExampleSlide(s)))
+       )
+    |> Option.value(
+         ~default=
+           button_d(
+             Icons.back,
+             inject(Update.SwitchExampleSlide("none")),
+             ~disabled=true,
+           ),
+       );
+  let next =
+    next
+    |> Option.map(s =>
+         button(Icons.forward, _ => inject(Update.SwitchExampleSlide(s)))
+       )
+    |> Option.value(
+         ~default=
+           button_d(
+             Icons.back,
+             inject(Update.SwitchExampleSlide("none")),
+             ~disabled=true,
+           ),
+       );
+  [
+    mode_menu(~inject, ~mode=Examples),
+    prev,
+    select(
+      ~attr=
+        Attr.on_change((_, name) =>
+          inject(Update.SwitchExampleSlide(name))
+        ),
+      List.map(option_view(name), editor_names),
+    ),
+    next,
+  ];
+};
 
 let instructor_toggle = (~inject, ~instructor_mode) =>
   ExerciseSettings.show_instructor
