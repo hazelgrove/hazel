@@ -184,8 +184,6 @@ let mk =
         recent_subst,
       );
     };
-    let go_clean = (~env=env, ~enforce_inline=enforce_inline, d) =>
-      go(d, env, enforce_inline, None, [], None, [], []);
     let parenthesize = (b, doc) =>
       if (b) {
         hcats([
@@ -555,7 +553,7 @@ let mk =
     let doc =
       switch (substitution) {
       | Some({d_loc: BoundVar(v), _}) when List.mem(v, recent_subst) =>
-        hcats([go_clean(BoundVar(v)) |> annot(DHAnnot.Substituted), doc])
+        hcats([text(v) |> annot(DHAnnot.Substituted), doc])
       | Some(_)
       | None => doc
       };
