@@ -1,37 +1,22 @@
 open Sexplib.Std;
 open Util;
 
-module Bounds = {
-  type t =
-    | Lt(Bound.t(Molded.Sort.t), option(Molded.Sort.t))
-    | Eq(Bound.t(Molded.Sort.t))
-    | Gt(option(Molded.Sort.t), Bound.t(Molded.Sort.t))
-};
-
-module Cell = {
-  type t('a) = {
-    marks: Path.Marks.t,
-    bounds: Bounds.t,
-    content: option('a),
-  };
-};
-
 module Base = {
   type t =
     | M(cell, wald, cell)
   and wald =
     | W(Chain.t(Token.t, cell))
-  and cell =
-    | Empty
-    | Full(Path.Marks.t, t);
+  and cell = {
+    marks: Path.Marks.t,
+    bounds: Molded.Bounds.t,
+    meld: option(t),
+  };
 };
 include Base;
 
-let mk = (~l=Cell.Empty, ~r=Cell.Empty, w) => M(l, w, r);
-
-let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
-let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
-  mk(~l, W(Chain.of_loop(t)), ~r);
+let mk = (~l: cell, ~r: cell, w) => M(l, w, r);
+// let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
+//   mk(~l, W(Chain.of_loop(t)), ~r);
 
 // let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
 //   of_chain(Chain.mk([l, r], [p])) |> aggregate;

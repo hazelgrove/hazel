@@ -1,6 +1,12 @@
+module Walk = {
+  module Step = Molded.Label;
+  module Stride = Molded.Bounds;
+  type t = Chain.t(Stride.t, Step.t);
+};
+
 module Index = {
   include Molded.Label.Map;
-  type t = Molded.Label.Map.t(list(Comparison.t));
+  type t = Molded.Label.Map.t(list(Walk.t));
 };
 
 let expect_lbl =
@@ -111,3 +117,4 @@ let walk = (~from: Dir.t, src: Bound.t(Molded.Label.t)) => {
     };
   go(src);
 };
+

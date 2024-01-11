@@ -10,7 +10,7 @@ module Base = {
     text: string,
   };
   let mk = (~id=?, ~text="", mtrl) => {
-    let id = Id.Gen.value(id);
+    let id = Id.value(id);
     {id, mtrl, text};
   };
   let is_empty = p => String.eq(p.text, "");
@@ -19,13 +19,13 @@ module Base = {
 module Labeled = {
   include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(EMtrl.Labeled.t);
+  type t = Base.t(Mtrl.t(list(Label.t)));
 };
 
 module Molded = {
   include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(EMold.t);
+  type t = Base.t(Molded.Label.t);
 };
 include Molded;
 
@@ -52,14 +52,6 @@ let clear = (p: t) =>
   | Tile(_) => [{...p, token: Token.empty}]
   };
 
-let mk = (~id=?, ~text="", material) => {
-  let id =
-    switch (id) {
-    | None => Id.Gen.next()
-    | Some(id) => id
-    };
-  {id, material, token};
-};
 let id_ = p => p.id;
 let label = p => Material.Labeled.of_molded(p.material);
 let sort = p => Material.Sorted.of_molded(p.material);

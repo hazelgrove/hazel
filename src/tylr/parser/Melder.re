@@ -1,5 +1,41 @@
 open Util;
 
+let zip = (~from: Dir.t, l: Wald.t, r: Wald.t): option(Wald.t) => {
+  let (src, dst) = Dir.choose(from, l, r);
+  let (hd_src, tl_src) = Wald.split_hd(src);
+  let (hd_dst, tl_dst) = Wald.split_hd(dst);
+  let (hd_l, hd_r) = Dir.choose(from, hd_src, hd_dst);
+  Token.zip(hd_l, hd_r)
+  |> Option.map(z => Wald.zip(tl_dst, z, tl_src));
+};
+
+let walk = (~from, src, dst) => {
+  let (src, dst) = (Wald.hd(src), Wald.hd(dst));
+  Walker.walk(~from, Node(src))
+  |> Walker.Index.find(dst);
+};
+
+let meld = (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t): option(Chain.t(Cell.t, Token.t)) => {
+  let (src, dst) = Dir.choose(from, l, r);
+  let fill = Dir.choose(from, fill, List.rev(fill));
+  let rec go = (~init=false, src, fill) => {
+    open OptUtil.Syntax;
+    let/ () =
+      // try removing ghost
+      switch (Wald.unlink(src)) {
+      | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
+        let fill = Option.to_list(cell.content) @ fill;
+        go(tl, fill) |> Effects.perform_if(Remove(hd))
+      | _ => None
+      };
+    walk(~from, src, dst)
+    // require eq if ghost has been removed
+    |> (init ? Fun.id : List.filter(Walk.is_eq))
+    |> Oblig.Delta.minimize(bake(~fill));
+  };
+  go(~init=true, src, fill);
+};
+
 module Wald = {
   let lt =
       (l: Bound.t(Wald.t), ~cell=Cell.empty, r: Wald.t): option(Slope.Dn.t) => {

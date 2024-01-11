@@ -2,12 +2,9 @@ include Meld.Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Meld.Base.cell;
 
-let bake = (s: ESort.t) =>
-  switch (s) {
-  | Space => Empty
-  | Grout ()
-  | Tile(_) => Full(EMeld.singleton(EToken.grout((Convex, Convex))))
-  };
+let mk = (~marks=Path.Marks.empty, ~meld=?, bounds) => {
+  marks, bounds, meld
+};
 
 // returns a cell carrying the input meld repaired for sort consistency,
 // provided that such repair is possible. otherwise return empty cell.
