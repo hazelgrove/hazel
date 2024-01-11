@@ -222,18 +222,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | FixF(f, t, d1) =>
       let. _ = otherwise(env, FixF(f, t, d1));
-      // TODO(Matt): Would it be safer to have a fourth argument to FixF?
-      // TODO(Matt): is this a step?
-      // TODO(Matt): is t needed here?
-      Step({
-        apply: () =>
-          Closure(
-            evaluate_extend_env(Environment.singleton((f, d1)), env),
-            d1,
-          ),
-        kind: FixUnwrap,
-        value: false,
-      });
+      Constructor;
     | Test(id, d) =>
       let. _ = otherwise(env, d => Test(id, d))
       and. d' = req_final(req(state, env), d => Test(id, d), d);
@@ -263,6 +252,19 @@ module Transition = (EV: EV_MODE) => {
       | Fun(dp, _, Closure(env', d3), _) =>
         let.match env'' = (env', matches(dp, d2'));
         Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
+      | FixF(f, _, d3) =>
+        Step({
+          apply: () =>
+            Ap(
+              Closure(
+                evaluate_extend_env(Environment.singleton((f, d1')), env),
+                d3,
+              ),
+              d2',
+            ),
+          kind: FixUnwrap,
+          value: false,
+        })
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
           apply: () => Cast(Ap(d3', Cast(d2', ty1', ty1)), ty2, ty2'),

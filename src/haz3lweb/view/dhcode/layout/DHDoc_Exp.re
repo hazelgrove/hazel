@@ -307,7 +307,8 @@ let mk =
       | BoundVar(x) =>
         if (!settings.show_lookup_steps) {
           switch (ClosureEnvironment.lookup(env, x)) {
-          | None => text(x)
+          | None
+          | Some(FixF(_)) => text(x)
           | Some(d') =>
             if (List.mem(x, recent_subst)) {
               hcats([
