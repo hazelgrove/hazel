@@ -14,8 +14,8 @@ let startup : PersistentData.t =
               {
                 show_case_clauses = true;
                 show_fn_bodies = true;
-                show_casts = true;
-                show_lookup_steps = true;
+                show_casts = false;
+                show_lookup_steps = false;
                 show_stepper_filters = true;
                 stepper_history = false;
               };
