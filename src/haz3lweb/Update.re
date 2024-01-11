@@ -225,7 +225,7 @@ let should_scroll_to_caret =
   | Benchmark(_) => false;
 
 let evaluate_and_schedule =
-    (state: State.t, ~schedule_action, model: Model.t): Model.t => {
+    (_state: State.t, ~schedule_action, model: Model.t): Model.t => {
   /*let model = {
       ...model,
       meta: {
@@ -251,16 +251,19 @@ let evaluate_and_schedule =
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
     |> List.iter(((key, d)) => {
          /* Send evaluation request. */
-         let pushed = State.evaluator_next(state, key, d);
+         print_endline("666 about to call State.evaluator_next");
+         //let pushed = State.evaluator_next(state, key, d);
+
+         let () = SimpleWorker.EvalClient.request(schedule_action, (key, d));
 
          /* Set evaluation to pending after short timeout. */
          /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
           * updated before below action is scheduled. */
          Delay.delay(
            () =>
-             if (pushed |> Lwt.is_sleeping) {
-               schedule_action(SetMeta(Result(key, ResultPending)));
-             },
+             //if (pushed |> Lwt.is_sleeping) {
+             schedule_action(SetMeta(Result(key, ResultPending))),
+           //},
            300,
          );
        });

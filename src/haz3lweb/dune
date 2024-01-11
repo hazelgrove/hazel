@@ -57,6 +57,9 @@
  (modules Worker)
  (libraries haz3lweb)
  (modes js)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
   (pps js_of_ocaml-ppx)))
 

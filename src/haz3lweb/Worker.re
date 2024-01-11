@@ -2,6 +2,9 @@
    Web worker thread.
  */;
 open Haz3lweb;
-open ProgramEvaluator.WorkerImpl;
+//open ProgramEvaluator.WorkerImpl;
 
-let () = () |> init |> register;
+//let () = () |> init |> register;
+
+print_endline("Worker.re: Registering");
+SimpleWorker.EvalWorker.register();

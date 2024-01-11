@@ -122,7 +122,7 @@ module WorkerPool: M with type response = (key, option(eval_result)) = {
    * aren't doing anything atm. Plus the indexedDB library
    * shits up the console trying to access window on threads
    * which don't have one. */
-  let max = 1;
+  let max = 0;
 
   let timeout = 2000; /* ms */
 
