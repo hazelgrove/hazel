@@ -110,7 +110,7 @@ module App = {
     let state = State.init();
 
     /* create subscription to evaluator, updating model on each result. */
-    let _ =
+    /*let _ =
       State.evaluator_subscribe(
         state,
         ((key, r)) => {
@@ -129,7 +129,7 @@ module App = {
           schedule_action(Update.SetMeta(Result(key, cr)));
         },
         () => (),
-      );
+      );*/
 
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
