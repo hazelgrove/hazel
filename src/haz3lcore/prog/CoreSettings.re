@@ -17,7 +17,8 @@ module Evaluation = {
     show_fn_bodies: true,
     show_casts: false,
     show_lookup_steps: false,
-    show_stepper_filters: true,
+    show_stepper_filters: false,
+    stepper: false,
     stepper_history: false,
   };
 };

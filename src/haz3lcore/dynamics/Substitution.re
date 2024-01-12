@@ -52,9 +52,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
-  | ApBuiltin(ident, args) =>
-    let args = List.map(subst_var(d1, x), args);
-    ApBuiltin(ident, args);
+  | ApBuiltin(ident, d1) =>
+    let d2 = subst_var(d1, x, d1);
+    ApBuiltin(ident, d2);
+  | BuiltinFun(ident) => BuiltinFun(ident)
   | Test(id, d3) => Test(id, subst_var(d1, x, d3))
   | BoolLit(_)
   | IntLit(_)
@@ -157,9 +158,9 @@ and subst_var_env =
   ClosureEnvironment.wrap(id, map);
 }
 
-and subst_var_filter = (d1: DHExp.t, x: Var.t, flt: Filter.t): Filter.t => {
-  ...flt,
-  pat: subst_var(d1, x, flt.pat),
+and subst_var_filter =
+    (d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
+  flt |> DH.DHFilter.map(subst_var(d1, x));
 };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>

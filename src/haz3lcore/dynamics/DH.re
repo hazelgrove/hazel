@@ -10,14 +10,15 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(Filter.t, t)
+    | Filter(DHFilter.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | ApBuiltin(string, t)
+    | BuiltinFun(string)
     | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
@@ -64,7 +65,7 @@ module rec DHExp: {
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
     | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Filter(Filter.t, t)
+    | Filter(DHFilter.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -72,7 +73,8 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | ApBuiltin(string, t)
+    | BuiltinFun(string)
     | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
@@ -113,6 +115,7 @@ module rec DHExp: {
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
+    | BuiltinFun(_) => "BuiltinFun"
     | Test(_) => "Test"
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
@@ -163,13 +166,14 @@ module rec DHExp: {
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
-    | Filter(f, b) => Filter(Filter.strip_casts(f), strip_casts(b))
+    | Filter(f, b) => Filter(DHFilter.strip_casts(f), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
     | Test(id, a) => Test(id, strip_casts(a))
-    | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
+    | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
+    | BuiltinFun(fn) => BuiltinFun(fn)
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
@@ -215,7 +219,7 @@ module rec DHExp: {
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Filter(f1, d1), Filter(f2, d2)) =>
-      Filter.fast_equal(f1, f2) && fast_equal(d1, d2)
+      DHFilter.fast_equal(f1, f2) && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
@@ -231,8 +235,8 @@ module rec DHExp: {
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
-    | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
-      f1 == f2 && List.for_all2(fast_equal, args1, args2)
+    | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
+    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
       List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
@@ -260,6 +264,7 @@ module rec DHExp: {
     | (Test(_), _)
     | (Ap(_), _)
     | (ApBuiltin(_), _)
+    | (BuiltinFun(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)
     | (ListLit(_), _)
@@ -441,14 +446,6 @@ and ClosureEnvironment: {
   let without_keys = keys => update(Environment.without_keys(keys));
 }
 
-and FilterAction: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = TermBase.UExp.filter_action;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = TermBase.UExp.filter_action;
-}
-
 and Filter: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -482,6 +479,41 @@ and Filter: {
   };
 
   let strip_casts = (f: t): t => {...f, pat: f.pat |> DHExp.strip_casts};
+}
+
+and DHFilter: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Filter(Filter.t)
+    | Residue(int, FilterAction.t);
+  let fast_equal: (t, t) => bool;
+  let strip_casts: t => t;
+  let map: (DHExp.t => DHExp.t, t) => t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Filter(Filter.t)
+    | Residue(int, FilterAction.t);
+  let fast_equal = (f1: t, f2: t) => {
+    switch (f1, f2) {
+    | (Filter(flt1), Filter(flt2)) => Filter.fast_equal(flt1, flt2)
+    | (Residue(idx1, act1), Residue(idx2, act2)) =>
+      idx1 == idx2 && act1 == act2
+    | _ => false
+    };
+  };
+  let strip_casts = f => {
+    switch (f) {
+    | Filter(flt) => Filter(Filter.strip_casts(flt))
+    | Residue(idx, act) => Residue(idx, act)
+    };
+  };
+  let map = (mapper, filter) => {
+    switch (filter) {
+    | Filter(flt) => Filter(Filter.map(mapper, flt))
+    | Residue(idx, act) => Residue(idx, act)
+    };
+  };
 }
 
 and FilterEnvironment: {
