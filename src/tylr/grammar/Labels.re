@@ -5,7 +5,7 @@ let all =
     open ListUtil.Syntax;
     let* (_, tbl) = Sort.Map.bindings(Grammar.v);
     let* (_, r) = tbl;
-    Regex.atoms(r) |> List.filter_map(Atom.get_tok);
+    Regex.atoms(r) |> List.filter_map(Sym.get_t);
   }
   |> Label.Set.of_list;
 

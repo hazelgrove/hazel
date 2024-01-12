@@ -3,7 +3,6 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = int;
-type p = t;
 
 let compare = Int.compare;
 
@@ -40,6 +39,7 @@ let eq = (~a=None, l, r) => compare(l, r) == 0 && Option.is_none(a);
 module Table = {
   type t('v) = list((option(Dir.t), 'v));
   // let map = f => List.mapi((p, (a, v)) => f(p, a, v));
-  let mapi = f => List.mapi((p, (a, v)) => (a, f(p, v)));
+  let map = f => List.map(((a, v)) => (a, f(v)));
+  let mapi = f => List.mapi((p, (a, v)) => f((p, a), v));
   let filter = f => List.filteri((p, (a, v)) => f(p, a, v));
 };

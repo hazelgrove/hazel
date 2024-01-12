@@ -1,14 +1,6 @@
 open Util;
 
 module Wald = {
-  let zip = (~from: Dir.t, l: Wald.t, r: Wald.t): option(Wald.t) => {
-    let (src, dst) = Dir.choose(from, l, r);
-    let (hd_src, tl_src) = Wald.split_hd(src);
-    let (hd_dst, tl_dst) = Wald.split_hd(dst);
-    let (hd_l, hd_r) = Dir.choose(from, hd_src, hd_dst);
-    Token.zip(hd_l, hd_r) |> Option.map(z => Wald.zip(tl_dst, z, tl_src));
-  };
-
   let walk = (~from, src, dst) => {
     let (src, dst) = (Wald.hd(src), Wald.hd(dst));
     Walker.walk(~from, Node(src)) |> Walker.Index.find(dst);

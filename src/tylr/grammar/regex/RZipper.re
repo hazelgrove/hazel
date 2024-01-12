@@ -4,60 +4,47 @@ open Util;
 type t('focus, 'atom) = ('focus, RCtx.t('atom));
 
 let rec enter =
-        (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a)) => {
+        (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a))
+        : list(Bound.t(t('a, 'a))) => {
   let go = enter(~from);
   switch (r) {
-  | Atom(a) => [(a, ctx)]
-  | Star(r) => go(~ctx=[Star_, ...ctx], r)
-  | Alt(rs) =>
-    ListUtil.elem_splits(rs)
+  | Atom(a) => [Node((a, ctx))]
+  | Star(r) => [Root, ...go(~ctx=[Star_, ...ctx], r)]
+  | Alt(s) =>
+    ListUtil.elem_splits(s)
     |> List.concat_map(((ls, r, rs)) =>
          go(~ctx=[Alt_(ls, rs), ...ctx], r)
        )
-  | Seq(rs) =>
-    switch (from) {
-    | L =>
-      switch (rs) {
-      | [] => []
-      | [hd, ...tl] =>
-        let go_hd = go(~ctx=RCtx.push_seq(~onto=R, tl, ctx), hd);
-        let go_tl =
-          Regex.nullable(hd)
-            ? go(~ctx=RCtx.push(~onto=L, hd, ctx), Seq(tl)) : [];
-        // prioritize tl in case hd nullable, assuming null by first choice.
-        // may need to revisit this in case grammar author manually includes
-        // epsilon but does not make it first element of disjunction.
-        go_tl @ go_hd;
-      }
-    | R =>
-      switch (ListUtil.split_last_opt(rs)) {
-      | None => []
-      | Some((tl, hd)) =>
-        let go_hd = go(~ctx=RCtx.push_seq(~onto=L, tl, ctx), hd);
-        let go_tl =
-          Regex.nullable(hd)
-            ? go(~ctx=RCtx.push(~onto=R, hd, ctx), Seq(tl)) : [];
-        go_tl @ go_hd;
-      }
+  | Seq(s) =>
+    switch (from == L ? s : List.rev(s)) {
+    | [] => [Root]
+    | [hd, ...tl] =>
+      hd
+      |> go(~ctx=RCtx.push_s(~onto=Dir.toggle(from), tl, ctx))
+      |> List.concat_map(
+           fun
+           | Bound.Node(_) as n => [n]
+           | Root => go(~ctx=RCtx.push(~onto=from, hd, ctx), Seq(tl)),
+         )
     }
   };
 };
 
-let step = (d: Dir.t, (a, ctx): t('a, 'a)): list(t('a, 'a)) => {
+let step = (d: Dir.t, (a, ctx): t('a, 'a)): list(Bound.t(t('a, 'a))) => {
   let enter = enter(~from=Dir.toggle(d));
   let rec go = (r: Regex.t('a), ctx: RCtx.t(_)) =>
     switch (ctx) {
     | [] => []
     | [f, ...fs] =>
       switch (d, f) {
-      | (_, Star_) => go(Star(r), fs)
+      | (_, Star_) => go(Star(r), fs) @ enter(r, ~ctx)
       | (_, Alt_(ls, rs)) => go(Alt(List.rev(ls) @ [r, ...rs]), fs)
       | (L, Seq_([], rs)) => go(Seq([r, ...rs]), fs)
       | (R, Seq_(ls, [])) => go(Seq(List.rev([r, ...ls])), fs)
       | (L, Seq_([hd, ...tl], rs)) =>
         enter(hd, ~ctx=[Seq_(tl, [r, ...rs]), ...fs])
       | (R, Seq_(ls, [hd, ...tl])) =>
-        enter(hd, ~ctx=[Seq_(List.rev([r, ...ls]), tl), ...fs])
+        enter(hd, ~ctx=[Seq_([r, ...ls], tl), ...fs])
       }
     };
   go(Atom(a), ctx);

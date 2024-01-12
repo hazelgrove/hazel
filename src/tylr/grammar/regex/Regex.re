@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t('a) =
@@ -15,6 +16,17 @@ let alt = rs => Alt(rs);
 
 let eps = Seq([]);
 let opt = r => Alt([eps, r]);
+
+let rec flatten =
+  fun
+  | Seq(rs) => List.concat_map(flatten, rs)
+  | r => [r];
+
+let push = (~from: Dir.t, r) =>
+  fun
+  | Seq(rs) => Seq(from == L ? [r, ...rs] : rs @ [r])
+  | (Atom(_) | Star(_) | Alt(_)) as r' =>
+    Seq(from == L ? [r, r'] : [r', r]);
 
 let rec atoms =
   fun
