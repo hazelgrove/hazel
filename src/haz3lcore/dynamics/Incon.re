@@ -4,7 +4,7 @@ type b =
   | True
   | False(Constraint.t);
 
-let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
+let is_inconsistent_int = (xis: list(Constraint.t)): b => {
   let (int_set, not_int_list) =
     List.fold_left(
       ((int_set, not_int_list), xi: Constraint.t) =>
@@ -16,11 +16,20 @@ let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
       (IntSet.empty, []),
       xis,
     );
-  IntSet.cardinal(int_set) > 1
-  || List.exists(IntSet.mem(_, int_set), not_int_list);
+  if (IntSet.cardinal(int_set) > 1
+      || List.exists(IntSet.mem(_, int_set), not_int_list)) {
+    True;
+  } else if (IntSet.cardinal(int_set) == 1) {
+    False(Int(IntSet.choose(int_set)));
+  } else {
+    // IntSet.cardinal(int_set) == 0
+    False(
+      Int(List.fold_left(max, List.hd(not_int_list), not_int_list) + 1),
+    );
+  };
 };
 
-let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
+let is_inconsistent_float = (xis: list(Constraint.t)): b => {
   let (float_set, not_float_list) =
     List.fold_left(
       ((float_set, not_float_list), xi: Constraint.t) =>
@@ -32,11 +41,22 @@ let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
       (FloatSet.empty, []),
       xis,
     );
-  FloatSet.cardinal(float_set) > 1
-  || List.exists(FloatSet.mem(_, float_set), not_float_list);
+  if (FloatSet.cardinal(float_set) > 1
+      || List.exists(FloatSet.mem(_, float_set), not_float_list)) {
+    True;
+  } else if (FloatSet.cardinal(float_set) == 1) {
+    False(Float(FloatSet.choose(float_set)));
+  } else {
+    // FloatSet.cardinal(float_set) == 0
+    False(
+      Float(
+        List.fold_left(max, List.hd(not_float_list), not_float_list) +. 1.0,
+      ),
+    );
+  };
 };
 
-let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
+let is_inconsistent_string = (xis: list(Constraint.t)): b => {
   let (string_set, not_string_list) =
     List.fold_left(
       ((string_set, not_string_list), xi: Constraint.t) =>
@@ -48,8 +68,19 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
       (StringSet.empty, []),
       xis,
     );
-  StringSet.cardinal(string_set) > 1
-  || List.exists(StringSet.mem(_, string_set), not_string_list);
+  if (StringSet.cardinal(string_set) > 1
+      || List.exists(StringSet.mem(_, string_set), not_string_list)) {
+    True;
+  } else if (StringSet.cardinal(string_set) == 1) {
+    False(String(StringSet.choose(string_set)));
+  } else {
+    // StringSet.cardinal(string_set) == 0
+    False(
+      String(
+        List.fold_left(max, List.hd(not_string_list), not_string_list) ++ "1",
+      ),
+    );
+  };
 };
 
 let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
