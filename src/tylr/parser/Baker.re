@@ -14,7 +14,7 @@ let bake_padding = (~entered=?, side: Dir.t, step: Step.t): Cell.t => {
       switch (side) {
       | L => Cell.Bounds.Lt(s, sort)
       | R => Cell.Bounds.Gt(sort, s)
-      };
+      }
     };
   Cell.empty(bounds);
 };
@@ -35,12 +35,14 @@ let bake_step = (~src: Dir.t, ~entered=?, step, baked: 'baked): 'baked =>
       | None => baked
       | Some(s) =>
         baked
-        |> Chain.put_fst({
-          let space = space_sort(src, step);
-          let bounds =
-            Cell.Bounds.(Dir.choose(src, Lt(s, space), Gt(space, s)));
-          Cell.empty(bounds);
-        });
+        |> Chain.put_fst(
+             {
+               let space = space_sort(src, step);
+               let bounds =
+                 Cell.Bounds.(Dir.choose(src, Lt(s, space), Gt(space, s)));
+               Cell.empty(bounds);
+             },
+           )
       };
     let tok = bake_token(step);
     let cell = Cell.empty(Eq(space_sort(Dir.toggle(src), step)));
@@ -49,8 +51,7 @@ let bake_step = (~src: Dir.t, ~entered=?, step, baked: 'baked): 'baked =>
     let bounds =
       switch (entered) {
       | None => Cell.Bounds.Eq(sort)
-      | Some(s) =>
-        Cell.Bounds.(Dir.choose(src, Lt(s, sort), Gt(sort, s)))
+      | Some(s) => Cell.Bounds.(Dir.choose(src, Lt(s, sort), Gt(sort, s)))
       };
     // note: fill creates necessary grout
     Chain.put_fst(Cell.fill(bounds), baked);
@@ -58,27 +59,25 @@ let bake_step = (~src: Dir.t, ~entered=?, step, baked: 'baked): 'baked =>
 
 let bake_steps = (~src: Dir.t, steps: list(Walk.Step.t)): ('acc => 'acc) =>
   List.fold_right(
-    (step, (entered, baked)) =>
-      (None, bake_step(~src, ~entered?, baked)),
+    (step, (entered, baked)) => (None, bake_step(~src, ~entered?, baked)),
     steps,
   );
 
 let bake_walk = (~src: Dir.t, walk: Walk.t, init: Baked.t): Baked.t => {
   Walk.group_enters(walk)
   |> Chain.fold_right(
-    (steps, enters, baked) => {
-      let sort = Chain.lst(enters);
+       (steps, enters, baked) => {
+         let sort = Chain.lst(enters);
 
-
-      let entered =
-        switch (entered) {
-        | Some(_) => entered
-        | None => Some(enter)
-        };
-      bake_steps(~src, steps, (entered, baked));
-    },
-    steps => bake_steps(~src, steps, init),
-  );
+         let entered =
+           switch (entered) {
+           | Some(_) => entered
+           | None => Some(enter)
+           };
+         bake_steps(~src, steps, (entered, baked));
+       },
+       steps => bake_steps(~src, steps, init),
+     );
 };
 
 let fill = (meld: Meld.t, cell: Cell.t) =>
@@ -89,7 +88,6 @@ let fill = (meld: Meld.t, cell: Cell.t) =>
     let (l, r) = sorts;
     Walker.bounds(l, meld, r) |> Option.map(Cell.full(~sorts));
   };
-
 
 module Step = {
   type t = Sym.t(Token.t, Cell.t);

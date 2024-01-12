@@ -1,10 +1,9 @@
-; (include_subdirs qualified)
+(include_subdirs qualified)
 
 (library
- (name tylr)
- ; (virtual_modules sort gram)
- ; (libraries util sedlex re sexplib)
- ; (modules grammar material structure parser editor zed)
+ (name parser)
+ ; (libraries util re sexplib)
+ (libraries structure)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

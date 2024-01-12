@@ -2,9 +2,7 @@ include Meld.Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Meld.Base.cell;
 
-let mk = (~marks=Path.Marks.empty, ~meld=?, bounds) => {
-  marks, bounds, meld
-};
+let mk = (~marks=Path.Marks.empty, ~meld=?, bounds) => {marks, bounds, meld};
 
 // returns a cell carrying the input meld repaired for sort consistency,
 // provided that such repair is possible. otherwise return empty cell.

@@ -3,7 +3,7 @@ open Util;
 let all =
   {
     open ListUtil.Syntax;
-    let* (_, tbl) = Sort.Map.bindings(Grammar.v);
+    let* (_, tbl) = Sort.Map.bindings(Gram.v);
     let* (_, r) = tbl;
     Regex.atoms(r) |> List.filter_map(Atom.get_tok);
   }

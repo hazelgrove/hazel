@@ -39,4 +39,3 @@ module Table = {
   let mapi = f => List.mapi((p, (a, v)) => (a, f(p, v)));
   let filter = f => List.filteri((p, (a, v)) => f(p, a, v));
 };
-

@@ -1,10 +1,10 @@
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t =
   | Star_
-  | Seq_(Regex.s, Regex.s)
-  | Alt_(Regex.s, Regex.s);
+  | Seq_(Exp.s, Exp.s)
+  | Alt_(Exp.s, Exp.s);
 
-let zip = (f: t, r: Regex.t) =>
+let zip = (f: t, r: Exp.t) =>
   switch (f) {
   | Star_ => Star(r)
   | Alt_(ls, rs) => Alt(List.rev(ls) @ [r, ...rs])

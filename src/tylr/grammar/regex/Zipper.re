@@ -2,7 +2,7 @@
 type t('focus, 'atom) = ('focus, RCtx.t('atom));
 
 let rec enter =
-        (~ctx=RCtx.empty, ~from: Dir.t, r: Regex.t('a)): list(t('a, 'a)) => {
+        (~ctx=RCtx.empty, ~from: Dir.t, r: Exp.t('a)): list(t('a, 'a)) => {
   let go = enter(~from);
   switch (r) {
   | Atom(a) => [(a, ctx)]
@@ -41,7 +41,7 @@ let rec enter =
 
 let step = (d: Dir.t, (a, ctx): t('a, 'a)): list(t('a, 'a)) => {
   let enter = enter(~from=Dir.toggle(d));
-  let rec go = (r: Regex.t('a), ctx) =>
+  let rec go = (r: Exp.t('a), ctx) =>
     switch (ctx) {
     | [] => []
     | [f, ...fs] =>
@@ -59,7 +59,7 @@ let step = (d: Dir.t, (a, ctx): t('a, 'a)): list(t('a, 'a)) => {
   go(Atom(a), ctx);
 };
 
-let map = (f: t('a, 'a) => 'b, rgx: Regex.t('a)): Regex.t('b) => {
+let map = (f: t('a, 'a) => 'b, rgx: Exp.t('a)): Exp.t('b) => {
   let rec go = (rgx, ctx) =>
     switch (rgx) {
     | Atom(a) => Atom(f((a, ctx)))
@@ -67,11 +67,11 @@ let map = (f: t('a, 'a) => 'b, rgx: Regex.t('a)): Regex.t('b) => {
     | Seq(rs) =>
       framed_elems(rs)
       |> List.map(((ls, r, rs)) => go(r, [Seq_(ls, rs), ...ctx]))
-      |> Regex.seq
+      |> Exp.seq
     | Alt(rs) =>
       framed_elems(rs)
       |> List.map(((ls, r, rs)) => go(r, [Alt_(ls, rs), ...ctx]))
-      |> Regex.alt
+      |> Exp.alt
     };
   go(rgx, RCtx.empty);
 };

@@ -19,4 +19,5 @@ module type S = {
   let wrap: (int, t('a)) => t(option('a));
 };
 
+[@warning "-67"]
 module Make: (T: TIMER) => S;

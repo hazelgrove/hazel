@@ -4,9 +4,18 @@ module Walk = {
   type t = Chain.t(Stride.t, Step.t);
 };
 
+module Dest = {
+  type t = Bound.t(Molded.Label.t);
+  module Map =
+    Map.Make({
+      type nonrec t = t;
+      let compare = compare;
+    });
+};
+
 module Index = {
-  include Molded.Label.Map;
-  type t = Molded.Label.Map.t(list(Walk.t));
+  include Dest.Map;
+  type t = Dest.Map.t(list(Walk.t));
 };
 
 let expect_lbl =
@@ -18,7 +27,9 @@ let expect_srt =
   | Sym.T(_) => raise(MGrammar.Non_alternating_form)
   | NT(msrt) => msrt;
 
-let enter = (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sort.t): list(Molded.Sort.t) => {
+let enter =
+    (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sort.t)
+    : list(Molded.Sort.t) => {
   MGrammar.v
   |> Mtrl.Sort.Map.find(s)
   |> Prec.Table.mapi(((p, a), rgx) => {
@@ -28,15 +39,16 @@ let enter = (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sort.t): list(M
        let go = (from: Dir.t, bounded): list(Molded.Sort.t) =>
          RZipper.enter(~from, rgx)
          |> List.filter_map(((msym, rctx)) => {
-           let msrt = expect_sort(msym);
-           let mold = Mold.{sort: s, prec: p, rctx};
-           bounded || Mtrl.is_space(msrt)
-           ? Some(Molded.{mtrl: msrt, mold}) : None;
-         });
+              let msrt = expect_sort(msym);
+              let mold = Mold.{sort: s, prec: p, rctx};
+              bounded || Mtrl.is_space(msrt)
+                ? Some(Molded.{mtrl: msrt, mold}) : None;
+            });
        switch (go(L, Prec.lt(~a, l, p)), go(R, Prec.gt(~a, p, r))) {
-       | ([], _) | (_, []) => []
+       | ([], _)
+       | (_, []) => []
        | ([_, ..._] as ent_l, [_, ..._] as ent_r) =>
-          Dir.choose(from, ent_l, ent_r)
+         Dir.choose(from, ent_l, ent_r)
        };
      })
   |> List.concat;
@@ -47,9 +59,15 @@ let stride_over = (~from: Dir.t, sort: Molded.Sort.t): Index.t => {
   (Sym.NT(sort.mtrl), sort.mold.rctx)
   |> RZipper.step(Dir.toggle(from))
   |> List.map(((msym, rctx)) => {
-    let mlbl = expect_lbl(msym);
-    Molded.{mtrl: mlbl, mold: {...mold, rctx}};
-  })
+       let mlbl = expect_lbl(msym);
+       Molded.{
+         mtrl: mlbl,
+         mold: {
+           ...mold,
+           rctx,
+         },
+       };
+     })
   |> List.map(lbl => (lbl, [eq]))
   |> Index.of_list;
 };
@@ -63,7 +81,7 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
   let seen = Hashtbl.create(10);
   let rec go = (s: Molded.Sort.t) =>
     switch (Hashtbl.find_opt(seen, s.mtrl)) {
-    | Some() => Index.empty
+    | Some () => Index.empty
     | None =>
       Hashtbl.add(seen, s.mtrl, ());
       let (l, r) = bounds(s);
@@ -78,7 +96,7 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
       Hashtbl.add(seen, Mtrl.Sort.root, ());
       enter(~from, Mtrl.Sort.root)
       |> List.map(s => Index.union(stride_over(~from, s), go(s)))
-      |> Index.union_all
+      |> Index.union_all;
     };
   Index.map(Comparison.bound(~from, sort), stepped);
 };
@@ -90,12 +108,18 @@ let step = (~from: Dir.t, src: Bound.t(Molded.Label.t)) =>
     (Sym.T(lbl.mtrl), lbl.mold.rctx)
     |> RZipper.step(Dir.toggle(from))
     |> List.map(((msym, rctx)) => {
-      let msrt = expect_srt(msym);
-      Molded.{mtrl: msrt, mold: {...mold, rctx}};
-    })
+         let msrt = expect_srt(msym);
+         Molded.{
+           mtrl: msrt,
+           mold: {
+             ...mold,
+             rctx,
+           },
+         };
+       })
     |> List.map(sort =>
-      Index.union(stride_over(~from, sort), stride_into(~from, sort))
-    )
+         Index.union(stride_over(~from, sort), stride_into(~from, sort))
+       )
     |> Index.union_all
   };
 
@@ -117,4 +141,3 @@ let walk = (~from: Dir.t, src: Bound.t(Molded.Label.t)) => {
     };
   go(src);
 };
-

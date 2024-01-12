@@ -7,6 +7,6 @@ type t = option(Dir.t);
 let get = (s, p): t => {
   open OptUtil.Syntax;
   let* s = s;
-  let* (a, _) = p < 0 ? None : List.nth_opt(Sort.Map.find(s, Grammar.v), p);
+  let* (a, _) = p < 0 ? None : List.nth_opt(Sort.Map.find(s, Gram.v), p);
   a;
 };

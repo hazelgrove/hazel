@@ -1,4 +1,4 @@
-open Regex;
+open Tylr.Grammar.Regex;
 
 let p = (~a: option(Dir.t)=?, g: t(Sort.t)) => (g, a);
 
