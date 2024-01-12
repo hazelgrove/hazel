@@ -25,7 +25,7 @@ type cls =
   | BinStringOp2
   | Tuple(int)
   | ListLit(int)
-  | ApBuiltin(int)
+  | ApBuiltin
   | Test
   | Cons1
   | Cons2
@@ -47,8 +47,8 @@ type cls =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Mark
-  | Closure(ClosureEnvironment.t, t)
-  | Filter(Filter.t, t)
+  | Closure([@show.opaque] ClosureEnvironment.t, t)
+  | Filter(DH.DHFilter.t, t)
   | Sequence1(t, DHExp.t)
   | Sequence2(DHExp.t, t)
   | Let1(DHPat.t, t, DHExp.t)
@@ -66,7 +66,7 @@ type t =
   | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
   | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-  | ApBuiltin(string, t, (list(DHExp.t), list(DHExp.t)))
+  | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
   | ListLit(
       MetaVar.t,
