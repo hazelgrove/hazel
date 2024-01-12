@@ -178,7 +178,10 @@ let rec is_inconsistent = (xis: list(Constraint.t)): b =>
       | (pairs, []) =>
         let (xisL, xisR) =
           pairs |> List.map(Constraint.unwrap_pair) |> List.split;
-        is_inconsistent(xisL) || is_inconsistent(xisR);
+        switch (is_inconsistent(xisL), is_inconsistent(xisR)) {
+        | (False(xiL), False(xiR)) => False(Pair(xiL, xiR))
+        | _ => True
+        };
       | (pairs, others) => is_inconsistent(others @ pairs)
       }
     }
