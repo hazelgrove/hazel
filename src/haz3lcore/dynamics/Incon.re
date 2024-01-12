@@ -109,13 +109,19 @@ let rec is_inconsistent = (xis: list(Constraint.t)): b =>
     | InjL(_) =>
       switch (List.partition(Constraint.is_injL, xis)) {
       | (injLs, []) =>
-        injLs |> List.map(Constraint.unwrapL) |> is_inconsistent
+        switch (injLs |> List.map(Constraint.unwrapL) |> is_inconsistent) {
+        | True => True
+        | False(xi) => False(InjL(xi))
+        }
       | (injLs, others) => is_inconsistent(others @ injLs)
       }
     | InjR(_) =>
       switch (List.partition(Constraint.is_injR, xis)) {
       | (injRs, []) =>
-        injRs |> List.map(Constraint.unwrapR) |> is_inconsistent
+        switch (injRs |> List.map(Constraint.unwrapR) |> is_inconsistent) {
+        | True => True
+        | False(xi) => False(InjR(xi))
+        }
       | (injRs, others) => is_inconsistent(others @ injRs)
       }
     | Int(_)
