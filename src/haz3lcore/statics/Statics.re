@@ -681,7 +681,7 @@ and upat_to_info_map =
     let hole_reason: Typ.hole_reason =
       switch (annot_pat, parent_id) {
       | (false, Some(id)) => PatternVar(id)
-      | _ => Error
+      | _ => Internal
       };
     let ctx_typ =
       Info.fixed_typ_pat(
