@@ -5,10 +5,12 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let download_editor_state = (~instructor_mode) => {
-  let data = Export.export_all(~instructor_mode);
-  JsUtil.download_json(ExerciseSettings.filename, data);
-};
+let download_editor_state = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
 let menu_icon = {
   let attr =
     Attr.many(
@@ -40,7 +42,12 @@ let history_bar = (ed: Editor.t, ~inject: Update.t => 'a) => [
 let nut_menu =
     (
       ~inject: Update.t => 'a,
-      {statics, dynamics, benchmark, instructor_mode, _}: ModelSettings.t,
+      {
+        core: {statics, elaborate, assist, dynamics},
+        benchmark,
+        instructor_mode,
+        _,
+      }: Settings.t,
     ) => [
   menu_icon,
   div(
@@ -49,8 +56,14 @@ let nut_menu =
       toggle("τ", ~tooltip="Toggle Statics", statics, _ =>
         inject(Set(Statics))
       ),
+      toggle("𝑐", ~tooltip="Code Completion", assist, _ =>
+        inject(Set(Assist))
+      ),
       toggle("𝛿", ~tooltip="Toggle Dynamics", dynamics, _ =>
         inject(Set(Dynamics))
+      ),
+      toggle("𝑒", ~tooltip="Show Elaboration", elaborate, _ =>
+        inject(Set(Elaborate))
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))
@@ -120,12 +133,13 @@ let exercises_view =
       ~exercise,
       {
         editors,
-        font_metrics,
-        show_backpack_targets,
         settings,
-        mousedown,
-        results,
         langDocMessages,
+        meta: {
+          ui_state: {font_metrics, show_backpack_targets, mousedown, _},
+          results,
+          _,
+        },
         _,
       } as model: Model.t,
     ) => {
@@ -133,7 +147,7 @@ let exercises_view =
     ExerciseMode.mk(
       ~settings,
       ~exercise,
-      ~results=settings.dynamics ? Some(results) : None,
+      ~results=settings.core.dynamics ? Some(results) : None,
       ~langDocMessages,
     );
   let toolbar_buttons =
@@ -151,10 +165,10 @@ let exercises_view =
     );
 };
 
-let slide_view = (~inject, ~model, slide_state) => {
+let slide_view = (~inject, ~model, ~ctx_init, slide_state) => {
   let toolbar_buttons = ScratchMode.toolbar_buttons(~inject, slide_state);
   [top_bar_view(~inject, ~toolbar_buttons, ~model)]
-  @ ScratchMode.view(~inject, ~model)
+  @ ScratchMode.view(~inject, ~model, ~ctx_init)
   @ [
     div(
       ~attr=Attr.classes(["tylr-scratch"]),
@@ -164,12 +178,14 @@ let slide_view = (~inject, ~model, slide_state) => {
 };
 
 let editors_view = (~inject, model: Model.t) => {
+  let ctx_init =
+    Editors.get_ctx_init(~settings=model.settings, model.editors);
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(slide_idx, slides) =>
-    slide_view(~inject, ~model, List.nth(slides, slide_idx))
+    slide_view(~inject, ~model, ~ctx_init, List.nth(slides, slide_idx))
   | Examples(name, slides) =>
-    slide_view(~inject, ~model, List.assoc(name, slides))
+    slide_view(~inject, ~model, ~ctx_init, List.assoc(name, slides))
   | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
   };
 };
@@ -184,7 +200,7 @@ let view = (~inject, ~handlers, model: Model.t) =>
         Attr.[
           id("page"),
           // safety handler in case mousedown overlay doesn't catch it
-          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
           on_blur(_ => {
             JsUtil.focus_clipboard_shim();
             Virtual_dom.Vdom.Effect.Ignore;
@@ -208,7 +224,7 @@ let view = (~inject, ~handlers, model: Model.t) =>
             Dom.preventDefault(evt);
             inject(UpdateAction.Paste(pasted_text));
           }),
-          ...handlers(~inject, ~model),
+          ...handlers(~inject),
         ],
       ),
     [

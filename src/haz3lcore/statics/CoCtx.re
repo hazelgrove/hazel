@@ -59,3 +59,12 @@ let union: list(t) => t =
 let singleton = (name, id, expected_ty): t => [
   (name, [{id, expected_ty}]),
 ];
+
+let join: (Ctx.t, list(entry)) => Typ.t =
+  (ctx, entries) => {
+    let expected_tys = List.map(entry => entry.expected_ty, entries);
+    switch (Typ.join_all(~empty=Unknown(Internal), ctx, expected_tys)) {
+    | None => Unknown(Internal)
+    | Some(ty) => ty
+    };
+  };

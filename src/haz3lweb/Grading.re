@@ -97,7 +97,8 @@ module MutationTestingReport = {
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
                 Attr.on_click(
-                  TestView.jump_to_test(~inject, HiddenBugs(id), id),
+                  //TODO: wire up test ids
+                  TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
                 ),
               ]),
             [],
@@ -137,7 +138,10 @@ module MutationTestingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, HiddenBugs(id), id)),
+          //TODO: wire up test ids
+          Attr.on_click(
+            TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+          ),
         ]),
       [
         div(
@@ -385,7 +389,12 @@ module ImplGradingReport = {
 
   let individual_reports = (~inject, ~report) => {
     switch (report.test_results) {
-    | Some(test_results) =>
+    | Some(test_results)
+        when
+          List.length(test_results.test_map)
+          == List.length(report.hinted_results) =>
+      /* NOTE: This condition will be false when evaluation crashes,
+       * for example due to a stack overflow, which may occur in normal operation  */
       div(
         report.hinted_results
         |> List.mapi((i, (status, hint)) =>
@@ -398,7 +407,7 @@ module ImplGradingReport = {
              )
            ),
       )
-    | None => div([])
+    | _ => div([])
     };
   };
 

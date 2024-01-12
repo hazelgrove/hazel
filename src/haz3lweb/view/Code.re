@@ -82,16 +82,19 @@ module Txt = {
 
 let of_delim' =
   Core.Memo.general(
-    ~cache_size_bound=100000,
-    ((sort, is_consistent, is_complete, label, i)) => {
+    ~cache_size_bound=10000,
+    ((label, is_in_buffer, sort, is_consistent, is_complete, i)) => {
       let cls =
         switch (label) {
+        | _ when is_in_buffer => "in-buffer"
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
+        | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
         | _ => "default"
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
+      let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       [
         span(
           ~attr=
@@ -102,14 +105,21 @@ let of_delim' =
     },
   );
 let of_delim =
-    (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
-  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
+    (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
+  of_delim'((
+    t.label,
+    is_in_buffer,
+    t.mold.out,
+    is_consistent,
+    Tile.is_complete(t),
+    i,
+  ));
 
 let of_grout = [Node.text(Unicode.nbsp)];
 
 let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
+    ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
       let str = secondary_icons ? Form.linebreak : "";
       [
@@ -129,11 +139,13 @@ let of_secondary =
 
 module Text = (M: {
                  let map: Measured.t;
-                 let settings: ModelSettings.t;
+                 let settings: Settings.t;
                }) => {
   let m = p => Measured.find_p(p, M.map);
-  let rec of_segment = (~no_sorts=false, ~sort, seg: Segment.t): list(Node.t) => {
-    //note: no_sorts flag is used for backback
+  let rec of_segment =
+          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
+    /* note: no_sorts flag is used for backback view;
+       otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
@@ -145,17 +157,20 @@ module Text = (M: {
       };
     seg
     |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
+    |> List.concat_map(((i, p)) =>
+         of_piece(buffer_ids, sort_of_p_idx(i), p)
+       );
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t)
+    | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
-      of_secondary((M.settings.secondary_icons, m(p).last.col, content))
+      of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -164,9 +179,10 @@ module Text = (M: {
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
+    let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, seg)
+    |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
+         of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
@@ -190,7 +206,7 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
+let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
   module Text =
     Text({
       let map = map;
@@ -198,18 +214,19 @@ let simple_view = (~unselected, ~map, ~settings: ModelSettings.t): Node.t => {
     });
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(~sort=Sort.Any, unselected))],
+    [span_c("code-text", Text.of_segment([], false, Sort.Any, unselected))],
   );
 };
 
 let view =
     (
+      ~buffer_ids: list(Uuidm.t),
       ~sort: Sort.t,
       ~font_metrics,
       ~segment,
       ~unselected,
       ~measured,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~tylr,
     )
     : Node.t => {
@@ -218,22 +235,11 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let unselected =
-    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(~sort, unselected)
-    );
-  let holes =
-    TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
-      holes(~map=measured, ~font_metrics, segment)
-    );
+  let unselected = Text.of_segment(buffer_ids, false, sort, unselected);
+  let holes = holes(~map=measured, ~font_metrics, segment);
   div(
     ~attr=Attr.class_("code"),
-    [
-      span_c("code-text", unselected),
-      // TODO restore (already regressed so no loss in commenting atm)
-      // span_c("code-text-shards", Text.of_segment(segment)),
-      ...holes,
-    ]
+    [span_c("code-text", unselected), ...holes]
     @ [
       div(
         ~attr=Attr.class_("tylr"),

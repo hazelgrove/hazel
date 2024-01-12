@@ -2,7 +2,7 @@
 
 (library
  (name haz3lcore)
- (libraries util re sexplib unionFind tylr_hazel)
+ (libraries util re sexplib unionFind uuidm tylr_hazel)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
