@@ -3,7 +3,7 @@
 (library
  (name tylr_hazel)
  (libraries util re sexplib)
- (implements grammar)
+ (implements tylr)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

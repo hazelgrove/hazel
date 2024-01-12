@@ -34,9 +34,8 @@ let rec find_mk =
     }
   };
 
-let orient =
-    (d: Direction.t, (prefix, suffix): t('x)): (list('x), list('x)) =>
-  d == Left ? (prefix, suffix) : (suffix, prefix);
+let orient = (d: Dir.t, (prefix, suffix): t('x)): (list('x), list('x)) =>
+  d == L ? (prefix, suffix) : (suffix, prefix);
 let unorient = orient;
 
 let rec split_nth = (n: int, xs: list('x)): ('x, t('x)) =>

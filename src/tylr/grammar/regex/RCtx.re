@@ -1,9 +1,12 @@
+open Sexplib.Std;
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t = list(Frame.t);
+type t('a) = list(RFrame.t('a));
 
-let empty: t = [];
+let empty: t(_) = [];
 
-let push = (~onto: Dir.t, r: Exp.t, ctx: t): t => {
+let push = (~onto: Dir.t, r: Regex.t(_), ctx: t(_)): t(_) => {
   let rs =
     switch (r) {
     | Seq(rs) => rs
@@ -16,7 +19,7 @@ let push = (~onto: Dir.t, r: Exp.t, ctx: t): t => {
   | (R, _) => [Seq_([], rs), ...ctx]
   };
 };
-let push_seq = (~onto: Dir.t, rs: list(Exp.t), ctx: t) => {
+let push_seq = (~onto: Dir.t, rs: list(Regex.t(_)), ctx: t(_)) => {
   let push = push(~onto);
   switch (onto) {
   | L => List.fold_left(Fun.flip(push), ctx, rs)
@@ -24,4 +27,4 @@ let push_seq = (~onto: Dir.t, rs: list(Exp.t), ctx: t) => {
   };
 };
 
-let nullable = (side: Dir.t) => List.for_all(Frame.nullable(side));
+let nullable = (side: Dir.t) => List.for_all(RFrame.nullable(side));

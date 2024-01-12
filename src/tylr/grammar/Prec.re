@@ -24,14 +24,18 @@ let gt = (~a=None, l, r: Bound.t(t)) =>
   };
 let eq = (~a=None, l, r) => compare(l, r) == 0 && Option.is_none(a);
 
-let leq = (~a=None, l, r) => lt(~a, l, r) || eq(~a, l, r);
-let geq = (~a=None, l, r) => gt(~a, l, r) || eq(~a, l, r);
-
-let lower_bounded = (~a=None, ~side: Dir.t, p, bound) =>
-  switch (side) {
-  | L => leq(~a?, bound, p)
-  | R => geq(~a?, p, bound)
-  };
+// let leq = (~a=None, l: Bound.t(t), r) =>
+//   switch (l) {
+//   | Root => true
+//   | Node(l) => lt(~a, l, r) || eq(~a, l, r)
+//   };
+// let geq = (~a=None, l, r: Bound.t(t)) =>
+//   gt(~a, l, r) || eq(~a, l, r);
+// let lower_bounded = (~a=None, ~side: Dir.t, p, bound) =>
+//   switch (side) {
+//   | L => leq(~a?, bound, p)
+//   | R => geq(~a?, p, bound)
+//   };
 
 module Table = {
   type t('v) = list((option(Dir.t), 'v));
