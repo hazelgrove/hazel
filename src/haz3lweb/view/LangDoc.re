@@ -1974,7 +1974,7 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
-      | Filter(Step, pat, body) =>
+      | Filter((Step, _), pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_step_group,
@@ -1993,7 +1993,7 @@ let get_doc =
           ),
           LangDocMessages.filter_step_coloring_ids(~pat_id, ~body_id),
         );
-      | Filter(Eval, pat, body) =>
+      | Filter((Eval, _), pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_skip_group,

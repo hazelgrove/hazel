@@ -53,9 +53,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_eval(d2);
     Sequence(d1', d2');
 
-  | Filter(fs, dbody) =>
+  | Filter(f, dbody) =>
     let+ dbody' = pp_eval(dbody);
-    Filter(fs, dbody');
+    Filter(f, dbody');
 
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -276,10 +276,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_uneval(env, d2);
     Sequence(d1', d2');
 
-  | Filter(fs, dbody) =>
+  | Filter(flt, dbody) =>
     let+ dbody' = pp_uneval(env, dbody);
-    Filter(fs, dbody');
-
+    Filter(flt, dbody');
   | Let(dp, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);

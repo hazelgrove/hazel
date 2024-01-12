@@ -261,28 +261,33 @@ let mk =
     let doc = {
       switch (d) {
       | Closure(env', d') => go'(d', Closure, ~env=env')
-      | Filter({pat, act}, d') =>
+      | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
-          let keyword =
-            switch (act) {
-            | Step => "step"
-            | Eval => "skip"
-            };
-          let flt_doc = go_formattable(pat, FilterPattern);
-          vseps([
-            hcats([
-              DHDoc_common.Delim.mk(keyword),
-              flt_doc
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline=false,
-                 ),
-              DHDoc_common.Delim.mk("in"),
-            ]),
-            go'(d', Filter),
-          ]);
+          switch (flt) {
+          | Filter({pat, act}) =>
+            let keyword = FilterAction.string_of_t(act);
+            let flt_doc = go_formattable(pat, FilterPattern);
+            vseps([
+              hcats([
+                DHDoc_common.Delim.mk(keyword),
+                flt_doc
+                |> DHDoc_common.pad_child(
+                     ~inline_padding=(space(), space()),
+                     ~enforce_inline=false,
+                   ),
+                DHDoc_common.Delim.mk("in"),
+              ]),
+              go'(d', Filter),
+            ]);
+          | Residue(_, act) =>
+            let keyword = FilterAction.string_of_t(act);
+            vseps([DHDoc_common.Delim.mk(keyword), go'(d', Filter)]);
+          };
         } else {
-          go'(d', Filter);
+          switch (flt) {
+          | Residue(_) => go'(d', Filter)
+          | Filter(_) => go'(d', Filter)
+          };
         }
 
       /* Hole expressions must appear within a closure in
