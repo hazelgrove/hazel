@@ -53,23 +53,25 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_eval(d2);
     Sequence(d1', d2');
 
-  | Filter(fs, dbody) =>
+  | Filter(f, dbody) =>
     let+ dbody' = pp_eval(dbody);
-    Filter(fs, dbody');
+    Filter(f, dbody');
 
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
 
-  | ApBuiltin(f, args) =>
-    let* args' = args |> List.map(pp_eval) |> sequence;
-    ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, d1) =>
+    let* d1' = pp_eval(d1);
+    ApBuiltin(f, d1') |> return;
 
   | BinBoolOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     BinBoolOp(op, d1', d2') |> return;
+
+  | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinIntOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -274,10 +276,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_uneval(env, d2);
     Sequence(d1', d2');
 
-  | Filter(fs, dbody) =>
+  | Filter(flt, dbody) =>
     let+ dbody' = pp_uneval(env, dbody);
-    Filter(fs, dbody');
-
+    Filter(flt, dbody');
   | Let(dp, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
@@ -296,9 +297,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> return;
 
-  | ApBuiltin(f, args) =>
-    let* args' = args |> List.map(pp_uneval(env)) |> sequence;
-    ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    ApBuiltin(f, d1') |> return;
+  | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinBoolOp(op, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -444,6 +446,7 @@ let rec track_children_of_hole =
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | BuiltinFun(_)
   | BoundVar(_) => hii
   | Test(_, d)
   | FixF(_, _, d)
@@ -489,12 +492,7 @@ let rec track_children_of_hole =
       track_children_of_hole_rules(hii, parent, rules)
     );
 
-  | ApBuiltin(_, args) =>
-    List.fold_right(
-      (arg, hii) => track_children_of_hole(hii, parent, arg),
-      args,
-      hii,
-    )
+  | ApBuiltin(_, d) => track_children_of_hole(hii, parent, d)
 
   /* Hole types */
   | NonEmptyHole(_, u, i, d) =>

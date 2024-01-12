@@ -63,6 +63,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidOperation(_)
   | Fun(_)
   | Closure(_)
+  | BuiltinFun(_)
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
@@ -139,7 +140,8 @@ let mk =
         | (FunClosure, _)
         | (UpdateTest, _)
         | (CastAp, _)
-        | (Builtin(_), _)
+        | (BuiltinWrap, _)
+        | (BuiltinAp(_), _)
         | (BinBoolOp(_), _)
         | (BinIntOp(_), _)
         | (BinFloatOp(_), _)
@@ -259,28 +261,33 @@ let mk =
     let doc = {
       switch (d) {
       | Closure(env', d') => go'(d', Closure, ~env=env')
-      | Filter({pat, act}, d') =>
+      | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
-          let keyword =
-            switch (act) {
-            | Step => "step"
-            | Eval => "skip"
-            };
-          let flt_doc = go_formattable(pat, FilterPattern);
-          vseps([
-            hcats([
-              DHDoc_common.Delim.mk(keyword),
-              flt_doc
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline=false,
-                 ),
-              DHDoc_common.Delim.mk("in"),
-            ]),
-            go'(d', Filter),
-          ]);
+          switch (flt) {
+          | Filter({pat, act}) =>
+            let keyword = FilterAction.string_of_t(act);
+            let flt_doc = go_formattable(pat, FilterPattern);
+            vseps([
+              hcats([
+                DHDoc_common.Delim.mk(keyword),
+                flt_doc
+                |> DHDoc_common.pad_child(
+                     ~inline_padding=(space(), space()),
+                     ~enforce_inline=false,
+                   ),
+                DHDoc_common.Delim.mk("in"),
+              ]),
+              go'(d', Filter),
+            ]);
+          | Residue(_, act) =>
+            let keyword = FilterAction.string_of_t(act);
+            vseps([DHDoc_common.Delim.mk(keyword), go'(d', Filter)]);
+          };
         } else {
-          go'(d', Filter);
+          switch (flt) {
+          | Residue(_) => go'(d', Filter)
+          | Filter(_) => go'(d', Filter)
+          };
         }
 
       /* Hole expressions must appear within a closure in
@@ -303,7 +310,6 @@ let mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs, false)
         |> annot(DHAnnot.InconsistentBranches((u, i)))
-
       | BoundVar(x) =>
         if (!settings.show_lookup_steps) {
           switch (ClosureEnvironment.lookup(env, x)) {
@@ -323,6 +329,7 @@ let mk =
         } else {
           text(x);
         }
+      | BuiltinFun(f) => text(f)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
@@ -342,19 +349,12 @@ let mk =
           go'(d2, Ap2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
-      | ApBuiltin(ident, args) =>
-        switch (args) {
-        | [hd, ...tl] =>
-          let d' = List.fold_left((d1, d2) => DHExp.Ap(d1, d2), hd, tl);
-          let (doc1, doc2) =
-            mk_left_associative_operands(
-              DHDoc_common.precedence_Ap,
-              (BoundVar(ident), Ap1),
-              (d', Ap2),
-            );
-          DHDoc_common.mk_Ap(doc1, doc2);
-        | [] => text(ident)
-        }
+      | ApBuiltin(ident, d) =>
+        DHDoc_common.mk_Ap(
+          text(ident),
+          go_formattable(d, ApBuiltin)
+          |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
+        )
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =

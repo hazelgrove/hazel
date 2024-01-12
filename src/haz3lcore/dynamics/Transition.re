@@ -55,7 +55,8 @@ type step_kind =
   | UpdateTest
   | FunAp
   | CastAp
-  | Builtin(string)
+  | BuiltinWrap
+  | BuiltinAp(string)
   | BinBoolOp(TermBase.UExp.op_bin_bool)
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
@@ -271,6 +272,18 @@ module Transition = (EV: EV_MODE) => {
           kind: CastAp,
           value: false,
         })
+      | BuiltinFun(ident) =>
+        Step({
+          apply: () => {
+            //HACK[Matt]: This step is just so we can check that d2' is not indet
+            ApBuiltin(
+              ident,
+              d2',
+            );
+          },
+          kind: BuiltinWrap,
+          value: false // Not necessarily a value because of InvalidOperations
+        })
       | _ =>
         Step({
           apply: () => {
@@ -280,14 +293,10 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
-    | ApBuiltin(ident, args) =>
-      let. _ = otherwise(env, args => ApBuiltin(ident, args))
-      and. args' =
-        req_all_value(
-          req(state, env),
-          (d', ds) => ApBuiltin(ident, d', ds),
-          args,
-        );
+    | ApBuiltin(ident, arg) =>
+      let. _ = otherwise(env, arg => ApBuiltin(ident, arg))
+      and. arg' =
+        req_value(req(state, env), arg => ApBuiltin(ident, arg), arg);
       Step({
         apply: () => {
           let builtin =
@@ -295,16 +304,17 @@ module Transition = (EV: EV_MODE) => {
             |> OptUtil.get(() => {
                  raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
                });
-          builtin(args');
+          builtin(arg');
         },
-        kind: Builtin(ident),
+        kind: BuiltinAp(ident),
         value: false // Not necessarily a value because of InvalidOperations
       });
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_) =>
+    | Constructor(_)
+    | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
     | BinBoolOp(And, d1, d2) =>
@@ -601,9 +611,9 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2))
       and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
       Indet;
-    | Filter(f, d1) =>
-      let. _ = otherwise(env, d1 => Filter(f, d1))
-      and. d1 = req_final(req(state, env), d1 => Filter(f, d1), d1);
+    | Filter(f1, d1) =>
+      let. _ = otherwise(env, d1 => Filter(f1, d1))
+      and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
       Step({apply: () => d1, kind: CompleteFilter, value: true});
     };
 };
@@ -614,7 +624,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Sequence
   | UpdateTest
   | FunAp
-  | Builtin(_)
+  | BuiltinAp(_)
   | BinBoolOp(_)
   | BinIntOp(_)
   | BinFloatOp(_)
@@ -632,4 +642,5 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | CompleteClosure
   | CompleteFilter
   | FixUnwrap
+  | BuiltinWrap
   | FunClosure => true;

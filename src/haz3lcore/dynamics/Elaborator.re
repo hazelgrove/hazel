@@ -89,6 +89,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BoundVar(_)
     | Ap(_)
     | ApBuiltin(_)
+    | BuiltinFun(_)
     | Prj(_)
     | BoolLit(_)
     | IntLit(_)
@@ -199,7 +200,7 @@ let rec dhexp_of_uexp =
       | Filter(act, cond, body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
-        DHExp.Filter(Filter.mk(dcond, act), dbody);
+        DHExp.Filter(Filter(Filter.mk(dcond, act)), dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))

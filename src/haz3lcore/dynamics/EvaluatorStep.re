@@ -22,7 +22,12 @@ module EvalObj = {
 
   let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
 
-  let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
+  let get_ctx = (obj: t): EvalCtx.t => {
+    switch (obj.ctx) {
+    | Filter(Residue(_), c) => c
+    | c => c
+    };
+  };
   let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
 
@@ -143,81 +148,19 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
   };
 
-  let rec evaluate_until = (flt_env, state, env, exp) => {
-    Evaluator.EvaluatorEVMode.(
-      {
-        let u =
-          switch (FilterMatcher.matches(~env, ~exp, ~act=Eval, flt_env)) {
-          | Step => Indet(exp)
-          | Eval =>
-            switch (exp) {
-            | Filter(flt, d1) =>
-              let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-              and. d1 =
-                req_final(
-                  evaluate_until(
-                    FilterEnvironment.extends(flt, flt_env),
-                    state,
-                    env,
-                  ),
-                  d1 => Filter(flt, d1),
-                  d1,
-                );
-              Step({apply: () => d1, kind: CompleteFilter, value: true});
-            | _ =>
-              Evaluator.Eval.transition(
-                evaluate_until(flt_env),
-                state,
-                env,
-                exp,
-              )
-            }
-          };
-        switch (u) {
-        | BoxedValue(x) => BoxedValue(x)
-        | Indet(x) => Indet(x)
-        | Uneval(x) => evaluate_until(flt_env, state, env, x)
-        };
-      }
-    );
-  };
-
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (flt_env, state, env, exp) => {
-    switch (FilterMatcher.matches(~env, ~exp, ~act=Step, flt_env)) {
-    | Step =>
-      switch (exp) {
-      | Filter(flt, d1) =>
-        DecomposeEVMode.(
-          {
-            let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-            and. d1 =
-              req_final(
-                decompose(
-                  FilterEnvironment.extends(flt, flt_env),
-                  state,
-                  env,
-                ),
-                d1 => Filter(flt, d1),
-                d1,
-              );
-            Step({apply: () => d1, kind: CompleteFilter, value: true});
-          }
-        )
-      | _ => Decomp.transition(decompose(flt_env), state, env, exp)
-      }
-    | Eval =>
-      Step([
-        EvalObj.mk(
-          Mark,
-          () =>
-            Evaluator.EvaluatorEVMode.unbox(
-              evaluate_until(flt_env, state, env, exp),
-            ),
-          exp,
-          Skip,
-        ),
-      ])
+  let rec decompose = (state, env, exp) => {
+    switch (exp) {
+    | DHExp.Filter(flt, d1) =>
+      DecomposeEVMode.(
+        {
+          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
+          and. d1 =
+            req_final(decompose(state, env), d1 => Filter(flt, d1), d1);
+          Step({apply: () => d1, kind: CompleteFilter, value: true});
+        }
+      )
+    | _ => Decomp.transition(decompose, state, env, exp)
     };
   };
 };
@@ -237,9 +180,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Closure(env, ctx) =>
       let d = compose(ctx, d);
       Closure(env, d);
-    | Filter(flt_env, ctx) =>
+    | Filter(flt, ctx) =>
       let d = compose(ctx, d);
-      Filter(flt_env, d);
+      Filter(flt, d);
     | Sequence1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Sequence(d1, d2);
@@ -252,9 +195,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Ap2(d1, ctx) =>
       let d2 = compose(ctx, d);
       Ap(d1, d2);
-    | ApBuiltin(s, ctx, (ds1, ds2)) =>
+    | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
-      ApBuiltin(s, rev_concat(ds1, [d', ...ds2]));
+      ApBuiltin(s, d');
     | Test(lit, ctx) =>
       let d1 = compose(ctx, d);
       Test(lit, d1);
@@ -352,7 +295,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
 let decompose = (d: DHExp.t) => {
   let es = EvaluatorState.init;
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  let rs = Decompose.decompose([], ref(es), env, d);
+  let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
 

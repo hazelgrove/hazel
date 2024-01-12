@@ -105,8 +105,10 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
-let mk_step = Example.mk_tile(Form.get("filter_step"));
-let mk_skip = Example.mk_tile(Form.get("filter_eval"));
+let mk_concel = Example.mk_tile(Form.get("filter_concel"));
+let mk_eval = Example.mk_tile(Form.get("filter_eval"));
+let mk_pause = Example.mk_tile(Form.get("filter_pause"));
+let mk_debug = Example.mk_tile(Form.get("filter_debug"));
 let linebreak = () => Example.mk_secondary(Form.linebreak);
 let space = () => Example.mk_secondary(Form.space);
 
@@ -2708,7 +2710,7 @@ let filter_step_exp: form = {
     message: "Stepped exression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated step by step",
     feedback: Unselected,
   };
-  let form = [mk_step([[space(), _pat, space()]]), linebreak(), _exp_body];
+  let form = [mk_pause([[space(), _pat, space()]]), linebreak(), _exp_body];
   {
     id: "filter_step_exp",
     syntactic_form: form,
@@ -2726,7 +2728,7 @@ let filter_skip_exp: form = {
     feedback: Unselected,
   };
   let form = [
-    mk_skip([[space(), exp("p"), space()]]),
+    mk_eval([[space(), exp("p"), space()]]),
     linebreak(),
     _exp_body,
   ];
