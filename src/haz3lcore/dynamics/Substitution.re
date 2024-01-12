@@ -158,9 +158,9 @@ and subst_var_env =
   ClosureEnvironment.wrap(id, map);
 }
 
-and subst_var_filter = (d1: DHExp.t, x: Var.t, flt: Filter.t): Filter.t => {
-  ...flt,
-  pat: subst_var(d1, x, flt.pat),
+and subst_var_filter =
+    (d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
+  flt |> DH.DHFilter.map(subst_var(d1, x));
 };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>

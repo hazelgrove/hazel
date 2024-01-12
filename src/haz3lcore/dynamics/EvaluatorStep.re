@@ -12,7 +12,12 @@ module EvalObj = {
 
   let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
 
-  let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
+  let get_ctx = (obj: t): EvalCtx.t => {
+    switch (obj.ctx) {
+    | Filter(Residue(_), c) => c
+    | c => c
+    };
+  };
   let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
 
@@ -96,13 +101,7 @@ module EvalObj = {
     | (tag, Filter(_, c)) => unwrap({...obj, ctx: c}, tag)
     | (Cast, _) => Some(obj)
     | (tag, Cast(c, _, _)) => unwrap({...obj, ctx: c}, tag)
-    | (tag, ctx) =>
-      print_endline(
-        Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_cls(tag))
-        ++ " does not match with "
-        ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
-      );
-      raise(EvaluatorError.Exception(StepDoesNotMatch));
+    | (_, _) => None
     };
   };
 
@@ -223,81 +222,19 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
   };
 
-  let rec evaluate_until = (flt_env, state, env, exp) => {
-    Evaluator.EvaluatorEVMode.(
-      {
-        let u =
-          switch (FilterMatcher.matches(~env, ~exp, ~act=Eval, flt_env)) {
-          | Step => Indet(exp)
-          | Eval =>
-            switch (exp) {
-            | Filter(flt, d1) =>
-              let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-              and. d1 =
-                req_final(
-                  evaluate_until(
-                    FilterEnvironment.extends(flt, flt_env),
-                    state,
-                    env,
-                  ),
-                  d1 => Filter(flt, d1),
-                  d1,
-                );
-              Step({apply: () => d1, kind: CompleteFilter, value: true});
-            | _ =>
-              Evaluator.Eval.transition(
-                evaluate_until(flt_env),
-                state,
-                env,
-                exp,
-              )
-            }
-          };
-        switch (u) {
-        | BoxedValue(x) => BoxedValue(x)
-        | Indet(x) => Indet(x)
-        | Uneval(x) => evaluate_until(flt_env, state, env, x)
-        };
-      }
-    );
-  };
-
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (flt_env, state, env, exp) => {
-    switch (FilterMatcher.matches(~env, ~exp, ~act=Step, flt_env)) {
-    | Step =>
-      switch (exp) {
-      | Filter(flt, d1) =>
-        DecomposeEVMode.(
-          {
-            let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-            and. d1 =
-              req_final(
-                decompose(
-                  FilterEnvironment.extends(flt, flt_env),
-                  state,
-                  env,
-                ),
-                d1 => Filter(flt, d1),
-                d1,
-              );
-            Step({apply: () => d1, kind: CompleteFilter, value: true});
-          }
-        )
-      | _ => Decomp.transition(decompose(flt_env), state, env, exp)
-      }
-    | Eval =>
-      Step([
-        EvalObj.mk(
-          Mark,
-          () =>
-            Evaluator.EvaluatorEVMode.unbox(
-              evaluate_until(flt_env, state, env, exp),
-            ),
-          exp,
-          Skip,
-        ),
-      ])
+  let rec decompose = (state, env, exp) => {
+    switch (exp) {
+    | DHExp.Filter(flt, d1) =>
+      DecomposeEVMode.(
+        {
+          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
+          and. d1 =
+            req_final(decompose(state, env), d1 => Filter(flt, d1), d1);
+          Step({apply: () => d1, kind: CompleteFilter, value: true});
+        }
+      )
+    | _ => Decomp.transition(decompose, state, env, exp)
     };
   };
 };
@@ -317,9 +254,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Closure(env, ctx) =>
       let d = compose(ctx, d);
       Closure(env, d);
-    | Filter(flt_env, ctx) =>
+    | Filter(flt, ctx) =>
       let d = compose(ctx, d);
-      Filter(flt_env, d);
+      Filter(flt, d);
     | Sequence1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Sequence(d1, d2);
@@ -432,7 +369,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
 let decompose = (d: DHExp.t) => {
   let es = EvaluatorState.init;
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  let rs = Decompose.decompose([], ref(es), env, d);
+  let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
 
@@ -464,6 +401,169 @@ module Stepper = {
     next: list(EvalObj.t),
   };
 
+  let rec matches =
+          (
+            env: ClosureEnvironment.t,
+            flt: FilterEnvironment.t,
+            ctx: EvalCtx.t,
+            exp: DHExp.t,
+            act: FilterAction.t,
+            idx: int,
+          )
+          : (FilterAction.t, int, EvalCtx.t) => {
+    let composed = compose(ctx, exp);
+    let (pact, pidx) = (act, idx);
+    let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
+    let (act, idx) =
+      switch (ctx) {
+      | Filter(_, _) => (pact, pidx)
+      | _ => midx > idx ? (mact, midx) : (pact, pidx)
+      };
+    let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
+      (a, i, f(c));
+    };
+    let (let+) = map;
+    let (ract, ridx, rctx) =
+      switch (ctx) {
+      | Mark => (act, idx, EvalCtx.Mark)
+      | Closure(env, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Closure(env, ctx);
+      | Filter(Filter(flt'), ctx) =>
+        let flt = flt |> FilterEnvironment.extends(flt');
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Filter(flt'), ctx);
+      | Filter(Residue(idx, act), ctx) =>
+        let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
+        if (ridx == idx && ract |> snd == All) {
+          (ract, ridx, Filter(Residue(idx, act), rctx));
+        } else {
+          (ract, ridx, rctx);
+        };
+      | Sequence1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Sequence1(ctx, d2);
+      | Sequence2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Sequence2(d1, ctx);
+      | Let1(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let1(d1, ctx, d3);
+      | Let2(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let2(d1, d2, ctx);
+      | Fun(dp, ty, ctx, name) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Fun(dp, ty, ctx, name);
+      | FixF(name, ty, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FixF(name, ty, ctx);
+      | Ap1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap1(ctx, d2);
+      | Ap2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap2(d1, ctx);
+      | BinBoolOp1(op, ctx, d1) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinBoolOp1(op, ctx, d1);
+      | BinBoolOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinBoolOp2(op, d1, ctx);
+      | BinIntOp1(op, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinIntOp1(op, ctx, d2);
+      | BinIntOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinIntOp2(op, d1, ctx);
+      | BinFloatOp1(op, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinFloatOp1(op, ctx, d2);
+      | BinFloatOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinFloatOp2(op, d1, ctx);
+      | BinStringOp1(op, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinStringOp1(op, ctx, d2);
+      | BinStringOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinStringOp2(op, d1, ctx);
+      | Tuple(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Tuple(ctx, ds);
+      | ApBuiltin(name, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ApBuiltin(name, ctx);
+      | Test(id, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Test(id, ctx);
+      | ListLit(u, i, ty, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListLit(u, i, ty, ctx, ds);
+      | Cons1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons1(ctx, d2);
+      | Cons2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons2(d1, ctx);
+      | ListConcat1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat1(ctx, d2);
+      | ListConcat2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat2(d1, ctx);
+      | Prj(ctx, n) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Prj(ctx, n);
+      | NonEmptyHole(e, u, i, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        NonEmptyHole(e, u, i, ctx);
+      | Cast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cast(ctx, ty, ty');
+      | FailedCast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FailedCast(ctx, ty, ty');
+      | InvalidOperation(ctx, error) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InvalidOperation(ctx, error);
+      | ConsistentCase(Case(ctx, rs, i)) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ConsistentCase(Case(ctx, rs, i));
+      | ConsistentCaseRule(dexp, dpat, ctx, rs, i) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ConsistentCaseRule(dexp, dpat, ctx, rs, i);
+      | InconsistentBranches(u, i, Case(ctx, rs, ri)) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InconsistentBranches(u, i, Case(ctx, rs, ri));
+      | InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
+      };
+    switch (ctx) {
+    | Filter(_) => (ract, ridx, rctx)
+    | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+        ract,
+        ridx,
+        Filter(Residue(midx, mact), rctx),
+      )
+    | _ => (ract, ridx, rctx)
+    };
+  };
+
+  let should_hide_step =
+      (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
+    if (should_hide_step(~settings, x.knd)) {
+      (Eval, x);
+    } else {
+      let (act, _, ctx) =
+        matches(ClosureEnvironment.empty, [], x.ctx, x.undo, (Step, One), 0);
+      switch (act) {
+      | (Eval, _) => (Eval, {...x, ctx})
+      | (Step, _) => (Step, {...x, ctx})
+      };
+    };
+
   let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
     let current = compose(e.ctx, e.apply());
     skip_steps(
@@ -476,14 +576,12 @@ module Stepper = {
     );
   }
   and skip_steps = (~settings, s) => {
-    switch (
-      List.find_opt(
-        (x: EvalObj.t) => should_hide_step(~settings, x.knd),
-        s.next,
-      )
-    ) {
+    let next' = s.next |> List.map(should_hide_step(~settings));
+    let (_, next'') = next' |> List.split;
+    let s = {...s, next: next''};
+    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
     | None => s
-    | Some(e) => step_forward(~settings, e, s)
+    | Some((_, e)) => step_forward(~settings, e, s)
     };
   };
 
@@ -495,7 +593,7 @@ module Stepper = {
           (~settings): (list(step) => option((step, list(step)))) =>
     fun
     | [] => None
-    | [x, ...xs] when should_hide_step(~settings, x.step.knd) =>
+    | [x, ...xs] when should_hide_step(~settings, x.step) |> fst == Eval =>
       undo_point(~settings, xs)
     | [x, ...xs] => Some((x, xs));
 
@@ -552,10 +650,9 @@ module Stepper = {
       | [] => ([], [])
       | [step, ...steps] => {
           let (hidden, ss) = get_history'(steps);
-          if (should_hide_step(~settings, step.step.knd)) {
-            ([step, ...hidden], ss);
-          } else {
-            (
+          switch (step.step |> should_hide_step(~settings) |> fst) {
+          | Eval => ([step, ...hidden], ss)
+          | Step => (
               [],
               [
                 {
@@ -569,7 +666,7 @@ module Stepper = {
                 },
                 ...ss,
               ],
-            );
+            )
           };
         };
     stepper.previous |> get_history';

@@ -19,7 +19,6 @@ let rec matches_exp =
   | (_, FailedCast(f, _, _)) => matches_exp(env, d, f)
 
   | (Closure(env, d), _) => matches_exp(env, d, f)
-  | (Filter(_, d), _) => matches_exp(env, d, f)
   | (Cast(d, _, _), _) => matches_exp(env, d, f)
   | (FailedCast(d, _, _), _) => matches_exp(env, d, f)
 
@@ -42,6 +41,10 @@ let rec matches_exp =
     matches_exp(env, d, f);
 
   | (EmptyHole(_), _) => false
+
+  | (Filter(df, dd), Filter(ff, fd)) =>
+    DH.DHFilter.fast_equal(df, ff) && matches_exp(env, dd, fd)
+  | (Filter(_), _) => false
 
   | (BoolLit(dv), BoolLit(fv)) => dv == fv
   | (BoolLit(_), _) => false
@@ -153,7 +156,7 @@ let rec matches_exp =
     && (
       switch (
         List.fold_left2(
-          (res, drule, frule) => res && matches_rul(drule, frule),
+          (res, drule, frule) => res && matches_rul(env, drule, frule),
           true,
           drule,
           frule,
@@ -216,8 +219,11 @@ and matches_typ = (d: Typ.t, f: Typ.t) => {
   | (_, _) => false
   };
 }
-and matches_rul = (_d: DHExp.rule, _f: DHExp.rule) => {
-  false;
+and matches_rul = (env, d: DHExp.rule, f: DHExp.rule) => {
+  switch (d, f) {
+  | (Rule(dp, d), Rule(fp, f)) =>
+    matches_pat(dp, fp) && matches_exp(env, d, f)
+  };
 };
 
 let matches =
@@ -231,16 +237,18 @@ let matches =
 
 let matches =
     (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~act: FilterAction.t, flt_env)
-    : FilterAction.t => {
-  let rec matches' = (~env, ~exp, flt_env, ~act: FilterAction.t) => {
+    : (FilterAction.t, int) => {
+  let len = List.length(flt_env);
+  let rec matches' = (~env, ~exp, ~act, flt_env, idx) => {
     switch (flt_env) {
-    | [] => act
+    | [] => (act, idx)
     | [hd, ...tl] =>
       switch (matches(~env, ~exp, ~flt=hd)) {
-      | Some(act) => act
-      | None => matches'(~env, ~exp, ~act, tl)
+      | Some(act) => (act, idx)
+      | None => matches'(~env, ~exp, ~act, tl, idx + 1)
       }
     };
   };
-  matches'(~env, ~exp, ~act, flt_env);
+  let (act, idx) = matches'(~env, ~exp, ~act, flt_env, 0);
+  (act, len - idx);
 };
