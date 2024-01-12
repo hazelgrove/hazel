@@ -491,9 +491,9 @@ module Stepper = {
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds);
-      | ApBuiltin(name, ctx, args) =>
+      | ApBuiltin(name, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        ApBuiltin(name, ctx, args);
+        ApBuiltin(name, ctx);
       | Test(id, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(id, ctx);
