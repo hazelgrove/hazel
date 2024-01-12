@@ -1,5 +1,9 @@
 open Sets;
 
+type b =
+  | True
+  | False(Constraint.t);
+
 let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
   let (int_set, not_int_list) =
     List.fold_left(
