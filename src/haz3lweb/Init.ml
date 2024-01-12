@@ -17,7 +17,6 @@ let startup : PersistentData.t =
                 show_casts = false;
                 show_lookup_steps = false;
                 show_stepper_filters = false;
-                stepper = false;
                 stepper_history = false;
               };
           };

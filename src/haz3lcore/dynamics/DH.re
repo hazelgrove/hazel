@@ -9,7 +9,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure([@opaque] ClosureEnvironment.t, t)
+    | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
