@@ -20,6 +20,7 @@ let view =
             _,
           },
         }: Model.t,
+      ~img: option(string),
     ) => {
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
@@ -72,10 +73,26 @@ let view =
           info_map,
         )
       : div_empty;
+  let img =
+    img
+    |> Option.map(i =>
+         div(
+           ~attr=Attr.id("slide"),
+           [
+             Node.create(
+               "img",
+               ~key="slide",
+               ~attr=Attr.many([Attr.src(i), Attr.class_("slide-img")]),
+               [],
+             ),
+           ],
+         )
+       )
+    |> Option.to_list;
   [
     div(
       ~attr=Attr.id("main"),
-      [div(~attr=clss(["editor", "single"]), [editor_view])],
+      [div(~attr=clss(["editor", "single"]), img @ [editor_view])],
     ),
     sidebar,
     bottom_bar,
