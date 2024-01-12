@@ -313,8 +313,7 @@ let mk =
       | BoundVar(x) =>
         if (!settings.show_lookup_steps) {
           switch (ClosureEnvironment.lookup(env, x)) {
-          | None
-          | Some(FixF(_)) => text(x)
+          | None => text(x)
           | Some(d') =>
             if (List.mem(x, recent_subst)) {
               hcats([
@@ -515,27 +514,26 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(x, ty, dbody) =>
-        if (settings.show_fn_bodies) {
-          let doc_body =
-            go_formattable(
-              dbody,
-              ~env=ClosureEnvironment.without_keys([x], env),
-              FixF,
-            );
-          hcats([
-            DHDoc_common.Delim.fix_FixF,
-            space(),
-            text(x),
-            DHDoc_common.Delim.colon_FixF,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            DHDoc_common.Delim.open_FixF,
-            doc_body |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_FixF,
-          ]);
-        } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
-        }
+      | FixF(x, ty, dbody) when settings.show_fn_bodies =>
+        let doc_body =
+          go_formattable(
+            dbody,
+            ~env=ClosureEnvironment.without_keys([x], env),
+            FixF,
+          );
+        hcats([
+          DHDoc_common.Delim.fix_FixF,
+          space(),
+          text(x),
+          DHDoc_common.Delim.colon_FixF,
+          DHDoc_Typ.mk(~enforce_inline=true, ty),
+          DHDoc_common.Delim.open_FixF,
+          doc_body |> DHDoc_common.pad_child(~enforce_inline),
+          DHDoc_common.Delim.close_FixF,
+        ]);
+      | FixF(_, _, Fun(_, _, _, Some(name))) =>
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
+      | FixF(_) => annot(DHAnnot.Collapsed, text("<fn>"))
       };
     };
     let steppable =
