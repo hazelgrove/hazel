@@ -88,6 +88,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BoundVar(_)
     | Ap(_)
     | ApBuiltin(_)
+    | BuiltinFun(_)
     | Prj(_)
     | BoolLit(_)
     | IntLit(_)
