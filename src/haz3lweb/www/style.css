@@ -536,6 +536,7 @@ select {
 .editor.single {
   width: fit-content;
   padding: 2em 0em 4em 2em;
+  flex-direction: column;
 }
 
 #mousedown-overlay {
@@ -1940,4 +1941,9 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
+}
+
+.slide-img {
+  border-radius: 0.4em;
+  margin-bottom: 1em;
 }

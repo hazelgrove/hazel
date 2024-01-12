@@ -165,10 +165,10 @@ let exercises_view =
     );
 };
 
-let slide_view = (~inject, ~model, ~ctx_init, slide_state) => {
+let slide_view = (~inject, ~model, ~ctx_init, (slide_state, img)) => {
   let toolbar_buttons = ScratchMode.toolbar_buttons(~inject, slide_state);
   [top_bar_view(~inject, ~toolbar_buttons, ~model)]
-  @ ScratchMode.view(~inject, ~model, ~ctx_init);
+  @ ScratchMode.view(~inject, ~model, ~ctx_init, ~img);
 };
 
 let editors_view = (~inject, model: Model.t) => {
