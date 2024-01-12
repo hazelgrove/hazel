@@ -98,7 +98,14 @@ let rec is_inconsistent = (xis: list(Constraint.t)): b =>
     | Hole => assert(false) // Impossible
     | And(xi1, xi2) => is_inconsistent([xi1, xi2, ...xis'])
     | Or(xi1, xi2) =>
-      is_inconsistent([xi1, ...xis']) && is_inconsistent([xi2, ...xis'])
+      switch (
+        is_inconsistent([xi1, ...xis']),
+        is_inconsistent([xi2, ...xis']),
+      ) {
+      | (True, True) => True
+      | (False(_) as b, _)
+      | (_, False(_) as b) => b
+      }
     | InjL(_) =>
       switch (List.partition(Constraint.is_injL, xis)) {
       | (injLs, []) =>
