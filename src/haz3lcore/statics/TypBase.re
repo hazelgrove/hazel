@@ -173,6 +173,8 @@ module rec Typ: {
     | (_, TypeHole(_) as p) => p
     | (ExpHole(Free(tv1), _), ExpHole(Free(tv2), _))
         when TypVar.eq(tv1, tv2) => p1
+    | (ExpHole(PatternVar(_), _) as p, ExpHole(_, _))
+    | (ExpHole(_, _), ExpHole(PatternVar(_), _) as p) => p
     | (ExpHole(_, _) as p, _)
     | (_, ExpHole(_, _) as p) => p
     | (Matched(_, _) as p, _)

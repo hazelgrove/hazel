@@ -495,7 +495,7 @@ and uexp_to_info_map =
         scrut.constraints
         @ e_constraints
         @ p_constraints
-        @ constrain_branches(p_typs)
+        @ constrain_branches([Info.exp_ty(scrut), ...p_typs])
         @ constrain_branches(e_typs),
       ~self=Self.match(ctx, e_tys, branch_ids),
       ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
@@ -575,7 +575,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
-      ~annot_pat=false,
+      ~annot_pat: bool=false,
       ~parent_id: option(Id.t)=None,
       {ids, term} as upat: UPat.t,
       m: Map.t,
@@ -601,7 +601,14 @@ and upat_to_info_map =
     add(~self, ~ctx, m, ~constraints=subsumption_constraints(self));
   };
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx, ~parent_id);
+  let go =
+    upat_to_info_map(
+      ~is_synswitch,
+      ~ancestors,
+      ~co_ctx,
+      ~parent_id,
+      ~annot_pat,
+    );
   let unknown = Typ.Unknown(ExpHole(Internal, id), is_synswitch);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
@@ -658,10 +665,23 @@ and upat_to_info_map =
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Internal is used in this case */
+    let parent_string =
+      switch (parent_id) {
+      | Some(id) => Id.to_string(id)
+      | None => "None"
+      };
+    print_endline(
+      "In pat Var of "
+      ++ Id.to_string(id)
+      ++ " with annot_pat "
+      ++ string_of_bool(annot_pat)
+      ++ " and parent "
+      ++ parent_string,
+    );
     let hole_reason: Typ.hole_reason =
       switch (annot_pat, parent_id) {
       | (false, Some(id)) => PatternVar(id)
-      | _ => Internal
+      | _ => Error
       };
     let ctx_typ =
       Info.fixed_typ_pat(
@@ -672,7 +692,7 @@ and upat_to_info_map =
       );
     let entry = Ctx.VarEntry({name, id, typ: ctx_typ});
     add(
-      ~self=Just(unknown),
+      ~self=Just(Unknown(ExpHole(hole_reason, id), is_synswitch)),
       ~ctx=Ctx.extend(ctx, entry),
       ~constraints=
         subsumption_constraints(
@@ -703,7 +723,18 @@ and upat_to_info_map =
     );
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-    let (p, m) = go(~ctx, ~mode=Ana(ann.ty), ~annot_pat=true, p, m);
+    let (p, m) =
+      upat_to_info_map(
+        ~is_synswitch,
+        ~ancestors,
+        ~co_ctx,
+        ~parent_id,
+        ~ctx,
+        ~mode=Ana(ann.ty),
+        ~annot_pat=true,
+        p,
+        m,
+      );
     add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraints=p.constraints, m);
   };
 }
