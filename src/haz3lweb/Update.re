@@ -293,22 +293,12 @@ let evaluate_and_schedule =
   model;
 };
 
-// <<<<<<< HEAD
-// let perform_action =
-//     (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
-//     : Result.t(Model.t) => {
-//   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-//   switch (
-//     Haz3lcore.Perform.go(a, ed_init, id, model.langDocMessages.annotations)
-//   ) {
-// =======
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
     Haz3lcore.Perform.go(
       ~settings=model.settings.core,
       a,
       Editors.get_editor(model.editors),
-      model.langDocMessages.annotations,
     )
   ) {
   | Error(err) => Error(FailedToPerform(err))
@@ -487,7 +477,7 @@ let rec apply =
             Pick_up,
             z,
             ed,
-            model.langDocMessages.annotations,
+            model.settings.core.inference,
           );
         let editors = Editors.put_editor(editor, model.editors);
         Ok({...model, editors});

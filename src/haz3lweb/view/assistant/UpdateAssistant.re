@@ -4,14 +4,7 @@ include UpdateAction;
 /* NOTE: this is duplicated from Update */
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let ed_init = Editors.get_editor(model.editors);
-  switch (
-    Haz3lcore.Perform.go(
-      ~settings=model.settings.core,
-      a,
-      ed_init,
-      model.langDocMessages.annotations,
-    )
-  ) {
+  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init)) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
   };
@@ -22,14 +15,7 @@ let reset_buffer = (model: Model.t) => {
   let z = ed.state.zipper;
   switch (z.selection.mode) {
   | Buffer(_) =>
-    switch (
-      Perform.go_z(
-        ~settings=model.settings.core,
-        Destruct(Left),
-        z,
-        model.langDocMessages.annotations,
-      )
-    ) {
+    switch (Perform.go_z(~settings=model.settings.core, Destruct(Left), z)) {
     | Error(_) => model
     | Ok(z) =>
       let ed =
@@ -37,7 +23,7 @@ let reset_buffer = (model: Model.t) => {
           Destruct(Left),
           z,
           ed,
-          model.langDocMessages.annotations,
+          model.settings.core.inference,
         );
       //TODO(andrew): fix double action
       {...model, editors: Editors.put_editor(ed, model.editors)};
@@ -64,12 +50,7 @@ let apply =
     | None => Ok(model)
     | Some(z) =>
       let ed =
-        Editor.new_state(
-          Pick_up,
-          z,
-          editor,
-          model.langDocMessages.annotations,
-        );
+        Editor.new_state(Pick_up, z, editor, model.settings.core.inference);
       //TODO: add correct action to history (Pick_up is wrong)
       let editors = Editors.put_editor(ed, model.editors);
       Ok({...model, editors});

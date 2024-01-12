@@ -2959,17 +2959,6 @@ let view =
                   ),
                 )
               ),
-              toggle(
-                ~tooltip="Toggle inference suggestions",
-                "𝜏",
-                doc.annotations,
-                _ =>
-                inject(
-                  Update.UpdateLangDocMessages(
-                    LangDocMessages.ToggleAnnotations,
-                  ),
-                )
-              ),
               div(
                 ~attr=
                   Attr.many([

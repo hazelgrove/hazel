@@ -23,13 +23,12 @@ let go_z =
       ~settings: CoreSettings.t,
       a: Action.t,
       z: Zipper.t,
-      inference_enabled,
     )
     : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
-    | None => Editor.Meta.init(z, inference_enabled)
+    | None => Editor.Meta.init(z)
     };
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
@@ -182,7 +181,7 @@ let go_z =
 };
 
 let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t, inference_enabled) // TODO anand and raef: add inference_enabled to settings
+    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t) // TODO anand and raef: add settings.inference to settings
     : Action.Result.t(Editor.t) =>
   if (ed.read_only && is_write_action(a)) {
     Result.Ok(ed);
@@ -190,6 +189,6 @@ let go =
     open Result.Syntax;
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
-    let+ z = go_z(~settings, ~meta, a, zipper, inference_enabled);
-    Editor.new_state(~effects=Effect.s^, a, z, ed, inference_enabled);
+    let+ z = go_z(~settings, ~meta, a, zipper);
+    Editor.new_state(~effects=Effect.s^, a, z, ed, settings.inference);
   };

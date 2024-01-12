@@ -143,10 +143,10 @@ let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
      insert a space, and then we immediately delete it. */
   let settings = CoreSettings.off;
   let* z = zipper_of_string(~zipper_init=z, str);
-  switch (Perform.go_z(~settings, Insert(" "), z, false)) {
+  switch (Perform.go_z(~settings, Insert(" "), z)) {
   | Error(_) => None
   | Ok(z) =>
-    switch (Perform.go_z(~settings, Destruct(Left), z, false)) {
+    switch (Perform.go_z(~settings, Destruct(Left), z)) {
     | Error(_) => None
     | Ok(z) => Some(z)
     }

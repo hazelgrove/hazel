@@ -11,7 +11,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
   let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
-      model.langDocMessages.annotations,
+      model.settings.core.inference,
       suggestions,
     );
   let now = (a: Action.t): option(UpdateAction.t) =>

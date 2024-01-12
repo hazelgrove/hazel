@@ -9,8 +9,7 @@ module Meta = {
     col_target: int,
   };
 
-  // TODO: anand and raef cleanup unused inference_enabled
-  let init = (z: Zipper.t, _inference_enabled: bool) => {
+  let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
     {
       touched: Touched.empty,
@@ -85,10 +84,7 @@ module State = {
     meta: Meta.t,
   };
 
-  let init = (zipper, inference_enabled) => {
-    zipper,
-    meta: Meta.init(zipper, inference_enabled),
-  };
+  let init = zipper => {zipper, meta: Meta.init(zipper)};
 
   let next =
       (
@@ -124,8 +120,8 @@ type t = {
   read_only: bool,
 };
 
-let init = (~read_only=false, z, inference_enabled) => {
-  state: State.init(z, inference_enabled),
+let init = (~read_only=false, z) => {
+  state: State.init(z),
   history: History.empty,
   read_only,
 };

@@ -29,7 +29,7 @@ let view =
   //let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term); // TODO anand and raef: we need to use this instead; figure out how
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
-      langDocMessages.annotations,
+      settings.core.inference,
       suggestions,
     );
   let result =
@@ -65,7 +65,6 @@ let view =
       ~info_map,
       ~term,
       ~result,
-      ~langDocMessages,
       editor,
     );
   let bottom_bar =

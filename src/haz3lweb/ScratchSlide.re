@@ -18,7 +18,7 @@ let persist = (editor: Editor.t) => {
 
 let unpersist = (zipper: persistent_state) => {
   let zipper = PersistentZipper.unpersist(zipper);
-  Editor.init(zipper, ~read_only=false, false);
+  Editor.init(zipper, ~read_only=false);
 };
 
 let serialize = (state: state) => {

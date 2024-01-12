@@ -265,7 +265,6 @@ let editor_view =
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
-      ~langDocMessages: LangDocMessages.t,
       editor: Editor.t,
     ) => {
   let zipper = editor.state.zipper;
@@ -277,7 +276,7 @@ let editor_view =
   let measured = editor.state.meta.measured;
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
-      langDocMessages.annotations,
+      settings.core.inference,
       suggestions,
     );
   let buffer_ids: list(Uuidm.t) = {
@@ -348,7 +347,6 @@ let editor_with_result_view =
       ~info_map: Statics.Map.t,
       ~term,
       ~result: ModelResult.simple,
-      ~langDocMessages,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
@@ -380,7 +378,6 @@ let editor_with_result_view =
     ~test_results,
     ~footer=Some(eval_result_footer),
     ~color_highlighting,
-    ~langDocMessages,
     editor,
   );
 };

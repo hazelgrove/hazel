@@ -81,7 +81,7 @@ let view =
       } = stitched_dynamics;
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
-      langDocMessages.annotations,
+      settings.core.inference,
       (
         global_inference_info.typehole_suggestions,
         global_inference_info.exphole_suggestions,
@@ -114,7 +114,6 @@ let view =
       ~mousedown_updates=[Update.SwitchEditor(pos)],
       ~settings,
       ~color_highlighting,
-      ~langDocMessages,
     );
   };
 

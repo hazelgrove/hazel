@@ -164,7 +164,7 @@ let exercises_view =
   let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
   let global_inference_info =
     InferenceResult.mk_global_inference_info(
-      langDocMessages.annotations,
+      model.settings.core.inference,
       suggestions,
     );
   [top_bar_view(~inject, ~model, ~toolbar_buttons)]
