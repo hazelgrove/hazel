@@ -60,7 +60,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
-  | Closure(_) => DHDoc_common.precedence_const
+  | Closure(_)
+  | BuiltinFun(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -175,6 +176,7 @@ let rec mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | BoundVar(x) => text(x)
+      | BuiltinFun(f) => text(f)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
@@ -193,19 +195,14 @@ let rec mk =
           go'(~parenthesize=false, d2),
         );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
-      | ApBuiltin(ident, args) =>
-        switch (args) {
-        | [hd, ...tl] =>
-          let d' = List.fold_left((d1, d2) => DHExp.Ap(d1, d2), hd, tl);
-          let (doc1, doc2) =
-            mk_left_associative_operands(
-              DHDoc_common.precedence_Ap,
-              BoundVar(ident),
-              d',
-            );
-          DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
-        | [] => text(ident)
-        }
+      | ApBuiltin(ident, d) =>
+        let (doc1, doc2) =
+          mk_left_associative_operands(
+            DHDoc_common.precedence_Ap,
+            BoundVar(ident),
+            d,
+          );
+        DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
