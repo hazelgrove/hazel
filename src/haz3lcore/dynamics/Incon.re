@@ -85,16 +85,16 @@ let is_inconsistent_string = (xis: list(Constraint.t)): b => {
 
 let rec is_inconsistent = (xis: list(Constraint.t)): b =>
   switch (xis) {
-  | [] => false
+  | [] => False(Constraint.Truth)
   | _
       when
         List.exists(Constraint.is_injL, xis)
         && List.exists(Constraint.is_injR, xis) =>
-    true
+    True
   | [xi, ...xis'] =>
     switch (xi) {
     | Truth => is_inconsistent(xis')
-    | Falsity => true
+    | Falsity => True
     | Hole => assert(false) // Impossible
     | And(xi1, xi2) => is_inconsistent([xi1, xi2, ...xis'])
     | Or(xi1, xi2) =>
