@@ -83,7 +83,7 @@ let is_inconsistent_string = (xis: list(Constraint.t)): b => {
   };
 };
 
-let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
+let rec is_inconsistent = (xis: list(Constraint.t)): b =>
   switch (xis) {
   | [] => false
   | _
@@ -174,7 +174,8 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
 let is_redundant = (xi_cur: Constraint.t, xi_pre: Constraint.t): bool =>
   is_inconsistent(
     Constraint.[And(truify(xi_cur), dual(falsify(xi_pre)))],
-  );
+  )
+  == True;
 
 let is_exhaustive = (xi: Constraint.t): bool =>
-  is_inconsistent(Constraint.[dual(truify(xi))]);
+  is_inconsistent(Constraint.[dual(truify(xi))]) == True;
