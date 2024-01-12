@@ -43,7 +43,7 @@ let nut_menu =
     (
       ~inject: Update.t => 'a,
       {
-        core: {statics, elaborate, assist, dynamics},
+        core: {statics, elaborate, assist, dynamics, inference},
         benchmark,
         instructor_mode,
         _,
@@ -64,6 +64,9 @@ let nut_menu =
       ),
       toggle("𝑒", ~tooltip="Show Elaboration", elaborate, _ =>
         inject(Set(Elaborate))
+      ),
+      toggle("∪", ~tooltip="Toggle Inference", inference, _ =>
+        inject(Set(Inference))
       ),
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))

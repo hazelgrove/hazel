@@ -5,7 +5,13 @@ let startup : PersistentData.t =
         captions = true;
         secondary_icons = false;
         core =
-          { statics = true; elaborate = false; assist = true; dynamics = true };
+          {
+            statics = true;
+            elaborate = false;
+            assist = true;
+            dynamics = true;
+            inference = false;
+          };
         async_evaluation = false;
         context_inspector = false;
         instructor_mode = true;

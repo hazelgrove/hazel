@@ -17,6 +17,7 @@ let update_settings =
           assist: !settings.core.statics,
           elaborate: settings.core.elaborate,
           dynamics: !settings.core.statics && settings.core.dynamics,
+          inference: !settings.core.inference,
         },
       },
     }
@@ -29,6 +30,9 @@ let update_settings =
           assist: settings.core.assist,
           elaborate: !settings.core.elaborate,
           dynamics: settings.core.dynamics,
+          inference:
+            (!settings.core.elaborate || settings.core.statics)
+            && settings.core.inference,
         },
       },
     }
@@ -41,6 +45,9 @@ let update_settings =
           assist: settings.core.assist,
           elaborate: settings.core.elaborate,
           dynamics: !settings.core.dynamics,
+          inference:
+            (!settings.core.dynamics || settings.core.statics)
+            && settings.core.inference,
         },
       },
     }
@@ -53,6 +60,22 @@ let update_settings =
           assist: !settings.core.assist,
           elaborate: settings.core.elaborate,
           dynamics: settings.core.dynamics,
+          inference:
+            (!settings.core.assist || settings.core.statics)
+            && settings.core.inference,
+        },
+      },
+    }
+  | Inference => {
+      ...model,
+      settings: {
+        ...settings,
+        core: {
+          statics: settings.core.statics,
+          assist: settings.core.assist,
+          elaborate: settings.core.elaborate,
+          dynamics: settings.core.dynamics,
+          inference: settings.core.statics && !settings.core.inference,
         },
       },
     }
@@ -117,6 +140,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | Dynamics
     | InstructorMode
     | ContextInspector
+    | Inference
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -173,6 +197,7 @@ let should_scroll_to_caret =
     | Dynamics
     | Benchmark
     | ContextInspector
+    | Inference
     | InstructorMode => false
     }
   | SetMeta(meta_action) =>

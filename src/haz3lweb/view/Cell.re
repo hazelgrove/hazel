@@ -195,7 +195,6 @@ let deco =
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
       let global_inference_info = global_inference_info;
-      // let term_ranges = TermRanges.mk(unselected); // TODO anand: still need this? Check with Andrew could be load-bearing
       let term_ranges = term_ranges;
       let tiles = TileMap.mk(unselected);
     });

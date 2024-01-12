@@ -9,6 +9,7 @@ module Meta = {
     col_target: int,
   };
 
+  // TODO: anand and raef cleanup unused inference_enabled
   let init = (z: Zipper.t, _inference_enabled: bool) => {
     let unselected = Zipper.unselect_and_zip(z);
     {
