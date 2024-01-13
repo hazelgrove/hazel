@@ -13,10 +13,7 @@ module EvalObj = {
   let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
 
   let get_ctx = (obj: t): EvalCtx.t => {
-    switch (obj.ctx) {
-    | Filter(Residue(_), c) => c
-    | c => c
-    };
+    obj.ctx;
   };
   let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
