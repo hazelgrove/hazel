@@ -18,8 +18,6 @@ module EvalObj: {
   let unwrap: (t, EvalCtx.cls) => option(t);
 };
 
-let evaluate_with_history: DHExp.t => list(DHExp.t);
-
 let decompose: DHExp.t => list(EvalObj.t);
 
 module Stepper: {
@@ -44,6 +42,7 @@ module Stepper: {
   let mk: (~settings: CoreSettings.Evaluation.t, DHExp.t) => t;
   let step_forward: (~settings: CoreSettings.Evaluation.t, EvalObj.t, t) => t;
   let step_backward: (~settings: CoreSettings.Evaluation.t, t) => t;
+  let evaluate: (~settings: CoreSettings.Evaluation.t, t) => t;
   let update_expr: (DHExp.t, t) => t;
   let get_history:
     (~settings: CoreSettings.Evaluation.t, t) =>
