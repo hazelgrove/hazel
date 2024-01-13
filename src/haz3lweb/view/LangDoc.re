@@ -421,21 +421,80 @@ let example_view =
                 Builtins.ctx_init,
                 uhexp,
               );
+            let dhexp =
+              uhexp |> Interface.elaborate(~settings=settings.core, info_map);
+            let stepper =
+              dhexp
+              |> EvaluatorStep.Stepper.mk(~settings=settings.core.evaluation);
+            let stepper =
+              stepper
+              |> EvaluatorStep.Stepper.evaluate(
+                   ~settings=settings.core.evaluation,
+                 );
+            let (hidden, previous) =
+              EvaluatorStep.Stepper.get_history(
+                ~settings=settings.core.evaluation,
+                stepper,
+              );
+            let dh_code_current =
+              div(
+                ~attr=Attr.classes(["result"]),
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~settings=settings.core.evaluation,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    ~previous_step=
+                      previous
+                      |> List.nth_opt(_, 0)
+                      |> Option.map(
+                           (x: EvaluatorStep.Stepper.step_with_previous) =>
+                           x.step.step
+                         ),
+                    ~next_steps=stepper.next,
+                    ~hidden_steps=
+                      List.map(
+                        (x: EvaluatorStep.Stepper.step) => x.step,
+                        hidden,
+                      ),
+                    stepper.current,
+                  ),
+                ],
+              );
+            let dh_code_previous =
+                (step_with_previous: EvaluatorStep.Stepper.step_with_previous) =>
+              div(
+                ~attr=Attr.classes(["result"]),
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~settings=settings.core.evaluation,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    ~previous_step=
+                      Option.map(
+                        (x: EvaluatorStep.Stepper.step) => x.step,
+                        step_with_previous.previous,
+                      ),
+                    ~chosen_step=Some(step_with_previous.step.step),
+                    ~hidden_steps=
+                      List.map(
+                        (x: EvaluatorStep.Stepper.step) => x.step,
+                        step_with_previous.hidden,
+                      ),
+                    step_with_previous.step.d,
+                  ),
+                ],
+              );
             let result_view =
-              Interface.evaluate_with_history(
-                ~settings=settings.core,
-                info_map,
-                uhexp,
-              )
-              |> List.map(dhexp =>
-                   DHCode.view(
-                     ~inject,
-                     ~settings=CoreSettings.Evaluation.init,
-                     ~selected_hole_instance=None,
-                     ~font_metrics,
-                     ~width=80,
-                     dhexp,
-                   )
+              previous
+              |> List.map(dh_code_previous)
+              |> List.fold_left(
+                   (x, y) => List.cons(y, x),
+                   [dh_code_current],
                  );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);

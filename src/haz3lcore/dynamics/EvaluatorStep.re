@@ -373,14 +373,6 @@ let decompose = (d: DHExp.t) => {
   Decompose.Result.unbox(rs);
 };
 
-let rec evaluate_with_history = d =>
-  switch (decompose(d)) {
-  | [] => []
-  | [x, ..._] =>
-    let next = compose(x.ctx, x.apply());
-    [next, ...evaluate_with_history(next)];
-  };
-
 module Stepper = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type step = {
@@ -582,6 +574,13 @@ module Stepper = {
     switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
     | None => s
     | Some((_, e)) => step_forward(~settings, e, s)
+    };
+  };
+
+  let rec evaluate = (~settings, s) => {
+    switch (s.next) {
+    | [] => s
+    | [e, ..._] => step_forward(~settings, e, s) |> evaluate(~settings)
     };
   };
 
