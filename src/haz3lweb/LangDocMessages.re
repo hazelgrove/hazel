@@ -2774,6 +2774,35 @@ let filter_hide_exp: form = {
   };
 };
 
+let filter_debug_group = "filter_debug_group";
+let filter_debug_ex = {
+  sub_id: "filter_debug_ex",
+  term: mk_example("eval $e in\ndebug $v + $v + $v in\n1 + 2 + 3"),
+  message: "Evaluation of let-expressions is hidden by the debug filter expression, i.e. the destruction of let-expression is skipped.",
+  feedback: Unselected,
+};
+let filter_debug_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
+  [(Piece.id(_pat), pat_id), (Piece.id(_exp_body), body_id)];
+};
+let filter_debug_exp: form = {
+  let explanation = {
+    message: "Debug filter expression. The destruction of all constructions within [*body*](%s) that match the [*pattern*](%s) will get skipped.",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_debug([[space(), exp("p"), space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: "filter_debug_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [filter_debug_ex],
+  };
+};
+
 // TODO - I don't think changing specificity on the number of cases is really the most
 // beneficial specificity change - I think instead have generic at top level
 // and then have a slightly different setup for specific that is created more
@@ -3720,6 +3749,7 @@ let init = {
     filter_step_exp,
     filter_skip_exp,
     filter_hide_exp,
+    filter_debug_exp,
   ],
   groups: [
     // Expressions
@@ -4137,6 +4167,10 @@ let init = {
     (filter_step_group, init_options([(filter_step_exp.id, [exp("p")])])),
     (filter_skip_group, init_options([(filter_skip_exp.id, [exp("p")])])),
     (filter_hide_group, init_options([(filter_hide_exp.id, [exp("p")])])),
+    (
+      filter_debug_group,
+      init_options([(filter_debug_exp.id, [exp("p")])]),
+    ),
   ],
 };
 
