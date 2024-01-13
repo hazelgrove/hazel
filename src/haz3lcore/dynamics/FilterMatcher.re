@@ -32,13 +32,10 @@ let rec matches_exp =
          });
     matches_exp(env, d, f);
   | (_, BoundVar(fx)) =>
-    let f =
-      ClosureEnvironment.lookup(env, fx)
-      |> Util.OptUtil.get(() => {
-           print_endline("FreeInvalidVar:" ++ fx);
-           raise(EvaluatorError.Exception(FreeInvalidVar(fx)));
-         });
-    matches_exp(env, d, f);
+    switch (ClosureEnvironment.lookup(env, fx)) {
+    | Some(f) => matches_exp(env, d, f)
+    | None => false
+    }
 
   | (EmptyHole(_), _) => false
 
