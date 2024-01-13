@@ -423,6 +423,16 @@ let example_view =
               );
             let dhexp =
               uhexp |> Interface.elaborate(~settings=settings.core, info_map);
+            let dhexp =
+              DHExp.Filter(
+                Filter(
+                  Filter.mk(
+                    Constructor("$Expr"),
+                    (FilterAction.Eval, FilterAction.All),
+                  ),
+                ),
+                dhexp,
+              );
             let stepper =
               dhexp
               |> EvaluatorStep.Stepper.mk(~settings=settings.core.evaluation);

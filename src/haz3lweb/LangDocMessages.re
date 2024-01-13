@@ -2690,14 +2690,14 @@ let filter_step_group = "filter_step_group";
 let filter_skip_group = "filter_skip_group";
 let filter_step_ex = {
   sub_id: "filter_step_ex",
-  term: mk_example("step + in\n(1 + 2) + (3 + 4)"),
-  message: "When in stepping mode, the addition will be evaluated in step by step",
+  term: mk_example("eval $e in\npause $v + $v in\n(1 * 2) + (3 * 4)"),
+  message: "The expression (1 * 2) + (3 * 4) is guarded by a pause expression pause $v + $v, which instruct the evaluator to pause the evaluation when it sees a value is added to another value.",
   feedback: Unselected,
 };
 let filter_skip_ex = {
   sub_id: "filter_skip_ex",
-  term: mk_example("skip + in\n1 + 2 + 3 + 4"),
-  message: "When in stepping mode, this will evaluate all connected plus operation altogether",
+  term: mk_example("eval $e + $e in\n1 + 2 + 3 + 4"),
+  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval expression eval $e + $e. The eval expression instruct the evaluator to evaluate the whole expression once the expression is an addition of two other expressions",
   feedback: Unselected,
 };
 let _pat = exp("e_pat");
@@ -2707,7 +2707,7 @@ let filter_step_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_step_exp: form = {
   let explanation = {
-    message: "Stepped exression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated step by step",
+    message: "Pause exression. The evaluation of all subexpressions within [*body*](%s) that match the [*pattern*](%s) will be paused during evaluation",
     feedback: Unselected,
   };
   let form = [mk_pause([[space(), _pat, space()]]), linebreak(), _exp_body];
@@ -2724,7 +2724,7 @@ let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_skip_exp: form = {
   let explanation = {
-    message: "Skipped expression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
+    message: "Eval expression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
     feedback: Unselected,
   };
   let form = [
