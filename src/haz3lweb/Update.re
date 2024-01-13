@@ -495,7 +495,13 @@ let rec apply =
       | None => Error(CantPaste)
       | Some(z) =>
         //HACK(andrew): below is not strictly a insert action...
-        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed, false);
+        let ed =
+          Haz3lcore.Editor.new_state(
+            Insert(clipboard),
+            z,
+            ed,
+            model.settings.core.inference,
+          );
         let editors = Editors.put_editor(ed, model.editors);
         Ok({...model, editors});
       };

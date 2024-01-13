@@ -306,7 +306,7 @@ module rec Typ: {
       ++ " -> "
       ++ typ_to_string(t2, debug)
       |> parenthesize_if_left_child
-    | Prod([]) => "Unit"
+    | Prod([]) => "()"
     | Prod([_]) => "BadProduct"
     | Prod([t0, ...ts]) =>
       "("
