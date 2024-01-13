@@ -40,13 +40,13 @@ let rec snapshot_class =
         : (PotentialTypeSet.t, option(error_status)) => {
   let (typs, err1) = UnionFind.get(mut_potential_typ_set);
   let (potential_typ_set, err2) =
-    snapshot_typs(typs, mut_potential_typ_set, occurs_rep);
+    snapshot_typs(typs, [mut_potential_typ_set], occurs_rep);
   (potential_typ_set, combine_error_status(err1, err2));
 }
 and snapshot_class_from_child =
-    (mut_potential_typ_set: t, parent: t, occurs_rep: ITyp.t)
+    (mut_potential_typ_set: t, parents: list(t), occurs_rep: ITyp.t)
     : (PotentialTypeSet.t, option(error_status)) => {
-  UnionFind.eq(mut_potential_typ_set, parent)
+  List.exists(UnionFind.eq(mut_potential_typ_set), parents)
     ? (
       [occurs_rep |> PotentialTypeSet.ityp_to_potential_typ],
       Some(Occurs),
@@ -54,14 +54,14 @@ and snapshot_class_from_child =
     : snapshot_class(mut_potential_typ_set, occurs_rep);
 }
 and snapshot_typs =
-    (mut_pot_typs: mut_pot_typs, parent: t, occurs_rep: ITyp.t)
+    (mut_pot_typs: mut_pot_typs, parents: list(t), occurs_rep: ITyp.t)
     : (PotentialTypeSet.t, option(error_status)) => {
   switch (mut_pot_typs) {
   | [] => ([], None)
   | [hd, ...tl] =>
-    let (pot_typ_hd, err_hd) = snapshot_typ(hd, parent, occurs_rep);
+    let (pot_typ_hd, err_hd) = snapshot_typ(hd, parents, occurs_rep);
     let (potential_typ_set_tl, err_tl) =
-      snapshot_typs(tl, parent, occurs_rep);
+      snapshot_typs(tl, parents, occurs_rep);
     (
       [pot_typ_hd, ...potential_typ_set_tl],
       combine_error_status(err_hd, err_tl),
@@ -69,7 +69,7 @@ and snapshot_typs =
   };
 }
 and snapshot_typ =
-    (mut_pot_typ: mut_pot_typ, parent: t, occurs_rep: ITyp.t)
+    (mut_pot_typ: mut_pot_typ, parents: list(t), occurs_rep: ITyp.t)
     : (PotentialTypeSet.potential_typ, option(error_status)) => {
   switch (mut_pot_typ) {
   | Base(b) => (PotentialTypeSet.Base(b), None)
@@ -77,13 +77,13 @@ and snapshot_typ =
     let (potential_typ_set_lhs, err_lhs) =
       snapshot_class_from_child(
         mut_potential_typ_set_lhs,
-        parent,
+        [mut_potential_typ_set_lhs, ...parents],
         occurs_rep,
       );
     let (potential_typ_set_rhs, err_rhs) =
       snapshot_class_from_child(
         mut_potential_typ_set_rhs,
-        parent,
+        [mut_potential_typ_set_rhs, ...parents],
         occurs_rep,
       );
     (
@@ -96,7 +96,11 @@ and snapshot_typ =
     );
   | Unary(ctor, mut_potential_typ_set) =>
     let (potential_typ_set, err) =
-      snapshot_class_from_child(mut_potential_typ_set, parent, occurs_rep);
+      snapshot_class_from_child(
+        mut_potential_typ_set,
+        [mut_potential_typ_set, ...parents],
+        occurs_rep,
+      );
     (PotentialTypeSet.Unary(ctor, potential_typ_set), err);
   };
 };
