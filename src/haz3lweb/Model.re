@@ -60,20 +60,23 @@ let mk = editors => {
 let blank = mk(Editors.Scratch(0, []));
 let debug = mk(Editors.DebugLoad);
 
-let load_editors = (~mode: Settings.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors =
+    (~mode: Settings.mode, ~instructor_mode: bool, ~inference_enabled: bool)
+    : Editors.t =>
   switch (mode) {
   | DebugLoad => DebugLoad
   | Scratch =>
-    let (idx, slides) = Store.Scratch.load();
+    let (idx, slides) = Store.Scratch.load(~inference_enabled);
     Scratch(idx, slides);
   | Examples =>
-    let (name, slides) = Store.Examples.load();
+    let (name, slides) = Store.Examples.load(~inference_enabled);
     Examples(name, slides);
   | Exercise =>
     let (n, specs, exercise) =
       Store.Exercise.load(
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
+        ~inference_enabled,
       );
     Exercise(n, specs, exercise);
   };
@@ -94,6 +97,7 @@ let load = (init_model: t): t => {
     load_editors(
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
+      ~inference_enabled=settings.core.inference,
     );
   let results =
     ModelResults.init(
@@ -120,9 +124,18 @@ let reset = (model: t): t => {
      e.g. api keys to persist */
   ignore(Store.Settings.init());
   ignore(Store.LangDocMessages.init());
-  ignore(Store.Scratch.init());
-  ignore(Store.Examples.init());
-  ignore(Store.Exercise.init(~instructor_mode=true));
+  ignore(
+    Store.Scratch.init(~inference_enabled=model.settings.core.inference),
+  );
+  ignore(
+    Store.Examples.init(~inference_enabled=model.settings.core.inference),
+  );
+  ignore(
+    Store.Exercise.init(
+      ~instructor_mode=true,
+      ~inference_enabled=model.settings.core.inference,
+    ),
+  );
   let new_model = load(blank);
   {
     ...new_model,

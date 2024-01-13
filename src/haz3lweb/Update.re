@@ -310,7 +310,8 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   };
 
 let switch_scratch_slide =
-    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+    (editors: Editors.t, ~instructor_mode, ~inference_enabled, idx: int)
+    : option(Editors.t) =>
   switch (editors) {
   | DebugLoad
   | Examples(_) => None
@@ -321,7 +322,13 @@ let switch_scratch_slide =
   | Exercise(_, specs, _) =>
     let spec = List.nth(specs, idx);
     let key = Exercise.key_of(spec);
-    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    let exercise =
+      Store.Exercise.load_exercise(
+        key,
+        spec,
+        ~instructor_mode,
+        ~inference_enabled,
+      );
     Some(Exercise(idx, specs, exercise));
   };
 
@@ -347,10 +354,12 @@ let switch_exercise_editor =
    state. The latter is intentional as we don't want to persist
    this between users. The former is a TODO, currently difficult
    due to the more complex architecture of Exercises. */
-let export_persistent_data = () => {
+let export_persistent_data = (~inference_enabled) => {
   let data: PersistentData.t = {
-    examples: Store.Examples.load() |> Store.Examples.to_persistent,
-    scratch: Store.Scratch.load() |> Store.Scratch.to_persistent,
+    examples:
+      Store.Examples.load(~inference_enabled) |> Store.Examples.to_persistent,
+    scratch:
+      Store.Scratch.load(~inference_enabled) |> Store.Scratch.to_persistent,
     settings: Store.Settings.load(),
   };
   let contents =
@@ -403,18 +412,38 @@ let rec apply =
       );
       Ok(model);
     | FinishImportScratchpad(data) =>
-      let editors = Editors.import_current(model.editors, data);
+      let editors =
+        Editors.import_current(
+          model.editors,
+          data,
+          ~inference_enabled=model.settings.core.inference,
+        );
       Model.save_and_return({...model, editors});
     | ExportPersistentData =>
-      export_persistent_data();
+      export_persistent_data(
+        ~inference_enabled=model.settings.core.inference,
+      );
       Ok(model);
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
-      let editors = Editors.reset_current(model.editors, ~instructor_mode);
+      let editors =
+        Editors.reset_current(
+          model.editors,
+          ~instructor_mode,
+          ~inference_enabled=model.settings.core.inference,
+        );
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
-      switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
+      let inference_enabled = model.settings.core.inference;
+      switch (
+        switch_scratch_slide(
+          model.editors,
+          ~instructor_mode,
+          ~inference_enabled,
+          n,
+        )
+      ) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };

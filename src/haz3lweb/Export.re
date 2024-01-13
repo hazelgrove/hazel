@@ -53,7 +53,13 @@ let import_all = (data, ~specs) => {
   let settings = Store.Settings.import(all.settings);
   Store.LangDocMessages.import(all.langDocMessages);
   let instructor_mode = settings.instructor_mode;
-  Store.Scratch.import(all.scratch);
-  Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
+  let inference_enabled = settings.core.inference;
+  Store.Scratch.import(all.scratch, ~inference_enabled);
+  Store.Exercise.import(
+    all.exercise,
+    ~specs,
+    ~instructor_mode,
+    ~inference_enabled,
+  );
   Log.import(all.log);
 };

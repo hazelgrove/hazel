@@ -28,7 +28,7 @@ let go_z =
   let meta =
     switch (meta) {
     | Some(m) => m
-    | None => Editor.Meta.init(z)
+    | None => Editor.Meta.init(z, ~inference_enabled=settings.inference)
     };
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
