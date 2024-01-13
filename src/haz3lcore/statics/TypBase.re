@@ -292,7 +292,6 @@ module rec Typ: {
     typ_to_string_with_parens(false, ty, debug);
   }
   and typ_to_string_with_parens = (is_left_child: bool, ty: t, debug): string => {
-    //TODO: parens on ops when ambiguous
     let parenthesize_if_left_child = s => is_left_child ? "(" ++ s ++ ")" : s;
     switch (ty) {
     | Unknown(prov, _) => "?" ++ (debug ? prov_to_string(prov) : "")

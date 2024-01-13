@@ -10,7 +10,7 @@ let startup : PersistentData.t =
             elaborate = false;
             assist = true;
             dynamics = true;
-            inference = false;
+            inference = true;
           };
         async_evaluation = false;
         context_inspector = false;

@@ -23,7 +23,6 @@ let rec view_ty =
         (~font_metrics, ~with_cls, ~is_left_child: bool=false, ty: Typ.t)
         : Node.t => {
   let view_ty' = view_ty(~font_metrics, ~with_cls);
-  //TODO: parens on ops when ambiguous
   let parenthesize_if_left_child = (n): Node.t =>
     (is_left_child ? [Node.text("("), ...n] @ [Node.text(")")] : n) |> span;
   let div = (~attr, nodes) => with_cls ? div(~attr, nodes) : span(nodes);

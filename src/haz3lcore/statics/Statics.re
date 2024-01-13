@@ -665,19 +665,6 @@ and upat_to_info_map =
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Internal is used in this case */
-    let parent_string =
-      switch (parent_id) {
-      | Some(id) => Id.to_string(id)
-      | None => "None"
-      };
-    print_endline(
-      "In pat Var of "
-      ++ Id.to_string(id)
-      ++ " with annot_pat "
-      ++ string_of_bool(annot_pat)
-      ++ " and parent "
-      ++ parent_string,
-    );
     let hole_reason: Typ.hole_reason =
       switch (annot_pat, parent_id) {
       | (false, Some(id)) => PatternVar(id)
@@ -865,9 +852,6 @@ let mk_map_and_inference_solutions =
           e,
           Id.Map.empty,
         );
-
-      print_endline("~~~Printing constraints:");
-      info.constraints |> Typ.constraints_to_string |> print_endline;
 
       let pts_graph = Inference.solve_constraints(info.constraints);
       let solutions = InferenceResult.get_desired_solutions(pts_graph);
