@@ -2690,7 +2690,7 @@ let filter_step_group = "filter_step_group";
 let filter_step_ex = {
   sub_id: "filter_step_ex",
   term: mk_example("eval $e in\npause $v + $v in\n(1 * 2) + (3 * 4)"),
-  message: "The expression (1 * 2) + (3 * 4) is guarded by a pause expression pause $v + $v, which instruct the evaluator to pause the evaluation when it sees a value is added to another value.",
+  message: "The expression (1 * 2) + (3 * 4) is guarded by a pause filter expression pause $v + $v, which instruct the evaluator to pause the evaluation when it sees a value is added to another value. After evaluating subterms (1 * 2) and (3 * 4), the expression turns into 2 + 12. 2 matches the first $v pattern, and 12 matches the second $v pattern. Therefore, the evaluator stops when the expression steps to 2 + 12",
   feedback: Unselected,
 };
 let _pat = exp("e_pat");
@@ -2700,7 +2700,7 @@ let filter_step_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_step_exp: form = {
   let explanation = {
-    message: "Pause exression. The evaluation of all subexpressions within [*body*](%s) that match the [*pattern*](%s) will be paused during evaluation",
+    message: "Pause Filter exression. The evaluation of all subexpressions within [*body*](%s) that match the [*pattern*](%s) will be paused during evaluation",
     feedback: Unselected,
   };
   let form = [mk_pause([[space(), _pat, space()]]), linebreak(), _exp_body];
@@ -2717,7 +2717,7 @@ let filter_skip_group = "filter_skip_group";
 let filter_skip_ex = {
   sub_id: "filter_skip_ex",
   term: mk_example("eval $e + $e in\n1 + 2 + 3 + 4"),
-  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval expression eval $e + $e. The eval expression instruct the evaluator to evaluate the whole expression once the expression is an addition of two other expressions",
+  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval filter expression eval $e + $e. The eval expression instruct the evaluator to evaluate the whole expression once the expression is an addition of two other expressions. All steps during the evaluation matches the filter, so it will continue to evaluate until we get a value",
   feedback: Unselected,
 };
 let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
@@ -2725,7 +2725,7 @@ let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_skip_exp: form = {
   let explanation = {
-    message: "Eval expression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
+    message: "Eval Filter expression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
     feedback: Unselected,
   };
   let form = [
@@ -2778,7 +2778,7 @@ let filter_debug_group = "filter_debug_group";
 let filter_debug_ex = {
   sub_id: "filter_debug_ex",
   term: mk_example("eval $e in\ndebug $v + $v + $v in\n1 + 2 + 3"),
-  message: "Evaluation of let-expressions is hidden by the debug filter expression, i.e. the destruction of let-expression is skipped.",
+  message: "The debug filter expression debug $v + $v + $v matches 1 + 2 + 3. Therefore, the evaluator will step into the evaluation of the matched sub-expression 1 + 2 + 3.",
   feedback: Unselected,
 };
 let filter_debug_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
@@ -2786,7 +2786,7 @@ let filter_debug_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_debug_exp: form = {
   let explanation = {
-    message: "Debug filter expression. The destruction of all constructions within [*body*](%s) that match the [*pattern*](%s) will get skipped.",
+    message: "Debug filter expression. All matched sub-expression within [*body*](%s) that match the [*pattern*](%s) will be stepped through.",
     feedback: Unselected,
   };
   let form = [
