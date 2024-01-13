@@ -105,7 +105,7 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
-let mk_concel = Example.mk_tile(Form.get("filter_concel"));
+let mk_hide = Example.mk_tile(Form.get("filter_hide"));
 let mk_eval = Example.mk_tile(Form.get("filter_eval"));
 let mk_pause = Example.mk_tile(Form.get("filter_pause"));
 let mk_debug = Example.mk_tile(Form.get("filter_debug"));
@@ -2687,17 +2687,10 @@ let case_example_bool = {
 };
 
 let filter_step_group = "filter_step_group";
-let filter_skip_group = "filter_skip_group";
 let filter_step_ex = {
   sub_id: "filter_step_ex",
   term: mk_example("eval $e in\npause $v + $v in\n(1 * 2) + (3 * 4)"),
   message: "The expression (1 * 2) + (3 * 4) is guarded by a pause expression pause $v + $v, which instruct the evaluator to pause the evaluation when it sees a value is added to another value.",
-  feedback: Unselected,
-};
-let filter_skip_ex = {
-  sub_id: "filter_skip_ex",
-  term: mk_example("eval $e + $e in\n1 + 2 + 3 + 4"),
-  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval expression eval $e + $e. The eval expression instruct the evaluator to evaluate the whole expression once the expression is an addition of two other expressions",
   feedback: Unselected,
 };
 let _pat = exp("e_pat");
@@ -2719,6 +2712,14 @@ let filter_step_exp: form = {
     examples: [filter_step_ex],
   };
 };
+
+let filter_skip_group = "filter_skip_group";
+let filter_skip_ex = {
+  sub_id: "filter_skip_ex",
+  term: mk_example("eval $e + $e in\n1 + 2 + 3 + 4"),
+  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval expression eval $e + $e. The eval expression instruct the evaluator to evaluate the whole expression once the expression is an addition of two other expressions",
+  feedback: Unselected,
+};
 let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
   [(Piece.id(_pat), pat_id), (Piece.id(_exp_body), body_id)];
 };
@@ -2738,6 +2739,38 @@ let filter_skip_exp: form = {
     expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [filter_skip_ex],
+  };
+};
+
+let filter_hide_group = "filter_hide_group";
+let filter_hide_ex = {
+  sub_id: "filter_hide_ex",
+  term:
+    mk_example(
+      "pause $e in\nhide let = in in\nlet x = 1 in\nlet y = 2 in\nx + y",
+    ),
+  message: "Evaluation of let-expressions is hidden by the hide filter expression, i.e. the destruction of let-expression is skipped.",
+  feedback: Unselected,
+};
+let filter_hide_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
+  [(Piece.id(_pat), pat_id), (Piece.id(_exp_body), body_id)];
+};
+let filter_hide_exp: form = {
+  let explanation = {
+    message: "Hide filter expression. The destruction of all constructions within [*body*](%s) that match the [*pattern*](%s) will get skipped.",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_hide([[space(), exp("p"), space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: "filter_hide_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(_pat)),
+    explanation,
+    examples: [filter_hide_ex],
   };
 };
 
@@ -3686,6 +3719,7 @@ let init = {
     var_typ_pat,
     filter_step_exp,
     filter_skip_exp,
+    filter_hide_exp,
   ],
   groups: [
     // Expressions
@@ -4102,6 +4136,7 @@ let init = {
     (var_typ_pat_group, init_options([(var_typ_pat.id, [])])),
     (filter_step_group, init_options([(filter_step_exp.id, [exp("p")])])),
     (filter_skip_group, init_options([(filter_skip_exp.id, [exp("p")])])),
+    (filter_hide_group, init_options([(filter_hide_exp.id, [exp("p")])])),
   ],
 };
 

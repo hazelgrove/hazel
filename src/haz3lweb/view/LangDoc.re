@@ -2062,7 +2062,7 @@ let get_doc =
           ),
           LangDocMessages.filter_step_coloring_ids(~pat_id, ~body_id),
         );
-      | Filter((Eval, _), pat, body) =>
+      | Filter((Eval, All), pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_skip_group,
@@ -2080,6 +2080,25 @@ let get_doc =
             pat_id |> Id.to_string,
           ),
           LangDocMessages.filter_skip_coloring_ids(~pat_id, ~body_id),
+        );
+      | Filter((Eval, One), pat, body) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.filter_hide_group,
+            docs,
+          );
+        let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(pat.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.filter_hide_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            body_id |> Id.to_string,
+            pat_id |> Id.to_string,
+          ),
+          LangDocMessages.filter_hide_coloring_ids(~pat_id, ~body_id),
         );
       | Test(body) =>
         let (doc, options) =
