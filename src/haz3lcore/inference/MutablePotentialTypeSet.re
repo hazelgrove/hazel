@@ -35,12 +35,12 @@ let get_combined_error_status_of_classes =
   combine_error_status(err1, err2);
 };
 
-let rec snapshot_class =
-        (mut_potential_typ_set: t, occurs_rep: ITyp.t)
+let rec snapshot_class_wrapper =
+        (mut_potential_typ_set: t, occurs_rep: ITyp.t, parents: list(t))
         : (PotentialTypeSet.t, option(error_status)) => {
   let (typs, err1) = UnionFind.get(mut_potential_typ_set);
   let (potential_typ_set, err2) =
-    snapshot_typs(typs, [mut_potential_typ_set], occurs_rep);
+    snapshot_typs(typs, [mut_potential_typ_set, ...parents], occurs_rep);
   (potential_typ_set, combine_error_status(err1, err2));
 }
 and snapshot_class_from_child =
@@ -51,7 +51,7 @@ and snapshot_class_from_child =
       [occurs_rep |> PotentialTypeSet.ityp_to_potential_typ],
       Some(Occurs),
     )
-    : snapshot_class(mut_potential_typ_set, occurs_rep);
+    : snapshot_class_wrapper(mut_potential_typ_set, occurs_rep, parents);
 }
 and snapshot_typs =
     (mut_pot_typs: mut_pot_typs, parents: list(t), occurs_rep: ITyp.t)
@@ -77,13 +77,13 @@ and snapshot_typ =
     let (potential_typ_set_lhs, err_lhs) =
       snapshot_class_from_child(
         mut_potential_typ_set_lhs,
-        [mut_potential_typ_set_lhs, ...parents],
+        parents,
         occurs_rep,
       );
     let (potential_typ_set_rhs, err_rhs) =
       snapshot_class_from_child(
         mut_potential_typ_set_rhs,
-        [mut_potential_typ_set_rhs, ...parents],
+        parents,
         occurs_rep,
       );
     (
@@ -96,14 +96,13 @@ and snapshot_typ =
     );
   | Unary(ctor, mut_potential_typ_set) =>
     let (potential_typ_set, err) =
-      snapshot_class_from_child(
-        mut_potential_typ_set,
-        [mut_potential_typ_set, ...parents],
-        occurs_rep,
-      );
+      snapshot_class_from_child(mut_potential_typ_set, parents, occurs_rep);
     (PotentialTypeSet.Unary(ctor, potential_typ_set), err);
   };
 };
+
+let snapshot_class = (mut_potential_typ_set: t, occurs_rep: ITyp.t) =>
+  snapshot_class_wrapper(mut_potential_typ_set, occurs_rep, []);
 
 let rec pot_typ_set_to_mut_pot_typ_set =
         (potential_typ_set: PotentialTypeSet.t): t => {

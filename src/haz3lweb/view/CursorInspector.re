@@ -160,41 +160,54 @@ let view_of_global_inference_info =
     )
 
   | SolvedExpHole(id, solution) =>
-    print_endline("Solved exphole");
     div(
       ~attr=clss([infoc, "typ"]),
       [
         text("consistent constraints"),
         suggestion_button_of_typ(~id=Some(id), solution),
       ],
-    );
-  | UnsolvedTypeHole([typ_with_nested_conflict]) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [Type.view(~font_metrics, typ_with_nested_conflict)],
     )
-  | UnsolvedExpHole(_, [typ_with_nested_conflict]) =>
-    print_endline("Solved exphole nested inconsistency");
+  | UnsolvedTypeHole(occurs, [typ_with_nested_conflict]) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
-        text("conflicting constraints"),
+        text(
+          occurs ? "inferred type refers to self" : "conflicting constraints",
+        ),
+        Type.view(~font_metrics, typ_with_nested_conflict),
+      ],
+    )
+  | UnsolvedExpHole(occurs, _, [typ_with_nested_conflict]) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [
+        text(
+          occurs ? "inferred type refers to self" : "conflicting constraints",
+        ),
         suggestion_button_of_typ(typ_with_nested_conflict),
       ],
-    );
-  | UnsolvedTypeHole(conflicting_typs) =>
+    )
+  | UnsolvedTypeHole(occurs, conflicting_typs) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
-        text("conflicting constraints"),
+        text(
+          occurs
+            ? "inferred type may refer to self and contains conflicting constraints"
+            : "conflicting constraints",
+        ),
         ...List.map(suggestion_button_of_typ, conflicting_typs),
       ],
     )
-  | UnsolvedExpHole(id, conflicting_typs) =>
+  | UnsolvedExpHole(occurs, id, conflicting_typs) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
-        text("conflicting constraints"),
+        text(
+          occurs
+            ? "inferred type may refer to self and contains conflicting constraints"
+            : "conflicting constraints",
+        ),
         ...List.map(
              suggestion_button_of_typ(~id=Some(id)),
              conflicting_typs,

@@ -3,10 +3,11 @@ open Haz3lcore;
 
 type cursor_inspector_suggestion =
   | SolvedTypeHole(Typ.t)
-  | UnsolvedTypeHole(list(Typ.t))
+  | UnsolvedTypeHole(occurs_failure, list(Typ.t))
   | SolvedExpHole(Id.t, Typ.t)
-  | UnsolvedExpHole(Id.t, list(Typ.t))
-  | NoSuggestion;
+  | UnsolvedExpHole(occurs_failure, Id.t, list(Typ.t))
+  | NoSuggestion
+and occurs_failure = bool;
 
 let get_suggestion_ui_for_id =
     (
@@ -27,7 +28,7 @@ let get_suggestion_ui_for_id =
           |> ITyp.ityp_to_typ
           |> Type.view(~font_metrics=Some(font_metrics), ~with_cls=false),
         )
-      | Unsolved([potential_typ]) =>
+      | Unsolved(_, [potential_typ]) =>
         let ptyp_node =
           Type.view_of_potential_typ(
             ~font_metrics,
@@ -56,11 +57,14 @@ let svg_display_settings =
   // Determines if a hexagon (svg) should be used to represent a type hole, and if so, how it should look
   let (suggestion, source) =
     InferenceResult.get_suggestion_text_for_id(id, global_inference_info);
+  let failed_occurs =
+    InferenceResult.id_has_failed_occurs(id, global_inference_info);
   switch (source) {
   | ExpHole =>
     switch (suggestion) {
     | Solvable(_)
-    | NestedInconsistency(_) => Some(PromptHole)
+    | NestedInconsistency(_) =>
+      failed_occurs ? Some(ErrorHole) : Some(PromptHole)
     | NoSuggestion(InconsistentSet) => Some(ErrorHole)
     | NoSuggestion(_) => Some(StandardHole)
     }
@@ -84,8 +88,9 @@ let get_cursor_inspect_result =
       switch (Hashtbl.find_opt(global_inference_info.exphole_suggestions, id)) {
       | Some(([id, ..._], exp_hole_status)) =>
         switch (exp_hole_status) {
-        | Unsolved(potential_typ_set) =>
+        | Unsolved(occurs, potential_typ_set) =>
           UnsolvedExpHole(
+            occurs,
             id,
             potential_typ_set
             |> PotentialTypeSet.potential_typ_set_to_ityp_unroll(id)
@@ -97,8 +102,9 @@ let get_cursor_inspect_result =
       }
     | Some(status) =>
       switch (status) {
-      | Unsolved(potential_typ_set) =>
+      | Unsolved(occurs, potential_typ_set) =>
         UnsolvedTypeHole(
+          occurs,
           potential_typ_set
           |> PotentialTypeSet.potential_typ_set_to_ityp_unroll(id)
           |> List.map(ITyp.ityp_to_typ),

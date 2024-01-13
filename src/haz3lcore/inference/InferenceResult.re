@@ -1,6 +1,7 @@
 type status =
   | Solved(ITyp.t)
-  | Unsolved(PotentialTypeSet.t);
+  | Unsolved(occurs_failure, PotentialTypeSet.t)
+and occurs_failure = bool;
 
 type t = (ITyp.t, status);
 
@@ -32,6 +33,18 @@ type suggestion_source =
   | TypHole
   | None;
 
+let id_has_failed_occurs =
+    (id: Id.t, global_inference_info: global_inference_info): bool => {
+  switch (
+    Hashtbl.find_opt(global_inference_info.typehole_suggestions, id),
+    Hashtbl.find_opt(global_inference_info.exphole_suggestions, id),
+  ) {
+  | (Some(Unsolved(true, _)), _) => true
+  | (_, Some((_, Unsolved(true, _)))) => true
+  | _ => false
+  };
+};
+
 let get_suggestion_text_for_id =
     (id: Id.t, global_inference_info: global_inference_info)
     : (suggestion(string), suggestion_source) =>
@@ -42,7 +55,7 @@ let get_suggestion_text_for_id =
       | Solved(ityp) =>
         let typ_to_string = x => Typ.typ_to_string(x, false);
         Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
-      | Unsolved([potential_typ]) =>
+      | Unsolved(_, [potential_typ]) =>
         NestedInconsistency(
           PotentialTypeSet.string_of_potential_typ(false, potential_typ),
         )
@@ -118,7 +131,7 @@ let condense =
     );
 
   switch (err) {
-  | Some(_) => Unsolved(redundant_var_filtered_potential_typ_set)
+  | Some(Occurs) => Unsolved(true, redundant_var_filtered_potential_typ_set)
   | None =>
     let solved_opt =
       PotentialTypeSet.filtered_potential_typ_set_to_typ(
@@ -126,7 +139,7 @@ let condense =
       );
     switch (solved_opt) {
     | Some(typ) => Solved(typ)
-    | None => Unsolved(redundant_var_filtered_potential_typ_set)
+    | None => Unsolved(false, redundant_var_filtered_potential_typ_set)
     };
   };
 };
