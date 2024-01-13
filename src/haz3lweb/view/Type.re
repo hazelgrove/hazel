@@ -24,7 +24,15 @@ let rec view_ty =
         : Node.t => {
   let view_ty' = view_ty(~font_metrics, ~with_cls);
   let parenthesize_if_left_child = (n): Node.t =>
-    (is_left_child ? [Node.text("("), ...n] @ [Node.text(")")] : n) |> span;
+    if (is_left_child) {
+      if (with_cls) {
+        div(~attr=clss(["typ-view"]), [text("("), ...n] @ [text(")")]);
+      } else {
+        span([text("("), ...n] @ [text(")")]);
+      };
+    } else {
+      span(n);
+    };
   let div = (~attr, nodes) => with_cls ? div(~attr, nodes) : span(nodes);
   let ty_view = (cls: string, s: string): Node.t =>
     div(~attr=clss(["typ-view", cls]), [text(s)]);
