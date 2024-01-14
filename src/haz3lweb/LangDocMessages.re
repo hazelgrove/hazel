@@ -2716,8 +2716,8 @@ let filter_step_exp: form = {
 let filter_skip_group = "filter_skip_group";
 let filter_skip_ex = {
   sub_id: "filter_skip_ex",
-  term: mk_example("eval $e + $e in\n1 + 2 + 3 + 4"),
-  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval filter expression eval $e + $e. The eval expression instruct the evaluator to evaluate the whole expression once the expression is an addition of two other expressions. All steps during the evaluation matches the filter, so it will continue to evaluate until we get a value",
+  term: mk_example("eval $e + $e in\n(1 + 2) * (3 + 4)"),
+  message: "The expression 1 + 2 + 3 + 4 is guarded by a eval filter expression eval $e + $e. The eval expression instruct the evaluator to evaluate the every sub-expression that matches the $e + $e pattern. The expression 1 + 2 and 3 + 4 in the example matches the pattern $e + $e, so the evaluator will evaluate these expression and then yields 3 * 7.",
   feedback: Unselected,
 };
 let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
@@ -2725,7 +2725,7 @@ let filter_skip_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_skip_exp: form = {
   let explanation = {
-    message: "Eval Filter expression. The all subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
+    message: "Eval Filter expression. All subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
     feedback: Unselected,
   };
   let form = [
@@ -2749,7 +2749,7 @@ let filter_hide_ex = {
     mk_example(
       "pause $e in\nhide let = in in\nlet x = 1 in\nlet y = 2 in\nx + y",
     ),
-  message: "Evaluation of let-expressions is hidden by the hide filter expression, i.e. the destruction of let-expression is skipped.",
+  message: "pause $e in instruct the evaluator to act like a single-stepper, e.g. stop at every step. The hide filter expression instructs the evaluator to skip over all evaluator steps that destructs perform substitution on a let-expression. Here, the substitution of variable x and y is skipped over and we directly got 1 + 2 in the result area.",
   feedback: Unselected,
 };
 let filter_hide_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
@@ -2757,7 +2757,7 @@ let filter_hide_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
 };
 let filter_hide_exp: form = {
   let explanation = {
-    message: "Hide filter expression. The destruction of all constructions within [*body*](%s) that match the [*pattern*](%s) will get skipped.",
+    message: "Hide filter expression. The destruction of all language constructs (like binary operator + or let .. = .. in) within [*body*](%s) that match the [*pattern*](%s) will get skipped.",
     feedback: Unselected,
   };
   let form = [
@@ -2778,7 +2778,7 @@ let filter_debug_group = "filter_debug_group";
 let filter_debug_ex = {
   sub_id: "filter_debug_ex",
   term: mk_example("eval $e in\ndebug $v + $v + $v in\n1 + 2 + 3"),
-  message: "The debug filter expression debug $v + $v + $v matches 1 + 2 + 3. Therefore, the evaluator will step into the evaluation of the matched sub-expression 1 + 2 + 3.",
+  message: "The debug filter pattern $v + $v + $v matches 1 + 2 + 3, therefore, the evaluator will step into the evaluation of the matched sub-expression 1 + 2 + 3.",
   feedback: Unselected,
 };
 let filter_debug_coloring_ids = (~pat_id: Id.t, ~body_id: Id.t) => {
