@@ -226,7 +226,7 @@ let elements_noun: Term.Cls.t => string =
   | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
-let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
+let common_err_view = (~font_metrics, cls: Term.Cls.t, err: Info.error_common) =>
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -235,25 +235,25 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     }
   | NoType(BadTrivAp(ty)) => [
       text("Function argument type"),
-      Type.view(ty),
+      Type.view(~font_metrics, ty),
       text("inconsistent with"),
-      Type.view(Prod([])),
+      Type.view(~font_metrics, Prod([])),
     ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
-      Type.view(typ),
+      Type.view(~font_metrics, typ),
       text("inconsistent with arrow type"),
     ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),
-      Type.view(syn),
+      Type.view(~font_metrics, syn),
       text("inconsistent with expected type"),
-      Type.view(ana),
+      Type.view(~font_metrics, ana),
     ]
   | Inconsistent(Internal(tys)) => [
       text(elements_noun(cls) ++ " have inconsistent types:"),
-      ...ListUtil.join(text(","), List.map(Type.view, tys)),
+      ...ListUtil.join(text(","), List.map(Type.view(~font_metrics), tys)),
     ]
   };
 
@@ -275,6 +275,7 @@ let common_ok_view =
   | (NoSuggestion(SuggestionsDisabled), _)
   | (NoSuggestion(NotSuggestableHoleId), _)
   | (NoSuggestion(OnlyHoleSolutions), _) =>
+    let font_metrics = Some(font_metrics);
     switch (cls, ok) {
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
@@ -283,35 +284,41 @@ let common_ok_view =
     | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
     | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any expression of type"),
-        Type.view(ana),
+        Type.view(~font_metrics, ana),
       ]
     | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any pattern of type"),
-        Type.view(ana),
+        Type.view(~font_metrics, ana),
       ]
-    | (_, Syn(syn)) => [text(":"), Type.view(syn)]
+    | (_, Syn(syn)) => [text(":"), Type.view(~font_metrics, syn)]
     | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
         text(":"),
-        Type.view(ana),
+        Type.view(~font_metrics, ana),
       ]
     | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
         text(":"),
-        Type.view(syn),
+        Type.view(~font_metrics, syn),
         text("equals expected type"),
       ]
     | (_, Ana(Consistent({ana, syn, _}))) => [
         text(":"),
-        Type.view(syn),
+        Type.view(~font_metrics, syn),
         text("consistent with expected type"),
-        Type.view(ana),
+        Type.view(~font_metrics, ana),
       ]
     | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(Type.view, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(Type.view(~font_metrics), tys),
+           ),
       ]
-      @ [text("but consistent with expected"), Type.view(ana)]
-    }
+      @ [
+        text("but consistent with expected"),
+        Type.view(~font_metrics, ana),
+      ]
+    };
   | _ => [
       view_of_global_inference_info(
         ~inject,
@@ -342,7 +349,9 @@ let typ_ok_view =
     ) {
     | (NoSuggestion(SuggestionsDisabled), _)
     | (NoSuggestion(NotSuggestableHoleId), _)
-    | (NoSuggestion(OnlyHoleSolutions), _) => [Type.view(ty)]
+    | (NoSuggestion(OnlyHoleSolutions), _) => [
+        Type.view(~font_metrics=Some(font_metrics), ty),
+      ]
     | _ => [
         view_of_global_inference_info(
           ~inject,
@@ -357,17 +366,22 @@ let typ_ok_view =
   //| Type(ty) => [Type.view(ty)]
   //TODO(andrew): how do these interact with THI?
   | TypeAlias(name, ty_lookup) => [
-      Type.view(Var(name)),
+      Type.view(~font_metrics=Some(font_metrics), Var(name)),
       text("is an alias for"),
-      Type.view(ty_lookup),
+      Type.view(~font_metrics=Some(font_metrics), ty_lookup),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
+  | Variant(name, _sum_ty) => [
+      Type.view(~font_metrics=Some(font_metrics), Var(name)),
+    ]
   | VariantIncomplete(_sum_ty) => [text("is incomplete")]
   };
 
-let typ_err_view = (ok: Info.error_typ) =>
+let typ_err_view = (ok: Info.error_typ, ~font_metrics) =>
   switch (ok) {
-  | FreeTypeVariable(name) => [Type.view(Var(name)), text("not found")]
+  | FreeTypeVariable(name) => [
+      Type.view(~font_metrics, Var(name)),
+      text("not found"),
+    ]
   | BadToken(token) => [
       code_err(token),
       text("not a type or type operator"),
@@ -376,7 +390,7 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      Type.view(Var(name)),
+      Type.view(~font_metrics, Var(name)),
       text("already used in this sum"),
     ]
   };
@@ -393,7 +407,8 @@ let exp_view =
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
-  | InHole(Common(error)) => div_err(common_err_view(cls, error))
+  | InHole(Common(error)) =>
+    div_err(common_err_view(~font_metrics=Some(font_metrics), cls, error))
   | NotInHole(ok) =>
     div_ok(
       common_ok_view(
@@ -418,7 +433,8 @@ let pat_view =
     ) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
-  | InHole(Common(error)) => div_err(common_err_view(cls, error))
+  | InHole(Common(error)) =>
+    div_err(common_err_view(~font_metrics=Some(font_metrics), cls, error))
   | NotInHole(ok) =>
     div_ok(
       common_ok_view(
@@ -453,10 +469,11 @@ let typ_view =
         ok,
       ),
     )
-  | InHole(err) => div_err(typ_err_view(err))
+  | InHole(err) =>
+    div_err(typ_err_view(~font_metrics=Some(font_metrics), err))
   };
 
-let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
+let tpat_view = (_: Term.Cls.t, status: Info.status_tpat, ~font_metrics) =>
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([Type.alias_view(name)])
@@ -464,9 +481,15 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
   | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
-    div_err([text("Can't shadow base type"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow base type"),
+      Type.view(~font_metrics, Var(name)),
+    ])
   | InHole(ShadowsType(name)) =>
-    div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow existing alias"),
+      Type.view(~font_metrics, Var(name)),
+    ])
   };
 
 let view_of_info =
@@ -519,7 +542,8 @@ let view_of_info =
         status,
       ),
     )
-  | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
+  | InfoTPat({cls, status, _}) =>
+    wrapper(tpat_view(cls, status, ~font_metrics=Some(font_metrics)))
   };
 };
 

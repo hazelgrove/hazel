@@ -55,7 +55,7 @@ let rec view_ty =
           ),
         ],
       )
-    | _ => div(~attr=clss(["typ-view", "atom", "unknown"]), [text("")])
+    | _ => div(~attr=clss(["typ-view", "atom", "unknown"]), [text("?")])
     }
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
