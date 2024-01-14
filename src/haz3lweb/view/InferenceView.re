@@ -28,7 +28,7 @@ let get_suggestion_ui_for_id =
           |> ITyp.ityp_to_typ
           |> Type.view(~font_metrics=Some(font_metrics), ~with_cls=false),
         )
-      | Unsolved(_, [potential_typ]) =>
+      | Unsolved(occurs, [potential_typ]) =>
         let ptyp_node =
           Type.view_of_potential_typ(
             ~font_metrics,
@@ -36,7 +36,7 @@ let get_suggestion_ui_for_id =
             false,
             potential_typ,
           );
-        NestedInconsistency(ptyp_node);
+        occurs ? NoSuggestion(OccursFailed) : NestedInconsistency(ptyp_node);
       | Unsolved(_) => NoSuggestion(InconsistentSet)
       };
     switch (Hashtbl.find_opt(global_inference_info.typehole_suggestions, id)) {
@@ -65,6 +65,7 @@ let svg_display_settings =
     | Solvable(_)
     | NestedInconsistency(_) =>
       failed_occurs ? Some(ErrorHole) : Some(PromptHole)
+    | NoSuggestion(OccursFailed)
     | NoSuggestion(InconsistentSet) => Some(ErrorHole)
     | NoSuggestion(_) => Some(StandardHole)
     }
@@ -73,6 +74,7 @@ let svg_display_settings =
     switch (suggestion) {
     | Solvable(_)
     | NestedInconsistency(_) => None
+    | NoSuggestion(OccursFailed)
     | NoSuggestion(InconsistentSet) => Some(ErrorHole)
     | NoSuggestion(_) => Some(StandardHole)
     }
@@ -115,3 +117,44 @@ let get_cursor_inspect_result =
   } else {
     NoSuggestion;
   };
+
+let acceptSuggestionIfAvailable =
+    (global_inference_info, zipper, defaultAction) => {
+  open Util;
+  let suggestion_of_direction = (dir: Direction.t) => {
+    open Util.OptUtil.Syntax;
+    let dir_to_tup_projector = dir == Left ? fst : snd;
+    let+ p =
+      zipper
+      |> Zipper.sibs_with_sel
+      |> Siblings.neighbors
+      |> dir_to_tup_projector;
+    InferenceResult.get_suggestion_text_for_id(
+      Piece.id(p),
+      global_inference_info,
+    );
+  };
+  let (sugg_l_opt, sugg_r_opt) = (
+    suggestion_of_direction(Left),
+    suggestion_of_direction(Right),
+  );
+  let suggestion_opt =
+    switch (sugg_l_opt) {
+    | Some((NoSuggestion(_), _))
+    | None => sugg_r_opt
+    | _ => sugg_l_opt
+    };
+  switch (suggestion_opt) {
+  | Some((Solvable(typ_filling), TypHole))
+  | Some((NestedInconsistency(typ_filling), TypHole)) =>
+    // question marks (holes) can't be inserted manually, so filter them out
+    let join = List.fold_left((s, acc) => s ++ acc, "");
+    let no_hole_marks =
+      typ_filling
+      |> StringUtil.to_list
+      |> List.filter(s => s != "?" && s != "!")
+      |> join;
+    Some(UpdateAction.Paste(no_hole_marks));
+  | _ => defaultAction
+  };
+};

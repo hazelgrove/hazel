@@ -26,6 +26,7 @@ and reason_for_silence =
   | SuggestionsDisabled
   | NotSuggestableHoleId
   | OnlyHoleSolutions
+  | OccursFailed
   | InconsistentSet;
 
 type suggestion_source =
@@ -55,10 +56,12 @@ let get_suggestion_text_for_id =
       | Solved(ityp) =>
         let typ_to_string = x => Typ.typ_to_string(x, false);
         Solvable(ityp |> ITyp.ityp_to_typ |> typ_to_string);
-      | Unsolved(_, [potential_typ]) =>
-        NestedInconsistency(
-          PotentialTypeSet.string_of_potential_typ(false, potential_typ),
-        )
+      | Unsolved(occurs, [potential_typ]) =>
+        occurs
+          ? NoSuggestion(OccursFailed)
+          : NestedInconsistency(
+              PotentialTypeSet.string_of_potential_typ(false, potential_typ),
+            )
       | Unsolved(_) => NoSuggestion(InconsistentSet)
       };
     switch (Hashtbl.find_opt(global_inference_info.typehole_suggestions, id)) {

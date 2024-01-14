@@ -389,7 +389,12 @@ and uexp_to_info_map =
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
-      ~constraints=match_constraints @ e.constraints @ p.constraints,
+      ~constraints=
+        match_constraints
+        @ subsumption_constraints(Just(Arrow(p.ty, e.ty)))
+        @ e.constraints
+        @ p.constraints
+        @ p'.constraints,
       m,
     );
   | Let(p, def, body) =>
@@ -852,6 +857,9 @@ let mk_map_and_inference_solutions =
           e,
           Id.Map.empty,
         );
+
+      print_endline("~~~Printing constraints:");
+      info.constraints |> Typ.constraints_to_string |> print_endline;
 
       let pts_graph = Inference.solve_constraints(info.constraints);
       let solutions = InferenceResult.get_desired_solutions(pts_graph);

@@ -65,6 +65,7 @@ let of_grout =
   | (NestedInconsistency(_), ExpHole) => [
       [Node.text("?")] |> span_c("prompt-ci"),
     ]
+  | (NoSuggestion(OccursFailed), _)
   | (NoSuggestion(InconsistentSet), _) => [
       [Node.text("!")] |> span_c("unsolved-annotation"),
     ]

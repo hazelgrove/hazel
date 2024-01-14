@@ -1,5 +1,4 @@
 open Haz3lcore;
-open Util;
 
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
@@ -14,6 +13,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
       model.settings.core.inference,
       suggestions,
     );
+  let acceptSuggestionIfAvailable =
+    InferenceView.acceptSuggestionIfAvailable(global_inference_info, zipper);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
   switch (k) {
@@ -43,30 +44,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "Tab") =>
-      let suggestion_opt = {
-        open Util.OptUtil.Syntax;
-        let+ (p, _) = Zipper.representative_piece(zipper);
-        InferenceResult.get_suggestion_text_for_id(
-          Piece.id(p),
-          global_inference_info,
-        );
-      };
-      switch (suggestion_opt) {
-      | Some((Solvable(typ_filling), TypHole))
-      | Some((NestedInconsistency(typ_filling), TypHole)) =>
-        // question marks (holes) can't be inserted manually, so filter them out
-        let join = List.fold_left((s, acc) => s ++ acc, "");
-        let no_hole_marks =
-          typ_filling
-          |> StringUtil.to_list
-          |> List.filter(s => s != "?" && s != "!")
-          |> join;
-        Some(UpdateAction.Paste(no_hole_marks));
-      | _ => Some(DoTheThing)
-      };
+    | (Up, "Tab") => acceptSuggestionIfAvailable(Some(DoTheThing))
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar, Left))
-    | (Down, "Tab") => Some(MoveToNextHole(Left))
+    | (Down, "Tab") =>
+      acceptSuggestionIfAvailable(Some(MoveToNextHole(Left)))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
