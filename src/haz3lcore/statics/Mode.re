@@ -96,7 +96,7 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
 
 let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
   switch (ctr_ana_typ(ctx, mode, ctr)) {
-  | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
+  | Some(ty_ana) => Some(Ana(ty_ana))
   | _ => None
   };
 
