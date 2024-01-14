@@ -1,7 +1,29 @@
+open Util;
+
 module Step = Molded.Label;
-module Stride = Molded.Bounds;
+module Stride = {
+  type t =
+    | Eq(Bound.t(Molded.Sort.t))
+    | Neq(Bound.t(Molded.Sort.t), Molded.Sort.t);
+  let is_eq =
+    fun
+    | Eq(_) => true
+    | Neq(_) => false;
+  let base =
+    fun
+    | Eq(s) => s
+    | Neq(_, s) => Node(s);
+};
 module Walk = {
   type t = Chain.t(Stride.t, Step.t);
+  let is_eq = (~prime=false, w) => List.for_all(Stride.is_eq, Chain.loops(w));
+  let is_neq = (~prime=false, w) => !is_eq(w);
+  let bound = (bound: Bound.t(Molded.Sort.t)) =>
+    Chain.map_fst(
+      fun
+      | Stride.Eq(Node(sort)) => Stride.Neq(bound, sort)
+      | s => s,
+    );
 };
 module End = {
   include Bound;
@@ -16,6 +38,9 @@ module End = {
 module Index = {
   include End.Map;
   type t = End.Map.t(list(Walk.t));
+  let find = (_, _) => failwith("todo");
+  let union = union((_, l, r) => Some(l @ r));
+  let union_all = List.fold_left(union, empty);
 };
 
 let expect_lbl =
@@ -91,7 +116,7 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
       |> List.map(s => Index.union(stride_over(~from, s), go(s)))
       |> Index.union_all;
     };
-  let stepped =
+  let entered =
     switch (sort) {
     | Node(s) => go(s)
     | Root =>
@@ -100,7 +125,7 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
       |> List.map(s => Index.union(stride_over(~from, s), go(s)))
       |> Index.union_all;
     };
-  Index.map(Walk.bound(~from, sort), stepped);
+  Index.map(Walk.bound(sort), entered);
 };
 
 let step = (~from: Dir.t, src: End.t) =>
@@ -115,7 +140,7 @@ let step = (~from: Dir.t, src: End.t) =>
            Molded.{
              mtrl: msrt,
              mold: {
-               ...mold,
+               ...lbl.mold,
                rctx,
              },
            };
@@ -124,7 +149,7 @@ let step = (~from: Dir.t, src: End.t) =>
     |> List.concat_map(sort => {
          let into = stride_into(~from, sort);
          let over =
-           Bound.is_node(sort)
+           Bound.to_option(sort)
            |> Option.map(stride_over(~from))
            |> Option.value(~default=Index.empty);
          [over, into];
@@ -154,3 +179,17 @@ let walk = (~from: Dir.t, src: End.t) => {
     };
   go(src);
 };
+
+let walk = (~from: Dir.t, src: End.t, dst: End.t): list(Walk.t) => {
+  let (src, dst) = (Wald.hd(src), Wald.hd(dst));
+  walk(~from, src) |> Index.find(dst);
+};
+let walk_eq = (~from, src, dst) =>
+  List.filter(Walk.is_eq, walk(~from, src, dst));
+let walk_neq = (~from, src, dst) =>
+  List.filter(Walk.is_neq, walk(~from, src, dst));
+
+let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);
+
+let enter = (~from: Dir.t, sort: Molded.Sort.Bound.t, dst: End.t) =>
+  Index.find(dst, stride_into(~from, sort));

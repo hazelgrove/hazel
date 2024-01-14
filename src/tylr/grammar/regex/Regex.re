@@ -10,7 +10,7 @@ type t('a) =
 and s('a) = list(t('a));
 
 let atom = a => Atom(a);
-
+let star = r => Star(r);
 let seq = rs => Seq(rs);
 let alt = rs => Alt(rs);
 

@@ -1,16 +1,20 @@
 open Sexplib.Std;
 open Util;
 
+module Cell = {
+  type t('sort, 'meld) = {
+    marks: Path.Marks.t,
+    sort: 'sort,
+    meld: option('meld),
+  };
+};
+
 module Base = {
   type t =
     | M(cell, wald, cell)
   and wald =
     | W(Chain.t(Token.t, cell))
-  and cell = {
-    marks: Path.Marks.t,
-    bounds: Molded.Bounds.t,
-    meld: option(t),
-  };
+  and cell = Cell.t(Bound.t(Molded.Sort.t), t);
 };
 include Base;
 

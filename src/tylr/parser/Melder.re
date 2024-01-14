@@ -1,14 +1,102 @@
 open Util;
 
-module Wald = {
-  let walk = (~from, src, dst) => {
-    let (src, dst) = (Wald.hd(src), Wald.hd(dst));
-    Walker.walk(~from, Node(src)) |> Walker.Index.find(dst);
+module Walk = Walker.Walk;
+
+let lt_prime = (sort: Bound.t(Molded.Sort.t), m: Meld.t) =>
+  Walker.stride_into(~from=L, sort)
+  |> Walker.Index.find(Bound.Node(fst(Meld.ends(l))))
+  |> List.exists(Walk.is_neq(~prime=true));
+
+let fill = (m: Meld.t, bounds) =>
+  switch (bounds) {
+  | Eq(sort) =>
+    let l =
+      lt_prime(sort, m)
+      ? Some(false)
+      : tile_sort(sort)
+        |> Option.map(s => lt_prime(Node(Molded.Sort.grout(s)), m));
+    let r =
+      gt_prime(m, sort)
+      ? Some(false)
+      : tile_sort(sort)
+        |> Option.map(s => gt_prime(m, Node(Molded.Sort.grout(s))));
+    let meld = Meld.wrap(~sort)
   };
 
+
+let fill = (m: Meld.t, bounds) => {
+  let (l, r) =  Meld.ends(l, r);
+  switch (bounds) {
+  | Eq(sort) =>
+    let ent_l = Walker.enter(~from=L, sort, l);
+    let ent_r = Walker.enter(~from=R, sort, r);
+    switch (ent_l, ent_r) {
+    | ([], _)
+    | (_, []) =>
+      open OptUtil.Syntax;
+      let* s =
+        switch (sort) {
+        | Root => Some(Sort.root)
+        | Node({mtrl: Tile(s), _}) => Some(s)
+        | Node({mtrl: Grout(_) | Space, _}) => None
+        };
+      let+ l =
+        switch (ent_l, Walker.enter_grout(~from=L, s, l)) {
+        | ([_, ..._], _) => Some(false)
+        | ([], [_, ..._]) => Some(true)
+        | ([], []) => None
+        }
+      and+ r =
+        switch (ent_r, Walker.enter_grout(~from=R, s, r)) {
+        | ([_, ..._], _) => Some(false)
+        | ([], [_, ..._]) => Some(true)
+        | ([], []) => None
+        };
+      let meld = Meld.wrap_grout(~sort=s, ~l, m, ~r);
+      Cell.mk(~meld, sort);
+    | ([_, ..._], [_, ..._]) =>
+
+    }
+  }
+};
+
+module Eq = {
+  let walk = (~from, src, dst) => {
+    let (src, dst) = (Wald.hd(src), Wald.hd(dst));
+    Walker.walk_eq(~from, Node(src), Node(dst));
+  };
+
+  let bake = (~src: Wald.t, ~fill=[], ~dst: Wald.t, w: Walk.t): option(Wald.t) => {
+
+  };
+
+  let eq =
+      (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t): option(Wald.t) => {
+    let (src, dst) = Dir.choose(from, l, r);
+    let rec go = (~init=false, src, fill) => {
+      open OptUtil.Syntax;
+      let/ () =
+        // try removing ghost
+        switch (Wald.unlink(src)) {
+        | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
+          let fill = Option.to_list(cell.content) @ fill;
+          go(tl, fill) |> Effects.perform_if(Remove(hd));
+        | _ => None
+        };
+      walk(~from, src, dst)
+      |> Oblig.Delta.minimize(bake(~src, ~fill, ~dst));
+    };
+    go(~init=true, src, Dir.choose(from, fill, List.rev(fill)));
+  };
+}
+
+module Wald = {
+  let hd = Bound.map(Wald.hd);
+
+
   let meld =
-      (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t)
-      : option(Chain.t(Cell.t, Token.t)) => {
+      (~from: Dir.t, l: Wald.Bound.t, ~fill=[], r: Wald.Bound.t)
+      : option(Chain.t(Chain.t(Cell.t, Token.t), unit)) => {
     let (src, dst) = Dir.choose(from, l, r);
     let fill = Dir.choose(from, fill, List.rev(fill));
     let rec go = (~init=false, src, fill) => {
@@ -32,7 +120,18 @@ module Wald = {
 
 module Slope = {
   module Dn = {
-    let rec push = ();
+    let rec push =
+        (~top=Bound.Root, dn: Slope.Dn.t, ~fill=?, w: Wald.t)
+        : Result.t(Slope.Dn.t, option(Meld.t)) =>
+      switch (dn) {
+      | [] => Wald.walk_eq(~from, top, Node(w))
+      | [hd, ...tl] =>
+        switch (
+          Wald.meld(~from=L, Node(hd.wald), ~fill=Option.to_list(fill), Node(w))
+        ) {
+        | Some(lvls) =>
+        }
+      };
   };
 };
 
