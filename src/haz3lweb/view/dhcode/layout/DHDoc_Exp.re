@@ -61,6 +61,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
+  | IfThenElse(_)
   | Closure(_)
   | BuiltinFun(_)
   | Filter(_) => DHDoc_common.precedence_const
@@ -155,6 +156,7 @@ let mk =
         | (CompleteClosure, _)
         | (CompleteFilter, _)
         | (Cast, _)
+        | (Conditional(_), _)
         | (Skip, _) => []
         }
       | _ => recent_subst
@@ -482,6 +484,82 @@ let mk =
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
 
+      | IfThenElse(_, c, d1, d2) =>
+        let c_doc = go_formattable(c, IfThenElse1);
+        let d1_doc = go_formattable(d1, IfThenElse2);
+        let d2_doc = go_formattable(d2, IfThenElse3);
+        hcats([
+          DHDoc_common.Delim.mk("("),
+          DHDoc_common.Delim.mk("if"),
+          c_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline=false,
+             ),
+          DHDoc_common.Delim.mk("then"),
+          d1_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline=false,
+             ),
+          DHDoc_common.Delim.mk("else"),
+          d2_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), empty()),
+               ~enforce_inline=false,
+             ),
+          DHDoc_common.Delim.mk(")"),
+        ]);
+      | Fun(dp, ty, Closure(env', d), s) =>
+        print_endline(DHExp.show(d));
+        if (settings.show_fn_bodies) {
+          let bindings = DHPat.bound_vars(dp);
+          let body_doc =
+            go_formattable(
+              Closure(
+                ClosureEnvironment.without_keys(Option.to_list(s), env'),
+                d,
+              ),
+              ~env=
+                ClosureEnvironment.without_keys(
+                  DHPat.bound_vars(dp) @ Option.to_list(s),
+                  env,
+                ),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
+              Fun,
+            );
+          hcats(
+            [
+              DHDoc_common.Delim.sym_Fun,
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+            ]
+            @ (
+              settings.show_casts
+                ? [
+                  DHDoc_common.Delim.colon_Fun,
+                  space(),
+                  DHDoc_Typ.mk(~enforce_inline=true, ty),
+                  space(),
+                ]
+                : []
+            )
+            @ [
+              DHDoc_common.Delim.arrow_Fun,
+              space(),
+              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+            ],
+          );
+        } else {
+          switch (s) {
+          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
+          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
+          };
+        };
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
@@ -489,7 +567,10 @@ let mk =
             go_formattable(
               dbody,
               ~env=
-                ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+                ClosureEnvironment.without_keys(
+                  DHPat.bound_vars(dp) @ Option.to_list(s),
+                  env,
+                ),
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               Fun,

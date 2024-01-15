@@ -23,6 +23,9 @@ type cls =
   | BinFloatOp2
   | BinStringOp1
   | BinStringOp2
+  | IfThenElse1
+  | IfThenElse2
+  | IfThenElse3
   | Tuple(int)
   | ListLit(int)
   | ApBuiltin
@@ -57,6 +60,9 @@ type t =
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
+  | IfThenElse1(bool, t, DHExp.t, DHExp.t)
+  | IfThenElse2(bool, DHExp.t, t, DHExp.t)
+  | IfThenElse3(bool, DHExp.t, DHExp.t, t)
   | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
   | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
   | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
@@ -122,6 +128,9 @@ let rec fuzzy_mark =
   | FixF(_)
   | Ap1(_)
   | Ap2(_)
+  | IfThenElse1(_)
+  | IfThenElse2(_)
+  | IfThenElse3(_)
   | BinBoolOp1(_)
   | BinBoolOp2(_)
   | BinIntOp1(_)
@@ -174,6 +183,9 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (BinFloatOp2, BinFloatOp2(_, _, c))
   | (BinStringOp1, BinStringOp1(_, c, _))
   | (BinStringOp2, BinStringOp2(_, _, c))
+  | (IfThenElse1, IfThenElse1(_, c, _, _))
+  | (IfThenElse2, IfThenElse2(_, _, c, _))
+  | (IfThenElse3, IfThenElse3(_, _, _, c))
   | (Cons1, Cons1(c, _))
   | (Cons2, Cons2(_, c))
   | (ListConcat1, ListConcat1(c, _))
@@ -204,6 +216,12 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (FailedCast, FailedCast(c, _, _)) => Some(c)
   | (Ap1, Ap2(_, _))
   | (Ap2, Ap1(_, _))
+  | (IfThenElse1, IfThenElse2(_))
+  | (IfThenElse1, IfThenElse3(_))
+  | (IfThenElse2, IfThenElse1(_))
+  | (IfThenElse2, IfThenElse3(_))
+  | (IfThenElse3, IfThenElse1(_))
+  | (IfThenElse3, IfThenElse2(_))
   | (Let1, Let2(_))
   | (Let2, Let1(_))
   | (BinBoolOp1, BinBoolOp2(_))
