@@ -61,25 +61,26 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
-  | Fun(_)
   | Closure(_)
   | BuiltinFun(_)
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
-  | Let(_)
-  | FixF(_)
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max
-  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
-  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
-  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
-  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | Fun(_) => DHDoc_common.precedence_max
+  | Let(_)
+  | FixF(_)
+  | ConsistentCase(_)
+  | InconsistentBranches(_) => DHDoc_common.precedence_max
+
+  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
+  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
+  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
+  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
@@ -493,47 +494,64 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               Fun,
             );
-          hcats([
-            DHDoc_common.Delim.sym_Fun,
-            DHDoc_Pat.mk(dp)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline,
-               ),
-            DHDoc_common.Delim.colon_Fun,
-            space(),
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            space(),
-            DHDoc_common.Delim.open_Fun,
-            body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Fun,
-          ]);
+          hcats(
+            [
+              DHDoc_common.Delim.sym_Fun,
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+            ]
+            @ (
+              settings.show_casts
+                ? [
+                  DHDoc_common.Delim.colon_Fun,
+                  space(),
+                  DHDoc_Typ.mk(~enforce_inline=true, ty),
+                  space(),
+                ]
+                : []
+            )
+            @ [
+              DHDoc_common.Delim.arrow_Fun,
+              space(),
+              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+            ],
+          );
         } else {
           switch (s) {
           | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(x, ty, dbody) when settings.show_fn_bodies =>
+      | FixF(x, ty, dbody) when settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
             ~env=ClosureEnvironment.without_keys([x], env),
             FixF,
           );
-        hcats([
-          DHDoc_common.Delim.fix_FixF,
-          space(),
-          text(x),
-          DHDoc_common.Delim.colon_FixF,
-          DHDoc_Typ.mk(~enforce_inline=true, ty),
-          DHDoc_common.Delim.open_FixF,
-          doc_body |> DHDoc_common.pad_child(~enforce_inline),
-          DHDoc_common.Delim.close_FixF,
-        ]);
-      | FixF(_, _, Fun(_, _, _, Some(name))) =>
-        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
-      | FixF(_) => annot(DHAnnot.Collapsed, text("<fn>"))
+        hcats(
+          [DHDoc_common.Delim.fix_FixF, space(), text(x)]
+          @ (
+            settings.show_casts
+              ? [
+                DHDoc_common.Delim.colon_Fun,
+                space(),
+                DHDoc_Typ.mk(~enforce_inline=true, ty),
+                space(),
+              ]
+              : []
+          )
+          @ [
+            DHDoc_common.Delim.arrow_FixF,
+            space(),
+            doc_body |> DHDoc_common.pad_child(~enforce_inline),
+          ],
+        );
+      | FixF(x, _, d) =>
+        go'(~env=ClosureEnvironment.without_keys([x], env), d, FixF)
       };
     };
     let steppable =
