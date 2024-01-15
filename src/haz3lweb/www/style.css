@@ -540,6 +540,7 @@ select {
 .editor.single {
   width: fit-content;
   padding: 2em 0em 4em 2em;
+  flex-direction: column;
 }
 
 #mousedown-overlay {
@@ -2074,4 +2075,8 @@ svg.expandable path {
 .settings-modal .icon.disabled:hover svg {
   transform: scale(100%);
   cursor: not-allowed;
+}
+.slide-img {
+  border-radius: 0.4em;
+  margin-bottom: 1em;
 }
