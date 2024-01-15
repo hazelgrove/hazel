@@ -16,7 +16,8 @@ module Stride = {
 };
 module Walk = {
   type t = Chain.t(Stride.t, Step.t);
-  let is_eq = (~prime=false, w) => List.for_all(Stride.is_eq, Chain.loops(w));
+  let is_eq = (~prime=false, w) =>
+    List.for_all(Stride.is_eq, Chain.loops(w));
   let is_neq = (~prime=false, w) => !is_eq(w);
   let bound = (bound: Bound.t(Molded.Sort.t)) =>
     Chain.map_fst(
@@ -179,15 +180,26 @@ let walk = (~from: Dir.t, src: End.t) => {
     };
   go(src);
 };
-
-let walk = (~from: Dir.t, src: End.t, dst: End.t): list(Walk.t) => {
-  let (src, dst) = (Wald.hd(src), Wald.hd(dst));
-  walk(~from, src) |> Index.find(dst);
+let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) => {
+  open Index.Syntax;
+  let* (src_mid, mid) = stride_into(~from, sort);
+  switch (mid) {
+  | Root => Index.empty
+  | Node(mid) =>
+    let* (mid_dst, dst) = go(Node(mid));
+    return(Walk.append(src_mid, mid, mid_dst), dst);
+  };
 };
+
+let walk = (~from: Dir.t, src: End.t, dst: End.t): list(Walk.t) =>
+  walk(~from, src) |> Index.find(dst);
 let walk_eq = (~from, src, dst) =>
   List.filter(Walk.is_eq, walk(~from, src, dst));
 let walk_neq = (~from, src, dst) =>
   List.filter(Walk.is_neq, walk(~from, src, dst));
+
+let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t), dst: End.t) =>
+  walk_into(~from, sort) |> Index.find(dst);
 
 let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);
 

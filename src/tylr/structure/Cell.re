@@ -2,7 +2,6 @@ include Meld.Cell;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('sort) = Meld.Cell.t('sort, Meld.t);
 
-
 let mk = (~marks=Path.Marks.empty, ~meld=?, sort) => {
   let _ = failwith("todo: lift marks from meld");
   {marks, sort, meld};

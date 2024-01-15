@@ -2,30 +2,56 @@ open Util;
 
 module Walk = Walker.Walk;
 
-let lt_prime = (sort: Bound.t(Molded.Sort.t), m: Meld.t) =>
-  Walker.stride_into(~from=L, sort)
-  |> Walker.Index.find(Bound.Node(fst(Meld.ends(l))))
-  |> List.exists(Walk.is_neq(~prime=true));
+let fill_eq = (fill: list(Meld.t), sort: Bound.t(Molded.Sort.t)) => {
+  open OptUtil.Syntax;
+  let (l, r) =
+    switch (fill) {
+    | [] => Molded.Label.(space, space)
+    | [_, ..._] =>
+      Meld.(face(L, List.hd(fill)), face(R, ListUtil.last(fill)))
+    };
+  let+ w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, sort, Node(l)))
+  and+ w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, sort, Node(r)));
+  let (h_l, h_r) = (Walk.height(w_l) > 2, Walk.height(w_r) > 2);
+  let (i_l, i_r) = Walk.(intermediates(w_l) > 0, intermediates(w_r) > 0);
+  Cell.fill(~req=i_l || i_r, ~l=h_l, ~r=h_r, fill, sort);
+};
+
+let fill_lt = (m: Meld.t, bound: Bound.t(Molded.Sort.t), sort: Molded.Sort.t) => {
+  open OptUtil.Syntax;
+  let (l, r) = Meld.faces(m);
+  let+ _w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, bound, l))
+  and+ w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, Node(sort), r));
+  Meld.grout(~fill, ~r=Walk.height(w_r) > 2, sort);
+};
+
+let fill_gt = (m: Meld.t, sort: Molded.Sort.t, bound: Bound.t(Molded.Sort.t)) => {
+  open OptUtil.Syntax;
+  let (l, r) = Meld.faces(m);
+  let+ w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, Node(sort), l))
+  and+ _w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, bound, r));
+  Meld.grout(~l=Walk.height(w_l) > 2, m, sort);
+};
 
 let fill = (m: Meld.t, bounds) =>
   switch (bounds) {
   | Eq(sort) =>
     let l =
       lt_prime(sort, m)
-      ? Some(false)
-      : tile_sort(sort)
-        |> Option.map(s => lt_prime(Node(Molded.Sort.grout(s)), m));
+        ? Some(false)
+        : tile_sort(sort)
+          |> Option.map(s => lt_prime(Node(Molded.Sort.grout(s)), m));
     let r =
       gt_prime(m, sort)
-      ? Some(false)
-      : tile_sort(sort)
-        |> Option.map(s => gt_prime(m, Node(Molded.Sort.grout(s))));
-    let meld = Meld.wrap(~sort)
+        ? Some(false)
+        : tile_sort(sort)
+          |> Option.map(s => gt_prime(m, Node(Molded.Sort.grout(s))));
+    let meld = Meld.wrap(~sort);
+    ();
   };
 
-
 let fill = (m: Meld.t, bounds) => {
-  let (l, r) =  Meld.ends(l, r);
+  let (l, r) = Meld.ends(l, r);
   switch (bounds) {
   | Eq(sort) =>
     let ent_l = Walker.enter(~from=L, sort, l);
@@ -54,10 +80,9 @@ let fill = (m: Meld.t, bounds) => {
         };
       let meld = Meld.wrap_grout(~sort=s, ~l, m, ~r);
       Cell.mk(~meld, sort);
-    | ([_, ..._], [_, ..._]) =>
-
-    }
-  }
+    | ([_, ..._], [_, ..._]) => failwith("todo")
+    };
+  };
 };
 
 module Eq = {
@@ -66,12 +91,10 @@ module Eq = {
     Walker.walk_eq(~from, Node(src), Node(dst));
   };
 
-  let bake = (~src: Wald.t, ~fill=[], ~dst: Wald.t, w: Walk.t): option(Wald.t) => {
+  let bake =
+      (~src: Wald.t, ~fill=[], ~dst: Wald.t, w: Walk.t): option(Wald.t) => {};
 
-  };
-
-  let eq =
-      (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t): option(Wald.t) => {
+  let eq = (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t): option(Wald.t) => {
     let (src, dst) = Dir.choose(from, l, r);
     let rec go = (~init=false, src, fill) => {
       open OptUtil.Syntax;
@@ -83,16 +106,14 @@ module Eq = {
           go(tl, fill) |> Effects.perform_if(Remove(hd));
         | _ => None
         };
-      walk(~from, src, dst)
-      |> Oblig.Delta.minimize(bake(~src, ~fill, ~dst));
+      walk(~from, src, dst) |> Oblig.Delta.minimize(bake(~src, ~fill, ~dst));
     };
     go(~init=true, src, Dir.choose(from, fill, List.rev(fill)));
   };
-}
+};
 
 module Wald = {
   let hd = Bound.map(Wald.hd);
-
 
   let meld =
       (~from: Dir.t, l: Wald.Bound.t, ~fill=[], r: Wald.Bound.t)
@@ -121,15 +142,20 @@ module Wald = {
 module Slope = {
   module Dn = {
     let rec push =
-        (~top=Bound.Root, dn: Slope.Dn.t, ~fill=?, w: Wald.t)
-        : Result.t(Slope.Dn.t, option(Meld.t)) =>
+            (~top=Bound.Root, dn: Slope.Dn.t, ~fill=?, w: Wald.t)
+            : Result.t(Slope.Dn.t, option(Meld.t)) =>
       switch (dn) {
       | [] => Wald.walk_eq(~from, top, Node(w))
       | [hd, ...tl] =>
         switch (
-          Wald.meld(~from=L, Node(hd.wald), ~fill=Option.to_list(fill), Node(w))
+          Wald.meld(
+            ~from=L,
+            Node(hd.wald),
+            ~fill=Option.to_list(fill),
+            Node(w),
+          )
         ) {
-        | Some(lvls) =>
+        | Some(lvls) => failwith("todo")
         }
       };
   };
