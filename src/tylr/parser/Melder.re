@@ -2,7 +2,7 @@ open Util;
 
 module Walk = Walker.Walk;
 
-let fill_eq = (fill: list(Meld.t), sort: Bound.t(Molded.Sort.t)) => {
+let fill_eq = (~fill: list(Meld.t), sort: Bound.t(Molded.Sort.t)) => {
   open OptUtil.Syntax;
   let (l, r) =
     switch (fill) {
@@ -17,72 +17,34 @@ let fill_eq = (fill: list(Meld.t), sort: Bound.t(Molded.Sort.t)) => {
   Cell.fill(~req=i_l || i_r, ~l=h_l, ~r=h_r, fill, sort);
 };
 
-let fill_lt = (m: Meld.t, bound: Bound.t(Molded.Sort.t), sort: Molded.Sort.t) => {
+let fill_lt = (~fill=?, bound: Bound.t(Molded.Sort.t), sort: Molded.Sort.t) => {
   open OptUtil.Syntax;
-  let (l, r) = Meld.faces(m);
-  let+ _w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, bound, l))
-  and+ w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, Node(sort), r));
-  Meld.grout(~fill, ~r=Walk.height(w_r) > 2, sort);
-};
-
-let fill_gt = (m: Meld.t, sort: Molded.Sort.t, bound: Bound.t(Molded.Sort.t)) => {
-  open OptUtil.Syntax;
-  let (l, r) = Meld.faces(m);
-  let+ w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, Node(sort), l))
-  and+ _w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, bound, r));
-  Meld.grout(~l=Walk.height(w_l) > 2, m, sort);
-};
-
-let fill = (m: Meld.t, bounds) =>
-  switch (bounds) {
-  | Eq(sort) =>
-    let l =
-      lt_prime(sort, m)
-        ? Some(false)
-        : tile_sort(sort)
-          |> Option.map(s => lt_prime(Node(Molded.Sort.grout(s)), m));
-    let r =
-      gt_prime(m, sort)
-        ? Some(false)
-        : tile_sort(sort)
-          |> Option.map(s => gt_prime(m, Node(Molded.Sort.grout(s))));
-    let meld = Meld.wrap(~sort);
-    ();
-  };
-
-let fill = (m: Meld.t, bounds) => {
-  let (l, r) = Meld.ends(l, r);
-  switch (bounds) {
-  | Eq(sort) =>
-    let ent_l = Walker.enter(~from=L, sort, l);
-    let ent_r = Walker.enter(~from=R, sort, r);
-    switch (ent_l, ent_r) {
-    | ([], _)
-    | (_, []) =>
-      open OptUtil.Syntax;
-      let* s =
-        switch (sort) {
-        | Root => Some(Sort.root)
-        | Node({mtrl: Tile(s), _}) => Some(s)
-        | Node({mtrl: Grout(_) | Space, _}) => None
-        };
-      let+ l =
-        switch (ent_l, Walker.enter_grout(~from=L, s, l)) {
-        | ([_, ..._], _) => Some(false)
-        | ([], [_, ..._]) => Some(true)
-        | ([], []) => None
-        }
-      and+ r =
-        switch (ent_r, Walker.enter_grout(~from=R, s, r)) {
-        | ([_, ..._], _) => Some(false)
-        | ([], [_, ..._]) => Some(true)
-        | ([], []) => None
-        };
-      let meld = Meld.wrap_grout(~sort=s, ~l, m, ~r);
-      Cell.mk(~meld, sort);
-    | ([_, ..._], [_, ..._]) => failwith("todo")
+  let (l, r) =
+    switch (fill) {
+    | None => Molded.Label.(space, space)
+    | Some(m) => Meld.faces(m)
     };
-  };
+  let+ _w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, bound, Node(l)))
+  and+ w_r =
+    ListUtil.hd_opt(Walker.walk_into(~from=R, Node(sort), Node(r)));
+  let h_r = Walk.height(w_r > 2);
+  let i_r = Walk.intermediates(w_r) > 0;
+  Cell.fill(~req=i_r, ~r=h_r, fill, sort);
+};
+
+let fill_gt = (~fill=?, sort: Molded.Sort.t, bound: Bound.t(Molded.Sort.t)) => {
+  open OptUtil.Syntax;
+  let (l, r) =
+    switch (fill) {
+    | None => Molded.Label.(space, space)
+    | Some(m) => Meld.faces(m)
+    };
+  let+ w_l =
+    ListUtil.hd_opt(Walker.walk_into(~from=L, Node(sort), Node(l)))
+  and+ _w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, bound, Node(r)));
+  let h_l = Walk.height(w_l > 2);
+  let i_l = Walk.intermediates(w_l) > 0;
+  Cell.fill(~req=i_l, ~r=h_l, fill, sort);
 };
 
 module Eq = {
