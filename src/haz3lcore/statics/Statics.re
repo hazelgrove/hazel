@@ -858,9 +858,6 @@ let mk_map_and_inference_solutions =
           Id.Map.empty,
         );
 
-      print_endline("~~~Printing constraints:");
-      info.constraints |> Typ.constraints_to_string |> print_endline;
-
       let pts_graph = Inference.solve_constraints(info.constraints);
       let solutions = InferenceResult.get_desired_solutions(pts_graph);
 
