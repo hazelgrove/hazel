@@ -115,11 +115,11 @@ module Scratch = {
 
   let to_persistent = ((idx, slides)): persistent => (
     idx,
-    List.map(((s, i)) => (ScratchSlide.persist(s), i), slides),
+    List.map(ScratchSlide.persist, slides),
   );
 
   let of_persistent = ((idx, slides): persistent) => {
-    (idx, List.map(((s, i)) => (ScratchSlide.unpersist(s), i), slides));
+    (idx, List.map(ScratchSlide.unpersist, slides));
   };
 
   let serialize = scratch => {
@@ -159,13 +159,13 @@ module Examples = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.examples;
 
-  let persist = ((name, (editor: Editor.t, img))) => {
-    (name, (PersistentZipper.persist(editor.state.zipper), img));
+  let persist = ((name, editor: Editor.t)) => {
+    (name, PersistentZipper.persist(editor.state.zipper));
   };
 
-  let unpersist = ((name, (zipper, img))) => {
+  let unpersist = ((name, zipper)) => {
     let zipper = PersistentZipper.unpersist(zipper);
-    (name, (Editor.init(zipper, ~read_only=false), img));
+    (name, Editor.init(zipper, ~read_only=false));
   };
 
   let to_persistent = ((string, slides)): persistent => (
