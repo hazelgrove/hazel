@@ -1991,7 +1991,7 @@ svg.expandable path {
   left: -1em;
 }
 
-.steppable {
+.steppable,.steppable * {
   border: 1px var(--step-hole-color);
   background-color:rgb(232, 255, 196);
   margin: -1px;
@@ -1999,7 +1999,7 @@ svg.expandable path {
 }
 
 
-.stepped {
+.stepped, .stepped * {
   border: 1px var(--step-hole-color);
   background-color:#ddcda3;
   margin: -1px;
