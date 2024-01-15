@@ -14,10 +14,12 @@ let startup : PersistentData.t =
               {
                 show_case_clauses = true;
                 show_fn_bodies = true;
+                show_fixpoints = false;
                 show_casts = false;
                 show_lookup_steps = false;
                 show_stepper_filters = false;
                 stepper_history = false;
+                show_settings = false;
               };
           };
         async_evaluation = false;

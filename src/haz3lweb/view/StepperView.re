@@ -70,6 +70,8 @@ let stepper_view =
     Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
       inject(Set(Evaluation(ShowRecord)))
     );
+  let eval_settings =
+    Widgets.button(Icons.cog, _ => inject(Set(Evaluation(ShowSettings))));
   let current =
     switch (stepper.current) {
     | StepperOK(d) =>
@@ -81,6 +83,7 @@ let stepper_view =
           button_back,
           show_history,
           hide_stepper,
+          eval_settings,
         ],
       )
     // TODO[Matt]: show errors and waiting

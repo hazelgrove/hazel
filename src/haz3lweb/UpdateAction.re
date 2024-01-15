@@ -7,7 +7,11 @@ type evaluation_settings_action =
   | ShowRecord
   | ShowCaseClauses
   | ShowFnBodies
-  | ShowCasts;
+  | ShowCasts
+  | ShowFixpoints
+  | ShowLookups
+  | ShowFilters
+  | ShowSettings;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
