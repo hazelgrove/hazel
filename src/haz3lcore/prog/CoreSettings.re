@@ -5,6 +5,7 @@ module Evaluation = {
   type t = {
     show_case_clauses: bool,
     show_fn_bodies: bool,
+    show_fixpoints: bool,
     show_casts: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
@@ -15,6 +16,7 @@ module Evaluation = {
   let init = {
     show_case_clauses: true,
     show_fn_bodies: true,
+    show_fixpoints: false,
     show_casts: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
@@ -38,6 +40,7 @@ let off: t = {
   dynamics: false,
   evaluation: Evaluation.init,
 };
+
 let on: t = {
   statics: true,
   elaborate: true,
