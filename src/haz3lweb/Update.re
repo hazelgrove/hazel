@@ -77,6 +77,22 @@ let update_settings =
           show_fn_bodies: !evaluation.show_fn_bodies,
         }
       | ShowCasts => {...evaluation, show_casts: !evaluation.show_casts}
+      | ShowFixpoints => {
+          ...evaluation,
+          show_fixpoints: !evaluation.show_fixpoints,
+        }
+      | ShowLookups => {
+          ...evaluation,
+          show_lookup_steps: !evaluation.show_lookup_steps,
+        }
+      | ShowFilters => {
+          ...evaluation,
+          show_stepper_filters: !evaluation.show_stepper_filters,
+        }
+      | ShowSettings => {
+          ...evaluation,
+          show_settings: !evaluation.show_settings,
+        }
       };
     };
     {
@@ -145,7 +161,11 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | SecondaryIcons
     | Statics
     | Benchmark
-    | Evaluation(ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord) =>
+    | Evaluation(
+        ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord | ShowFixpoints |
+        ShowLookups |
+        ShowFilters,
+      ) =>
       false
     | Assist
     | Elaborate
@@ -153,6 +173,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | InstructorMode
     | ContextInspector
     | Mode(_) => true
+    | Evaluation(ShowSettings) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
