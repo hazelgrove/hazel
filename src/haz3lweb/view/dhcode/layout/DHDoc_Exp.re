@@ -61,25 +61,26 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
-  | Fun(_)
   | Closure(_)
   | BuiltinFun(_)
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
-  | Let(_)
-  | FixF(_)
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max
-  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
-  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
-  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
-  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | Fun(_) => DHDoc_common.precedence_max
+  | Let(_)
+  | FixF(_)
+  | ConsistentCase(_)
+  | InconsistentBranches(_) => DHDoc_common.precedence_max
+
+  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
+  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
+  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
+  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
@@ -103,9 +104,9 @@ let mk =
       ~enforce_inline: bool,
       ~selected_hole_instance: option(HoleInstance.t),
       // The next four are used when drawing the stepper to track where we can annotate changes
-      ~previous_step: option(EvalObj.t), // The step that will be displayed above this one
-      ~hidden_steps: list(EvalObj.t), // The hidden steps between the above and the current one
-      ~chosen_step: option(EvalObj.t), // The step that will be taken next
+      ~previous_step: option(step), // The step that will be displayed above this one
+      ~hidden_steps: list(step), // The hidden steps between the above and the current one
+      ~chosen_step: option(step), // The step that will be taken next
       ~next_steps: list(EvalObj.t), // The options for the next step, if it hasn't been chosen yet
       ~env: ClosureEnvironment.t,
       d: DHExp.t,
@@ -117,18 +118,18 @@ let mk =
             d: DHExp.t,
             env: ClosureEnvironment.t,
             enforce_inline: bool,
-            previous_step: option(EvalObj.t),
-            hidden_steps: list(EvalObj.t),
-            chosen_step: option(EvalObj.t),
-            next_steps: list((EvalObj.t, EvalObj.t)),
+            previous_step: option(step),
+            hidden_steps: list(step),
+            chosen_step: option(step),
+            next_steps: list((EvalCtx.t, EvalObj.t)),
             recent_subst: list(Var.t),
           )
           : DHDoc.t => {
     open Doc;
     let recent_subst =
       switch (previous_step) {
-      | Some(ps) when EvalObj.get_ctx(ps) == Mark =>
-        switch (ps.knd, ps.undo) {
+      | Some(ps) when ps.ctx == Mark =>
+        switch (ps.knd, ps.d_loc) {
         | (FunAp, Ap(Fun(p, _, _, _), _)) => DHPat.bound_vars(p)
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
@@ -170,12 +171,14 @@ let mk =
         d,
         env,
         enforce_inline,
-        Option.join(Option.map(EvalObj.unwrap(_, ctx), previous_step)),
-        List.filter_map(EvalObj.unwrap(_, ctx), hidden_steps),
-        Option.join(Option.map(EvalObj.unwrap(_, ctx), chosen_step)),
+        Option.join(
+          Option.map(EvaluatorStep.unwrap(_, ctx), previous_step),
+        ),
+        List.filter_map(EvaluatorStep.unwrap(_, ctx), hidden_steps),
+        Option.join(Option.map(EvaluatorStep.unwrap(_, ctx), chosen_step)),
         List.filter_map(
           ((x, y)) =>
-            switch (EvalObj.unwrap(x, ctx)) {
+            switch (EvalCtx.unwrap(x, ctx)) {
             | None => None
             | Some(x') => Some((x', y))
             },
@@ -184,8 +187,6 @@ let mk =
         recent_subst,
       );
     };
-    let go_clean = (~env=env, ~enforce_inline=enforce_inline, d) =>
-      go(d, env, enforce_inline, None, [], None, [], []);
     let parenthesize = (b, doc) =>
       if (b) {
         hcats([
@@ -493,68 +494,83 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               Fun,
             );
-          hcats([
-            DHDoc_common.Delim.sym_Fun,
-            DHDoc_Pat.mk(dp)
-            |> DHDoc_common.pad_child(
-                 ~inline_padding=(space(), space()),
-                 ~enforce_inline,
-               ),
-            DHDoc_common.Delim.colon_Fun,
-            space(),
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            space(),
-            DHDoc_common.Delim.open_Fun,
-            body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Fun,
-          ]);
+          hcats(
+            [
+              DHDoc_common.Delim.sym_Fun,
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+            ]
+            @ (
+              settings.show_casts
+                ? [
+                  DHDoc_common.Delim.colon_Fun,
+                  space(),
+                  DHDoc_Typ.mk(~enforce_inline=true, ty),
+                  space(),
+                ]
+                : []
+            )
+            @ [
+              DHDoc_common.Delim.arrow_Fun,
+              space(),
+              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+            ],
+          );
         } else {
           switch (s) {
           | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(x, ty, dbody) =>
-        if (settings.show_fn_bodies) {
-          let doc_body =
-            go_formattable(
-              dbody,
-              ~env=ClosureEnvironment.without_keys([x], env),
-              FixF,
-            );
-          hcats([
-            DHDoc_common.Delim.fix_FixF,
+      | FixF(x, ty, dbody) when settings.show_fixpoints =>
+        let doc_body =
+          go_formattable(
+            dbody,
+            ~env=ClosureEnvironment.without_keys([x], env),
+            FixF,
+          );
+        hcats(
+          [DHDoc_common.Delim.fix_FixF, space(), text(x)]
+          @ (
+            settings.show_casts
+              ? [
+                DHDoc_common.Delim.colon_Fun,
+                space(),
+                DHDoc_Typ.mk(~enforce_inline=true, ty),
+                space(),
+              ]
+              : []
+          )
+          @ [
+            DHDoc_common.Delim.arrow_FixF,
             space(),
-            text(x),
-            DHDoc_common.Delim.colon_FixF,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-            DHDoc_common.Delim.open_FixF,
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_FixF,
-          ]);
-        } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
-        }
+          ],
+        );
+      | FixF(x, _, d) =>
+        go'(~env=ClosureEnvironment.without_keys([x], env), d, FixF)
       };
     };
     let steppable =
-      next_steps
-      |> List.find_opt(((step, _)) => EvalObj.get_ctx(step) == Mark);
+      next_steps |> List.find_opt(((ctx, _)) => ctx == EvalCtx.Mark);
     let stepped =
       chosen_step
-      |> Option.map(x => EvalObj.get_ctx(x) == Mark)
+      |> Option.map(x => x.ctx == Mark)
       |> Option.value(~default=false);
     let substitution =
       hidden_steps
       |> List.find_opt(step =>
-           EvalObj.get_kind(step) == VarLookup
+           step.knd == VarLookup
            // HACK[Matt]: to prevent substitutions hiding inside casts
-           && EvalCtx.fuzzy_mark(EvalObj.get_ctx(step))
+           && EvalCtx.fuzzy_mark(step.ctx)
          );
     let doc =
       switch (substitution) {
-      | Some({undo: BoundVar(v), _}) when List.mem(v, recent_subst) =>
-        hcats([go_clean(BoundVar(v)) |> annot(DHAnnot.Substituted), doc])
+      | Some({d_loc: BoundVar(v), _}) when List.mem(v, recent_subst) =>
+        hcats([text(v) |> annot(DHAnnot.Substituted), doc])
       | Some(_)
       | None => doc
       };
@@ -576,7 +592,7 @@ let mk =
     previous_step,
     hidden_steps,
     chosen_step,
-    List.map(x => (x, x), next_steps),
+    List.map((x: EvalObj.t) => (x.ctx, x), next_steps),
     [],
   );
 };

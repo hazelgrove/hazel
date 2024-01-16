@@ -5,21 +5,21 @@ module Evaluation = {
   type t = {
     show_case_clauses: bool,
     show_fn_bodies: bool,
+    show_fixpoints: bool,
     show_casts: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
-    stepper: bool,
     stepper_history: bool,
   };
 
   let init = {
     show_case_clauses: true,
-    show_fn_bodies: false,
-    show_casts: true,
-    show_lookup_steps: true,
+    show_fn_bodies: true,
+    show_fixpoints: false,
+    show_casts: false,
+    show_lookup_steps: false,
     show_stepper_filters: false,
-    stepper: false,
     stepper_history: false,
   };
 };
@@ -38,11 +38,9 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
-  evaluation: {
-    ...Evaluation.init,
-    stepper: false,
-  },
+  evaluation: Evaluation.init,
 };
+
 let on: t = {
   statics: true,
   elaborate: true,

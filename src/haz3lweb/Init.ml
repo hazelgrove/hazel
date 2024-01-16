@@ -13,11 +13,11 @@ let startup : PersistentData.t =
             evaluation =
               {
                 show_case_clauses = true;
-                show_fn_bodies = false;
-                show_casts = true;
-                show_lookup_steps = true;
+                show_fn_bodies = true;
+                show_fixpoints = false;
+                show_casts = false;
+                show_lookup_steps = false;
                 show_stepper_filters = false;
-                stepper = false;
                 stepper_history = false;
               };
           };
@@ -122,7 +122,8 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "     ";
           };
-        ] );
+        ],
+        [] );
     examples =
       ( "Introduction",
         [
@@ -13991,5 +13992,6 @@ let startup : PersistentData.t =
                  # Check out the research papers at hazel.org for more on #\n\
                  # how Hazel works. #";
             } );
-        ] );
+        ],
+        [] );
   }
