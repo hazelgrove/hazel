@@ -435,14 +435,10 @@ let example_view =
               );
             let stepper =
               dhexp
-              |> EvaluatorStep.Stepper.mk(~settings=settings.core.evaluation);
-            let stepper =
-              stepper
-              |> EvaluatorStep.Stepper.evaluate(
-                   ~settings=settings.core.evaluation,
-                 );
+              |> Stepper.init
+              |> Stepper.evaluate_full(~settings=settings.core.evaluation);
             let (hidden, previous) =
-              EvaluatorStep.Stepper.get_history(
+              Stepper.get_history(
                 ~settings=settings.core.evaluation,
                 stepper,
               );
@@ -459,22 +455,17 @@ let example_view =
                     ~previous_step=
                       previous
                       |> List.nth_opt(_, 0)
-                      |> Option.map(
-                           (x: EvaluatorStep.Stepper.step_with_previous) =>
-                           x.step.step
-                         ),
+                      |> Option.map((x: Stepper.step_with_previous) => x.step),
                     ~next_steps=stepper.next,
                     ~hidden_steps=
-                      List.map(
-                        (x: EvaluatorStep.Stepper.step) => x.step,
-                        hidden,
-                      ),
-                    stepper.current,
+                      List.map((x: EvaluatorStep.step) => x, hidden),
+                    ~result_key="",
+                    Stepper.current_expr(stepper),
                   ),
                 ],
               );
             let dh_code_previous =
-                (step_with_previous: EvaluatorStep.Stepper.step_with_previous) =>
+                (step_with_previous: Stepper.step_with_previous) =>
               div(
                 ~attr=Attr.classes(["result"]),
                 [
@@ -486,15 +477,16 @@ let example_view =
                     ~width=80,
                     ~previous_step=
                       Option.map(
-                        (x: EvaluatorStep.Stepper.step) => x.step,
+                        (x: EvaluatorStep.step) => x,
                         step_with_previous.previous,
                       ),
-                    ~chosen_step=Some(step_with_previous.step.step),
+                    ~chosen_step=Some(step_with_previous.step),
                     ~hidden_steps=
                       List.map(
-                        (x: EvaluatorStep.Stepper.step) => x.step,
+                        (x: EvaluatorStep.step) => x,
                         step_with_previous.hidden,
                       ),
+                    ~result_key="",
                     step_with_previous.step.d,
                   ),
                 ],

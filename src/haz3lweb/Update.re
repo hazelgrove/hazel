@@ -64,7 +64,6 @@ let update_settings =
     let evaluation = settings.core.evaluation;
     let evaluation' = {
       switch (u) {
-      | Stepping => {...evaluation, stepper: !evaluation.stepper}
       | ShowRecord => {
           ...evaluation,
           stepper_history: !evaluation.stepper_history,
@@ -153,16 +152,14 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | Dynamics
     | InstructorMode
     | ContextInspector
-    | Mode(_)
-    | Evaluation(Stepping) => true
+    | Mode(_) => true
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
     | Mousedown
     | Mouseup
     | ShowBackpackTargets(_)
-    | FontMetrics(_)
-    | Result(_) => false
+    | FontMetrics(_) => false
     }
   | PerformAction(
       Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
@@ -175,15 +172,16 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | StepForward(_)
-  | StepBackward
   | DebugAction(_)
   | DoTheThing => false
   | ExportPersistentData
+  | UpdateResult(_)
   | DebugConsole(_) => false
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
+  | StepperAction(_, StepForward(_) | StepBackward)
+  | ToggleStepper(_)
   | ReparseCurrentEditor
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
@@ -220,12 +218,12 @@ let should_scroll_to_caret =
     | FontMetrics(_) => true
     | Mousedown
     | Mouseup
-    | ShowBackpackTargets(_)
-    | Result(_) => false
+    | ShowBackpackTargets(_) => false
     }
   | Assistant(Prompt(_))
-  | StepBackward
-  | StepForward(_) => false
+  | UpdateResult(_)
+  | ToggleStepper(_)
+  | StepperAction(_, StepBackward | StepForward(_)) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
@@ -265,50 +263,6 @@ let should_scroll_to_caret =
   | ExportPersistentData
   | DebugConsole(_)
   | Benchmark(_) => false;
-
-let evaluate_and_schedule =
-    (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
-  let model = {
-    ...model,
-    meta: {
-      ...model.meta,
-      results:
-        Util.TimeUtil.measure_time(
-          "ModelResults.init", model.settings.benchmark, ()
-          //ModelResults.init performs evaluation on the DHExp value.
-          =>
-            ModelResults.init(
-              ~settings=model.settings.core,
-              //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-              Editors.get_spliced_elabs(
-                ~settings=model.settings,
-                model.editors,
-              ),
-            )
-          ),
-    },
-  };
-
-  // if (model.settings.core.dynamics) {
-  //   Editors.get_spliced_elabs(model.editors)
-  //   |> List.iter(((key, d)) => {
-  //        /* Send evaluation request. */
-  //        let pushed = State.evaluator_next(state, key, d);
-
-  //        /* Set evaluation to pending after short timeout. */
-  //        /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
-  //         * updated before below action is scheduled. */
-  //        Delay.delay(
-  //          () =>
-  //            if (pushed |> Lwt.is_sleeping) {
-  //              schedule_action(UpdateResult(key, ResultPending));
-  //            },
-  //          300,
-  //        );
-  //      });
-  // };
-  model;
-};
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
@@ -539,90 +493,85 @@ let rec apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
-    | StepForward(obj) =>
+    | StepperAction(key, StepForward(obj)) =>
       let r =
-        model.meta.results
-        |> ModelResults.find(ScratchSlide.scratch_key)
-        |> ModelResult.step_forward(
-             ~settings=model.settings.core.evaluation,
-             obj,
-           );
-      Ok({
-        ...model,
-        meta: {
-          ...model.meta,
-          results:
-            model.meta.results
-            |> ModelResults.add(ScratchSlide.scratch_key, r),
-        },
-      });
-    | StepBackward =>
+        model.results
+        |> ModelResults.find(key)
+        |> ModelResult.step_forward(obj);
+      Ok({...model, results: model.results |> ModelResults.add(key, r)});
+    | StepperAction(key, StepBackward) =>
       let r =
-        model.meta.results
-        |> ModelResults.find(ScratchSlide.scratch_key)
+        model.results
+        |> ModelResults.find(key)
         |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
+      Ok({...model, results: model.results |> ModelResults.add(key, r)});
+    | ToggleStepper(key) =>
       Ok({
         ...model,
-        meta: {
-          ...model.meta,
+        results:
+          model.results
+          |> ModelResults.update(key, v =>
+               Some(
+                 v
+                 |> Option.value(~default=NoElab: ModelResult.t)
+                 |> ModelResult.toggle_stepper,
+               )
+             ),
+      })
+    | UpdateResult(k, mr) =>
+      switch (mr) {
+      | Some(mr) =>
+        Ok({...model, results: model.results |> ModelResults.add(k, mr)})
+      | None =>
+        Ok({
+          ...model,
           results:
-            model.meta.results
-            |> ModelResults.add(ScratchSlide.scratch_key, r),
-        },
-      });
+            ModelResults.lookup(model.results, k)
+            |> Option.value(~default=ModelResult.NoElab)
+            |> ModelResults.add(k, _, model.results),
+        })
+      }
     };
-  reevaluate_post_update(model.settings, update)
-    ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
+  let m =
+    reevaluate_post_update(model.settings, update)
+      ? m |> Result.map(~f=Model.update_elabs) : m;
+  Result.map(
+    ~f=
+      m =>
+        {
+          ...m,
+          results:
+            ModelResults.run_pending(~settings=m.settings.core, m.results),
+        },
+    m,
+  );
 }
 and meta_update =
     (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
   switch (update) {
   | Mousedown => {
-      ...model.meta,
       ui_state: {
         ...model.meta.ui_state,
         mousedown: true,
       },
     }
   | Mouseup => {
-      ...model.meta,
       ui_state: {
         ...model.meta.ui_state,
         mousedown: false,
       },
     }
   | ShowBackpackTargets(b) => {
-      ...model.meta,
       ui_state: {
         ...model.meta.ui_state,
         show_backpack_targets: b,
       },
     }
   | FontMetrics(font_metrics) => {
-      ...model.meta,
       ui_state: {
         ...model.meta.ui_state,
         font_metrics,
       },
     }
-  | Result(key, res) =>
-    /* If error, print a message. */
-    switch (res) {
-    | ResultFail(Program_EvalError(reason)) =>
-      let serialized =
-        reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-      print_endline(
-        "[Program.EvalError(EvaluatorError.Exception(" ++ serialized ++ "))]",
-      );
-    | ResultFail(Program_DoesNotElaborate) =>
-      print_endline("[Program.DoesNotElaborate]")
-    | _ => ()
-    };
-    let r =
-      model.meta.results
-      |> ModelResults.find(key)
-      |> ModelResult.update_result(res);
-    let results = model.meta.results |> ModelResults.add(key, r);
-    {...model.meta, results};
   };
 };

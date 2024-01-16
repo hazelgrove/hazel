@@ -205,120 +205,19 @@ let deco =
   };
 };
 
-let stepper_footer_view =
-    (
-      ~inject,
-      ~settings: CoreSettings.Evaluation.t,
-      ~font_metrics,
-      stepper: EvaluatorStep.Stepper.t,
-    ) => {
-  open Node;
-  let button_back =
-    Widgets.button_d(
-      Icons.undo,
-      inject(UpdateAction.StepBackward),
-      ~disabled=
-        EvaluatorStep.Stepper.undo_point(~settings, stepper.previous) == None,
-      ~tooltip="Step Backwards",
-    );
-  let (hidden, previous) =
-    if (settings.stepper_history) {
-      EvaluatorStep.Stepper.get_history(~settings, stepper);
-    } else {
-      ([], []);
-    };
-  let dh_code_current =
-    div(
-      ~attr=Attr.classes(["result"]),
-      [
-        DHCode.view(
-          ~inject,
-          ~settings,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          ~previous_step=
-            previous
-            |> List.nth_opt(_, 0)
-            |> Option.map((x: EvaluatorStep.Stepper.step_with_previous) =>
-                 x.step.step
-               ),
-          ~next_steps=stepper.next,
-          ~hidden_steps=
-            List.map((x: EvaluatorStep.Stepper.step) => x.step, hidden),
-          stepper.current,
-        ),
-      ],
-    );
-  let dh_code_previous =
-      (step_with_previous: EvaluatorStep.Stepper.step_with_previous) =>
-    div(
-      ~attr=Attr.classes(["result"]),
-      [
-        DHCode.view(
-          ~inject,
-          ~settings,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          ~previous_step=
-            Option.map(
-              (x: EvaluatorStep.Stepper.step) => x.step,
-              step_with_previous.previous,
-            ),
-          ~chosen_step=Some(step_with_previous.step.step),
-          ~hidden_steps=
-            List.map(
-              (x: EvaluatorStep.Stepper.step) => x.step,
-              step_with_previous.hidden,
-            ),
-          step_with_previous.step.d,
-        ),
-      ],
-    );
-  let show_history =
-    Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
-      inject(Set(Evaluation(ShowRecord)))
-    );
-  let current =
-    div(
-      ~attr=Attr.classes(["cell-result"]),
-      [
-        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        dh_code_current,
-        button_back,
-        show_history,
-      ],
-    );
-  let previous_step = (step: EvaluatorStep.Stepper.step_with_previous) => {
-    div(
-      ~attr=Attr.classes(["cell-result"]),
-      [
-        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        dh_code_previous(step),
-        div(
-          ~attr=Attr.classes(["stepper-justification"]),
-          [
-            Node.text(
-              EvaluatorStep.Stepper.get_justification(step.step.step.knd),
-            ),
-          ],
-        ),
-      ],
-    );
-  };
-  let nodes_previous = List.map(previous_step, previous);
-  List.fold_left((x, y) => List.cons(y, x), [current], nodes_previous);
-};
-
 let eval_result_footer_view =
     (
       ~inject,
       ~font_metrics,
       ~elab,
       ~settings: Settings.t,
+      ~result_key,
       simple: TestResults.simple,
     ) => {
+  let show_stepper =
+    Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+      inject(UpdateAction.ToggleStepper(result_key))
+    );
   let d_view =
     switch (simple) {
     | None => [
@@ -329,6 +228,7 @@ let eval_result_footer_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
+          ~result_key,
           elab,
         ),
       ]
@@ -339,19 +239,21 @@ let eval_result_footer_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
+          ~result_key,
           eval_result,
         ),
       ]
     };
-  Node.(
+  Node.[
     div(
       ~attr=Attr.classes(["cell-item", "cell-result"]),
       [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
         div(~attr=Attr.classes(["result"]), d_view),
+        show_stepper,
       ],
-    )
-  );
+    ),
+  ];
 };
 
 let editor_view =
@@ -441,41 +343,36 @@ let editor_with_result_view =
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
-      ~term,
-      ~result: option(ModelResult.t),
+      ~result_key: string,
+      ~result: ModelResult.t,
       editor: Editor.t,
     ) => {
   let simple = ModelResult.get_simple(result);
   let test_results = TestResults.unwrap_test_results(simple);
   let eval_result_footer =
-    if (settings.core.statics) {
-      switch (Option.bind(result, result => result.stepper)) {
-      | None => [
-          eval_result_footer_view(
-            ~inject,
-            ~font_metrics,
-            ~elab=
-              settings.core.elaborate
-                ? Interface.elaborate(
-                    ~settings=settings.core,
-                    info_map,
-                    term,
-                  )
-                : Interface.dh_err("Elaboration disabled"),
-            ~settings,
-            simple,
-          ),
-        ]
-      | Some(s) =>
-        stepper_footer_view(
+    if (!settings.core.statics) {
+      [];
+    } else {
+      switch (result) {
+      | NoElab => []
+      | Evaluation({elab, _}) =>
+        eval_result_footer_view(
+          ~inject,
+          ~font_metrics,
+          ~elab,
+          ~settings,
+          ~result_key,
+          simple,
+        )
+      | Stepper(s) =>
+        StepperView.stepper_view(
           ~inject,
           ~settings=settings.core.evaluation,
           ~font_metrics,
+          ~result_key,
           s,
         )
       };
-    } else {
-      [];
     };
   editor_view(
     ~inject,

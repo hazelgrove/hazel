@@ -44,152 +44,6 @@ open DH;
     closures immediately inside them do not count as values).
    */
 
-module EvalCtx = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Mark
-    | Closure
-    | FilterPattern
-    | Filter
-    | Sequence1
-    | Sequence2
-    | Let1
-    | Let2
-    | Ap1
-    | Ap2
-    | Fun
-    | FixF
-    | BinBoolOp1
-    | BinBoolOp2
-    | BinIntOp1
-    | BinIntOp2
-    | BinFloatOp1
-    | BinFloatOp2
-    | BinStringOp1
-    | BinStringOp2
-    | Tuple(int)
-    | ListLit(int)
-    | ApBuiltin
-    | Test
-    | Cons1
-    | Cons2
-    | ListConcat1
-    | ListConcat2
-    | Prj
-    | NonEmptyHole
-    | Cast
-    | FailedCast
-    | InvalidOperation
-    | ConsistentCase
-    | ConsistentCaseRule(int)
-    | InconsistentBranches
-    | InconsistentBranchesRule(int)
-    | FailedCastCast
-    // Used when entering a bound variable expression in substitution mode
-    | BoundVar;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Mark
-    | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(DH.DHFilter.t, t)
-    | Sequence1(t, DHExp.t)
-    | Sequence2(DHExp.t, t)
-    | Let1(DHPat.t, t, DHExp.t)
-    | Let2(DHPat.t, DHExp.t, t)
-    | Fun(DHPat.t, Typ.t, t, option(Var.t))
-    | FixF(Var.t, Typ.t, t)
-    | Ap1(t, DHExp.t)
-    | Ap2(DHExp.t, t)
-    | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
-    | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
-    | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
-    | BinIntOp2(TermBase.UExp.op_bin_int, DHExp.t, t)
-    | BinFloatOp1(TermBase.UExp.op_bin_float, t, DHExp.t)
-    | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
-    | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
-    | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
-    | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-    | ApBuiltin(string, t)
-    | Test(KeywordID.t, t)
-    | ListLit(
-        MetaVar.t,
-        MetaVarInst.t,
-        Typ.t,
-        t,
-        (list(DHExp.t), list(DHExp.t)),
-      )
-    | Cons1(t, DHExp.t)
-    | Cons2(DHExp.t, t)
-    | ListConcat1(t, DHExp.t)
-    | ListConcat2(DHExp.t, t)
-    | Prj(t, int)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | Cast(t, Typ.t, Typ.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-    | ConsistentCase(case)
-    | ConsistentCaseRule(
-        DHExp.t,
-        DHPat.t,
-        t,
-        (list(DHExp.rule), list(DHExp.rule)),
-        int,
-      )
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | InconsistentBranchesRule(
-        DHExp.t,
-        MetaVar.t,
-        HoleInstanceId.t,
-        DHPat.t,
-        t,
-        (list(DHExp.rule), list(DHExp.rule)),
-        int,
-      )
-  and case =
-    | Case(t, list(rule), int)
-  and rule = DHExp.rule;
-
-  let rec fuzzy_mark =
-    fun
-    | Mark => true
-    | Closure(_, x)
-    | Test(_, x)
-    | Cast(x, _, _)
-    | FailedCast(x, _, _)
-    | Filter(_, x) => fuzzy_mark(x)
-    | Sequence1(_)
-    | Sequence2(_)
-    | Let1(_)
-    | Let2(_)
-    | Fun(_)
-    | FixF(_)
-    | Ap1(_)
-    | Ap2(_)
-    | BinBoolOp1(_)
-    | BinBoolOp2(_)
-    | BinIntOp1(_)
-    | BinIntOp2(_)
-    | BinFloatOp1(_)
-    | BinFloatOp2(_)
-    | BinStringOp1(_)
-    | BinStringOp2(_)
-    | Tuple(_)
-    | ApBuiltin(_)
-    | ListLit(_)
-    | Cons1(_)
-    | Cons2(_)
-    | ListConcat1(_)
-    | ListConcat2(_)
-    | Prj(_)
-    | NonEmptyHole(_)
-    | InvalidOperation(_)
-    | ConsistentCase(_)
-    | ConsistentCaseRule(_)
-    | InconsistentBranches(_)
-    | InconsistentBranchesRule(_) => false;
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
@@ -369,18 +223,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | FixF(f, t, d1) =>
       let. _ = otherwise(env, FixF(f, t, d1));
-      // TODO(Matt): Would it be safer to have a fourth argument to FixF?
-      // TODO(Matt): is this a step?
-      // TODO(Matt): is t needed here?
-      Step({
-        apply: () =>
-          Closure(
-            evaluate_extend_env(Environment.singleton((f, d1)), env),
-            d1,
-          ),
-        kind: FixUnwrap,
-        value: false,
-      });
+      Constructor;
     | Test(id, d) =>
       let. _ = otherwise(env, d => Test(id, d))
       and. d' = req_final(req(state, env), d => Test(id, d), d);
@@ -410,6 +253,19 @@ module Transition = (EV: EV_MODE) => {
       | Fun(dp, _, Closure(env', d3), _) =>
         let.match env'' = (env', matches(dp, d2'));
         Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
+      | FixF(f, _, d3) =>
+        Step({
+          apply: () =>
+            Ap(
+              Closure(
+                evaluate_extend_env(Environment.singleton((f, d1')), env),
+                d3,
+              ),
+              d2',
+            ),
+          kind: FixUnwrap,
+          value: false,
+        })
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
           apply: () => Cast(Ap(d3', Cast(d2', ty1', ty1)), ty2, ty2'),

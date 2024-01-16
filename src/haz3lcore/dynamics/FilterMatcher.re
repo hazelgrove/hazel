@@ -4,6 +4,26 @@ let rec matches_exp =
   | (Constructor("$Expr"), _) => failwith("$Expr in matched expression")
   | (Constructor("$Value"), _) => failwith("$Value in matched expression")
 
+  // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
+  | (FixF(dp, _, dc), f) =>
+    matches_exp(
+      env,
+      Closure(
+        Transition.evaluate_extend_env(Environment.singleton((dp, dc)), env),
+        dc,
+      ),
+      f,
+    )
+  | (d, FixF(fp, _, fc)) =>
+    matches_exp(
+      env,
+      d,
+      Closure(
+        Transition.evaluate_extend_env(Environment.singleton((fp, fc)), env),
+        fc,
+      ),
+    )
+
   | (_, Constructor("$Value")) =>
     switch (ValueChecker.check_value(env, d)) {
     | Indet
@@ -170,10 +190,6 @@ let rec matches_exp =
   | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   | (InvalidOperation(_), _) => false
-
-  | (FixF(dv, dt, dc), FixF(fv, ft, fc)) =>
-    dv == fv && dt == ft && matches_exp(env, dc, fc)
-  | (FixF(_), _) => false
 
   | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
     dname == fname && matches_exp(env, darg, farg)

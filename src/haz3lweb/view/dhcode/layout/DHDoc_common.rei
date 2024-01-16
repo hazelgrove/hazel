@@ -40,13 +40,11 @@ module Delim: {
 
   let sym_Fun: DHDoc.t;
   let colon_Fun: DHDoc.t;
-  let open_Fun: DHDoc.t;
-  let close_Fun: DHDoc.t;
+  let arrow_Fun: DHDoc.t;
 
   let fix_FixF: DHDoc.t;
+  let arrow_FixF: DHDoc.t;
   let colon_FixF: DHDoc.t;
-  let open_FixF: DHDoc.t;
-  let close_FixF: DHDoc.t;
 
   let open_Case: DHDoc.t;
   let close_Case: DHDoc.t;

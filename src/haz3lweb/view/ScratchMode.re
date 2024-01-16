@@ -9,13 +9,14 @@ let view =
     (
       ~inject,
       ~ctx_init: Ctx.t,
+      ~result_key: string,
       ~model as
         {
           editors,
           settings,
           langDocMessages,
+          results,
           meta: {
-            results,
             ui_state: {font_metrics, show_backpack_targets, mousedown, _},
             _,
           },
@@ -26,8 +27,8 @@ let view =
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
   let result =
-    settings.core.dynamics
-      ? ModelResults.lookup(results, ScratchSlide.scratch_key) : None;
+    ModelResults.lookup(results, result_key)
+    |> Option.value(~default=ModelResult.NoElab);
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
@@ -48,7 +49,7 @@ let view =
       ~settings,
       ~color_highlighting,
       ~info_map,
-      ~term,
+      ~result_key,
       ~result,
       editor,
     );
