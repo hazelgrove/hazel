@@ -475,9 +475,9 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
 let fixed_constraint_pat =
     (ctx, mode: Mode.t, self: Self.pat, constraint_: Constraint.t)
     : Constraint.t =>
-  switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Constraint.Hole
-  | NotInHole(_) => constraint_
+  switch (fixed_typ_pat(ctx, mode, self)) {
+  | Unknown(_) => Constraint.Hole
+  | _ => constraint_
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
