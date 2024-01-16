@@ -193,10 +193,5 @@ let is_redundant = (xi_cur: Constraint.t, xi_pre: Constraint.t): bool =>
   )
   == True;
 
-let is_exhaustive = (xi: Constraint.t): bool =>
-  switch (is_inconsistent(Constraint.[dual(truify(xi))])) {
-  | True => true
-  | False(xi) =>
-    print_endline(Constraint.show(xi));
-    false;
-  };
+let is_exhaustive = (xi: Constraint.t): b =>
+  is_inconsistent(Constraint.[dual(truify(xi))]);

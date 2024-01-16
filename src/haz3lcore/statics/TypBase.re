@@ -22,7 +22,7 @@ module rec Typ: {
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Unknown(type_provenance)
+    | Unknown(type_provenance) // TODO
     | Int
     | Float
     | Bool
@@ -32,7 +32,7 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(TypVar.t, t)
+    | Rec(TypVar.t, t) // TODO
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]

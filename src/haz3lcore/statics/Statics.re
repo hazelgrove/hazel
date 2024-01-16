@@ -415,7 +415,16 @@ and uexp_to_info_map =
       Common(Self.match(ctx, e_tys, branch_ids));
     let is_exhaustive = Incon.is_exhaustive(final_constraint);
     let self =
-      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+      switch (is_exhaustive) {
+      | True => unwrapped_self
+      | False(xi) =>
+        print_endline(
+          TermBase.UPat.show_term(
+            Constraint.to_upat_term(xi, ctx, scrut.ty),
+          ),
+        );
+        InexhaustiveMatch(unwrapped_self);
+      };
     // if (!is_exhaustive) {
     //   // Dual constraint: the unwrapped version of dual.
     //   // Note that its elements are virtually connected via AND.
