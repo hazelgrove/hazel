@@ -123,6 +123,7 @@ let mk =
             chosen_step: option(step),
             next_steps: list((EvalCtx.t, EvalObj.t)),
             recent_subst: list(Var.t),
+            recursive_calls: list(Var.t),
           )
           : DHDoc.t => {
     open Doc;
@@ -164,6 +165,7 @@ let mk =
           ~env=env,
           ~enforce_inline=enforce_inline,
           ~recent_subst=recent_subst,
+          ~recursive_calls=recursive_calls,
           d,
           ctx,
         ) => {
@@ -185,6 +187,7 @@ let mk =
           next_steps,
         ),
         recent_subst,
+        recursive_calls,
       );
     };
     let parenthesize = (b, doc) =>
@@ -311,23 +314,21 @@ let mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs, false)
         |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | BoundVar(x) when List.mem(x, recursive_calls) => text(x)
+      | BoundVar(x) when settings.show_lookup_steps => text(x)
       | BoundVar(x) =>
-        if (!settings.show_lookup_steps) {
-          switch (ClosureEnvironment.lookup(env, x)) {
-          | None => text(x)
-          | Some(d') =>
-            if (List.mem(x, recent_subst)) {
-              hcats([
-                go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
-                |> annot(DHAnnot.Substituted),
-                go'(~env=ClosureEnvironment.empty, d', BoundVar),
-              ]);
-            } else {
-              go'(~env=ClosureEnvironment.empty, d', BoundVar);
-            }
-          };
-        } else {
-          text(x);
+        switch (ClosureEnvironment.lookup(env, x)) {
+        | None => text(x)
+        | Some(d') =>
+          if (List.mem(x, recent_subst)) {
+            hcats([
+              go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
+              |> annot(DHAnnot.Substituted),
+              go'(~env=ClosureEnvironment.empty, d', BoundVar),
+            ]);
+          } else {
+            go'(~env=ClosureEnvironment.empty, d', BoundVar);
+          }
         }
       | BuiltinFun(f) => text(f)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
@@ -481,17 +482,16 @@ let mk =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
-
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
           let body_doc =
             go_formattable(
               dbody,
-              ~env=
-                ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+              ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), recent_subst),
+              ~recursive_calls=Option.to_list(s) @ recursive_calls,
               Fun,
             );
           hcats(
@@ -593,6 +593,7 @@ let mk =
     hidden_steps,
     chosen_step,
     List.map((x: EvalObj.t) => (x.ctx, x), next_steps),
+    [],
     [],
   );
 };
