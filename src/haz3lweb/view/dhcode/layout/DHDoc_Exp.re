@@ -438,8 +438,6 @@ let mk =
             go_formattable(
               ~env=
                 ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
-              ~recent_subst=
-                List.filter(x => !List.mem(x, bindings), recent_subst),
               ddef,
               Let1,
             );
@@ -459,7 +457,13 @@ let mk =
                  ),
               DHDoc_common.Delim.mk("in"),
             ]),
-            go'(~enforce_inline=false, dbody, Let2),
+            go'(
+              ~enforce_inline=false,
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
+              dbody,
+              Let2,
+            ),
           ]);
         }
       | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
