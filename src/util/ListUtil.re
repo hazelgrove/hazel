@@ -436,3 +436,6 @@ let assoc_err = (x, xs, err: string) =>
   | None => failwith(err)
   | Some(y) => y
   };
+
+let update_assoc = ((k, v)) =>
+  List.map(((k', v')) => k == k' ? (k, v) : (k', v'));
