@@ -53,6 +53,8 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
+
+  let of_menhir_ast: Hazel_menhir.AST.exp => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -314,7 +316,10 @@ module rec DHExp: {
     && i1 == i2;
   };
 
-  let rec of_menhir_ast = (exp: Hazel_menhir.AST.exp) : t => {
+  let rec rule_of_menhir_ast = ((pat: Hazel_menhir.AST.pat, exp: Hazel_menhir.AST.exp)) : rule => {
+        Rule(DHPat.of_menhir_ast(pat), of_menhir_ast(exp));
+  } 
+  and of_menhir_ast = (exp: Hazel_menhir.AST.exp) : t => {
     switch (exp) {
         | Int(i) => IntLit(i)
         | Float(f) => FloatLit(f)
@@ -323,13 +328,39 @@ module rec DHExp: {
         | Var(x) => BoundVar(x)
         | ArrayExp(l) => ListLit(Id.mk(), 0, Unknown(SynSwitch), List.map(of_menhir_ast, l))
         | TupleExp(t) => Tuple(List.map(of_menhir_ast, t))
-        | Let(p, e1, e2) => Let(DHPat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_as(e2))
+        | Let(p, e1, e2) => Let(DHPat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
         | Fun(p, e) => Fun(DHPat.of_menhir_ast(p), Unknown(SynSwitch), of_menhir_ast(e), None)
         | Unit => EmptyHole(Id.mk(), 0)
         | ApExp(e1, e2) => Ap(of_menhir_ast(e1), of_menhir_ast(e2))
-        | BinExp(e1, op, e2) => raise(Invalid_argument("Menhir binexps -> DHExp not yet implemented"));
-        | If(e1, e2, e3) => raise(Invalid_argument("Menhir ifs -> DHExp not yet implemented"));//need to turn it into a case
-        | CaseExp(e, l) => //TODO: add in the slightly irritating translation of the list from the AST form to the DHExp form ConsistentCase(case(of_menhir_ast(e), , 0))
+        | BinExp(e1, op, e2) => 
+        {
+            switch (op) {
+                | IntOp(op) => BinIntOp(TermBase.UExp.int_op_of_menhir_ast(op), of_menhir_ast(e1), of_menhir_ast(e2))
+                | FloatOp(op) => BinFloatOp(TermBase.UExp.float_op_of_menhir_ast(op), of_menhir_ast(e1), of_menhir_ast(e2))
+                | BoolOp(op) => BinBoolOp(TermBase.UExp.bool_op_of_menhir_ast(op), of_menhir_ast(e1), of_menhir_ast(e2))
+
+            }
+        }
+        | If(e1, e2, e3) => {
+            let d_scrut = of_menhir_ast(e1)
+            let d1 = of_menhir_ast(e2)
+            let d2 = of_menhir_ast(e3)
+
+            let d_rules =
+          DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
+        let d = DHExp.Case(d_scrut, d_rules, 0);
+            ConsistentCase(d);
+            }
+         
+        | CaseExp(e, l) => {
+            let d_scrut = of_menhir_ast(e)
+            let d_rules = List.map(rule_of_menhir_ast, l);
+            ConsistentCase(Case(d_scrut, d_rules, 0))
+
+            // raise(Invalid_argument("Menhir Case -> DHExp not yet implemented")); //TODO: add in the slightly irritating translation of the list from the AST form to the DHExp form ConsistentCase(case(of_menhir_ast(e), , 0))
+        }
+
+        // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     }
   }
 }

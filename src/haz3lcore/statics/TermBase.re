@@ -135,6 +135,10 @@ and UExp: {
   let int_op_to_string: op_bin_int => string;
   let float_op_to_string: op_bin_float => string;
   let string_op_to_string: op_bin_string => string;
+
+  let int_op_of_menhir_ast: Hazel_menhir.AST.op_bin_int => op_bin_int;
+  let bool_op_of_menhir_ast: Hazel_menhir.AST.op_bin_bool => op_bin_bool;
+  let float_op_of_menhir_ast: Hazel_menhir.AST.op_bin_float => op_bin_float;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_bool =
@@ -193,6 +197,50 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  let int_op_of_menhir_ast = (op: Hazel_menhir.AST.op_bin_int): op_bin_int => {
+    switch (op) {
+    | Plus => Plus
+    | Minus => Minus
+    | Times => Times
+    | Power => Power
+    | Divide => Divide
+    | LessThan => LessThan
+    | LessThanOrEqual => LessThanOrEqual
+    | GreaterThan => GreaterThan
+    | GreaterThanOrEqual => GreaterThanOrEqual
+    | Equals => Equals
+    | NotEquals => NotEquals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  let float_op_of_menhir_ast =
+          (op: Hazel_menhir.AST.op_bin_float): op_bin_float => {
+    switch (op) {
+    | Plus => Plus
+    | Minus => Minus
+    | Times => Times
+    | Power => Power
+    | Divide => Divide
+    | LessThan => LessThan
+    | LessThanOrEqual => LessThanOrEqual
+    | GreaterThan => GreaterThan
+    | GreaterThanOrEqual => GreaterThanOrEqual
+    | Equals => Equals
+    | NotEquals => NotEquals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  let bool_op_of_menhir_ast =
+          (op: Hazel_menhir.AST.op_bin_bool): op_bin_bool => {
+    switch (op) {
+    | And => And
+    | Or => Or
+    };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
