@@ -1,6 +1,6 @@
 open Util;
 
-module Walk = Walker.Walk;
+open Walker;
 
 let bake_eq = (~fill=[], sort: Bound.t(Molded.Sort.t)) => {
   open OptUtil.Syntax;
@@ -49,64 +49,36 @@ let bake_gt = (~fill=[], sort: Molded.Sort.t, bound: Bound.t(Molded.Sort.t)) => 
 
 let bake_stride = (~fill=[], ~from: Dir.t, str: Stride.t): option(Cell.t) =>
   switch (from) {
-  | _ when Stride.height(str) <= 1 =>
-    bake_eq(~fill, Stride.hd(stride))
+  | _ when Stride.height(str) <= 1 => bake_eq(~fill, Stride.hd(stride))
   | L => bake_lt(~fill, Stride.hd(str), Stride.ft(str))
   | R => bake_gt(~fill, Stride.ft(str), Stride.hd(str))
   };
 
-let bake = (~from: Dir.t, ~fill=[], w: Walk.t): Chain.t(Cell.t(Walk.Stride.t), Token.t) =>
+let bake =
+    (~from: Dir.t, ~fill=[], w: Walk.t)
+    : option(Chain.t(Cell.t(Stride.t), Token.t)) =>
   w
   |> Chain.map_link(Token.mk)
   |> Chain.unzip
   |> Oblig.Delta.minimize(((pre, str: Walk.Stride.t, suf)) => {
-    open OptUtil.Syntax;
-    let bake_tl = tl =>
-      tl
-      |> List.map(((tok, str)) => {
-        let+ cell = bake_stride(~from, str);
-        (tok, cell);
-      })
-      |> OptUtil.sequence;
-    let+ cell = bake_stride(~fill, ~from, str)
-    and+ pre = bake_tl(pre)
-    and+ suf = bake_tl(suf);
-    Chain.zip(pre, cell, suf);
-  });
-
-module Eq = {
-  let walk = (~from, src, dst) => {
-    let (src, dst) = (Wald.hd(src), Wald.hd(dst));
-    Walker.walk_eq(~from, Node(src), Node(dst));
-  };
-
-  let bake =
-      (~src: Wald.t, ~fill=[], ~dst: Wald.t, w: Walk.t): option(Wald.t) => {};
-
-  let eq = (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t): option(Wald.t) => {
-    let (src, dst) = Dir.choose(from, l, r);
-    let rec go = (~init=false, src, fill) => {
-      open OptUtil.Syntax;
-      let/ () =
-        // try removing ghost
-        switch (Wald.unlink(src)) {
-        | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
-          let fill = Option.to_list(cell.content) @ fill;
-          go(tl, fill) |> Effects.perform_if(Remove(hd));
-        | _ => None
-        };
-      walk(~from, src, dst) |> Oblig.Delta.minimize(bake(~src, ~fill, ~dst));
-    };
-    go(~init=true, src, Dir.choose(from, fill, List.rev(fill)));
-  };
-};
+       open OptUtil.Syntax;
+       let bake_tl = tl =>
+         tl
+         |> List.map(((tok, str)) => {
+              let+ cell = bake_stride(~from, str);
+              (tok, cell);
+            })
+         |> OptUtil.sequence;
+       let+ cell = bake_stride(~fill, ~from, str)
+       and+ pre = bake_tl(pre)
+       and+ suf = bake_tl(suf);
+       Chain.zip(pre, cell, suf);
+     });
 
 module Wald = {
-  let hd = Bound.map(Wald.hd);
-
-  let meld =
-      (~from: Dir.t, l: Wald.Bound.t, ~fill=[], r: Wald.Bound.t)
-      : option(Chain.t(Chain.t(Cell.t, Token.t), unit)) => {
+  let rec meld =
+          (~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t)
+          : option((Wald.t, Baked.t)) => {
     let (src, dst) = Dir.choose(from, l, r);
     let fill = Dir.choose(from, fill, List.rev(fill));
     let rec go = (~init=false, src, fill) => {
@@ -116,68 +88,74 @@ module Wald = {
         switch (Wald.unlink(src)) {
         | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
           let fill = Option.to_list(cell.content) @ fill;
-          go(tl, fill) |> Effects.perform_if(Remove(hd));
+          switch (go(tl, fill)) {
+          | Some((_, baked)) as r when Baked.height(baked) == 1 =>
+            Effect.perform(Remove(hd));
+            r;
+          | _ => None
+          };
         | _ => None
         };
-      walk(~from, src, dst)
-      // require eq if ghost has been removed
-      |> (init ? Fun.id : List.filter(Walk.is_eq))
-      |> Oblig.Delta.minimize(bake(~fill));
+      let baked =
+        walk(~from, Wald.face(src).mtrl, Wald.face(dst).mtrl)
+        |> Oblig.Delta.minimize(bake(~fill));
+      return((src, baked));
     };
     go(~init=true, src, fill);
   };
 };
 
-module Slope = {
-  module Dn = {
-    let rec push =
-            (~top=Bound.Root, dn: Slope.Dn.t, ~fill=?, w: Wald.t)
-            : Result.t(Slope.Dn.t, option(Meld.t)) =>
-      switch (dn) {
-      | [] => Wald.walk_eq(~from, top, Node(w))
-      | [hd, ...tl] =>
-        switch (
-          Wald.meld(
-            ~from=L,
-            Node(hd.wald),
-            ~fill=Option.to_list(fill),
-            Node(w),
-          )
-        ) {
-        | Some(lvls) => failwith("todo")
-        }
+module Terr = {
+  module R = {
+    include Terr.R;
+
+    let connect = (t: Terr.R.t, baked) =>
+      baked
+      |> Chain.fold_left(
+           cell => Meld.M(t.cell, t.wald, cell),
+           (meld, tok, cell) => Meld.link(cell, tok, meld),
+         )
+      |> Meld.rev;
+
+    let round = (~fill=[], terr: Terr.R.t) => {
+      let exited = Walker.exit(R, Terr.face(terr));
+      switch (Oblig.Delta.minimize(bake(~fill), exited)) {
+      | Some(baked) => [connect(terr, baked)]
+      | None =>
+        let exited =
+          ListUtil.hd_opt(exited)
+          |> OptUtil.get_or_fail("bug: expected at least one exit");
+        let baked =
+          bake(exited)
+          |> OptUtil.get_or_fail(
+               "bug: bake expected to succeed if no fill required",
+             );
+        [connect(terr, baked), ...fill];
       };
+    };
   };
 };
 
 module Slope = {
   module Dn = {
-    let rec push_wald =
-            (~top=Bound.Root, dn: Slope.Dn.t, ~cell=Cell.empty, w: Wald.t)
-            : Result.t(Slope.Dn.t, Cell.t) =>
+    let rec meld =
+            (~top=Bound.Root, dn: Slope.Dn.t, ~fill=[], w: Wald.t)
+            : Result.t(Slope.Dn.t, list(Meld.t)) =>
       switch (dn) {
-      | [] => Wald.lt(top, ~cell, w) |> Result.of_option(~error=cell)
+      | [] =>
+        open Result.Syntax;
+        let* walked =
+          Walker.walk_neq(~from=L, Root, Wald.face(w).mtrl)
+          |> Result.of_option(~error=fill);
+        let+ baked = bake(~fill, walked) |> Result.of_option(~error=fill);
+        connect([], baked, w);
       | [hd, ...tl] =>
-        switch (
-          Wald.eq(hd.wald, ~cell, w),
-          Wald.lt(Node(hd.wald), ~cell, w),
-          Wald.gt(hd.wald, ~cell, Node(w)),
-        ) {
-        | (Some(eq), _, _) => Ok([{...hd, wald: eq}, ...tl])
-        | (_, Some(lt), _) => Ok(Slope.Dn.cat(dn, lt))
-        | (_, _, Some(gt)) =>
-          let cell = Slope.Up.roll(~cell=hd.cell, gt);
-          push_wald(~top, tl, ~cell, w);
-        | (None, None, None) =>
-          open Result.Syntax;
-          let g = Token.mk(Grout((Concave, Concave)));
-          let* dn = push_wald(~top, dn, ~cell, Wald.unit(g));
-          push_wald(~top, dn, w);
+        switch (Wald.meld(~from=L, hd.wald, ~fill, w)) {
+        | None => meld(~top, tl, ~fill=Terr.R.round(hd, ~fill), w)
+        | Some((wald, baked)) =>
+          Ok(connect([{...hd, wald}, ...tl], baked, w))
         }
       };
-
-    let push = (~top=Bound.Root, dn, ~cell=Cell.empty, t) =>
-      push_wald(~top, dn, ~cell, Wald.unit(t));
   };
 };
 

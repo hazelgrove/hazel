@@ -19,6 +19,12 @@ module Base = {
 include Base;
 
 let mk = (~l: cell, ~r: cell, w) => M(l, w, r);
+
+let link = (c: cell, t: Token.t, M(l, W(w), r): t) =>
+  M(c, W(Chain.link(t, l, w)), r);
+
+let rev = (M(l, W(w), r): t) => M(r, W(Chain.rev(w)), l);
+
 // let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
 //   mk(~l, W(Chain.of_loop(t)), ~r);
 
