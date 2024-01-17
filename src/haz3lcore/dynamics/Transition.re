@@ -53,7 +53,8 @@ type step_kind =
   | UpdateTest
   | FunAp
   | CastAp
-  | Builtin(string)
+  | BuiltinWrap
+  | BuiltinAp(string)
   | BinBoolOp(TermBase.UExp.op_bin_bool)
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
@@ -248,6 +249,18 @@ module Transition = (EV: EV_MODE) => {
           kind: CastAp,
           value: false,
         })
+      | BuiltinFun(ident) =>
+        Step({
+          apply: () => {
+            //HACK[Matt]: This step is just so we can check that d2' is not indet
+            ApBuiltin(
+              ident,
+              d2',
+            );
+          },
+          kind: BuiltinWrap,
+          value: false // Not necessarily a value because of InvalidOperations
+        })
       | _ =>
         Step({
           apply: () => {
@@ -257,9 +270,9 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
-    | ApBuiltin(ident, args) =>
-      let. _ = otherwise(args => ApBuiltin(ident, args))
-      and. args' = req_all_value(req(state, env), 0, args);
+    | ApBuiltin(ident, arg) =>
+      let. _ = otherwise(arg => ApBuiltin(ident, arg))
+      and. arg' = req_value(req(state, env), 0, arg);
       Step({
         apply: () => {
           let builtin =
@@ -267,16 +280,17 @@ module Transition = (EV: EV_MODE) => {
             |> OptUtil.get(() => {
                  raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
                });
-          builtin(args');
+          builtin(arg');
         },
-        kind: Builtin(ident),
+        kind: BuiltinAp(ident),
         value: false // Not necessarily a value because of InvalidOperations
       });
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_) =>
+    | Constructor(_)
+    | BuiltinFun(_) =>
       let. _ = otherwise(d);
       Constructor;
     | BinBoolOp(And, d1, d2) =>
