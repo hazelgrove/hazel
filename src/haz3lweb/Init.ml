@@ -13993,6 +13993,25 @@ let startup : PersistentData.t =
                  # Check out the research papers at hazel.org for more on #\n\
                  # how Hazel works. #";
             } );
+          ("Programming Expressively", { zipper = ""; backup_text = "" });
+          ("Composing Arithmetic Expressions", { zipper = ""; backup_text = "" });
+          ("Computing Equationally", { zipper = ""; backup_text = "" });
+          ("Variables", { zipper = ""; backup_text = "" });
+          ("Compositionality", { zipper = ""; backup_text = "" });
+          ("Scope", { zipper = ""; backup_text = "" });
+          ("Shadowing", { zipper = ""; backup_text = "" });
+          ("Booleans and Types", { zipper = ""; backup_text = "" });
+          ("Conditional Expressions", { zipper = ""; backup_text = "" });
+          ("Functions", { zipper = ""; backup_text = "" });
+          ("Tuples", { zipper = ""; backup_text = "" });
+          ("Pattern Matching on Tuples", { zipper = ""; backup_text = "" });
+          ("Recursion", { zipper = ""; backup_text = "" });
+          ("Lists", { zipper = ""; backup_text = "" });
+          ( "Pattern Matching on Lists: is_empty",
+            { zipper = ""; backup_text = "" } );
+          ("Recursion on Lists: length", { zipper = ""; backup_text = "" });
+          ("Recursion on Lists: sum", { zipper = ""; backup_text = "" });
+          ("Recursion on Lists: num_zeros", { zipper = ""; backup_text = "" });
         ],
         [] );
   }
