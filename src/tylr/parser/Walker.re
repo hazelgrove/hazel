@@ -1,49 +1,5 @@
 open Util;
 
-module Step = Molded.Label;
-module Stride = {
-  type t =
-    | Eq(Bound.t(Molded.Sort.t))
-    | Neq(Bound.t(Molded.Sort.t), Molded.Sort.t);
-  let is_eq =
-    fun
-    | Eq(_) => true
-    | Neq(_) => false;
-  let base =
-    fun
-    | Eq(s) => s
-    | Neq(_, s) => Node(s);
-};
-module Walk = {
-  type t = Chain.t(Stride.t, Step.t);
-  let is_eq = (~prime=false, w) =>
-    List.for_all(Stride.is_eq, Chain.loops(w));
-  let is_neq = (~prime=false, w) => !is_eq(w);
-  let bound = (bound: Bound.t(Molded.Sort.t)) =>
-    Chain.map_fst(
-      fun
-      | Stride.Eq(Node(sort)) => Stride.Neq(bound, sort)
-      | s => s,
-    );
-};
-module End = {
-  include Bound;
-  type t = Bound.t(Step.t);
-  module Map =
-    Map.Make({
-      type nonrec t = t;
-      let compare = compare;
-    });
-};
-
-module Index = {
-  include End.Map;
-  type t = End.Map.t(list(Walk.t));
-  let find = (_, _) => failwith("todo");
-  let union = union((_, l, r) => Some(l @ r));
-  let union_all = List.fold_left(union, empty);
-};
-
 let expect_lbl =
   fun
   | Sym.NT(_) => raise(MGrammar.Non_alternating_form)
@@ -80,7 +36,7 @@ let enter =
   |> List.concat;
 };
 
-let stride_over = (~from: Dir.t, sort: Molded.Sort.t): Index.t => {
+let stride_over = (~from: Dir.t, sort: Molded.Sort.t): Walk.Index.t => {
   let eq = Walk.unit(Stride.Eq(sort));
   (Sym.NT(sort.mtrl), sort.mold.rctx)
   |> RZipper.step(Dir.toggle(from))
@@ -97,10 +53,10 @@ let stride_over = (~from: Dir.t, sort: Molded.Sort.t): Index.t => {
        }),
      )
   |> List.map(lbl => (lbl, [eq]))
-  |> Index.of_list;
+  |> Walk.Index.of_list;
 };
 
-let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
+let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t => {
   let bounds = (s: Molded.Sort.t) => {
     let (l_sort, r_sort) = Molded.Sort.bounds(sort);
     let (l_s, r_s) = Molded.Sort.bounds(Node(s));
@@ -109,13 +65,13 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
   let seen = Hashtbl.create(10);
   let rec go = (s: Molded.Sort.t) =>
     switch (Hashtbl.find_opt(seen, s.mtrl)) {
-    | Some () => Index.empty
+    | Some () => Walk.Index.empty
     | None =>
       Hashtbl.add(seen, s.mtrl, ());
       let (l, r) = bounds(s);
       enter(~from, ~l, ~r, s.mtrl)
-      |> List.map(s => Index.union(stride_over(~from, s), go(s)))
-      |> Index.union_all;
+      |> List.map(s => Walk.Index.union(stride_over(~from, s), go(s)))
+      |> Walk.Index.union_all;
     };
   let entered =
     switch (sort) {
@@ -123,10 +79,10 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
     | Root =>
       Hashtbl.add(seen, Mtrl.Sort.root, ());
       enter(~from, Mtrl.Sort.root)
-      |> List.map(s => Index.union(stride_over(~from, s), go(s)))
-      |> Index.union_all;
+      |> List.map(s => Walk.Index.union(stride_over(~from, s), go(s)))
+      |> Walk.Index.union_all;
     };
-  Index.map(Walk.bound(sort), entered);
+  Walk.Index.map(Walk.bound(sort), entered);
 };
 
 let step = (~from: Dir.t, src: End.t) =>
@@ -152,39 +108,39 @@ let step = (~from: Dir.t, src: End.t) =>
          let over =
            Bound.to_option(sort)
            |> Option.map(stride_over(~from))
-           |> Option.value(~default=Index.empty);
+           |> Option.value(~default=Walk.Index.empty);
          [over, into];
        })
-    |> Index.union_all
+    |> Walk.Index.union_all
   };
 
 let walk = (~from: Dir.t, src: End.t) => {
   let seen = Hashtbl.create(100);
   let rec go = (src: Bound.t(Molded.Label.t)) =>
     switch (Hashtbl.find_opt(seen, src)) {
-    | Some () => Index.empty
+    | Some () => Walk.Index.empty
     | None =>
       Hashtbl.add(seen, src, ());
       let stepped = step(~from, src);
       let walked = {
-        open Index.Syntax;
+        open Walk.Index.Syntax;
         let* (src_mid, mid) = stepped;
         switch (mid) {
-        | Root => Index.empty
+        | Root => Walk.Index.empty
         | Node(mid) =>
           let* (mid_dst, dst) = go(Node(mid));
           return(Walk.append(src_mid, mid, mid_dst), dst);
         };
       };
-      Index.union(stepped, walked);
+      Walk.Index.union(stepped, walked);
     };
   go(src);
 };
 let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) => {
-  open Index.Syntax;
+  open Walk.Index.Syntax;
   let* (src_mid, mid) = stride_into(~from, sort);
   switch (mid) {
-  | Root => Index.empty
+  | Root => Walk.Index.empty
   | Node(mid) =>
     let* (mid_dst, dst) = go(Node(mid));
     return(Walk.append(src_mid, mid, mid_dst), dst);
@@ -192,16 +148,16 @@ let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) => {
 };
 
 let walk = (~from: Dir.t, src: End.t, dst: End.t): list(Walk.t) =>
-  walk(~from, src) |> Index.find(dst);
+  walk(~from, src) |> Walk.Index.find(dst);
 let walk_eq = (~from, src, dst) =>
   List.filter(Walk.is_eq, walk(~from, src, dst));
 let walk_neq = (~from, src, dst) =>
   List.filter(Walk.is_neq, walk(~from, src, dst));
 
 let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t), dst: End.t) =>
-  walk_into(~from, sort) |> Index.find(dst);
+  walk_into(~from, sort) |> Walk.Index.find(dst);
 
 let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);
 
 let enter = (~from: Dir.t, sort: Molded.Sort.Bound.t, dst: End.t) =>
-  Index.find(dst, stride_into(~from, sort));
+  Walk.Index.find(dst, stride_into(~from, sort));
