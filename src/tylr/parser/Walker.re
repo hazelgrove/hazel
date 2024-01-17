@@ -43,17 +43,12 @@ let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t =>
     (Sym.NT(sort.mtrl), sort.mold.rctx)
     |> RZipper.step(Dir.toggle(from))
     |> List.map(
-        Bound.map(((msym, rctx)) => {
-          let mlbl = expect_lbl(msym);
-          Molded.{
-            mtrl: mlbl,
-            mold: {
-              ...mold,
-              rctx,
-            },
-          };
-        }),
-      )
+         Bound.map(((msym, rctx)) => {
+           let mlbl = expect_lbl(msym);
+           let mold = {...mold, rctx};
+           Molded.{mold, mtrl: mlbl};
+         }),
+       )
     |> List.map(lbl => (lbl, [Walk.singleton(Stride.eq(sort))]))
     |> Walk.Index.of_list
   };
@@ -76,7 +71,9 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t => 
     | None =>
       Hashtbl.add(seen, mtrl, ());
       enter(~from, ~l, ~r, mtrl)
-      |> List.map(s => Walk.Index.union(stride_over(~from, s), go(Node(s))))
+      |> List.map(s =>
+           Walk.Index.union(stride_over(~from, s), go(Node(s)))
+         )
       |> Walk.Index.union_all
       |> Walk.Index.map(Walk.bound(s));
     };

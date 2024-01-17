@@ -2,12 +2,15 @@ open Util;
 
 module Step = Molded.Label;
 module Stride = {
+  open Sexplib.Std;
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Chain.t(Bound.t(Molded.Sort.t), unit);
   let height = Chain.length;
   let is_eq = s => height(s) == 1;
   let base = Chain.lst;
 };
 module Base = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Chain.t(Stride.t, Step.t);
 };
 include Base;
@@ -19,6 +22,7 @@ let bound = (bound: Bound.t(Molded.Sort.t)) =>
   Chain.map_fst(Chain.link(bound, ()));
 
 module End = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Bound.t(Step.t);
   module Map =
     Map.Make({
@@ -28,8 +32,8 @@ module End = {
 };
 module Index = {
   include End.Map;
-  type t = End.Map.t(list(Walk.t));
-  let find = (_, _) => failwith("todo");
-  let union = union((_, l, r) => Some(l @ r));
-  let union_all = List.fold_left(union, empty);
+  type t = End.Map.t(list(Base.t));
+  let find = (_end: End.t, _map: t) => failwith("todo");
+  let union: (t, t) => t = union((_, l, r) => Some(l @ r));
+  let union_all: list(t) => t = List.fold_left(union, empty);
 };

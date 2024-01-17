@@ -1,3 +1,4 @@
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t('a) =
   | Root
   | Node('a);

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 // invariant: List.length(loops) == List.length(links) + 1
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t('loop, 'link) = (list('loop), list('link));
 
 let mk = (loops: list('loop), links: list('link)): t('loop, 'link) => {
