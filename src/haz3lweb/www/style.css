@@ -2080,3 +2080,17 @@ svg.expandable path {
   border-radius: 0.4em;
   margin-bottom: 1em;
 }
+
+.slide {
+  margin-bottom: 2em;
+  min-width: 7.5in;
+  width: 7.5in;
+}
+
+.slide h1 {
+  margin-top: 0;
+}
+
+.em {
+  font-style: italic;
+}
