@@ -138,7 +138,6 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_)
   | DoTheThing => false
   | ExportPersistentData
   | DebugConsole(_) => false
@@ -219,7 +218,6 @@ let should_scroll_to_caret =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_)
   | ExportPersistentData
   | DebugConsole(_)
   | Benchmark(_) => false;
@@ -353,9 +351,6 @@ let rec apply =
       let langDocMessages =
         LangDocMessages.set_update(model.langDocMessages, u);
       Model.save_and_return({...model, langDocMessages});
-    | DebugAction(a) =>
-      DebugAction.perform(a);
-      Ok(model);
     | DebugConsole(key) =>
       DebugConsole.print(model, key);
       Ok(model);
