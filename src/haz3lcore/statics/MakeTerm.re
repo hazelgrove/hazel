@@ -185,7 +185,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["concel", "in"], [Exp(filter)]) =>
+        | (["hide", "in"], [Exp(filter)]) =>
           Filter((Eval, One), filter, r)
         | (["eval", "in"], [Exp(filter)]) =>
           Filter((Eval, All), filter, r)

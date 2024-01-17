@@ -52,13 +52,10 @@ let rec matches_exp =
          });
     matches_exp(env, d, f);
   | (_, BoundVar(fx)) =>
-    let f =
-      ClosureEnvironment.lookup(env, fx)
-      |> Util.OptUtil.get(() => {
-           print_endline("FreeInvalidVar:" ++ fx);
-           raise(EvaluatorError.Exception(FreeInvalidVar(fx)));
-         });
-    matches_exp(env, d, f);
+    switch (ClosureEnvironment.lookup(env, fx)) {
+    | Some(f) => matches_exp(env, d, f)
+    | None => false
+    }
 
   | (EmptyHole(_), _) => false
 
@@ -206,10 +203,15 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   switch (d, f) {
   | (_, EmptyHole(_)) => true
   | (Wild, Wild) => true
+  | (Wild, _) => false
   | (IntLit(dv), IntLit(fv)) => dv == fv
+  | (IntLit(_), _) => false
   | (FloatLit(dv), FloatLit(fv)) => dv == fv
+  | (FloatLit(_), _) => false
   | (BoolLit(dv), BoolLit(fv)) => dv == fv
+  | (BoolLit(_), _) => false
   | (StringLit(dv), StringLit(fv)) => dv == fv
+  | (StringLit(_), _) => false
   | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
@@ -217,8 +219,11 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
     | exception (Invalid_argument(_)) => false
     | res => matches_typ(dty1, fty1) && res
     }
+  | (ListLit(_), _) => false
   | (Constructor(dt), Constructor(ft)) => dt == ft
+  | (Constructor(_), _) => false
   | (Var(dx), Var(fx)) => dx == fx
+  | (Var(_), _) => false
   | (Tuple(dl), Tuple(fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
@@ -226,14 +231,22 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
     | exception (Invalid_argument(_)) => false
     | res => res
     }
+  | (Tuple(_), _) => false
   | (Ap(d1, d2), Ap(f1, f2)) => matches_pat(d1, f1) && matches_pat(d2, f2)
-  | (_, _) => false
+  | (Ap(_), _) => false
+  | (BadConstructor(_, _, dt), BadConstructor(_, _, ft)) => dt == ft
+  | (BadConstructor(_), _) => false
+  | (Cons(d1, d2), Cons(f1, f2)) =>
+    matches_pat(d1, f1) && matches_pat(d2, f2)
+  | (Cons(_), _) => false
+  | (EmptyHole(_), _) => false
+  | (NonEmptyHole(_), _) => false
+  | (ExpandingKeyword(_), _) => false
+  | (InvalidText(_), _) => false
   };
 }
 and matches_typ = (d: Typ.t, f: Typ.t) => {
-  switch (d, f) {
-  | (_, _) => false
-  };
+  Typ.eq(d, f);
 }
 and matches_rul = (env, d: DHExp.rule, f: DHExp.rule) => {
   switch (d, f) {
