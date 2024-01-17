@@ -293,16 +293,28 @@ let rec evaluate_pending = (~settings, s: t) => {
         elab: s.elab,
         previous: s.previous,
         current: StepPending(d, Some(eo)),
-        next: s.next,
+        next: next' |> List.map(snd),
       }
       |> evaluate_pending(~settings)
     | None => {
         elab: s.elab,
         previous: s.previous,
         current: StepperOK(d),
-        next: s.next,
+        next: next' |> List.map(snd),
       }
     };
+  };
+};
+
+let rec evaluate_full = (~settings, s: t) => {
+  switch (s.current) {
+  | StepperError(_)
+  | StepTimeout => s
+  | StepperOK(_) when s.next == [] => s
+  | StepperOK(_) =>
+    s |> step_pending(List.hd(s.next)) |> evaluate_full(~settings)
+  | StepPending(_) =>
+    evaluate_pending(~settings, s) |> evaluate_full(~settings)
   };
 };
 
