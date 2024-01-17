@@ -284,14 +284,14 @@ let rec evaluate_pending = (~settings, s: t) => {
         elab: s.elab,
         previous: s.previous,
         current: StepPending(d, Some(eo)),
-        next: s.next,
+        next: next' |> List.map(snd),
       }
       |> evaluate_pending(~settings)
     | None => {
         elab: s.elab,
         previous: s.previous,
         current: StepperOK(d),
-        next: s.next,
+        next: next' |> List.map(snd),
       }
     };
   };
