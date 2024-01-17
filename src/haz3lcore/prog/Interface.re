@@ -156,13 +156,3 @@ let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
 let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
   //NOTE: assumes empty init ctx, env
   term |> elaborate(~settings, map) |> eval_d2d(~settings);
-
-let evaluate_with_history =
-    (~settings: CoreSettings.t, map, term): list(DHExp.t) => {
-  switch () {
-  | _ when !settings.statics => []
-  | _ when !settings.dynamics => []
-  | _ =>
-    term |> elaborate(~settings, map) |> EvaluatorStep.evaluate_with_history
-  };
-};

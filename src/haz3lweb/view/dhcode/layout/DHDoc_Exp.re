@@ -178,7 +178,9 @@ let mk =
         Option.join(
           Option.map(EvaluatorStep.unwrap(_, ctx), previous_step),
         ),
-        List.filter_map(EvaluatorStep.unwrap(_, ctx), hidden_steps),
+        hidden_steps
+        |> List.filter(s => !EvalCtx.fuzzy_mark(s.ctx))
+        |> List.filter_map(EvaluatorStep.unwrap(_, ctx)),
         Option.join(Option.map(EvaluatorStep.unwrap(_, ctx), chosen_step)),
         List.filter_map(
           ((x, y)) =>
