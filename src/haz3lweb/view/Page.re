@@ -92,6 +92,15 @@ let nut_menu =
         _ => inject(Set(SecondaryIcons)),
         ~tooltip="Toggle Visible Secondary",
       ),
+      button(
+        Icons.trash,
+        _ => {
+          DebugAction.perform(DebugAction.ClearStore);
+          Dom_html.window##.location##reload;
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+        ~tooltip="Clear Local Storage and Reload",
+      ),
       link(
         Icons.github,
         "https://github.com/hazelgrove/hazel",
