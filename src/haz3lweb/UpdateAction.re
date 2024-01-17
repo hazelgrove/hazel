@@ -60,7 +60,6 @@ type t =
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t)
   | ExportPersistentData
   | DebugConsole(string)
   /* editors */
@@ -132,7 +131,6 @@ let is_edit: t => bool =
   | Copy
   | SetMeta(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_)
   | DebugConsole(_)
   | InitImportAll(_)
   | FinishImportAll(_)
