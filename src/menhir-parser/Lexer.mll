@@ -50,6 +50,7 @@ rule token =
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
+    (* Int ops*)
     | "+" { PLUS }
     | "-" { MINUS }
     | "*" { TIMES }
@@ -61,6 +62,19 @@ rule token =
     | "<=" { LESS_THAN_EQUAL }
     | ">" { GREATER_THAN }
     | ">=" { GREATER_THAN_EQUAL }
+    (* Float ops *)
+    | "+." { PLUS_FLOAT }
+    | "-." { MINUS_FLOAT }
+    | "*." { TIMES_FLOAT }
+    | "/." { DIVIDE_FLOAT }
+    | "**." {POWER_FLOAT}
+    | "==." { DOUBLE_EQUAL_FLOAT }
+    | "!=." { NOT_EQUAL_FLOAT }
+    | "<." { LESS_THAN_FLOAT}
+    | "<=." { LESS_THAN_EQUAL_FLOAT }
+    | ">." { GREATER_THAN_FLOAT }
+    | ">=." { GREATER_THAN_EQUAL_FLOAT }
+    (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }
     | "!" { L_NOT }

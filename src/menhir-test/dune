@@ -1,5 +1,5 @@
 (executable
  (name MenhirTest)
- (libraries base ptmap incr_dom hazel_menhir)
+ (libraries base ptmap incr_dom hazel_menhir haz3lcore)
  (preprocess
   (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))

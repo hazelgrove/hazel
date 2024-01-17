@@ -23,7 +23,7 @@ open AST
 %token SINGLE_EQUAL
 %token TURNSTILE
 
-(* bin ops *)
+(* Int ops *)
 %token DOUBLE_EQUAL
 %token NOT_EQUAL
 %token PLUS
@@ -35,6 +35,18 @@ open AST
 %token LESS_THAN_EQUAL
 %token GREATER_THAN
 %token GREATER_THAN_EQUAL
+(* Float ops *)
+%token DOUBLE_EQUAL_FLOAT
+%token NOT_EQUAL_FLOAT
+%token PLUS_FLOAT
+%token MINUS_FLOAT
+%token DIVIDE_FLOAT
+%token POWER_FLOAT
+%token TIMES_FLOAT
+%token LESS_THAN_FLOAT
+%token LESS_THAN_EQUAL_FLOAT
+%token GREATER_THAN_FLOAT
+%token GREATER_THAN_EQUAL_FLOAT
 (*logical ops*)
 %token L_AND
 %token L_OR
@@ -68,21 +80,41 @@ open AST
 program:
     | e = exp; EOF {e}
 
+intOp:
+    | PLUS { IntOp(Plus) }
+    | MINUS { IntOp(Minus) }
+    | TIMES { IntOp(Times) }
+    | POWER { IntOp(Power) }
+    | DIVIDE { IntOp(Divide) }
+    | DOUBLE_EQUAL { IntOp(Equals) }
+    | NOT_EQUAL { IntOp(NotEquals) }
+    | LESS_THAN { IntOp(LessThan) }
+    | LESS_THAN_EQUAL { IntOp(LessThanOrEqual) }
+    | GREATER_THAN { IntOp(GreaterThan) }
+    | GREATER_THAN_EQUAL { IntOp(GreaterThanOrEqual) }
+
+
+floatOp:
+    | PLUS_FLOAT { FloatOp(Plus) }
+    | MINUS_FLOAT { FloatOp(Minus) }
+    | TIMES_FLOAT { FloatOp(Times) }
+    | POWER_FLOAT { FloatOp(Power) }
+    | DIVIDE_FLOAT { FloatOp(Divide) }
+    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
+    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
+    | LESS_THAN_FLOAT { FloatOp(LessThan) }
+    | LESS_THAN_EQUAL_FLOAT { FloatOp(LessThanOrEqual) }
+    | GREATER_THAN_FLOAT { FloatOp(GreaterThan) }
+    | GREATER_THAN_EQUAL_FLOAT { FloatOp(GreaterThanOrEqual) }
+
+boolOp:
+    | L_AND { BoolOp(And) }
+    | L_OR { BoolOp(Or) }
+
 binOp:
-    | PLUS { Plus }
-    | MINUS { Minus }
-    | TIMES { Times }
-    | POWER { Power }
-    | DIVIDE { Divide }
-    | DOUBLE_EQUAL { Equals }
-    | NOT_EQUAL { NotEqual }
-    | LESS_THAN { LessThan }
-    | LESS_THAN_EQUAL { LessThanEqual }
-    | GREATER_THAN { GreaterThan }
-    | GREATER_THAN_EQUAL { GreaterThanEqual }
-    | L_AND { Logical_And }
-    | L_OR { Logical_Or }
-    | L_NOT { Logical_Not }
+    | i = intOp { i }
+    | f = floatOp { f }
+    | b = boolOp { b }
 
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
@@ -104,7 +136,7 @@ pat:
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
     | s = STRING { StringPat s}
-    | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) }
+    (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 
