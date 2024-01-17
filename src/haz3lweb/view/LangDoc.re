@@ -421,22 +421,82 @@ let example_view =
                 Builtins.ctx_init,
                 uhexp,
               );
+            let dhexp =
+              uhexp |> Interface.elaborate(~settings=settings.core, info_map);
+            let dhexp =
+              DHExp.Filter(
+                Filter(
+                  Filter.mk(
+                    Constructor("$Expr"),
+                    (FilterAction.Eval, FilterAction.All),
+                  ),
+                ),
+                dhexp,
+              );
+            let stepper =
+              dhexp
+              |> Stepper.init
+              |> Stepper.evaluate_full(~settings=settings.core.evaluation);
+            let (hidden, previous) =
+              Stepper.get_history(
+                ~settings=settings.core.evaluation,
+                stepper,
+              );
+            let dh_code_current =
+              div(
+                ~attr=Attr.classes(["result"]),
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~settings=settings.core.evaluation,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    ~previous_step=
+                      previous
+                      |> List.nth_opt(_, 0)
+                      |> Option.map((x: Stepper.step_with_previous) => x.step),
+                    ~next_steps=stepper.next,
+                    ~hidden_steps=
+                      List.map((x: EvaluatorStep.step) => x, hidden),
+                    ~result_key="",
+                    Stepper.current_expr(stepper),
+                  ),
+                ],
+              );
+            let dh_code_previous =
+                (step_with_previous: Stepper.step_with_previous) =>
+              div(
+                ~attr=Attr.classes(["result"]),
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~settings=settings.core.evaluation,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    ~previous_step=
+                      Option.map(
+                        (x: EvaluatorStep.step) => x,
+                        step_with_previous.previous,
+                      ),
+                    ~chosen_step=Some(step_with_previous.step),
+                    ~hidden_steps=
+                      List.map(
+                        (x: EvaluatorStep.step) => x,
+                        step_with_previous.hidden,
+                      ),
+                    ~result_key="",
+                    step_with_previous.step.d,
+                  ),
+                ],
+              );
             let result_view =
-              Interface.evaluate_with_history(
-                ~settings=settings.core,
-                info_map,
-                uhexp,
-              )
-              |> List.map(dhexp =>
-                   DHCode.view(
-                     ~inject,
-                     ~settings=CoreSettings.Evaluation.init,
-                     ~selected_hole_instance=None,
-                     ~font_metrics,
-                     ~width=80,
-                     ~result_key="",
-                     dhexp,
-                   )
+              previous
+              |> List.map(dh_code_previous)
+              |> List.fold_left(
+                   (x, y) => List.cons(y, x),
+                   [dh_code_current],
                  );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
@@ -1975,7 +2035,7 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
-      | Filter((Step, _), pat, body) =>
+      | Filter((Step, One), pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_step_group,
@@ -1994,7 +2054,26 @@ let get_doc =
           ),
           LangDocMessages.filter_step_coloring_ids(~pat_id, ~body_id),
         );
-      | Filter((Eval, _), pat, body) =>
+      | Filter((Step, All), pat, body) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.filter_debug_group,
+            docs,
+          );
+        let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(pat.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.filter_debug_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            body_id |> Id.to_string,
+            pat_id |> Id.to_string,
+          ),
+          LangDocMessages.filter_debug_coloring_ids(~pat_id, ~body_id),
+        );
+      | Filter((Eval, All), pat, body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.filter_skip_group,
@@ -2012,6 +2091,25 @@ let get_doc =
             pat_id |> Id.to_string,
           ),
           LangDocMessages.filter_skip_coloring_ids(~pat_id, ~body_id),
+        );
+      | Filter((Eval, One), pat, body) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.filter_hide_group,
+            docs,
+          );
+        let body_id = List.nth(body.ids, 0);
+        let pat_id = List.nth(pat.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.filter_hide_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%s%s"),
+            body_id |> Id.to_string,
+            pat_id |> Id.to_string,
+          ),
+          LangDocMessages.filter_hide_coloring_ids(~pat_id, ~body_id),
         );
       | Test(body) =>
         let (doc, options) =

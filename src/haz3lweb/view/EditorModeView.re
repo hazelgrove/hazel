@@ -73,7 +73,7 @@ let examples_view = (~inject, ~name, ~editors) => {
     |> Option.value(
          ~default=
            button_d(
-             Icons.back,
+             Icons.forward,
              inject(Update.SwitchExampleSlide("none")),
              ~disabled=true,
            ),
