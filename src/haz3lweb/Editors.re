@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Haz3lcore;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scratch = (int, list(ScratchSlide.state));
@@ -37,10 +38,7 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
   | Examples(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    Examples(
-      name,
-      slides |> List.remove_assoc(name) |> List.cons((name, ed)),
-    );
+    Examples(name, slides |> ListUtil.update_assoc((name, ed)));
   | Exercise(n, specs, exercise) =>
     Exercise(n, specs, Exercise.put_editor(exercise, ed))
   };
