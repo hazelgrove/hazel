@@ -319,14 +319,10 @@ let mk_round_report =
         ~ctx=init_ctx,
         filling_z,
       );
-    {
-      reply,
-      error_report:
-        StaticErrors(
-          get_top_level_errs(init_ctx, mode, top_ci)
-          @ ChatLSP.Errors.collect_static(info_map),
-        ),
-    };
+    let static_errs =
+      get_top_level_errs(init_ctx, mode, top_ci)
+      @ ChatLSP.Errors.collect_static(info_map);
+    {reply, error_report: StaticErrors(static_errs)};
   };
 
 let error_reply =

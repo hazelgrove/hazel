@@ -69,6 +69,7 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
+  let get_vars: t => list(TypVar.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -124,6 +125,29 @@ module rec Typ: {
     | Var(x) => x
     };
   };
+
+  let rec get_vars = (ty: t): list(TypVar.t) =>
+    switch (ty) {
+    | Int
+    | Float
+    | Bool
+    | String
+    | Unknown(_) => []
+    | Var(x) => [x]
+    | Arrow(ty1, ty2) => get_vars(ty1) @ get_vars(ty2)
+    | Prod(tys) => ListUtil.flat_map(get_vars, tys)
+    | Sum(sm) =>
+      ListUtil.flat_map(
+        fun
+        | None => []
+        | Some(typ) => get_vars(typ),
+        List.map(snd, sm),
+      )
+    | Rec(x, ty) =>
+      /* Remove recursive type references */
+      get_vars(ty) |> List.filter(x' => x' != x)
+    | List(ty) => get_vars(ty)
+    };
 
   /* Strip location information from a list of sources */
   let of_source = List.map((source: source) => source.ty);
@@ -471,6 +495,7 @@ and Ctx: {
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
   let shadows_typ: (t, TypVar.t) => bool;
+  let collect_aliases_deep: (t, Typ.t) => list((TypVar.t, Typ.t));
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -614,6 +639,27 @@ and Ctx: {
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
     Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
+
+  let rec collect_aliases_deep =
+          (ctx: t, ty: Typ.t): list((TypVar.t, Typ.t)) => {
+    let ty_vars = Typ.get_vars(ty);
+    let defs =
+      ListUtil.flat_map(
+        var =>
+          switch (Ctx.lookup_alias(ctx, var)) {
+          | Some(ty) => [(var, ty)]
+          | None => [(var, Unknown(Internal))]
+          },
+        ty_vars,
+      )
+      |> List.sort_uniq(((x, _), (y, _)) => compare(x, y));
+    let rec_calls =
+      ListUtil.flat_map(
+        ((_, ty')) => collect_aliases_deep(ctx, ty'),
+        defs,
+      );
+    rec_calls @ defs;
+  };
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

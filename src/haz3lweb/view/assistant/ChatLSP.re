@@ -45,16 +45,43 @@ module Type = {
     | _ => None
     };
 
+  let expected_ty_no_lookup = (mode: option(Mode.t)): Typ.t => {
+    switch (mode) {
+    | Some(Ana(ty)) => ty
+    | Some(SynFun) => Arrow(Unknown(Internal), Unknown(Internal))
+    | Some(Syn)
+    | None => Unknown(SynSwitch)
+    };
+  };
+
   let expected_ty = (~ctx, mode: option(Mode.t)): Typ.t => {
     switch (mode) {
     | Some(Ana(Var(name) as _ty)) when Ctx.lookup_alias(ctx, name) != None =>
       let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
       ty_expanded;
-    | Some(Ana(ty)) => ty
-    | Some(SynFun) => Arrow(Unknown(Internal), Unknown(Internal))
-    | Some(Syn)
-    | None => Unknown(SynSwitch)
-    //| _ => "Not applicable"
+    | _ => expected_ty_no_lookup(mode)
+    };
+  };
+
+  let format_def = (alias: string, ty: Typ.t): string => {
+    Printf.sprintf("type %s = %s in", alias, Typ.to_string(ty));
+  };
+
+  let subst_if_rec = ((name: TypVar.t, ty: Typ.t)) => {
+    switch (ty) {
+    | Rec(name', ty') => (name, Typ.subst(Var(name), name', ty'))
+    | _ => (name, ty)
+    };
+  };
+
+  let collate_aliases = (ctx, expected_ty'): option(string) => {
+    let defs =
+      Ctx.collect_aliases_deep(ctx, expected_ty')
+      |> List.map(subst_if_rec)
+      |> List.map(((alias, ty)) => format_def(alias, ty));
+    switch (defs) {
+    | [] => None
+    | _ => Some(defs |> String.concat("\n"))
     };
   };
 
@@ -71,20 +98,13 @@ module Type = {
      */
     let prefix = "Hole ?? can be filled by an expression with ";
     switch (mode) {
-    | Some(Ana(Var(name) as ty)) when Ctx.lookup_alias(ctx, name) != None =>
-      let ty_expanded = Typ.normalize(ctx, ty);
-      prefix
-      ++ "a type consistent with "
-      ++ Typ.to_string(ty)
-      ++ " which is a type alias for "
-      ++ Typ.to_string(ty_expanded);
     | Some(Ana(ty)) =>
-      let ty_expanded = Typ.normalize(ctx, ty);
-      prefix
-      ++ "a type consistent with "
-      ++ Typ.to_string(ty)
-      ++ " which expands to "
-      ++ Typ.to_string(ty_expanded);
+      let defs =
+        switch (collate_aliases(ctx, expected_ty_no_lookup(mode))) {
+        | Some(defs) => " which references the following definitions:\n" ++ defs
+        | None => "\n"
+        };
+      prefix ++ "a type consistent with " ++ Typ.to_string(ty) ++ defs;
     | Some(SynFun) =>
       prefix
       ++ "a type consistent with "
