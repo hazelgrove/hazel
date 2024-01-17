@@ -36,25 +36,27 @@ let enter =
   |> List.concat;
 };
 
-let stride_over = (~from: Dir.t, sort: Molded.Sort.t): Walk.Index.t => {
-  let eq = Walk.unit(Stride.Eq(sort));
-  (Sym.NT(sort.mtrl), sort.mold.rctx)
-  |> RZipper.step(Dir.toggle(from))
-  |> List.map(
-       Bound.map(((msym, rctx)) => {
-         let mlbl = expect_lbl(msym);
-         Molded.{
-           mtrl: mlbl,
-           mold: {
-             ...mold,
-             rctx,
-           },
-         };
-       }),
-     )
-  |> List.map(lbl => (lbl, [eq]))
-  |> Walk.Index.of_list;
-};
+let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t =>
+  switch (sort) {
+  | Root => Walk.Index.singleton(Root, Walk.singleton(Stride.eq(Root)))
+  | Node(sort) =>
+    (Sym.NT(sort.mtrl), sort.mold.rctx)
+    |> RZipper.step(Dir.toggle(from))
+    |> List.map(
+        Bound.map(((msym, rctx)) => {
+          let mlbl = expect_lbl(msym);
+          Molded.{
+            mtrl: mlbl,
+            mold: {
+              ...mold,
+              rctx,
+            },
+          };
+        }),
+      )
+    |> List.map(lbl => (lbl, [Walk.singleton(Stride.eq(sort))]))
+    |> Walk.Index.of_list
+  };
 
 let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t => {
   let bounds = (s: Molded.Sort.t) => {
@@ -84,33 +86,23 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t => 
     };
   Walk.Index.map(Walk.bound(sort), entered);
 };
+let stride = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) =>
+  Walk.Index.union(stride_over(~from, sort), stride_into(~from, sort));
 
 let step = (~from: Dir.t, src: End.t) =>
   switch (src) {
-  | Root => stride_into(~from, Root)
+  | Root => stride(~from, Root)
   | Node(lbl) =>
     (Sym.T(lbl.mtrl), lbl.mold.rctx)
     |> RZipper.step(Dir.toggle(from))
     |> List.map(
          Bound.map(((msym, rctx)) => {
            let msrt = expect_srt(msym);
-           Molded.{
-             mtrl: msrt,
-             mold: {
-               ...lbl.mold,
-               rctx,
-             },
-           };
+           let mold = {...lbl.mold, rctx};
+           Molded.{mold, mtrl: msrt};
          }),
        )
-    |> List.concat_map(sort => {
-         let into = stride_into(~from, sort);
-         let over =
-           Bound.to_option(sort)
-           |> Option.map(stride_over(~from))
-           |> Option.value(~default=Walk.Index.empty);
-         [over, into];
-       })
+    |> List.map(stride(~from))
     |> Walk.Index.union_all
   };
 
