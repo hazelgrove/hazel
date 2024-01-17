@@ -92,6 +92,23 @@ let nut_menu =
         _ => inject(Set(SecondaryIcons)),
         ~tooltip="Toggle Visible Secondary",
       ),
+      button(
+        Icons.trash,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+            );
+          if (confirmed) {
+            DebugAction.perform(DebugAction.ClearStore);
+            Dom_html.window##.location##reload;
+            Virtual_dom.Vdom.Effect.Ignore;
+          } else {
+            Virtual_dom.Vdom.Effect.Ignore;
+          };
+        },
+        ~tooltip="Clear Local Storage and Reload (LOSE ALL DATA)",
+      ),
       link(
         Icons.github,
         "https://github.com/hazelgrove/hazel",
