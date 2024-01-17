@@ -167,7 +167,7 @@ let get_content =
         "Compositionality",
         [
           text(
-            "Let expressions are expressions, just like arithmetic expressions. As we discussed earlier, expressions are constructed compositionally, so we can even make a let expression an operand of an arithemtic operator.",
+            "Let expressions are expressions, just like arithmetic expressions. As we discussed earlier, expressions are constructed compositionally, so we can even make a let expression an operand of an arithmetic operator.",
           ),
         ],
       ),
@@ -201,7 +201,7 @@ let get_content =
             text("However, it is possible to define a "),
             em("new variable"),
             text(
-              " that shares the name of a previously bound variable. This makes it impossible to refer to the previous binding within the scope of the new binding; we saw that variable has been ",
+              " that shares the name of a previously bound variable. However, this makes it impossible to refer to the previous binding within the scope of the new binding; we saw that variable has been ",
             ),
             em("shadowed"),
             text("."),
@@ -225,11 +225,11 @@ let get_content =
           ]),
           p([
             text(
-              "Hazel's type system ensures that expressions are used in ways that make sense. Each expressin has a type, which predicts the type of its value. The expressions in the previous slides all had type ",
+              "Hazel's type system ensures that expressions are used in ways that make sense. Each expression has a type, which predicts the type of its value. The expressions in the previous slides all had type ",
             ),
             code("Int"),
             text(
-              ", which is the type of integers. The boolean values have type ",
+              ", which is the type of integers, whereas the boolean values have type ",
             ),
             code("Bool"),
             text(". "),
@@ -254,7 +254,7 @@ let get_content =
             code("true"),
             text("."),
             text(
-              " Booleans can also be combined using logical and (conjunctino), ",
+              " Booleans can also be combined using logical and (conjunction), ",
             ),
             code("&&"),
             text(", and logical or (disjunction), "),
@@ -265,8 +265,55 @@ let get_content =
       ),
     )
   | Examples("Conditional Expressions", _) =>
-    Some(slide("Conditional Expressions", []))
-  | Examples("Functions", _) => Some(slide("Functions", []))
+    Some(
+      slide(
+        "Conditional Expressions",
+        [
+          p([
+            text(
+              "Given a boolean expression, we can use it to choose between two expressions using a ",
+            ),
+            em("conditional expression"),
+            text(". For example, "),
+            code("if 2 < 3 then 4 * 4 else 5 * 5"),
+            text(" evaluates to "),
+            code("4"),
+            text("."),
+          ]),
+        ],
+      ),
+    )
+  | Examples("Functions", _) =>
+    Some(
+      slide(
+        "Functions",
+        [
+          p([
+            text(
+              "Functions are expressions that take other expressions as inputs and produce other expressions as outputs. For example, ",
+            ),
+            code("fun x -> x + 1"),
+            text(
+              " is a function that takes an integer expression as input and produces an integer expression as output.",
+            ),
+            text(
+              "Functions in Hazel do not themselves have names. Instead, you can use a let expression to name a function.",
+            ),
+          ]),
+          p([
+            text(
+              "You apply a function to an argument expression by using parentheses in the usual way. For example, ",
+            ),
+            code("let f = fun x -> x + 1 in f(2)"),
+            text(" evaluates to "),
+            code("3"),
+            text(
+              ". Go through this example in the stepper to see how substitution of the function for the variable standing for the function works.",
+            ),
+          ]),
+        ],
+      ),
+    )
   | Examples("Tuples", _) => Some(slide("Tuples", []))
   | Examples("Pattern Matching on Tuples", _) =>
     Some(slide("Pattern Matching on Tuples", []))
