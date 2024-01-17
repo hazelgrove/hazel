@@ -16,11 +16,7 @@ let height = Chain.length;
 let is_eq = (~prime=false, w) => List.for_all(Stride.is_eq, Chain.loops(w));
 let is_neq = (~prime=false, w) => !is_eq(w);
 let bound = (bound: Bound.t(Molded.Sort.t)) =>
-  Chain.map_fst(
-    fun
-    | Stride.Eq(Node(sort)) => Stride.Neq(bound, sort)
-    | s => s,
-  );
+  Chain.map_fst(Chain.link(bound, ()));
 
 module End = {
   type t = Bound.t(Step.t);

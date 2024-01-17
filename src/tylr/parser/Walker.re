@@ -65,26 +65,23 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Walk.Index.t => 
     Dir.choose(from, (l_sort, r_s), (l_s, r_sort));
   };
   let seen = Hashtbl.create(10);
-  let rec go = (s: Molded.Sort.t) =>
-    switch (Hashtbl.find_opt(seen, s.mtrl)) {
+  let rec go = (s: Bound.t(Molded.Sort.t)) => {
+    let (mtrl, (l, r)) =
+      switch (s) {
+      | Root => (Mtrl.Sort.root, (None, None))
+      | Node(s) => (s.mtrl, bounds(s))
+      };
+    switch (Hashtbl.find_opt(seen, mtrl)) {
     | Some () => Walk.Index.empty
     | None =>
-      Hashtbl.add(seen, s.mtrl, ());
-      let (l, r) = bounds(s);
-      enter(~from, ~l, ~r, s.mtrl)
-      |> List.map(s => Walk.Index.union(stride_over(~from, s), go(s)))
-      |> Walk.Index.union_all;
+      Hashtbl.add(seen, mtrl, ());
+      enter(~from, ~l, ~r, mtrl)
+      |> List.map(s => Walk.Index.union(stride_over(~from, s), go(Node(s))))
+      |> Walk.Index.union_all
+      |> Walk.Index.map(Walk.bound(s));
     };
-  let entered =
-    switch (sort) {
-    | Node(s) => go(s)
-    | Root =>
-      Hashtbl.add(seen, Mtrl.Sort.root, ());
-      enter(~from, Mtrl.Sort.root)
-      |> List.map(s => Walk.Index.union(stride_over(~from, s), go(s)))
-      |> Walk.Index.union_all;
-    };
-  Walk.Index.map(Walk.bound(sort), entered);
+  };
+  go(sort);
 };
 let stride = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) =>
   Walk.Index.union(stride_over(~from, sort), stride_into(~from, sort));
