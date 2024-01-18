@@ -61,8 +61,11 @@ let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
 let rec remold = (~fill=[], ctx: Ctx.t) =>
   switch (Ctx.pull_terr(~from=R, ctx)) {
   | None =>
-    let unrolled = Slope.Dn.unroll(fill);
+    let unrolled = fill |> List.rev_map(Slope.Dn.unroll_meld) |> List.concat;
     Ctx.map_fst(Frame.Open.cat((unrolled, [])), ctx);
+  | Some((terr, ctx)) when Mtrl.is_grout(Terr.sort(terr)) =>
+    let up = Terr.cells(terr) |> List.concat_map(Slope.Up.unroll_cell);
+    ctx |> Ctx.map_fst(Frame.Open.cat(([], up))) |> remold(~fill);
   | Some((terr, ctx)) =>
     let (face, rest) = Wald.split_face(terr.wald);
     let molded = mold(ctx, ~fill, Token.to_labeled(face));
