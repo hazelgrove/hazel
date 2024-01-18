@@ -95,21 +95,18 @@ let empty_info = (): global_inference_info => {
 };
 
 let rec get_all_pattern_var_neighbors =
-        (
-          potential_typ_set: PotentialTypeSet.t,
-          desired_parent_exp_hole_id: Id.t,
-        )
+        (potential_typ_set: PotentialTypeSet.t, desired_exp_hole_id: Id.t)
         : list(Id.t) => {
   switch (potential_typ_set) {
   | [] => []
   | [hd, ...tl] =>
     switch (hd) {
-    | Base(BUnknown(ExpHole(PatternVar(parent_id), p_id)))
-        when parent_id == desired_parent_exp_hole_id => [
+    | Base(BUnknown(ExpHole(PatternVar(bound_exp), p_id)))
+        when bound_exp == desired_exp_hole_id => [
         p_id,
-        ...get_all_pattern_var_neighbors(tl, desired_parent_exp_hole_id),
+        ...get_all_pattern_var_neighbors(tl, desired_exp_hole_id),
       ]
-    | _ => get_all_pattern_var_neighbors(tl, desired_parent_exp_hole_id)
+    | _ => get_all_pattern_var_neighbors(tl, desired_exp_hole_id)
     }
   };
 };
@@ -121,28 +118,46 @@ let condense =
   let sorted_potential_typ_set =
     PotentialTypeSet.sort_potential_typ_set(potential_typ_set);
 
-  let hole_filtered_potential_typ_set =
-    PotentialTypeSet.filter_unneeded_nodes(
-      PotentialTypeSet.is_unknown,
-      sorted_potential_typ_set,
-    );
+  // When prepping solutions, it often isn't useful to have holes or type variables
+  // as suggestions when alternatives exist. This method filters 'not useful' suggestions.
+  let filter_redundant_nodes = occurs => {
+    // Always filter holes eagerly where alternatives exist when populating suggestions
+    // as even if occurs failure happens, suggesting ? will never be useful
+    // and ? and A -> ? are consistent with one another
+    let filter_redundant_holes =
+      PotentialTypeSet.filter_unneeded_nodes(PotentialTypeSet.is_unknown);
 
-  let redundant_var_filtered_potential_typ_set =
-    PotentialTypeSet.filter_unneeded_nodes(
-      PotentialTypeSet.is_var,
-      hole_filtered_potential_typ_set,
-    );
+    // Filter all type vars when alternatives exist, as their assigned value must be in the pts
+    // unless an occurs failure has occurred- in that case, filter all but one variable
+    // Why: 
+    //  Unlike holes, consistency of a type variable and another nonhole type requires equality to it
+    //    * Suppose the occurs check failed and our solution S = {a, {b} -> S, c}.
+    //      a and {b} -> S cannot be equal as doing so triggers unbound expansion.
+    //      Therefore, both must different possible suggestions.
+    //    * Suppose the occurs check was passed and our solution S = {c, {b} -> {a}}.
+    //      c and {b} -> {a} can be treated as equivalent without issue 
+    //      (this is barring transitively generated inconsistencies which may on their own cause multiple suggestions)
+    //      We choose to suggest {b} -> {a} as it is more specific (and therefore arguably more helpful)
+    let filter_redundant_vars =
+      occurs
+        ? PotentialTypeSet.filter_unneeded_nodes_class(
+            PotentialTypeSet.is_var,
+            false,
+          )
+        : PotentialTypeSet.filter_unneeded_nodes(PotentialTypeSet.is_var);
+
+    sorted_potential_typ_set |> filter_redundant_holes |> filter_redundant_vars;
+  };
 
   switch (err) {
-  | Some(Occurs) => Unsolved(true, redundant_var_filtered_potential_typ_set)
+  | Some(Occurs) => Unsolved(true, filter_redundant_nodes(true))
   | None =>
+    let filtered_pts = filter_redundant_nodes(false);
     let solved_opt =
-      PotentialTypeSet.filtered_potential_typ_set_to_typ(
-        redundant_var_filtered_potential_typ_set,
-      );
+      PotentialTypeSet.filtered_potential_typ_set_to_typ(filtered_pts);
     switch (solved_opt) {
     | Some(typ) => Solved(typ)
-    | None => Unsolved(false, redundant_var_filtered_potential_typ_set)
+    | None => Unsolved(false, filtered_pts)
     };
   };
 };

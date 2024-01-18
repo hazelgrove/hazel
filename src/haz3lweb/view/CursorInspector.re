@@ -174,17 +174,17 @@ let view_of_global_inference_info =
         text(
           occurs ? "inferred type refers to self" : "conflicting constraints",
         ),
-        Type.view(~font_metrics, typ_with_nested_conflict),
+        suggestion_button_of_typ(typ_with_nested_conflict),
       ],
     )
-  | UnsolvedExpHole(occurs, _, [typ_with_nested_conflict]) =>
+  | UnsolvedExpHole(occurs, id, [typ_with_nested_conflict]) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
         text(
           occurs ? "inferred type refers to self" : "conflicting constraints",
         ),
-        suggestion_button_of_typ(typ_with_nested_conflict),
+        suggestion_button_of_typ(~id=Some(id), typ_with_nested_conflict),
       ],
     )
   | UnsolvedTypeHole(occurs, conflicting_typs) =>

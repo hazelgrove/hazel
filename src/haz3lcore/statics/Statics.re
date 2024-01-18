@@ -371,7 +371,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~mode=mode_pat,
-        ~parent_id=Some(UExp.rep_id(e)),
+        ~bound_exp_id=Some(UExp.rep_id(e)),
         p,
         m,
       );
@@ -382,7 +382,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=e.co_ctx,
         ~mode=mode_pat,
-        ~parent_id=Some(UExp.rep_id(e.term)),
+        ~bound_exp_id=Some(UExp.rep_id(e.term)),
         p,
         m,
       );
@@ -403,7 +403,7 @@ and uexp_to_info_map =
         ~is_synswitch=true,
         ~co_ctx=CoCtx.empty,
         ~mode=Syn,
-        ~parent_id=Some(UExp.rep_id(def)),
+        ~bound_exp_id=Some(UExp.rep_id(def)),
         p,
         m,
       );
@@ -415,7 +415,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~mode=Ana(def.ty),
-        ~parent_id=Some(UExp.rep_id(def.term)),
+        ~bound_exp_id=Some(UExp.rep_id(def.term)),
         p,
         m,
       );
@@ -426,7 +426,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=body.co_ctx,
         ~mode=Ana(def.ty),
-        ~parent_id=Some(UExp.rep_id(def.term)),
+        ~bound_exp_id=Some(UExp.rep_id(def.term)),
         p,
         m,
       );
@@ -581,7 +581,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
       ~annot_pat: bool=false,
-      ~parent_id: option(Id.t)=None,
+      ~bound_exp_id: option(Id.t)=None,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -611,7 +611,7 @@ and upat_to_info_map =
       ~is_synswitch,
       ~ancestors,
       ~co_ctx,
-      ~parent_id,
+      ~bound_exp_id,
       ~annot_pat,
     );
   let unknown = Typ.Unknown(ExpHole(Internal, id), is_synswitch);
@@ -671,7 +671,7 @@ and upat_to_info_map =
        may be SynSwitch, but SynSwitch is never added to the context;
        Internal is used in this case */
     let hole_reason: Typ.hole_reason =
-      switch (annot_pat, parent_id) {
+      switch (annot_pat, bound_exp_id) {
       | (false, Some(id)) => PatternVar(id)
       | _ => Internal
       };
@@ -720,7 +720,7 @@ and upat_to_info_map =
         ~is_synswitch,
         ~ancestors,
         ~co_ctx,
-        ~parent_id,
+        ~bound_exp_id,
         ~ctx,
         ~mode=Ana(ann.ty),
         ~annot_pat=true,
