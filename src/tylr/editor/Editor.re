@@ -15,9 +15,9 @@ let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   switch (z.foc) {
   | Point =>
     open OptUtil.Syntax;
-    let+ (t, ctx) = ECtx.pull(~from=d, z.ctx);
-    let n = Dir.choose(d, EToken.length(t) - 1, 1);
-    switch (EToken.unzip(n, p)) {
+    let+ (t, ctx) = Ctx.pull(~from=d, z.ctx);
+    let n = Dir.choose(d, Token.length(t) - 1, 1);
+    switch (Token.unzip(n, p)) {
     | None => ctx |> Melder.Ctx.push(~onto=b, t) |> Zipper.mk
     | Some((l, r)) =>
       ctx
@@ -52,7 +52,7 @@ let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   | (L, Select(L, _))
   | (R, Select(R, _)) =>
     open OptUtil.Syntax;
-    let+ (t, ctx) = ECtx.pull(~from=d, z.ctx);
+    let+ (t, ctx) = Ctx.pull(~from=d, z.ctx);
     let sel = Melder.Zigg.push(~onto=d, t, sel);
     Zipper.mk(~foc=Select(d, sel), ctx);
   | (L, Select(R as b, _))
@@ -70,7 +70,7 @@ let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   };
 };
 
-let save_cursor = Melder.Ctx.push_or_fail(~onto=L, Piece.mk_cursor());
+let save_cursor = Melder.Ctx.push_or_fail(~onto=L, Token.mk_cursor());
 let load_cursor = ctx => ctx |> Zipper.zip |> Zipper.unzip;
 
 // d is side of cleared focus contents the cursor should end up
@@ -84,8 +84,8 @@ let clear_focus = (d: Dir.t, z: Zipper.t) =>
 
 let insert = (s: string, z: Zipper.t) => {
   let ctx = clear_focus(L, z);
-  let (l, ctx) = ECtx.pull(~from=L, ctx);
-  let (r, ctx) = ECtx.pull(~from=R, ctx);
+  let (l, ctx) = Ctx.pull(~from=L, ctx);
+  let (r, ctx) = Ctx.pull(~from=R, ctx);
   Labeler.label(l ++ s ++ r)
   |> List.fold_left(Molder.mold, ctx)
   |> save_cursor

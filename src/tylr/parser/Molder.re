@@ -21,6 +21,8 @@ open Util;
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
 module Molds = {
+  let map = failwith("todo");
+
   let with_label = lbl =>
     switch (find_opt(lbl, map)) {
     | None => []

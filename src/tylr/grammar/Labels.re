@@ -11,10 +11,10 @@ let all =
 
 let const = Label.Set.(elements(filter(Label.is_const, all)));
 
-let with_prefix = prefix =>
+let completions = prefix =>
   const
   |> List.filter(
        fun
-       | Label.Const(t) when String.starts_with(~prefix, t) => true
+       | Label.Const(t) => prefix != t && String.starts_with(~prefix, t)
        | _ => false,
      );
