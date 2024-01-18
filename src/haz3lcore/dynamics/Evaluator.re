@@ -28,7 +28,7 @@ module EvaluatorEVMode: {
 
   type requirement('a) = (reqstate, 'a);
 
-  type requirements('a, 'b) = (reqstate, 'a, 'b); // thing, satisfies, indet, otherwise
+  type requirements('a, 'b) = (reqstate, 'a, 'b); // cumulative state, cumulative arguments, cumulative 'undo'
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>

@@ -178,6 +178,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Cons2, Cons2(_, c))
   | (ListConcat1, ListConcat1(c, _))
   | (ListConcat2, ListConcat2(_, c))
+  | (Test, Test(_, c))
   | (Prj, Prj(c, _)) => Some(c)
   | (ListLit(n), ListLit(_, _, _, c, (ld, _)))
   | (Tuple(n), Tuple(c, (ld, _))) =>
@@ -216,6 +217,8 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (BinStringOp2, BinStringOp1(_))
   | (Cons1, Cons2(_))
   | (Cons2, Cons1(_))
+  | (Sequence1, Sequence2(_))
+  | (Sequence2, Sequence1(_))
   | (ListConcat1, ListConcat2(_))
   | (ListConcat2, ListConcat1(_)) => None
   | (Closure, _) => Some(ctx)
