@@ -317,17 +317,20 @@ module rec Typ: {
          )
       ++ ")"
     | Sum(ctr_map) =>
-      switch (ctr_map) {
-      | [] => "Nullary Sum"
-      | [t0] => "+" ++ ctr_to_string(is_left_child, t0, debug)
-      | [t0, ...ts] =>
-        List.fold_left(
-          (acc, hd) =>
-            acc ++ " + " ++ ctr_to_string(is_left_child, hd, debug),
-          ctr_to_string(is_left_child, t0, debug),
-          ts,
-        )
-      }
+      (
+        switch (ctr_map) {
+        | [] => "Nullary Sum"
+        | [t0] => "+" ++ ctr_to_string(is_left_child, t0, debug)
+        | [t0, ...ts] =>
+          List.fold_left(
+            (acc, hd) =>
+              acc ++ " + " ++ ctr_to_string(is_left_child, hd, debug),
+            ctr_to_string(is_left_child, t0, debug),
+            ts,
+          )
+        }
+      )
+      |> parenthesize_if_left_child
     | Rec(var, body) =>
       "Rec "
       ++ var

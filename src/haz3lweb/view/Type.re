@@ -98,17 +98,20 @@ let rec view_ty =
     )
   | Sum(ts) =>
     let ctr_view' = ctr_view(~font_metrics, ~with_cls);
-    div(
-      ~attr=clss(["typ-view", "Sum"]),
-      switch (ts) {
-      | [] => [text("Nullary Sum")]
-      | [t0] => [text("+")] @ ctr_view'(t0)
-      | [t0, ...ts] =>
-        let ts_views =
-          List.map(t => [text(" + ")] @ ctr_view'(t), ts) |> List.flatten;
-        ctr_view'(t0) @ ts_views;
-      },
-    );
+    [
+      div(
+        ~attr=clss(["typ-view", "Sum"]),
+        switch (ts) {
+        | [] => [text("Nullary Sum")]
+        | [t0] => [text("+")] @ ctr_view'(t0)
+        | [t0, ...ts] =>
+          let ts_views =
+            List.map(t => [text(" + ")] @ ctr_view'(t), ts) |> List.flatten;
+          ctr_view'(t0) @ ts_views;
+        },
+      ),
+    ]
+    |> parenthesize_if_left_child;
   };
 }
 and ctr_view = (~font_metrics, ~with_cls, (ctr, typ)) =>
