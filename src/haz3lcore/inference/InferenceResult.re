@@ -129,13 +129,13 @@ let condense =
 
     // Filter all type vars when alternatives exist, as their assigned value must be in the pts
     // unless an occurs failure has occurred- in that case, filter all but one variable
-    // Why: 
+    // Why:
     //  Unlike holes, consistency of a type variable and another nonhole type requires equality to it
     //    * Suppose the occurs check failed and our solution S = {a, {b} -> S, c}.
     //      a and {b} -> S cannot be equal as doing so triggers unbound expansion.
     //      Therefore, both must different possible suggestions.
     //    * Suppose the occurs check was passed and our solution S = {c, {b} -> {a}}.
-    //      c and {b} -> {a} can be treated as equivalent without issue 
+    //      c and {b} -> {a} can be treated as equivalent without issue
     //      (this is barring transitively generated inconsistencies which may on their own cause multiple suggestions)
     //      We choose to suggest {b} -> {a} as it is more specific (and therefore arguably more helpful)
     let filter_redundant_vars =

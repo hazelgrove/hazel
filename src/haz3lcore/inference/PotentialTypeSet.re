@@ -76,7 +76,7 @@ let rec ityp_to_potential_typ: ITyp.t => potential_typ =
     )
   | Sum(ty1, ty2) =>
     Binary(
-      CProd,
+      CSum,
       [ityp_to_potential_typ(ty1)],
       [ityp_to_potential_typ(ty2)],
     )

@@ -187,27 +187,19 @@ let view_of_global_inference_info =
         suggestion_button_of_typ(~id=Some(id), typ_with_nested_conflict),
       ],
     )
-  | UnsolvedTypeHole(occurs, conflicting_typs) =>
+  | UnsolvedTypeHole(_, conflicting_typs) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
-        text(
-          occurs
-            ? "inferred type may refer to self and contains conflicting constraints"
-            : "conflicting constraints",
-        ),
+        text("conflicting constraints"),
         ...List.map(suggestion_button_of_typ, conflicting_typs),
       ],
     )
-  | UnsolvedExpHole(occurs, id, conflicting_typs) =>
+  | UnsolvedExpHole(_, id, conflicting_typs) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
-        text(
-          occurs
-            ? "inferred type may refer to self and contains conflicting constraints"
-            : "conflicting constraints",
-        ),
+        text("conflicting constraints"),
         ...List.map(
              suggestion_button_of_typ(~id=Some(id)),
              conflicting_typs,
