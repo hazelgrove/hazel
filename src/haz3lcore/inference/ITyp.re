@@ -29,22 +29,15 @@ let rec typ_to_ityp: Typ.t => t =
   | List(tys) => List(typ_to_ityp(tys))
   | Arrow(t1, t2) => Arrow(typ_to_ityp(t1), typ_to_ityp(t2))
   | Prod([single]) => typ_to_ityp(single)
+  | Sum([]) => Unit
   | Sum([sum_entry]) => constructor_binding_to_ityp(sum_entry)
-  | Sum(sum_entries) => {
-      let (hd_ityp, tl_entries) = unroll_constructor_map(sum_entries);
-      Sum(hd_ityp, typ_to_ityp(Sum(tl_entries)));
-    }
+  | Sum([hd, ...tl]) =>
+    Sum(constructor_binding_to_ityp(hd), typ_to_ityp(Sum(tl)))
   | Prod([hd_ty, ...tl_tys]) =>
     Prod(typ_to_ityp(hd_ty), typ_to_ityp(Prod(tl_tys)))
   | Prod([]) => Unit
   | Rec(_, ty_body) => typ_to_ityp(ty_body)
   | Var(name) => Var(name)
-and unroll_constructor_map = (sum_map: ConstructorMap.t(option(Typ.t))) => {
-  switch (sum_map) {
-  | [] => (Unknown(NoProvenance), [])
-  | [hd_entry, ...tl] => (constructor_binding_to_ityp(hd_entry), tl)
-  };
-}
 and constructor_binding_to_ityp = sum_entry => {
   sum_entry |> snd |> Util.OptUtil.get(() => Typ.Prod([])) |> typ_to_ityp;
 };
