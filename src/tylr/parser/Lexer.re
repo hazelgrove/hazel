@@ -1,5 +1,3 @@
-open Material;
-
 let space = [%sedlex.regexp? Plus(white_space)];
 
 let grout_op = [%sedlex.regexp? "⬣"]; //

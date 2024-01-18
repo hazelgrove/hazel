@@ -19,7 +19,7 @@ module Base = {
 module Labeled = {
   include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Mtrl.t(list(Label.t)));
+  type t = Base.t(Mtrl.Labels.t);
 };
 
 module Molded = {

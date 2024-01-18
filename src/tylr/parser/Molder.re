@@ -20,60 +20,67 @@ open Util;
 // or
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
-// module Molded = {
-//   type t('a) = Result.t(('a, ESlope.Dn.t), ESlot.t);
-// };
+module Molds = {
+  let with_label = lbl =>
+    switch (find_opt(lbl, map)) {
+    | None => []
+    | Some(ms) => ms
+    };
+};
 
-let candidates = (t: EToken.Labeled.t): list(EToken.t) =>
+let candidates = (t: Token.Labeled.t): list(Token.t) =>
   List.map(
-    EToken.mk(~id=t.id, ~token=t.token),
+    Token.mk(~id=t.id, ~token=t.token),
     switch (t.mtrl) {
-    | Space => [Space]
-    | Grout(tips) => [Grout(tips)]
-    | Tile([]) => [Tile(Unmolded(default_tips(p.token)))]
+    | Space => [Molded.Label.space]
+    | Grout => failwith("bug: attempted to mold grout")
     | Tile(lbls) =>
       lbls
-      |> List.concat_map(GMolds.with_label)
-      |> List.map(m => GMtrl.Tile(Molded(m)))
+      |> List.concat_map(lbl =>
+           Molds.with_label(lbl)
+           |> List.map(mold => Molded.{mold, mtrl: Tile(lbl)})
+         )
     },
   );
 
-let mold = (ctx: ECtx.t, ~cell=ECell.empty, t: EToken.Labeled.t) => {
-  let molded =
+let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
+  switch (
     candidates(t)
-    |> List.filter_map(t => Melder.Ctx.push(~onto=L, t, ~cell, ctx))
-    |> List.stable_sort(((_, l), (_, r)) => Oblig.Delta.compare(l, r))
-    |> ListUtil.hd_opt
-    |> Option.map(fst);
-  switch (molded) {
+    |> Oblig.Delta.minimize(tok => Melder.Ctx.push(~onto=L, tok, ~fill, ctx))
+  ) {
   | Some(ctx) => ctx
   | None =>
-    let _ = failwith("todo: disassemble and remold cell");
     ctx
-    |> Melder.Ctx.push(~onto=L, Labeler.unlabel(t))
-    |> OptUtil.get_or_fail("bug: failed to meld unmolded token");
+    |> Melder.Ctx.push(~onto=L, Token.unlabel(t))
+    |> OptUtil.get_or_fail("bug: failed to meld unmolded token")
   };
 };
 
-let rec remold = (~cell=ECell.empty, ctx: ECtx.t) =>
-  switch (ECtx.pull_terr(~from=R, ctx)) {
-  | None => ECtx.map_fst(EFrame.Open.cat((ESlope.Dn.unroll(slot), [])), ctx)
+let rec remold = (~fill=[], ctx: Ctx.t) =>
+  switch (Ctx.pull_terr(~from=R, ctx)) {
+  | None =>
+    let unrolled = Slope.Dn.unroll(fill);
+    Ctx.map_fst(Frame.Open.cat((unrolled, [])), ctx);
   | Some((terr, ctx)) =>
-    let (face, rest) = EWald.split_face(~side=L, terr.wald);
-    let molded = mold(ctx, ~cell, EToken.to_labeled(face));
-    switch (ECtx.face(~side=L, molded)) {
+    let (face, rest) = Wald.split_face(terr.wald);
+    let molded = mold(ctx, ~fill, Token.to_labeled(face));
+    switch (Ctx.face(~side=L, molded)) {
     | Some(t) when t.mtrl == face.mtrl =>
       // fast path for when face piece retains mold
-      molded |> ECtx.extend_face(~side=L, rest) |> remold(~cell=terr.cell)
+      let _ = failwith("todo: make sure cell distributes paths");
+      molded
+      |> Ctx.extend_face(~side=L, rest)
+      |> remold(~fill=Option.to_list(cell.meld));
     | _ =>
       // otherwise add rest of wald to suffix queue
       let up =
         switch (rest) {
         | ([], _) => []
-        | ([cell, ...cells], ts) =>
-          let terr = {...terr, wald: EWald.mk(ts, cells)};
-          ESlope.Up.(cat(unroll(cell), [terr]));
+        | ([cell, ...cells], toks) =>
+          let terr = {...terr, wald: Wald.mk(toks, cells)};
+          let _ = failwith("todo: make sure cell distributes paths");
+          Slope.Up.(cat(unroll(Option.to_list(cell)), [terr]));
         };
-      ctx |> ECtx.map_fst(EFrame.Open.cat(([], up))) |> remold;
+      ctx |> Ctx.map_fst(Frame.Open.cat(([], up))) |> remold;
     };
   };
