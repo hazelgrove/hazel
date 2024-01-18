@@ -65,21 +65,29 @@ let rec_type_constraints = (typs: list(Typ.t)): constraints => {
   List.filter_map(is_rec_type, typs);
 };
 
-let rec ityp_to_typ: t => Typ.t =
-  fun
+let rec ityp_to_typ_ = (prefix, t): Typ.t => {
+  let go = ityp_to_typ_(prefix);
+  switch (t) {
   | Unknown(prov) => Unknown(prov, false)
   | Int => Int
   | Float => Float
   | Bool => Bool
   | String => String
-  | List(ity) => List(ityp_to_typ(ity))
-  | Arrow(t1, t2) => Arrow(ityp_to_typ(t1), ityp_to_typ(t2))
+  | List(ity) => List(go(ity))
+  | Arrow(t1, t2) => Arrow(go(t1), go(t2))
   | Sum(t1, t2) =>
-    Sum([("", Some(ityp_to_typ(t1))), ("", Some(ityp_to_typ(t2)))])
+    let prefix_l = prefix ++ "L";
+    let prefix_r = prefix ++ "R";
+    Sum([
+      (prefix_l, Some(ityp_to_typ_(prefix_l, t1))),
+      (prefix_r, Some(ityp_to_typ_(prefix_r, t2))),
+    ]);
   | Unit => Prod([])
   | Var(name) => Var(name)
-  | Prod(t1, t2) =>
-    Prod([ityp_to_typ(t1)] @ (t2 |> ityp_to_typ |> unwrap_if_prod));
+  | Prod(t1, t2) => Prod([go(t1)] @ (t2 |> go |> unwrap_if_prod))
+  };
+};
+let ityp_to_typ = ityp_to_typ_("");
 
 let to_ityp_constraints = (constraints: Typ.constraints): constraints => {
   constraints
