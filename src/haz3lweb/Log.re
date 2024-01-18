@@ -9,8 +9,6 @@ let is_action_logged: UpdateAction.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | DebugAction(_)
-  | ToggleStepper(_)
-  | StepperAction(_, StepForward(_) | StepBackward)
   | ExportPersistentData
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
@@ -33,7 +31,9 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | MoveToNextHole(_)
-  | UpdateResult(_) => true;
+  | UpdateResult(_)
+  | ToggleStepper(_)
+  | StepperAction(_, StepForward(_) | StepBackward) => true;
 
 module DB = {
   open Ezjs_idb;
