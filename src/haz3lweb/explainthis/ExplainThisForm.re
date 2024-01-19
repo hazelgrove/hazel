@@ -129,40 +129,6 @@ type pat_sub_form_id =
   | Ap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type un_op_sub_form_id =
-  | BoolNot
-  | IntMinus;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type bin_op_sub_form_id =
-  | IntPlus
-  | IntMinus
-  | IntTimes
-  | IntPower
-  | IntDivide
-  | IntLessThan
-  | IntLessThanEqual
-  | IntGreaterThan
-  | IntGreaterThanEqual
-  | IntEqual
-  | IntNotEqual
-  | FloatPlus
-  | FloatMinus
-  | FloatTimes
-  | FloatPower
-  | FloatDivide
-  | FloatLessThan
-  | FloatLessThanEqual
-  | FloatGreaterThan
-  | FloatGreaterThanEqual
-  | FloatEqual
-  | FloatNotEqual
-  | And
-  | Or
-  | StringEqual
-  | StringConcat;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
   | EmptyHoleExp
   | MultiHoleExp
@@ -186,8 +152,8 @@ type form_id =
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(un_op_sub_form_id)
-  | BinOpExp(bin_op_sub_form_id)
+  | UnOpExp(Term.UExp.op_un)
+  | BinOpExp(Term.UExp.op_bin)
   | CaseExp
   | TyAliasExp
   | EmptyHolePat
@@ -265,8 +231,8 @@ type group_id =
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(un_op_sub_form_id)
-  | BinOpExp(bin_op_sub_form_id)
+  | UnOpExp(Term.UExp.op_un)
+  | BinOpExp(Term.UExp.op_bin)
   | CaseExp
   | TyAliasExp
   | PipelineExp

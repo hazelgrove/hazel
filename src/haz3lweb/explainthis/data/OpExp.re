@@ -217,7 +217,7 @@ let bool_unary_not_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
 let bool_unary_not_exp: form = {
   let explanation = "Performs boolean negation of the [*operand*](%s).";
   {
-    id: UnOpExp(BoolNot),
+    id: UnOpExp(Bool(Not)),
     syntactic_form: [unary_not(), _exp],
     expandable_id: None,
     explanation,
@@ -230,7 +230,7 @@ let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
 let int_unary_minus_exp: form = {
   let explanation = "Performs integer negation of the [*operand*](%s).";
   {
-    id: UnOpExp(IntMinus),
+    id: UnOpExp(Int(Minus)),
     syntactic_form: [unary_minus(), _exp],
     expandable_id: None,
     explanation,
@@ -255,7 +255,7 @@ let int_plus_exp_coloring_ids =
 let int_plus_exp: form = {
   let explanation = "Gives the sum of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(IntPlus),
+    id: BinOpExp(Int(Plus)),
     syntactic_form: [_exp1, space(), plus(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -275,7 +275,7 @@ let int_minus_exp_coloring_ids =
 let int_minus_exp: form = {
   let explanation = "Gives the difference of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(IntMinus),
+    id: BinOpExp(Int(Minus)),
     syntactic_form: [_exp1, space(), minus(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -295,7 +295,7 @@ let int_times_exp_coloring_ids =
 let int_times_exp: form = {
   let explanation = "Gives the product of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(IntTimes),
+    id: BinOpExp(Int(Times)),
     syntactic_form: [_exp1, space(), times(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -313,7 +313,7 @@ let int_power_exp_coloring_ids =
 let int_power_exp: form = {
   let explanation = "Gives the result of raising [*left*](%s) ro the [*right*](%s).";
   {
-    id: BinOpExp(IntPower),
+    id: BinOpExp(Int(Power)),
     syntactic_form: [_exp1, space(), power(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -333,7 +333,7 @@ let int_divide_exp_coloring_ids =
 let int_divide_exp: form = {
   let explanation = "Gives the quotient of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(IntDivide),
+    id: BinOpExp(Int(Divide)),
     syntactic_form: [_exp1, space(), divide(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -353,7 +353,7 @@ let int_lt_exp_coloring_ids =
 let int_lt_exp: form = {
   let explanation = "If the [*left operand*](%s) is less than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(IntLessThan),
+    id: BinOpExp(Int(LessThan)),
     syntactic_form: [_exp1, space(), lt(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -373,7 +373,7 @@ let int_lte_exp_coloring_ids =
 let int_lte_exp: form = {
   let explanation = "If the [*left operand*](%s) is less than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(IntLessThanEqual),
+    id: BinOpExp(Int(LessThanOrEqual)),
     syntactic_form: [_exp1, space(), lte(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -393,7 +393,7 @@ let int_gt_exp_coloring_ids =
 let int_gt_exp: form = {
   let explanation = "If the [*left operand*](%s) is greater than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(IntGreaterThan),
+    id: BinOpExp(Int(GreaterThan)),
     syntactic_form: [_exp1, space(), gt(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -413,7 +413,7 @@ let int_gte_exp_coloring_ids =
 let int_gte_exp: form = {
   let explanation = "If the [*left operand*](%s) is greater than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(IntGreaterThanEqual),
+    id: BinOpExp(Int(GreaterThanOrEqual)),
     syntactic_form: [_exp1, space(), gte(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -433,7 +433,7 @@ let int_eq_exp_coloring_ids =
 let int_eq_exp: form = {
   let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(IntEqual),
+    id: BinOpExp(Int(Equals)),
     syntactic_form: [_exp1, space(), equals(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -453,7 +453,7 @@ let int_neq_exp_coloring_ids =
 let int_neq_exp: form = {
   let explanation = "If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(IntNotEqual),
+    id: BinOpExp(Int(NotEquals)),
     syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -473,7 +473,7 @@ let float_plus_exp_coloring_ids =
 let float_plus_exp: form = {
   let explanation = "Gives the sum of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(FloatPlus),
+    id: BinOpExp(Float(Plus)),
     syntactic_form: [_exp1, space(), fplus(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -493,7 +493,7 @@ let float_minus_exp_coloring_ids =
 let float_minus_exp: form = {
   let explanation = "Gives the difference of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(FloatMinus),
+    id: BinOpExp(Float(Minus)),
     syntactic_form: [_exp1, space(), fminus(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -513,7 +513,7 @@ let float_times_exp_coloring_ids =
 let float_times_exp: form = {
   let explanation = "Gives the product of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(FloatTimes),
+    id: BinOpExp(Float(Times)),
     syntactic_form: [_exp1, space(), ftimes(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -531,7 +531,7 @@ let float_power_exp_coloring_ids =
 let float_power_exp: form = {
   let explanation = "Gives the result of raising [*left*](%s) to the [*right*](%s).";
   {
-    id: BinOpExp(FloatPower),
+    id: BinOpExp(Float(Power)),
     syntactic_form: [_exp1, space(), fpower(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -551,7 +551,7 @@ let float_divide_exp_coloring_ids =
 let float_divide_exp: form = {
   let explanation = "Gives the quotient of the [*left*](%s) and [*right*](%s) operands.";
   {
-    id: BinOpExp(FloatDivide),
+    id: BinOpExp(Float(Divide)),
     syntactic_form: [_exp1, space(), fdivide(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -571,7 +571,7 @@ let float_lt_exp_coloring_ids =
 let float_lt_exp: form = {
   let explanation = "If the [*left operand*](%s) is less than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(FloatLessThan),
+    id: BinOpExp(Float(LessThan)),
     syntactic_form: [_exp1, space(), flt(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -591,7 +591,7 @@ let float_lte_exp_coloring_ids =
 let float_lte_exp: form = {
   let explanation = "If the [*left operand*](%s) is less than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(FloatLessThanEqual),
+    id: BinOpExp(Float(LessThanOrEqual)),
     syntactic_form: [_exp1, space(), flte(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -611,7 +611,7 @@ let float_gt_exp_coloring_ids =
 let float_gt_exp: form = {
   let explanation = "If the [*left operand*](%s) is greater than the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(FloatGreaterThan),
+    id: BinOpExp(Float(GreaterThan)),
     syntactic_form: [_exp1, space(), fgt(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -631,7 +631,7 @@ let float_gte_exp_coloring_ids =
 let float_gte_exp: form = {
   let explanation = "If the [*left operand*](%s) is greater than or equal to the [*right operand*](%s), evaluates to `true`. Otherwise evaluates to `false`.";
   {
-    id: BinOpExp(FloatGreaterThanEqual),
+    id: BinOpExp(Float(GreaterThanOrEqual)),
     syntactic_form: [_exp1, space(), fgte(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -651,7 +651,7 @@ let float_eq_exp_coloring_ids =
 let float_eq_exp: form = {
   let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(FloatEqual),
+    id: BinOpExp(Float(Equals)),
     syntactic_form: [_exp1, space(), fequals(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -671,7 +671,7 @@ let float_neq_exp_coloring_ids =
 let float_neq_exp: form = {
   let explanation = "If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(FloatNotEqual),
+    id: BinOpExp(Float(NotEquals)),
     syntactic_form: [_exp1, space(), fnot_equals(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -691,7 +691,7 @@ let bool_and_exp_coloring_ids =
 let bool_and_exp: form = {
   let explanation = "If the [*left operand*](%s) evaluates to `true`, evaluate the [*right operand*](%s). If that also evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(And),
+    id: BinOpExp(Bool(And)),
     syntactic_form: [_exp1, space(), logical_and(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -712,7 +712,7 @@ let bool_or_exp_coloring_ids =
 let bool_or_exp: form = {
   let explanation = "If the [*left operand*](%s) evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluate the [*right operand*](%s). If that evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(Or),
+    id: BinOpExp(Bool(Or)),
     syntactic_form: [_exp1, space(), logical_or(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -732,7 +732,7 @@ let str_eq_exp_coloring_ids =
 let str_eq_exp: form = {
   let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(StringEqual),
+    id: BinOpExp(String(Equals)),
     syntactic_form: [_exp1, space(), sequals(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -752,7 +752,7 @@ let str_concat_exp_coloring_ids =
 let str_concat_exp: form = {
   let explanation = "Returns the concatenation of the [*left operand*](%s) and the [*right operand*](%s),";
   {
-    id: BinOpExp(StringConcat),
+    id: BinOpExp(String(Concat)),
     syntactic_form: [_exp1, space(), sconcat(), space(), _exp2],
     expandable_id: None,
     explanation,
@@ -761,105 +761,120 @@ let str_concat_exp: form = {
 };
 
 let bool_un_not: group = {
-  id: UnOpExp(BoolNot),
+  id: UnOpExp(Bool(Not)),
   forms: [bool_unary_not_exp],
 };
 
 let int_un_minus: group = {
-  id: UnOpExp(IntMinus),
+  id: UnOpExp(Int(Minus)),
   forms: [int_unary_minus_exp],
 };
 
-let int_plus: group = {id: BinOpExp(IntPlus), forms: [int_plus_exp]};
+let int_plus: group = {id: BinOpExp(Int(Plus)), forms: [int_plus_exp]};
 
-let int_minus: group = {id: BinOpExp(IntMinus), forms: [int_minus_exp]};
+let int_minus: group = {id: BinOpExp(Int(Minus)), forms: [int_minus_exp]};
 
-let int_times: group = {id: BinOpExp(IntTimes), forms: [int_times_exp]};
+let int_times: group = {id: BinOpExp(Int(Times)), forms: [int_times_exp]};
 
-let int_power: group = {id: BinOpExp(IntPower), forms: [int_power_exp]};
+let int_power: group = {id: BinOpExp(Int(Power)), forms: [int_power_exp]};
 
-let int_divide: group = {id: BinOpExp(IntDivide), forms: [int_divide_exp]};
+let int_divide: group = {
+  id: BinOpExp(Int(Divide)),
+  forms: [int_divide_exp],
+};
 
-let int_less_than: group = {id: BinOpExp(IntLessThan), forms: [int_lt_exp]};
+let int_less_than: group = {
+  id: BinOpExp(Int(LessThan)),
+  forms: [int_lt_exp],
+};
 
 let int_less_than_equal: group = {
-  id: BinOpExp(IntLessThanEqual),
+  id: BinOpExp(Int(LessThanOrEqual)),
   forms: [int_lte_exp],
 };
 
 let int_greater_than: group = {
-  id: BinOpExp(IntGreaterThan),
+  id: BinOpExp(Int(GreaterThan)),
   forms: [int_gt_exp],
 };
 
 let int_greater_than_equal: group = {
-  id: BinOpExp(IntGreaterThanEqual),
+  id: BinOpExp(Int(GreaterThanOrEqual)),
   forms: [int_gte_exp],
 };
 
-let int_equal: group = {id: BinOpExp(IntEqual), forms: [int_eq_exp]};
+let int_equal: group = {id: BinOpExp(Int(Equals)), forms: [int_eq_exp]};
 
 let int_not_equal: group = {
-  id: BinOpExp(IntNotEqual),
+  id: BinOpExp(Int(NotEquals)),
   forms: [int_neq_exp],
 };
 
-let float_plus: group = {id: BinOpExp(FloatPlus), forms: [float_plus_exp]};
+let float_plus: group = {
+  id: BinOpExp(Float(Plus)),
+  forms: [float_plus_exp],
+};
 
 let float_minus: group = {
-  id: BinOpExp(FloatMinus),
+  id: BinOpExp(Float(Minus)),
   forms: [float_minus_exp],
 };
 
 let float_times: group = {
-  id: BinOpExp(FloatTimes),
+  id: BinOpExp(Float(Times)),
   forms: [float_times_exp],
 };
 
 let float_power: group = {
-  id: BinOpExp(FloatPower),
+  id: BinOpExp(Float(Power)),
   forms: [float_power_exp],
 };
 
 let float_divide: group = {
-  id: BinOpExp(FloatDivide),
+  id: BinOpExp(Float(Divide)),
   forms: [float_divide_exp],
 };
 
 let float_less_than: group = {
-  id: BinOpExp(FloatLessThan),
+  id: BinOpExp(Float(LessThan)),
   forms: [float_lt_exp],
 };
 
 let float_less_than_equal: group = {
-  id: BinOpExp(FloatLessThanEqual),
+  id: BinOpExp(Float(LessThanOrEqual)),
   forms: [float_lte_exp],
 };
 
 let float_greater_than: group = {
-  id: BinOpExp(FloatGreaterThan),
+  id: BinOpExp(Float(GreaterThan)),
   forms: [float_gt_exp],
 };
 
 let float_greater_than_equal: group = {
-  id: BinOpExp(FloatGreaterThanEqual),
+  id: BinOpExp(Float(GreaterThanOrEqual)),
   forms: [float_gte_exp],
 };
 
-let float_equal: group = {id: BinOpExp(FloatEqual), forms: [float_eq_exp]};
+let float_equal: group = {
+  id: BinOpExp(Float(Equals)),
+  forms: [float_eq_exp],
+};
 
 let float_not_equal: group = {
-  id: BinOpExp(FloatNotEqual),
+  id: BinOpExp(Float(NotEquals)),
   forms: [float_neq_exp],
 };
 
-let bool_and: group = {id: BinOpExp(And), forms: [bool_and_exp]};
+let bool_and: group = {id: BinOpExp(Bool(And)), forms: [bool_and_exp]};
 
-let bool_or: group = {id: BinOpExp(Or), forms: [bool_or_exp]};
+let bool_or: group = {id: BinOpExp(Bool(Or)), forms: [bool_or_exp]};
 
-let string_equal: group = {id: BinOpExp(StringEqual), forms: [str_eq_exp]};
+let string_equal: group = {
+  id: BinOpExp(String(Equals)),
+  forms: [str_eq_exp],
+};
 
 let string_concat: group = {
-  id: BinOpExp(StringConcat),
+  id: BinOpExp(String(Concat)),
   forms: [str_concat_exp],
 };

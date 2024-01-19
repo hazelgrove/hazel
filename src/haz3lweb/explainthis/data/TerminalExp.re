@@ -5,7 +5,7 @@ let triv_exp: form = {
   id: TrivExp,
   syntactic_form: [exp("()")],
   expandable_id: None,
-  explanation: "The unique value of type Unit",
+  explanation: "The unique value of type `()`.",
   examples: [],
 };
 let triv_exps: group = {id: TrivExp, forms: [triv_exp]};
@@ -14,7 +14,7 @@ let bool_exp: form = {
   id: BoolExp,
   syntactic_form: [exp("BoolLit")],
   expandable_id: None,
-  explanation: "One of two truth values",
+  explanation: "A boolean literal.",
   examples: [],
 };
 let bool_exps: group = {id: BoolExp, forms: [bool_exp]};
