@@ -1,35 +1,15 @@
 open Sexplib.Std;
 open Util;
 
-module Focus = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Pointing
-    | Selecting(Dir.t, EZigg.t);
-
-  let is_empty =
-    fun
-    | Pointing => true
-    | Selecting(_) => false;
-
-  let clear =
-    fun
-    | Pointing => []
-    | Selecting(_, zigg) => EZigg.clear(zigg);
-};
-module Context = {
-  type t = Chain.t(EFrame.Open.t, EFrame.Closed.t);
-};
-
 // todo: document potential same-id token on either side of caret
 // l|et x = 1 in x + 1
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   foc: Focus.t,
-  ctx: Context.t,
+  ctx: Ctx.t,
 };
 
-let mk = (~foc=Focus.Pointing, ctx) => {foc, ctx};
+let mk = (~foc=Focus.Point, ctx) => {foc, ctx};
 
 let unselect = (~toward=?, z: t) =>
   switch (z.foc) {
