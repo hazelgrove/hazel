@@ -9,7 +9,7 @@ let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
   (Piece.id(_typ_def), def_id),
 ];
 let tyalias_exp: form = {
-  let explanation = "Type alias expression. The [*type*](%s) is bound to the [*type variable*](%s) in the body.";
+  let explanation = "The [*type*](%s) is bound to the [*type variable*](%s) in the body.";
   let form = [
     mk_tyalias([[space(), _tpat, space()], [space(), _typ_def, space()]]),
     linebreak(),

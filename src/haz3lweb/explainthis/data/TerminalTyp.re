@@ -2,7 +2,7 @@ open Example;
 open ExplainThisForm;
 
 let int_typ: form = {
-  let explanation = "Int type. The `Int` type classifies integer values.";
+  let explanation = "The `Int` type classifies integer values.";
   {
     id: IntTyp,
     syntactic_form: [typ("Int")],
@@ -13,7 +13,7 @@ let int_typ: form = {
 };
 
 let float_typ: form = {
-  let explanation = "Float type. The `Float` type classifies floating-point values.";
+  let explanation = "The `Float` type classifies floating-point values.";
   {
     id: FloatTyp,
     syntactic_form: [typ("Float")],
@@ -24,7 +24,7 @@ let float_typ: form = {
 };
 
 let bool_typ: form = {
-  let explanation = "Bool type. The `Bool` type classifies boolean values.";
+  let explanation = "The `Bool` type classifies boolean values.";
   {
     id: BoolTyp,
     syntactic_form: [typ("Bool")],
@@ -35,7 +35,7 @@ let bool_typ: form = {
 };
 
 let str_typ: form = {
-  let explanation = "String type. The `String` type classifies string values.";
+  let explanation = "The `String` type classifies string values.";
   {
     id: StrTyp,
     syntactic_form: [typ("String")],

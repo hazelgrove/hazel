@@ -1,7 +1,7 @@
 open Example;
 open ExplainThisForm;
 let empty_hole_pat: form = {
-  let explanation = "Empty hole pattern. Expressions are not matched against the *empty hole pattern* until it is filled.";
+  let explanation = "Expressions are not matched against the *empty hole pattern* until it is filled.";
   {
     id: EmptyHolePat,
     syntactic_form: [pat("EmptyHole")],
@@ -12,7 +12,7 @@ let empty_hole_pat: form = {
 };
 
 let multi_hole_pat: form = {
-  let explanation = "Unrecognized pattern. Expressions are not matched against the invalid pattern until it is corrected.";
+  let explanation = "Expressions are not matched against the invalid pattern until it is corrected.";
   {
     id: MultiHolePat,
     syntactic_form: [pat("Invalid")],

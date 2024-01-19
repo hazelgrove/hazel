@@ -392,7 +392,7 @@ let syntactic_form_view =
       ~form_id,
     );
   div(
-    ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
+    ~attr=Attr.many([Attr.id(id), clss(["code-container"])]),
     [code_view] @ deco_view,
   );
 };
@@ -518,11 +518,7 @@ let get_doc =
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let default = (
-    [text("Whitespace or comment")],
-    ([], ColorSteps.empty),
-    [],
-  );
+  let default = ([text("No docs available")], ([], ColorSteps.empty), []);
   let get_specificity_level = group_id =>
     fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
   let get_message =
@@ -2321,19 +2317,20 @@ let view =
             : [
               section(
                 ~section_clss="syntactic-form",
-                ~title="Syntactic Form",
-                syn_form,
-              ),
-            ]
-        )
-        @ (
-          explanation == []
-            ? []
-            : [
-              section(
-                ~section_clss="explanation",
-                ~title="Explanation",
-                explanation,
+                ~title=
+                  switch (info) {
+                  | None => "Whitespace or Comment"
+                  | Some(info) => Info.cls_of(info) |> Term.Cls.show
+                  },
+                [
+                  div([
+                    div(
+                      ~attr=clss(["cell", "cell-item", "single"]),
+                      syn_form,
+                    ),
+                  ]),
+                ]
+                @ explanation,
               ),
             ]
         )

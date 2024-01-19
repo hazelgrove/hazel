@@ -1,7 +1,7 @@
 open Example;
 open ExplainThisForm;
 let wild_pat: form = {
-  let explanation = "Wildcard pattern. All expressions match the *wildcard pattern*.";
+  let explanation = "All expressions match the *wildcard pattern*.";
   {
     id: WildPat,
     syntactic_form: [pat("_")],
@@ -12,7 +12,7 @@ let wild_pat: form = {
 };
 
 let intlit_pat: form = {
-  let explanation = "Integer literal pattern. Only expressions with value `%i` match the *`%i` pattern*.";
+  let explanation = "Only expressions with value `%i` match the *`%i` pattern*.";
   {
     id: IntPat,
     syntactic_form: [pat("IntLit")],
@@ -23,7 +23,7 @@ let intlit_pat: form = {
 };
 
 let floatlit_pat: form = {
-  let explanation = "Floating-point literal pattern. Only expressions with value `%f` match the *`%f` pattern*.";
+  let explanation = "Only expressions with value `%f` match the *`%f` pattern*.";
   {
     id: FloatPat,
     syntactic_form: [pat("FloatLit")],
@@ -34,7 +34,7 @@ let floatlit_pat: form = {
 };
 
 let boollit_pat: form = {
-  let explanation = "Boolean literal pattern. Only expressions with value `%b` match the *`%b` pattern*.";
+  let explanation = "Only expressions with value `%b` match the *`%b` pattern*.";
   {
     id: BoolPat,
     syntactic_form: [pat("BoolLit")],
@@ -45,7 +45,7 @@ let boollit_pat: form = {
 };
 
 let strlit_pat: form = {
-  let explanation = "String literal pattern. Only expressions with value `%s` match the *`%s` pattern*.";
+  let explanation = "Only expressions with value `%s` match the *`%s` pattern*.";
   {
     id: StrPat,
     syntactic_form: [pat("StringLit")],
@@ -56,7 +56,7 @@ let strlit_pat: form = {
 };
 
 let triv_pat: form = {
-  let explanation = "() pattern. Only expressions with the trivial value `()` match the *trivial pattern `()`*.";
+  let explanation = "Only expressions with the trivial value `()` match the *trivial pattern `()`*.";
   {
     id: TrivPat,
     syntactic_form: [pat("()")],
@@ -67,7 +67,7 @@ let triv_pat: form = {
 };
 
 let var_pat: form = {
-  let explanation = "Variable pattern. All expressions match the *variable pattern*. The matching expression will be bound to variable `%s`.";
+  let explanation = "All expressions match the *variable pattern*. The matching expression will be bound to variable `%s`.";
   {
     id: VarPat,
     syntactic_form: [pat("x")],
@@ -78,7 +78,7 @@ let var_pat: form = {
 };
 
 let ctr_pat: form = {
-  let explanation = "Constructor pattern. Only expressions that match the *`%s` constructor* match this constructor pattern.";
+  let explanation = "Only expressions that match the *`%s` constructor* match this constructor pattern.";
   {
     id: CtrPat,
     syntactic_form: [pat("C")],

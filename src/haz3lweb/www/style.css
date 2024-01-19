@@ -1388,6 +1388,7 @@ svg.tile-selected {
   display: flex;
   flex-direction: column;
   padding: 0 0.75em;
+  gap: 0.5em;
 }
 
 .explain-this .section .explanation-contents .code {
@@ -1399,7 +1400,6 @@ svg.tile-selected {
   font-weight: bold;
   color: #a69460;
   font-size: 0.8em;
-  padding: 0 0 0.75em 0;
 }
 
 .explain-this .section .explanation-contents {

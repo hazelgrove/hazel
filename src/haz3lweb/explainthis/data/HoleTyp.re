@@ -2,7 +2,7 @@ open Example;
 open ExplainThisForm;
 
 let empty_hole_typ: form = {
-  let explanation = "Empty hole type. This marks a type that needs to be filled in.";
+  let explanation = "This marks a type that needs to be filled in.";
   {
     id: EmptyHoleTyp,
     syntactic_form: [typ("EmptyHole")],
@@ -14,7 +14,7 @@ let empty_hole_typ: form = {
 
 // TODO Did get a case where in type position had space between two variables where got into weird state
 let multi_hole_typ: form = {
-  let explanation = "Multi hole type. This is an invalid type.";
+  let explanation = "This is an invalid type.";
   {
     id: MultiHoleTyp,
     syntactic_form: [typ("Invalid")],

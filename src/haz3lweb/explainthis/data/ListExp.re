@@ -42,7 +42,7 @@ let cons_exp_coloring_ids = (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => 
   (Piece.id(_exp_tl), tl_id),
 ];
 let cons_exp: form = {
-  let explanation = "Cons operator. Creates a list with [*head element*](%s) and [*tail element*](%s).";
+  let explanation = "Creates a list with [*head element*](%s) and [*tail element*](%s).";
   {
     id: ConsExp,
     syntactic_form: [_exp_hd, cons_exp(), _exp_tl],
@@ -60,7 +60,7 @@ let concat_exp_coloring_ids =
   (Piece.id(_exp_ys), ys_id),
 ];
 let list_concat_exp: form = {
-  let explanation = "List concatenation operator. Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).";
+  let explanation = "Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).";
   {
     id: ListConcatExp,
     syntactic_form: [_exp_xs, space(), list_concat_exp(), space(), _exp_ys],
