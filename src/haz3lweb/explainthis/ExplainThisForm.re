@@ -186,6 +186,7 @@ type form_id =
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
+  | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
   | LabelledSumTyp
@@ -266,6 +267,7 @@ type group_id =
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
+  | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
   | LabelledSumTyp

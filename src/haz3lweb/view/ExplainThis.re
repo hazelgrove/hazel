@@ -421,7 +421,11 @@ let example_view =
             let info_map = Interface.Statics.mk_map(settings.core, uhexp);
             let result_view =
               DHCode.view(
-                ~settings=Settings.Evaluation.init,
+                ~settings={
+                  show_case_clauses: true,
+                  show_fn_bodies: true,
+                  show_casts: false,
+                },
                 ~selected_hole_instance=None,
                 ~font_metrics,
                 ~width=80,
@@ -2147,6 +2151,16 @@ let get_doc =
           group,
         );
       switch (List.length(elements)) {
+      | 0 =>
+        if (TupleTyp.tuple0_typ.id == get_specificity_level(TupleTyp.tuple0)) {
+          get_message(
+            ~colorings=[],
+            ~format=Some(msg => msg),
+            TupleTyp.tuple0,
+          );
+        } else {
+          basic(TupleTyp.tuple2);
+        }
       | 2 =>
         if (TupleTyp.tuple2_typ.id == get_specificity_level(TupleTyp.tuple2)) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
