@@ -10,7 +10,7 @@ let funapp_exp_ex = {
 // TODO Has a red box around it in the result
 let conapp_exp_ex = {
   sub_id: ConAp,
-  term: mk_example("Some(1)"),
+  term: mk_example("type T = None + Some(Int)\nin Some(1)"),
   message: "The constructor Some is applied to 1, which evaluates to Some(1).",
 };
 let _exp_fun = exp("e_fun");

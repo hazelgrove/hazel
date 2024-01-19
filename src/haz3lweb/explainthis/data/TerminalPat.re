@@ -1,7 +1,7 @@
 open Example;
 open ExplainThisForm;
 let wild_pat: form = {
-  let explanation = "All expressions match the *wildcard pattern*.";
+  let explanation = "The *wildcard pattern* matches any expression.";
   {
     id: WildPat,
     syntactic_form: [pat("_")],
@@ -67,7 +67,7 @@ let triv_pat: form = {
 };
 
 let var_pat: form = {
-  let explanation = "All expressions match the *variable pattern*. The matching expression will be bound to variable `%s`.";
+  let explanation = "This *pattern variable* matches any expression, binding its value to variable `%s`.";
   {
     id: VarPat,
     syntactic_form: [pat("x")],

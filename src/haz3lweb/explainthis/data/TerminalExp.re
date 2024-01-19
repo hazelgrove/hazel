@@ -14,7 +14,7 @@ let bool_exp: form = {
   id: BoolExp,
   syntactic_form: [exp("BoolLit")],
   expandable_id: None,
-  explanation: "A boolean literal.",
+  explanation: "A boolean literal, either `true` or `false`.",
   examples: [],
 };
 let bool_exps: group = {id: BoolExp, forms: [bool_exp]};
@@ -23,7 +23,7 @@ let int_exp: form = {
   id: IntExp,
   syntactic_form: [exp("IntLit")],
   expandable_id: None,
-  explanation: "An integer literal.",
+  explanation: "A signed integer literal.",
   examples: [],
 };
 let int_exps: group = {id: IntExp, forms: [int_exp]};
@@ -41,7 +41,7 @@ let string_exp: form = {
   id: StringExp,
   syntactic_form: [exp("StringLit")],
   expandable_id: None,
-  explanation: "A string literal.",
+  explanation: "A string literal. Any character besides double quotes (`\"`) can be used.",
   examples: [],
 };
 let string_exps: group = {id: StringExp, forms: [string_exp]};

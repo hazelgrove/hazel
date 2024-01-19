@@ -40,7 +40,7 @@ let let_triv_ex = {
 let let_listlit_ex = {
   sub_id: Let(ListLit),
   term: mk_example("let [x, y] = [1, 2] in \nx"),
-  message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1.",
+  message: "The variable x is bound to 1 and the y is bound to 2, so the expression evaluates to 1.",
 };
 let let_listnil_ex = {
   sub_id: Let(ListNil),
@@ -60,26 +60,27 @@ let let_cons_snd_ex = {
 let let_var_ex = {
   sub_id: Let(Var),
   term: mk_example("let x = 1 in \nx + 2"),
-  message: "The x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
+  message: "The variable x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
 };
 let let_tuple2_ex = {
   sub_id: Let(Tuple2),
   term: mk_example("let (x, y) = (1, 2) in \nx + y"),
-  message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1 + 2, which is 3.",
+  message: "The variable x is bound to 1 and the y is bound to 2, so the expression evaluates to 1 + 2, which is 3.",
 };
 let let_tuple3_ex = {
   sub_id: Let(Tuple3),
   term: mk_example("let (x, y, z) = (1, 2, 3) in \nx + y + z"),
-  message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
+  message: "The variable x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
 };
 let let_ctr_ex = {
   sub_id: Let(Ctr),
-  term: mk_example("let None = None in \n2"),
+  term: mk_example("type T = None + Some(Int)\n in let None = None\nin 2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
 };
 let let_ap_ex = {
   sub_id: Let(Ap),
-  term: mk_example("let Some(a) = Some(2) in \na"),
+  term:
+    mk_example("type T = None + Some(Int)\n in let Some(a) = Some(2)\nin a"),
   message: "The a is bound to 2, so the expression evaluates to 2.",
 };
 let _pat_def_body_let_exp_coloring_ids =

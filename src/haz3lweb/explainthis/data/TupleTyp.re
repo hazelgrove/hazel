@@ -14,6 +14,18 @@ let tuple_typ: form = {
     examples: [],
   };
 };
+
+let tuple0_typ: form = {
+  let explanation = "This edge-case tuple type, also known as the `unit` type, classifies 0-tuples, of which there is only one.";
+  {
+    id: Tuple0Typ,
+    syntactic_form: [typ("()")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let _typ_elem1 = typ("ty1");
 let _typ_elem2 = typ("ty2");
 let tuple2_typ_coloring_ids =
@@ -67,6 +79,8 @@ let tuple3_typ: form = {
 };
 
 let tuple: group = {id: TupleTyp, forms: [tuple_typ]};
+
+let tuple0: group = {id: Tuple0Typ, forms: [tuple0_typ]};
 
 let tuple2: group = {id: Tuple2Typ, forms: [tuple2_typ, tuple_typ]};
 

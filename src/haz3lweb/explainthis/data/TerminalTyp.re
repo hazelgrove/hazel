@@ -2,7 +2,7 @@ open Example;
 open ExplainThisForm;
 
 let int_typ: form = {
-  let explanation = "The `Int` type classifies integer values.";
+  let explanation = "The `Int` type classifies 32-bit signed integer values.";
   {
     id: IntTyp,
     syntactic_form: [typ("Int")],
@@ -13,7 +13,7 @@ let int_typ: form = {
 };
 
 let float_typ: form = {
-  let explanation = "The `Float` type classifies floating-point values.";
+  let explanation = "The `Float` type classifies 64-bit floating-point values according to the IEEE 754 standard.";
   {
     id: FloatTyp,
     syntactic_form: [typ("Float")],
