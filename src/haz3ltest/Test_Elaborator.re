@@ -3,7 +3,7 @@ open Tezt.Base;
 open Haz3lcore;
 
 let register_exp_test = (title, uexp: Term.UExp.t, dhexp: DHExp.t) => {
-  let m = Statics.mk_map(uexp);
+  let m = Interface.Statics.mk_map(CoreSettings.on, uexp);
   Test.register(~__FILE__, ~title, ~tags=["hazelcore", "elaborator"], () =>
     switch (Elaborator.dhexp_of_uexp(m, uexp)) {
     | None => Test.fail("Elaborator failed: Got None")

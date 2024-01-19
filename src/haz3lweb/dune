@@ -39,7 +39,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries ppx_yojson_conv.expander haz3lweb regexp_jsoo)
+ (libraries ppx_yojson_conv.expander haz3lweb)
  (modes js)
  (js_of_ocaml
   (flags
@@ -55,7 +55,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries haz3lweb regexp_jsoo)
+ (libraries haz3lweb)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
