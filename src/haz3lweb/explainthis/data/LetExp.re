@@ -104,7 +104,7 @@ let _exp_def = exp("e_def");
 let let_base_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_base_exp: form = {
-  let explanation = "Let expression. The [*definition*](%i) is matched against the [*pattern*](%i).";
+  let explanation = "Let expression. The [*definition*](%s) is matched against the [*pattern*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -123,7 +123,7 @@ let _exp_def = exp("e_def");
 let let_empty_hole_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_empty_hole_exp: form = {
-  let explanation = "Let expression. After the [*empty hole pattern*](%i) is filled, the [*definition*](%i) is matched against the [*pattern*](%i).";
+  let explanation = "Let expression. After the [*empty hole pattern*](%s) is filled, the [*definition*](%s) is matched against the [*pattern*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -142,7 +142,7 @@ let _exp_def = exp("e_def");
 let let_multi_hole_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_multi_hole_exp: form = {
-  let explanation = "Let expression. After the [invalid pattern](%i) is corrected, the [*definition*](%i) is matched against the [*pattern*](%i).";
+  let explanation = "Let expression. After the [invalid pattern](%s) is corrected, the [*definition*](%s) is matched against the [*pattern*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -164,7 +164,7 @@ let let_wild_exp_coloring_ids =
   (Piece.id(_exp_body), body_id),
 ];
 let let_wild_exp: form = {
-  let explanation = "Let expression. The [*definition*](%i) is evaluated and ignored. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The [*definition*](%s) is evaluated and ignored. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let pat_ = pat("_");
   let form = [
     mk_let([[space(), pat_, space()], [space(), _exp_def, space()]]),
@@ -189,7 +189,7 @@ let let_int_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_int_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%i`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -213,7 +213,7 @@ let let_float_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_float_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%f`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%f`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -237,7 +237,7 @@ let let_bool_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_bool_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%b`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%b`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -261,7 +261,7 @@ let let_str_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_str_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%s`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -285,7 +285,7 @@ let let_triv_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_triv_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `()`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the trivial value `()`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -304,7 +304,7 @@ let _exp_def = exp("e_def");
 let let_listlit_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_listlit_exp: form = {
-  let explanation = "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern.";
+  let explanation = "Let expression. The only values for the [*definition*](%s) that match the [*pattern*](%s) are lists with %s-elements, where each element matches the corresponding element pattern.";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -329,7 +329,7 @@ let let_listnil_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_listnil_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `[]`. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the empty list `[]`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -353,7 +353,7 @@ let let_cons_exp_coloring_ids =
   (Piece.id(_exp_def), def_id),
 ];
 let let_cons_exp: form = {
-  let explanation = "Let expression. The only values for the [*definition*](%i) that match the *pattern* are non-empty lists that match the [*head*](%i) and [*tail*](%i) patterns.";
+  let explanation = "Let expression. The only values for the [*definition*](%s) that match the *pattern* are non-empty lists that match the [*head*](%s) and [*tail*](%s) patterns.";
   let cons = cons_pat();
   let form = [
     mk_let([
@@ -382,7 +382,7 @@ let let_var_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_var_exp: form = {
-  let explanation = "Let expression. The [*definition*](%i) is bound to the [*variable*](%i) `%s` in the [*body*](%i).";
+  let explanation = "Let expression. The [*definition*](%s) is bound to the [*variable*](%s) `%s` in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -402,7 +402,7 @@ let _exp_def = exp("e_def");
 let let_tuple_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp_def));
 let let_tuple_exp: form = {
-  let explanation = "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are %i-tuples where each element matches the corresponding element pattern.";
+  let explanation = "Let expression. The only values for the [*definition*](%s) that match the [*pattern*](%s) are %s-tuples where each element matches the corresponding element pattern.";
   let form = [
     mk_let([
       [space(), pat("p1"), _comma, space(), pat("..."), space()],
@@ -430,7 +430,7 @@ let let_tuple2_exp_coloring_ids =
   (Piece.id(_exp_def), def_id),
 ];
 let let_tuple2_exp: form = {
-  let explanation = "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i).";
+  let explanation = "Let expression. The only values for the [*definition*](%s) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s).";
   let comma = comma_pat();
   let form = [
     mk_let([
@@ -462,7 +462,7 @@ let let_tuple3_exp_coloring_ids =
   (Piece.id(_exp_def), def_id),
 ];
 let let_tuple3_exp: form = {
-  let explanation = "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i).";
+  let explanation = "Let expression. The only values for the [*definition*](%s) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s).";
   let comma = comma_pat();
   let form = [
     mk_let([
@@ -504,7 +504,7 @@ let let_ctr_exp_coloring_ids =
     Piece.id(_exp_body),
   );
 let let_ctr_exp: form = {
-  let explanation = "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).";
+  let explanation = "Let expression. The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the *`%s` constructor*. The [*definition*](%s) can't be referenced in the [*body*](%s).";
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
@@ -528,7 +528,7 @@ let let_ap_exp_coloring_ids =
   (Piece.id(_exp_def), def_id),
 ];
 let let_ap_exp: form = {
-  let explanation = "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i).";
+  let explanation = "Let expression. The only values for the [*definition*](%s) that match the *pattern* are the [*constructor*](%s) where the *argument* matches the [*argument pattern*](%s).";
   let ap = mk_ap_pat([[_pat_arg]]);
   let form = [
     mk_let([

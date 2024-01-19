@@ -1,41 +1,66 @@
 open Sexplib.Std;
 open Haz3lcore;
 
+/* MODEL:
+
+      The model consists of three broad categories. Editors is the meat,
+      containing the code content and cursor/selection/buffer state for all
+      active editors. Settings are user-selectable preferences. Together,
+      these two comprise the persistent state of the application which is
+      saved to localstore.
+
+      Meta on the other hand consists of everything which is not
+      peristant, including transitory ui_state such as whether the mouse
+      is held down, and cached evaluation results.
+
+   */
+
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
+/* Non-persistent UI state */
+[@deriving (show({with_path: false}), yojson, sexp)]
+type ui_state = {
+  font_metrics: FontMetrics.t,
+  show_backpack_targets: bool,
+  mousedown: bool,
+};
+
+let ui_state_init = {
+  font_metrics: FontMetrics.init,
+  show_backpack_targets: false,
+  mousedown: false,
+};
+
+/* Non-persistent application state */
+[@deriving (show({with_path: false}), yojson, sexp)]
+type meta = {
+  ui_state,
+  results: ModelResults.t,
+};
+
+let meta_init = {ui_state: ui_state_init, results: ModelResults.empty};
+
 type t = {
   editors: Editors.t,
-  results: ModelResults.t,
-  settings: ModelSettings.t,
-  font_metrics: FontMetrics.t,
-  logo_font_metrics: FontMetrics.t,
-  show_backpack_targets: bool,
-  double_tap: option(timestamp),
-  mousedown: bool,
+  settings: Settings.t,
   explainThisModel: ExplainThisModel.t,
+  meta,
 };
 
 let cutoff = (===);
 
 let mk = editors => {
   editors,
-  results: ModelResults.empty,
   settings: Init.startup.settings,
-  // TODO: move below to 'io_state'?
-  font_metrics: FontMetrics.init,
-  logo_font_metrics: FontMetrics.init,
-  show_backpack_targets: false,
-  double_tap: None,
-  mousedown: false,
   explainThisModel: ExplainThisModel.init,
+  meta: meta_init,
 };
 
 let blank = mk(Editors.Scratch(0, []));
 let debug = mk(Editors.DebugLoad);
 
-let load_editors =
-    (~mode: ModelSettings.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors = (~mode: Settings.mode, ~instructor_mode: bool): Editors.t =>
   switch (mode) {
   | DebugLoad => DebugLoad
   | Scratch =>
@@ -72,21 +97,41 @@ let load = (init_model: t): t => {
     );
   let results =
     ModelResults.init(
-      settings.dynamics ? Editors.get_spliced_elabs(editors) : [],
+      ~settings=settings.core,
+      Editors.get_spliced_elabs(~settings, editors),
     );
-  {...init_model, editors, settings, explainThisModel, results};
+  let meta = {...init_model.meta, results};
+  {editors, settings, explainThisModel, meta};
 };
 
-let save = (model: t) => {
-  save_editors(
-    model.editors,
-    ~instructor_mode=model.settings.instructor_mode,
-  );
-  Store.ExplainThisModel.save(model.explainThisModel);
-  Store.Settings.save(model.settings);
+let save = ({editors, settings, explainThisModel, _}: t) => {
+  save_editors(editors, ~instructor_mode=settings.instructor_mode);
+  Store.ExplainThisModel.save(explainThisModel);
+  Store.Settings.save(settings);
 };
 
 let save_and_return = (model: t) => {
   save(model);
   Ok(model);
+};
+let reset = (model: t): t => {
+  /* Reset model to default, including in localstorage,
+     but don't otherwise erase localstorage, allowing
+     e.g. api keys to persist */
+  ignore(Store.Settings.init());
+  ignore(Store.ExplainThisModel.init());
+  ignore(Store.Scratch.init());
+  ignore(Store.Examples.init());
+  ignore(Store.Exercise.init(~instructor_mode=true));
+  let new_model = load(blank);
+  {
+    ...new_model,
+    meta: {
+      ...model.meta,
+      ui_state: {
+        ...model.meta.ui_state,
+        font_metrics: model.meta.ui_state.font_metrics,
+      },
+    },
+  };
 };

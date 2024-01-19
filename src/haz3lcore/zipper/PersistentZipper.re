@@ -13,18 +13,15 @@ let persist = (zipper: Zipper.t) => {
   };
 };
 
-let unpersist = (persisted: t, init_id: int) =>
-  try((
-    init_id,
-    Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp,
-  )) {
+let unpersist = (persisted: t) =>
+  try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {
   | _ =>
     print_endline(
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
     );
-    switch (Printer.zipper_of_string(init_id, persisted.backup_text)) {
-    | None => (init_id + 1, Zipper.init(init_id))
-    | Some((z, new_id)) => (new_id, z)
+    switch (Printer.zipper_of_string(persisted.backup_text)) {
+    | None => Zipper.init()
+    | Some(z) => z
     };
   };
 
@@ -32,7 +29,7 @@ let serialize = (zipper: Zipper.t) => {
   persist(zipper) |> yojson_of_t |> Yojson.Safe.to_string;
 };
 
-let deserialize = (data: string, init_id) => {
+let deserialize = (data: string) => {
   let persisted = data |> Yojson.Safe.from_string |> t_of_yojson;
-  unpersist(persisted, init_id);
+  unpersist(persisted);
 };

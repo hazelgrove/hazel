@@ -398,11 +398,13 @@ and remold_exp = (shape, seg: t): t =>
     }
   };
 
-let skel = seg =>
-  seg
-  |> List.mapi((i, p) => (i, p))
-  |> List.filter(((_, p)) => !Piece.is_secondary(p))
-  |> Skel.mk;
+let skel =
+  Core.Memo.general(~cache_size_bound=10000, seg =>
+    seg
+    |> List.mapi((i, p) => (i, p))
+    |> List.filter(((_, p)) => !Piece.is_secondary(p))
+    |> Skel.mk
+  );
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
@@ -451,63 +453,46 @@ module Trim = {
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
-  let scooch_over_linebreak = wss' =>
-    switch (wss') {
-    | [ws, [w, ...ws'], ...wss] when Secondary.is_linebreak(w) => [
-        ws @ [w],
-        ws',
-        ...wss,
-      ]
-    | _ => wss'
-    };
-
-  let add_grout =
-      (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
-    open IdGen.Syntax;
-    let+ g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim;
-
-    /* If we're adding a grout, remove a secondary. Note that
+  let add_grout = (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
+    let g = Grout.mk_fits_shape(shape);
+    /* When adding a grout to the left, consume a space. Note
        changes made to the logic here should also take into
-       account the other direction in 'regrout' below.
-
-       Examples:
-       1. concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
-       2. convex left "[|]" want "[ |]"=>"[<>|]" (consume)
-       3. convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
-       */
-
-    let trim = (
-      g.shape == Concave && d == Right ? wss : rm_up_to_one_space(wss),
-      gs,
-    );
-    let (wss', gs') = cons_g(g, trim);
-    /* Hack to supress the addition of leading secondary on a line */
-    //let wss' = scooch_over_linebreak(wss');
-    /* ANDREW: disabled above hack; with calmer indent it seems annoying */
-    (wss', gs');
+       account the other direction in 'regrout' below */
+    let wss' =
+      switch (d) {
+      /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
+      /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
+      | Right => wss
+      /* Left Convex e.g. Insert Space `[|]` => `[ |]` => `[<>|]` (Consume) */
+      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
+      | Left => rm_up_to_one_space(wss)
+      };
+    cons_g(g, (wss', gs));
   };
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
+  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
-
-      /* Convert unneeded grout to spaces. Note that changes made
-         to the logic here should also take into account the
-         conversion of spaces to grout in 'add_grout' above. */
+      /* When removing a grout to the Left, add a space. Note
+         changes made to the logic here should also take into
+         account the other direction in 'add_grout' above */
       let new_spaces =
         List.filter_map(
-          ({id, shape}: Grout.t) => {
-            switch (shape) {
-            /* convave right case "let a = 1><in|" => "let a = 1 in |" (convert) */
-            | Concave when d == Right => Some(Secondary.mk_space(id))
+          (g: Grout.t) => {
+            switch (g.shape, d) {
+            /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
+            /* NOTE(andrew): Not sure why d here seems reversed. Also not sure why
+             * restriction to concave is necessary but seems to prevent addition
+             * of needless whitespace in some situation such as when inserting
+             * on `(|)`, which seems to add whitespace after the right parens
+             * without this shape restirction */
+            | (Concave, Right) => Some(Secondary.mk_space(g.id))
             | _ => None
             }
           },
           gs,
         );
-
       /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
@@ -528,12 +513,12 @@ module Trim = {
          undesirable behavior with these changes and am fine with going ahead
          with this for now. */
       let wss = [new_spaces @ List.concat(wss)];
-      IdGen.return(Aba.mk(wss, []));
+      Aba.mk(wss, []);
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
       | [] => add_grout(~d, l, merged)
-      | [_, ..._] => IdGen.return(merged)
+      | [_, ..._] => merged
       };
     };
 
@@ -544,42 +529,38 @@ module Trim = {
 };
 
 let rec regrout = ((l, r), seg) => {
-  open IdGen.Syntax;
-  let* (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let+ trim = Trim.regrout(Direction.Right, (l, r), trim);
+  let (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
+  let trim = Trim.regrout(Direction.Right, (l, r), trim);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
-    (d: Direction.t, affix: t, r: Nib.Shape.t)
-    : IdGen.t((Trim.t, Nib.Shape.t, t)) => {
-  open IdGen.Syntax;
-  let+ (trim, s, affix) =
+    (d: Direction.t, affix: t, r: Nib.Shape.t): (Trim.t, Nib.Shape.t, t) => {
+  let (trim, s, affix) =
     fold_right(
-      (p: Piece.t, id_gen) => {
-        let* (trim, r, tl) = id_gen;
+      (p: Piece.t, (trim, r, tl)) => {
         switch (p) {
-        | Secondary(w) => IdGen.return((Trim.cons_w(w, trim), r, tl))
-        | Grout(g) => IdGen.return((Trim.(merge(cons_g(g, trim))), r, tl))
+        | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
+        | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Tile(t) =>
-          let* children =
+          let children =
             List.fold_right(
               (hd, tl) => {
-                let* tl = tl;
-                let+ hd = regrout(Nib.Shape.(concave(), concave()), hd);
+                let tl = tl;
+                let hd = regrout(Nib.Shape.(concave(), concave()), hd);
                 [hd, ...tl];
               },
               t.children,
-              IdGen.return([]),
+              [],
             );
           let p = Piece.Tile({...t, children});
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let+ trim = Trim.regrout(d, (r', r), trim);
+          let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
-        };
+        }
       },
       (d == Left ? List.rev : Fun.id)(affix),
-      IdGen.return((Aba.mk([[]], []), r, empty)),
+      (Aba.mk([[]], []), r, empty),
     );
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
 };

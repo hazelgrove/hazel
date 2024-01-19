@@ -3,7 +3,7 @@ open Example;
 open ExplainThisForm;
 
 let tuple_pat: form = {
-  let explanation = "Tuple pattern. Only expressions that are %i-tuples with elements matching the corresponding element patterns match this tuple pattern.";
+  let explanation = "Tuple pattern. Only expressions that are %s-tuples with elements matching the corresponding element patterns match this tuple pattern.";
   let comma = comma_pat();
   {
     id: TuplePat,
@@ -22,7 +22,7 @@ let tuple_pat_size2_coloring_ids =
   (Piece.id(_pat2), elem2_id),
 ];
 let tuple_pat_size2: form = {
-  let explanation = "Tuple pattern. Only expressions that are 2-tuples with first element matching the [first element pattern](%i) and second element matching the [second element pattern](%i) match this tuple pattern.";
+  let explanation = "Tuple pattern. Only expressions that are 2-tuples with first element matching the [first element pattern](%s) and second element matching the [second element pattern](%s) match this tuple pattern.";
   let comma = comma_pat();
   {
     id: Tuple2Pat,
@@ -43,7 +43,7 @@ let tuple_pat_size3_coloring_ids =
   (Piece.id(_pat3), elem3_id),
 ];
 let tuple_pat_size3: form = {
-  let explanation = "Tuple pattern. Only expressions that are 3-tuples with first element matching the [first element pattern](%i), second element matching the [second element pattern](%i), and third element matching the [third element pattern](%i) match this tuple pattern.";
+  let explanation = "Tuple pattern. Only expressions that are 3-tuples with first element matching the [first element pattern](%s), second element matching the [second element pattern](%s), and third element matching the [third element pattern](%s) match this tuple pattern.";
   let comma = comma_pat();
   {
     id: Tuple3Pat,

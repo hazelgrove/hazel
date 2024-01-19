@@ -22,7 +22,7 @@ let if_exp_coloring_ids =
   (Piece.id(_exp_else), else_id),
 ];
 let if_exp: form = {
-  let explanation = "If expression. If the [*condition*](%i) evaluates to `true`, evaluate the [*then branch*](%i). Otherwise, evaluate the [*else branch*](%i).";
+  let explanation = "If expression. If the [*condition*](%s) evaluates to `true`, evaluate the [*then branch*](%s). Otherwise, evaluate the [*else branch*](%s).";
   {
     id: IfExp,
     syntactic_form: [

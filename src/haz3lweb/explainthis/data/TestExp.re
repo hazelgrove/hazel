@@ -18,7 +18,7 @@ let test_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp_body), body_id),
 ];
 let test_exp: form = {
-  let explanation = "Test expression. If the [*body*](%i) of the test evalutes to `true`, the test passes. Otherwise, the test fails.";
+  let explanation = "Test expression. If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails.";
   {
     id: TestExp,
     syntactic_form: [mk_test([[space(), _exp_body, space()]])],

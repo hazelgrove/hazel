@@ -5,7 +5,7 @@ open Node;
 type t = {
   exercise: Exercise.state,
   results: option(ModelResults.t),
-  settings: ModelSettings.t,
+  settings: Settings.t,
   explainThisModel: ExplainThisModel.t,
   stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
@@ -15,15 +15,16 @@ let mk =
     (
       ~exercise: Exercise.state,
       ~results: option(ModelResults.t),
-      ~settings,
+      ~settings: Settings.t,
       ~explainThisModel,
     )
     : t => {
   let Exercise.{eds, _} = exercise;
   let stitched_dynamics =
     Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      Exercise.stitch_dynamic(exercise, results)
+      Exercise.stitch_dynamic(settings.core, exercise, results)
     );
+
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   {
@@ -40,7 +41,7 @@ type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
 
-let render_cells = (settings: ModelSettings.t, v: list(vis_marked(Node.t))) => {
+let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   List.filter_map(
     vis =>
       switch (vis) {
@@ -76,13 +77,12 @@ let view =
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (explainThisModel.highlight && explainThisModel.show) {
-      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));
-      let map = Statics.mk_map(term);
+      //TODO(andrew): is indicated index appropriate below?
       Some(
         ExplainThis.get_color_map(
           ~doc=explainThisModel,
-          Indicated.index(focal_zipper),
-          map,
+          None,
+          focal_info_map,
         ),
       );
     } else {
@@ -264,6 +264,8 @@ let view =
         ~footer=
           Some(
             Cell.eval_result_footer_view(
+              ~settings,
+              ~inject,
               ~font_metrics,
               ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
               user_impl.simple_result,
@@ -275,6 +277,9 @@ let view =
 
   let testing_results =
     ModelResult.unwrap_test_results(user_tests.simple_result);
+
+  let syntax_grading_view =
+    Always(Grading.SyntaxReport.view(grading_report.syntax_report));
 
   let impl_validation_view =
     Always(
@@ -322,12 +327,13 @@ let view =
       Grading.ImplGradingReport.view(
         ~inject,
         ~report=grading_report.impl_grading_report,
+        ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );
 
   let bottom_bar =
-    settings.statics
+    settings.core.statics
       ? [
         CursorInspector.view(
           ~inject,
@@ -339,7 +345,7 @@ let view =
       ]
       : [];
   let sidebar =
-    explainThisModel.show && settings.statics
+    explainThisModel.show && settings.core.statics
       ? ExplainThis.view(
           ~inject,
           ~font_metrics,
@@ -368,6 +374,7 @@ let view =
               @ [
                 mutation_testing_view,
                 your_impl_view,
+                syntax_grading_view,
                 impl_validation_view,
                 hidden_tests_view,
                 impl_grading_view,
@@ -381,8 +388,7 @@ let view =
   @ bottom_bar;
 };
 
-let toolbar_buttons =
-    (~inject, editors: Editors.t, ~settings: ModelSettings.t) => {
+let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Settings.t) => {
   let (_idx, _specs, exercise): Editors.exercises =
     switch (editors) {
     | Exercise(idx, specs, exercise) => (idx, specs, exercise)

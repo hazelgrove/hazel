@@ -1,30 +1,29 @@
-let editor_of_code = (~read_only=false, init_id, code: CodeString.t) => {
-  switch (Printer.zipper_of_string(init_id, code)) {
+let editor_of_code = (~read_only=false, code: CodeString.t) => {
+  switch (Printer.zipper_of_string(code)) {
   | None => None
-  | Some((z, new_id)) => Some((new_id, Editor.init(~read_only, z)))
+  | Some(z) => Some(Editor.init(~read_only, z))
   };
 };
 
 let editors_for =
     (~read_only=false, xs: list('a), f: 'a => option(string))
-    : (Id.t, int, list(('a, option(Editor.t)))) => {
-  let (id_gen, zs) =
+    : (int, list(('a, option(Editor.t)))) => {
+  let zs =
     List.fold_left(
-      ((acc_id, acc_zs), a) => {
+      (acc_zs, a) => {
         switch (f(a)) {
         | Some(str) =>
-          switch (Printer.zipper_of_string(acc_id, str)) {
-          | None => (acc_id, acc_zs @ [(a, Some(Zipper.init(0)))])
-          | Some((z, new_id)) => (new_id, acc_zs @ [(a, Some(z))])
+          switch (Printer.zipper_of_string(str)) {
+          | None => acc_zs @ [(a, Some(Zipper.init()))]
+          | Some(z) => acc_zs @ [(a, Some(z))]
           }
-        | None => (acc_id, acc_zs @ [(a, None)])
+        | None => acc_zs @ [(a, None)]
         }
       },
-      (0, []),
+      [],
       xs,
     );
   (
-    id_gen,
     0,
     List.map(
       ((a, sz)) =>
@@ -38,22 +37,11 @@ let editors_for =
 };
 
 let editors_of_strings = (~read_only=false, xs: list(string)) => {
-  let (id, i, aes) = editors_for(xs, x => Some(x), ~read_only);
-  (id, i, List.map(((_, oe)) => Option.get(oe), aes));
+  let (i, aes) = editors_for(xs, x => Some(x), ~read_only);
+  (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
-let info_map = (editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) =
-    Util.TimeUtil.measure_time("EditorUtil.info_map => MakeTerm.go", true, () =>
-      MakeTerm.go(unselected)
-    );
-  let info_map = Statics.mk_map(term);
-  info_map;
-};
-
-let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
+let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
   | EmptyHole
   | Invalid(_)
@@ -69,6 +57,7 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Tuple(_)
   | Var(_)
   | Ap(_)
+  | Pipeline(_)
   | If(_)
   | Test(_)
   | Parens(_)
@@ -76,22 +65,16 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | ListConcat(_)
   | UnOp(_)
   | BinOp(_)
-  | Match(_) => (
-      id + 1,
-      TermBase.UExp.{
-        ids: [id + 10_000_000 /* hack to get unique ID */],
-        term: Seq(e1, e2),
-      },
-    )
+  | Match(_) => TermBase.UExp.{ids: [Id.mk()], term: Seq(e1, e2)}
   | Seq(e11, e12) =>
-    let (id, e12') = append_exp(id, e12, e2);
-    (id, TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')});
+    let e12' = append_exp(e12, e2);
+    TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')};
   | Let(p, edef, ebody) =>
-    let (id, ebody') = append_exp(id, ebody, e2);
-    (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
-    let (id, ebody') = append_exp(id, ebody, e2);
-    (id, TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')});
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};
   };
 };
 
@@ -104,13 +87,9 @@ let stitch = (editors: list(Editor.t)) => {
           "terms",
           true,
           () => {
-            let seg =
-              Util.TimeUtil.measure_time("unselectin", true, () =>
-                Zipper.unselect_and_zip(ed.state.zipper)
-              );
             let (term, _) =
-              Util.TimeUtil.measure_time("makin terms", true, () =>
-                MakeTerm.go(seg)
+              Util.TimeUtil.measure_time("Time: MakeTerm.from_zip:", true, () =>
+                MakeTerm.from_zip_for_view(ed.state.zipper)
               );
             term;
           },
@@ -121,12 +100,7 @@ let stitch = (editors: list(Editor.t)) => {
   | [] => failwith("cannot stitch zero expressions")
   | [e] => e
   | [e1, ...tl] =>
-    let (_, e) =
-      List.fold_left(
-        ((id, e1), e2) => append_exp(id, e1, e2),
-        (0, e1),
-        tl,
-      );
+    let e = List.fold_left(append_exp, e1, tl);
     e;
   };
 };

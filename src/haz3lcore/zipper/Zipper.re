@@ -30,27 +30,19 @@ type t = {
   // col_target: int,
 };
 
-let init: int => t =
-  id => {
-    selection: {
-      focus: Left,
-      content: [],
-    },
+let init: unit => t =
+  () => {
+    selection: Selection.mk([]),
     backpack: [],
     relatives: {
-      siblings: ([], [Grout({id, shape: Convex})]),
+      siblings: ([], [Grout({id: Id.mk(), shape: Convex})]),
       ancestors: [],
     },
     caret: Outer,
     // col_target: 0,
   };
 
-let next_blank = id => {
-  (id + 1, init(id));
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type state = (t, IdGen.state);
+let next_blank = _ => Id.mk();
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chunkiness =
@@ -100,7 +92,7 @@ let zip = (z: t): Segment.t =>
 let sibs_with_sel =
     (
       {
-        selection: {content, focus},
+        selection: {content, focus, _},
         relatives: {siblings: (l_sibs, r_sibs), _},
         _,
       }: t,
@@ -123,10 +115,9 @@ let right_neighbor_monotile: Siblings.t => option(Token.t) =
 let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
-let regrout = (d: Direction.t, z: t): IdGen.t(t) => {
+let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
-  open IdGen.Syntax;
-  let+ relatives = Relatives.regrout(d, z.relatives);
+  let relatives = Relatives.regrout(d, z.relatives);
   {...z, relatives};
 };
 
@@ -135,18 +126,29 @@ let remold = (z: t): t => {
   {...z, relatives: Relatives.remold(z.relatives)};
 };
 
-let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
-  z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
-let unselect = (z: t): t => {
+let clear_unparsed_buffer = (z: t) =>
+  switch (z.selection.mode) {
+  | Buffer(Unparsed) => {...z, selection: Selection.empty}
+  | _ => z
+  };
+
+let unselect = (~erase_buffer=false, z: t): t => {
+  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
+   * that is, the buffer style that just contains a single flat token.
+   * Erasing a buffer the contains arbitrary tiles would be more complex
+   * as we can't just empty the selection without regrouting */
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
     |> Relatives.reassemble;
-  let selection = Selection.clear(z.selection);
+  let selection = Selection.empty;
   {...z, selection, relatives};
 };
-let unselect_and_zip = (z: t): Segment.t => z |> unselect |> zip;
+let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
+  z |> unselect(~erase_buffer) |> zip;
 
 let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
   let old = z.selection;
@@ -255,72 +257,56 @@ let put_down = (d: Direction.t, z: t): option(t) => {
 };
 
 let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t)
-        : IdGen.t(t) => {
-  IdGen.Syntax.(
-    switch (label) {
-    | [t] when Form.is_string_delim(t) =>
-      /* Special case for constructing string literals.
-         See Insert.move_into_if_stringlit for more special-casing. */
-      construct(
-        ~caret,
-        ~backpack,
-        [Form.string_delim ++ Form.string_delim],
-        z,
-      )
-    | [content] when Form.is_comment(content) =>
-      /* Special case for comments, can't rely on the last branch to construct */
-      let content = Secondary.construct_comment(content);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      let z = destruct(z);
-      let selections = [Selection.mk(Base.mk_secondary(id, content))];
-      let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down(caret, {...z, backpack}));
+        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
+  switch (label) {
+  | [t] when Form.is_string_delim(t) =>
+    /* Special case for constructing string literals.
+       See Insert.move_into_if_stringlit for more special-casing. */
+    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
+  | [content] when Form.is_comment(content) =>
+    /* Special case for comments, can't rely on the last branch to construct */
+    let content = Secondary.construct_comment(content);
+    let id = Id.mk();
+    Effect.s_touch([id]);
+    let z = destruct(z);
+    let selections = [Selection.mk(Base.mk_secondary(id, content))];
+    let backpack = Backpack.push_s(selections, z.backpack);
+    Option.get(put_down(caret, {...z, backpack}));
 
-    | [content] when Form.is_secondary(content) =>
-      let content = Secondary.Whitespace(content);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      z
-      |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
-    | _ =>
-      let z = destruct(z);
-      let molds = Molds.get(label);
-      assert(molds != []);
-      // initial mold to typecheck, will be remolded
-      let mold = List.hd(molds);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      let selections =
-        Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-        |> List.map(Segment.of_tile)
-        |> List.map(Selection.mk)
-        |> ListUtil.rev_if(backpack == Right);
-      let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down(caret, {...z, backpack}));
-    }
-  );
+  | [content] when Form.is_secondary(content) =>
+    let content = Secondary.Whitespace(content);
+    let id = Id.mk();
+    Effect.s_touch([id]);
+    z |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
+  | _ =>
+    let z = destruct(z);
+    let molds = Molds.get(label);
+    assert(molds != []);
+    // initial mold to typecheck, will be remolded
+    let mold = List.hd(molds);
+    let id = Id.mk();
+    Effect.s_touch([id]);
+    let selections =
+      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      |> List.map(Segment.of_tile)
+      |> List.map(Selection.mk)
+      |> ListUtil.rev_if(backpack == Right);
+    let backpack = Backpack.push_s(selections, z.backpack);
+    Option.get(put_down(caret, {...z, backpack}));
+  };
 };
 
-let construct_mono = (d: Direction.t, t: Token.t, z: t): IdGen.t(t) =>
+let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
   construct(~caret=d, ~backpack=Left, [t], z);
 
 let replace =
-    (
-      ~caret: Direction.t,
-      ~backpack: Direction.t,
-      l: Label.t,
-      (z, id_gen): state,
-    )
-    : option(state) =>
+    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
+    : option(t) =>
   /* i.e. select and construct, overwriting the selection */
-  z
-  |> delete(caret)
-  |> Option.map(z => construct(~caret, ~backpack, l, z, id_gen));
+  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
-let replace_mono = (d: Direction.t, t: Token.t, state: state): option(state) =>
-  replace(~caret=d, ~backpack=Left, [t], state);
+let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
+  replace(~caret=d, ~backpack=Left, [t], z);
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
@@ -378,3 +364,84 @@ let can_put_down = z =>
   | Some(_) => z.caret == Outer
   | None => false
   };
+
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
+  ...z,
+  selection: Selection.mk_buffer(mode, content),
+};
+
+let is_linebreak_to_right_of_caret =
+    ({relatives: {siblings: (_, r), _}, _}: t): bool => {
+  switch (r) {
+  | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
+  | _ => false
+  };
+};
+
+/* Try to complete the syntax to give better semantic feeback.
+ * This is a best-effort approach focussed on adding new definitions
+ * as opposed to restructuring; it does not complete the syntax in
+ * all cases.
+ *
+ * NOTE: Setting the caret to outer was necessary to 'get it past'
+ * string literals, i.e. offer live feeback when typing inside a
+ * string; not sure if this is a hack or not, it may be compensating
+ * for the put_down logic not working right with string lits. To test,
+ * try to look at live evaluation while typing inside a string lit with
+ * stuff left to drop in backpack with below set: Outer disabled. */
+let try_to_dump_backpack = (zipper: t) => {
+  switch (zipper.backpack) {
+  | [] => zipper
+  | _ =>
+    let zipper = {...zipper, caret: Outer};
+    let rec move_until_cant_put_down = (z_last, z: t) =>
+      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_cant_put_down(z, z_new)
+        };
+      } else {
+        z_last;
+      };
+    let rec move_until_can_put_down = (z: t) =>
+      if (!can_put_down(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_can_put_down(z_new)
+        };
+      } else {
+        z;
+      };
+    let rec go = (z: t): t =>
+      if (can_put_down(z)) {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
+      } else {
+        let z_can = move_until_can_put_down(z);
+        let z_can = move_until_cant_put_down(z_can, z_can);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
+      };
+    go(zipper);
+  };
+};
+
+let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
+  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
+  let z = dump_backpack ? try_to_dump_backpack(z) : z;
+  unselect_and_zip(~erase_buffer, z);
+};
+
+let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
+let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
+
+let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

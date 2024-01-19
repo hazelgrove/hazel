@@ -3,7 +3,7 @@ open Example;
 open ExplainThisForm;
 
 let tuple_typ: form = {
-  let explanation = "Tuple type. This tuple type classifies %i-tuples with corresponding element types.";
+  let explanation = "Tuple type. This tuple type classifies %s-tuples with corresponding element types.";
   let comma = comma_typ();
   {
     id: TupleTyp,
@@ -22,7 +22,7 @@ let tuple2_typ_coloring_ids =
   (Piece.id(_typ_elem2), elem2_id),
 ];
 let tuple2_typ: form = {
-  let explanation = "Tuple type. This tuple type classifies 2-tuples with the first element of the [first element type](%i) and second element of the [second element type](%i).";
+  let explanation = "Tuple type. This tuple type classifies 2-tuples with the first element of the [first element type](%s) and second element of the [second element type](%s).";
   let comma = comma_typ();
   {
     id: Tuple2Typ,
@@ -43,7 +43,7 @@ let tuple3_typ_coloring_ids =
   (Piece.id(_typ_elem3), elem3_id),
 ];
 let tuple3_typ: form = {
-  let explanation = "Tuple type. This tuple type classifies 3-tuples with the first element of the [first element type](%i), second element of the [second element type](%i), and third element of the [third element type](%i).";
+  let explanation = "Tuple type. This tuple type classifies 3-tuples with the first element of the [first element type](%s), second element of the [second element type](%s), and third element of the [third element type](%s).";
   let comma = comma_typ();
   {
     id: Tuple3Typ,

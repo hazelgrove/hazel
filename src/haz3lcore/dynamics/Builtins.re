@@ -1,3 +1,5 @@
+open DHExp;
+
 /*
    Built-in functions for Hazel.
 
@@ -8,26 +10,27 @@
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(Builtin.t);
+type builtin =
+  | Const(Typ.t, DHExp.t)
+  | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type forms = VarMap.t_(Builtin.builtin_evaluate);
+type t = VarMap.t_(builtin);
 
-type pervasive =
-  (string, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type forms = VarMap.t_(DHExp.t => DHExp.t);
 
-type result = Result.t(EvaluatorResult.t, EvaluatorError.t);
+type result = Result.t(DHExp.t, EvaluatorError.t);
 
 let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Builtin.mk_zero(name, typ, v)));
-let fn = (name: Var.t, typ: Typ.t, impl: pervasive, builtins: t): t =>
-  VarMap.extend(builtins, (name, Builtin.mk_one(name, typ, impl)));
+  VarMap.extend(builtins, (name, Const(typ, v)));
+let fn =
+    (name: Var.t, t1: Typ.t, t2: Typ.t, impl: DHExp.t => DHExp.t, builtins: t)
+    : t =>
+  VarMap.extend(builtins, (name, Fn(t1, t2, impl)));
 
 module Pervasives = {
   module Impls = {
-    open EvaluatorMonad;
-    open EvaluatorResult;
-
     /* constants */
     let infinity = DHExp.FloatLit(Float.infinity);
     let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
@@ -37,24 +40,11 @@ module Pervasives = {
     let max_int = DHExp.IntLit(Int.max_int);
     let min_int = DHExp.IntLit(Int.min_int);
 
-    let unary' = (f: DHExp.t => result, name: string, r: EvaluatorResult.t) =>
-      switch (r) {
-      | BoxedValue(b) =>
-        switch (f(b)) {
-        | Ok(r') => r' |> return
-        | Error(e) => EvaluatorError.Exception(e) |> raise
-        }
-      | Indet(d) => Indet(ApBuiltin(name, [d])) |> return
+    let unary = (f: DHExp.t => result, r: DHExp.t) =>
+      switch (f(r)) {
+      | Ok(r') => r'
+      | Error(e) => EvaluatorError.Exception(e) |> raise
       };
-
-    let unary = (f: DHExp.t => Result.t(DHExp.t, EvaluatorError.t), name, r) => {
-      let f = (d: DHExp.t): result =>
-        switch (f(d)) {
-        | Ok(r') => Ok(BoxedValue(r'))
-        | Error(e) => Error(e)
-        };
-      unary'(f, name, r);
-    };
 
     let is_finite =
       unary(
@@ -142,35 +132,34 @@ module Pervasives = {
 
     let of_string =
         (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
-      unary'(
+      unary(
         fun
         | StringLit(s) as d =>
           switch (convert(s)) {
-          | Some(n) => Ok(BoxedValue(wrap(n)))
+          | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.ApBuiltin(name, [d]);
-            Ok(Indet(InvalidOperation(d', InvalidOfString)));
+            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
+            Ok(InvalidOperation(d', InvalidOfString));
           }
         | d => Error(InvalidBoxedStringLit(d)),
-        name,
       );
 
     let int_of_string = of_string(int_of_string_opt, n => IntLit(n));
     let float_of_string = of_string(float_of_string_opt, f => FloatLit(f));
     let bool_of_string = of_string(bool_of_string_opt, b => BoolLit(b));
 
-    let int_mod = (name, r) =>
-      switch (r) {
-      | BoxedValue(Tuple([IntLit(n), IntLit(m)]) as d1) =>
+    let int_mod = (name, d1) =>
+      switch (d1) {
+      | Tuple([IntLit(n), IntLit(m)]) =>
         switch (m) {
         | 0 =>
-          Indet(InvalidOperation(ApBuiltin(name, [d1]), DivideByZero))
-          |> return
-        | _ => return(BoxedValue(IntLit(n mod m)))
+          InvalidOperation(
+            DHExp.Ap(DHExp.BuiltinFun(name), d1),
+            DivideByZero,
+          )
+        | _ => IntLit(n mod m)
         }
-      | BoxedValue(d) =>
-        raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
-      | Indet(d) => Indet(ApBuiltin(name, [d])) |> return
+      | d1 => raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
       };
 
     let string_length =
@@ -212,16 +201,15 @@ module Pervasives = {
       );
 
     let string_sub = name =>
-      unary'(
+      unary(
         fun
         | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
-          try(Ok(BoxedValue(StringLit(String.sub(s, idx, len))))) {
+          try(Ok(StringLit(String.sub(s, idx, len)))) {
           | _ =>
-            let d' = DHExp.ApBuiltin(name, [d]);
-            Ok(Indet(InvalidOperation(d', IndexOutOfBounds)));
+            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
+            Ok(InvalidOperation(d', IndexOutOfBounds));
           }
         | d => Error(InvalidBoxedTuple(d)),
-        name,
       );
   };
 
@@ -235,64 +223,77 @@ module Pervasives = {
     |> const("pi", Float, pi)
     |> const("max_int", Int, max_int)
     |> const("min_int", Int, min_int)
-    |> fn("is_finite", Arrow(Float, Bool), is_finite)
-    |> fn("is_infinite", Arrow(Float, Bool), is_infinite)
-    |> fn("is_nan", Arrow(Float, Bool), is_nan)
-    |> fn("int_of_float", Arrow(Float, Int), int_of_float)
-    |> fn("float_of_int", Arrow(Int, Float), float_of_int)
-    |> fn("string_of_int", Arrow(Int, String), string_of_int)
-    |> fn("string_of_float", Arrow(Float, String), string_of_float)
-    |> fn("string_of_bool", Arrow(Bool, String), string_of_bool)
-    |> fn("int_of_string", Arrow(String, Int), int_of_string)
-    |> fn("float_of_string", Arrow(String, Float), float_of_string)
-    |> fn("bool_of_string", Arrow(String, Bool), bool_of_string)
-    |> fn("abs", Arrow(Int, Int), abs)
-    |> fn("abs_float", Arrow(Float, Float), abs_float)
-    |> fn("ceil", Arrow(Float, Float), ceil)
-    |> fn("floor", Arrow(Float, Float), floor)
-    |> fn("exp", Arrow(Float, Float), exp)
-    |> fn("log", Arrow(Float, Float), log)
-    |> fn("log10", Arrow(Float, Float), log10)
-    |> fn("sqrt", Arrow(Float, Float), sqrt)
-    |> fn("sin", Arrow(Float, Float), sin)
-    |> fn("cos", Arrow(Float, Float), cos)
-    |> fn("tan", Arrow(Float, Float), tan)
-    |> fn("asin", Arrow(Float, Float), asin)
-    |> fn("acos", Arrow(Float, Float), acos)
-    |> fn("atan", Arrow(Float, Float), atan)
-    |> fn("mod", Arrow(Prod([Int, Int]), Int), int_mod)
-    |> fn("string_length", Arrow(String, Int), string_length)
+    |> fn("is_finite", Float, Bool, is_finite)
+    |> fn("is_infinite", Float, Bool, is_infinite)
+    |> fn("is_nan", Float, Bool, is_nan)
+    |> fn("int_of_float", Float, Int, int_of_float)
+    |> fn("float_of_int", Int, Float, float_of_int)
+    |> fn("string_of_int", Int, String, string_of_int)
+    |> fn("string_of_float", Float, String, string_of_float)
+    |> fn("string_of_bool", Bool, String, string_of_bool)
+    |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
     |> fn(
-         "string_compare",
-         Arrow(Prod([String, String]), Int),
-         string_compare,
+         "float_of_string",
+         String,
+         Float,
+         float_of_string("float_of_string"),
        )
-    |> fn("string_trim", Arrow(String, String), string_trim)
+    |> fn("bool_of_string", String, Bool, bool_of_string("bool_of_string"))
+    |> fn("abs", Int, Int, abs)
+    |> fn("abs_float", Float, Float, abs_float)
+    |> fn("ceil", Float, Float, ceil)
+    |> fn("floor", Float, Float, floor)
+    |> fn("exp", Float, Float, exp)
+    |> fn("log", Float, Float, log)
+    |> fn("log10", Float, Float, log10)
+    |> fn("sqrt", Float, Float, sqrt)
+    |> fn("sin", Float, Float, sin)
+    |> fn("cos", Float, Float, cos)
+    |> fn("tan", Float, Float, tan)
+    |> fn("asin", Float, Float, asin)
+    |> fn("acos", Float, Float, acos)
+    |> fn("atan", Float, Float, atan)
+    |> fn("mod", Prod([Int, Int]), Int, int_mod("mod"))
+    |> fn("string_length", String, Int, string_length)
+    |> fn("string_compare", Prod([String, String]), Int, string_compare)
+    |> fn("string_trim", String, String, string_trim)
     |> fn(
          "string_concat",
-         Arrow(Prod([String, List(String)]), String),
+         Prod([String, List(String)]),
+         String,
          string_concat,
        )
-    |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
+    |> fn(
+         "string_sub",
+         Prod([String, Int, Int]),
+         String,
+         string_sub("string_sub"),
+       );
 };
 
 let ctx_init: Ctx.t =
   List.map(
-    ((name, Builtin.{typ, _})) =>
-      Ctx.VarEntry({name, typ, id: Id.invalid}),
+    fun
+    | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
+    | (name, Fn(t1, t2, _)) =>
+      Ctx.VarEntry({name, typ: Arrow(t1, t2), id: Id.invalid}),
     Pervasives.builtins,
   );
 
 let forms_init: forms =
-  List.map(
-    ((name, Builtin.{eval, _})) => (name, eval),
+  List.filter_map(
+    fun
+    | (_, Const(_)) => None
+    | (name, Fn(_, _, f)) => Some((name, f)),
     Pervasives.builtins,
   );
 
 let env_init: Environment.t =
   List.fold_left(
-    (env, (name, Builtin.{elab, _})) =>
-      Environment.extend(env, (name, elab)),
+    env =>
+      fun
+      | (name, Const(_, d)) => Environment.extend(env, (name, d))
+      | (name, Fn(_)) => Environment.extend(env, (name, BuiltinFun(name))),
     Environment.empty,
     Pervasives.builtins,
   );

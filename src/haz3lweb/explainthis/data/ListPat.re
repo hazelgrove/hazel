@@ -3,7 +3,7 @@ open Example;
 open ExplainThisForm;
 
 let listlit_pat: form = {
-  let explanation = "List literal pattern. Only expressions that are lists with %i-elements where each element matches the corresponding element pattern match this *list literal pattern*.";
+  let explanation = "List literal pattern. Only expressions that are lists with %s-elements where each element matches the corresponding element pattern match this *list literal pattern*.";
   {
     id: ListLitPat,
     syntactic_form: [
@@ -33,7 +33,7 @@ let cons_base_pat_coloring_ids =
   (Piece.id(_pat_tl), tl_id),
 ];
 let cons_base_pat: form = {
-  let explanation = "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%i) and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.";
+  let explanation = "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%s) and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.";
   {
     id: ConsPat,
     syntactic_form: [_pat_hd, cons_pat(), _pat_tl],
@@ -52,7 +52,7 @@ let cons2_pat_coloring_ids =
   (Piece.id(_pat_tl), tl_id),
 ];
 let cons2_pat: form = {
-  let explanation = "Non-empty list pattern. Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%i), *second element* matching the [*second element pattern*](%i), and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.";
+  let explanation = "Non-empty list pattern. Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%s), *second element* matching the [*second element pattern*](%s), and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.";
   let c = cons_pat();
   {
     id: Cons2Pat,

@@ -98,7 +98,7 @@ let _exp = exp("e");
 let function_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_exp: form = {
-  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Base),
@@ -114,7 +114,7 @@ let _exp = exp("e");
 let function_empty_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_empty_hole_exp: form = {
-  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.";
+  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [empty hole pattern](%s) is filled.";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(EmptyHole),
@@ -129,7 +129,7 @@ let _exp = exp("e");
 let function_multi_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_multi_hole_exp: form = {
-  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.";
+  let explanation = "Function literal. When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [invalid argument pattern](%s) is corrected.";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(MultiHole),
@@ -144,7 +144,7 @@ let function_wild_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => {
   [(Piece.id(_exp), body_id)];
 };
 let function_wild_exp: form = {
-  let explanation = "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%s).";
   let _pat = pat("_");
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
@@ -160,7 +160,7 @@ let _exp = exp("e");
 let function_intlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_intlit_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Int),
@@ -175,7 +175,7 @@ let _exp = exp("e");
 let function_floatlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_floatlit_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%f`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is `%f`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   // TODO print out the float literal nicer
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
@@ -191,7 +191,7 @@ let _exp = exp("e");
 let function_boollit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_boollit_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is `%b`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Bool),
@@ -207,7 +207,7 @@ let _exp = exp("e");
 let function_strlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_strlit_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is `%s`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
 
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
@@ -223,7 +223,7 @@ let _exp = exp("e");
 let function_triv_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_triv_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s). This if functionally equivalent to a zero argument function.";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Triv),
@@ -238,7 +238,7 @@ let _exp = exp("e");
 let function_listnil_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listnil_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(ListNil),
@@ -253,7 +253,7 @@ let _exp = exp("e");
 let function_listlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listlit_exp: form = {
-  let explanation = "Function literal. The only values that match the [*argument pattern*](%i) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the [*argument pattern*](%s) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(ListLit),
@@ -279,7 +279,7 @@ let function_cons_exp_coloring_ids =
   ];
 };
 let function_cons_exp: form = {
-  let explanation = "Function literal. The only values that match the *argument pattern* are non-empty lists that match the [*head pattern*](%i) and [*tail pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the *argument pattern* are non-empty lists that match the [*head pattern*](%s) and [*tail pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).";
   let cons = cons_pat();
   let form = [
     mk_fun([[space(), _pat_hd, cons, _pat_tl, space()]]),
@@ -300,7 +300,7 @@ let _exp = exp("e");
 let function_var_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_var_exp: form = {
-  let explanation = "Function literal. When applied to an argument which is bound to the [*variable*](%i) `%s`, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. When applied to an argument which is bound to the [*variable*](%s) `%s`, evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Var),
@@ -315,7 +315,7 @@ let _exp = exp("e");
 let function_tuple_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp));
 let function_tuple_exp: form = {
-  let explanation = "Function literal. The only values that match the [*argument pattern*](%i) are %i-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the [*argument pattern*](%s) are %s-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [
     mk_fun([[space(), pat("p1"), _comma, space(), pat("..."), space()]]),
     space(),
@@ -342,7 +342,7 @@ let function_tuple2_exp_coloring_ids =
   ];
 };
 let function_tuple2_exp: form = {
-  let explanation = "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).";
   let comma = comma_pat();
   let form = [
     mk_fun([[space(), _pat1, comma, space(), _pat2, space()]]),
@@ -373,7 +373,7 @@ let function_tuple3_exp_coloring_ids =
   ];
 };
 let function_tuple3_exp: form = {
-  let explanation = "Function literal. The only values that match the *argument pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the *argument pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).";
   let comma = comma_pat();
   let form = [
     mk_fun([
@@ -409,7 +409,7 @@ let _exp = exp("e");
 let function_ctr_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_ctr_exp: form = {
-  let explanation = "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only value that matches the [*argument pattern*](%s) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(Ctr),
@@ -431,7 +431,7 @@ let function_ap_exp_coloring_ids =
   ];
 };
 let function_ap_exp: form = {
-  let explanation = "Function literal. The only values that match the *argument pattern* are the [*constructor*](%i) where the *constructor argument* matches the [*constructor argument pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).";
+  let explanation = "Function literal. The only values that match the *argument pattern* are the [*constructor*](%s) where the *constructor argument* matches the [*constructor argument pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).";
   let ap = mk_ap_pat([[_pat_arg]]);
   let form = [mk_fun([[space(), _pat_con, ap, space()]]), space(), _exp];
   {
