@@ -11,7 +11,7 @@ let single = (~arg_id: Id.t, ~fn_id: Id.t): single_doc => {
   colorings: [(Piece.id(pipe_arg), arg_id), (Piece.id(pipe_fun), fn_id)],
   explanation:
     Printf.sprintf(
-      "Pipeline operator. Passes the [*argument*](%s) to the [*function*](%s).",
+      "Passes the [*argument*](%s) to the [*function*](%s).",
       arg_id |> Id.to_string,
       fn_id |> Id.to_string,
     ),

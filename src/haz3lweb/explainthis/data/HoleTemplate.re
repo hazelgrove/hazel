@@ -3,7 +3,7 @@ open ExplainThisForm;
 let empty_hole_template = (sort, str, id): form => {
   let explanation =
     Printf.sprintf(
-      "Empty hole. This should be filled with %s to complete the program.",
+      "This should be filled with %s to complete the program.",
       str,
     );
   {
@@ -16,7 +16,7 @@ let empty_hole_template = (sort, str, id): form => {
 };
 
 let multi_hole_template = (sort, id): form => {
-  let explanation = "Not recognized. This is an invalid term.";
+  let explanation = "This is an invalid term.";
   {
     id,
     syntactic_form: [sort("INVALID")],

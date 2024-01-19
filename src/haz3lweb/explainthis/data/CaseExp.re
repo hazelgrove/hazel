@@ -32,7 +32,7 @@ let case_exp_coloring_ids = (~scrut_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp_scrut), scrut_id),
 ];
 let case_exp: form = {
-  let explanation = "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%s), evaluates to the corresponding *clause*.";
+  let explanation = "Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%s), evaluates to the corresponding *clause*.";
   let case =
     mk_case([
       [

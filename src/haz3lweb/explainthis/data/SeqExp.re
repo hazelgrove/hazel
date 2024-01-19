@@ -21,7 +21,7 @@ let seq_exp_coloring_ids =
   (Piece.id(_exp2), exp2_id),
 ];
 let seq_exp: form = {
-  let explanation = "Expression sequence. The [left expression](%s) is evaluated, then the [right expression](%s) is evaluated.";
+  let explanation = "The [left expression](%s) is evaluated, then the [right expression](%s) is evaluated.";
   {
     id: SeqExp,
     syntactic_form: [_exp1, seq(), space(), _exp2],

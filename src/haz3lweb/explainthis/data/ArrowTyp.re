@@ -10,7 +10,7 @@ let arrow_typ_coloring_ids =
   (Piece.id(_typ_out), result_id),
 ];
 let arrow_typ: form = {
-  let explanation = "Arrow type. This arrow type classifies functions with [*argument type*](%s) and [*output type*](%s).";
+  let explanation = "This arrow type classifies functions with [*argument type*](%s) and [*output type*](%s).";
   {
     id: ArrowTyp,
     syntactic_form: [_typ_arg, space(), arrow(), space(), _typ_out],
@@ -29,7 +29,7 @@ let arrow3_typ_coloring_ids =
   (Piece.id(_typ_out), result_id),
 ];
 let arrow3_typ: form = {
-  let explanation = "Arrow type. This arrow type classifies functions with [*first argument type*](%s), [*second argument type*](%s), and [*output type*](%s).";
+  let explanation = "This arrow type classifies functions with [*first argument type*](%s), [*second argument type*](%s), and [*output type*](%s).";
   let arrow2 = arrow();
   {
     id: Arrow3Typ,
