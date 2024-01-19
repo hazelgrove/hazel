@@ -127,7 +127,6 @@ let is_edit: t => bool =
   | Copy
   | SetMeta(_)
   | UpdateLangDocMessages(_)
-  | DebugAction(_)
   | DebugConsole(_)
   | InitImportAll(_)
   | FinishImportAll(_)
