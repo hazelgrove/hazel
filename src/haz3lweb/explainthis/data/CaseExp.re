@@ -19,7 +19,7 @@ let case_example_int = {
 };
 let case_example_bool = {
   sub_id: CaseBool,
-  term: mk_example("case false \n| true => 1 | \nfalse => 2 \nend"),
+  term: mk_example("case false \n| true => 1 \n| false => 2 \nend"),
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
 };
 // TODO - I don't think changing specificity on the number of cases is really the most
