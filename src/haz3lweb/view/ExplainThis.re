@@ -212,11 +212,11 @@ let mk_explanation =
     : (Node.t, ColorSteps.t) => {
   let (msg, color_map) =
     mk_translation(~inject=Some(inject), text, show_highlight);
+  let feedback =
+    model.show_feedback
+      ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
   (
-    div([
-      div(~attr=clss(["explanation-contents"]), msg),
-      explanation_feedback_view(~inject, group_id, form_id, model),
-    ]),
+    div([div(~attr=clss(["explanation-contents"]), msg)] @ feedback),
     color_map,
   );
 };
@@ -407,11 +407,12 @@ let example_view =
       ~examples: list(ExplainThisForm.example),
       ~model: ExplainThisModel.t,
     ) => {
-  div(
-    ~attr=Attr.id("examples"),
-    List.length(examples) == 0
-      ? [text("No examples available")]
-      : List.map(
+  List.length(examples) == 0
+    ? []
+    : [
+      div(
+        ~attr=Attr.id("examples"),
+        List.map(
           ({term, message, _} as example: ExplainThisForm.example) => {
             let map_code = Measured.of_segment(term);
             let code_view =
@@ -428,31 +429,48 @@ let example_view =
               );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
+            let feedback =
+              model.show_feedback
+                ? [
+                  example_feedback_view(
+                    ~inject,
+                    group_id,
+                    form_id,
+                    example.sub_id,
+                    model,
+                  ),
+                ]
+                : [];
             div(
               ~attr=clss(["example"]),
               [
-                code_container([code_view]),
                 div(
-                  ~attr=clss(["ex-result"]),
-                  [text("Result: "), code_container([result_view])],
+                  ~attr=clss(["container"]),
+                  [
+                    div(
+                      ~attr=clss(["cell", "cell-item", "selected", "single"]),
+                      [code_container([code_view])],
+                    ),
+                    div(
+                      ~attr=clss(["cell-result", "cell-item", "selected"]),
+                      [
+                        div_c("equiv", [text("≡")]),
+                        code_container([result_view]),
+                      ],
+                    ),
+                  ],
                 ),
                 div(
                   ~attr=clss(["explanation"]),
-                  [text("Explanation: "), text(message)],
-                ),
-                example_feedback_view(
-                  ~inject,
-                  group_id,
-                  form_id,
-                  example.sub_id,
-                  model,
+                  [text(message)] @ feedback,
                 ),
               ],
             );
           },
           examples,
         ),
-  );
+      ),
+    ];
 };
 
 let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
@@ -501,9 +519,9 @@ let get_doc =
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
-    [text("No syntactic form available")],
-    ([text("No explanation available")], ColorSteps.empty),
-    [text("No examples available")],
+    [text("Whitespace or comment")],
+    ([], ColorSteps.empty),
+    [],
   );
   let get_specificity_level = group_id =>
     fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
@@ -511,6 +529,7 @@ let get_doc =
       (
         ~colorings=[],
         ~format: option(string => string)=None,
+        ~explanation: option(string)=?,
         group: ExplainThisForm.group,
       )
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
@@ -518,9 +537,10 @@ let get_doc =
 
     // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
     let explanation_msg =
-      switch (format) {
-      | Some(f) => f(doc.explanation)
-      | None => doc.explanation
+      switch (explanation, format) {
+      | (Some(msg), _) => msg
+      | (_, Some(f)) => f(doc.explanation)
+      | (_, None) => doc.explanation
       };
     switch (mode) {
     | MessageContent(inject, font_metrics, settings) =>
@@ -564,7 +584,7 @@ let get_doc =
           ~examples=doc.examples,
           ~model=docs,
         );
-      ([syntactic_form_view], ([explanation], color_map), [example_view]);
+      ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
       let (_, color_map) =
         mk_translation(~inject=None, explanation_msg, docs.highlight);
@@ -572,15 +592,17 @@ let get_doc =
     };
   };
 
+  /* Use this when adding new entries */
+  let get_message_new =
+      ({colorings, explanation, group}: ExplainThisForm.simple) =>
+    get_message(~colorings, ~format=None, ~explanation, group);
+
   switch (info) {
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
-      | TermBase.UExp.Pipeline(_) =>
-        //TODO(andrew)
-        default
       | TermBase.UExp.Invalid(_) => default
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
@@ -1583,6 +1605,13 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | Pipeline(arg, fn) =>
+        get_message_new(
+          PipelineExp.explain(
+            ~arg_id=Term.UExp.rep_id(arg),
+            ~fn_id=Term.UExp.rep_id(fn),
+          ),
+        )
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
@@ -2260,6 +2289,13 @@ let view =
                   ),
                 )
               ),
+              toggle(~tooltip="Toggle feedback", "👍", doc.show_feedback, _ =>
+                inject(
+                  UpdateAction.UpdateExplainThisModel(
+                    ExplainThisUpdate.ToggleShowFeedback,
+                  ),
+                )
+              ),
               div(
                 ~attr=
                   Attr.many([
@@ -2276,18 +2312,34 @@ let view =
               ),
             ],
           ),
-          section(
-            ~section_clss="syntactic-form",
-            ~title="Syntactic Form",
-            syn_form,
-          ),
-          section(
-            ~section_clss="explanation",
-            ~title="Explanation",
-            explanation,
-          ),
-          section(~section_clss="examples", ~title="Examples", example),
-        ],
+        ]
+        @ (
+          syn_form == []
+            ? []
+            : [
+              section(
+                ~section_clss="syntactic-form",
+                ~title="Syntactic Form",
+                syn_form,
+              ),
+            ]
+        )
+        @ (
+          explanation == []
+            ? []
+            : [
+              section(
+                ~section_clss="explanation",
+                ~title="Explanation",
+                explanation,
+              ),
+            ]
+        )
+        @ (
+          example == []
+            ? []
+            : [section(~section_clss="examples", ~title="Examples", example)]
+        ),
       ),
     ],
   );

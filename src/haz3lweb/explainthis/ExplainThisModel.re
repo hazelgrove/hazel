@@ -32,6 +32,7 @@ type group_model = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   show: bool,
+  show_feedback: bool,
   highlight: bool,
   specificity_open: bool,
   forms: list(form_model),
@@ -40,6 +41,7 @@ type t = {
 
 let init: t = {
   show: true,
+  show_feedback: false,
   highlight: false,
   specificity_open: false,
   forms: [],

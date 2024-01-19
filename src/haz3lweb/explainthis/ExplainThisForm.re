@@ -97,7 +97,8 @@ type example_id =
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt
-  | CaseBool;
+  | CaseBool
+  | Pipeline1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -226,7 +227,8 @@ type form_id =
   | SumTypNullaryConstructorDef
   | EmptyHoleTPat
   | MultiHoleTPat
-  | VarTPat;
+  | VarTPat
+  | PipelineExp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -267,6 +269,7 @@ type group_id =
   | BinOpExp(bin_op_sub_form_id)
   | CaseExp
   | TyAliasExp
+  | PipelineExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -310,4 +313,11 @@ type group_id =
 type group = {
   id: group_id,
   forms: list(form) // Ordered - more specific to less specific
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type simple = {
+  group,
+  explanation: string,
+  colorings: list((Id.t, Id.t)),
 };

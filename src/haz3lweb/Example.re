@@ -111,6 +111,7 @@ let logical_or = () => mk_monotile(Form.get("logical_or"));
 let comma_exp = () => mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => mk_monotile(Form.get("comma_typ"));
+let pipeline = () => mk_monotile(Form.get("pipeline"));
 let nil = () => exp("[]");
 let typeann = () => mk_monotile(Form.get("typeann"));
 let mk_fun = mk_tile(Form.get("fun_"));
