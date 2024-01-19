@@ -153,6 +153,16 @@ let rec to_upat_term = (xi, ctx, ty): Term.UPat.term => {
       | _ => assert(false) // impossible
       };
     };
+  let to_upat_term' = (sm): Term.UPat.term => {
+    let (xi, nth) = unwrap_sum(xi, ConstructorMap.cardinal(sm), 0);
+    // TODO: sort
+    // TODO: + functionality in ConstructorMap
+    switch (List.nth(sm, nth)) {
+    | (ctr, None) => Constructor(ctr)
+    | (ctr, Some(ty)) =>
+      Ap(Constructor(ctr) |> to_upat, to_upat_term(xi, ctx, ty) |> to_upat)
+    };
+  };
   switch (xi, Typ.weak_head_normalize(ctx, ty)) {
   | (
       Falsity | Hole | And(_) | Or(_) | NotInt(_) | NotFloat(_) | NotString(_),
@@ -184,14 +194,12 @@ let rec to_upat_term = (xi, ctx, ty): Term.UPat.term => {
       Tuple([to_upat_term(xi_first, ctx, ty_first) |> to_upat, ...upat_rest])
     | _ => assert(false) // impossible
     }
-  | (Pair(_), _) => assert(false) // impossible
-  | (_, Sum(sum_map)) =>
-    let (xi, nth) = unwrap_sum(xi, ConstructorMap.cardinal(sum_map), 0);
-    switch (List.nth(sum_map, nth)) {
-    | (ctr, None) => Constructor(ctr)
-    | (ctr, Some(ty)) =>
-      Ap(Constructor(ctr) |> to_upat, to_upat_term(xi, ctx, ty) |> to_upat)
-    }; // TODO: + functionality in ConstructorMap.re
-  | (InjL(_) | InjR(_), _) => assert(false) // TBD
+  | (_, Sum(sm)) => to_upat_term'(sm)
+  | (_, Rec(_) as ty) =>
+    switch (Typ.get_sum_constructors(ctx, ty)) {
+    | Some(sm) => to_upat_term'(sm)
+    | None => assert(false) // impossible
+    }
+  | _ => assert(false) // impossible
   };
 };
