@@ -64,26 +64,3 @@ let case_exp: form = {
 };
 
 let case: group = {id: CaseExp, forms: [case_exp]};
-/*let case_exp_rules: form = {
-    let explanation = {
-      message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",
-      feedback: Unselected,
-    };
-    let case =
-      mk_case([
-        [
-          exp("EXP_scrut"),
-          mk_rule([[pat("PAT1")]]),
-          exp("EXP1"),
-          mk_rule([[pat("...")]]),
-          exp("..."),
-        ],
-      ]);
-    {
-      id: "case_exp_rules",
-      syntactic_form: [case],
-      expandable_id: Some(Piece.id(case)),
-      explanation,
-      examples: [case_example_int, case_example_bool],
-    };
-  };*/
