@@ -16,8 +16,9 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
-    | ApBuiltin(string, list(t))
-    | TestLit(KeywordID.t)
+    | ApBuiltin(string, t)
+    | BuiltinFun(string)
+    | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -70,8 +71,9 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
-    | ApBuiltin(string, list(t))
-    | TestLit(KeywordID.t)
+    | ApBuiltin(string, t)
+    | BuiltinFun(string)
+    | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -110,7 +112,8 @@ module rec DHExp: {
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
-    | TestLit(_) => "TestLit"
+    | BuiltinFun(_) => "BuiltinFun"
+    | Test(_) => "Test"
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
@@ -164,7 +167,9 @@ module rec DHExp: {
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
-    | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
+    | Test(id, a) => Test(id, strip_casts(a))
+    | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
+    | BuiltinFun(fn) => BuiltinFun(fn)
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
@@ -185,7 +190,6 @@ module rec DHExp: {
     | FreeVar(_) as d
     | InvalidText(_) as d
     | BoundVar(_) as d
-    | TestLit(_) as d
     | BoolLit(_) as d
     | IntLit(_) as d
     | FloatLit(_) as d
@@ -199,7 +203,6 @@ module rec DHExp: {
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
     /* TODO: Not sure if this is right... */
-    | (TestLit(_), _)
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
@@ -208,6 +211,7 @@ module rec DHExp: {
     | (StringLit(_), _) => false
 
     /* Non-hole forms: recurse */
+    | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
@@ -225,8 +229,8 @@ module rec DHExp: {
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
-    | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
-      f1 == f2 && List.for_all2(fast_equal, args1, args2)
+    | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
+    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
       List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
@@ -250,8 +254,10 @@ module rec DHExp: {
     | (Let(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
+    | (Test(_), _)
     | (Ap(_), _)
     | (ApBuiltin(_), _)
+    | (BuiltinFun(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)
     | (ListLit(_), _)
@@ -333,33 +339,25 @@ and ClosureEnvironment: {
 
   let to_list: t => list((Var.t, DHExp.t));
 
-  let of_environment:
-    (Environment.t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let of_environment: Environment.t => t;
 
   let id_equal: (t, t) => bool;
 
-  let empty: EnvironmentIdGen.t => (t, EnvironmentIdGen.t);
+  let empty: t;
   let is_empty: t => bool;
   let length: t => int;
 
   let lookup: (t, Var.t) => option(DHExp.t);
   let contains: (t, Var.t) => bool;
-  let update:
-    (Environment.t => Environment.t, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let update: (Environment.t => Environment.t, t) => t;
   let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend:
-    (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let extend: (t, (Var.t, DHExp.t)) => t;
   let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
-  let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let union: (t, t) => t;
   let union_keep_id: (t, t) => t;
-  let map:
-    (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let map: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
   let map_keep_id: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
-  let filter:
-    (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
-    (t, EnvironmentIdGen.t);
+  let filter: (((Var.t, DHExp.t)) => bool, t) => t;
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
   let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
@@ -386,9 +384,9 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = (map, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    (wrap(ei, map), eig);
+  let of_environment = map => {
+    let ei = Id.mk();
+    wrap(ei, map);
   };
 
   /* Equals only needs to check environment id's (faster than structural equality

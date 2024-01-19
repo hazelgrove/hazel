@@ -1,31 +1,19 @@
 module PpMonad = {
   include Util.StateMonad.Make({
     [@deriving sexp]
-    type t = (
-      EnvironmentIdMap.t(ClosureEnvironment.t),
-      HoleInstanceInfo_.t,
-      EnvironmentIdGen.t,
-    );
+    type t = (EnvironmentIdMap.t(ClosureEnvironment.t), HoleInstanceInfo_.t);
   });
 
   open Syntax;
 
-  let get_pe = get >>| (((pe, _, _)) => pe);
+  let get_pe = get >>| (((pe, _)) => pe);
   let pe_add = (ei, env) =>
-    modify(((pe, hii, eig)) =>
-      (pe |> EnvironmentIdMap.add(ei, env), hii, eig)
-    );
+    modify(((pe, hii)) => (pe |> EnvironmentIdMap.add(ei, env), hii));
 
   let hii_add_instance = (u, env) =>
-    modify'(((pe, hii, eig)) => {
+    modify'(((pe, hii)) => {
       let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-      (i, (pe, hii, eig));
-    });
-
-  let with_eig = f =>
-    modify'(((pe, hii, eig)) => {
-      let (x, eig) = f(eig);
-      (x, (pe, hii, eig));
+      (i, (pe, hii));
     });
 };
 
@@ -53,7 +41,7 @@ exception Exception(error);
 let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
-  | TestLit(_)
+  | Test(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -70,14 +58,16 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
 
-  | ApBuiltin(f, args) =>
-    let* args' = args |> List.map(pp_eval) |> sequence;
-    ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, d1) =>
+    let* d1' = pp_eval(d1);
+    ApBuiltin(f, d1') |> return;
 
   | BinBoolOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     BinBoolOp(op, d1', d2') |> return;
+
+  | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinIntOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -242,7 +232,7 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
                  FixF(f, ty, d1);
                | d => pp_eval(d)
                };
-             with_eig(ClosureEnvironment.extend(env', (x, d')));
+             ClosureEnvironment.extend(env', (x, d')) |> return;
            },
            Environment.empty |> ClosureEnvironment.wrap(ei) |> return,
          );
@@ -267,12 +257,15 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     }
 
   /* Non-hole expressions: expand recursively */
-  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
   | Constructor(_) => d |> return
+
+  | Test(id, d1) =>
+    let+ d1' = pp_uneval(env, d1);
+    Test(id, d1');
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -297,9 +290,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> return;
 
-  | ApBuiltin(f, args) =>
-    let* args' = args |> List.map(pp_uneval(env)) |> sequence;
-    ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    ApBuiltin(f, d1') |> return;
+  | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinBoolOp(op, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -441,12 +435,13 @@ let rec track_children_of_hole =
         : HoleInstanceInfo.t =>
   switch (d) {
   | Constructor(_)
-  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | BuiltinFun(_)
   | BoundVar(_) => hii
+  | Test(_, d)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
   | Prj(d, _)
@@ -490,12 +485,7 @@ let rec track_children_of_hole =
       track_children_of_hole_rules(hii, parent, rules)
     );
 
-  | ApBuiltin(_, args) =>
-    List.fold_right(
-      (arg, hii) => track_children_of_hole(hii, parent, arg),
-      args,
-      hii,
-    )
+  | ApBuiltin(_, d) => track_children_of_hole(hii, parent, d)
 
   /* Hole types */
   | NonEmptyHole(_, u, i, d) =>
@@ -551,13 +541,11 @@ let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
     hii,
   );
 
-let postprocess =
-    (d: DHExp.t, eig: EnvironmentIdGen.t)
-    : ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t) => {
+let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
-  let ((_, hii, eig), d) =
+  let ((_, hii), d) =
     Util.TimeUtil.measure_time("pp_eval", true, () =>
-      pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig))
+      pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty))
     );
 
   /* Build hole instance info. */
@@ -591,5 +579,5 @@ let postprocess =
     );
 
   /* Perform hole parent tracking. */
-  ((hii, d), eig);
+  (hii, d);
 };

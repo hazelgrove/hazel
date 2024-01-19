@@ -9,7 +9,7 @@ let typann_pat_coloring_ids =
   (Piece.id(_typ), typ_id),
 ];
 let typann_pat: form = {
-  let explanation = "Type annotation pattern. Only expressions that match the [type annotated pattern](%i) and have the [indicated type](%i) match this type annotation pattern.";
+  let explanation = "Type annotation pattern. Only expressions that match the [type annotated pattern](%s) and have the [indicated type](%s) match this type annotation pattern.";
   {
     id: TypAnnPat,
     syntactic_form: [_pat, space(), typeann(), space(), _typ],

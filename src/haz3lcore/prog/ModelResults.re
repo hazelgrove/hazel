@@ -1,5 +1,12 @@
 open Sexplib.Std;
 
+/*
+ ModelResults is used to store the results of
+ evaluations requested by the current editor mode,
+ with the key distinguishing these requests.
+
+ See the SchoolExercise module for an example.
+ */
 module Key = {
   include String;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -12,10 +19,15 @@ include M;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
-let init = (ds: list((Key.t, DHExp.t))): t =>
+let init = (~settings, ds: list((Key.t, DHExp.t))): t =>
   ds
   |> List.map(((key, d)) =>
-       (key, ModelResult.init(Interface.evaluate(d)))
+       (
+         key,
+         ModelResult.init(
+           Interface.evaluate(~settings, ~env=Builtins.env_init, d),
+         ),
+       )
      )
   |> List.to_seq
   |> of_seq;

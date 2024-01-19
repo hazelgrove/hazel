@@ -115,6 +115,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -211,6 +212,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -229,7 +231,7 @@ and UExp: {
   let bool_op_to_string = (op: op_bin_bool): string => {
     switch (op) {
     | And => "&&"
-    | Or => "\\/"
+    | Or => "||"
     };
   };
 

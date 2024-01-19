@@ -43,14 +43,14 @@ let explanation_feedback_view = (~inject, group_id, form_id, model) => {
     up_active,
     _ =>
       inject(
-        Update.UpdateExplainThisModel(
+        UpdateAction.UpdateExplainThisModel(
           ToggleExplanationFeedback(group_id, form_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
-        Update.UpdateExplainThisModel(
+        UpdateAction.UpdateExplainThisModel(
           ToggleExplanationFeedback(group_id, form_id, ThumbsDown),
         ),
       ),
@@ -76,14 +76,14 @@ let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
     up_active,
     _ =>
       inject(
-        Update.UpdateExplainThisModel(
+        UpdateAction.UpdateExplainThisModel(
           ToggleExampleFeedback(group_id, form_id, example_id, ThumbsUp),
         ),
       ),
     down_active,
     _ =>
       inject(
-        Update.UpdateExplainThisModel(
+        UpdateAction.UpdateExplainThisModel(
           ToggleExampleFeedback(group_id, form_id, example_id, ThumbsDown),
         ),
       ),
@@ -93,7 +93,7 @@ let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
 let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
 
 let highlight =
-    (~inject, msg: list(Node.t), id: Haz3lcore.Id.t, mapping: ColorSteps.t)
+    (~inject, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
@@ -145,7 +145,11 @@ let mk_translation =
         | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
         | Url(id, d, _title) =>
           let (d, mapping) = translate(d, mapping);
-          let id = int_of_string(id);
+          let id =
+            switch (Id.of_string(id)) {
+            | Some(id) => id
+            | None => Id.invalid
+            };
           let (inner_msg, mapping) =
             if (show_highlight) {
               highlight(~inject, d, id, mapping);
@@ -220,7 +224,7 @@ let mk_explanation =
 let deco =
     (
       ~doc: ExplainThisModel.t,
-      ~settings,
+      ~settings: Settings.t,
       ~colorings,
       ~expandable: option((Id.t, Segment.t)),
       ~unselected,
@@ -237,7 +241,7 @@ let deco =
       let map = map;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
-      let info_map = Statics.mk_map(term);
+      let info_map = Interface.Statics.mk_map(settings.core, term);
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
@@ -289,7 +293,7 @@ let deco =
                         : get_clss(segment);
                     let update_group_selection = _ =>
                       inject(
-                        Update.UpdateExplainThisModel(
+                        UpdateAction.UpdateExplainThisModel(
                           ExplainThisUpdate.UpdateGroupSelection(
                             group_id,
                             id,
@@ -332,7 +336,7 @@ let deco =
                   DecUtil.abs_position(~font_metrics, origin),
                   Attr.on_click(_ => {
                     inject(
-                      Update.UpdateExplainThisModel(
+                      UpdateAction.UpdateExplainThisModel(
                         ExplainThisUpdate.SpecificityOpen(
                           !doc.specificity_open,
                         ),
@@ -413,20 +417,15 @@ let example_view =
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
-            let info_map = Statics.mk_map(uhexp);
+            let info_map = Interface.Statics.mk_map(settings.core, uhexp);
             let result_view =
-              switch (Interface.evaluation_result(info_map, uhexp)) {
-              | None => []
-              | Some(dhexp) => [
-                  DHCode.view(
-                    ~settings=Settings.Evaluation.init,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    dhexp,
-                  ),
-                ]
-              };
+              DHCode.view(
+                ~settings=Settings.Evaluation.init,
+                ~selected_hole_instance=None,
+                ~font_metrics,
+                ~width=80,
+                Interface.eval_u2d(~settings=settings.core, info_map, uhexp),
+              );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
             div(
@@ -435,7 +434,7 @@ let example_view =
                 code_container([code_view]),
                 div(
                   ~attr=clss(["ex-result"]),
-                  [text("Result: "), code_container(result_view)],
+                  [text("Result: "), code_container([result_view])],
                 ),
                 div(
                   ~attr=clss(["explanation"]),
@@ -488,9 +487,9 @@ let rec bypass_parens_typ = (typ: TermBase.UTyp.t) => {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message_mode =
   | MessageContent(
-      Update.t => Virtual_dom.Vdom.Effect.t(unit),
+      UpdateAction.t => Virtual_dom.Vdom.Effect.t(unit),
       FontMetrics.t,
-      ModelSettings.t,
+      Settings.t,
     )
   | Colorings;
 
@@ -539,7 +538,7 @@ let get_doc =
           ~doc=docs,
           ~colorings=
             List.map(
-              ((syntactic_form_id: int, code_id: int)) => {
+              ((syntactic_form_id: Id.t, code_id: Id.t)) => {
                 let (color, _) = ColorSteps.get_color(code_id, color_map);
                 (syntactic_form_id, color);
               },
@@ -579,6 +578,9 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
+      | TermBase.UExp.Pipeline(_) =>
+        //TODO(andrew)
+        default
       | TermBase.UExp.Invalid(_) => default
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
@@ -592,9 +594,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  def_id,
-                  tpat_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(def_id),
+                  Id.to_string(tpat_id),
                 ),
             ),
           TyAliasExp.tyalias_exps,
@@ -610,8 +612,8 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(terms),
+                  Scanf.format_from_string(msg, "%s"),
+                  string_of_int(List.length(terms)),
                 ),
             ),
           ListExp.listlits,
@@ -627,9 +629,9 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    pat_id,
-                    body_id,
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(pat_id),
+                    Id.to_string(body_id),
                   ),
               ),
             group_id,
@@ -652,10 +654,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      body_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
+                      Id.to_string(pat_id),
                     ),
                 ),
               FunctionExp.functions_empty_hole,
@@ -676,10 +678,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      body_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
+                      Id.to_string(pat_id),
                     ),
                 ),
               FunctionExp.functions_multi_hole,
@@ -696,8 +698,8 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i"),
-                      body_id,
+                      Scanf.format_from_string(msg, "%s"),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_wild,
@@ -718,11 +720,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      pat_id,
-                      i,
-                      pat_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(pat_id),
+                      string_of_int(i),
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_int,
@@ -743,11 +745,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%f%i%i"),
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%f%s%s"),
+                      Id.to_string(pat_id),
                       f,
-                      pat_id,
-                      body_id,
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_float,
@@ -768,11 +770,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%b%i%i"),
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%b%s%s"),
+                      Id.to_string(pat_id),
                       b,
-                      pat_id,
-                      body_id,
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_bool,
@@ -793,11 +795,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%s%i%i"),
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(pat_id),
                       s,
-                      pat_id,
-                      body_id,
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_str,
@@ -817,10 +819,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      pat_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_triv,
@@ -842,10 +844,10 @@ let get_doc =
                   Some(
                     msg =>
                       Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i"),
-                        pat_id,
-                        pat_id,
-                        body_id,
+                        Scanf.format_from_string(msg, "%s%s%s"),
+                        Id.to_string(pat_id),
+                        Id.to_string(pat_id),
+                        Id.to_string(body_id),
                       ),
                   ),
                 FunctionExp.functions_listnil,
@@ -865,11 +867,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      pat_id,
-                      List.length(elements),
-                      pat_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(pat_id),
+                      string_of_int(List.length(elements)),
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_listlit,
@@ -893,10 +895,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      hd_id,
-                      tl_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(hd_id),
+                      Id.to_string(tl_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_cons,
@@ -914,10 +916,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%s%i"),
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
                       var,
-                      body_id,
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_var,
@@ -939,11 +941,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      pat_id,
-                      List.length(elements),
-                      pat_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(pat_id),
+                      string_of_int(List.length(elements)),
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               group_id,
@@ -967,10 +969,10 @@ let get_doc =
                   Some(
                     msg =>
                       Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i"),
-                        pat1_id,
-                        pat2_id,
-                        body_id,
+                        Scanf.format_from_string(msg, "%s%s%s"),
+                        Id.to_string(pat1_id),
+                        Id.to_string(pat2_id),
+                        Id.to_string(body_id),
                       ),
                   ),
                 FunctionExp.functions_tuple2,
@@ -998,11 +1000,11 @@ let get_doc =
                   Some(
                     msg =>
                       Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i%i"),
-                        pat1_id,
-                        pat2_id,
-                        pat3_id,
-                        body_id,
+                        Scanf.format_from_string(msg, "%s%s%s%s"),
+                        Id.to_string(pat1_id),
+                        Id.to_string(pat2_id),
+                        Id.to_string(pat3_id),
+                        Id.to_string(body_id),
                       ),
                   ),
                 FunctionExp.functions_tuple3,
@@ -1036,10 +1038,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      con_id,
-                      arg_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(con_id),
+                      Id.to_string(arg_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_ap,
@@ -1059,11 +1061,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%s%i%i"),
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(pat_id),
                       v,
-                      pat_id,
-                      body_id,
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               FunctionExp.functions_ctr,
@@ -1082,8 +1084,8 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i"),
-                    List.length(terms),
+                    Scanf.format_from_string(msg, "%s"),
+                    string_of_int(List.length(terms)),
                   ),
               ),
             group_id,
@@ -1101,9 +1103,9 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i"),
-                      exp1_id,
-                      exp2_id,
+                      Scanf.format_from_string(msg, "%s%s"),
+                      Id.to_string(exp1_id),
+                      Id.to_string(exp2_id),
                     ),
                 ),
               TupleExp.tuples2,
@@ -1128,10 +1130,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      exp1_id,
-                      exp2_id,
-                      exp3_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(exp1_id),
+                      Id.to_string(exp2_id),
+                      Id.to_string(exp3_id),
                     ),
                 ),
               TupleExp.tuples3,
@@ -1154,9 +1156,9 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    def_id,
-                    pat_id,
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(def_id),
+                    Id.to_string(pat_id),
                   ),
               ),
             group_id,
@@ -1173,10 +1175,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                     ),
                 ),
               LetExp.lets_emptyhole,
@@ -1194,10 +1196,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      pat_id,
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                     ),
                 ),
               LetExp.lets_mutlihole,
@@ -1214,10 +1216,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      def_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_wild,
@@ -1234,12 +1236,12 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i%i"),
-                      def_id,
-                      pat_id,
-                      i,
-                      def_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      string_of_int(i),
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_int,
@@ -1261,12 +1263,12 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%f%i%i"),
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%f%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                       f,
-                      def_id,
-                      body_id,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_float,
@@ -1287,12 +1289,12 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%b%i%i"),
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%b%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                       b,
-                      def_id,
-                      body_id,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_bool,
@@ -1312,12 +1314,12 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%s%i%i"),
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                       s,
-                      def_id,
-                      body_id,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_str,
@@ -1338,11 +1340,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i%i"),
-                      def_id,
-                      pat_id,
-                      def_id,
-                      body_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_triv,
@@ -1368,11 +1370,11 @@ let get_doc =
                   Some(
                     msg =>
                       Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i%i"),
-                        def_id,
-                        pat_id,
-                        def_id,
-                        body_id,
+                        Scanf.format_from_string(msg, "%s%s%s%s"),
+                        Id.to_string(def_id),
+                        Id.to_string(pat_id),
+                        Id.to_string(def_id),
+                        Id.to_string(body_id),
                       ),
                   ),
                 LetExp.lets_listnil,
@@ -1389,10 +1391,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      pat_id,
-                      List.length(elements),
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      string_of_int(List.length(elements)),
                     ),
                 ),
               LetExp.lets_listlit,
@@ -1412,10 +1414,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      hd_id,
-                      tl_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(hd_id),
+                      Id.to_string(tl_id),
                     ),
                 ),
               LetExp.lets_cons,
@@ -1432,11 +1434,11 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%s%i"),
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                       var,
-                      body_id,
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_var,
@@ -1452,10 +1454,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      pat_id,
-                      List.length(elements),
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      string_of_int(List.length(elements)),
                     ),
                 ),
               group_id,
@@ -1479,10 +1481,10 @@ let get_doc =
                   Some(
                     msg =>
                       Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i"),
-                        def_id,
-                        pat1_id,
-                        pat2_id,
+                        Scanf.format_from_string(msg, "%s%s%s"),
+                        Id.to_string(def_id),
+                        Id.to_string(pat1_id),
+                        Id.to_string(pat2_id),
                       ),
                   ),
                 LetExp.lets_tuple2,
@@ -1511,11 +1513,11 @@ let get_doc =
                   Some(
                     msg =>
                       Printf.sprintf(
-                        Scanf.format_from_string(msg, "%i%i%i%i"),
-                        def_id,
-                        pat1_id,
-                        pat2_id,
-                        pat3_id,
+                        Scanf.format_from_string(msg, "%s%s%s%s"),
+                        Id.to_string(def_id),
+                        Id.to_string(pat1_id),
+                        Id.to_string(pat2_id),
+                        Id.to_string(pat3_id),
                       ),
                   ),
                 LetExp.lets_tuple3,
@@ -1544,10 +1546,10 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%i"),
-                      def_id,
-                      con_id,
-                      arg_id,
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(con_id),
+                      Id.to_string(arg_id),
                     ),
                 ),
               LetExp.lets_ap,
@@ -1564,12 +1566,12 @@ let get_doc =
                 Some(
                   msg =>
                     Printf.sprintf(
-                      Scanf.format_from_string(msg, "%i%i%s%i%i"),
-                      def_id,
-                      pat_id,
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
                       v,
-                      def_id,
-                      body_id,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
                     ),
                 ),
               LetExp.lets_ctr,
@@ -1597,10 +1599,10 @@ let get_doc =
             AppExp.conaps,
             msg =>
               Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%i%i"),
+                Scanf.format_from_string(msg, "%s%s%s"),
                 v,
-                x_id,
-                arg_id,
+                Id.to_string(x_id),
+                Id.to_string(arg_id),
               ),
             AppExp.conapp_exp_coloring_ids,
           )
@@ -1609,9 +1611,9 @@ let get_doc =
             AppExp.funaps,
             msg =>
               Printf.sprintf(
-                Scanf.format_from_string(msg, "%i%i"),
-                x_id,
-                arg_id,
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(x_id),
+                Id.to_string(arg_id),
               ),
             AppExp.funapp_exp_coloring_ids,
           )
@@ -1626,10 +1628,10 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i%i"),
-                  cond_id,
-                  then_id,
-                  else_id,
+                  Scanf.format_from_string(msg, "%s%s%s"),
+                  Id.to_string(cond_id),
+                  Id.to_string(then_id),
+                  Id.to_string(else_id),
                 ),
             ),
           IfExp.ifs,
@@ -1643,9 +1645,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  exp1_id,
-                  exp2_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(exp1_id),
+                  Id.to_string(exp2_id),
                 ),
             ),
           SeqExp.seqs,
@@ -1657,7 +1659,10 @@ let get_doc =
           ~format=
             Some(
               msg =>
-                Printf.sprintf(Scanf.format_from_string(msg, "%i"), body_id),
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(body_id),
+                ),
             ),
           TestExp.tests,
         );
@@ -1671,9 +1676,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  hd_id,
-                  tl_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hd_id),
+                  Id.to_string(tl_id),
                 ),
             ),
           ListExp.listcons,
@@ -1687,9 +1692,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  xs_id,
-                  ys_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(xs_id),
+                  Id.to_string(ys_id),
                 ),
             ),
           ListExp.listconcats,
@@ -1704,8 +1709,8 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i"),
-                    exp_id,
+                    Scanf.format_from_string(msg, "%s"),
+                    Id.to_string(exp_id),
                   ),
               ),
             OpExp.bool_un_not,
@@ -1718,8 +1723,8 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i"),
-                    exp_id,
+                    Scanf.format_from_string(msg, "%s"),
+                    Id.to_string(exp_id),
                   ),
               ),
             OpExp.int_un_minus,
@@ -1779,9 +1784,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  left_id,
-                  right_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(left_id),
+                  Id.to_string(right_id),
                 ),
             ),
           group,
@@ -1794,8 +1799,8 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  scrut_id,
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(scrut_id),
                 ),
             ),
           CaseExp.case,
@@ -1861,8 +1866,8 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(elements),
+                  Scanf.format_from_string(msg, "%s"),
+                  string_of_int(List.length(elements)),
                 ),
             ),
           ListPat.listlit,
@@ -1878,9 +1883,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  hd_id,
-                  tl_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hd_id),
+                  Id.to_string(tl_id),
                 ),
             ),
           doc,
@@ -1901,10 +1906,10 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    hd_id,
-                    hd2_id,
-                    tl2_id,
+                    Scanf.format_from_string(msg, "%s%s%s"),
+                    Id.to_string(hd_id),
+                    Id.to_string(hd2_id),
+                    Id.to_string(tl2_id),
                   ),
               ),
             ListPat.cons2,
@@ -1929,8 +1934,8 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(elements),
+                  Scanf.format_from_string(msg, "%s"),
+                  string_of_int(List.length(elements)),
                 ),
             ),
           group,
@@ -1948,9 +1953,9 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    elem1_id,
-                    elem2_id,
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(elem1_id),
+                    Id.to_string(elem2_id),
                   ),
               ),
             TuplePat.tuple2,
@@ -1975,10 +1980,10 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    elem1_id,
-                    elem2_id,
-                    elem3_id,
+                    Scanf.format_from_string(msg, "%s%s%s"),
+                    Id.to_string(elem1_id),
+                    Id.to_string(elem2_id),
+                    Id.to_string(elem3_id),
                   ),
               ),
             TuplePat.tuple3,
@@ -1997,9 +2002,9 @@ let get_doc =
           Some(
             msg =>
               Printf.sprintf(
-                Scanf.format_from_string(msg, "%i%i"),
-                con_id,
-                arg_id,
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(con_id),
+                Id.to_string(arg_id),
               ),
           ),
         AppPat.ap,
@@ -2021,9 +2026,9 @@ let get_doc =
           Some(
             msg =>
               Printf.sprintf(
-                Scanf.format_from_string(msg, "%i%i"),
-                pat_id,
-                typ_id,
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(pat_id),
+                Id.to_string(typ_id),
               ),
           ),
         TypAnnPat.typann,
@@ -2048,7 +2053,10 @@ let get_doc =
         ~format=
           Some(
             msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%i"), elem_id),
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s"),
+                Id.to_string(elem_id),
+              ),
           ),
         ListTyp.list,
       );
@@ -2062,9 +2070,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i%i"),
-                  arg_id,
-                  result_id,
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(arg_id),
+                  Id.to_string(result_id),
                 ),
             ),
           doc,
@@ -2085,10 +2093,10 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    arg_id,
-                    arg2_id,
-                    result2_id,
+                    Scanf.format_from_string(msg, "%s%s%s"),
+                    Id.to_string(arg_id),
+                    Id.to_string(arg2_id),
+                    Id.to_string(result2_id),
                   ),
               ),
             ArrowTyp.arrow3,
@@ -2105,8 +2113,8 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%i"),
-                  List.length(elements),
+                  Scanf.format_from_string(msg, "%s"),
+                  string_of_int(List.length(elements)),
                 ),
             ),
           group,
@@ -2122,9 +2130,9 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i"),
-                    elem1_id,
-                    elem2_id,
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(elem1_id),
+                    Id.to_string(elem2_id),
                   ),
               ),
             TupleTyp.tuple2,
@@ -2148,10 +2156,10 @@ let get_doc =
               Some(
                 msg =>
                   Printf.sprintf(
-                    Scanf.format_from_string(msg, "%i%i%i"),
-                    elem1_id,
-                    elem2_id,
-                    elem3_id,
+                    Scanf.format_from_string(msg, "%s%s%s"),
+                    Id.to_string(elem1_id),
+                    Id.to_string(elem2_id),
+                    Id.to_string(elem3_id),
                   ),
               ),
             TupleTyp.tuple3,
@@ -2202,7 +2210,7 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: ExplainThisModel.t, index': option(int), info_map: Statics.Map.t) => {
+    (~doc: ExplainThisModel.t, index': option(Id.t), info_map: Statics.Map.t) => {
   let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
@@ -2220,9 +2228,9 @@ let view =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~settings: ModelSettings.t,
+      ~settings: Settings.t,
       ~doc: ExplainThisModel.t,
-      index': option(int),
+      index': option(Id.t),
       info_map: Statics.Map.t,
     ) => {
   let info: option(Statics.Info.t) =
@@ -2247,7 +2255,7 @@ let view =
             [
               toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
                 inject(
-                  Update.UpdateExplainThisModel(
+                  UpdateAction.UpdateExplainThisModel(
                     ExplainThisUpdate.ToggleHighlight,
                   ),
                 )
@@ -2258,7 +2266,7 @@ let view =
                     clss(["close"]),
                     Attr.on_click(_ =>
                       inject(
-                        Update.UpdateExplainThisModel(
+                        UpdateAction.UpdateExplainThisModel(
                           ExplainThisUpdate.ToggleShow,
                         ),
                       )

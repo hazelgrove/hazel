@@ -164,6 +164,27 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
   };
 
+  module SyntaxReport = {
+    type t = {
+      hinted_results: list((bool, hint)),
+      percentage,
+    };
+
+    let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
+      let user_impl_term = EditorUtil.stitch([your_impl]);
+
+      let predicates = List.map(((_, p)) => p, tests);
+      let hints = List.map(((h, _)) => h, tests);
+      let syntax_results = SyntaxTest.check(user_impl_term, predicates);
+
+      {
+        hinted_results:
+          List.map2((r, h) => (r, h), syntax_results.results, hints),
+        percentage: syntax_results.percentage,
+      };
+    };
+  };
+
   module ImplGradingReport = {
     type t = {
       hints: list(string),
@@ -206,8 +227,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       |> List.length;
     };
 
-    let percentage = (report: t): percentage => {
-      float_of_int(num_passed(report)) /. float_of_int(total(report));
+    let percentage = (report: t, syntax_report: SyntaxReport.t): percentage => {
+      syntax_report.percentage
+      *. (float_of_int(num_passed(report)) /. float_of_int(total(report)));
     };
 
     let test_summary_str = (test_results: TestResults.test_results) => {
@@ -229,6 +251,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       point_distribution,
       test_validation_report: TestValidationReport.t,
       mutation_testing_report: MutationTestingReport.t,
+      syntax_report: SyntaxReport.t,
       impl_grading_report: ImplGradingReport.t,
     };
 
@@ -247,6 +270,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
           ~hidden_bugs_state=eds.hidden_bugs,
           ~hidden_bugs=stitched_dynamics.hidden_bugs,
         ),
+      syntax_report:
+        SyntaxReport.mk(~your_impl=eds.your_impl, ~tests=eds.syntax_tests),
       impl_grading_report:
         ImplGradingReport.mk(
           ~hints=eds.hidden_tests.hints,
@@ -263,7 +288,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
             point_distribution,
             test_validation_report,
             mutation_testing_report,
+            syntax_report,
             impl_grading_report,
+            _,
           }: t,
         )
         : score => {
@@ -279,7 +306,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         );
       let (ig_points, ig_max) =
         score_of_percent(
-          ImplGradingReport.percentage(impl_grading_report),
+          ImplGradingReport.percentage(impl_grading_report, syntax_report),
           point_distribution.impl_grading,
         );
       let total_points = tv_points +. mt_points +. ig_points;

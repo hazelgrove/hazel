@@ -5,34 +5,21 @@ open OptUtil.Syntax;
 let destruct =
     (
       d: Direction.t,
-      ({caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z, id_gen): state,
+      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
     )
-    : option(state) => {
+    : option(t) => {
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
-    z
-    |> Zipper.set_caret(Outer)
-    |> Zipper.delete(Right)
-    |> Option.map(IdGen.id(id_gen));
-  let delete_left = z =>
-    z |> Zipper.delete(Left) |> Option.map(IdGen.id(id_gen));
+    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
+  let delete_left = Zipper.delete(Left);
   let construct_right = (l, s) =>
-    Option.map(
-      ((z, id_gen)) =>
-        Zipper.construct(~caret=Right, ~backpack=Right, l, z, id_gen),
-      s,
-    );
+    Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
   let construct_left = (l, s) =>
-    Option.map(
-      ((z, id_gen)) =>
-        Zipper.construct(~caret=Left, ~backpack=Left, l, z, id_gen),
-      s,
-    );
+    Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
-  | _ when z.selection.content != [] =>
-    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
+  | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
   /* Special cases for mono forms which can split into duo forms,
      e.g. list literals. When deletion would alter the mono form,
      we replace it to the corresponding duo form.  */
@@ -64,44 +51,36 @@ let destruct =
     delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx, t), (z, id_gen));
+    Zipper.replace_mono(Right, Token.rm_nth(c_idx, t), z);
   | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), (z, id_gen))
-    |> OptUtil.and_then(((z, id_gen)) =>
-         z
-         |> Zipper.set_caret(Outer)
-         |> Zipper.move(Right)
-         |> Option.map(IdGen.id(id_gen))
+    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), z)
+    |> OptUtil.and_then(z =>
+         z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
        ) /* If not on last inner position */
   | (Right, Inner(_, c_idx), (_, Some(t))) =>
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), (z, id_gen))
+    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), z)
   /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
-    z
-    |> Zipper.set_caret(Outer)
-    |> Zipper.delete(Right)
-    |> Option.map(IdGen.id(id_gen))
+    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right)
+
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
-    //Option.map(IdGen.id(id_gen)
-    Zipper.replace_mono(Left, Token.rm_last(t), (z, id_gen))
+    Zipper.replace_mono(Left, Token.rm_last(t), z)
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
-    Zipper.replace_mono(Right, Token.rm_first(t), (z, id_gen))
+    Zipper.replace_mono(Right, Token.rm_first(t), z)
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
-  | (_, Outer, (None, _)) =>
-    z |> Zipper.delete(d) |> Option.map(IdGen.id(id_gen))
+  | (_, Outer, (None, _)) => z |> Zipper.delete(d)
   };
 };
 
-let merge =
-    ((l, r): (Token.t, Token.t), (z, id_gen): state): option(state) =>
+let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
   z
   |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
   |> Zipper.delete(Left)
   |> OptUtil.and_then(Zipper.delete(Right))
-  |> Option.map(z => Zipper.construct_mono(Right, l ++ r, z, id_gen));
+  |> Option.map(Zipper.construct_mono(Right, l ++ r));
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
 let parent_duomerges = (z: Zipper.t) => {
@@ -110,8 +89,8 @@ let parent_duomerges = (z: Zipper.t) => {
   Form.duomerges(lbl);
 };
 
-let go = (d: Direction.t, (z, id_gen): state): option(state) => {
-  let* (z, id_gen) = destruct(d, (z, id_gen));
+let go = (d: Direction.t, z: t): option(t) => {
+  let* z = destruct(d, z);
   switch (
     parent_duomerges(z),
     z.caret,
@@ -125,11 +104,12 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     z
     |> Zipper.delete_parent
     |> Zipper.set_caret(Inner(0, 0))
-    |> (z => Zipper.construct(~caret=Right, ~backpack=Left, lbl, z, id_gen))
+    |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
     /* Below regrouting important for parens/ap positioning */
-    |> (((z, id_gen)) => Zipper.regrout(Right, z, id_gen) |> Option.some)
-  | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
-    merge((l, r), (z, id_gen))
-  | _ => Some((z, id_gen))
+    |> Zipper.regrout(Right)
+    |> Option.some
+  | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
+    merge((l, r), z)
+  | _ => Some(z)
   };
 };

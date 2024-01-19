@@ -21,7 +21,7 @@ let funapp_exp_coloring_ids =
   (Piece.id(_exp_arg), arg_id),
 ];
 let funapp_exp: form = {
-  let explanation = "Function application. Apply the [*function*](%i) to the [*argument*](%i).";
+  let explanation = "Function application. Apply the [*function*](%s) to the [*argument*](%s).";
   {
     id: FunApExp,
     syntactic_form: [_exp_fun, mk_ap_exp([[_exp_arg]])],
@@ -38,7 +38,7 @@ let conapp_exp_coloring_ids =
   (Piece.id(_exp_arg), arg_id),
 ];
 let conapp_exp: form = {
-  let explanation = "Constructor application. Apply the [*`%s` constructor*](%i) to the [*argument*](%i).";
+  let explanation = "Constructor application. Apply the [*`%s` constructor*](%s) to the [*argument*](%s).";
   {
     id: ConApExp,
     syntactic_form: [_exp_con, mk_ap_exp([[_exp_arg]])],

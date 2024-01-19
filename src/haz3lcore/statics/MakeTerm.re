@@ -34,45 +34,6 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
-type dark_id = int;
-let dark_gen = ref(-1);
-let dark_id = () => {
-  let id = dark_gen^;
-  dark_gen := id - 1;
-  id;
-};
-let dark_hole = (~ids=[], s: Sort.t): t => {
-  let id = dark_id();
-  switch (s) {
-  // put dark id last to avoid messing with rep id
-  | Exp => Exp({ids: ids @ [id], term: EmptyHole})
-  | _ => failwith("dark_hole todo")
-  };
-};
-
-// TODO flesh out incomplete cases
-// TODO review dark hole
-let _complete_root =
-  fun
-  | Op(_) as root => root
-  | Pre(tiles, r) as root =>
-    switch (tiles) {
-    | ([(id, tile)], []) =>
-      switch (tile) {
-      | (["("], []) => Op(single(id, (["(", ")"], [r])))
-      | (["let"], []) =>
-        Pre(
-          single(id, (Labels.let_, [r, dark_hole(Exp)])),
-          dark_hole(Exp),
-        )
-      | (["let", "="], [pat]) =>
-        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
-      | _ => root
-      }
-    | _ => root
-    }
-  | root => root;
-
 let is_nary =
     (is_sort: any => option('sort), delim: Token.t, (delims, kids): tiles)
     : option(list('sort)) =>
@@ -140,11 +101,6 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
-let return_dark_hole = (~ids=[], s) => {
-  let hole = dark_hole(~ids, s);
-  map := TermMap.add_all(Term.ids(hole), hole, map^);
-  hole;
-};
 
 let parse_sum_term: UTyp.t => UTyp.variant =
   fun
@@ -165,13 +121,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
-    | None => return_dark_hole(Exp)
+    | None => Exp(exp(unsorted(skel, seg)))
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => return_dark_hole(~ids, Exp)
+      | None => Exp(exp(unsorted(skel, seg)))
       | Some(t) =>
         if (t.mold.out == Any) {
-          return_dark_hole(~ids, Exp);
+          Exp(exp(unsorted(skel, seg)));
         } else {
           go_s(t.mold.out, skel, seg);
         }
@@ -213,7 +169,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], []) when t != " " => ret(Invalid(t))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -240,7 +197,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["()"], []) =>
+        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
       | _ => ret(hole(tm))
       }
@@ -277,11 +235,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["==."], []) => BinOp(Float(Equals), l, r)
           | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["\\/"], []) => BinOp(Bool(Or), l, r)
+          | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
@@ -318,7 +277,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
@@ -380,7 +340,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -434,7 +395,8 @@ and tpat_term: unsorted => UTPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -524,4 +486,21 @@ let go =
       let e = exp(unsorted(Segment.skel(seg), seg));
       (e, map^);
     },
+  );
+
+let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  go(seg);
+};
+
+let from_zip_for_view =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=false, ~erase_buffer=true),
+  );
+
+let from_zip_for_sem =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=true, ~erase_buffer=true),
   );

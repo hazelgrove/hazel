@@ -13,7 +13,7 @@ let tuple_example_2 = {
   message: "A tuple with first element 1, second element 2, and third element 3.",
 };
 let tuple_exp: form = {
-  let explanation = "Tuple literal. The tuple has %i elements.";
+  let explanation = "Tuple literal. The tuple has %s elements.";
   let comma = comma_exp();
   {
     id: TupleExp,
@@ -31,7 +31,7 @@ let tuple_exp_size2_coloring_ids =
   [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
 };
 let tuple_exp_size2: form = {
-  let explanation = "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.";
+  let explanation = "Tuple literal. The 2-tuple has a [first](%s) and [second](%s) element.";
   let comma = comma_exp();
   {
     id: Tuple2Exp,
@@ -54,7 +54,7 @@ let tuple_exp_size3_coloring_ids =
   ];
 };
 let tuple_exp_size3: form = {
-  let explanation = "Tuple literal. The 3-tuple has a [first](%i), [second](%i), and [third](%i) element.";
+  let explanation = "Tuple literal. The 3-tuple has a [first](%s), [second](%s), and [third](%s) element.";
   let comma = comma_exp();
   {
     id: Tuple3Exp,

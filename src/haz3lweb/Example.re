@@ -1,21 +1,13 @@
 open Haz3lcore;
 
-let id_gen: ref(int) = ref(0);
-
-let mk_id = (): int => {
-  let uid = id_gen^;
-  id_gen := id_gen^ + 1;
-  uid;
-};
-
 let mk_secondary: string => Piece.t =
-  content => Secondary({id: mk_id(), content: Whitespace(content)});
+  content => Secondary({id: Id.mk(), content: Whitespace(content)});
 
 let mk_tile: (Form.t, list(list(Piece.t))) => Piece.t =
   //TODO: asserts
   (form, children) =>
     Tile({
-      id: mk_id(),
+      id: Id.mk(),
       label: form.label,
       mold: form.mold,
       shards: List.mapi((i, _) => i, form.label),
@@ -25,7 +17,7 @@ let mk_tile: (Form.t, list(list(Piece.t))) => Piece.t =
 let mk_ancestor: (Form.t, (list(Segment.t), list(Segment.t))) => Ancestor.t =
   //TODO: asserts
   (form, (l, _) as children) => {
-    id: mk_id(),
+    id: Id.mk(),
     label: form.label,
     mold: form.mold,
     shards:
@@ -45,10 +37,10 @@ let mk_parens_ancestor = mk_ancestor(Form.get("parens_exp"));
 let mk_let_ancestor = mk_ancestor(Form.get("let_"));
 let plus = mk_monotile(Form.get("plus"));
 
-let l_sibling: Segment.t = [plus, Grout({id: mk_id(), shape: Convex})];
+let l_sibling: Segment.t = [plus, Grout({id: Id.mk(), shape: Convex})];
 let r_sibling: Segment.t = [mk_parens_exp([[int("1"), plus, int("2")]])];
 
-let content: Segment.t = [exp("foo"), Grout({id: mk_id(), shape: Concave})];
+let content: Segment.t = [exp("foo"), Grout({id: Id.mk(), shape: Concave})];
 
 let ancestors: Ancestors.t = [
   (mk_parens_ancestor(([], [])), ([mk_fun([[pat("bar")]])], [])),
@@ -56,13 +48,10 @@ let ancestors: Ancestors.t = [
   (mk_let_ancestor(([[pat("foo")]], [])), ([], [int("2")])),
 ];
 
-let backpack: Backpack.t = [{focus: Left, content: [exp("foo")]}];
+let backpack: Backpack.t = [Selection.mk([exp("foo")])];
 
 let zipper: Zipper.t = {
-  selection: {
-    focus: Left,
-    content,
-  },
+  selection: Selection.mk(content),
   backpack,
   relatives: {
     siblings: (l_sibling, r_sibling),
@@ -137,8 +126,8 @@ let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 
 let mk_example = str => {
-  switch (Printer.zipper_of_string(0, str)) {
+  switch (Printer.zipper_of_string(str)) {
   | None => []
-  | Some((z, _)) => Zipper.zip(z)
+  | Some(z) => Zipper.zip(z)
   };
 };
