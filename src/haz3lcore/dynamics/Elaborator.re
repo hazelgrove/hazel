@@ -270,7 +270,7 @@ let rec dhexp_of_uexp =
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_))))
-        | InHole(InexhaustiveMatch(Some(Inconsistent(Internal(_))))) =>
+        | InHole(InexhaustiveMatch(Some(Inconsistent(Internal(_))), _)) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };

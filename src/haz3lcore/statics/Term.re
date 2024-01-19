@@ -413,6 +413,47 @@ module UPat = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let rec str_rep = (p: t): string => {
+    let str_rep_list = (ps: list(t)) =>
+      switch (ps) {
+      | [] => ""
+      | [ps_first, ...ps_rest] =>
+        List.fold_left(
+          (acc, p) => acc ++ ", " ++ str_rep(p),
+          str_rep(ps_first),
+          ps_rest,
+        )
+      };
+    switch (p.term) {
+    | Wild => "_"
+    | Int(n) => string_of_int(n)
+    | Float(n) => string_of_float(n)
+    | Bool(true) => "true"
+    | Bool(false) => "false"
+    | String(s) => "\"" ++ s ++ "\""
+    | Triv => "()"
+    | Tuple(ps) => "(" ++ str_rep_list(ps) ++ ")"
+    | ListLit(ps) => "[" ++ str_rep_list(ps) ++ "]"
+    | Constructor(ctr) => ctr
+    | Cons(hd, tl) => str_rep(hd) ++ "::" ++ str_rep(tl)
+    | Ap(ctr, arg) =>
+      str_rep(ctr)
+      ++ (
+        switch (arg.term) {
+        | Triv
+        | Tuple(_) => str_rep(arg)
+        | _ => "(" ++ str_rep(arg) ++ ")"
+        }
+      )
+    | Parens(_)
+    | Var(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | TypeAnn(_) => failwith("string representation not implemented")
+    };
+  };
 };
 
 module UExp = {

@@ -167,13 +167,22 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
-  | InHole(InexhaustiveMatch(additional_err)) =>
+  | InHole(InexhaustiveMatch(additional_err, example)) =>
     switch (additional_err) {
-    | None => div_err([text("Case expression is inexhaustive")])
+    | None =>
+      div_err([
+        text(
+          "Case expression is inexhaustive. An example of an unmatched case is: "
+          ++ Term.UPat.str_rep(example),
+        ),
+      ])
     | Some(err) =>
       div_err([
         exp_view(Exp(Match), InHole(Common(err))),
-        text("; case expression is inexhaustive"),
+        text(
+          "; case expression is inexhaustive. An example of an unmatched case is: "
+          ++ Term.UPat.str_rep(example),
+        ),
       ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))

@@ -66,7 +66,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_common))
+  | InexhaustiveMatch(option(error_common), UPat.t)
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -366,7 +366,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
 let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
-  | (InexhaustiveMatch(self), _) =>
+  | (InexhaustiveMatch(self, example), _) =>
     let additional_err =
       switch (status_exp(ctx, mode, self)) {
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
@@ -377,7 +377,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(FreeVariable(_) | InexhaustiveMatch(_)) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
-    InHole(InexhaustiveMatch(additional_err));
+    InHole(InexhaustiveMatch(additional_err, example));
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)

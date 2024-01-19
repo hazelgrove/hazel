@@ -415,12 +415,10 @@ and uexp_to_info_map =
       switch (is_exhaustive) {
       | True => unwrapped_self
       | False(xi) =>
-        print_endline(
-          TermBase.UPat.show_term(
-            Constraint.to_upat_term(xi, ctx, scrut.ty),
-          ),
-        );
-        InexhaustiveMatch(unwrapped_self);
+        InexhaustiveMatch(
+          unwrapped_self,
+          Constraint.to_upat(xi, ctx, scrut.ty),
+        )
       };
     // if (!is_exhaustive) {
     //   // Dual constraint: the unwrapped version of dual.

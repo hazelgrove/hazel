@@ -148,6 +148,7 @@ let rec to_upat_term = (xi, ctx, ty): Term.UPat.term => {
       (xi, acc);
     } else {
       switch (xi) {
+      | Truth as xi
       | InjL(xi) => (xi, acc)
       | InjR(xi) => unwrap_sum(xi, num_variants, acc + 1)
       | _ => assert(false) // impossible
@@ -202,4 +203,9 @@ let rec to_upat_term = (xi, ctx, ty): Term.UPat.term => {
     }
   | _ => assert(false) // impossible
   };
+};
+
+let to_upat = (xi, ctx, ty): Term.UPat.t => {
+  ids: [],
+  term: to_upat_term(xi, ctx, ty),
 };
