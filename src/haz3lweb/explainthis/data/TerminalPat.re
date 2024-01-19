@@ -12,7 +12,7 @@ let wild_pat: form = {
 };
 
 let intlit_pat: form = {
-  let explanation = "Integer literal pattern. Only expressions with value `%s` match the *`%s` pattern*.";
+  let explanation = "Integer literal pattern. Only expressions with value `%i` match the *`%i` pattern*.";
   {
     id: IntPat,
     syntactic_form: [pat("IntLit")],

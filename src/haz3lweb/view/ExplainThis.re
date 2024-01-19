@@ -593,9 +593,11 @@ let get_doc =
   };
 
   /* Use this when adding new entries */
-  let get_message_new =
-      ({colorings, explanation, group}: ExplainThisForm.simple) =>
+  let get_message_new = (sd: ExplainThisForm.single_doc) => {
+    let ExplainThisForm.{colorings, explanation, group} =
+      ExplainThisForm.single_to_group(sd);
     get_message(~colorings, ~format=None, ~explanation, group);
+  };
 
   switch (info) {
   | Some(InfoExp({term, _})) =>
@@ -1607,7 +1609,7 @@ let get_doc =
         };
       | Pipeline(arg, fn) =>
         get_message_new(
-          PipelineExp.explain(
+          PipelineExp.single(
             ~arg_id=Term.UExp.rep_id(arg),
             ~fn_id=Term.UExp.rep_id(fn),
           ),

@@ -321,3 +321,34 @@ type simple = {
   explanation: string,
   colorings: list((Id.t, Id.t)),
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type single_doc = {
+  explanation: string,
+  colorings: list((Id.t, Id.t)),
+  group_id,
+  form_id,
+  syntactic_form: Segment.t,
+  examples: list(example),
+};
+
+let single_to_group =
+    (
+      {explanation, colorings, group_id, form_id, syntactic_form, examples}: single_doc,
+    )
+    : simple => {
+  explanation,
+  colorings,
+  group: {
+    id: group_id,
+    forms: [
+      {
+        id: form_id,
+        syntactic_form,
+        expandable_id: None,
+        explanation: "",
+        examples,
+      },
+    ],
+  },
+};
