@@ -50,8 +50,8 @@ repl:
 	dune utop src/haz3lcore
 
 test:
-	dune build @src/fmt --auto-promote || true
-	dune exec src/haz3ltest/haz3ltest.exe
+	dune build @src/fmt --auto-promote src --profile dev || true
+	node _build/default/src/haz3ltest2/haz3ltest.bc.js test
 
 fix-test-answers:
 	dune promote || true

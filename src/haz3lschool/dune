@@ -10,6 +10,6 @@
 (executable
  (name gradescope)
  (modules Gradescope)
- (libraries ppx_yojson_conv.expander haz3lcore haz3lschool regexp_jsoo)
+ (libraries ppx_yojson_conv.expander haz3lcore haz3lschool)
  (preprocess
   (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
