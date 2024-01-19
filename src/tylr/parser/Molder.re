@@ -75,7 +75,7 @@ let rec remold = (~fill=[], ctx: Ctx.t) =>
       let _ = failwith("todo: make sure cell distributes paths");
       molded
       |> Ctx.extend_face(~side=L, rest)
-      |> remold(~fill=Option.to_list(cell.meld));
+      |> remold(~fill=Option.to_list(terr.cell.meld));
     | _ =>
       // otherwise add rest of wald to suffix queue
       let up =

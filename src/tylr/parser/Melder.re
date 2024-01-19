@@ -105,6 +105,57 @@ module Slope = {
   };
 };
 
+module Zigg = {
+  include Zigg;
+
+  let meld =
+      (~onto: Dir.t, w: Wald.t, ~fill=[], zigg: t)
+      : option(Zigg.t) =>
+    switch (onto) {
+    | L =>
+      let top = zigg.top;
+      switch (Slope.Up.meld(w, ~fill, zigg.up, ~top)) {
+      | Ok(up) => Some({...zigg, up})
+      | Error(fill) =>
+        Wald.meld_eq(~from=R, w, ~fill, top)
+        |> Option.map(top => {...zigg, up: [], top})
+      };
+    | R =>
+      let top = Wald.rev(zigg.top);
+      switch (Slope.Dn.meld(~top, zigg.dn, ~fill, w)) {
+      | Ok(dn) => Some({...zigg, dn})
+      | Error(fill) =>
+        Wald.meld_eq(~from=L, top, ~fill, w)
+        |> Option.map(top => {...zigg, top, dn: []})
+      };
+    };
+
+  let rec take_leq = (zigg: t, ~fill=[], suf: Slope.Up.t) =>
+    switch (suf) {
+    | [] => ([], suf)
+    | [hd, ...tl] =>
+      switch (meld(~onto=R, hd.wald, ~fill, zigg)) {
+      | None => ([], suf)
+      | Some(zigg) =>
+        let fill = Option.to_list(hd.cell.meld);
+        let (leq, gt) = take_leq(zigg, ~fill, tl);
+        ([hd, ...leq], gt);
+      }
+    };
+  let rec take_geq = (pre: Slope.Dn.t, ~fill=[], zigg: t) =>
+    switch (pre) {
+    | [] => (pre, [])
+    | [hd, ...tl] =>
+      switch (meld(~onto=L, hd.wald, ~fill, zigg)) {
+      | None => (pre, [])
+      | Some(zigg) =>
+        let fill = Option.to_list(hd.cell.meld);
+        let (lt, geq) = take_geq(tl, ~fill, zigg);
+        (lt, [hd, ...geq]);
+      }
+    };
+};
+
 module Ctx = {
   open OptUtil.Syntax;
 
@@ -135,17 +186,25 @@ module Ctx = {
       }
     };
 
-  let bridge = (~sel=Ziggurat.empty, well: Stepwell.t): Stepwell.t => {
-    print_endline("Stepwell.assemble");
-    let (pre, suf) = get_slopes(well);
-    // separate siblings that belong to the selection
-    let (pre_lt_sel, pre_geq_sel) = Ziggurat.split_lt(pre, sel);
-    let (sel_leq_suf, sel_gt_suf) = Ziggurat.split_gt(sel, suf);
-    well
-    |> Stepwell.put_slopes(Slopes.empty)
-    |> bridge_slopes((pre_lt_sel, sel_gt_suf))
-    |> push_slopes((pre_geq_sel, sel_leq_suf));
-  };
+  let rec close = (ctx: Ctx.t) =>
+    switch (Ctx.fst(ctx)) {
+    | ([], _)
+    | (_, []) => ctx
+    | ([l, ...pre], [r, ...suf]) =>
+      failwith("todo")
+    };
+  let close = (~sel=?, ctx: Ctx.t) =>
+    switch (sel) {
+    | None => ctx
+    | Some(zigg) =>
+      let (pre, suf) = Ctx.fst(ctx);
+      let (pre_lt, pre_geq) = Zigg.take_geq(pre, zigg);
+      let (suf_leq, suf_gt) = Zigg.take_leq(zigg, suf);
+      ctx
+      |> Ctx.put_fst((pre_lt, suf_gt))
+      |> close
+      |> Ctx.map_fst(Frame.Open.cat((pre_geq, suf_leq)));
+    };
 
   let pull_lexeme = (~char=false, ~from: Dir.t, well: Stepwell.t) =>
     switch (Slopes.pull_lexeme(~char, ~from, Stepwell.get_slopes(well))) {
