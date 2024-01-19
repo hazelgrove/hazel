@@ -51,8 +51,8 @@ let settings_menu =
       set("⇲", "Toggle Completion", assist, Assist),
       set("𝛿", "Toggle Dynamics", dynamics, Dynamics),
       set("𝑒", "Show Elaboration", elaborate, Elaborate),
-      set("✓", "Toggle Benchmarking", benchmark, Benchmark),
-      set("↵", "Show Spaces", secondary_icons, SecondaryIcons),
+      set("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
+      set("✓", "Print Benchmarks", benchmark, Benchmark),
     ],
   );
 };
