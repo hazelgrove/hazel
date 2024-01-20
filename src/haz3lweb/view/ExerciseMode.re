@@ -52,17 +52,20 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   );
 };
 
-let view =
-    (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
-  let {
-    exercise,
-    results: _,
-    settings,
-    stitched_dynamics,
-    grading_report,
-    langDocMessages,
-  } = self;
-  let Exercise.{pos, eds} = exercise;
+let editor_view =
+    (
+      ~inject,
+      ~ui_state as
+        {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
+      {
+        exercise: {pos, eds} as exercise,
+        results: _,
+        settings,
+        stitched_dynamics,
+        grading_report,
+        langDocMessages,
+      }: t,
+    ) => {
   let Exercise.{
         test_validation,
         user_impl,
@@ -474,3 +477,20 @@ let import_submission = (~inject) =>
     },
     ~tooltip="Import Submission",
   );
+
+let view =
+    (
+      ~inject,
+      ~exercise,
+      {settings, langDocMessages, meta: {ui_state, results, _}, _}: Model.t,
+    ) => {
+  let exercise_mode =
+    mk(
+      ~settings,
+      ~exercise,
+      ~results=settings.core.dynamics ? Some(results) : None,
+      ~langDocMessages,
+    );
+  [Grading.GradingReport.view_overall_score(exercise_mode.grading_report)]
+  @ editor_view(~inject, ~ui_state, exercise_mode);
+};

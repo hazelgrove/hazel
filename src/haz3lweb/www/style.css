@@ -358,7 +358,7 @@ select {
   color: #a69460;
 }
 
-#top-bar .menu {
+#top-bar .nut-menu {
   display: flex;
   transform-origin: top;
   transform: scaleY(0);
@@ -376,10 +376,8 @@ select {
   background-color: #a69461;
 }
 
-#top-bar .menu .submenu {
+#top-bar .nut-menu .submenu {
   display: none;
-  transform-origin: top;
-  transform: scaleY(0);
   transition: transform 0.07s ease;
   position: absolute;
   width: max-content;
@@ -387,12 +385,15 @@ select {
   left: 2.75em;
   flex-direction: column;
   justify-content: center;
-  /*align-items: center;*/
   background-color: #bba874;
   border-radius: 0 0 1.3em 0;
 }
+#top-bar .nut-menu .submenu-icon:hover + .submenu,
+#top-bar .nut-menu .submenu-icon + .submenu:hover {
+  display: flex;
+}
 
-#top-bar .menu .menu-item-iconic {
+#top-bar .nut-menu .submenu-icon {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -400,7 +401,7 @@ select {
   height: 2.75em;
 }
 
-#top-bar .menu .named-menu-item {
+#top-bar .nut-menu .named-menu-item {
   height: 2.75em;
   display: flex;
   align-items: center;
@@ -408,60 +409,54 @@ select {
   cursor: pointer;
   padding-right: 1em;
 }
-#top-bar .menu .named-menu-item:last-child {
+#top-bar .nut-menu .named-menu-item:last-child {
   border-radius: 0 0 1.3em 0;
 }
-#top-bar .menu .named-menu-item:hover {
+#top-bar .nut-menu .named-menu-item:hover {
   background-color: #c7b480;
   color: white;
 }
-#top-bar .menu .named-menu-item .toggle-switch {
+#top-bar .nut-menu .named-menu-item .toggle-switch {
   margin-left:0.5em;
   margin-right:0.5em;
 }
 
-#top-bar .menu .menu-item-iconic:hover + .submenu,
-#top-bar .menu .menu-item-iconic + .submenu:hover {
-  display: flex;
-  transform: scaleY(1);
-}
-
-#top-bar .menu .top-menu-item:hover,
-#top-bar .menu .top-menu-item:has(+ .submenu:hover) {
+#top-bar .nut-menu .top-menu-item:hover,
+#top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) {
   background-color: #bba874;/*c7b480*/
 }
-#top-bar .menu .top-menu-item:hover .icon svg,
-#top-bar .menu .top-menu-item:has(+ .submenu:hover) .icon svg {
+#top-bar .nut-menu .top-menu-item:hover svg,
+#top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) svg {
   fill: var(--light-page-color);
 }
 
-#top-bar .menu:hover,
-#top-bar .menu-icon:hover+.menu {
+#top-bar .nut-menu:hover,
+#top-bar .nut-icon:hover+.nut-menu {
   transform: scaleY(1);
   display: flex;
   border-radius: 0 0 1.3em 0;
 }
 
-#top-bar .menu .top-menu-item {
+#top-bar .nut-menu .top-menu-item {
   position: relative;
 }
-#top-bar .menu .icon,
-#top-bar .menu .link {
+#top-bar .nut-menu .icon,
+#top-bar .nut-menu .link {
   display: flex;
   height: 2.75em;
   width: 2.75em;
   align-items: center;
   justify-content: center;
 }
-#top-bar .menu .top-menu-item:last-child {
+#top-bar .nut-menu .top-menu-item:last-child {
   border-radius: 0 0 1.3em 0;
 }
-#top-bar .menu .top-menu-item:hover {
+#top-bar .nut-menu .top-menu-item:hover {
   background-color: #bba874;
   color: white;
 }
 
-#top-bar .menu-icon {
+#top-bar .nut-icon {
   width: 2.75em;
   min-width: 2.75em; /* Seems to be necessary at high zooms? */
   height: 2.75em;
@@ -475,16 +470,16 @@ select {
   transition: all 0.1s ease-in;
 }
 
-#top-bar .menu-icon:hover {
+#top-bar .nut-icon:hover {
   border-radius: 0;
 }
 
-#top-bar .menu-icon svg {
+#top-bar .nut-icon svg {
   fill: var(--light-page-color);
 }
 
-#top-bar .menu-icon:hover svg,
-#top-bar .menu-icon svg:hover {
+#top-bar .nut-icon:hover svg,
+#top-bar .nut-icon svg:hover {
   height: 1.6em;
   width: 1.6em;
   animation: jello 0.6s ease 0s 1 normal forwards;
@@ -494,12 +489,12 @@ select {
   transform: scale(130%);
 }
 
-#top-bar .menu .icon:hover svg {
+#top-bar .nut-menu .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
   filter: brightness(1.2);
 }
 
-#top-bar .menu .toggle-switch:hover {
+#top-bar .nut-menu .toggle-switch:hover {
   filter: brightness(1.1);
 }
 
