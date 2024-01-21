@@ -32,17 +32,18 @@ module Statics = {
     core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
 };
 
-let dh_err = (error: string): DHExp.t =>
-  InvalidText(Id.invalid, -666, error);
+let dh_err = (error: string): DHExp.t => BoundVar(error);
 
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
 
 exception DoesNotElaborate;
 let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  switch (settings.statics) {
-  | false => dh_err("Statics disabled: No elaboration")
-  | true =>
+  switch () {
+  | _ when !settings.statics => dh_err("Statics disabled: No elaboration")
+  | _ when !settings.dynamics && !settings.elaborate =>
+    dh_err("Dynamics & Elaboration disabled: No elaboration")
+  | _ =>
     switch (elaborate(map, term)) {
     | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
     | Elaborates(d, _, _) => d
@@ -99,31 +100,33 @@ exception PostprocessError(EvaluatorPost.error);
 // };
 
 let evaluate =
-    (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
+    (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
     : ProgramResult.t => {
-  let err_wrap = (error): (EvaluatorState.t, EvaluatorResult.t) => (
-    EvaluatorState.init,
-    Indet(dh_err(error)),
-  );
-  let result =
-    switch () {
-    | _ when !settings.statics =>
-      err_wrap("Statics disabled: No elaboration or evaluation")
-    | _ when !settings.dynamics =>
-      err_wrap("Dynamics disabled: No evaluation")
-    | _ =>
-      try(Evaluator.evaluate(env, d)) {
-      | EvaluatorError.Exception(reason) =>
-        err_wrap("Internal exception: " ++ EvaluatorError.show(reason))
-      | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
-      }
-    };
-  // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
-  switch (result) {
-  | (es, BoxedValue(_) as r)
-  | (es, Indet(_) as r) =>
-    // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
+  switch () {
+  | _ when !settings.statics => ProgramResult.init("Statics disabled")
+  | _ when !settings.dynamics && settings.elaborate => {
+      result: Indet(dh_err("Evaluation disabled")),
+      state: EvaluatorState.init,
+      hii: HoleInstanceInfo.empty,
+      elab,
+    }
+  | _ when !settings.dynamics && !settings.elaborate => {
+      result: Indet(dh_err("Evaluation disabled")),
+      state: EvaluatorState.init,
+      hii: HoleInstanceInfo.empty,
+      elab: dh_err("Elaboration disabled"),
+    }
+  | _ =>
+    switch (Evaluator.evaluate(env, elab)) {
+    | exception (EvaluatorPost.Exception(reason)) =>
+      ProgramResult.init("Internal: " ++ EvaluatorPost.show_error(reason))
+    | exception exn =>
+      ProgramResult.init("System exception: " ++ Printexc.to_string(exn))
+    | (state, result) =>
+      // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
+      // let ((result, hii), state) = postprocess(state, unbox(result));
+      {result, state, hii: HoleInstanceInfo.empty, elab}
+    }
   };
 };
 
@@ -142,13 +145,11 @@ let eval_z =
 };
 
 let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
-  //NOTE: assumes empty init ctx, env
-  switch (evaluate(~settings, d)) {
-  | (result, _, _) => EvaluatorResult.unbox(result)
-  };
+  /* NOTE: assumes empty init ctx, env */
+  evaluate(~settings, d) |> ProgramResult.get_dhexp;
 
 let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  //NOTE: assumes empty init ctx, env
+  /* NOTE: assumes empty init ctx, env */
   term |> elaborate(~settings, map) |> eval_d2d(~settings);
 
 include TestResults;

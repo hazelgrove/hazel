@@ -73,26 +73,22 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
    Used in the Update module */
 let get_spliced_elabs =
     (~settings: Settings.t, editors: t): list((ModelResults.key, DHExp.t)) => {
-  settings.core.dynamics
-    ? {
-      let ctx_init = get_ctx_init(~settings, editors);
-      switch (editors) {
-      | DebugLoad => []
-      | Scratch(idx, slides) =>
-        let current_slide = List.nth(slides, idx);
-        let (key, d) =
-          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
-        [(key, d)];
-      | Examples(name, slides) =>
-        let current_slide = List.assoc(name, slides);
-        let (key, d) =
-          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
-        [(key, d)];
-      | Exercise(_, _, exercise) =>
-        Exercise.spliced_elabs(settings.core, exercise)
-      };
-    }
-    : [];
+  let ctx_init = get_ctx_init(~settings, editors);
+  switch (editors) {
+  | DebugLoad => []
+  | Scratch(idx, slides) =>
+    let current_slide = List.nth(slides, idx);
+    let (key, d) =
+      ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+    [(key, d)];
+  | Examples(name, slides) =>
+    let current_slide = List.assoc(name, slides);
+    let (key, d) =
+      ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+    [(key, d)];
+  | Exercise(_, _, exercise) =>
+    Exercise.spliced_elabs(settings.core, exercise)
+  };
 };
 
 let get_ci = (id, info_map) =>

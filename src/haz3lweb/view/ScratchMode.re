@@ -9,23 +9,21 @@ let view =
       ~settings: Settings.t,
       ~color_highlighting,
       ~results,
-      ~statics as {editor, term, info_map, error_ids, _}: Editor.statics,
+      ~statics as {editor, error_ids, _}: Editor.statics,
     ) => {
   let result = ModelResults.get(results, ScratchSlide.scratch_key);
-  let footer =
-    settings.core.statics
-      ? {
-        let elab =
-          settings.core.elaborate
-            ? Some(
-                Interface.elaborate(~settings=settings.core, info_map, term),
-              )
-            : None;
-        Some(
-          Cell.footer(~settings, ~inject, ~ui_state, ~elab, result.value),
-        );
-      }
-      : None;
+  // let footer =
+  //   settings.core.statics
+  //     ? {
+  //       let elab =
+  //         settings.core.elaborate
+  //           ? Some(
+  //               Interface.elaborate(~settings=settings.core, info_map, term),
+  //             )
+  //           : None;
+  //       Some(Cell.footer(~settings, ~inject, ~ui_state, result));
+  //     }
+  //     : None;
   [
     Cell.editor_view(
       ~inject,
@@ -35,7 +33,9 @@ let view =
       ~code_id="code-container",
       ~error_ids,
       ~test_results=result.tests,
-      ~footer,
+      ~footer=
+        settings.core.statics
+          ? Some(Cell.footer(~settings, ~inject, ~ui_state, result)) : None,
       ~color_highlighting,
       Editor.get_syntax(editor),
     ),

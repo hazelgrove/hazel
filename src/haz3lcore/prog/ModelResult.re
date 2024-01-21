@@ -47,6 +47,7 @@ let update_current = (current, res) => {
 
 type optional_simple_data = {
   value: option(DHExp.t),
+  elab: option(DHExp.t),
   tests: option(TestResults.test_results),
 };
 
@@ -54,7 +55,8 @@ type optional_simple_data = {
 
 type simple_data =
   TestResults.simple_data = {
-    eval_result: DHExp.t,
+    result: DHExp.t,
+    elab: DHExp.t,
     test_results: TestResults.test_results,
   };
 type simple = TestResults.simple;
@@ -65,27 +67,29 @@ let get_simple = (res: option(t)): simple =>
        res |> get_current_ok |> Option.value(~default=get_previous(res))
      )
   |> Option.map(r => {
-       let eval_result = r |> ProgramResult.get_dhexp;
+       let result = r |> ProgramResult.get_dhexp;
+       let elab = r |> ProgramResult.get_elab;
        let test_results =
          r
          |> ProgramResult.get_state
          |> EvaluatorState.get_tests
          |> Interface.mk_results;
-       {eval_result, test_results};
+       {result, test_results, elab};
      });
 
 let unwrap_test_results = TestResults.unwrap_test_results;
 
 let unwrap_eval_result = (simple: simple): option(DHExp.t) => {
-  Option.map(simple_data => simple_data.eval_result, simple);
+  Option.map(simple_data => simple_data.result, simple);
 };
 
 let unwrap' = (simp: option(simple_data)): optional_simple_data =>
   switch (simp) {
-  | None => {value: None, tests: None}
-  | Some({eval_result, test_results}) => {
-      value: Some(eval_result),
+  | None => {value: None, elab: None, tests: None}
+  | Some({result, elab, test_results}) => {
+      value: Some(result),
       tests: Some(test_results),
+      elab: Some(elab),
     }
   };
 

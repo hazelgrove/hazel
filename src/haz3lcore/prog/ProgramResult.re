@@ -1,9 +1,23 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
+type t = {
+  result: EvaluatorResult.t,
+  state: EvaluatorState.t,
+  hii: HoleInstanceInfo.t,
+  elab: DHExp.t,
+};
 
-let get_dhexp = ((r, _, _): t) => EvaluatorResult.unbox(r);
-let get_state = ((_, es, _): t) => es;
-let get_hii = ((_, _, hii): t) => hii;
+/* A dummy value for quick error passthrough */
+let init = (err: string): t => {
+  result: Indet(BoundVar(err)),
+  state: EvaluatorState.init,
+  hii: HoleInstanceInfo.empty,
+  elab: BoundVar(err),
+};
+
+let get_dhexp = (r: t) => EvaluatorResult.unbox(r.result);
+let get_state = (r: t) => r.state;
+let get_hii = (r: t) => r.hii;
+let get_elab = (r: t) => r.elab;
 
 let fast_equal_hii = (hii1, hii2) => {
   let fast_equal_his = (his1, his2) =>
@@ -23,5 +37,6 @@ let fast_equal_hii = (hii1, hii2) => {
   MetaVarMap.equal(fast_equal_his, hii1, hii2);
 };
 
-let fast_equal = ((r1, _, hii1): t, (r2, _, hii2): t): bool =>
-  fast_equal_hii(hii1, hii2) && EvaluatorResult.fast_equal(r1, r2);
+let fast_equal = (r1: t, r2: t): bool =>
+  fast_equal_hii(r1.hii, r2.hii)
+  && EvaluatorResult.fast_equal(r1.result, r2.result);
