@@ -383,7 +383,7 @@ and mk_rule =
       : hcat(space(), hidden_clause);
   hcats([
     DHDoc_common.Delim.bar_Rule,
-    DHDoc_Pat.mk(dp)
+    DHDoc_Pat.mk(fst(dp))
     |> DHDoc_common.pad_child(
          ~inline_padding=(space(), space()),
          ~enforce_inline=false,
