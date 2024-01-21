@@ -40,7 +40,7 @@ module rec DHExp: {
   and case =
     | Case(t, list(rule), int)
   and rule =
-    | Rule(DHPat.t, t);
+    | Rule((DHPat.t, option(t)), t);
 
   let constructor_string: t => string;
 
@@ -95,7 +95,7 @@ module rec DHExp: {
   and case =
     | Case(t, list(rule), int)
   and rule =
-    | Rule(DHPat.t, t);
+    | Rule((DHPat.t, option(t)), t);
 
   let constructor_string = (d: t): string =>
     switch (d) {
