@@ -164,8 +164,8 @@ let rec dhexp_of_uexp =
         let+ d_scrut = dhexp_of_uexp(m, e);
         let d_rules =
           DHExp.[
-            Rule(BoolLit(true), BoolLit(false)),
-            Rule(BoolLit(false), BoolLit(true)),
+            Rule((BoolLit(true), None), BoolLit(false)),
+            Rule((BoolLit(false), None), BoolLit(true)),
           ];
         let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
         /* Manually construct cast (case is not otherwise cast) */
@@ -248,7 +248,10 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
         let d_rules =
-          DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
+          DHExp.[
+            Rule((BoolLit(true), None), d1),
+            Rule((BoolLit(false), None), d2),
+          ];
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
@@ -256,11 +259,12 @@ let rec dhexp_of_uexp =
         | _ => ConsistentCase(d)
         };
       | Match(scrut, rules) =>
+        // Match by rules
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let+ d_rules =
           List.map(
             ((p, e)) => {
-              let* d_p = dhpat_of_upat_no_guard(m, p);
+              let* d_p = dhpat_of_upat(m, p);
               let+ d_e = dhexp_of_uexp(m, e);
               DHExp.Rule(d_p, d_e);
             },
