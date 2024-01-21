@@ -155,27 +155,25 @@ let footer =
       ~inject as _,
       ~settings: Settings.t,
       ~ui_state as {font_metrics, _}: Model.ui_state,
-      ~elab: option(DHExp.t),
-      value: option(DHExp.t),
+      result: ModelResult.optional_simple_data,
     ) => {
   let dhcode_view = (~show_casts) =>
     DHCode.view(
-      ~settings={...Settings.Evaluation.init, show_casts},
+      ~settings={show_case_clauses: true, show_fn_bodies: true, show_casts},
       ~selected_hole_instance=None,
       ~font_metrics,
       ~width=80,
     );
   let d_view =
-    switch (value, elab) {
-    | (None, Some(elab)) when settings.core.elaborate => [
-        text("Evaluation disabled. Elaboration follows:"),
+    switch (result.value, result.elab) {
+    | (Some(dhexp), _) when settings.core.dynamics =>
+      /* Disabling casts in this case as large casts can blow up UI perf */
+      [dhcode_view(~show_casts=false, dhexp)]
+    | (_, Some(elab)) when settings.core.elaborate && !settings.core.dynamics => [
+        text("Evaluation disabled, elaboration follows:"),
         dhcode_view(~show_casts=true, elab),
       ]
-    | (None, _) => [text("Evaluation disabled, no elaboration available.")]
-    | (Some(dhexp), _) =>
-      /* Disabling casts in this case as large casts
-       * can blow up UI perf unexpectedly */
-      [dhcode_view(~show_casts=false, dhexp)]
+    | _ => [text("Evaluation & elaboration display disabled")]
     };
   div(
     ~attr=Attr.classes(["cell-item", "cell-result"]),
@@ -203,7 +201,7 @@ let editor_view =
       ~error_ids: list(Id.t),
       syntax: Editor.syntax,
     ) => {
-  let code_base_view =
+  let code_text_view =
     Code.view(~sort=Sort.root, ~font_metrics, ~syntax, ~settings);
   let deco_view =
     deco(
@@ -218,21 +216,19 @@ let editor_view =
   let code_view =
     div(
       ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
-      [code_base_view] @ deco_view,
+      [code_text_view] @ deco_view,
     );
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
+  let classes = ["cell-item", "cell", selected ? "selected" : "deselected"];
   div(
     ~attr=Attr.class_("cell-container"),
     [
       div(
         ~attr=
           Attr.many([
-            Attr.classes(
-              ["cell-item", "cell", ...clss]
-              @ (selected ? ["selected"] : ["deselected"]),
-            ),
+            Attr.classes(classes @ clss),
             Attr.on_mousedown(
               mousedown_handler(
                 ~inject,

@@ -215,8 +215,7 @@ let view =
             ~settings,
             ~inject,
             ~ui_state,
-            ~elab=None,
-            ModelResult.unwrap'(user_impl.simple_result).value,
+            ModelResult.unwrap'(user_impl.simple_result),
           ),
       ),
     );
