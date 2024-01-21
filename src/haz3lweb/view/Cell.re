@@ -75,13 +75,10 @@ let narrative_cell = (content: Node.t) =>
 let simple_cell_item = (content: list(Node.t)) =>
   div(~attr=Attr.classes(["cell", "cell-item"]), content);
 
-let cell_caption = (content: list(t)) =>
-  div(~attr=Attr.many([Attr.classes(["cell-caption"])]), content);
-
-let bolded_caption = (~rest: option(string)=?, bolded: string) =>
-  cell_caption(
-    [strong([text(bolded)])]
-    @ (rest |> Option.map(rest => text(rest)) |> Option.to_list),
+let caption = (~rest: option(string)=?, bolded: string) =>
+  div(
+    ~attr=Attr.many([Attr.classes(["cell-caption"])]),
+    [strong([text(bolded)])] @ (rest |> Option.map(text) |> Option.to_list),
   );
 
 let simple_cell_view = (items: list(t)) =>
@@ -156,9 +153,9 @@ let deco =
 let footer =
     (
       ~inject as _,
-      ~settings as _: Settings.t,
+      ~settings: Settings.t,
       ~ui_state as {font_metrics, _}: Model.ui_state,
-      ~elab: DHExp.t,
+      ~elab: option(DHExp.t),
       value: option(DHExp.t),
     ) => {
   let dhcode_view = (~show_casts) =>
@@ -169,12 +166,13 @@ let footer =
       ~width=80,
     );
   let d_view =
-    switch (value) {
-    | None => [
+    switch (value, elab) {
+    | (None, Some(elab)) when settings.core.elaborate => [
         text("Evaluation disabled. Elaboration follows:"),
         dhcode_view(~show_casts=true, elab),
       ]
-    | Some(dhexp) =>
+    | (None, _) => [text("Evaluation disabled, no elaboration available.")]
+    | (Some(dhexp), _) =>
       /* Disabling casts in this case as large casts
        * can blow up UI perf unexpectedly */
       [dhcode_view(~show_casts=false, dhexp)]

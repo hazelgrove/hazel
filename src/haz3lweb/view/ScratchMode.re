@@ -17,8 +17,10 @@ let view =
       ? {
         let elab =
           settings.core.elaborate
-            ? Interface.elaborate(~settings=settings.core, info_map, term)
-            : Interface.dh_err("Elaboration disabled");
+            ? Some(
+                Interface.elaborate(~settings=settings.core, info_map, term),
+              )
+            : None;
         Some(
           Cell.footer(~settings, ~inject, ~ui_state, ~elab, result.value),
         );
