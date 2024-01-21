@@ -89,7 +89,8 @@ let submenu = (~tooltip, ~icon, menu) =>
     ],
   );
 
-let view = (~inject: Update.t => 'a, {settings, editors, _}: Model.t) => [
+let view =
+    (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) => [
   a(~attr=clss(["nut-icon"]), [Icons.hazelnut]),
   div(
     ~attr=clss(["nut-menu"]),

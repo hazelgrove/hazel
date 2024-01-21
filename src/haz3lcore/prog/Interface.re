@@ -1,5 +1,5 @@
 module Statics = {
-  let mk_map =
+  let mk_map' =
     Core.Memo.general(~cache_size_bound=1000, e => {
       Statics.uexp_to_info_map(
         ~ctx=Builtins.ctx_init,
@@ -10,7 +10,7 @@ module Statics = {
       |> snd
     });
   let mk_map = (core: CoreSettings.t, exp) =>
-    core.statics ? mk_map(exp) : Id.Map.empty;
+    core.statics ? mk_map'(exp) : Id.Map.empty;
 
   let mk_map_and_info_ctx =
     Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {

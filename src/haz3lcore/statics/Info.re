@@ -247,6 +247,13 @@ let sort_of: t => Sort.t =
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat;
 
+let id_of: t => Id.t =
+  fun
+  | InfoExp({term, _}) => UExp.rep_id(term)
+  | InfoPat({term, _}) => UPat.rep_id(term)
+  | InfoTyp({term, _}) => UTyp.rep_id(term)
+  | InfoTPat({term, _}) => UTPat.rep_id(term);
+
 let cls_of: t => Cls.t =
   fun
   | InfoExp({cls, _})
