@@ -79,21 +79,9 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
 };
 
 let stitch = (editors: list(Editor.t)) => {
-  print_endline("new stitchin'");
   let exps =
     List.map(
-      (ed: Editor.t) =>
-        Util.TimeUtil.measure_time(
-          "terms",
-          true,
-          () => {
-            let (term, _) =
-              Util.TimeUtil.measure_time("Time: MakeTerm.from_zip:", true, () =>
-                MakeTerm.from_zip_for_view(ed.state.zipper)
-              );
-            term;
-          },
-        ),
+      (ed: Editor.t) => MakeTerm.from_zip_for_view(ed.state.zipper) |> fst,
       editors,
     );
   switch (exps) {

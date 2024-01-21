@@ -50,13 +50,13 @@ let view =
 
   let editor_view =
       (
-        this_pos,
         ~editor: Editor.t,
         ~info_map,
-        ~caption,
-        ~code_id,
+        ~caption: string,
+        ~subcaption: option(string)=?,
         ~test_results,
-        ~footer,
+        ~footer=?,
+        this_pos,
       ) => {
     Cell.editor_view(
       ~selected=pos == this_pos,
@@ -66,8 +66,8 @@ let view =
       ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
       ~color_highlighting,
-      ~caption,
-      ~code_id,
+      ~caption=Cell.caption(caption, ~rest=?subcaption),
+      ~code_id=Exercise.show_pos(this_pos),
       ~test_results,
       ~footer,
       Editor.get_syntax(editor),
@@ -85,16 +85,11 @@ let view =
     Always(
       editor_view(
         Prelude,
-        ~caption=
-          Cell.bolded_caption(
-            "Prelude",
-            ~rest=?settings.instructor_mode ? None : Some(" (Read-Only)"),
-          ),
-        ~code_id="prelude",
+        ~caption="Prelude",
+        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+        ~editor=eds.prelude,
         ~info_map=prelude.info_map,
         ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
-        ~footer=None,
-        ~editor=eds.prelude,
       ),
     );
 
@@ -103,13 +98,11 @@ let view =
       () =>
         editor_view(
           CorrectImpl,
-          ~caption=Cell.bolded_caption("Correct Implementation"),
-          ~code_id="correct-impl",
+          ~caption="Correct Implementation",
+          ~editor=eds.correct_impl,
           ~info_map=instructor.info_map,
           ~test_results=
             ModelResult.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
-          ~editor=eds.correct_impl,
         ),
     );
 
@@ -147,7 +140,7 @@ let view =
         };
         Cell.simple_cell_view([
           Cell.simple_cell_item([
-            Cell.bolded_caption(
+            Cell.caption(
               "Correct Implementation",
               ~rest=" (Type Signatures Only)",
             ),
@@ -161,24 +154,18 @@ let view =
     Always(
       editor_view(
         YourTestsValidation,
-        ~caption=
-          Cell.bolded_caption(
-            "Test Validation",
-            ~rest=": Your Tests vs. Correct Implementation",
-          ),
-        ~code_id="your-tests",
+        ~caption="Test Validation",
+        ~subcaption=": Your Tests vs. Correct Implementation",
+        ~editor=eds.your_tests.tests,
         ~info_map=test_validation.info_map,
         ~test_results=
           ModelResult.unwrap_test_results(test_validation.simple_result),
         ~footer=
-          Some(
-            Grading.TestValidationReport.view(
-              ~inject,
-              grading_report.test_validation_report,
-              grading_report.point_distribution.test_validation,
-            ),
+          Grading.TestValidationReport.view(
+            ~inject,
+            grading_report.test_validation_report,
+            grading_report.point_distribution.test_validation,
           ),
-        ~editor=eds.your_tests.tests,
       ),
     );
 
@@ -195,15 +182,10 @@ let view =
           () =>
             editor_view(
               HiddenBugs(i),
-              ~caption=
-                Cell.bolded_caption(
-                  "Wrong Implementation " ++ string_of_int(i + 1),
-                ),
-              ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
+              ~caption="Wrong Implementation " ++ string_of_int(i + 1),
+              ~editor=impl,
               ~info_map,
               ~test_results=ModelResult.unwrap_test_results(simple_result),
-              ~footer=None,
-              ~editor=impl,
             ),
         )
       },
@@ -223,22 +205,19 @@ let view =
     Always(
       editor_view(
         YourImpl,
-        ~caption=Cell.bolded_caption("Your Implementation"),
-        ~code_id="your-impl",
+        ~caption="Your Implementation",
+        ~editor=eds.your_impl,
         ~info_map=user_impl.info_map,
         ~test_results=
           ModelResult.unwrap_test_results(user_impl.simple_result),
         ~footer=
-          Some(
-            Cell.footer(
-              ~settings,
-              ~inject,
-              ~ui_state,
-              ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
-              ModelResult.unwrap'(user_impl.simple_result).value,
-            ),
+          Cell.footer(
+            ~settings,
+            ~inject,
+            ~ui_state,
+            ~elab=None,
+            ModelResult.unwrap'(user_impl.simple_result).value,
           ),
-        ~editor=eds.your_impl,
       ),
     );
 
@@ -252,23 +231,17 @@ let view =
     Always(
       editor_view(
         YourTestsTesting,
-        ~caption=
-          Cell.bolded_caption(
-            "Implementation Validation",
-            ~rest=
-              ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
-          ),
-        ~code_id="your-tests-testing-view",
+        ~caption="Implementation Validation",
+        ~subcaption=
+          ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+        ~editor=eds.your_tests.tests,
         ~info_map=user_tests.info_map,
         ~test_results=testing_results,
         ~footer=
-          Some(
-            Cell.test_report_footer_view(
-              ~inject,
-              ~test_results=testing_results,
-            ),
+          Cell.test_report_footer_view(
+            ~inject,
+            ~test_results=testing_results,
           ),
-        ~editor=eds.your_tests.tests,
       ),
     );
 
@@ -277,13 +250,11 @@ let view =
       () =>
         editor_view(
           HiddenTests,
-          ~caption=Cell.bolded_caption("Hidden Tests"),
-          ~code_id="hidden-tests",
+          ~caption="Hidden Tests",
+          ~editor=eds.hidden_tests.tests,
           ~info_map=instructor.info_map,
           ~test_results=
             ModelResult.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
-          ~editor=eds.hidden_tests.tests,
         ),
     );
 
