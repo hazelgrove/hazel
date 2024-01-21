@@ -54,6 +54,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BuiltinFun(ident) => BuiltinFun(ident)
   | Test(id, d3) => Test(id, subst_var(d1, x, d3))
   | BoolLit(_)
+  | Undefined
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)

@@ -170,6 +170,30 @@ let triv_exp: form = {
   };
 };
 
+let undef_exp_group = "undef_exp_group";
+let undef_exp: form = {
+  let explanation = {
+    message: "Undefined expression. The undefined expression can be used to define a partial function (a function which is not defined on all inputs). It is similar to an empty hole, but with no intent to define it in the future.",
+    feedback: Unselected,
+  };
+  let head_example = {
+    sub_id: "undef_head_example",
+    term:
+      mk_example(
+        "let head = fun xs ->\ncase xs\n| hd::tl => hd\n| [] => undefined\nend in\n(head([1, 2]), head([]))",
+      ),
+    message: "This function gets the head of a list. If the list is empty, there is no coherent definition for the head, so we leave that branch undefined.",
+    feedback: Unselected,
+  };
+  {
+    id: "undef_exp",
+    syntactic_form: [exp("Undefined")],
+    expandable_id: None,
+    explanation,
+    examples: [head_example],
+  };
+};
+
 let bool_exp_group = "bool_exp_group";
 let bool_exp: form = {
   let explanation = {message: "Boolean literal.", feedback: Unselected};
@@ -3501,6 +3525,7 @@ let init = {
     multi_hole_exp,
     multi_hole_tpat,
     triv_exp,
+    undef_exp,
     bool_exp,
     int_exp,
     float_exp,
@@ -3632,6 +3657,7 @@ let init = {
     (multi_hole_exp_group, init_options([(multi_hole_exp.id, [])])),
     (multi_hole_tpat_group, init_options([(multi_hole_tpat.id, [])])),
     (triv_exp_group, init_options([(triv_exp.id, [])])),
+    (undef_exp_group, init_options([(undef_exp.id, [])])),
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),
     (float_exp_group, init_options([(float_exp.id, [])])),

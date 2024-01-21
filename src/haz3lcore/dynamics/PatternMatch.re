@@ -267,6 +267,7 @@ and matches_cast_Sum =
   | Sequence(_, _)
   | Closure(_)
   | Cons(_)
+  | Undefined
   | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
@@ -347,6 +348,7 @@ and matches_cast_Tuple =
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | Undefined => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
@@ -485,6 +487,7 @@ and matches_cast_Cons =
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | Undefined => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => DoesNotMatch
   | Constructor(_) => DoesNotMatch

@@ -10,6 +10,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | Closure([@opaque] ClosureEnvironment.t, t)
+    | Undefined
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -65,6 +66,7 @@ module rec DHExp: {
     /* Generalized closures */
     | Closure([@opaque] ClosureEnvironment.t, t)
     /* Other expressions forms */
+    | Undefined
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -104,6 +106,7 @@ module rec DHExp: {
     | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
     | FreeVar(_, _, _) => "FreeVar"
     | InvalidText(_) => "InvalidText"
+    | Undefined => "Undefined"
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
     | Let(_, _, _) => "Let"
@@ -185,6 +188,7 @@ module rec DHExp: {
         i,
         Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
       )
+    | Undefined as d
     | EmptyHole(_) as d
     | ExpandingKeyword(_) as d
     | FreeVar(_) as d
@@ -206,6 +210,7 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
+    | (Undefined, _)
     | (Constructor(_), _) => d1 == d2
     | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
     | (StringLit(_), _) => false

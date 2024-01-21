@@ -77,6 +77,8 @@ let mk_Test: Pretty.Doc.t('a) => Pretty.Doc.t('a);
 
 let mk_IntLit: int => Pretty.Doc.t('a);
 
+let mk_UndefinedLit: unit => Pretty.Doc.t('a);
+
 let mk_FloatLit: float => Pretty.Doc.t('a);
 
 let mk_BoolLit: bool => Pretty.Doc.t('a);
