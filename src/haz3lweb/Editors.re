@@ -95,6 +95,46 @@ let get_spliced_elabs =
     : [];
 };
 
+let get_ci = (id, info_map) =>
+  id |> Util.OptUtil.and_then(id => Id.Map.find_opt(id, info_map));
+
+let get_statics = (~settings: Settings.t, editors: t): Editor.statics => {
+  switch (editors) {
+  | DebugLoad => failwith("no editors in debug load mode")
+  | _ when !settings.core.statics =>
+    let editor = get_editor(editors);
+    let zipper = active_zipper(editors);
+    let indicated_id = Indicated.index(zipper);
+    /* Use empty or dummy data when statics is off */
+    let term = Term.UExp.{ids: [Id.invalid], term: Triv};
+    let info_map = Id.Map.empty;
+    let cursor_info = None;
+    let error_ids = [];
+    {editor, zipper, term, info_map, indicated_id, cursor_info, error_ids};
+  | Scratch(_)
+  | Examples(_) =>
+    let editor = get_editor(editors);
+    let zipper = active_zipper(editors);
+    let indicated_id = Indicated.index(zipper);
+    let ctx_init = get_ctx_init(~settings, editors);
+    let (term, _) = MakeTerm.from_zip_for_sem(zipper);
+    let info_map =
+      Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
+    let cursor_info = get_ci(indicated_id, info_map);
+    let error_ids = Editor.error_ids(editor.state.meta.term_ranges, info_map);
+    {editor, zipper, term, info_map, indicated_id, cursor_info, error_ids};
+  | Exercise(_, _, exercise) =>
+    let editor = get_editor(editors);
+    let zipper = active_zipper(editors);
+    let indicated_id = Indicated.index(zipper);
+    let Exercise.StaticsItem.{term, info_map} =
+      Exercise.statics_of(~settings=settings.core, exercise);
+    let cursor_info = get_ci(indicated_id, info_map);
+    let error_ids = Editor.error_ids(editor.state.meta.term_ranges, info_map);
+    {editor, zipper, term, info_map, indicated_id, cursor_info, error_ids};
+  };
+};
+
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")

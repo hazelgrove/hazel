@@ -46,8 +46,8 @@ let update_current = (current, res) => {
 };
 
 type optional_simple_data = {
-  opt_eval_result: option(DHExp.t),
-  opt_test_results: option(TestResults.test_results),
+  value: option(DHExp.t),
+  tests: option(TestResults.test_results),
 };
 
 // simple definitions are moved to TestResults
@@ -80,11 +80,14 @@ let unwrap_eval_result = (simple: simple): option(DHExp.t) => {
   Option.map(simple_data => simple_data.eval_result, simple);
 };
 
-let unwrap_simple = (simple: simple): optional_simple_data =>
-  switch (simple) {
-  | None => {opt_eval_result: None, opt_test_results: None}
+let unwrap' = (simp: option(simple_data)): optional_simple_data =>
+  switch (simp) {
+  | None => {value: None, tests: None}
   | Some({eval_result, test_results}) => {
-      opt_eval_result: Some(eval_result),
-      opt_test_results: Some(test_results),
+      value: Some(eval_result),
+      tests: Some(test_results),
     }
   };
+
+let unwrap = (res: option(t)): optional_simple_data =>
+  unwrap'(get_simple(res));

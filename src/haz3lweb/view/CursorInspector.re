@@ -223,8 +223,7 @@ let view =
       ~inject,
       ~settings: Settings.t,
       ~show_lang_doc: bool,
-      zipper: Zipper.t,
-      info_map: Statics.Map.t,
+      ~cursor_info: option(Info.t),
     ) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
@@ -234,22 +233,16 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (zipper.backpack, Indicated.index(zipper)) {
+  switch (cursor_info) {
   | _ when !settings.core.statics => div_empty
-  | _ when Id.Map.is_empty(info_map) =>
-    err_view("No Static information available")
-  | (_, None) => err_view("No cursor in program")
-  | (_, Some(id)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
+  | None => err_view("Whitespace or Comment")
+  | Some(ci) =>
+    bar_view([
+      inspector_view(~inject, ~settings, ~show_lang_doc, ci),
+      div(
+        ~attr=clss(["id"]),
+        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+      ),
+    ])
   };
 };

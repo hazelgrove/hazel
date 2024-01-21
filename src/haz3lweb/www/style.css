@@ -517,6 +517,14 @@ select {
   cursor: not-allowed;
 }
 
+#top-bar .nut-menu .toggle-switch.active {
+  background-color: #4fad66;
+  border: solid 1px transparent;
+}
+#top-bar .nut-menu .toggle-switch.active .toggle-knob {
+  color: #4fad66;
+}
+
 #top-bar #editor-mode {
   color: #fdf6e3;
   display: flex;
@@ -1041,7 +1049,7 @@ svg.tile-selected {
   opacity: 40%;
 }
 
-.backback-joiner {
+.backpack-joiner {
   opacity: 40%;
 }
 
@@ -1862,9 +1870,6 @@ svg.expandable path {
 }
 
 .test-percent {
-  position: absolute;
-  right: 0;
-  margin: 1em;
   height: 1.7em;
   display: flex;
   padding: 0 1em 0 1em;
@@ -1872,6 +1877,12 @@ svg.expandable path {
   border-radius: 1.08em;
   background-color: #c7b480;
   align-items: center;
+}
+#main > .test-percent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 1em;
 }
 
 .test-percent.all-pass {
@@ -1976,16 +1987,15 @@ svg.expandable path {
   justify-content: center;
 }
 
-.toggle-switch.active {
-  background-color: #4fad66;/*#c7b480;*/
-  /*#f6cb3f;*/
-  border: solid 1px transparent;
-}
 
+.toggle-switch.active {
+ background-color: #c7b480;
+ border: solid 1px transparent;
+}
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
-  color: #4fad66;
 }
+
 
 /* END TOGGLE */
 

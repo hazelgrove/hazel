@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
+open Node;
 
 let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
   let rect = JsUtil.get_elem_by_id(target_id)##getBoundingClientRect;
@@ -15,7 +16,7 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
 };
 
 let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
-  Node.div(
+  div(
     ~attr=
       Attr.many(
         Attr.[
@@ -66,87 +67,34 @@ let mousedown_handler =
   };
 
 let narrative_cell = (content: Node.t) =>
-  Node.div(
+  div(
     ~attr=Attr.class_("cell-container"),
-    [Node.div(~attr=Attr.class_("cell-chapter"), [content])],
+    [div(~attr=Attr.class_("cell-chapter"), [content])],
   );
 
 let simple_cell_item = (content: list(Node.t)) =>
-  Node.div(~attr=Attr.classes(["cell", "cell-item"]), content);
+  div(~attr=Attr.classes(["cell", "cell-item"]), content);
 
-let cell_caption = (content: list(Node.t)) =>
-  Node.div(~attr=Attr.many([Attr.classes(["cell-caption"])]), content);
-
-let simple_caption = (caption: string) =>
-  cell_caption([Node.text(caption)]);
+let cell_caption = (content: list(t)) =>
+  div(~attr=Attr.many([Attr.classes(["cell-caption"])]), content);
 
 let bolded_caption = (~rest: option(string)=?, bolded: string) =>
   cell_caption(
-    [Node.strong([Node.text(bolded)])]
-    @ (rest |> Option.map(rest => Node.text(rest)) |> Option.to_list),
+    [strong([text(bolded)])]
+    @ (rest |> Option.map(rest => text(rest)) |> Option.to_list),
   );
 
-let simple_cell_view = (items: list(Node.t)) =>
-  Node.div(~attr=Attr.class_("cell-container"), items);
-
-let code_cell_view =
-    (
-      ~inject,
-      ~font_metrics,
-      ~clss=[],
-      ~selected: bool,
-      ~mousedown: bool,
-      ~mousedown_updates: list(Update.t)=[],
-      ~code_id: string,
-      ~caption: option(Node.t)=?,
-      code: Node.t,
-      footer: option(Node.t),
-    )
-    : Node.t => {
-  // TODO: why is this in here? doesn't it cover the whole screen?
-  let mousedown_overlay =
-    selected && mousedown
-      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
-  let code = mousedown_overlay @ [code];
-  let footer =
-    switch (footer) {
-    | None => []
-    | Some(node) => [node]
-    };
-  Node.div(
-    ~attr=Attr.class_("cell-container"),
-    [
-      Node.div(
-        ~attr=
-          Attr.many([
-            Attr.classes(
-              ["cell-item", "cell", ...clss]
-              @ (selected ? ["selected"] : ["deselected"]),
-            ),
-            Attr.on_mousedown(
-              mousedown_handler(
-                ~inject,
-                ~font_metrics,
-                ~target_id=code_id,
-                ~mousedown_updates,
-              ),
-            ),
-          ]),
-        Option.to_list(caption) @ code,
-      ),
-    ]
-    @ footer,
-  );
-};
+let simple_cell_view = (items: list(t)) =>
+  div(~attr=Attr.class_("cell-container"), items);
 
 let test_status_icon_view =
-    (~font_metrics, insts, ms: Measured.Shards.t): option(Node.t) =>
+    (~font_metrics, insts, ms: Measured.Shards.t): option(t) =>
   switch (ms) {
   | [(_, {origin: _, last}), ..._] =>
     let status = insts |> TestMap.joint_status |> TestStatus.to_string;
     let pos = DecUtil.abs_position(~font_metrics, last);
     Some(
-      Node.div(
+      div(
         ~attr=Attr.many([Attr.classes(["test-result", status]), pos]),
         [],
       ),
@@ -160,41 +108,36 @@ let test_result_layer =
       ~measured: Measured.t,
       test_results: Interface.test_results,
     )
-    : list(Node.t) => {
-  //print_endline(Interface.show_test_results(test_results));
+    : list(t) =>
   List.filter_map(
     ((id, insts)) =>
       switch (Id.Map.find_opt(id, measured.tiles)) {
       | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-      | _ => None
+      | None => None
       },
     test_results.test_map,
   );
-};
 
 let deco =
     (
-      ~zipper,
-      ~measured,
-      ~term_ranges,
-      ~unselected,
-      ~segment,
+      ~syntax as
+        {zipper, term_ranges, segment, measured, terms, tiles, _}: Editor.syntax,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
-      ~info_map,
+      ~error_ids,
       ~test_results: option(Interface.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   module Deco =
     Deco.Deco({
-      let font_metrics = font_metrics;
       let map = measured;
-      let show_backpack_targets = show_backpack_targets;
-      let (_term, terms) = MakeTerm.go(unselected);
-      let info_map = info_map;
+      let terms = terms;
       let term_ranges = term_ranges;
-      let tiles = TileMap.mk(unselected);
+      let tiles = tiles;
+      let font_metrics = font_metrics;
+      let show_backpack_targets = show_backpack_targets;
+      let error_ids = error_ids;
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
   let decos =
@@ -210,13 +153,13 @@ let deco =
   };
 };
 
-let eval_result_footer_view =
+let footer =
     (
-      ~settings as _: Settings.t,
       ~inject as _,
-      ~font_metrics,
-      ~elab,
-      results: ModelResult.simple,
+      ~settings as _: Settings.t,
+      ~ui_state as {font_metrics, _}: Model.ui_state,
+      ~elab: DHExp.t,
+      value: option(DHExp.t),
     ) => {
   let dhcode_view = (~show_casts) =>
     DHCode.view(
@@ -226,158 +169,87 @@ let eval_result_footer_view =
       ~width=80,
     );
   let d_view =
-    switch (results) {
+    switch (value) {
     | None => [
-        Node.text("Evaluation disabled. Elaboration follows:"),
+        text("Evaluation disabled. Elaboration follows:"),
         dhcode_view(~show_casts=true, elab),
       ]
-    | Some({eval_result, _}) =>
+    | Some(dhexp) =>
       /* Disabling casts in this case as large casts
        * can blow up UI perf unexpectedly */
-      [dhcode_view(~show_casts=false, eval_result)]
+      [dhcode_view(~show_casts=false, dhexp)]
     };
-  Node.(
-    div(
-      ~attr=Attr.classes(["cell-item", "cell-result"]),
-      [
-        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        div(~attr=Attr.classes(["result"]), d_view),
-      ],
-    )
+  div(
+    ~attr=Attr.classes(["cell-item", "cell-result"]),
+    [
+      div(~attr=Attr.class_("equiv"), [text("≡")]),
+      div(~attr=Attr.classes(["result"]), d_view),
+    ],
   );
 };
 
 let editor_view =
     (
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~clss=[],
-      ~mousedown: bool,
-      ~mousedown_updates: list(Update.t)=[],
+      ~ui_state as
+        {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
       ~settings: Settings.t,
-      ~selected: bool,
-      ~caption: option(Node.t)=?,
       ~code_id: string,
-      ~info_map: Statics.Map.t,
+      ~clss=[],
+      ~mousedown_updates: list(Update.t)=[],
+      ~selected: bool=true,
+      ~caption: option(Node.t)=?,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
-      editor: Editor.t,
+      ~error_ids: list(Id.t),
+      syntax: Editor.syntax,
     ) => {
-  let zipper = editor.state.zipper;
-  let term_ranges = editor.state.meta.term_ranges;
-  let segment = Zipper.zip(zipper);
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let measured = editor.state.meta.measured;
-  let buffer_ids: list(Uuidm.t) = {
-    /* Collect ids of tokens in buffer for styling purposes. This is
-     * currently necessary as the selection is not persisted through
-     * unzipping for display */
-    let buffer =
-      Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
-    Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
-  };
   let code_base_view =
-    Code.view(
-      ~sort=Sort.root,
-      ~font_metrics,
-      ~buffer_ids,
-      ~segment,
-      ~unselected,
-      ~measured,
-      ~settings,
-    );
+    Code.view(~sort=Sort.root, ~font_metrics, ~syntax, ~settings);
   let deco_view =
     deco(
-      ~zipper,
-      ~unselected,
-      ~measured,
-      ~term_ranges,
-      ~segment,
+      ~syntax,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
-      ~info_map,
+      ~error_ids,
       ~test_results,
       ~color_highlighting,
     );
   let code_view =
-    Node.div(
+    div(
       ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
       [code_base_view] @ deco_view,
     );
-  code_cell_view(
-    ~inject,
-    ~font_metrics,
-    ~clss,
-    ~selected,
-    ~mousedown,
-    ~mousedown_updates,
-    ~code_id,
-    ~caption?,
-    code_view,
-    footer,
+  let mousedown_overlay =
+    selected && mousedown
+      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
+  div(
+    ~attr=Attr.class_("cell-container"),
+    [
+      div(
+        ~attr=
+          Attr.many([
+            Attr.classes(
+              ["cell-item", "cell", ...clss]
+              @ (selected ? ["selected"] : ["deselected"]),
+            ),
+            Attr.on_mousedown(
+              mousedown_handler(
+                ~inject,
+                ~font_metrics,
+                ~target_id=code_id,
+                ~mousedown_updates,
+              ),
+            ),
+          ]),
+        Option.to_list(caption) @ mousedown_overlay @ [code_view],
+      ),
+    ]
+    @ Option.to_list(footer),
   );
 };
-
-let editor_with_result_view =
-    (
-      ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~clss=[],
-      ~mousedown: bool,
-      ~settings: Settings.t,
-      ~color_highlighting: option(ColorSteps.colorMap),
-      ~selected: bool,
-      ~caption: option(Node.t)=?,
-      ~code_id: string,
-      ~info_map: Statics.Map.t,
-      ~term,
-      ~result: ModelResult.simple,
-      editor: Editor.t,
-    ) => {
-  let test_results = ModelResult.unwrap_test_results(result);
-  let eval_result_footer =
-    settings.core.statics
-      ? eval_result_footer_view(
-          ~settings,
-          ~inject,
-          ~font_metrics,
-          ~elab=
-            settings.core.elaborate
-              ? Interface.elaborate(~settings=settings.core, info_map, term)
-              : Interface.dh_err("Elaboration disabled"),
-          result,
-        )
-      : None;
-  editor_view(
-    ~inject,
-    ~font_metrics,
-    ~show_backpack_targets,
-    ~clss,
-    ~mousedown,
-    ~mousedown_updates=[],
-    ~settings,
-    ~selected,
-    ~caption?,
-    ~code_id,
-    ~info_map,
-    ~test_results,
-    ~footer=Some(eval_result_footer),
-    ~color_highlighting,
-    editor,
-  );
-};
-// switch (simple_result) {
-//     | None => None
-//     | Some(simple) =>
-//       Option.map(
-//         (simple_data: ModelResult.simple_data) => simple_data.test_results,
-//         simple,
-//       )
-//     };
 
 let test_view =
     (
@@ -387,19 +259,17 @@ let test_view =
       ~test_results: option(Interface.test_results),
     )
     : Node.t =>
-  Node.(
-    div(
-      ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
-      [
-        TestView.view_of_main_title_bar(title),
-        TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
-        TestView.test_summary(~inject, ~test_results),
-      ],
-    )
+  div(
+    ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
+    [
+      TestView.view_of_main_title_bar(title),
+      TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+      TestView.test_summary(~inject, ~test_results),
+    ],
   );
 
 let report_footer_view = content => {
-  Node.(div(~attr=Attr.classes(["cell-item", "cell-report"]), content));
+  div(~attr=Attr.classes(["cell-item", "cell-report"]), content);
 };
 
 let test_report_footer_view =
@@ -407,25 +277,18 @@ let test_report_footer_view =
   report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 
-let panel = (~classes=[], content, ~footer: option(Node.t)) => {
+let panel = (~classes=[], content, ~footer: option(t)) => {
   simple_cell_view(
-    [
-      Node.div(
-        ~attr=Attr.classes(["cell-item", "panel"] @ classes),
-        content,
-      ),
-    ]
+    [div(~attr=Attr.classes(["cell-item", "panel"] @ classes), content)]
     @ Option.to_list(footer),
   );
 };
 
 let title_cell = title => {
   simple_cell_view([
-    Node.(
-      div(
-        ~attr=Attr.class_("title-cell"),
-        [Node.(div(~attr=Attr.class_("title-text"), [text(title)]))],
-      )
+    div(
+      ~attr=Attr.class_("title-cell"),
+      [div(~attr=Attr.class_("title-text"), [text(title)])],
     ),
   ]);
 };

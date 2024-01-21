@@ -33,3 +33,6 @@ let init = (~settings, ds: list((Key.t, DHExp.t))): t =>
   |> of_seq;
 
 let lookup = (results: t, key: Key.t) => find_opt(key, results);
+
+let get = (results: t, key: Key.t) =>
+  ModelResult.unwrap(lookup(results, key));

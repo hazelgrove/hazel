@@ -227,8 +227,12 @@ let deco =
       let map = map;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
-      let info_map = Interface.Statics.mk_map(settings.core, term);
       let term_ranges = TermRanges.mk(unselected);
+      let error_ids =
+        Editor.error_ids(
+          term_ranges,
+          Interface.Statics.mk_map(settings.core, term),
+        );
       let tiles = TileMap.mk(unselected);
     });
 

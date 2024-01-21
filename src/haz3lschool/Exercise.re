@@ -557,6 +557,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // # Stitching
 
+  type stitched('a) = {
+    test_validation: 'a, // prelude + correct_impl + your_tests
+    user_impl: 'a, // prelude + your_impl
+    user_tests: 'a, // prelude + your_impl + your_tests
+    prelude: 'a, // prelude
+    instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
+    hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
+    hidden_tests: 'a,
+  };
+
   module TermItem = {
     type t = TermBase.UExp.t;
   };
@@ -566,16 +576,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term: TermBase.UExp.t,
       info_map: Statics.Map.t,
     };
-  };
-
-  type stitched('a) = {
-    test_validation: 'a, // prelude + correct_impl + your_tests
-    user_impl: 'a, // prelude + your_impl
-    user_tests: 'a, // prelude + your_impl + your_tests
-    prelude: 'a, // prelude
-    instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
-    hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
-    hidden_tests: 'a,
   };
 
   let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
@@ -640,6 +640,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let stitch_static = Core.Memo.general(stitch_static);
+
+  let statics_of_stiched =
+      (state: state, s: stitched(StaticsItem.t)): StaticsItem.t =>
+    switch (state.pos) {
+    | Prelude => s.prelude
+    | CorrectImpl => s.instructor
+    | YourTestsValidation => s.test_validation
+    | YourTestsTesting => s.user_tests
+    | YourImpl => s.user_impl
+    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
+    | HiddenTests => s.hidden_tests
+    };
+
+  let statics_of = (~settings, exercise: state): StaticsItem.t =>
+    exercise
+    |> stitch_term
+    |> stitch_static(settings)
+    |> statics_of_stiched(exercise);
 
   let test_validation_key = "test_validation";
   let user_impl_key = "user_impl";
@@ -846,43 +864,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     };
   let stitch_dynamic = Core.Memo.general(stitch_dynamic);
-
-  let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
-    let {pos, eds} = state;
-    let {
-      test_validation,
-      user_impl,
-      user_tests,
-      prelude,
-      instructor,
-      hidden_bugs,
-      hidden_tests,
-    } = stitched_dynamics;
-
-    let (focal_zipper, focal_info_map) =
-      switch (pos) {
-      | Prelude => (eds.prelude.state.zipper, prelude.info_map)
-      | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
-      | YourTestsValidation => (
-          eds.your_tests.tests.state.zipper,
-          test_validation.info_map,
-        )
-      | YourTestsTesting => (
-          eds.your_tests.tests.state.zipper,
-          user_tests.info_map,
-        )
-      | YourImpl => (eds.your_impl.state.zipper, user_impl.info_map)
-      | HiddenBugs(idx) =>
-        let editor = List.nth(eds.hidden_bugs, idx).impl;
-        let info_map = List.nth(hidden_bugs, idx).info_map;
-        (editor.state.zipper, info_map);
-      | HiddenTests => (
-          eds.hidden_tests.tests.state.zipper,
-          hidden_tests.info_map,
-        )
-      };
-    (focal_zipper, focal_info_map);
-  };
 
   // Module Export
 

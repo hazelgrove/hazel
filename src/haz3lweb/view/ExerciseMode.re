@@ -2,41 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-type t = {
-  exercise: Exercise.state,
-  results: option(ModelResults.t),
-  settings: Settings.t,
-  langDocMessages: LangDocMessages.t,
-  stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
-  grading_report: Grading.GradingReport.t,
-};
-
-let mk =
-    (
-      ~exercise: Exercise.state,
-      ~results: option(ModelResults.t),
-      ~settings: Settings.t,
-      ~langDocMessages,
-    )
-    : t => {
-  let Exercise.{eds, _} = exercise;
-  let stitched_dynamics =
-    Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      Exercise.stitch_dynamic(settings.core, exercise, results)
-    );
-
-  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-
-  {
-    exercise,
-    results,
-    settings,
-    langDocMessages,
-    stitched_dynamics,
-    grading_report,
-  };
-};
-
 type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
@@ -52,51 +17,60 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   );
 };
 
-let editor_view =
+let view =
     (
       ~inject,
-      ~ui_state as
-        {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
-      {
-        exercise: {pos, eds} as exercise,
-        results: _,
-        settings,
-        stitched_dynamics,
-        grading_report,
-        langDocMessages,
-      }: t,
+      ~ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~exercise,
+      ~results,
+      ~color_highlighting,
     ) => {
-  let Exercise.{
-        test_validation,
-        user_impl,
-        user_tests,
-        prelude,
-        instructor,
-        hidden_bugs,
-        hidden_tests: _,
-      } = stitched_dynamics;
-  let (focal_zipper, focal_info_map) =
-    Exercise.focus(exercise, stitched_dynamics);
+  let Exercise.{eds, pos} = exercise;
+  let stitched_dynamics =
+    Exercise.stitch_dynamic(
+      settings.core,
+      exercise,
+      settings.core.dynamics ? Some(results) : None,
+    );
+  let {
+    test_validation,
+    user_impl,
+    user_tests,
+    prelude,
+    instructor,
+    hidden_bugs,
+    hidden_tests: _,
+  }:
+    Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
 
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
-      Some(
-        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
-      );
-    } else {
-      None;
-    };
+  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
-  // partially apply for convenience below
-  let editor_view = pos => {
+  let score_view = Grading.GradingReport.view_overall_score(grading_report);
+
+  let editor_view =
+      (
+        this_pos,
+        ~editor: Editor.t,
+        ~info_map,
+        ~caption,
+        ~code_id,
+        ~test_results,
+        ~footer,
+      ) => {
     Cell.editor_view(
+      ~selected=pos == this_pos,
+      ~error_ids=Editor.error_ids(editor.state.meta.term_ranges, info_map),
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      ~mousedown_updates=[Update.SwitchEditor(pos)],
+      ~ui_state,
+      ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
       ~color_highlighting,
+      ~caption,
+      ~code_id,
+      ~test_results,
+      ~footer,
+      Editor.get_syntax(editor),
     );
   };
 
@@ -111,7 +85,6 @@ let editor_view =
     Always(
       editor_view(
         Prelude,
-        ~selected=pos == Prelude,
         ~caption=
           Cell.bolded_caption(
             "Prelude",
@@ -121,7 +94,7 @@ let editor_view =
         ~info_map=prelude.info_map,
         ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
         ~footer=None,
-        eds.prelude,
+        ~editor=eds.prelude,
       ),
     );
 
@@ -130,14 +103,13 @@ let editor_view =
       () =>
         editor_view(
           CorrectImpl,
-          ~selected=pos == CorrectImpl,
           ~caption=Cell.bolded_caption("Correct Implementation"),
           ~code_id="correct-impl",
           ~info_map=instructor.info_map,
           ~test_results=
             ModelResult.unwrap_test_results(instructor.simple_result),
           ~footer=None,
-          eds.correct_impl,
+          ~editor=eds.correct_impl,
         ),
     );
 
@@ -189,7 +161,6 @@ let editor_view =
     Always(
       editor_view(
         YourTestsValidation,
-        ~selected=pos == YourTestsValidation,
         ~caption=
           Cell.bolded_caption(
             "Test Validation",
@@ -207,7 +178,7 @@ let editor_view =
               grading_report.point_distribution.test_validation,
             ),
           ),
-        eds.your_tests.tests,
+        ~editor=eds.your_tests.tests,
       ),
     );
 
@@ -224,7 +195,6 @@ let editor_view =
           () =>
             editor_view(
               HiddenBugs(i),
-              ~selected=pos == HiddenBugs(i),
               ~caption=
                 Cell.bolded_caption(
                   "Wrong Implementation " ++ string_of_int(i + 1),
@@ -233,7 +203,7 @@ let editor_view =
               ~info_map,
               ~test_results=ModelResult.unwrap_test_results(simple_result),
               ~footer=None,
-              impl,
+              ~editor=impl,
             ),
         )
       },
@@ -253,7 +223,6 @@ let editor_view =
     Always(
       editor_view(
         YourImpl,
-        ~selected=pos == YourImpl,
         ~caption=Cell.bolded_caption("Your Implementation"),
         ~code_id="your-impl",
         ~info_map=user_impl.info_map,
@@ -261,15 +230,15 @@ let editor_view =
           ModelResult.unwrap_test_results(user_impl.simple_result),
         ~footer=
           Some(
-            Cell.eval_result_footer_view(
+            Cell.footer(
               ~settings,
               ~inject,
-              ~font_metrics,
+              ~ui_state,
               ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
-              user_impl.simple_result,
+              ModelResult.unwrap'(user_impl.simple_result).value,
             ),
           ),
-        eds.your_impl,
+        ~editor=eds.your_impl,
       ),
     );
 
@@ -283,7 +252,6 @@ let editor_view =
     Always(
       editor_view(
         YourTestsTesting,
-        ~selected=pos == YourTestsTesting,
         ~caption=
           Cell.bolded_caption(
             "Implementation Validation",
@@ -300,7 +268,7 @@ let editor_view =
               ~test_results=testing_results,
             ),
           ),
-        eds.your_tests.tests,
+        ~editor=eds.your_tests.tests,
       ),
     );
 
@@ -309,14 +277,13 @@ let editor_view =
       () =>
         editor_view(
           HiddenTests,
-          ~selected=pos == HiddenTests,
           ~caption=Cell.bolded_caption("Hidden Tests"),
           ~code_id="hidden-tests",
           ~info_map=instructor.info_map,
           ~test_results=
             ModelResult.unwrap_test_results(instructor.simple_result),
           ~footer=None,
-          eds.hidden_tests.tests,
+          ~editor=eds.hidden_tests.tests,
         ),
     );
 
@@ -330,60 +297,31 @@ let editor_view =
       ),
     );
 
-  let bottom_bar =
-    settings.core.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~show_lang_doc=langDocMessages.show,
-          focal_zipper,
-          focal_info_map,
-        ),
-      ]
-      : [];
-  let sidebar =
-    langDocMessages.show && settings.core.statics
-      ? LangDoc.view(
-          ~inject,
-          ~font_metrics,
-          ~settings,
-          ~doc=langDocMessages,
-          Indicated.index(focal_zipper),
-          focal_info_map,
-        )
-      : div([]);
   [
+    score_view,
     div(
-      ~attr=Attr.id("main"),
-      [
-        div(
-          ~attr=Attr.classes(["editor", "column"]),
-          [title_view, prompt_view]
-          @ render_cells(
-              settings,
-              [
-                prelude_view,
-                correct_impl_view,
-                correct_impl_ctx_view,
-                your_tests_view,
-              ]
-              @ wrong_impl_views
-              @ [
-                mutation_testing_view,
-                your_impl_view,
-                syntax_grading_view,
-                impl_validation_view,
-                hidden_tests_view,
-                impl_grading_view,
-              ],
-            ),
+      ~attr=Attr.classes(["editor", "column"]),
+      [title_view, prompt_view]
+      @ render_cells(
+          settings,
+          [
+            prelude_view,
+            correct_impl_view,
+            correct_impl_ctx_view,
+            your_tests_view,
+          ]
+          @ wrong_impl_views
+          @ [
+            mutation_testing_view,
+            your_impl_view,
+            syntax_grading_view,
+            impl_validation_view,
+            hidden_tests_view,
+            impl_grading_view,
+          ],
         ),
-      ],
     ),
-    sidebar,
-  ]
-  @ bottom_bar;
+  ];
 };
 
 let reset_button = inject =>
@@ -477,20 +415,3 @@ let import_submission = (~inject) =>
     },
     ~tooltip="Import Submission",
   );
-
-let view =
-    (
-      ~inject,
-      ~exercise,
-      {settings, langDocMessages, meta: {ui_state, results, _}, _}: Model.t,
-    ) => {
-  let exercise_mode =
-    mk(
-      ~settings,
-      ~exercise,
-      ~results=settings.core.dynamics ? Some(results) : None,
-      ~langDocMessages,
-    );
-  [Grading.GradingReport.view_overall_score(exercise_mode.grading_report)]
-  @ editor_view(~inject, ~ui_state, exercise_mode);
-};

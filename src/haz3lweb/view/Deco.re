@@ -10,7 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-           let info_map: Statics.Map.t;
+           let error_ids: list(Id.t);
            let tiles: TileMap.t;
          },
        ) => {
@@ -200,7 +200,7 @@ module Deco =
     };
   };
 
-  let backback = (z: Zipper.t): list(Node.t) => [
+  let backpack = (z: Zipper.t): list(Node.t) => [
     BackpackView.view(
       ~font_metrics,
       ~origin=Zipper.caret_point(M.map, z),
@@ -264,76 +264,16 @@ module Deco =
     );
   };
 
-  // recurses through skel structure to enable experimentation
-  // with hiding nested err holes
-  let _err_holes = (z: Zipper.t) => {
-    let seg = Zipper.unselect_and_zip(z);
-    let is_err = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, M.info_map)) {
-      | None => false
-      | Some(info) => Info.is_error(info)
-      };
-    let is_rep = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, M.terms)) {
-      | None => false
-      | Some(term) => id == Term.rep_id(term)
-      };
-    let rec go_seg = (seg: Segment.t): list(Id.t) => {
-      let rec go_skel = (skel: Skel.t): list(Id.t) => {
-        let root = Skel.root(skel);
-        let root_ids =
-          Aba.get_as(root)
-          |> List.map(List.nth(seg))
-          |> List.map(Piece.id)
-          |> List.filter(is_rep)
-          |> List.filter(is_err);
-        let between_ids = Aba.get_bs(root) |> List.concat_map(go_skel);
-        let uni_ids =
-          switch (skel) {
-          | Op(_) => []
-          | Pre(_, r) => go_skel(r)
-          | Post(l, _) => go_skel(l)
-          | Bin(l, _, r) => go_skel(l) @ go_skel(r)
-          };
-        root_ids @ between_ids @ uni_ids;
-      };
-      let bi_ids =
-        seg
-        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
-
-      go_skel(Segment.skel(seg)) @ bi_ids;
-    };
-    go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
-  };
-
   // faster infomap traversal
-  let err_holes = (_z: Zipper.t) => {
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Because of artefacts in Maketerm ID handling,
-         * there are be situations where ids appear in the
-         * info_map which do not occur in term_ranges. These
-         * ids should be purely duplicative, so skipping them
-         * when iterating over the info_map should have no
-         * effect, beyond supressing the resulting Not_found exs */
-        switch (Id.Map.find_opt(id, M.term_ranges)) {
-        | Some(_) when Info.is_error(info) => [
-            term_highlight(~clss=["err-hole"], id),
-            ...acc,
-          ]
-        | _ => acc
-        },
-      M.info_map,
-      [],
-    );
-  };
+  let err_holes = (_z: Zipper.t) =>
+    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
-      backback(zipper),
+      backpack(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
     ]);
