@@ -95,7 +95,6 @@ let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let pipeline = () => Example.mk_monotile(Form.get("pipeline"));
 let nil = () => exp("[]");
 let typeann = () => Example.mk_monotile(Form.get("typeann"));
-let guard = () => Example.mk_monotile(Form.get("guard"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
@@ -3060,25 +3059,6 @@ let ap_pat: form = {
     examples: [],
   };
 };
-let guard_pat_group = "guard_pat_group";
-let _pat = pat("p");
-let _exp = exp("exp");
-let guard_pat_coloring_ids =
-    (~pat_id: Id.t, ~exp_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat), pat_id),
-  (Piece.id(_exp), exp_id),
-];
-let guard_pat: form = {
-  let explanation = {message: "Boolean guard.", feedback: Unselected};
-  {
-    id: "guard_pat",
-    syntactic_form: [_pat, space(), guard(), space(), _exp],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
-};
-
 let typann_pat_group = "typann_pat_group";
 let _pat = pat("p");
 let _typ = typ("ty");
