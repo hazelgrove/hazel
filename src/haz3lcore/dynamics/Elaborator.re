@@ -145,7 +145,7 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
-        DHExp.Fun(dp, ty, d1, None);
+        DHExp.Fun(fst(dp), ty, d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -211,10 +211,10 @@ let rec dhexp_of_uexp =
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
+          DHExp.Let(fst(dp), add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+          Let(fst(dp), FixF(f, ty, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -236,7 +236,7 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          Let(dp, FixF(self_id, ty, substituted_def), dbody);
+          Let(fst(dp), FixF(self_id, ty, substituted_def), dbody);
         };
       | Ap(fn, arg)
       | Pipeline(arg, fn) =>
@@ -262,7 +262,7 @@ let rec dhexp_of_uexp =
             ((p, e)) => {
               let* d_p = dhpat_of_upat(m, p);
               let+ d_e = dhexp_of_uexp(m, e);
-              DHExp.Rule(d_p, d_e);
+              DHExp.Rule(fst(d_p), d_e);
             },
             rules,
           )
@@ -280,7 +280,9 @@ let rec dhexp_of_uexp =
   | None => None
   };
 }
-and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
+and dhpat_of_upat =
+    (m: Statics.Map.t, upat: Term.UPat.t)
+    : option((DHPat.t, option(DHExp.t))) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
     let err_status = Info.status_pat(ctx, mode, self);
@@ -336,7 +338,6 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | Guard(p, _) =>
       // TODO: Add guard support for DHPat
       let* dp = dhpat_of_upat(m, p);
-      // let* de = dhexp_of_uexp(m, e);
       wrap(dp);
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
