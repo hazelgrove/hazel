@@ -115,7 +115,7 @@ and subst_var_rules =
   |> List.map((r: DHExp.rule) =>
        switch (r) {
        | Rule(dp, d2) =>
-         if (DHPat.binds_var(x, dp)) {
+         if (DHPat.binds_var(x, fst(dp))) {
            r;
          } else {
            Rule(dp, subst_var(d1, x, d2));
