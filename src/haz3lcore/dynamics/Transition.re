@@ -473,7 +473,7 @@ module Transition = (EV: EV_MODE) => {
       | Some(Rule((dp, _), d2)) =>
         switch (matches(dp, d1')) {
         | Matches(env') =>
-        // Evaluate the guard
+          // Evaluate the guard
           Step({
             apply: () => Closure(evaluate_extend_env(env', env), d2),
             kind: CaseApply,
