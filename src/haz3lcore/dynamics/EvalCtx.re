@@ -190,6 +190,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Cons2, Cons2(_, c))
   | (ListConcat1, ListConcat1(c, _))
   | (ListConcat2, ListConcat2(_, c))
+  | (Test, Test(_, c))
   | (Prj, Prj(c, _)) => Some(c)
   | (ListLit(n), ListLit(_, _, _, c, (ld, _)))
   | (Tuple(n), Tuple(c, (ld, _))) =>
@@ -234,8 +235,14 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (BinStringOp2, BinStringOp1(_))
   | (Cons1, Cons2(_))
   | (Cons2, Cons1(_))
+  | (Sequence1, Sequence2(_))
+  | (Sequence2, Sequence1(_))
   | (ListConcat1, ListConcat2(_))
-  | (ListConcat2, ListConcat1(_)) => None
+  | (ListConcat2, ListConcat1(_))
+  | (ConsistentCase, ConsistentCaseRule(_))
+  | (ConsistentCaseRule(_), ConsistentCase(_))
+  | (InconsistentBranches, InconsistentBranchesRule(_))
+  | (InconsistentBranchesRule(_), InconsistentBranches(_)) => None
   | (Closure, _) => Some(ctx)
   | (tag, Closure(_, c)) => unwrap(c, tag)
   | (Filter, _) => Some(ctx)
@@ -248,7 +255,15 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
       ++ " does not match with "
       ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
     );
-    None;
-  // raise(EvaluatorError.Exception(StepDoesNotMatch));
+    raise(EvaluatorError.Exception(StepDoesNotMatch));
   };
 };
+
+/* unwrap_unsafe is like unwrap, but will return None instead of an
+   exception if the selector is not valid for the expression. It is a
+   hack to prevent exceptions until we get ids in dynamics */
+let unwrap_unsafe = (ctx, sel) =>
+  switch (unwrap(ctx, sel)) {
+  | exception (EvaluatorError.Exception(StepDoesNotMatch)) => None
+  | _ => None
+  };
