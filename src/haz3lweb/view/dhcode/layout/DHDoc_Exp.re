@@ -320,7 +320,6 @@ let rec mk =
         let d1_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d1));
         let d2_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d2));
         hcats([
-          DHDoc_common.Delim.mk("("),
           DHDoc_common.Delim.mk("if"),
           c_doc
           |> DHDoc_common.pad_child(
@@ -339,7 +338,6 @@ let rec mk =
                ~inline_padding=(space(), empty()),
                ~enforce_inline=false,
              ),
-          DHDoc_common.Delim.mk(")"),
         ]);
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
