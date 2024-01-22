@@ -250,8 +250,8 @@ let rec dhexp_of_uexp =
         // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.IfThenElse(false, c', d1, d2)
-        | _ => DHExp.IfThenElse(true, c', d1, d2)
+          DHExp.IfThenElse(DH.InconsistentIf, c', d1, d2)
+        | _ => DHExp.IfThenElse(DH.ConsistentIf, c', d1, d2)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
