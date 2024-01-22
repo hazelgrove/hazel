@@ -267,9 +267,15 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+let of_segment =
+    (
+      ~old: t=empty,
+      ~touched=Touched.empty,
+      ~global_inference_info=InferenceResult.empty_info(),
+      seg: Segment.t,
+    )
+    : t => {
   let is_indented = is_indented_map(seg);
-
   // recursive across seg's bidelimited containers
   let rec go_nested =
           (
@@ -356,7 +362,22 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            let last = {...origin, col: origin.col + 1};
+            let annotation_offset =
+              switch (
+                InferenceResult.get_suggestion_text_for_id(
+                  g.id,
+                  global_inference_info,
+                )
+              ) {
+              | (Solvable(suggestion_string), TypHole)
+              | (NestedInconsistency(suggestion_string), TypHole) =>
+                String.length(suggestion_string)
+              | (_, ExpHole)
+              | (_, None)
+              | (NoSuggestion(_), _) => 1
+              };
+
+            let last = {...origin, col: origin.col + annotation_offset};
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>

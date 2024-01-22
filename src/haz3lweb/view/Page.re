@@ -20,6 +20,7 @@ let exercises_view =
       ~inject,
       ~exercise,
       {
+        editors,
         settings,
         langDocMessages,
         meta: {
@@ -37,6 +38,15 @@ let exercises_view =
       ~results=settings.core.dynamics ? Some(results) : None,
       ~langDocMessages,
     );
+  let zipper = Editors.get_editor(editors).state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      model.settings.core.inference,
+      suggestions,
+    );
   [top_bar_view(~inject, ~model)]
   @ [Grading.GradingReport.view_overall_score(exercise_mode.grading_report)]
   @ ExerciseMode.view(
@@ -45,6 +55,7 @@ let exercises_view =
       ~mousedown,
       ~show_backpack_targets,
       exercise_mode,
+      ~global_inference_info,
     );
 };
 

@@ -6,6 +6,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  inference: bool,
 };
 
 let off: t = {
@@ -13,5 +14,12 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  inference: false,
 };
-let on: t = {statics: true, elaborate: true, assist: true, dynamics: true};
+let on: t = {
+  statics: true,
+  elaborate: true,
+  assist: true,
+  dynamics: true,
+  inference: true,
+};

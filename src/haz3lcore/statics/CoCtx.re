@@ -63,8 +63,10 @@ let singleton = (name, id, expected_ty): t => [
 let join: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
-    switch (Typ.join_all(~empty=Unknown(Internal), ctx, expected_tys)) {
-    | None => Unknown(Internal)
+    switch (
+      Typ.join_all(~empty=Unknown(NoProvenance, false), ctx, expected_tys)
+    ) {
+    | None => Unknown(NoProvenance, false)
     | Some(ty) => ty
     };
   };

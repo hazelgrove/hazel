@@ -95,6 +95,10 @@ let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
     suggestions
     |> List.filter(({content, _}: Suggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
+         /* HACK(andrew): Below filtering of cons suggestion
+          * should be done in a more principled way when a
+          * ranker is implemented */
+         && !(Info.sort_of(ci) == Pat && content == "::")
        );
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);

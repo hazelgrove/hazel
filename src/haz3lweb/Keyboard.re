@@ -3,7 +3,18 @@ open Haz3lcore;
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
-let handle_key_event = (k: Key.t): option(Update.t) => {
+let handle_key_event = (k: Key.t, ~model: Model.t): option(Update.t) => {
+  let zipper = Editors.active_zipper(model.editors);
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      model.settings.core.inference,
+      suggestions,
+    );
+  let acceptSuggestionIfAvailable =
+    InferenceView.acceptSuggestionIfAvailable(global_inference_info, zipper);
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
   switch (k) {
@@ -33,9 +44,10 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "Tab") => Some(DoTheThing)
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
-    | (Down, "Tab") => Some(MoveToNextHole(Left))
+    | (Up, "Tab") => acceptSuggestionIfAvailable(Some(DoTheThing))
+    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar, Left))
+    | (Down, "Tab") =>
+      acceptSuggestionIfAvailable(Some(MoveToNextHole(Left)))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))

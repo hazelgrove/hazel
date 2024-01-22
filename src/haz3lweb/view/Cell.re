@@ -46,7 +46,7 @@ let mousedown_handler =
 
     let events = [
       inject(PerformAction(Move(Goal(Point(goal))))),
-      inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+      inject(PerformAction(Jump(BindingSiteOfIndicatedVar, Left))),
     ];
     Virtual_dom.Vdom.Effect.Many(events);
   | (false, 1) =>
@@ -183,6 +183,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~test_results: option(Interface.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
@@ -193,6 +194,7 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
+      let global_inference_info = global_inference_info;
       let term_ranges = term_ranges;
       let tiles = TileMap.mk(unselected);
     });
@@ -269,7 +271,14 @@ let editor_view =
   let term_ranges = editor.state.meta.term_ranges;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
+  let (term, _) = MakeTerm.go(unselected);
+  let (_, suggestions) = Statics.mk_map_and_inference_solutions(term);
   let measured = editor.state.meta.measured;
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      settings.core.inference,
+      suggestions,
+    );
   let buffer_ids: list(Uuidm.t) = {
     /* Collect ids of tokens in buffer for styling purposes. This is
      * currently necessary as the selection is not persisted through
@@ -280,6 +289,7 @@ let editor_view =
   };
   let code_base_view =
     Code.view(
+      ~global_inference_info,
       ~sort=Sort.root,
       ~font_metrics,
       ~buffer_ids,
@@ -299,6 +309,7 @@ let editor_view =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
+      ~global_inference_info,
       ~test_results,
       ~color_highlighting,
     );

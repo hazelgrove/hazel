@@ -47,7 +47,7 @@ type select =
 type t =
   | Move(move)
   | MoveToNextHole(Direction.t)
-  | Jump(jump_target)
+  | Jump(jump_target, Direction.t)
   | Select(select)
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)

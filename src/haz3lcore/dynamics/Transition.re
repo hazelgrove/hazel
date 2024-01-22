@@ -74,19 +74,21 @@ module CastHelpers = {
     | Ground
     | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
-  let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+  let const_unknown: 'a => Typ.t = _ => Unknown(NoProvenance, false);
 
   let grounded_Arrow =
-    NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+    NotGroundOrHole(
+      Arrow(Unknown(NoProvenance, false), Unknown(NoProvenance, false)),
+    );
   let grounded_Prod = length =>
     NotGroundOrHole(
-      Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
+      Prod(ListUtil.replicate(length, Typ.Unknown(NoProvenance, false))),
     );
   let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
     let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
     NotGroundOrHole(Sum(sm'));
   };
-  let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
+  let grounded_List = NotGroundOrHole(List(Unknown(NoProvenance, false)));
 
   let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     let is_ground_arg: option(Typ.t) => bool =

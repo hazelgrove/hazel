@@ -118,8 +118,8 @@ module Scratch = {
     List.map(ScratchSlide.persist, slides),
   );
 
-  let of_persistent = ((idx, slides): persistent) => {
-    (idx, List.map(ScratchSlide.unpersist, slides));
+  let of_persistent = ((idx, slides): persistent, ~inference_enabled) => {
+    (idx, List.map(ScratchSlide.unpersist(~inference_enabled), slides));
   };
 
   let serialize = scratch => {
@@ -134,23 +134,24 @@ module Scratch = {
     JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
-  let init = () => {
-    let scratch = of_persistent(Init.startup.scratch);
+  let init = (~inference_enabled) => {
+    let scratch = of_persistent(Init.startup.scratch, ~inference_enabled);
     save(scratch);
     scratch;
   };
 
-  let load = () =>
+  let load = (~inference_enabled) =>
     switch (JsUtil.get_localstore(save_scratch_key)) {
-    | None => init()
+    | None => init(~inference_enabled)
     | Some(data) =>
-      try(deserialize(data)) {
-      | _ => init()
+      try(deserialize(data, ~inference_enabled)) {
+      | _ => init(~inference_enabled)
       }
     };
 
-  let export = () => serialize(load());
-  let import = data => save(deserialize(data));
+  let export = () => serialize(load(~inference_enabled=false));
+  let import = (data, ~inference_enabled) =>
+    save(deserialize(data, ~inference_enabled));
 };
 
 module Examples = {
@@ -163,9 +164,9 @@ module Examples = {
     (name, PersistentZipper.persist(editor.state.zipper));
   };
 
-  let unpersist = ((name, zipper)) => {
+  let unpersist = (~inference_enabled, (name, zipper)) => {
     let zipper = PersistentZipper.unpersist(zipper);
-    (name, Editor.init(zipper, ~read_only=false));
+    (name, Editor.init(zipper, ~read_only=false, ~inference_enabled));
   };
 
   let to_persistent = ((string, slides)): persistent => (
@@ -173,8 +174,8 @@ module Examples = {
     List.map(persist, slides),
   );
 
-  let of_persistent = ((string, slides): persistent) => {
-    (string, List.map(unpersist, slides));
+  let of_persistent = ((string, slides): persistent, ~inference_enabled) => {
+    (string, List.map(unpersist(~inference_enabled), slides));
   };
 
   let serialize = examples => {
@@ -189,23 +190,23 @@ module Examples = {
     JsUtil.set_localstore(save_examples_key, serialize(examples));
   };
 
-  let init = () => {
-    let examples = of_persistent(Init.startup.examples);
+  let init = (~inference_enabled) => {
+    let examples = of_persistent(Init.startup.examples, ~inference_enabled);
     save(examples);
     examples;
   };
 
-  let load = () =>
+  let load = (~inference_enabled) =>
     switch (JsUtil.get_localstore(save_examples_key)) {
-    | None => init()
+    | None => init(~inference_enabled)
     | Some(data) =>
-      try(deserialize(data)) {
-      | _ => init()
+      try(deserialize(data, ~inference_enabled)) {
+      | _ => init(~inference_enabled)
       }
     };
 
-  let export = () => serialize(load());
-  let import = data => save(deserialize(data));
+  let export = () => serialize(load(~inference_enabled=false));
+  let import = data => save(deserialize(data, ~inference_enabled=false));
 };
 
 module Exercise = {
@@ -236,26 +237,35 @@ module Exercise = {
     JsUtil.set_localstore(keystring, value);
   };
 
-  let init_exercise = (spec, ~instructor_mode) => {
+  let init_exercise = (spec, ~instructor_mode, ~inference_enabled) => {
     let key = Exercise.key_of(spec);
     let keystring = keystring_of_key(key);
-    let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
+    let exercise =
+      Exercise.state_of_spec(spec, ~instructor_mode, ~inference_enabled);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
     exercise;
   };
 
-  let load_exercise = (key, spec, ~instructor_mode): Exercise.state => {
+  let load_exercise =
+      (key, spec, ~instructor_mode, ~inference_enabled): Exercise.state => {
     let keystring = keystring_of_key(key);
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(Exercise.deserialize_exercise(data, ~spec, ~instructor_mode)) {
-        | _ => init_exercise(spec, ~instructor_mode)
+        try(
+          Exercise.deserialize_exercise(
+            data,
+            ~spec,
+            ~instructor_mode,
+            ~inference_enabled,
+          )
+        ) {
+        | _ => init_exercise(spec, ~instructor_mode, ~inference_enabled)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
       exercise;
-    | None => init_exercise(spec, ~instructor_mode)
+    | None => init_exercise(spec, ~instructor_mode, ~inference_enabled)
     };
   };
 
@@ -266,20 +276,20 @@ module Exercise = {
     JsUtil.set_localstore(cur_exercise_key, keystring);
   };
 
-  let init = (~instructor_mode) => {
+  let init = (~instructor_mode, ~inference_enabled) => {
     let exercises = {
       (
         0,
         ExerciseSettings.exercises,
         List.nth(ExerciseSettings.exercises, 0)
-        |> Exercise.state_of_spec(~instructor_mode),
+        |> Exercise.state_of_spec(~instructor_mode, ~inference_enabled),
       );
     };
     save(exercises, ~instructor_mode);
     exercises;
   };
 
-  let load = (~specs, ~instructor_mode) => {
+  let load = (~specs, ~instructor_mode, ~inference_enabled) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       let key = key_of_keystring(keystring);
@@ -288,13 +298,25 @@ module Exercise = {
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
           let exercise =
-            try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
-            | _ => init_exercise(spec, ~instructor_mode)
+            try(
+              deserialize_exercise(
+                data,
+                ~spec,
+                ~instructor_mode,
+                ~inference_enabled,
+              )
+            ) {
+            | _ => init_exercise(spec, ~instructor_mode, ~inference_enabled)
             };
           (n, specs, exercise);
         | None =>
           // initialize exercise from spec
-          let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
+          let exercise =
+            Exercise.state_of_spec(
+              spec,
+              ~instructor_mode,
+              ~inference_enabled,
+            );
           save_exercise(exercise, ~instructor_mode);
           (n, specs, exercise);
         }
@@ -302,9 +324,18 @@ module Exercise = {
         // invalid current exercise key saved, load the first exercise
         let first_spec = List.nth(specs, 0);
         let first_key = Exercise.key_of(first_spec);
-        (0, specs, load_exercise(first_key, first_spec, ~instructor_mode));
+        (
+          0,
+          specs,
+          load_exercise(
+            first_key,
+            first_spec,
+            ~instructor_mode,
+            ~inference_enabled,
+          ),
+        );
       };
-    | None => init(~instructor_mode)
+    | None => init(~instructor_mode, ~inference_enabled)
     };
   };
 
@@ -319,7 +350,12 @@ module Exercise = {
         |> List.map(spec => {
              let key = Exercise.key_of(spec);
              let exercise =
-               load_exercise(key, spec, ~instructor_mode)
+               load_exercise(
+                 key,
+                 spec,
+                 ~instructor_mode,
+                 ~inference_enabled=false,
+               )
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
            }),
@@ -332,11 +368,11 @@ module Exercise = {
     |> Sexplib.Sexp.to_string;
   };
 
-  let export = (~specs, ~instructor_mode) => {
-    serialize_exercise_export(~specs, ~instructor_mode);
+  let export = (~specs) => {
+    serialize_exercise_export(~specs);
   };
 
-  let import = (data, ~specs, ~instructor_mode) => {
+  let import = (data, ~specs, ~instructor_mode, ~inference_enabled) => {
     let exercise_export = data |> deserialize_exercise_export;
     save_exercise_key(exercise_export.cur_exercise);
     exercise_export.exercise_data
@@ -351,6 +387,7 @@ module Exercise = {
                persistent_state,
                ~spec,
                ~instructor_mode,
+               ~inference_enabled,
              ),
              ~instructor_mode,
            )

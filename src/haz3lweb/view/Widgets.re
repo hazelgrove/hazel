@@ -13,6 +13,25 @@ let button = (~tooltip="", icon, action) =>
     [icon],
   );
 
+let hoverable_button =
+    (
+      ~tooltip="",
+      icon: list(t),
+      on_mousedown_action,
+      on_mouseover_action,
+      on_mouseleave_action,
+    ) =>
+  div(
+    ~attr=
+      Attr.many([
+        clss(["icon"]),
+        Attr.on_mousedown(on_mousedown_action),
+        Attr.on_mouseover(on_mouseover_action),
+        Attr.on_mouseleave(on_mouseleave_action),
+        Attr.title(tooltip),
+      ]),
+    icon,
+  );
 let button_named = (~tooltip="", icon, action) =>
   div(
     ~attr=Attr.many([clss(["named-menu-item"]), Attr.on_click(action)]),

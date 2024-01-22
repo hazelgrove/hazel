@@ -95,7 +95,7 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(Jump(TileId(id))))
+          inject(UpdateAction.PerformAction(Jump(TileId(id), Left)))
         ),
       ])
     | None => classes
@@ -155,7 +155,9 @@ let mk_translation =
                         clss(["clickable"]),
                         Attr.on_click(_ =>
                           inject(
-                            UpdateAction.PerformAction(Jump(TileId(id))),
+                            UpdateAction.PerformAction(
+                              Jump(TileId(id), Left),
+                            ),
                           )
                         ),
                       ]),
@@ -215,6 +217,7 @@ let deco =
       ~expandable: option(Id.t),
       ~unselected,
       ~map,
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~inject,
       ~font_metrics,
       ~options,
@@ -225,6 +228,7 @@ let deco =
     Deco.Deco({
       let font_metrics = font_metrics;
       let map = map;
+      let global_inference_info = global_inference_info;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
       let info_map = Interface.Statics.mk_map(settings.core, term);
@@ -271,7 +275,13 @@ let deco =
                   (index, (id, segment)) => {
                     let map = Measured.of_segment(segment);
                     let code_view =
-                      Code.simple_view(~unselected=segment, ~map, ~settings);
+                      Code.simple_view(
+                        ~font_metrics,
+                        ~global_inference_info,
+                        ~unselected=segment,
+                        ~map,
+                        ~settings,
+                      );
                     let classes = get_clss(segment);
                     id == form_id
                       ? Node.div(
@@ -374,9 +384,17 @@ let syntactic_form_view =
       ~options,
       ~group_id,
       ~form_id,
+      ~global_inference_info,
     ) => {
   let map = Measured.of_segment(unselected);
-  let code_view = Code.simple_view(~unselected, ~map, ~settings);
+  let code_view =
+    Code.simple_view(
+      ~font_metrics,
+      ~global_inference_info,
+      ~unselected,
+      ~map,
+      ~settings,
+    );
   let deco_view =
     deco(
       ~doc,
@@ -390,6 +408,7 @@ let syntactic_form_view =
       ~options,
       ~group_id,
       ~form_id,
+      ~global_inference_info,
     );
   div(
     ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
@@ -404,6 +423,7 @@ let example_view =
       ~settings,
       ~id,
       ~examples: list(LangDocMessages.example),
+      ~global_inference_info: InferenceResult.global_inference_info,
     ) => {
   div(
     ~attr=Attr.id("examples"),
@@ -413,7 +433,13 @@ let example_view =
           ({term, message, _} as example: LangDocMessages.example) => {
             let map_code = Measured.of_segment(term);
             let code_view =
-              Code.simple_view(~unselected=term, ~map=map_code, ~settings);
+              Code.simple_view(
+                ~font_metrics,
+                ~global_inference_info,
+                ~unselected=term,
+                ~map=map_code,
+                ~settings,
+              );
             let (uhexp, _) = MakeTerm.go(term);
             let info_map =
               Interface.Statics.mk_map_ctx(
@@ -505,6 +531,7 @@ type message_mode =
 
 let get_doc =
     (
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~docs: LangDocMessages.t,
       info: option(Statics.Info.t),
       mode: message_mode,
@@ -554,6 +581,7 @@ let get_doc =
           ~options,
           ~group_id,
           ~form_id=doc.id,
+          ~global_inference_info,
         );
       let example_view =
         example_view(
@@ -562,6 +590,7 @@ let get_doc =
           ~settings,
           ~id=doc.id,
           ~examples=doc.examples,
+          ~global_inference_info,
         );
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
     | Colorings =>
@@ -2867,7 +2896,12 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~settings: Settings.t, ~doc: LangDocMessages.t, zipper: Zipper.t) => {
+    (
+      ~global_inference_info,
+      ~settings: Settings.t,
+      ~doc: LangDocMessages.t,
+      zipper: Zipper.t,
+    ) => {
   let info: option(Statics.Info.t) =
     switch (Indicated.index(zipper)) {
     | Some(index) =>
@@ -2878,7 +2912,8 @@ let get_color_map =
       Id.Map.find_opt(index, info_map);
     | None => None
     };
-  let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);
+  let (_, (_, (color_map, _)), _) =
+    get_doc(~global_inference_info, ~docs=doc, info, Colorings);
   color_map;
 };
 
@@ -2890,8 +2925,9 @@ let view =
       ~doc: LangDocMessages.t,
       index': option(Id.t),
       info_map: Statics.Map.t,
+      global_inference_info: InferenceResult.global_inference_info,
     ) => {
-  let info: option(Statics.Info.t) =
+  let info: option(Info.t) =
     switch (index') {
     | Some(index) =>
       switch (Id.Map.find_opt(index, info_map)) {
@@ -2901,7 +2937,12 @@ let view =
     | None => None
     };
   let (syn_form, (explanation, _), example) =
-    get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
+    get_doc(
+      ~global_inference_info,
+      ~docs=doc,
+      info,
+      MessageContent(inject, font_metrics, settings),
+    );
   div(
     ~attr=Attr.id("side-bar"),
     [

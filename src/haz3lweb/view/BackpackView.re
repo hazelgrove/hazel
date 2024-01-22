@@ -4,6 +4,8 @@ open Haz3lcore;
 
 let backpack_sel_view =
     (
+      ~font_metrics,
+      ~global_inference_info: InferenceResult.global_inference_info,
       x_off: float,
       y_off: float,
       scale: float,
@@ -32,12 +34,21 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment([], true, Any, content) @ [text(Unicode.zwsp)],
+    Text.of_segment(
+      [],
+      true,
+      Any,
+      font_metrics,
+      global_inference_info,
+      content,
+    )
+    @ [text(Unicode.zwsp)],
   );
 };
 
 let view =
     (
+      ~global_inference_info: InferenceResult.global_inference_info,
       ~font_metrics: FontMetrics.t,
       ~origin: Measured.Point.t,
       {backpack, _} as z: Zipper.t,
@@ -95,7 +106,16 @@ let view =
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
-        let v = backpack_sel_view(x_offset, new_y_offset, scale, opacity, s);
+        let v =
+          backpack_sel_view(
+            ~font_metrics,
+            ~global_inference_info,
+            x_offset,
+            new_y_offset,
+            scale,
+            opacity,
+            s,
+          );
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
         //TODO(andrew): am i making this difficult by going backwards?

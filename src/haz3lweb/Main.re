@@ -76,21 +76,23 @@ let update_handler =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~dir: Key.dir,
+      ~model: Model.t,
       evt: Js.t(Dom_html.keyboardEvent),
     )
     : Effect.t(unit) =>
   Effect.(
-    switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
+    switch (Keyboard.handle_key_event(Key.mk(dir, evt), ~model)) {
     | None => Ignore
     | Some(action) =>
       Many([Prevent_default, Stop_propagation, inject(action)])
     }
   );
 
-let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit)) => [
+let handlers =
+    (~model: Model.t, ~inject: UpdateAction.t => Ui_effect.t(unit)) => [
   Attr.on_keypress(_ => Effect.Prevent_default),
-  Attr.on_keyup(update_handler(~inject, ~dir=KeyUp)),
-  Attr.on_keydown(update_handler(~inject, ~dir=KeyDown)),
+  Attr.on_keyup(update_handler(~inject, ~dir=KeyUp, ~model)),
+  Attr.on_keydown(update_handler(~inject, ~dir=KeyDown, ~model)),
 ];
 
 module App = {
@@ -142,6 +144,7 @@ module App = {
       ) => {
     open Incr.Let_syntax;
     let%map model = model;
+    let handlers = handlers(~model);
     /* Note: mapping over the old_model here may
        trigger an additional redraw */
     Component.create(

@@ -27,13 +27,17 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
+let cast = (ctx: Ctx.t, id: Id.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
   | SynFun =>
     switch (self_ty) {
-    | Unknown(prov) =>
-      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
+    | Unknown(prov, s) =>
+      DHExp.cast(
+        d,
+        Unknown(prov, s),
+        Arrow(Unknown(prov, s), Unknown(prov, s)),
+      )
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -45,26 +49,28 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | ListConcat(_)
     | Cons(_) =>
       switch (ana_ty) {
-      | Unknown(prov) => DHExp.cast(d, List(Unknown(prov)), Unknown(prov))
+      | Unknown(prov, s) =>
+        DHExp.cast(d, List(Unknown(prov, s)), Unknown(prov, s))
       | _ => d
       }
     | Fun(_) =>
       /* See regression tests in Examples/Dynamics */
-      let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
-      let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
+      let ((_, ana_out), _) = Typ.matched_arrow(ctx, id, ana_ty);
+      let ((self_in, _), _) = Typ.matched_arrow(ctx, id, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
-      | Unknown(prov) =>
-        let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DHExp.cast(d, Prod(us), Unknown(prov));
+      | Unknown(prov, s) =>
+        let us = List.init(List.length(ds), _ => Typ.Unknown(prov, s));
+        DHExp.cast(d, Prod(us), Unknown(prov, s));
       | _ => d
       }
     | Ap(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
-      | (Unknown(prov), Rec(_, Sum(_)))
-      | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
+      | (Unknown(prov, s), Rec(_, Sum(_)))
+      | (Unknown(prov, s), Sum(_)) =>
+        DHExp.cast(d, self_ty, Unknown(prov, s))
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -104,24 +110,24 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
+let wrap = (ctx: Ctx.t, id: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   switch (Info.status_exp(ctx, mode, self)) {
   | NotInHole(_) =>
     let self_ty =
       switch (Self.typ_of_exp(ctx, self)) {
       | Some(self_ty) => Typ.normalize(ctx, self_ty)
-      | None => Unknown(Internal)
+      | None => Unknown(NoProvenance, false)
       };
-    cast(ctx, mode, self_ty, d);
-  | InHole(_) => NonEmptyHole(TypeInconsistent, u, 0, d)
+    cast(ctx, id, mode, self_ty, d);
+  | InHole(_) => NonEmptyHole(TypeInconsistent, id, 0, d)
   };
 
 let rec dhexp_of_uexp =
         (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
-  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+  switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
-    let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
       switch (uexp.term) {
       | Invalid(t) => Some(DHExp.InvalidText(id, 0, t))
@@ -139,7 +145,7 @@ let rec dhexp_of_uexp =
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
-        let ty = Typ.matched_list(ctx, ty);
+        let (ty, _) = Typ.matched_list(ctx, id, ty);
         DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
@@ -281,7 +287,8 @@ let rec dhexp_of_uexp =
   };
 }
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
-  switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
+  let id = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
+  switch (Id.Map.find_opt(id, m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
     let err_status = Info.status_pat(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
@@ -289,18 +296,17 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
     let wrap = (d: DHPat.t): option(DHPat.t) =>
       switch (maybe_reason) {
       | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
+      | Some(reason) => Some(NonEmptyHole(reason, id, 0, d))
       };
     switch (upat.term) {
-    | Invalid(t) => Some(DHPat.InvalidText(u, 0, t))
-    | EmptyHole => Some(EmptyHole(u, 0))
+    | Invalid(t) => Some(DHPat.InvalidText(id, 0, t))
+    | EmptyHole => Some(EmptyHole(id, 0))
     | MultiHole(_) =>
       // TODO: dhexp, eval for multiholes
-      Some(EmptyHole(u, 0))
+      Some(EmptyHole(id, 0))
     | Wild => wrap(Wild)
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
@@ -310,11 +316,12 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       let* ty = fixed_pat_typ(m, upat);
-      wrap(ListLit(Typ.matched_list(ctx, ty), ds));
+      let (ty', _) = Typ.matched_list(ctx, id, ty);
+      wrap(ListLit(ty', ds));
     | Constructor(name) =>
       switch (err_status) {
       | InHole(Common(NoType(FreeConstructor(_)))) =>
-        Some(BadConstructor(u, 0, name))
+        Some(BadConstructor(id, 0, name))
       | _ => wrap(Constructor(name))
       }
     | Cons(hd, tl) =>
@@ -349,7 +356,7 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
-      | None => Typ.Unknown(Internal)
+      | None => Typ.Unknown(NoProvenance, false)
       };
     Elaborates(d, ty, Delta.empty);
   };

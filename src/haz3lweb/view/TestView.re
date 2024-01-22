@@ -25,7 +25,7 @@ let test_instance_view =
 
 let jump_to_test = (~inject, pos, id, _) => {
   let effect1 = inject(Update.SwitchEditor(pos));
-  let effect2 = inject(Update.PerformAction(Jump(TileId(id))));
+  let effect2 = inject(Update.PerformAction(Jump(TileId(id), Left)));
   Effect.bind(effect1, ~f=_result1 => effect2);
 };
 

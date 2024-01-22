@@ -34,7 +34,7 @@ let settings_menu =
     (
       ~inject: Update.t => 'a,
       {
-        core: {statics, elaborate, assist, dynamics},
+        core: {statics, elaborate, assist, dynamics, inference},
         benchmark,
         secondary_icons,
         _,
@@ -50,6 +50,7 @@ let settings_menu =
       set("τ", "Toggle Statics", statics, Statics),
       set("⇲", "Toggle Completion", assist, Assist),
       set("𝛿", "Toggle Dynamics", dynamics, Dynamics),
+      set("∪", "Toggle Inference", inference, Inference),
       set("𝑒", "Show Elaboration", elaborate, Elaborate),
       set("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
       set("✓", "Print Benchmarks", benchmark, Benchmark),

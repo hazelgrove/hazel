@@ -227,14 +227,19 @@ module Make = (M: Editor.Meta.S) => {
     | Some(z) => Some(z)
     };
 
-  let jump_to_id = (z: t, id: Id.t): option(t) => {
-    let* {origin, _} = Measured.find_by_id(id, M.measured);
+  let jump_to_id = (z: t, id: Id.t, direction: Direction.t): option(t) => {
+    let* {origin, last} = Measured.find_by_id(id, M.measured);
     let z =
       switch (to_start(z)) {
       | None => z
       | Some(z) => z
       };
-    switch (do_towards(primary(ByChar), origin, z)) {
+    let goal =
+      switch (direction) {
+      | Left => origin
+      | Right => last
+      };
+    switch (do_towards(primary(ByChar), goal, z)) {
     | None => Some(z)
     | Some(z) => Some(z)
     };

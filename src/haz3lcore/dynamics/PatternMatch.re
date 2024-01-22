@@ -5,7 +5,7 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+let const_unknown: 'a => Typ.t = _ => Unknown(NoProvenance, false);
 
 let cast_sum_maps =
     (sm1: Typ.sum_map, sm2: Typ.sum_map)
@@ -191,9 +191,9 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp, d, [(ty1, ty2)])
   | (Cons(_) | ListLit(_), Cast(d, Unknown(_), List(ty2))) =>
-    matches_cast_Cons(dp, d, [(Unknown(Internal), ty2)])
+    matches_cast_Cons(dp, d, [(Unknown(NoProvenance, false), ty2)])
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), Unknown(_))) =>
-    matches_cast_Cons(dp, d, [(ty1, Unknown(Internal))])
+    matches_cast_Cons(dp, d, [(ty1, Unknown(NoProvenance, false))])
   | (Cons(_, _), Cons(_, _))
   | (ListLit(_, _), Cons(_, _))
   | (Cons(_, _), ListLit(_))
@@ -459,9 +459,17 @@ and matches_cast_Cons =
   | Cast(d', List(ty1), List(ty2)) =>
     matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
   | Cast(d', List(ty1), Unknown(_)) =>
-    matches_cast_Cons(dp, d', [(ty1, Unknown(Internal)), ...elt_casts])
+    matches_cast_Cons(
+      dp,
+      d',
+      [(ty1, Unknown(NoProvenance, false)), ...elt_casts],
+    )
   | Cast(d', Unknown(_), List(ty2)) =>
-    matches_cast_Cons(dp, d', [(Unknown(Internal), ty2), ...elt_casts])
+    matches_cast_Cons(
+      dp,
+      d',
+      [(Unknown(NoProvenance, false), ty2), ...elt_casts],
+    )
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch

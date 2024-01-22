@@ -11,7 +11,7 @@ let leading_expander = " " ++ AssistantExpander.c;
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Internal);
+  let unk: Typ.t = Unknown(NoProvenance, false);
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
     ("true", Bool),
@@ -70,8 +70,8 @@ module Typ = {
   let expected: Info.t => Typ.t =
     fun
     | InfoExp({mode, _})
-    | InfoPat({mode, _}) => Mode.ty_of(mode)
-    | _ => Unknown(Internal);
+    | InfoPat({mode, _}) => Mode.assistant_ty_of(mode)
+    | _ => Unknown(NoProvenance, false);
 
   let filter_by =
       (

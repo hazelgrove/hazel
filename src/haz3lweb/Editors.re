@@ -108,33 +108,37 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
     )
   };
 
-let reset_nth_slide = (n, slides) => {
+let reset_nth_slide = (n, slides, ~inference_enabled) => {
   let data = List.nth(Init.startup.scratch |> snd, n);
-  let init_nth = ScratchSlide.unpersist(data);
+  let init_nth = ScratchSlide.unpersist(data, ~inference_enabled);
   Util.ListUtil.put_nth(n, init_nth, slides);
 };
 
-let reset_named_slide = (name, slides) => {
+let reset_named_slide = (name, slides, ~inference_enabled) => {
   let data = List.assoc(name, Init.startup.examples |> snd);
-  let init_name = ScratchSlide.unpersist(data);
+  let init_name = ScratchSlide.unpersist(data, ~inference_enabled);
   slides |> List.remove_assoc(name) |> List.cons((name, init_name));
 };
 
-let reset_current = (editors: t, ~instructor_mode: bool): t =>
+let reset_current =
+    (editors: t, ~instructor_mode: bool, ~inference_enabled): t =>
   switch (editors) {
   | DebugLoad => failwith("impossible")
-  | Scratch(n, slides) => Scratch(n, reset_nth_slide(n, slides))
+  | Scratch(n, slides) =>
+    Scratch(n, reset_nth_slide(n, slides, ~inference_enabled))
   | Examples(name, slides) =>
-    Examples(name, reset_named_slide(name, slides))
+    Examples(name, reset_named_slide(name, slides, ~inference_enabled))
   | Exercise(n, specs, _) =>
     Exercise(
       n,
       specs,
-      List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
+      List.nth(specs, n)
+      |> Exercise.state_of_spec(~instructor_mode, ~inference_enabled),
     )
   };
 
-let import_current = (editors: t, data: option(string)): t =>
+let import_current =
+    (editors: t, data: option(string), ~inference_enabled): t =>
   switch (editors) {
   | DebugLoad
   | Examples(_)
@@ -143,7 +147,7 @@ let import_current = (editors: t, data: option(string)): t =>
     switch (data) {
     | None => editors
     | Some(data) =>
-      let state = ScratchSlide.import(data);
+      let state = ScratchSlide.import(data, ~inference_enabled);
       let slides = Util.ListUtil.put_nth(idx, state, slides);
       Scratch(idx, slides);
     }

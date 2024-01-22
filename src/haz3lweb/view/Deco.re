@@ -10,6 +10,8 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
+
+           let global_inference_info: InferenceResult.global_inference_info;
            let info_map: Statics.Map.t;
            let tiles: TileMap.t;
          },
@@ -200,8 +202,14 @@ module Deco =
     };
   };
 
-  let backback = (z: Zipper.t): list(Node.t) => [
+  let backback =
+      (
+        ~global_inference_info: InferenceResult.global_inference_info,
+        z: Zipper.t,
+      )
+      : list(Node.t) => [
     BackpackView.view(
+      ~global_inference_info,
       ~font_metrics,
       ~origin=Zipper.caret_point(M.map, z),
       z,
@@ -333,7 +341,7 @@ module Deco =
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
-      backback(zipper),
+      backback(~global_inference_info=M.global_inference_info, zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
     ]);

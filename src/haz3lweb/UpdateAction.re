@@ -13,6 +13,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | Inference
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

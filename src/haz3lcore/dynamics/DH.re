@@ -141,8 +141,13 @@ module rec DHExp: {
     | [_] => failwith("mk_tuple: expected at least 2 elements")
     | xs => Tuple(xs);
 
+  let is_any_synswitch: Typ.t => bool =
+    fun
+    | Unknown(_, s) => s
+    | _ => false;
+
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+    if (Typ.eq(t1, t2) || is_any_synswitch(t2)) {
       d;
     } else {
       Cast(d, t1, t2);

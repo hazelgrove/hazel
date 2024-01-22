@@ -24,14 +24,28 @@ let view =
   let editor = Editors.get_editor(editors);
   let zipper = editor.state.zipper;
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
-  let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
+  let (info_map, suggestions) = Statics.mk_map_and_inference_solutions(term);
+  let _ctx_init = ctx_init;
+  //let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term); // TODO anand and raef: we need to use this instead; figure out how
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      settings.core.inference,
+      suggestions,
+    );
   let result =
     ModelResult.get_simple(
       ModelResults.lookup(results, ScratchSlide.scratch_key),
     );
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
-      Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
+      Some(
+        LangDoc.get_color_map(
+          ~global_inference_info,
+          ~settings,
+          ~doc=langDocMessages,
+          zipper,
+        ),
+      );
     } else {
       None;
     };
@@ -57,9 +71,11 @@ let view =
     CursorInspector.view(
       ~inject,
       ~settings,
+      ~font_metrics,
       ~show_lang_doc=langDocMessages.show,
       zipper,
       info_map,
+      global_inference_info,
     );
   let sidebar =
     langDocMessages.show && settings.core.statics
@@ -70,6 +86,7 @@ let view =
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
+          global_inference_info,
         )
       : div_empty;
   [

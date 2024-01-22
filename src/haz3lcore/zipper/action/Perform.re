@@ -28,7 +28,7 @@ let go_z =
   let meta =
     switch (meta) {
     | Some(m) => m
-    | None => Editor.Meta.init(z)
+    | None => Editor.Meta.init(z, ~inference_enabled=settings.inference)
     };
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
@@ -50,7 +50,7 @@ let go_z =
   | MoveToNextHole(d) =>
     Move.go(Goal(Piece(Grout, d)), z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Jump(jump_target) =>
+  | Jump(jump_target, direction) =>
     open OptUtil.Syntax;
 
     let idx = Indicated.index(z);
@@ -66,8 +66,8 @@ let go_z =
         let* idx = idx;
         let* ci = Id.Map.find_opt(idx, statics);
         let* binding_id = Info.get_binding_site(ci);
-        Move.jump_to_id(z, binding_id);
-      | TileId(id) => Move.jump_to_id(z, id)
+        Move.jump_to_id(z, binding_id, Left);
+      | TileId(id) => Move.jump_to_id(z, id, direction)
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move);
@@ -181,7 +181,7 @@ let go_z =
 };
 
 let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
+    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t) // TODO anand and raef: add settings.inference to settings
     : Action.Result.t(Editor.t) =>
   if (ed.read_only && is_write_action(a)) {
     Result.Ok(ed);
@@ -190,5 +190,5 @@ let go =
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
     let+ z = go_z(~settings, ~meta, a, zipper);
-    Editor.new_state(~effects=Effect.s^, a, z, ed);
+    Editor.new_state(~effects=Effect.s^, a, z, ed, settings.inference);
   };

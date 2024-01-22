@@ -18,7 +18,13 @@ let reset_buffer = (model: Model.t) => {
     switch (Perform.go_z(~settings=model.settings.core, Destruct(Left), z)) {
     | Error(_) => model
     | Ok(z) =>
-      let ed = Editor.new_state(Destruct(Left), z, ed);
+      let ed =
+        Editor.new_state(
+          Destruct(Left),
+          z,
+          ed,
+          model.settings.core.inference,
+        );
       //TODO(andrew): fix double action
       {...model, editors: Editors.put_editor(ed, model.editors)};
     }
@@ -43,7 +49,8 @@ let apply =
     switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z)) {
     | None => Ok(model)
     | Some(z) =>
-      let ed = Editor.new_state(Pick_up, z, editor);
+      let ed =
+        Editor.new_state(Pick_up, z, editor, model.settings.core.inference);
       //TODO: add correct action to history (Pick_up is wrong)
       let editors = Editors.put_editor(ed, model.editors);
       Ok({...model, editors});

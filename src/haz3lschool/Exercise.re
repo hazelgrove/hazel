@@ -339,8 +339,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     };
 
-  let editor_of_serialization = zipper => Editor.init(zipper);
-  let eds_of_spec: spec => eds =
+  let editor_of_serialization = (zipper, ~inference_enabled) =>
+    Editor.init(zipper, ~inference_enabled);
+  let eds_of_spec: (spec, bool) => eds =
     (
       {
         title,
@@ -356,23 +357,27 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_tests,
         syntax_tests,
       },
+      inference_enabled,
     ) => {
-      let prelude = editor_of_serialization(prelude);
-      let correct_impl = editor_of_serialization(correct_impl);
+      let prelude = editor_of_serialization(prelude, ~inference_enabled);
+      let correct_impl =
+        editor_of_serialization(correct_impl, ~inference_enabled);
       let your_tests = {
-        let tests = editor_of_serialization(your_tests.tests);
+        let tests =
+          editor_of_serialization(your_tests.tests, ~inference_enabled);
         {tests, required: your_tests.required, provided: your_tests.provided};
       };
-      let your_impl = editor_of_serialization(your_impl);
+      let your_impl = editor_of_serialization(your_impl, ~inference_enabled);
       let hidden_bugs =
         hidden_bugs
         |> List.map(({impl, hint}) => {
-             let impl = editor_of_serialization(impl);
+             let impl =
+               editor_of_serialization(impl, ~inference_enabled=false);
              {impl, hint};
            });
       let hidden_tests = {
         let {tests, hints} = hidden_tests;
-        let tests = editor_of_serialization(tests);
+        let tests = editor_of_serialization(tests, ~inference_enabled=false);
         {tests, hints};
       };
       {
@@ -480,8 +485,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let state_of_spec = (spec, ~instructor_mode: bool): state => {
-    let eds = eds_of_spec(spec);
+  let state_of_spec =
+      (spec, ~instructor_mode: bool, ~inference_enabled): state => {
+    let eds = eds_of_spec(spec, inference_enabled);
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
@@ -501,15 +507,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~inference_enabled,
       )
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
-        Editor.init(zipper);
+        Editor.init(zipper, ~inference_enabled);
       } else {
-        editor_of_serialization(default);
+        editor_of_serialization(default, ~inference_enabled);
       };
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);

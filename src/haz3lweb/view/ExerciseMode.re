@@ -53,7 +53,14 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 };
 
 let view =
-    (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~mousedown,
+      ~global_inference_info: InferenceResult.global_inference_info,
+      self: t,
+    ) => {
   let {
     exercise,
     results: _,
@@ -72,13 +79,26 @@ let view =
         hidden_bugs,
         hidden_tests: _,
       } = stitched_dynamics;
+  let global_inference_info =
+    InferenceResult.mk_global_inference_info(
+      settings.core.inference,
+      (
+        global_inference_info.typehole_suggestions,
+        global_inference_info.exphole_suggestions,
+      ),
+    );
   let (focal_zipper, focal_info_map) =
     Exercise.focus(exercise, stitched_dynamics);
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(
-        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
+        LangDoc.get_color_map(
+          ~global_inference_info,
+          ~settings,
+          ~doc=langDocMessages,
+          focal_zipper,
+        ),
       );
     } else {
       None;
@@ -333,9 +353,11 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
+          ~font_metrics,
           ~show_lang_doc=langDocMessages.show,
           focal_zipper,
           focal_info_map,
+          global_inference_info,
         ),
       ]
       : [];
@@ -348,6 +370,7 @@ let view =
           ~doc=langDocMessages,
           Indicated.index(focal_zipper),
           focal_info_map,
+          global_inference_info,
         )
       : div([]);
   [
