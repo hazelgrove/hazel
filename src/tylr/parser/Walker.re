@@ -100,6 +100,34 @@ let step = (~from: Dir.t, src: End.t) =>
     |> Walk.Index.union_all
   };
 
+let lt = (l: End.t, r: End.t) =>
+  step(~from=L, l)
+  |> Walk.Index.find(r)
+  |> List.filter_map(walk => {
+       let stride = Walk.fst(walk);
+       switch (Stride.is_eq(stride)) {
+       | Some(_) => None
+       | None => Some(Stride.base(stride))
+       };
+     })
+  |> ListUtil.hd_opt;
+let gt = (l: End.t, r: End.t) =>
+  step(~from=R, r)
+  |> Walk.Index.find(l)
+  |> List.filter_map(walk => {
+       let stride = Walk.fst(walk);
+       switch (Stride.is_eq(stride)) {
+       | Some(_) => None
+       | None => Some(Stride.base(stride))
+       };
+     })
+  |> ListUtil.hd_opt;
+let eq = (l: End.t, r: End.t) =>
+  step(~from=L, l)
+  |> Walk.Index.find(r)
+  |> List.filter_map(walk => Stride.is_eq(Walk.fst(walk)))
+  |> ListUtil.hd_opt;
+
 let walk = (~from: Dir.t, src: End.t) => {
   let seen = Hashtbl.create(100);
   let rec go = (src: Bound.t(Molded.Label.t)) =>

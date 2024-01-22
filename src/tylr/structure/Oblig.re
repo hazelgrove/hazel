@@ -43,9 +43,10 @@ module Delta = {
     };
   let of_effects = List.fold_left(Fun.flip(add_effect), zero);
 
-  let minimize = (f: 'x => option('y), xs: list('x)): option('y) => {
+  let minimize =
+      (~to_zero=false, f: 'x => option('y), xs: list('x)): option('y) => {
     open OptUtil.Syntax;
-    let+ (y, effs, _) =
+    let* (y, effs, delta) =
       xs
       |> List.map(Effects.record(f))
       |> List.filter_map(((y_opt, effs)) =>
@@ -53,7 +54,11 @@ module Delta = {
          )
       |> ListUtil.min(((_, _, l), (_, _, r)) => compare(l, r))
       |> ListUtil.hd_opt;
-    Effects.commit(effs);
-    y;
+    if (!to_zero || delta == zero) {
+      Effects.commit(effs);
+      Some(y);
+    } else {
+      None;
+    };
   };
 };
