@@ -116,7 +116,10 @@ let view =
           ),
         ~code_id="prelude",
         ~info_map=prelude.info_map,
-        ~test_results=TestResults.unwrap_test_results(prelude.simple_result),
+        ~test_results=
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(prelude.result),
+          ),
         ~footer=[],
         eds.prelude,
       ),
@@ -132,7 +135,9 @@ let view =
           ~code_id="correct-impl",
           ~info_map=instructor.info_map,
           ~test_results=
-            TestResults.unwrap_test_results(instructor.simple_result),
+            TestResults.unwrap_test_results(
+              ModelResult.get_simple(instructor.result),
+            ),
           ~footer=[],
           eds.correct_impl,
         ),
@@ -195,7 +200,9 @@ let view =
         ~code_id="your-tests",
         ~info_map=test_validation.info_map,
         ~test_results=
-          TestResults.unwrap_test_results(test_validation.simple_result),
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(test_validation.result),
+          ),
         ~footer=[
           Grading.TestValidationReport.view(
             ~inject,
@@ -211,10 +218,7 @@ let view =
     List.mapi(
       (
         i,
-        (
-          Exercise.{impl, _},
-          Exercise.DynamicsItem.{info_map, simple_result, _},
-        ),
+        (Exercise.{impl, _}, Exercise.DynamicsItem.{info_map, result, _}),
       ) => {
         InstructorOnly(
           () =>
@@ -227,7 +231,10 @@ let view =
                 ),
               ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
               ~info_map,
-              ~test_results=TestResults.unwrap_test_results(simple_result),
+              ~test_results=
+                TestResults.unwrap_test_results(
+                  ModelResult.get_simple(result),
+                ),
               ~footer=[],
               impl,
             ),
@@ -245,7 +252,8 @@ let view =
       ),
     );
 
-  let your_impl_view =
+  let your_impl_view = {
+    let simple = ModelResult.get_simple(user_impl.result);
     Always(
       editor_view(
         YourImpl,
@@ -253,23 +261,25 @@ let view =
         ~caption=Cell.bolded_caption("Your Implementation"),
         ~code_id="your-impl",
         ~info_map=user_impl.info_map,
-        ~test_results=
-          TestResults.unwrap_test_results(user_impl.simple_result),
+        ~test_results=TestResults.unwrap_test_results(simple),
         ~footer=
-          Cell.eval_result_footer_view(
+          Cell.footer(
             ~settings,
             ~inject,
             ~font_metrics,
-            ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
-            ~result_key="your-impl",
-            user_impl.simple_result,
+            ~result_key=Exercise.user_impl_key,
+            ~simple,
+            ~result=user_impl.result,
           ),
         eds.your_impl,
       ),
     );
+  };
 
   let testing_results =
-    TestResults.unwrap_test_results(user_tests.simple_result);
+    TestResults.unwrap_test_results(
+      ModelResult.get_simple(user_tests.result),
+    );
 
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
@@ -308,7 +318,9 @@ let view =
           ~code_id="hidden-tests",
           ~info_map=instructor.info_map,
           ~test_results=
-            TestResults.unwrap_test_results(instructor.simple_result),
+            TestResults.unwrap_test_results(
+              ModelResult.get_simple(instructor.result),
+            ),
           ~footer=[],
           eds.hidden_tests.tests,
         ),

@@ -2,7 +2,8 @@ open Transition;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step = {
-  d: DHExp.t,
+  d: DHExp.t, // technically can be calculated from d_loc and ctx
+  state: EvaluatorState.t,
   d_loc: DHExp.t, // the expression at the location given by ctx
   ctx: EvalCtx.t,
   knd: step_kind,
@@ -11,21 +12,23 @@ type step = {
 let unwrap = (step, sel: EvalCtx.cls) =>
   EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
 
+let unwrap_unsafe = (step, sel: EvalCtx.cls) =>
+  EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
+
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    env: ClosureEnvironment.t, // technically can be calculated from ctx
+    d_loc: DHExp.t,
     ctx: EvalCtx.t,
-    apply: unit => DHExp.t,
-    undo: DHExp.t,
     knd: step_kind,
   };
 
-  let mk = (ctx, apply, undo, knd) => {ctx, apply, undo, knd};
+  let mk = (ctx, env, d_loc, knd) => {ctx, env, d_loc, knd};
 
   let get_ctx = (obj: t): EvalCtx.t => {
     obj.ctx;
   };
-  let get_exp = (obj: t): DHExp.t => obj.apply();
   let get_kind = (obj: t): step_kind => obj.knd;
 
   let wrap = (f: EvalCtx.t => EvalCtx.t, obj: t) => {
@@ -49,8 +52,6 @@ module Decompose = {
       };
     };
   };
-
-  // TODO[Matt]: Add Skip/Step back to this
 
   module DecomposeEVMode: {
     include
@@ -126,11 +127,11 @@ module Decompose = {
       (rq, rl) =>
         switch (rq) {
         | (_, Result.Indet, _, _) => Result.Indet
-        | (undo, Result.BoxedValue, _, v) =>
+        | (undo, Result.BoxedValue, env, v) =>
           switch (rl(v)) {
           | Constructor => Result.BoxedValue
           | Indet => Result.Indet
-          | Step(s) => Result.Step([EvalObj.mk(Mark, s.apply, undo, s.kind)])
+          | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           }
         | (_, Result.Step(_) as r, _, _) => r
         };
@@ -161,6 +162,46 @@ module Decompose = {
     };
   };
 };
+
+module TakeStep = {
+  module TakeStepEVMode: {
+    include
+      EV_MODE with
+        type result = option(DHExp.t) and type state = ref(EvaluatorState.t);
+  } = {
+    type state = ref(EvaluatorState.t);
+    type requirement('a) = 'a;
+    type requirements('a, 'b) = 'a;
+    type result = option(DHExp.t);
+
+    // Assume that everything is either value or final as required.
+    let req_value = (_, _, d) => d;
+    let req_all_value = (_, _, ds) => ds;
+    let req_final = (_, _, d) => d;
+    let req_all_final = (_, _, ds) => ds;
+
+    let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
+      switch (rl(rq)) {
+      | Step({apply, _}) => Some(apply())
+      | Constructor
+      | Indet => None
+      };
+
+    let (and.) = (x1, x2) => (x1, x2);
+
+    let otherwise = (_, _) => ();
+
+    let update_test = (state, id, v) =>
+      state := EvaluatorState.add_test(state^, id, v);
+  };
+
+  module TakeStepEV = Transition(TakeStepEVMode);
+
+  let take_step = (state, env, d) =>
+    TakeStepEV.transition((_, _, _) => None, state, env, d);
+};
+
+let take_step = TakeStep.take_step;
 
 let rec rev_concat: (list('a), list('a)) => list('a) =
   (ls, rs) => {
@@ -305,10 +346,18 @@ let decompose = (d: DHExp.t) => {
   Decompose.Result.unbox(rs);
 };
 
-let rec evaluate_with_history = d =>
-  switch (decompose(d)) {
-  | [] => []
-  | [x, ..._] =>
-    let next = compose(x.ctx, x.apply());
-    [next, ...evaluate_with_history(next)];
-  };
+let evaluate_with_history = d => {
+  let state = ref(EvaluatorState.init);
+  let rec go = d =>
+    switch (decompose(d)) {
+    | [] => []
+    | [x, ..._] =>
+      switch (take_step(state, x.env, x.d_loc)) {
+      | None => []
+      | Some(d) =>
+        let next = compose(x.ctx, d);
+        [next, ...go(next)];
+      }
+    };
+  go(d);
+};

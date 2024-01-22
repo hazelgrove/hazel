@@ -330,6 +330,40 @@ let editor_view =
   );
 };
 
+let footer =
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Settings.t,
+      ~result_key: string,
+      ~result: ModelResult.t,
+      ~simple: TestResults.simple,
+    ) =>
+  if (!settings.core.statics) {
+    [];
+  } else {
+    switch (result) {
+    | NoElab => []
+    | Evaluation({elab, _}) =>
+      eval_result_footer_view(
+        ~inject,
+        ~font_metrics,
+        ~elab,
+        ~settings,
+        ~result_key,
+        simple,
+      )
+    | Stepper(s) =>
+      StepperView.stepper_view(
+        ~inject,
+        ~settings=settings.core.evaluation,
+        ~font_metrics,
+        ~result_key,
+        s,
+      )
+    };
+  };
+
 let editor_with_result_view =
     (
       ~inject,
@@ -350,30 +384,7 @@ let editor_with_result_view =
   let simple = ModelResult.get_simple(result);
   let test_results = TestResults.unwrap_test_results(simple);
   let eval_result_footer =
-    if (!settings.core.statics) {
-      [];
-    } else {
-      switch (result) {
-      | NoElab => []
-      | Evaluation({elab, _}) =>
-        eval_result_footer_view(
-          ~inject,
-          ~font_metrics,
-          ~elab,
-          ~settings,
-          ~result_key,
-          simple,
-        )
-      | Stepper(s) =>
-        StepperView.stepper_view(
-          ~inject,
-          ~settings=settings.core.evaluation,
-          ~font_metrics,
-          ~result_key,
-          s,
-        )
-      };
-    };
+    footer(~inject, ~font_metrics, ~settings, ~result_key, ~result, ~simple);
   editor_view(
     ~inject,
     ~font_metrics,

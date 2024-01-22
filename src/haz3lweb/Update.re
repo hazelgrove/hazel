@@ -522,6 +522,8 @@ let rec apply =
         |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | ToggleStepper(key) =>
+      print_endline("YYY");
+      print_endline(key);
       Ok({
         ...model,
         results:
@@ -533,7 +535,7 @@ let rec apply =
                  |> ModelResult.toggle_stepper,
                )
              ),
-      })
+      });
     | UpdateResult(k, mr) =>
       switch (mr) {
       | Some(mr) =>
