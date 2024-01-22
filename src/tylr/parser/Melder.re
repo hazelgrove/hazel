@@ -46,7 +46,6 @@ let meld =
     };
   go(src, fill);
 };
-
 let meld_eq =
     (~repair=false, ~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t)
     : option(Wald.t) =>
@@ -96,21 +95,44 @@ module Slope_ = {
             ~fill=[],
             w: Wald.t,
           )
-          : Result.t(Slope.Dn.t, list(Meld.t)) =>
+          : Result.t(Slope.Dn.t, list(Meld.t)) => {
+    let meld = meld(~repair, ~from=L);
+    let rec go = (dn, fill) =>
+      switch (dn) {
+      | [] =>
+        switch (meld(Root, ~fill, w)) {
+        | None
+        | Some(Eq(_)) => Error(fill)
+        | Some(Neq(dn)) => Ok(dn)
+        }
+      | [hd, ...tl] =>
+        switch (meld(Node(hd.wald), ~fill, w)) {
+        | None => go(tl, Terr.R.round(hd, ~fill))
+        | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
+        | Some(Neq(dn')) => Ok(Slope.cat(dn', dn))
+        }
+      };
     switch (dn) {
-    | [] =>
-      switch (meld(~repair, ~from=L, Root, ~fill, w)) {
-      | None
-      | Some(Eq(_)) => Error(fill)
-      | Some(Neq(dn)) => Ok(dn)
-      }
+    | [] => go(dn, fill)
     | [hd, ...tl] =>
-      switch (meld(~repair, ~from=L, Node(hd.wald), ~fill, w)) {
-      | None => push_dn(~repair, ~top, tl, ~fill=Terr.R.round(hd, ~fill), w)
-      | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
-      | Some(Neq(dn')) => Ok(Slope.cat(dn', dn))
+      switch (Wald.zip(~from=L, hd.wald, w)) {
+      | Some(wald) => Ok([{...hd, wald}, ...tl])
+      | None =>
+        switch (Wald.split_fst(hd.wald)) {
+        | (tok, ([], [])) when Token.is_grout(tok) =>
+          Effect.perform(Remove(tok));
+          let dn = Slope.Dn.unroll_cell(hd.cell);
+          go(Slope.cat(dn, tl), fill)
+        | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
+          Effect.perform(Remove(tok));
+          let hd = {...hd, wald: Wald.mk(toks, cells)};
+          let dn = Slope.Dn.unroll_cell(hd.cell);
+          go(Slope.cat(dn, [hd, ...tl]), fill)
+        | _ => go(dn, fill)
+        }
       }
     };
+  };
 };
 
 module Zigg_ = {
