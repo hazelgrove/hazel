@@ -78,8 +78,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         )
         : TestStatus.t => {
       switch (
-        test_validation_data.simple_result,
-        hidden_bug_data.simple_result,
+        ModelResult.get_simple(test_validation_data.result),
+        ModelResult.get_simple(hidden_bug_data.result),
       ) {
       | (None, _)
       | (_, None) => Indet
@@ -261,7 +261,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         TestValidationReport.mk(
           eds,
           TestResults.unwrap_test_results(
-            stitched_dynamics.test_validation.simple_result,
+            ModelResult.get_simple(stitched_dynamics.test_validation.result),
           ),
         ),
       mutation_testing_report:
@@ -277,7 +277,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
           ~hints=eds.hidden_tests.hints,
           ~test_results=
             TestResults.unwrap_test_results(
-              stitched_dynamics.hidden_tests.simple_result,
+              ModelResult.get_simple(stitched_dynamics.hidden_tests.result),
             ),
         ),
     };

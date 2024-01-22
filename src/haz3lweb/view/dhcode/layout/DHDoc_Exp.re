@@ -436,13 +436,14 @@ let mk =
           fail();
         } else {
           let bindings = DHPat.bound_vars(dp);
-          let def_doc =
-            go_formattable(
-              ~env=
-                ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
-              ddef,
-              Let1,
-            );
+          print_endline("===");
+          print_endline(ClosureEnvironment.show(env));
+          print_endline(
+            ClosureEnvironment.show(
+              ClosureEnvironment.without_keys(bindings, env),
+            ),
+          );
+          let def_doc = go_formattable(ddef, Let1);
           vseps([
             hcats([
               DHDoc_common.Delim.mk("let"),
@@ -461,6 +462,7 @@ let mk =
             ]),
             go'(
               ~enforce_inline=false,
+              ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               dbody,
