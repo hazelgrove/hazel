@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 
-let btn = (~inject, caption, action) => {
+let btn = (~inject as _, caption, action) => {
   Node.(
     button(
       ~attr=
