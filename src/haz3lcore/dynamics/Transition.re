@@ -174,6 +174,16 @@ module Transition = (EV: EV_MODE) => {
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
+  let guard_of_rules = (rules: list(DHExp.rule), n: int): (DH.Environment, t) => {
+    switch (List.nth_opt(rules, n)) {
+    | Some(Rule((_, Some(dp_guard)), _)) => {
+      switch (matches(dp, d1'), guard) {
+        | (Matches(env'), BoolLit(true)) =>
+      dp_guard}
+    | _ => BoolLit(true)
+    };
+  };
+
   let transition = (req, state, env, d): 'a =>
     switch (d) {
     | BoundVar(x) =>
@@ -466,26 +476,31 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     // TODO(Matt): This will currently re-traverse d1 if it is a large constructor
     | ConsistentCase(Case(d1, rules, n)) =>
-      let. _ = otherwise(d1 => ConsistentCase(Case(d1, rules, n)))
-      and. d1' = req_final(req(state, env), 0, d1);
+      let. _ = otherwise((d1, _) => ConsistentCase(Case(d1, rules, n)))
+      and. d1' = req_final(req(state, env), 0, d1)
+      and. guard = req_final(req(state, env), 0, guard_of_rules(rules, n));
       switch (List.nth_opt(rules, n)) {
       | None => Indet
       | Some(Rule((dp, _), d2)) =>
-        switch (matches(dp, d1')) {
-        | Matches(env') =>
-          // Evaluate the guard
+        switch (matches(dp, d1'), guard) {
+        | (Matches(env'), BoolLit(true)) =>
+          // TODO: Evaluate the guard here
           Step({
             apply: () => Closure(evaluate_extend_env(env', env), d2),
             kind: CaseApply,
             value: false,
           })
-        | DoesNotMatch =>
+        | (Matches(_), BoolLit(false))
+        | (DoesNotMatch, _) =>
           Step({
             apply: () => ConsistentCase(Case(d1', rules, n + 1)),
             kind: CaseNext,
             value: false,
           })
-        | IndetMatch => Indet
+        | (IndetMatch, _) => Indet
+        | _ =>
+          // Error!
+          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(guard)))
         }
       };
     | InconsistentBranches(_) as d =>
