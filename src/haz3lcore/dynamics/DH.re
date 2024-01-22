@@ -16,7 +16,8 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | ApBuiltin(string, t)
+    | BuiltinFun(string)
     | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
@@ -70,7 +71,8 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | ApBuiltin(string, t)
+    | BuiltinFun(string)
     | Test(KeywordID.t, t)
     | BoolLit(bool)
     | IntLit(int)
@@ -110,6 +112,7 @@ module rec DHExp: {
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
+    | BuiltinFun(_) => "BuiltinFun"
     | Test(_) => "Test"
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
@@ -170,7 +173,8 @@ module rec DHExp: {
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
     | Test(id, a) => Test(id, strip_casts(a))
-    | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
+    | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
+    | BuiltinFun(fn) => BuiltinFun(fn)
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
@@ -230,8 +234,8 @@ module rec DHExp: {
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
-    | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
-      f1 == f2 && List.for_all2(fast_equal, args1, args2)
+    | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
+    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
       List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
@@ -258,6 +262,7 @@ module rec DHExp: {
     | (Test(_), _)
     | (Ap(_), _)
     | (ApBuiltin(_), _)
+    | (BuiltinFun(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)
     | (ListLit(_), _)

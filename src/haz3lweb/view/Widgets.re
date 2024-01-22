@@ -32,6 +32,11 @@ let hoverable_button =
       ]),
     icon,
   );
+let button_named = (~tooltip="", icon, action) =>
+  div(
+    ~attr=Attr.many([clss(["named-menu-item"]), Attr.on_click(action)]),
+    [button(icon, _ => Effect.Ignore), div([text(tooltip)])],
+  );
 
 let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
   div(
@@ -69,6 +74,16 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
 
+let toggle_named = (~tooltip="", icon, active, action) =>
+  div(
+    ~attr=
+      Attr.many([
+        clss(["named-menu-item"] @ (active ? ["active"] : [])),
+        Attr.on_click(action),
+      ]),
+    [toggle(icon, active, _ => Effect.Ignore), div([text(tooltip)])],
+  );
+
 let file_select_button = (~tooltip="", id, icon, on_input) => {
   /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
   label(
@@ -84,3 +99,9 @@ let file_select_button = (~tooltip="", id, icon, on_input) => {
     ],
   );
 };
+
+let file_select_button_named = (~tooltip="", id, icon, on_input) =>
+  div(
+    ~attr=Attr.many([clss(["named-menu-item"])]),
+    [file_select_button(id, icon, on_input), div([text(tooltip)])],
+  );

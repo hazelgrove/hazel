@@ -99,49 +99,42 @@ let view =
   ];
 };
 
-let download_slide_state = state => {
-  let json_data = ScratchSlide.export(state);
-  JsUtil.download_json("hazel-scratchpad", json_data);
-};
+let export_button = state =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      let json_data = ScratchSlide.export(state);
+      JsUtil.download_json("hazel-scratchpad", json_data);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Scratchpad",
+  );
+let import_button = inject =>
+  Widgets.file_select_button_named(
+    "import-scratchpad",
+    Icons.star,
+    file => {
+      switch (file) {
+      | None => Virtual_dom.Vdom.Effect.Ignore
+      | Some(file) => inject(UpdateAction.InitImportScratchpad(file))
+      }
+    },
+    ~tooltip="Import Scratchpad",
+  );
 
-let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
-  let export_button =
-    Widgets.button(
-      Icons.export,
-      _ => {
-        download_slide_state(state);
+let reset_button = inject =>
+  Widgets.button_named(
+    Icons.trash,
+    _ => {
+      let confirmed =
+        JsUtil.confirm(
+          "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+        );
+      if (confirmed) {
+        inject(UpdateAction.ResetCurrentEditor);
+      } else {
         Virtual_dom.Vdom.Effect.Ignore;
-      },
-      ~tooltip="Export Scratchpad",
-    );
-  let import_button =
-    Widgets.file_select_button(
-      "import-scratchpad",
-      Icons.import,
-      file => {
-        switch (file) {
-        | None => Virtual_dom.Vdom.Effect.Ignore
-        | Some(file) => inject(UpdateAction.InitImportScratchpad(file))
-        }
-      },
-      ~tooltip="Import Scratchpad",
-    );
-
-  let reset_button =
-    Widgets.button(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
-          );
-        if (confirmed) {
-          inject(ResetCurrentEditor);
-        } else {
-          Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Scratchpad",
-    );
-  [export_button, import_button] @ [reset_button];
-};
+      };
+    },
+    ~tooltip="Reset Scratchpad",
+  );

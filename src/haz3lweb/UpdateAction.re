@@ -45,7 +45,6 @@ type t =
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateLangDocMessages(LangDocMessages.update)
-  | DebugAction(DebugAction.t)
   | ExportPersistentData
   | DebugConsole(string)
   /* editors */
