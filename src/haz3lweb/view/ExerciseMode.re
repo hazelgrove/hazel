@@ -267,31 +267,25 @@ let view =
       ),
     );
 
-  [
-    score_view,
-    div(
-      ~attr=Attr.classes(["editor", "column"]),
-      [title_view, prompt_view]
-      @ render_cells(
-          settings,
-          [
-            prelude_view,
-            correct_impl_view,
-            correct_impl_ctx_view,
-            your_tests_view,
-          ]
-          @ wrong_impl_views
-          @ [
-            mutation_testing_view,
-            your_impl_view,
-            syntax_grading_view,
-            impl_validation_view,
-            hidden_tests_view,
-            impl_grading_view,
-          ],
-        ),
-    ),
-  ];
+  [score_view, title_view, prompt_view]
+  @ render_cells(
+      settings,
+      [
+        prelude_view,
+        correct_impl_view,
+        correct_impl_ctx_view,
+        your_tests_view,
+      ]
+      @ wrong_impl_views
+      @ [
+        mutation_testing_view,
+        your_impl_view,
+        syntax_grading_view,
+        impl_validation_view,
+        hidden_tests_view,
+        impl_grading_view,
+      ],
+    );
 };
 
 let reset_button = inject =>

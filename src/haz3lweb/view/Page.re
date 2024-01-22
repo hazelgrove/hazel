@@ -109,7 +109,19 @@ let main_view =
         ~exercise,
       )
     };
-  [top_bar, div(~attr=Attr.id("main"), editors_view), sidebar, bottom_bar];
+  [
+    top_bar,
+    div(
+      ~attr=
+        Attr.many([
+          Attr.id("main"),
+          Attr.classes([Settings.show_mode(settings.mode)]),
+        ]),
+      editors_view,
+    ),
+    sidebar,
+    bottom_bar,
+  ];
 };
 
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
