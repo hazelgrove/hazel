@@ -17,7 +17,7 @@ let update_settings =
           assist: !settings.core.statics,
           elaborate: settings.core.elaborate,
           dynamics: !settings.core.statics && settings.core.dynamics,
-          inference: !settings.core.inference,
+          inference: !settings.core.statics && !settings.core.inference,
         },
       },
     }
