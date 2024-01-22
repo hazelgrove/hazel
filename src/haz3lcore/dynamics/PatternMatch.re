@@ -250,7 +250,10 @@ and matches_cast_Sum =
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
   | Test(_)
-  | InvalidOperation(_) => IndetMatch
+  | InvalidOperation(_)
+  | ConsistentCase(_)
+  | Prj(_)
+  | IfThenElse(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
   | FixF(_)
@@ -261,13 +264,10 @@ and matches_cast_Sum =
   | StringLit(_)
   | ListLit(_)
   | Tuple(_)
-  | Prj(_)
-  | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)
   | Cons(_)
-  | ListConcat(_)
-  | IfThenElse(_) => DoesNotMatch
+  | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
     (
@@ -349,7 +349,7 @@ and matches_cast_Tuple =
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
+  | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
@@ -357,7 +357,7 @@ and matches_cast_Tuple =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | IfThenElse(_) => DoesNotMatch
+  | IfThenElse(_) => IndetMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
@@ -485,7 +485,7 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
+  | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
@@ -493,5 +493,5 @@ and matches_cast_Cons =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | IfThenElse(_) => DoesNotMatch
+  | IfThenElse(_) => IndetMatch
   };
