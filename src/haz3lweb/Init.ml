@@ -13922,15 +13922,6 @@ let startup : PersistentData.t =
           ("Booleans and Types", { zipper = ""; backup_text = "" });
           ("Conditional Expressions", { zipper = ""; backup_text = "" });
           ("Functions", { zipper = ""; backup_text = "" });
-          ("Tuples", { zipper = ""; backup_text = "" });
-          ("Pattern Matching on Tuples", { zipper = ""; backup_text = "" });
-          ("Recursion", { zipper = ""; backup_text = "" });
-          ("Lists", { zipper = ""; backup_text = "" });
-          ("Pattern Matching on Lists", { zipper = ""; backup_text = "" });
-          ("Recursion on Lists: length", { zipper = ""; backup_text = "" });
-          ("Recursion on Lists: sum", { zipper = ""; backup_text = "" });
-          ("Recursion on Lists: num_zeros", { zipper = ""; backup_text = "" });
-          ("Higher-Order Functions", { zipper = ""; backup_text = "" });
         ],
         [] );
   }
