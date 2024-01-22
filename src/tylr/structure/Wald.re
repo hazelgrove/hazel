@@ -31,6 +31,5 @@ let zip = (~from: Dir.t, src: Wald.t, dst: Wald.t): option(Wald.t) => {
   let (hd_src, tl_src) = split_hd(src);
   let (hd_dst, tl_dst) = split_hd(dst);
   let (hd_l, hd_r) = Dir.choose(from, hd_src, hd_dst);
-  Token.zip(hd_l, hd_r)
-  |> Option.map(t => W(Chain.zip(tl_dst, t, tl_src)));
+  Token.zip(hd_l, hd_r) |> Option.map(t => W(Chain.zip(tl_dst, t, tl_src)));
 };

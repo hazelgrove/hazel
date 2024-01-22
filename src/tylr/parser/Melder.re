@@ -122,12 +122,12 @@ module Slope_ = {
         | (tok, ([], [])) when Token.is_grout(tok) =>
           Effect.perform(Remove(tok));
           let dn = Slope.Dn.unroll_cell(hd.cell);
-          go(Slope.cat(dn, tl), fill)
+          go(Slope.cat(dn, tl), fill);
         | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
           Effect.perform(Remove(tok));
           let hd = {...hd, wald: Wald.mk(toks, cells)};
           let dn = Slope.Dn.unroll_cell(hd.cell);
-          go(Slope.cat(dn, [hd, ...tl]), fill)
+          go(Slope.cat(dn, [hd, ...tl]), fill);
         | _ => go(dn, fill)
         }
       }
