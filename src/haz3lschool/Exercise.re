@@ -710,7 +710,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     type t = {
       term: TermBase.UExp.t,
       info_map: Statics.Map.t,
-      simple_result: TestResults.simple,
+      result: ModelResult.t,
     };
     let empty: t = {
       term: {
@@ -718,10 +718,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ids: [Id.mk()],
       },
       info_map: Id.Map.empty,
-      simple_result: None,
+      result: NoElab,
     };
     let statics_only = ({term, info_map}: StaticsItem.t): t => {
-      {term, info_map, simple_result: None};
+      {term, info_map, result: NoElab};
     };
   };
 
@@ -745,47 +745,45 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(settings, stitch_term(state));
-    let simple_result_of = key =>
+    let result_of = key =>
       switch (results) {
-      | None => None
+      | None => ModelResult.NoElab
       | Some(results) =>
-        ModelResult.get_simple(
-          ModelResults.lookup(results, key)
-          |> Option.value(~default=ModelResult.NoElab),
-        )
+        ModelResults.lookup(results, key)
+        |> Option.value(~default=ModelResult.NoElab)
       };
 
     let test_validation =
       DynamicsItem.{
         term: test_validation.term,
         info_map: test_validation.info_map,
-        simple_result: simple_result_of(test_validation_key),
+        result: result_of(test_validation_key),
       };
 
     let user_impl =
       DynamicsItem.{
         term: user_impl.term,
         info_map: user_impl.info_map,
-        simple_result: simple_result_of(user_impl_key),
+        result: result_of(user_impl_key),
       };
 
     let user_tests =
       DynamicsItem.{
         term: user_tests.term,
         info_map: user_tests.info_map,
-        simple_result: simple_result_of(user_tests_key),
+        result: result_of(user_tests_key),
       };
     let prelude =
       DynamicsItem.{
         term: prelude.term,
         info_map: prelude.info_map,
-        simple_result: None,
+        result: NoElab,
       };
     let instructor =
       DynamicsItem.{
         term: instructor.term,
         info_map: instructor.info_map,
-        simple_result: simple_result_of(instructor_key),
+        result: result_of(instructor_key),
       };
     let hidden_bugs =
       List.mapi(
@@ -793,7 +791,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           DynamicsItem.{
             term: statics_item.term,
             info_map: statics_item.info_map,
-            simple_result: simple_result_of(hidden_bugs_key(n)),
+            result: result_of(hidden_bugs_key(n)),
           },
         hidden_bugs,
       );
@@ -801,7 +799,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       DynamicsItem.{
         term: hidden_tests.term,
         info_map: hidden_tests.info_map,
-        simple_result: simple_result_of(hidden_tests_key),
+        result: result_of(hidden_tests_key),
       };
     {
       test_validation,

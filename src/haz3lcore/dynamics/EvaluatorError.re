@@ -18,4 +18,5 @@ type t =
   | BadBuiltinAp(string, list(DHExp.t))
   | InvalidProjection(int);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(t);

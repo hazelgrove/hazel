@@ -203,7 +203,7 @@ module Ordered = {
   };
 
   let without_keys = (keys, m) => {
-    filterk(((s, _)) => List.exists(x => x == s, keys), m);
+    filterk(((s, _)) => !List.exists(x => x == s, keys), m);
   };
 };
 

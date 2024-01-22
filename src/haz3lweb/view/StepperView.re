@@ -74,7 +74,7 @@ let stepper_view =
     Widgets.button(Icons.cog, _ => inject(Set(Evaluation(ShowSettings))));
   let current =
     switch (stepper.current) {
-    | StepperOK(d) =>
+    | StepperOK(d, _) =>
       div(
         ~attr=Attr.classes(["cell-result"]),
         [
@@ -89,7 +89,7 @@ let stepper_view =
     // TODO[Matt]: show errors and waiting
     | StepperError(_)
     | StepTimeout
-    | StepPending(_, _) => div([])
+    | StepPending(_, _, _) => div([])
     };
 
   let previous_step = (step: Stepper.step_with_previous) => {

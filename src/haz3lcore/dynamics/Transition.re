@@ -241,14 +241,14 @@ module Transition = (EV: EV_MODE) => {
           switch (d') {
           | BoolLit(true) =>
             update_test(state, id, (d', Pass));
-            d;
+            Tuple([]);
           | BoolLit(false) =>
             update_test(state, id, (d', Fail));
-            d;
+            Tuple([]);
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
             update_test(state, id, (d', Indet));
-            d;
+            Tuple([]);
           },
         kind: UpdateTest,
         value: true,
