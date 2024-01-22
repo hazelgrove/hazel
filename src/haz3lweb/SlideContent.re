@@ -201,7 +201,7 @@ let get_content =
             text("However, it is possible to define a "),
             em("new variable"),
             text(
-              " that shares the name of a previously bound variable. However, this makes it impossible to refer to the previous binding within the scope of the new binding; we saw that variable has been ",
+              " that shares the name of a previously bound variable. However, this makes it impossible to refer to the previous binding within the scope of the new binding; we say that variable has been ",
             ),
             em("shadowed"),
             text("."),
