@@ -19,6 +19,7 @@ let startup : PersistentData.t =
                 show_lookup_steps = false;
                 show_stepper_filters = false;
                 stepper_history = false;
+                show_settings = false;
               };
           };
         async_evaluation = false;

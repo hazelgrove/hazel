@@ -11,6 +11,7 @@ module Evaluation = {
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
     stepper_history: bool,
+    show_settings: bool,
   };
 
   let init = {
@@ -21,6 +22,7 @@ module Evaluation = {
     show_lookup_steps: false,
     show_stepper_filters: false,
     stepper_history: false,
+    show_settings: false,
   };
 };
 

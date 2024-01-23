@@ -10,7 +10,8 @@ type evaluation_settings_action =
   | ShowCasts
   | ShowFixpoints
   | ShowLookups
-  | ShowFilters;
+  | ShowFilters
+  | ShowSettings;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
