@@ -70,6 +70,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
     | InconsistentBranches(_)
+    | IfThenElse(_)
     | Sequence(_)
     | Let(_)
     | FixF(_) => d
@@ -97,8 +98,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | Test(_)
-    | IfThenElse(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
