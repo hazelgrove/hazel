@@ -81,7 +81,11 @@ let view =
       : div_empty;
   [
     div(
-      ~attr=Attr.id("main"),
+      ~attr=
+        Attr.many([
+          Attr.id("main"),
+          Attr.classes([Settings.show_mode(settings.mode)]),
+        ]),
       [div(~attr=clss(["editor", "single"]), [editor_view])],
     ),
     sidebar,

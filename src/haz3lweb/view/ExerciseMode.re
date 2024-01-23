@@ -74,7 +74,7 @@ let view =
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
     Exercise.focus(exercise, stitched_dynamics);
-
+  let score_view = Grading.GradingReport.view_overall_score(grading_report);
   let color_highlighting: option(ColorSteps.colorMap) =
     if (explainThisModel.highlight && explainThisModel.show) {
       //TODO(andrew): is indicated index appropriate below?
@@ -357,11 +357,15 @@ let view =
       : div([]);
   [
     div(
-      ~attr=Attr.id("main"),
+      ~attr=
+        Attr.many([
+          Attr.id("main"),
+          Attr.classes([Settings.show_mode(settings.mode)]),
+        ]),
       [
         div(
           ~attr=Attr.classes(["editor", "column"]),
-          [title_view, prompt_view]
+          [score_view, title_view, prompt_view]
           @ render_cells(
               settings,
               [
