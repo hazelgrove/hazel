@@ -253,7 +253,8 @@ and matches_cast_Sum =
   | InvalidOperation(_)
   | ConsistentCase(_)
   | Prj(_)
-  | IfThenElse(_) => IndetMatch
+  | IfThenElse(_)
+  | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
   | FixF(_)
@@ -343,6 +344,7 @@ and matches_cast_Tuple =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
+  | BuiltinFun(_)
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
@@ -478,6 +480,7 @@ and matches_cast_Cons =
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
   | ListConcat(_)
+  | BuiltinFun(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
