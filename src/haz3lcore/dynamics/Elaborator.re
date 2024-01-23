@@ -164,8 +164,8 @@ let rec dhexp_of_uexp =
         DHExp.ListConcat(dc1, dc2);
       | UnOp(Meta(Unquote), e) =>
         switch (e.term) {
-        | Var("e") when in_filter => Some(Constructor("$Expr"))
-        | Var("v") when in_filter => Some(Constructor("$Value"))
+        | Var("e") when in_filter => Some(Constructor("$e"))
+        | Var("v") when in_filter => Some(Constructor("$v"))
         | _ => Some(DHExp.EmptyHole(id, 0))
         }
       | UnOp(Int(Minus), e) =>
